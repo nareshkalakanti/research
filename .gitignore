@@ -39,3 +39,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Yahoo fill cache + local BB/TQ scan results (generated at runtime)
+/data/metrics.db
+/data/metrics.db-*
+/data/signals.db
+/data/signals.db-*
+
+# SQLite sidecars (never commit)
+/data/*.db-shm
+/data/*.db-wal
+*.db-shm
+*.db-wal

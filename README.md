@@ -1,36 +1,51 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Research
 
-## Getting Started
+Next.js app for India equities research — **Watching** company browser and **Theme Scanner**.
 
-First, run the development server:
+## Quick start
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Demo login:** any email · password `demo`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Data
 
-## Learn More
+| File | Purpose |
+|------|---------|
+| `data/themes.json` | Source theme patterns (Lotusdew 2026 playbook) |
+| `data/theme_keywords.json` | Normalized themes (`id`, `name`, `blog_theme`, `display_pattern`, `keywords`) |
+| `data/company_about.db` | Company about / website / Yahoo sector text |
+| `data/classifications.db` | NSE sector / sub-sector taxonomy (from stocks-ai listings) |
+| `data/governance.db` | Governance enrichment (sparse sector fallback) |
+| `data/metrics.db` | Runtime cache of Yahoo price / mcap (created by **Fill missing from web**) |
 
-To learn more about Next.js, take a look at the following resources:
+## Theme Scanner
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Multiselect themes, **grouped by `blog_theme`**
+- Custom keywords: pipe-separated OR (`acsr \| copper`), `+` for AND within a clause
+- Matches against company about / products / sector text
+- **Matched keywords are highlighted** in About previews and the expanded About panel
+- Row links: **Web** · **SC** (Screener) · **TV** (TradingView)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Metrics (price / mcap)
 
-## Deploy on Vercel
+Solid pipeline:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Seed** from sibling `stocks-ai/data/stocks_ai.db` (local)
+2. **Yahoo** `.NS` → `.BO` + quoteSummary for leftovers
+3. Cache in `data/metrics.db`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run fill-metrics
+# or with a CSV of tickers:
+npx tsx scripts/fill-metrics.ts ~/Downloads/missing-metrics-NSE-2026-08-06.csv
+```
+
+On **Missing data**: Download CSV · Fill page · Fill all missing.
+
+Coverage after seed: ~2958/2959 names (VISDEM SME has no Yahoo listing yet).
