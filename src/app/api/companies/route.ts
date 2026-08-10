@@ -115,6 +115,10 @@ export async function GET(req: NextRequest) {
       if (missing === "about") return g.about;
       if (missing === "web") return g.web;
       if (missing === "metrics") return g.price || g.mcap;
+      if (missing === "forward_pe" || missing === "fwd_pe" || missing === "fpe") {
+        const row = forwardPe.get(c.ticker.toUpperCase());
+        return row?.forward_pe == null || !Number.isFinite(row.forward_pe);
+      }
       return true;
     });
   }
@@ -272,6 +276,9 @@ export async function GET(req: NextRequest) {
     const { search_text: _, ...rest } = c;
     const g = gapFlags(c);
     const flags = breakouts.get(c.ticker.toUpperCase());
+    const fpeRow = forwardPe.get(c.ticker.toUpperCase());
+    const missingFpe =
+      fpeRow?.forward_pe == null || !Number.isFinite(fpeRow.forward_pe);
     return {
       ...rest,
       matched: matchedByTheme[c.ticker] ?? [],
@@ -290,6 +297,7 @@ export async function GET(req: NextRequest) {
         sector: g.sector,
         about: g.about,
         web: g.web,
+        forward_pe: missingFpe,
       },
     };
   });

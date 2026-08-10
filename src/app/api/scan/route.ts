@@ -33,6 +33,7 @@ export async function POST(req: NextRequest) {
     body = {};
   }
 
+  try {
   const kind: ScanKind =
     body.kind === "bb" || body.kind === "tq" || body.kind === "both"
       ? body.kind
@@ -109,6 +110,12 @@ export async function POST(req: NextRequest) {
     session: latestSignalDates(),
     signals: breakoutCounts(loadBreakoutMap()),
   });
+  } catch (e) {
+    const message =
+      e instanceof Error ? e.message : "BB/TQ scan failed unexpectedly";
+    console.error("[scan]", e);
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
 }
 
 export async function GET() {
