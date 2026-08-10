@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 
 type View = "director" | "company" | "role";
 
-/** Theme match uses company About (+ products / end-markets), not name/ticker. */
+/** Theme match uses About + products + HQ location. */
 function seatAboutText(c: GovCompanySeat): string {
   return c.about_search || c.about || "";
 }
@@ -27,7 +27,7 @@ function seatWithHighlights(
   themePattern: string | null,
 ): GovCompanySeat & { highlights: string[] } {
   const search = seatAboutText(c);
-  const about = c.about || "";
+  const about = [c.about, c.headquarters].filter(Boolean).join("\n");
   return {
     ...c,
     highlights: themePattern
@@ -113,7 +113,10 @@ type CompanyAgg = {
   cap_code: string | null;
   has_bb: boolean;
   has_tq: boolean;
+  has_hold: boolean;
+  has_edge: boolean;
   about: string | null;
+  headquarters: string | null;
   highlights: string[];
   sc: string;
   tv: string;
@@ -190,7 +193,10 @@ export async function GET(req: NextRequest) {
             cap_code: c.cap_code,
             has_bb: c.has_bb,
             has_tq: c.has_tq,
+            has_hold: c.has_hold,
+            has_edge: c.has_edge,
             about: c.about,
+            headquarters: c.headquarters,
             highlights: highlighted.highlights,
             sc: c.sc,
             tv: c.tv,

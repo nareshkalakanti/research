@@ -9,7 +9,7 @@ const CAP_CODE_BANDS: Array<{
   code: string;
   label: string;
 }> = [
-  { lo: 0, hi: 100, code: "NC", label: "Nano Cap (< 100 Cr)" },
+  { lo: 0, hi: 100, code: "TI", label: "Tiny Cap (< 100 Cr)" },
   { lo: 100, hi: 500, code: "MIC", label: "Micro Cap (100–500 Cr)" },
   { lo: 500, hi: 5_000, code: "SC", label: "Small Cap (500–5,000 Cr)" },
   { lo: 5_000, hi: 20_000, code: "MC", label: "Mid Cap (5,000–20,000 Cr)" },

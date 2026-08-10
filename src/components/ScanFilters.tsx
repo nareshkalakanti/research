@@ -1,17 +1,31 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { FillForwardPeButton } from "@/components/FillForwardPeButton";
 
 type Props = {
   bb: boolean;
   tq: boolean;
   onBb: (on: boolean) => void;
   onTq: (on: boolean) => void;
+  hold?: boolean;
+  onHold?: (on: boolean) => void;
+  edge?: boolean;
+  onEdge?: (on: boolean) => void;
+  note?: boolean;
+  onNote?: (on: boolean) => void;
   bbCount?: number;
   tqCount?: number;
+  holdCount?: number;
+  edgeCount?: number;
+  noteCount?: number;
+  bbDate?: string | null;
+  tqDate?: string | null;
   market: string;
-  pageTickers?: string[];
   onDone?: () => void | Promise<void>;
+  fpeTickers?: string[];
+  fpePending?: number;
+  onFpeDone?: () => void | Promise<void>;
 };
 
 type Progress = {
@@ -28,189 +42,213 @@ async function scanOnce(body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error("scan failed");
-  return (await res.json()) as {
-    tried: number;
-    bbHits: number;
-    tqHits: number;
-    remaining: number;
-    bbTickers?: string[];
-    tqTickers?: string[];
-    signals?: { bb: number; tq: number };
+  const json = (await res.json()) as {
+    ok?: boolean;
+    tried?: number;
+    bbHits?: number;
+    tqHits?: number;
+    remaining?: number;
+    session?: { bb: string | null; tq: string | null };
+    error?: string;
   };
+  if (!res.ok || json.ok === false) {
+    throw new Error(json.error || `Scan failed (${res.status})`);
+  }
+  return json;
 }
 
-function formatNewTickers(tickers: string[], limit = 8): string {
-  if (!tickers.length) return "";
-  const uniq = [...new Set(tickers)];
-  const head = uniq.slice(0, limit).join(", ");
-  return uniq.length > limit ? `${head}…` : head;
-}
-
-/** BB / TQ filter chips + local Yahoo weekly scan (writes data/signals.db). */
+/** Filters + Scan: weekly BB/TQ (incremental). Fwd PE fills separately. */
 export function ScanFilters({
   bb,
   tq,
   onBb,
   onTq,
+  hold = false,
+  onHold,
+  edge = false,
+  onEdge,
+  note = false,
+  onNote,
   bbCount,
   tqCount,
+  holdCount,
+  edgeCount,
+  noteCount,
+  bbDate,
+  tqDate,
   market,
-  pageTickers,
   onDone,
+  fpeTickers,
+  fpePending,
+  onFpeDone,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
 
-  const run = useCallback(
-    async (mode: "page" | "all") => {
-      setBusy(true);
-      const pageMode = mode === "page";
-      setProgress({
-        pct: 8,
-        label: pageMode ? "Scan page" : "Scan all",
-        detail: "Weekly Yahoo · BB + TQ",
-      });
+  const runScan = useCallback(async () => {
+    setBusy(true);
+    setProgress({
+      pct: 3,
+      label: "Scanning",
+      detail: "BB/TQ…",
+    });
 
-      let remaining = pageMode
-        ? Math.max(pageTickers?.length || 1, 1)
-        : Math.max(200, 1);
-      let gotBb = 0;
-      let gotTq = 0;
-      const newBb: string[] = [];
-      const newTq: string[] = [];
+    let remaining = 1;
+    let gotBb = 0;
+    let gotTq = 0;
+    let sessionLabel = "";
 
-      try {
-        for (let round = 1; round <= (pageMode ? 1 : 80); round += 1) {
-          const json = await scanOnce({
-            kind: "both",
-            market,
-            tickers: pageMode ? pageTickers : undefined,
-            limit: pageMode ? Math.min(pageTickers?.length || 40, 80) : 40,
-            missingOnly: !pageMode,
-          });
-          gotBb += json.bbHits;
-          gotTq += json.tqHits;
-          if (json.bbTickers?.length) newBb.push(...json.bbTickers);
-          if (json.tqTickers?.length) newTq.push(...json.tqTickers);
-          // Surface new hits in the table as soon as they appear.
-          if (json.bbHits > 0) onBb(true);
-          if (json.tqHits > 0) onTq(true);
-          remaining = json.remaining;
-          const pct = pageMode
-            ? 100
-            : remaining <= 0
-              ? 100
-              : Math.min(96, 8 + round * 3);
-          const names = [
-            formatNewTickers(newBb) && `BB ${formatNewTickers(newBb)}`,
-            formatNewTickers(newTq) && `TQ ${formatNewTickers(newTq)}`,
-          ]
-            .filter(Boolean)
-            .join(" · ");
-          setProgress({
-            pct,
-            label: pageMode ? "Page done" : `Batch ${round}`,
-            detail: `+${gotBb} BB · +${gotTq} TQ${
-              names ? ` · ${names}` : ""
-            }${pageMode ? "" : ` · ${remaining.toLocaleString()} left`}`,
-            done: pageMode || remaining <= 0,
-          });
-          await onDone?.();
-          if (pageMode) break;
-          if (json.tried === 0 || remaining <= 0) break;
-          await new Promise((r) => setTimeout(r, 250));
+    try {
+      for (let round = 1; round <= 120; round += 1) {
+        const json = await scanOnce({
+          kind: "both",
+          market,
+          limit: 40,
+          missingOnly: true,
+        });
+        gotBb += json.bbHits ?? 0;
+        gotTq += json.tqHits ?? 0;
+        remaining = json.remaining ?? 0;
+        if (json.session?.bb || json.session?.tq) {
+          sessionLabel = json.session.bb || json.session.tq || "";
         }
-        const names = [
-          formatNewTickers(newBb) && `BB ${formatNewTickers(newBb)}`,
-          formatNewTickers(newTq) && `TQ ${formatNewTickers(newTq)}`,
-        ]
-          .filter(Boolean)
-          .join(" · ");
         setProgress({
-          pct: 100,
-          label: "Complete",
-          detail: `+${gotBb} BB · +${gotTq} TQ${names ? ` · ${names}` : ""}`,
-          done: true,
+          pct: remaining <= 0 ? 100 : Math.min(98, 3 + round * 1.5),
+          label: remaining <= 0 ? "Done" : "Scanning",
+          detail: `BB/TQ ${gotBb}/${gotTq} · ${remaining.toLocaleString()} left${
+            sessionLabel ? ` · ${sessionLabel}` : ""
+          }`,
+          done: remaining <= 0,
         });
-      } catch {
-        setProgress({
-          pct: 100,
-          label: "Failed",
-          detail: "Scan request failed",
-          error: true,
-        });
-      } finally {
-        setBusy(false);
         await onDone?.();
+        if (json.tried === 0 || remaining <= 0) break;
+        await new Promise((r) => setTimeout(r, 200));
       }
-    },
-    [market, pageTickers, onDone, onBb, onTq],
-  );
+
+      onBb(true);
+      onTq(true);
+      setProgress({
+        pct: 100,
+        label: "Done",
+        detail: `${gotBb} BB · ${gotTq} TQ${
+          sessionLabel ? ` · ${sessionLabel}` : ""
+        }`,
+        done: true,
+      });
+      await onDone?.();
+    } catch (e) {
+      setProgress({
+        pct: 100,
+        label: "Failed",
+        detail:
+          e instanceof Error ? e.message : "Scan failed — try again",
+        error: true,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }, [market, onDone, onBb, onTq]);
 
   return (
-    <div className="scan-block">
-      <div className="chip-row">
-        <span className="chip-label">Scan</span>
+    <div className="breakout-bar">
+      <div className="breakout-filters">
+        {onNote ? (
+          <button
+            type="button"
+            className={`breakout-chip note ${note ? "on" : ""}`}
+            onClick={() => onNote(!note)}
+            title="Stocks with a saved research note"
+          >
+            NOTE
+            {noteCount != null ? <em>{noteCount}</em> : null}
+          </button>
+        ) : null}
+        {onEdge ? (
+          <button
+            type="button"
+            className={`breakout-chip edge ${edge ? "on" : ""}`}
+            onClick={() => onEdge(!edge)}
+            title="Early Edge + Negen + Niveshaay"
+          >
+            EDGE
+            {edgeCount != null ? <em>{edgeCount}</em> : null}
+          </button>
+        ) : null}
+        {onHold ? (
+          <button
+            type="button"
+            className={`breakout-chip hold ${hold ? "on" : ""}`}
+            onClick={() => onHold(!hold)}
+          >
+            HOLD
+            {holdCount != null ? <em>{holdCount}</em> : null}
+          </button>
+        ) : null}
         <button
           type="button"
-          className={`chip tag-chip tag-scan-bb ${bb ? "on" : ""}`}
+          className={`breakout-chip bb ${bb ? "on" : ""}`}
           onClick={() => onBb(!bb)}
-          title="Show BB NEW weekly breakouts"
+          title={
+            bbDate
+              ? `Weekly BB NEW · week of Fri ${bbDate}`
+              : "Weekly BB NEW (Fri stamp)"
+          }
         >
           BB
-          {bbCount != null ? (
-            <span className="chip-count">{bbCount.toLocaleString()}</span>
+          {bbCount != null ? <em>{bbCount}</em> : null}
+          {bbDate ? (
+            <span className="breakout-date">{bbDate.slice(5)}</span>
           ) : null}
         </button>
         <button
           type="button"
-          className={`chip tag-chip tag-scan-tq ${tq ? "on" : ""}`}
+          className={`breakout-chip tq ${tq ? "on" : ""}`}
           onClick={() => onTq(!tq)}
-          title="Show TQ weekly signals"
+          title={
+            tqDate
+              ? `Weekly TQ · week of Fri ${tqDate}`
+              : "Weekly TQ (Fri stamp)"
+          }
         >
           TQ
-          {tqCount != null ? (
-            <span className="chip-count">{tqCount.toLocaleString()}</span>
+          {tqCount != null ? <em>{tqCount}</em> : null}
+          {tqDate ? (
+            <span className="breakout-date">{tqDate.slice(5)}</span>
           ) : null}
         </button>
+      </div>
+      <div className="breakout-actions">
+        {onFpeDone ? (
+          <FillForwardPeButton
+            market={market}
+            tickers={fpeTickers}
+            pendingCount={fpePending}
+            onDone={onFpeDone}
+          />
+        ) : null}
         <button
           type="button"
-          className="btn-scan"
-          disabled={busy || !pageTickers?.length}
-          onClick={() => void run("page")}
-        >
-          Scan page
-        </button>
-        <button
-          type="button"
-          className="btn-scan-all"
+          className="breakout-scan"
           disabled={busy}
-          onClick={() => void run("all")}
+          onClick={() => void runScan()}
         >
-          Scan all
+          {busy ? "Scanning…" : "Scan"}
         </button>
       </div>
       {busy || progress ? (
         <div
-          className={`fill-progress scan-progress ${progress?.error ? "is-error" : ""} ${progress?.done ? "is-done" : ""}`}
+          className={`breakout-progress ${progress?.error ? "is-error" : ""} ${progress?.done ? "is-done" : ""}`}
           role="status"
         >
-          <div className="fill-progress-meta">
-            <span className="fill-progress-label">
-              {progress?.label || "Working…"}
-            </span>
-            <span className="fill-progress-pct">{progress?.pct ?? 0}%</span>
-          </div>
-          <div className="fill-progress-track">
+          <div className="breakout-progress-track">
             <div
-              className="fill-progress-bar"
+              className="breakout-progress-bar"
               style={{ width: `${progress?.pct ?? 0}%` }}
             />
           </div>
-          {progress?.detail ? (
-            <p className="fill-progress-detail">{progress.detail}</p>
-          ) : null}
+          <span className="breakout-progress-text">
+            {progress?.detail || progress?.label || "Working…"}
+          </span>
         </div>
       ) : null}
     </div>

@@ -11,7 +11,11 @@
     "test:scan": "tsx scripts/test-scan.ts",
     "test:themes": "tsx scripts/test-themes.ts",
     "test:gov": "tsx scripts/test-gov-map.ts",
-    "test:gov-scan": "tsx scripts/test-gov-scan.ts"
+    "test:gov-scan": "tsx scripts/test-gov-scan.ts",
+    "test:quarters": "tsx scripts/test-quarters.ts",
+    "test:forward-pe": "tsx scripts/test-forward-pe.ts",
+    "sync:holdings": "tsx scripts/sync-holdings.ts",
+    "sync:edge": "tsx scripts/sync-edge.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

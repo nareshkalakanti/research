@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadAllCompanies } from "@/lib/db";
 import {
   breakoutCounts,
+  clearAllWeeklySignals,
   invalidateBreakoutCache,
+  latestSignalDates,
   loadBreakoutMap,
   runSignalBatch,
   uncheckedTickers,
@@ -19,6 +21,8 @@ type Body = {
   limit?: number;
   /** Skip tickers already scanned this week (default true). */
   missingOnly?: boolean;
+  /** Wipe weekly BB/TQ + scan progress before this batch (full rescan). */
+  clearFirst?: boolean;
 };
 
 export async function POST(req: NextRequest) {
@@ -35,7 +39,13 @@ export async function POST(req: NextRequest) {
       : "both";
   const market = body.market || "NSE";
   const limit = Math.min(80, Math.max(1, Number(body.limit) || 40));
-  const missingOnly = body.missingOnly !== false;
+  const clearFirst = body.clearFirst === true;
+  // After a wipe, every ticker is pending — don't skip.
+  const missingOnly = clearFirst ? false : body.missingOnly !== false;
+
+  if (clearFirst) {
+    clearAllWeeklySignals();
+  }
 
   let companies = loadAllCompanies();
   if (market && market !== "All") {
@@ -69,6 +79,7 @@ export async function POST(req: NextRequest) {
       remaining: 0,
       bbTickers: [],
       tqTickers: [],
+      cleared: clearFirst,
       signals: breakoutCounts(),
       message: "Nothing left to scan for this filter",
     });
@@ -85,17 +96,17 @@ export async function POST(req: NextRequest) {
     const set = new Set(body.tickers.map((t) => t.toUpperCase()));
     remUniverse = remUniverse.filter((c) => set.has(c.ticker.toUpperCase()));
   }
-  const remaining = missingOnly
-    ? uncheckedTickers(
-        remUniverse.map((c) => c.ticker),
-        kind,
-      ).size
-    : Math.max(0, companies.length - batch.length);
+  const remaining = uncheckedTickers(
+    remUniverse.map((c) => c.ticker),
+    kind,
+  ).size;
 
   return NextResponse.json({
     ok: true,
     ...result,
     remaining,
+    cleared: clearFirst,
+    session: latestSignalDates(),
     signals: breakoutCounts(loadBreakoutMap()),
   });
 }

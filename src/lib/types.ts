@@ -8,6 +8,8 @@ export type Company = {
   sector: string | null;
   sub_sector: string | null;
   price: number | null;
+  /** Forward PE = price ÷ (latest Q EPS × 4). */
+  forward_pe?: number | null;
   mcap_cr: number | null;
   web: string | null;
   sc: string;
@@ -19,6 +21,14 @@ export type Company = {
   has_bb?: boolean;
   /** TQ weekly signal (local Yahoo scan). */
   has_tq?: boolean;
+  /** In personal holdings (data/holdings.db). */
+  has_hold?: boolean;
+  /** In Edge watchlist — Early Edge + Negen + Niveshaay (data/edge.db). */
+  has_edge?: boolean;
+  /** Has a saved research note (data/notes.db). */
+  has_note?: boolean;
+  /** Saved note body when requested / expanded. */
+  note?: string | null;
   bb?: {
     timeframe: string;
     signal: string;
@@ -41,11 +51,15 @@ export type Company = {
   };
 };
 
-export type CapTier = "NC" | "MIC" | "SC" | "MC" | "LC";
+export type CapTier = "NC" | "TI" | "MIC" | "SC" | "MC" | "LC";
 
-/** Cap buckets used by Watching / Theme Scanner filters (₹ Cr). */
+/**
+ * Cap buckets used by Watching / Theme Scanner filters (₹ Cr).
+ * NC = missing mcap · TI = &lt; 100 · MIC = 100–500 · SC = 500–5k · MC = 5k–20k · LC ≥ 20k
+ */
 export function capTier(mcap: number | null | undefined): CapTier {
   if (mcap == null || Number.isNaN(mcap)) return "NC";
+  if (mcap < 100) return "TI";
   if (mcap < 500) return "MIC";
   if (mcap < 5000) return "SC";
   if (mcap < 20000) return "MC";

@@ -15,8 +15,20 @@ import {
 import { themesByIds } from "@/lib/themes";
 import {
   invalidateBreakoutCache,
+  latestSignalDates,
   loadBreakoutMap,
 } from "@/lib/signals";
+import {
+  holdingsTickerSet,
+  invalidateHoldingsCache,
+} from "@/lib/holdings";
+import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
+import { invalidateNotesCache, notesTickerSet } from "@/lib/notes";
+import {
+  invalidateForwardPeCache,
+  loadForwardPeMap,
+  missingForwardPeTickers,
+} from "@/lib/forward-pe";
 import { capTier, type CapTier } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -28,6 +40,10 @@ export async function GET(req: NextRequest) {
   if (sp.get("refresh") === "1") {
     invalidateCompanyCache();
     invalidateBreakoutCache();
+    invalidateHoldingsCache();
+    invalidateEdgeCache();
+    invalidateNotesCache();
+    invalidateForwardPeCache();
   }
   const market = sp.get("market") || "NSE";
   const q = (sp.get("q") || "").trim();
@@ -37,6 +53,9 @@ export async function GET(req: NextRequest) {
   const smeOnly = sp.get("sme") === "1";
   const filterBb = sp.get("bb") === "1";
   const filterTq = sp.get("tq") === "1";
+  const filterHold = sp.get("hold") === "1";
+  const filterEdge = sp.get("edge") === "1";
+  const filterNote = sp.get("note") === "1";
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
   const preferBreakouts = sp.get("preferBreakouts") === "1";
   const themeIds = (sp.get("themes") || "")
@@ -52,13 +71,19 @@ export async function GET(req: NextRequest) {
   const missing = (sp.get("missing") || "").trim().toLowerCase();
 
   const breakouts = loadBreakoutMap();
+  const holdings = holdingsTickerSet();
+  const edge = edgeTickerSet();
+  const notes = notesTickerSet();
+  const forwardPe = loadForwardPeMap();
 
   let companies = loadAllCompanies();
 
-  if (market && market !== "All") {
+  // Hold / Edge / Notes are cross-market lists — don't hide SME/BSE when those chips are on.
+  const watchlistMode = filterHold || filterEdge || filterNote;
+  if (!watchlistMode && market && market !== "All") {
     companies = companies.filter((c) => c.market === market);
   }
-  if (smeOnly) {
+  if (!watchlistMode && smeOnly) {
     companies = companies.filter((c) => c.market === "NSE SME");
   }
   if (sector && sector !== "All") {
@@ -127,7 +152,7 @@ export async function GET(req: NextRequest) {
         matchedByTheme[c.ticker] = matchedTerms(c.search_text, scanPattern);
         // Match clauses on full search_text; highlight terms that appear in About.
         highlightsByTicker[c.ticker] = matchedKeywords(
-          c.about || "",
+          [c.about, c.headquarters].filter(Boolean).join("\n"),
           scanPattern,
           c.search_text,
         );
@@ -141,14 +166,14 @@ export async function GET(req: NextRequest) {
     for (const c of companies) {
       // Highlight only in About text — not company name / ticker.
       highlightsByTicker[c.ticker] = matchedKeywords(
-        c.about || "",
+        [c.about, c.headquarters].filter(Boolean).join("\n"),
         qPattern,
         c.search_text,
       );
     }
   }
 
-  // BB / TQ chip counts for the current filter set (before signal chips / prefer).
+  // BB / TQ: current market set. Hold / Edge: full watchlist sizes.
   const signalCounts = (() => {
     let bb = 0;
     let tq = 0;
@@ -157,8 +182,28 @@ export async function GET(req: NextRequest) {
       if (flags?.has_bb) bb += 1;
       if (flags?.has_tq) tq += 1;
     }
-    return { bb, tq };
+    return {
+      bb,
+      tq,
+      hold: holdings.size,
+      edge: edge.size,
+      note: notes.size,
+    };
   })();
+
+  if (filterHold) {
+    companies = companies.filter((c) =>
+      holdings.has(c.ticker.toUpperCase()),
+    );
+  }
+
+  if (filterEdge) {
+    companies = companies.filter((c) => edge.has(c.ticker.toUpperCase()));
+  }
+
+  if (filterNote) {
+    companies = companies.filter((c) => notes.has(c.ticker.toUpperCase()));
+  }
 
   // Explicit BB / TQ chips (OR when both on).
   if (filterBb || filterTq) {
@@ -181,9 +226,25 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Attach Fwd PE before sort so column sorting works.
+  type RowWithPe = (typeof companies)[number] & { forward_pe: number | null };
+  let withPe: RowWithPe[] = companies.map((c) => ({
+    ...c,
+    forward_pe: forwardPe.get(c.ticker.toUpperCase())?.forward_pe ?? null,
+  }));
+
   const mul = dir === "desc" ? -1 : 1;
-  const sortKey = sort as keyof (typeof companies)[number];
-  companies = [...companies].sort((a, b) => {
+  withPe = [...withPe].sort((a, b) => {
+    if (sort === "forward_pe") {
+      const av = a.forward_pe;
+      const bv = b.forward_pe;
+      // Missing PE sorts last in both directions.
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      return (av - bv) * mul;
+    }
+    const sortKey = sort as keyof RowWithPe;
     const av = a[sortKey];
     const bv = b[sortKey];
     if (typeof av === "number" || typeof bv === "number") {
@@ -197,17 +258,17 @@ export async function GET(req: NextRequest) {
     scan &&
     !filterBb &&
     !filterTq &&
-    companies.length > 0 &&
-    companies.every((c) => {
+    withPe.length > 0 &&
+    withPe.every((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
       return !!flags?.has_bb || !!flags?.has_tq;
     });
 
-  const total = companies.length;
+  const total = withPe.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const pageSafe = Math.min(page, pages);
   const start = (pageSafe - 1) * pageSize;
-  const slice = companies.slice(start, start + pageSize).map((c) => {
+  const slice = withPe.slice(start, start + pageSize).map((c) => {
     const { search_text: _, ...rest } = c;
     const g = gapFlags(c);
     const flags = breakouts.get(c.ticker.toUpperCase());
@@ -217,6 +278,10 @@ export async function GET(req: NextRequest) {
       highlights: highlightsByTicker[c.ticker] ?? [],
       has_bb: !!flags?.has_bb,
       has_tq: !!flags?.has_tq,
+      has_hold: holdings.has(c.ticker.toUpperCase()),
+      has_edge: edge.has(c.ticker.toUpperCase()),
+      has_note: notes.has(c.ticker.toUpperCase()),
+      forward_pe: c.forward_pe ?? null,
       bb: flags?.bb,
       tq: flags?.tq,
       missing: {
@@ -239,6 +304,9 @@ export async function GET(req: NextRequest) {
     missingSector: marketUniverse.filter((c) => !c.sector?.trim()).length,
     missingAbout: marketUniverse.filter((c) => !c.about?.trim()).length,
     missingWeb: marketUniverse.filter((c) => !c.web).length,
+    missingForwardPe: missingForwardPeTickers(
+      marketUniverse.map((c) => c.ticker),
+    ).size,
     any: marketUniverse.filter(
       (c) =>
         c.price == null ||
@@ -262,6 +330,7 @@ export async function GET(req: NextRequest) {
     scanPattern: scanPattern || null,
     gaps: gapSummary,
     signals: signalCounts,
+    session: latestSignalDates(),
     breakoutsPreferred: !!breakoutsPreferred,
   });
 }
