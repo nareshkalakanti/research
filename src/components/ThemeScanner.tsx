@@ -25,7 +25,15 @@ type ScanApi = {
   pages: number;
   scanPattern: string | null;
   markets: Record<string, number>;
-  signals?: { bb: number; tq: number };
+  gaps?: { missingForwardPe?: number };
+  signals?: {
+    bb: number;
+    tq: number;
+    hold?: number;
+    edge?: number;
+    note?: number;
+  };
+  session?: { bb: string | null; tq: string | null };
   breakoutsPreferred?: boolean;
 };
 
@@ -41,14 +49,27 @@ export function ThemeScanner() {
   const [sme, setSme] = useState(false);
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
+  const [filterHold, setFilterHold] = useState(false);
+  const [filterEdge, setFilterEdge] = useState(false);
+  const [filterNote, setFilterNote] = useState(false);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("sector");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ScanApi | null>(null);
   const [loading, setLoading] = useState(false);
-  const [signalCounts, setSignalCounts] = useState<{ bb: number; tq: number }>({
+  const [fpePending, setFpePending] = useState(0);
+  const [signalCounts, setSignalCounts] = useState<{
+    bb: number;
+    tq: number;
+    hold: number;
+    edge: number;
+    note: number;
+  }>({
     bb: 0,
     tq: 0,
+    hold: 0,
+    edge: 0,
+    note: 0,
   });
 
   useEffect(() => {
@@ -63,10 +84,26 @@ export function ThemeScanner() {
       .then(
         (j: {
           markets: Record<string, number>;
-          signals?: { bb: number; tq: number };
+          gaps?: { missingForwardPe?: number };
+          signals?: {
+            bb: number;
+            tq: number;
+            hold?: number;
+            edge?: number;
+            note?: number;
+          };
         }) => {
           setMarkets(j.markets ?? {});
-          if (j.signals) setSignalCounts(j.signals);
+          setFpePending(j.gaps?.missingForwardPe ?? 0);
+          if (j.signals) {
+            setSignalCounts({
+              bb: j.signals.bb ?? 0,
+              tq: j.signals.tq ?? 0,
+              hold: j.signals.hold ?? 0,
+              edge: j.signals.edge ?? 0,
+              note: j.signals.note ?? 0,
+            });
+          }
         },
       );
   }, []);
@@ -78,9 +115,13 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [selected, debouncedCustom, market, cap, sme, filterBb, filterTq]);
+  }, [selected, debouncedCustom, market, cap, sme, filterBb, filterTq, filterHold, filterEdge, filterNote]);
 
-  const active = selected.length > 0 || debouncedCustom.trim().length > 0;
+  const themeActive = selected.length > 0 || debouncedCustom.trim().length > 0;
+  const signalActive =
+    filterBb || filterTq || filterHold || filterEdge || filterNote;
+  const capActive = cap !== "All";
+  const active = themeActive || signalActive || capActive;
   const listMarket = sme ? "NSE SME" : market;
 
   const load = useCallback(
@@ -91,9 +132,6 @@ export function ThemeScanner() {
       }
       setLoading(true);
       const params = new URLSearchParams({
-        scan: "1",
-        themes: selected.join(","),
-        custom: debouncedCustom,
         market: listMarket,
         cap,
         page: String(page),
@@ -101,29 +139,48 @@ export function ThemeScanner() {
         sort,
         dir,
       });
+      if (themeActive) {
+        params.set("scan", "1");
+        params.set("themes", selected.join(","));
+        params.set("custom", debouncedCustom);
+      }
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
-      // When chips are off: if any theme hits have BB/TQ, show only those.
-      if (!filterBb && !filterTq) params.set("preferBreakouts", "1");
+      if (filterHold) params.set("hold", "1");
+      if (filterEdge) params.set("edge", "1");
+      if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
         const json = (await res.json()) as ScanApi;
         setData(json);
         if (json.markets) setMarkets(json.markets);
-        if (json.signals) setSignalCounts(json.signals);
+        setFpePending(json.gaps?.missingForwardPe ?? 0);
+        if (json.signals) {
+          setSignalCounts({
+            bb: json.signals.bb ?? 0,
+            tq: json.signals.tq ?? 0,
+            hold: json.signals.hold ?? 0,
+            edge: json.signals.edge ?? 0,
+            note: json.signals.note ?? 0,
+          });
+        }
       } finally {
         setLoading(false);
       }
     },
     [
       active,
+      themeActive,
       selected,
       debouncedCustom,
       listMarket,
       cap,
       filterBb,
       filterTq,
+      filterHold,
+      filterEdge,
+      filterNote,
       page,
       sort,
       dir,
@@ -143,7 +200,11 @@ export function ThemeScanner() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
+      setDir(
+        key === "price" || key === "mcap_cr" || key === "forward_pe"
+          ? "desc"
+          : "asc",
+      );
     }
   }
 
@@ -253,7 +314,7 @@ export function ThemeScanner() {
         </div>
       ) : null}
 
-      <div className="filters">
+      <div className="filters filters-stack">
         <CapMarketFilters
           cap={cap}
           onCap={setCap}
@@ -266,48 +327,27 @@ export function ThemeScanner() {
         <ScanFilters
           bb={filterBb}
           tq={filterTq}
+          hold={filterHold}
+          edge={filterEdge}
+          note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
+          onHold={setFilterHold}
+          onEdge={setFilterEdge}
+          onNote={setFilterNote}
           bbCount={data?.signals?.bb ?? signalCounts.bb}
           tqCount={data?.signals?.tq ?? signalCounts.tq}
+          holdCount={data?.signals?.hold ?? signalCounts.hold}
+          edgeCount={data?.signals?.edge ?? signalCounts.edge}
+          noteCount={data?.signals?.note ?? signalCounts.note}
+          bbDate={data?.session?.bb ?? null}
+          tqDate={data?.session?.tq ?? null}
           market={listMarket}
-          pageTickers={data?.rows.map((r) => r.ticker)}
           onDone={() => void load({ refresh: true })}
+          fpeTickers={data?.rows?.map((r) => r.ticker)}
+          fpePending={fpePending}
+          onFpeDone={() => void load({ refresh: true })}
         />
-        <div className="pager">
-          <span>
-            {!active
-              ? "Select themes or enter keywords to scan"
-              : data
-                ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()} matches${
-                    data.breakoutsPreferred ? " · BB/TQ only" : ""
-                  }`
-                : loading
-                  ? "Scanning…"
-                  : "—"}
-          </span>
-          {active && data ? (
-            <div className="pager-btns">
-              <button
-                type="button"
-                disabled={data.page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                ‹
-              </button>
-              <span>
-                {data.page}/{data.pages}
-              </span>
-              <button
-                type="button"
-                disabled={data.page >= data.pages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                ›
-              </button>
-            </div>
-          ) : null}
-        </div>
       </div>
 
       {data?.rows?.length ? (
@@ -327,19 +367,54 @@ export function ThemeScanner() {
 
       {!active ? (
         <div className="empty-state">
-          Pick one or more themes (grouped by blog theme), or type custom
-          keywords like <code>acsr | copper</code>.
+          Select themes, Cap (TI / MIC…), keywords, or tap{" "}
+          <strong>NOTE</strong> / <strong>EDGE</strong> / <strong>HOLD</strong>{" "}
+          / <strong>BB</strong> / <strong>TQ</strong>. Use <strong>Scan</strong>{" "}
+          to refresh BB/TQ.
         </div>
       ) : (
         <>
-          {loading && !data ? <div className="loading">Scanning…</div> : null}
+          {loading && !data ? <div className="loading">Loading…</div> : null}
           <CompanyTable
             rows={data?.rows ?? []}
             sort={sort}
             dir={dir}
             onSort={onSort}
-            showMatched
+            showMatched={themeActive}
             capFilter={cap}
+            onNoteChange={() => void load({ refresh: true })}
+            toolbar={
+              <div className="pager">
+                <span>
+                  {data
+                    ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()}`
+                    : loading
+                      ? "Loading…"
+                      : "—"}
+                </span>
+                {data ? (
+                  <div className="pager-btns">
+                    <button
+                      type="button"
+                      disabled={data.page <= 1}
+                      onClick={() => setPage((p) => p - 1)}
+                    >
+                      ‹
+                    </button>
+                    <span>
+                      {data.page}/{data.pages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={data.page >= data.pages}
+                      onClick={() => setPage((p) => p + 1)}
+                    >
+                      ›
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            }
           />
         </>
       )}

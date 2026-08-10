@@ -84,8 +84,9 @@ function buildSearchText(
   sector?: string | null,
   sub?: string | null,
 ): string {
-  // Theme scan uses clean about + products — not raw nav scrapes.
+  // HQ first so location themes (e.g. Mumbai) can AND with about terms.
   return [
+    row.headquarters,
     row.name,
     row.ticker,
     about,
@@ -93,6 +94,7 @@ function buildSearchText(
     row.end_markets,
     sector,
     sub,
+    row.headquarters,
   ]
     .filter(Boolean)
     .join(" \n ");

@@ -21,10 +21,18 @@ type ApiResponse = {
   gaps?: {
     missingPrice: number;
     missingMcap: number;
+    missingForwardPe?: number;
     any: number;
     metrics: number;
   };
-  signals?: { bb: number; tq: number };
+  signals?: {
+    bb: number;
+    tq: number;
+    hold?: number;
+    edge?: number;
+    note?: number;
+  };
+  session?: { bb: string | null; tq: string | null };
 };
 
 export function WatchingPanel() {
@@ -36,6 +44,9 @@ export function WatchingPanel() {
   const [sme, setSme] = useState(false);
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
+  const [filterHold, setFilterHold] = useState(false);
+  const [filterEdge, setFilterEdge] = useState(false);
+  const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("sector");
@@ -50,7 +61,7 @@ export function WatchingPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [market, debouncedQ, mode, cap, sme, sector, filterBb, filterTq]);
+  }, [market, debouncedQ, mode, cap, sme, sector, filterBb, filterTq, filterHold, filterEdge, filterNote]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -68,6 +79,9 @@ export function WatchingPanel() {
       });
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
+      if (filterHold) params.set("hold", "1");
+      if (filterEdge) params.set("edge", "1");
+      if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
@@ -86,6 +100,9 @@ export function WatchingPanel() {
       sector,
       filterBb,
       filterTq,
+      filterHold,
+      filterEdge,
+      filterNote,
       page,
       sort,
       dir,
@@ -100,7 +117,11 @@ export function WatchingPanel() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
+      setDir(
+        key === "price" || key === "mcap_cr" || key === "forward_pe"
+          ? "desc"
+          : "asc",
+      );
     }
   }
 
@@ -189,7 +210,7 @@ export function WatchingPanel() {
         </div>
       </div>
 
-      <div className="filters">
+      <div className="filters filters-stack">
         <CapMarketFilters
           cap={cap}
           onCap={setCap}
@@ -202,51 +223,27 @@ export function WatchingPanel() {
         <ScanFilters
           bb={filterBb}
           tq={filterTq}
+          hold={filterHold}
+          edge={filterEdge}
+          note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
+          onHold={setFilterHold}
+          onEdge={setFilterEdge}
+          onNote={setFilterNote}
           bbCount={data?.signals?.bb}
           tqCount={data?.signals?.tq}
+          holdCount={data?.signals?.hold}
+          edgeCount={data?.signals?.edge}
+          noteCount={data?.signals?.note}
+          bbDate={data?.session?.bb ?? null}
+          tqDate={data?.session?.tq ?? null}
           market={listMarket}
-          pageTickers={pageTickers}
           onDone={() => void load({ refresh: true })}
+          fpeTickers={pageTickers}
+          fpePending={data?.gaps?.missingForwardPe}
+          onFpeDone={() => void load({ refresh: true })}
         />
-        <label className="field sector-field">
-          <span>Sector</span>
-          <select value={sector} onChange={(e) => setSector(e.target.value)}>
-            <option value="All">All sectors</option>
-            {(data?.sectors ?? []).map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="pager">
-          <span>
-            {data
-              ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()} · ${sme ? "NSE SME" : market}`
-              : "…"}
-          </span>
-          <div className="pager-btns">
-            <button
-              type="button"
-              disabled={!data || data.page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-            >
-              ‹
-            </button>
-            <span>
-              {data?.page ?? 1}/{data?.pages ?? 1}
-            </span>
-            <button
-              type="button"
-              disabled={!data || data.page >= data.pages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              ›
-            </button>
-          </div>
-        </div>
       </div>
 
       {loading && !data ? <div className="loading">Loading…</div> : null}
@@ -256,6 +253,48 @@ export function WatchingPanel() {
         dir={dir}
         onSort={onSort}
         capFilter={cap}
+        onNoteChange={() => void load({ refresh: true })}
+        toolbar={
+          <>
+            <label className="field sector-field sector-field--table">
+              <span>Sector</span>
+              <select value={sector} onChange={(e) => setSector(e.target.value)}>
+                <option value="All">All sectors</option>
+                {(data?.sectors ?? []).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="pager">
+              <span>
+                {data
+                  ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()} · ${sme ? "NSE SME" : market}`
+                  : "…"}
+              </span>
+              <div className="pager-btns">
+                <button
+                  type="button"
+                  disabled={!data || data.page <= 1}
+                  onClick={() => setPage((p) => p - 1)}
+                >
+                  ‹
+                </button>
+                <span>
+                  {data?.page ?? 1}/{data?.pages ?? 1}
+                </span>
+                <button
+                  type="button"
+                  disabled={!data || data.page >= data.pages}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          </>
+        }
       />
     </div>
   );

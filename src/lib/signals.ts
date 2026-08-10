@@ -15,10 +15,13 @@ import {
   fetchNiftyWeeklyBars,
   fetchWeeklyBars,
   isSkippableSymbol,
+  toTradingWeekFriday,
 } from "./ohlc";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const SIGNALS_PATH = path.join(DATA_DIR, "signals.db");
+/** BB/TQ use the latest weekly bar only. */
+const SIGNAL_TF = "weekly";
 
 export type BbSignal = {
   timeframe: string;
@@ -90,6 +93,45 @@ export function invalidateBreakoutCache(): void {
   cache = null;
 }
 
+/** Wipe BB/TQ hits + scan progress (full rescan from scratch). */
+export function clearAllWeeklySignals(): void {
+  const db = ensureDb();
+  db.exec(`
+    DELETE FROM bb_signals;
+    DELETE FROM tq_signals;
+    DELETE FROM scan_checked;
+  `);
+  invalidateBreakoutCache();
+}
+
+/** Keep only the latest session bar date. */
+function isLatestSession(
+  signalDate: string | null,
+  latestBar: string | null,
+): boolean {
+  if (!signalDate || !latestBar) return false;
+  return signalDate.slice(0, 10) === latestBar.slice(0, 10);
+}
+
+export function latestSignalDates(map = loadBreakoutMap()): {
+  bb: string | null;
+  tq: string | null;
+} {
+  let bb: string | null = null;
+  let tq: string | null = null;
+  for (const v of map.values()) {
+    if (v.has_bb && v.bb?.signal_date) {
+      const d = v.bb.signal_date.slice(0, 10);
+      if (!bb || d > bb) bb = d;
+    }
+    if (v.has_tq && v.tq?.signal_date) {
+      const d = v.tq.signal_date.slice(0, 10);
+      if (!tq || d > tq) tq = d;
+    }
+  }
+  return { bb, tq };
+}
+
 export function loadBreakoutMap(): Map<string, BreakoutFlags> {
   const now = Date.now();
   if (cache && now - cache.at < CACHE_MS) return cache.map;
@@ -101,13 +143,47 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
       return map;
     }
     const db = ensureDb();
+
+    const latestBb = (
+      db
+        .prepare(
+          `SELECT MAX(signal_date) AS d FROM bb_signals
+           WHERE signal = 'NEW_BREAKOUT' AND lower(timeframe) = ?`,
+        )
+        .get(SIGNAL_TF) as { d: string | null } | undefined
+    )?.d;
+    const latestTq = (
+      db
+        .prepare(
+          `SELECT MAX(signal_date) AS d FROM tq_signals
+           WHERE lower(timeframe) = ?
+             AND crossover_type IS NOT NULL
+             AND crossover_type != 'No Crossover'`,
+        )
+        .get(SIGNAL_TF) as { d: string | null } | undefined
+    )?.d;
+
+    // Drop older sessions so tags only ever show the latest day.
+    if (latestBb) {
+      db.prepare(
+        `DELETE FROM bb_signals
+         WHERE lower(timeframe) = ? AND (signal_date IS NULL OR signal_date < ?)`,
+      ).run(SIGNAL_TF, latestBb.slice(0, 10));
+    }
+    if (latestTq) {
+      db.prepare(
+        `DELETE FROM tq_signals
+         WHERE lower(timeframe) = ? AND (signal_date IS NULL OR signal_date < ?)`,
+      ).run(SIGNAL_TF, latestTq.slice(0, 10));
+    }
+
     const bbRows = db
       .prepare(
         `SELECT ticker, timeframe, signal, price, upper_band, signal_date
          FROM bb_signals
-         WHERE signal = 'NEW_BREAKOUT' AND lower(timeframe) = 'weekly'`,
+         WHERE signal = 'NEW_BREAKOUT' AND lower(timeframe) = ?`,
       )
-      .all() as Array<{
+      .all(SIGNAL_TF) as Array<{
       ticker: string;
       timeframe: string;
       signal: string;
@@ -116,6 +192,7 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
       signal_date: string | null;
     }>;
     for (const r of bbRows) {
+      if (!isLatestSession(r.signal_date, latestBb ?? null)) continue;
       const t = r.ticker.toUpperCase();
       const cur = map.get(t) ?? { has_bb: false, has_tq: false };
       cur.has_bb = true;
@@ -133,11 +210,11 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
       .prepare(
         `SELECT ticker, timeframe, score, crossover_type, signal_date
          FROM tq_signals
-         WHERE lower(timeframe) = 'weekly'
+         WHERE lower(timeframe) = ?
            AND crossover_type IS NOT NULL
            AND crossover_type != 'No Crossover'`,
       )
-      .all() as Array<{
+      .all(SIGNAL_TF) as Array<{
       ticker: string;
       timeframe: string;
       score: number | null;
@@ -145,6 +222,7 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
       signal_date: string | null;
     }>;
     for (const r of tqRows) {
+      if (!isLatestSession(r.signal_date, latestTq ?? null)) continue;
       const t = r.ticker.toUpperCase();
       const cur = map.get(t) ?? { has_bb: false, has_tq: false };
       cur.has_tq = true;
@@ -205,7 +283,8 @@ export function analyzeBbWeekly(
     signal,
     price: Math.round(price * 100) / 100,
     upper_band: Math.round(u * 100) / 100,
-    signal_date: bars[i].date,
+    // Practical rule: weekly stamp = Friday of the NSE trading week.
+    signal_date: toTradingWeekFriday(bars[i].date),
   };
 }
 
@@ -292,7 +371,7 @@ export function analyzeTqWeekly(
     score,
     crossover_type,
     crossover_score,
-    signal_date: stock[i].date,
+    signal_date: toTradingWeekFriday(stock[i].date),
   };
 }
 
@@ -311,7 +390,7 @@ function upsertBb(
   const now = new Date().toISOString();
   const stmt = db.prepare(`
     INSERT INTO bb_signals (ticker, market, signal, timeframe, price, upper_band, signal_date, fetched_at)
-    VALUES (@ticker, @market, @signal, 'weekly', @price, @upper_band, @signal_date, @fetched_at)
+    VALUES (@ticker, @market, @signal, '${SIGNAL_TF}', @price, @upper_band, @signal_date, @fetched_at)
     ON CONFLICT(ticker, timeframe) DO UPDATE SET
       market = excluded.market,
       signal = excluded.signal,
@@ -334,8 +413,8 @@ function clearBbForTickers(tickers: string[]): void {
   const db = ensureDb();
   const placeholders = tickers.map(() => "?").join(",");
   db.prepare(
-    `DELETE FROM bb_signals WHERE timeframe = 'weekly' AND ticker IN (${placeholders})`,
-  ).run(...tickers.map((t) => t.toUpperCase()));
+    `DELETE FROM bb_signals WHERE timeframe = ? AND ticker IN (${placeholders})`,
+  ).run(SIGNAL_TF, ...tickers.map((t) => t.toUpperCase()));
 }
 
 function upsertTq(
@@ -353,7 +432,7 @@ function upsertTq(
   const now = new Date().toISOString();
   const stmt = db.prepare(`
     INSERT INTO tq_signals (ticker, timeframe, market, score, crossover_type, crossover_score, signal_date, fetched_at)
-    VALUES (@ticker, 'weekly', @market, @score, @crossover_type, @crossover_score, @signal_date, @fetched_at)
+    VALUES (@ticker, '${SIGNAL_TF}', @market, @score, @crossover_type, @crossover_score, @signal_date, @fetched_at)
     ON CONFLICT(ticker, timeframe) DO UPDATE SET
       market = excluded.market,
       score = excluded.score,
@@ -376,8 +455,8 @@ function clearTqForTickers(tickers: string[]): void {
   const db = ensureDb();
   const placeholders = tickers.map(() => "?").join(",");
   db.prepare(
-    `DELETE FROM tq_signals WHERE timeframe = 'weekly' AND ticker IN (${placeholders})`,
-  ).run(...tickers.map((t) => t.toUpperCase()));
+    `DELETE FROM tq_signals WHERE timeframe = ? AND ticker IN (${placeholders})`,
+  ).run(SIGNAL_TF, ...tickers.map((t) => t.toUpperCase()));
 }
 
 function markChecked(tickers: string[], kinds: Array<"bb" | "tq">): void {
@@ -386,12 +465,12 @@ function markChecked(tickers: string[], kinds: Array<"bb" | "tq">): void {
   const now = new Date().toISOString();
   const stmt = db.prepare(`
     INSERT INTO scan_checked (ticker, kind, timeframe, fetched_at)
-    VALUES (?, ?, 'weekly', ?)
+    VALUES (?, ?, ?, ?)
     ON CONFLICT(ticker, kind, timeframe) DO UPDATE SET fetched_at = excluded.fetched_at
   `);
   const tx = db.transaction(() => {
     for (const t of tickers) {
-      for (const k of kinds) stmt.run(t.toUpperCase(), k, now);
+      for (const k of kinds) stmt.run(t.toUpperCase(), k, SIGNAL_TF, now);
     }
   });
   tx();
@@ -405,7 +484,7 @@ export function uncheckedTickers(
   opts?: { maxAgeMs?: number },
 ): Set<string> {
   if (!tickers.length) return new Set();
-  // Weekly bars change ~each week — re-check so new BB/TQ can appear.
+  // Weekly bars — re-check within ~6 days.
   const maxAgeMs = opts?.maxAgeMs ?? 6 * 24 * 60 * 60 * 1000;
   try {
     if (!fs.existsSync(SIGNALS_PATH)) return new Set(tickers.map((t) => t.toUpperCase()));
@@ -417,9 +496,9 @@ export function uncheckedTickers(
     for (const k of kinds) {
       const rows = db
         .prepare(
-          `SELECT ticker, fetched_at FROM scan_checked WHERE kind = ? AND timeframe = 'weekly'`,
+          `SELECT ticker, fetched_at FROM scan_checked WHERE kind = ? AND timeframe = ?`,
         )
-        .all(k) as { ticker: string; fetched_at: string }[];
+        .all(k, SIGNAL_TF) as { ticker: string; fetched_at: string }[];
       for (const r of rows) {
         const at = Date.parse(r.fetched_at);
         if (Number.isFinite(at) && now - at < maxAgeMs) {
@@ -455,7 +534,7 @@ export type ScanBatchResult = {
 };
 
 /**
- * Scan a batch of tickers for BB NEW weekly and/or TQ weekly.
+ * Scan a batch of tickers for BB NEW weekly and/or TQ weekly (latest week only).
  * Clears prior weekly signals for those tickers, then upserts fresh hits.
  */
 export async function runSignalBatch(
@@ -474,20 +553,22 @@ export async function runSignalBatch(
   const doBb = kind === "bb" || kind === "both";
   const doTq = kind === "tq" || kind === "both";
 
-  let nifty: Bar[] = [];
-  if (doTq) {
-    nifty = await fetchNiftyWeeklyBars();
-    if (!nifty.length) {
-      return {
-        tried: 0,
-        bbHits: 0,
-        tqHits: 0,
-        failed: tickers.length,
-        remaining: 0,
-        bbTickers: [],
-        tqTickers: [],
-      };
-    }
+  // Nifty weekly → Friday stamp for the latest NSE trading week.
+  const nifty = await fetchNiftyWeeklyBars();
+  const sessionDate = nifty.length
+    ? toTradingWeekFriday(nifty[nifty.length - 1].date)
+    : null;
+
+  if (doTq && !nifty.length) {
+    return {
+      tried: 0,
+      bbHits: 0,
+      tqHits: 0,
+      failed: tickers.length,
+      remaining: 0,
+      bbTickers: [],
+      tqTickers: [],
+    };
   }
 
   if (doBb) clearBbForTickers(tickers.map((t) => t.ticker));
@@ -521,9 +602,14 @@ export async function runSignalBatch(
             failed += 1;
             return;
           }
+          const lastDate = toTradingWeekFriday(bars[bars.length - 1].date);
+          // Only accept signals from the latest NSE week (Friday stamp).
+          if (sessionDate && lastDate !== sessionDate) {
+            return;
+          }
           if (doBb) {
             const hit = analyzeBbWeekly(bars);
-            if (hit) {
+            if (hit && hit.signal_date?.slice(0, 10) === (sessionDate || lastDate)) {
               bbRows.push({
                 ticker,
                 market,
@@ -536,7 +622,10 @@ export async function runSignalBatch(
           }
           if (doTq) {
             const hit = analyzeTqWeekly(bars, nifty);
-            if (hit) {
+            if (
+              hit &&
+              hit.signal_date?.slice(0, 10) === (sessionDate || lastDate)
+            ) {
               tqRows.push({
                 ticker,
                 market,

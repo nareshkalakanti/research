@@ -27,11 +27,14 @@ type Seat = {
   cap_code: string | null;
   about: string | null;
   about_search?: string;
+  headquarters?: string | null;
   highlights?: string[];
   sector: string | null;
   is_sme: boolean;
   has_bb: boolean;
   has_tq: boolean;
+  has_hold?: boolean;
+  has_edge?: boolean;
   web: string | null;
   sc: string;
   tv: string;
@@ -58,7 +61,10 @@ type CompanyRow = {
   cap_code: string | null;
   has_bb: boolean;
   has_tq: boolean;
+  has_hold?: boolean;
+  has_edge?: boolean;
   about?: string | null;
+  headquarters?: string | null;
   highlights?: string[];
   sc: string;
   tv: string;
@@ -98,22 +104,32 @@ type ApiResponse = {
 
 function GovAbout({
   about,
+  headquarters,
   highlights = [],
 }: {
   about: string;
+  headquarters?: string | null;
   highlights?: string[];
 }) {
   const [more, setMore] = useState(false);
   const text = about.trim();
-  if (!text) return null;
+  if (!text && !headquarters) return null;
   const short = text.length > 320 && !more;
   const display = short ? `${text.slice(0, 320).trim()}…` : text;
 
   return (
     <div className="gov-about">
-      <p>
-        <HighlightedText text={display} keywords={highlights} />
-      </p>
+      {headquarters ? (
+        <div className="gov-hq">
+          <span className="gov-hq-label">HQ</span>
+          <HighlightedText text={headquarters} keywords={highlights} />
+        </div>
+      ) : null}
+      {text ? (
+        <p>
+          <HighlightedText text={display} keywords={highlights} />
+        </p>
+      ) : null}
       {text.length > 320 ? (
         <button
           type="button"
@@ -302,7 +318,7 @@ export function GovernanceMapPanel() {
             />
           </div>
           <p className="hint tight">
-            Match themes against company About text (not name / ticker)
+            Match themes against About + HQ location (e.g. Mumbai)
           </p>
         </div>
       </div>
@@ -530,8 +546,26 @@ export function GovernanceMapPanel() {
                       ) : null}
                     </div>
                     <div className="gov-dir-sub">
-                      {r.din ? `DIN ${r.din} · ` : null}
-                      {r.board_count} boards · {companies.map((c) => c.ticker).join(", ")}
+                      {r.din ? (
+                        <>
+                          <span>DIN {r.din}</span>
+                          <span className="gov-sep">·</span>
+                        </>
+                      ) : null}
+                      <span>{r.board_count} boards</span>
+                      {companies.length ? (
+                        <>
+                          <span className="gov-sep">·</span>
+                          <span className="gov-tickers">
+                            {companies.map((c, i) => (
+                              <span key={c.ticker} className="gov-ticker">
+                                {i > 0 ? ", " : null}
+                                {c.ticker}
+                              </span>
+                            ))}
+                          </span>
+                        </>
+                      ) : null}
                     </div>
                   </div>
                   <div className="gov-score" title="Director network score">
@@ -557,6 +591,12 @@ export function GovernanceMapPanel() {
                               {c.is_sme ? (
                                 <span className="gov-tag gov-tag-sme">SME</span>
                               ) : null}
+                              {c.has_edge ? (
+                                <span className="gov-tag gov-tag-edge">EDGE</span>
+                              ) : null}
+                              {c.has_hold ? (
+                                <span className="gov-tag gov-tag-hold">HOLD</span>
+                              ) : null}
                               {c.has_bb ? (
                                 <span className="gov-tag gov-tag-bb">BB</span>
                               ) : null}
@@ -568,6 +608,7 @@ export function GovernanceMapPanel() {
                               {[c.designation, c.category]
                                 .filter(Boolean)
                                 .join(" · ")}
+                              {c.headquarters ? ` · ${c.headquarters}` : ""}
                               {c.sector ? ` · ${c.sector}` : ""}
                               {c.market_cap_cr != null
                                 ? ` · ₹${formatMcap(c.market_cap_cr)} Cr`
@@ -588,9 +629,10 @@ export function GovernanceMapPanel() {
                             </a>
                           </div>
                         </div>
-                        {c.about ? (
+                        {c.about || c.headquarters ? (
                           <GovAbout
-                            about={c.about}
+                            about={c.about || ""}
+                            headquarters={c.headquarters}
                             highlights={c.highlights}
                           />
                         ) : null}
@@ -622,6 +664,12 @@ export function GovernanceMapPanel() {
                         {c.cap_code}
                       </span>
                     ) : null}
+                    {c.has_edge ? (
+                      <span className="gov-tag gov-tag-edge">EDGE</span>
+                    ) : null}
+                    {c.has_hold ? (
+                      <span className="gov-tag gov-tag-hold">HOLD</span>
+                    ) : null}
                     {c.has_bb ? (
                       <span className="gov-tag gov-tag-bb">BB</span>
                     ) : null}
@@ -651,8 +699,12 @@ export function GovernanceMapPanel() {
                   </a>
                 </div>
               </div>
-              {c.about ? (
-                <GovAbout about={c.about} highlights={c.highlights} />
+              {c.about || c.headquarters ? (
+                <GovAbout
+                  about={c.about || ""}
+                  headquarters={c.headquarters}
+                  highlights={c.highlights}
+                />
               ) : null}
               <ul className="gov-dir-list">
                 {directors

@@ -81,7 +81,11 @@ export function MissingDataPanel() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
+      setDir(
+        key === "price" || key === "mcap_cr" || key === "forward_pe"
+          ? "desc"
+          : "asc",
+      );
     }
   }
 

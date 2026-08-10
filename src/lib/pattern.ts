@@ -4,13 +4,13 @@
  * Example: `die casting + auto | EV components`
  *   → (die casting AND auto) OR (EV components)
  *
- * AND terms must appear as whole words/phrases near each other.
- * Hits inside financing product phrases (e.g. "rooftop solar loan") are ignored.
+ * AND terms must each appear as whole words/phrases somewhere in the text
+ * (so HQ/location can combine with About). Hits inside financing product
+ * phrases (e.g. "rooftop solar loan") are ignored.
  */
 
 export type OrClause = string[]; // AND terms within one OR branch
 
-const PROXIMITY = 48; // max chars between first & last AND term
 const FINANCE_LOOKAHEAD = 120;
 const FINANCE_NOISE =
   /\b(loan|loans|lending|financing|finance|credit|emi|mortgage|nbfc)\b/i;
@@ -55,45 +55,24 @@ function termPositions(haystack: string, term: string): number[] {
 }
 
 /**
- * True when every AND term appears nearby as a whole phrase,
- * and the match span is not a financing-product blurb.
+ * True when every AND term appears as a whole phrase in the document.
+ * (Document-level AND so HQ/location can combine with About terms.)
  */
 export function clauseMatches(haystack: string, clause: OrClause): boolean {
   if (clause.length === 0) return false;
   const text = haystack.toLowerCase();
 
-  if (clause.length === 1) {
-    const term = clause[0];
+  for (const term of clause) {
     const positions = termPositions(text, term);
+    let ok = false;
     for (const i of positions) {
       if (financeContext(text, i, i + term.length)) continue;
-      return true;
+      ok = true;
+      break;
     }
-    return false;
+    if (!ok) return false;
   }
-
-  const posLists = clause.map((t) => termPositions(text, t));
-  if (posLists.some((p) => p.length === 0)) return false;
-
-  // Check combinations for proximity (bounded — terms are few)
-  function search(depth: number, chosen: number[]): boolean {
-    if (depth === clause.length) {
-      const start = Math.min(...chosen);
-      const end =
-        Math.max(
-          ...chosen.map((p, i) => p + clause[i].length),
-        );
-      if (end - start > PROXIMITY) return false;
-      if (financeContext(text, start, end)) return false;
-      return true;
-    }
-    for (const p of posLists[depth]) {
-      if (search(depth + 1, [...chosen, p])) return true;
-    }
-    return false;
-  }
-
-  return search(0, []);
+  return true;
 }
 
 export function patternMatches(haystack: string, pattern: string): boolean {

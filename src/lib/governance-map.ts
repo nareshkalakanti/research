@@ -6,6 +6,8 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { pickAboutText } from "./db";
+import { holdingsTickerSet } from "./holdings";
+import { edgeTickerSet } from "./edge";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
 import { loadBreakoutMap } from "./signals";
@@ -31,13 +33,16 @@ export type GovCompanySeat = {
   cap_label: string | null;
   website: string | null;
   about: string | null;
-  /** About + products + end-markets — used for theme matching. */
+  /** About + products + end-markets + HQ — used for theme matching. */
   about_search: string;
+  headquarters: string | null;
   sector: string | null;
   is_sme: boolean;
   is_main: boolean;
   has_bb: boolean;
   has_tq: boolean;
+  has_hold: boolean;
+  has_edge: boolean;
   web: string | null;
   sc: string;
   tv: string;
@@ -81,6 +86,7 @@ type AboutBits = {
   about: string | null;
   products: string | null;
   end_markets: string | null;
+  headquarters: string | null;
   sector: string | null;
 };
 
@@ -161,7 +167,8 @@ function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
       .prepare(
         `
         SELECT ticker, name, website, about, yf_about, scraped_about,
-               products, end_markets, company_sector, company_industry
+               products, end_markets, headquarters,
+               company_sector, company_industry
         FROM company_about
         WHERE UPPER(ticker) IN (${placeholders})
         `,
@@ -175,6 +182,7 @@ function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
       scraped_about: string | null;
       products: string | null;
       end_markets: string | null;
+      headquarters: string | null;
       company_sector: string | null;
       company_industry: string | null;
     }>;
@@ -186,6 +194,7 @@ function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
         about,
         products: r.products?.trim() || null,
         end_markets: r.end_markets?.trim() || null,
+        headquarters: r.headquarters?.trim() || null,
         sector: r.company_sector || r.company_industry || null,
       });
     }
@@ -209,6 +218,8 @@ function buildRows(minBoards: number): GovernanceMapRow[] {
   ];
   const metrics = loadMetricsMap();
   const breakouts = loadBreakoutMap();
+  const holdings = holdingsTickerSet();
+  const edge = edgeTickerSet();
   const abouts = loadAboutMap(allTickers);
 
   const rows: GovernanceMapRow[] = [];
@@ -242,17 +253,22 @@ function buildRows(minBoards: number): GovernanceMapRow[] {
         website: about?.website ?? null,
         about: about?.about ?? null,
         about_search: [
+          about?.headquarters,
           about?.about,
           about?.products,
           about?.end_markets,
+          about?.headquarters,
         ]
           .filter(Boolean)
           .join(" \n "),
+        headquarters: about?.headquarters ?? null,
         sector: about?.sector ?? m?.sector ?? null,
         is_sme: isSme,
         is_main: !isSme && market === "NSE",
         has_bb: Boolean(bo?.has_bb),
         has_tq: Boolean(bo?.has_tq),
+        has_hold: holdings.has(ticker),
+        has_edge: edge.has(ticker),
         web: links.web,
         sc: links.sc,
         tv: links.tv,
