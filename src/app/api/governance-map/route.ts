@@ -45,10 +45,13 @@ function filterRows(
     smeCross: boolean;
     bb: boolean;
     tq: boolean;
+    hold: boolean;
+    edge: boolean;
     hideCollision: boolean;
     minScore: number;
     minBoards: number;
     themePattern: string | null;
+    themeShowAll: boolean;
   },
 ): GovernanceMapRow[] {
   const q = opts.q.trim().toLowerCase();
@@ -63,18 +66,28 @@ function filterRows(
     if (r.board_count < opts.minBoards) continue;
 
     let companies = r.companies;
+    let themeMatched = 0;
 
     if (opts.themePattern) {
-      companies = companies.filter((c) => {
+      const matched = companies.filter((c) => {
         const text = seatAboutText(c);
         return text.trim() && patternMatches(text, opts.themePattern!);
       });
-      if (!companies.length) continue;
+      themeMatched = matched.length;
+      if (!themeMatched) continue;
+      companies = opts.themeShowAll ? companies : matched;
     }
 
     if (opts.bb || opts.tq) {
       const hit = companies.some(
         (c) => (opts.bb && c.has_bb) || (opts.tq && c.has_tq),
+      );
+      if (!hit) continue;
+    }
+
+    if (opts.hold || opts.edge) {
+      const hit = companies.some(
+        (c) => (opts.hold && c.has_hold) || (opts.edge && c.has_edge),
       );
       if (!hit) continue;
     }
@@ -91,18 +104,102 @@ function filterRows(
       if (!nameHit && !dinHit && !coHit) continue;
     }
 
-    if (companies !== r.companies) {
+    if (opts.themePattern && opts.themeShowAll && themeMatched > 0) {
+      companies = [...companies].sort((a, b) => {
+        const am = patternMatches(seatAboutText(a), opts.themePattern!) ? 1 : 0;
+        const bm = patternMatches(seatAboutText(b), opts.themePattern!) ? 1 : 0;
+        return bm - am;
+      });
+    }
+
+    const boardCount = new Set(companies.map((c) => c.ticker.toUpperCase())).size;
+
+    if (companies !== r.companies || boardCount !== r.board_count) {
       out.push({
         ...r,
+        board_count: boardCount,
         companies,
         tickers: companies.map((c) => c.ticker).join(", "),
+        theme_matched: themeMatched || undefined,
       });
     } else {
-      out.push(r);
+      out.push({
+        ...r,
+        theme_matched: themeMatched || undefined,
+      });
     }
   }
 
   return out;
+}
+
+type GovSort = "score" | "boards" | "name" | "theme";
+
+function sortDirectorRows(
+  rows: GovernanceMapRow[],
+  sort: GovSort,
+  themePattern: string | null,
+): GovernanceMapRow[] {
+  const mul = [...rows];
+  mul.sort((a, b) => {
+    if (sort === "boards") {
+      if (b.board_count !== a.board_count) return b.board_count - a.board_count;
+      return b.dir_score - a.dir_score;
+    }
+    if (sort === "name") {
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    }
+    if (sort === "theme" && themePattern) {
+      const at = a.theme_matched ?? 0;
+      const bt = b.theme_matched ?? 0;
+      if (bt !== at) return bt - at;
+    }
+    if (b.dir_score !== a.dir_score) return b.dir_score - a.dir_score;
+    return b.board_count - a.board_count;
+  });
+  return mul;
+}
+
+function csvEscape(v: unknown): string {
+  const s = v == null ? "" : String(v);
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
+function directorRowsCsv(rows: GovernanceMapRow[]): string {
+  const header = [
+    "name",
+    "din",
+    "dir_score",
+    "board_count",
+    "bridge",
+    "sme_cross",
+    "tickers",
+    "companies",
+  ];
+  const lines = [header.join(",")];
+  for (const r of rows) {
+    lines.push(
+      [
+        r.name,
+        r.din ?? "",
+        r.dir_score,
+        r.board_count,
+        r.bridge ? 1 : 0,
+        r.sme_cross ? 1 : 0,
+        r.tickers,
+        r.companies
+          .map(
+            (c) =>
+              `${c.ticker}:${c.designation}${c.market_cap_cr != null ? `@${c.market_cap_cr}Cr` : ""}`,
+          )
+          .join(" | "),
+      ]
+        .map(csvEscape)
+        .join(","),
+    );
+  }
+  return lines.join("\n");
 }
 
 type CompanyAgg = {
@@ -152,7 +249,9 @@ export async function GET(req: NextRequest) {
   const pageSize = Math.min(100, Math.max(10, Number(sp.get("pageSize") || 40)));
   const minBoards = Math.max(2, Number(sp.get("minBoards") || 2));
   const minScore = Number(sp.get("minScore") || 0);
+  const sort = (sp.get("sort") || "score") as GovSort;
   const refresh = sp.get("refresh") === "1";
+  const format = sp.get("format") || "json";
   const themeIds = (sp.get("themes") || "")
     .split(",")
     .map((s) => s.trim())
@@ -165,18 +264,35 @@ export async function GET(req: NextRequest) {
   const all = loadGovernanceMap({ minBoards, refresh });
   const filtered = filterRows(all, {
     q,
-    dinOnly: sp.get("dinOnly") === "1",
+    dinOnly: sp.get("dinOnly") !== "0",
     bridge: sp.get("bridge") === "1",
     smeCross: sp.get("smeCross") === "1",
     bb: sp.get("bb") === "1",
     tq: sp.get("tq") === "1",
+    hold: sp.get("hold") === "1",
+    edge: sp.get("edge") === "1",
     hideCollision: sp.get("hideCollision") !== "0",
     minScore: Number.isFinite(minScore) ? minScore : 0,
     minBoards,
     themePattern,
+    themeShowAll: sp.get("themeShowAll") === "1",
   });
 
-  const stats = governanceMapStats(filtered);
+  if (format === "csv" && view === "director") {
+    const sorted = sortDirectorRows(filtered, sort, themePattern);
+    const stamp = new Date().toISOString().slice(0, 10);
+    return new NextResponse(directorRowsCsv(sorted), {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="govmap-directors-${stamp}.csv"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  // Universe stats stay stable while list filters narrow the rows.
+  const stats = governanceMapStats(all);
 
   if (view === "company") {
     const byTicker = new Map<string, CompanyAgg>();
@@ -278,9 +394,16 @@ export async function GET(req: NextRequest) {
   const total = filtered.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const start = (page - 1) * pageSize;
-  const rows = filtered.slice(start, start + pageSize).map((r) => ({
+  const sorted = sortDirectorRows(filtered, sort, themePattern);
+  const rows = sorted.slice(start, start + pageSize).map((r) => ({
     ...r,
-    companies: r.companies.map((c) => seatWithHighlights(c, themePattern)),
+    companies: r.companies.map((c) => {
+      const highlighted = seatWithHighlights(c, themePattern);
+      const themeHit =
+        themePattern &&
+        patternMatches(seatAboutText(c), themePattern);
+      return { ...highlighted, theme_hit: !!themeHit };
+    }),
   }));
   return NextResponse.json({
     view: "director",

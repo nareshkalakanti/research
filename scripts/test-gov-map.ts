@@ -3,7 +3,11 @@
  * Run: npm run test:gov
  */
 import assert from "node:assert/strict";
-import { scoreDirectorSeats } from "../src/lib/gov-score";
+import {
+  BRIDGE_LARGE_MIN_CR,
+  BRIDGE_SMALL_MAX_CR,
+  scoreDirectorSeats,
+} from "../src/lib/gov-score";
 import {
   governanceMapStats,
   loadGovernanceMap,
@@ -30,6 +34,24 @@ function main() {
   assert.ok(scored.bridge);
   assert.ok(scored.dir_score > 40);
   assert.equal(scored.board_count, 2);
+
+  const midSmall = scoreDirectorSeats(
+    [
+      { ticker: "MIDCO", market_cap_cr: BRIDGE_LARGE_MIN_CR + 500 },
+      { ticker: "SMCO", market_cap_cr: BRIDGE_SMALL_MAX_CR - 100 },
+    ],
+    { personId: "22334455", din: "22334455" },
+  );
+  assert.ok(midSmall.bridge, "MC + SC should cap-bridge at tier boundary");
+
+  const gapOnly = scoreDirectorSeats(
+    [
+      { ticker: "A", market_cap_cr: 2_000 },
+      { ticker: "B", market_cap_cr: 3_000 },
+    ],
+    { personId: "n:gap", din: null },
+  );
+  assert.equal(gapOnly.bridge, false, "two SC boards should not cap-bridge");
 
   const rows = loadGovernanceMap({ minBoards: 2 });
   assert.ok(rows.length > 100, `expected many directors, got ${rows.length}`);

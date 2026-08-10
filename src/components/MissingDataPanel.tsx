@@ -2,11 +2,20 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
+import { FillForwardPeButton } from "@/components/FillForwardPeButton";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import type { Company } from "@/lib/types";
 
-type GapKey = "metrics" | "price" | "mcap" | "sector" | "about" | "web" | "any";
+type GapKey =
+  | "metrics"
+  | "price"
+  | "mcap"
+  | "sector"
+  | "about"
+  | "web"
+  | "forward_pe"
+  | "any";
 
 type Gaps = {
   missingPrice: number;
@@ -14,6 +23,7 @@ type Gaps = {
   missingSector: number;
   missingAbout: number;
   missingWeb: number;
+  missingForwardPe: number;
   any: number;
   metrics: number;
 };
@@ -27,13 +37,14 @@ type ApiResponse = {
   gaps?: Gaps;
 };
 
-const GAP_CHIPS: { id: GapKey; label: string; countKey: keyof Gaps }[] = [
+const GAP_OPTIONS: { id: GapKey; label: string; countKey: keyof Gaps }[] = [
   { id: "metrics", label: "Price / Mcap", countKey: "metrics" },
   { id: "price", label: "Price", countKey: "missingPrice" },
   { id: "mcap", label: "Mcap", countKey: "missingMcap" },
   { id: "sector", label: "Sector", countKey: "missingSector" },
   { id: "about", label: "About", countKey: "missingAbout" },
   { id: "web", label: "Web", countKey: "missingWeb" },
+  { id: "forward_pe", label: "Fwd PE", countKey: "missingForwardPe" },
   { id: "any", label: "Any gap", countKey: "any" },
 ];
 
@@ -100,6 +111,9 @@ export function MissingDataPanel() {
     (r) => r.missing?.price || r.missing?.mcap,
   ).length;
   const totalMetricsGaps = gaps?.metrics ?? 0;
+  const totalFpeGaps = gaps?.missingForwardPe ?? 0;
+  const gapLabel =
+    GAP_OPTIONS.find((o) => o.id === gap)?.label.toLowerCase() ?? gap;
 
   return (
     <div className="panel">
@@ -112,8 +126,17 @@ export function MissingDataPanel() {
               <>
                 {" "}
                 ·{" "}
-                <strong>{(gaps.metrics ?? 0).toLocaleString()}</strong> need
-                price/mcap
+                {gap === "forward_pe" ? (
+                  <>
+                    <strong>{totalFpeGaps.toLocaleString()}</strong> missing Fwd
+                    PE
+                  </>
+                ) : (
+                  <>
+                    <strong>{(gaps.metrics ?? 0).toLocaleString()}</strong> need
+                    price/mcap
+                  </>
+                )}
               </>
             ) : null}
           </p>
@@ -133,13 +156,22 @@ export function MissingDataPanel() {
         </div>
       </div>
 
-      <FillMissingButton
-        market={market}
-        tickers={pageTickers}
-        gapCount={fillableGaps}
-        totalGaps={totalMetricsGaps}
-        onDone={() => load({ refresh: true })}
-      />
+      {gap === "forward_pe" ? (
+        <FillForwardPeButton
+          market={market}
+          tickers={pageTickers}
+          pendingCount={totalFpeGaps}
+          onDone={() => load({ refresh: true })}
+        />
+      ) : (
+        <FillMissingButton
+          market={market}
+          tickers={pageTickers}
+          gapCount={fillableGaps}
+          totalGaps={totalMetricsGaps}
+          onDone={() => load({ refresh: true })}
+        />
+      )}
 
       <div className="toolbar">
         <label className="field">
@@ -154,30 +186,29 @@ export function MissingDataPanel() {
             </option>
           </select>
         </label>
+        <label className="field">
+          <span>Show</span>
+          <select
+            value={gap}
+            onChange={(e) => setGap(e.target.value as GapKey)}
+          >
+            {GAP_OPTIONS.map((o) => {
+              const n = gaps?.[o.countKey] ?? 0;
+              return (
+                <option key={o.id} value={o.id}>
+                  {o.label} ({n.toLocaleString()})
+                </option>
+              );
+            })}
+          </select>
+        </label>
       </div>
 
       <div className="filters">
-        <div className="chip-row">
-          <span className="chip-label">Show</span>
-          {GAP_CHIPS.map((c) => {
-            const n = gaps?.[c.countKey] ?? 0;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                className={`chip ${gap === c.id ? "on" : ""}`}
-                onClick={() => setGap(c.id)}
-              >
-                {c.label}
-                <span className="chip-count">{n.toLocaleString()}</span>
-              </button>
-            );
-          })}
-        </div>
         <div className="pager">
           <span>
             {data
-              ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()}`
+              ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()} · ${gapLabel}`
               : "…"}
           </span>
           <div className="pager-btns">

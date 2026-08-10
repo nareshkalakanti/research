@@ -4,6 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
 import { HighlightedText } from "@/components/HighlightedText";
 import { ThemeMultiselect } from "@/components/ThemeMultiselect";
+import {
+  GOV_CAP_BRIDGE_HINT,
+  GOV_CAP_BRIDGE_LABEL,
+  GOV_CAP_BRIDGE_TITLE,
+  GOV_SME_CROSS_LABEL,
+  GOV_SME_CROSS_TITLE,
+} from "@/lib/gov-score";
 import { formatMcap, type ThemeGroup } from "@/lib/types";
 
 type View = "director" | "company" | "role";
@@ -35,9 +42,19 @@ type Seat = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
+  theme_hit?: boolean;
   web: string | null;
   sc: string;
   tv: string;
+};
+
+type ScoreBreakdown = {
+  board_count: number;
+  big_n: number;
+  small_n: number;
+  bridge: boolean;
+  bonus: number;
+  overload_penalty: number;
 };
 
 type DirectorRow = {
@@ -50,8 +67,14 @@ type DirectorRow = {
   name_collision: boolean;
   bridge: boolean;
   sme_cross: boolean;
+  theme_matched?: number;
+  big_n?: number;
+  small_n?: number;
+  score_breakdown?: ScoreBreakdown;
   companies: Seat[];
 };
+
+type GovSort = "score" | "boards" | "name" | "theme";
 
 type CompanyRow = {
   ticker: string;
@@ -148,13 +171,18 @@ export function GovernanceMapPanel() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
-  const [dinOnly, setDinOnly] = useState(false);
+  const [dinOnly, setDinOnly] = useState(true);
   const [bridge, setBridge] = useState(false);
   const [smeCross, setSmeCross] = useState(false);
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
   const [hideCollision, setHideCollision] = useState(true);
   const [minScore, setMinScore] = useState(0);
+  const [minBoards, setMinBoards] = useState(2);
+  const [sort, setSort] = useState<GovSort>("score");
+  const [filterHold, setFilterHold] = useState(false);
+  const [filterEdge, setFilterEdge] = useState(false);
+  const [themeShowAll, setThemeShowAll] = useState(false);
   const [themeGroups, setThemeGroups] = useState<ThemeGroup[]>([]);
   const [selectedThemes, setSelectedThemes] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
@@ -162,6 +190,14 @@ export function GovernanceMapPanel() {
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+
+  const advancedActive =
+    bridge ||
+    smeCross ||
+    filterBb ||
+    filterTq ||
+    !hideCollision ||
+    minScore > 0;
 
   useEffect(() => {
     void fetch("/api/themes")
@@ -194,6 +230,11 @@ export function GovernanceMapPanel() {
     filterTq,
     hideCollision,
     minScore,
+    minBoards,
+    sort,
+    filterHold,
+    filterEdge,
+    themeShowAll,
     selectedThemes,
     debouncedCustom,
   ]);
@@ -207,12 +248,18 @@ export function GovernanceMapPanel() {
         page: String(page),
         pageSize: "40",
         minScore: String(minScore),
+        minBoards: String(minBoards),
+        sort,
       });
       if (dinOnly) params.set("dinOnly", "1");
+      else params.set("dinOnly", "0");
       if (bridge) params.set("bridge", "1");
       if (smeCross) params.set("smeCross", "1");
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
+      if (filterHold) params.set("hold", "1");
+      if (filterEdge) params.set("edge", "1");
+      if (themeShowAll) params.set("themeShowAll", "1");
       if (!hideCollision) params.set("hideCollision", "0");
       if (selectedThemes.length) params.set("themes", selectedThemes.join(","));
       if (debouncedCustom.trim()) params.set("custom", debouncedCustom.trim());
@@ -236,6 +283,11 @@ export function GovernanceMapPanel() {
       filterTq,
       hideCollision,
       minScore,
+      minBoards,
+      sort,
+      filterHold,
+      filterEdge,
+      themeShowAll,
       selectedThemes,
       debouncedCustom,
     ],
@@ -290,6 +342,53 @@ export function GovernanceMapPanel() {
     }
     return [...set];
   }, [view, directorRows, companyRows, roleRows]);
+
+  const exportHref = useMemo(() => {
+    const params = new URLSearchParams({
+      view: "director",
+      format: "csv",
+      q: debouncedQ,
+      minScore: String(minScore),
+      minBoards: String(minBoards),
+      sort,
+    });
+    if (dinOnly) params.set("dinOnly", "1");
+    else params.set("dinOnly", "0");
+    if (bridge) params.set("bridge", "1");
+    if (smeCross) params.set("smeCross", "1");
+    if (filterBb) params.set("bb", "1");
+    if (filterTq) params.set("tq", "1");
+    if (filterHold) params.set("hold", "1");
+    if (filterEdge) params.set("edge", "1");
+    if (themeShowAll) params.set("themeShowAll", "1");
+    if (!hideCollision) params.set("hideCollision", "0");
+    if (selectedThemes.length) params.set("themes", selectedThemes.join(","));
+    if (debouncedCustom.trim()) params.set("custom", debouncedCustom.trim());
+    return `/api/governance-map?${params}`;
+  }, [
+    debouncedQ,
+    minScore,
+    minBoards,
+    sort,
+    dinOnly,
+    bridge,
+    smeCross,
+    filterBb,
+    filterTq,
+    filterHold,
+    filterEdge,
+    themeShowAll,
+    hideCollision,
+    selectedThemes,
+    debouncedCustom,
+  ]);
+
+  function drillTicker(ticker: string) {
+    setQ(ticker);
+    setDebouncedQ(ticker);
+    setView("director");
+    setOpenId(null);
+  }
 
   return (
     <div className="panel">
@@ -366,6 +465,57 @@ export function GovernanceMapPanel() {
         </div>
       ) : null}
 
+      <p className="gov-intro">
+        Same DIN on <strong>2+ boards</strong> — use themes and focus chips to
+        find who connects your names.
+      </p>
+
+      <div className="gov-focus">
+        <span className="chip-label">Focus</span>
+        <button
+          type="button"
+          className={`chip ${minBoards >= 3 ? "on" : ""}`}
+          onClick={() => setMinBoards((n) => (n >= 3 ? 2 : 3))}
+          title="Directors on 3 or more boards"
+        >
+          3+ boards
+        </button>
+        <button
+          type="button"
+          className={`chip ${minBoards >= 4 ? "on" : ""}`}
+          onClick={() => setMinBoards((n) => (n >= 4 ? 2 : 4))}
+          title="Directors on 4 or more boards"
+        >
+          4+ boards
+        </button>
+        <button
+          type="button"
+          className={`chip gov-chip-hold ${filterHold ? "on" : ""}`}
+          onClick={() => setFilterHold((v) => !v)}
+          title="Any board seat is in your HOLD list"
+        >
+          HOLD
+        </button>
+        <button
+          type="button"
+          className={`chip gov-chip-edge ${filterEdge ? "on" : ""}`}
+          onClick={() => setFilterEdge((v) => !v)}
+          title="Any board seat is on EDGE watchlist"
+        >
+          EDGE
+        </button>
+        {themeActive ? (
+          <button
+            type="button"
+            className={`chip ${themeShowAll ? "on" : ""}`}
+            onClick={() => setThemeShowAll((v) => !v)}
+            title="Show non-theme boards too (theme matches listed first)"
+          >
+            All boards
+          </button>
+        ) : null}
+      </div>
+
       <div className="toolbar gov-toolbar">
         <div className="gov-view-tabs" role="tablist" aria-label="Map view">
           {(
@@ -397,18 +547,51 @@ export function GovernanceMapPanel() {
           />
         </label>
 
+        <label
+          className="chk gov-din-chk"
+          title="Show only directors linked by DIN (recommended)"
+        >
+          <input
+            type="checkbox"
+            checked={dinOnly}
+            onChange={(e) => setDinOnly(e.target.checked)}
+          />
+          DIN only
+        </label>
+
         <label className="field">
-          <span>Min score</span>
+          <span>Boards</span>
           <select
-            value={minScore}
-            onChange={(e) => setMinScore(Number(e.target.value))}
+            value={minBoards}
+            onChange={(e) => setMinBoards(Number(e.target.value))}
           >
-            <option value={0}>Any</option>
-            <option value={40}>40+</option>
-            <option value={55}>55+</option>
-            <option value={70}>70+</option>
+            <option value={2}>2+</option>
+            <option value={3}>3+</option>
+            <option value={4}>4+</option>
+            <option value={5}>5+</option>
           </select>
         </label>
+
+        {view === "director" ? (
+          <label className="field">
+            <span>Sort</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as GovSort)}
+            >
+              <option value="score">Score</option>
+              <option value="boards">Board count</option>
+              {themeActive ? (
+                <option value="theme">Theme matches</option>
+              ) : null}
+              <option value="name">Name</option>
+            </select>
+          </label>
+        ) : null}
+
+        <a className="btn-download" href={exportHref} download>
+          Export CSV
+        </a>
 
         <button
           type="button"
@@ -420,56 +603,69 @@ export function GovernanceMapPanel() {
         </button>
       </div>
 
-      <div className="gov-filters">
-        <label className="chk">
-          <input
-            type="checkbox"
-            checked={dinOnly}
-            onChange={(e) => setDinOnly(e.target.checked)}
-          />
-          DIN only
-        </label>
-        <label className="chk">
-          <input
-            type="checkbox"
-            checked={bridge}
-            onChange={(e) => setBridge(e.target.checked)}
-          />
-          Big↔small bridge
-        </label>
-        <label className="chk">
-          <input
-            type="checkbox"
-            checked={smeCross}
-            onChange={(e) => setSmeCross(e.target.checked)}
-          />
-          SME ↔ main
-        </label>
-        <label className="chk">
-          <input
-            type="checkbox"
-            checked={filterBb}
-            onChange={(e) => setFilterBb(e.target.checked)}
-          />
-          BB
-        </label>
-        <label className="chk">
-          <input
-            type="checkbox"
-            checked={filterTq}
-            onChange={(e) => setFilterTq(e.target.checked)}
-          />
-          TQ
-        </label>
-        <label className="chk">
-          <input
-            type="checkbox"
-            checked={hideCollision}
-            onChange={(e) => setHideCollision(e.target.checked)}
-          />
-          Hide name collisions
-        </label>
-      </div>
+      <details className="gov-advanced">
+        <summary>
+          Advanced filters
+          {advancedActive ? <span className="gov-advanced-on">active</span> : null}
+        </summary>
+        <div className="gov-filters">
+          <label className="chk" title={GOV_CAP_BRIDGE_TITLE}>
+            <input
+              type="checkbox"
+              checked={bridge}
+              onChange={(e) => setBridge(e.target.checked)}
+            />
+            <span>
+              {GOV_CAP_BRIDGE_LABEL}
+              <span className="chk-hint">{GOV_CAP_BRIDGE_HINT}</span>
+            </span>
+          </label>
+          <label className="chk" title={GOV_SME_CROSS_TITLE}>
+            <input
+              type="checkbox"
+              checked={smeCross}
+              onChange={(e) => setSmeCross(e.target.checked)}
+            />
+            {GOV_SME_CROSS_LABEL}
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={filterBb}
+              onChange={(e) => setFilterBb(e.target.checked)}
+            />
+            BB
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={filterTq}
+              onChange={(e) => setFilterTq(e.target.checked)}
+            />
+            TQ
+          </label>
+          <label className="chk">
+            <input
+              type="checkbox"
+              checked={hideCollision}
+              onChange={(e) => setHideCollision(e.target.checked)}
+            />
+            Hide name collisions
+          </label>
+          <label className="field">
+            <span>Min score</span>
+            <select
+              value={minScore}
+              onChange={(e) => setMinScore(Number(e.target.value))}
+            >
+              <option value={0}>Any</option>
+              <option value={40}>40+</option>
+              <option value={55}>55+</option>
+              <option value={70}>70+</option>
+            </select>
+          </label>
+        </div>
+      </details>
 
       <GovernanceScanBar
         market="All"
@@ -480,19 +676,13 @@ export function GovernanceMapPanel() {
       {stats ? (
         <div className="gov-stats">
           <span>
-            <strong>{stats.directors.toLocaleString()}</strong> directors
+            <strong>{stats.directors.toLocaleString()}</strong> multi-board
           </span>
           <span>
             <strong>{stats.companies.toLocaleString()}</strong> companies
           </span>
           <span>
-            <strong>{stats.din_backed.toLocaleString()}</strong> DIN
-          </span>
-          <span>
-            <strong>{stats.bridges.toLocaleString()}</strong> bridges
-          </span>
-          <span>
-            <strong>{stats.sme_cross.toLocaleString()}</strong> SME-cross
+            <strong>{stats.din_backed.toLocaleString()}</strong> DIN-linked
           </span>
         </div>
       ) : null}
@@ -536,10 +726,20 @@ export function GovernanceMapPanel() {
                         <span className="gov-badge name">name</span>
                       )}
                       {r.bridge ? (
-                        <span className="gov-badge bridge">bridge</span>
+                        <span
+                          className="gov-badge bridge"
+                          title={GOV_CAP_BRIDGE_TITLE}
+                        >
+                          cap bridge
+                        </span>
                       ) : null}
                       {r.sme_cross ? (
-                        <span className="gov-badge cross">SME↔main</span>
+                        <span
+                          className="gov-badge cross"
+                          title={GOV_SME_CROSS_TITLE}
+                        >
+                          SME↔main
+                        </span>
                       ) : null}
                       {r.name_collision ? (
                         <span className="gov-badge suspect">collision?</span>
@@ -553,15 +753,35 @@ export function GovernanceMapPanel() {
                         </>
                       ) : null}
                       <span>{r.board_count} boards</span>
+                      {themeActive && r.theme_matched != null ? (
+                        <>
+                          <span className="gov-sep">·</span>
+                          <span className="gov-theme-hit">
+                            {r.theme_matched} theme
+                            {themeShowAll && r.companies.length > r.theme_matched
+                              ? ` · ${r.companies.length - r.theme_matched} other`
+                              : ""}
+                          </span>
+                        </>
+                      ) : null}
                       {companies.length ? (
                         <>
                           <span className="gov-sep">·</span>
                           <span className="gov-tickers">
                             {companies.map((c, i) => (
-                              <span key={c.ticker} className="gov-ticker">
+                              <button
+                                key={c.ticker}
+                                type="button"
+                                className="gov-ticker"
+                                title={`Show directors on ${c.ticker}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  drillTicker(c.ticker);
+                                }}
+                              >
                                 {i > 0 ? ", " : null}
                                 {c.ticker}
-                              </span>
+                              </button>
                             ))}
                           </span>
                         </>
@@ -574,8 +794,26 @@ export function GovernanceMapPanel() {
                 </button>
                 {open ? (
                   <div className="gov-cos">
+                    {r.score_breakdown ? (
+                      <div className="gov-score-detail">
+                        Score from {r.score_breakdown.board_count} boards
+                        {r.score_breakdown.big_n > 0
+                          ? ` · ${r.score_breakdown.big_n} mid/large`
+                          : ""}
+                        {r.score_breakdown.small_n > 0
+                          ? ` · ${r.score_breakdown.small_n} sub-mid`
+                          : ""}
+                        {r.score_breakdown.bridge ? " · cap bridge bonus" : ""}
+                        {r.score_breakdown.overload_penalty > 0
+                          ? ` · −${r.score_breakdown.overload_penalty} overload`
+                          : ""}
+                      </div>
+                    ) : null}
                     {companies.map((c) => (
-                      <div key={`${r.person_id}-${c.ticker}`} className="gov-co">
+                      <div
+                        key={`${r.person_id}-${c.ticker}`}
+                        className={`gov-co ${c.theme_hit ? "gov-co-theme" : ""}`}
+                      >
                         <div className="gov-co-top">
                           <div>
                             <div className="gov-co-name">
@@ -590,6 +828,9 @@ export function GovernanceMapPanel() {
                               ) : null}
                               {c.is_sme ? (
                                 <span className="gov-tag gov-tag-sme">SME</span>
+                              ) : null}
+                              {c.theme_hit ? (
+                                <span className="gov-tag gov-tag-theme">theme</span>
                               ) : null}
                               {c.has_edge ? (
                                 <span className="gov-tag gov-tag-edge">EDGE</span>

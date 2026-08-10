@@ -293,6 +293,7 @@ function CompanyRows({
             ["sector", r.missing.sector],
             ["about", r.missing.about],
             ["web", r.missing.web],
+            ["fwd pe", r.missing.forward_pe],
           ] as const
         )
           .filter(([, on]) => on)

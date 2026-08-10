@@ -42,7 +42,8 @@ async function scanOnce(body: Record<string, unknown>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  const json = (await res.json()) as {
+  const raw = await res.text();
+  let json: {
     ok?: boolean;
     tried?: number;
     bbHits?: number;
@@ -50,7 +51,14 @@ async function scanOnce(body: Record<string, unknown>) {
     remaining?: number;
     session?: { bb: string | null; tq: string | null };
     error?: string;
-  };
+  } = {};
+  if (raw) {
+    try {
+      json = JSON.parse(raw) as typeof json;
+    } catch {
+      throw new Error(`Scan failed (${res.status})`);
+    }
+  }
   if (!res.ok || json.ok === false) {
     throw new Error(json.error || `Scan failed (${res.status})`);
   }

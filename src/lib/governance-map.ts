@@ -65,6 +65,8 @@ export type GovernanceMapRow = {
   tickers: string;
   companies: GovCompanySeat[];
   score_breakdown: DirectorScore;
+  /** Theme-matched board count when a theme filter is active. */
+  theme_matched?: number;
 };
 
 type SeatRow = {

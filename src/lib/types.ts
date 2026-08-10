@@ -48,6 +48,7 @@ export type Company = {
     sector: boolean;
     about: boolean;
     web: boolean;
+    forward_pe?: boolean;
   };
 };
 

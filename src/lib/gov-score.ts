@@ -1,7 +1,22 @@
 /** Director network score — ported from stocks-ai governance/score.py */
 
-export const LARGE_MCAP_CR = 5_000;
-export const SMALL_MCAP_CR = 1_000;
+/** Cap-bridge large side: MC + LC (matches capTier MC boundary). */
+export const BRIDGE_LARGE_MIN_CR = 5_000;
+/** Cap-bridge small side: TI + MIC + SC (strictly below MC). */
+export const BRIDGE_SMALL_MAX_CR = 5_000;
+
+/** @deprecated use BRIDGE_LARGE_MIN_CR */
+export const LARGE_MCAP_CR = BRIDGE_LARGE_MIN_CR;
+/** @deprecated use BRIDGE_SMALL_MAX_CR */
+export const SMALL_MCAP_CR = BRIDGE_SMALL_MAX_CR;
+
+export const GOV_CAP_BRIDGE_LABEL = "Cap bridge";
+export const GOV_CAP_BRIDGE_HINT = "≥5k ↔ <5k Cr";
+export const GOV_CAP_BRIDGE_TITLE =
+  "Director on both a mid/large cap board (≥ ₹5,000 Cr · MC/LC) and a sub-mid cap board (< ₹5,000 Cr · TI/MIC/SC)";
+export const GOV_SME_CROSS_LABEL = "SME ↔ Mainboard";
+export const GOV_SME_CROSS_TITLE =
+  "Director on both an NSE SME listing and a main NSE board";
 
 const CAP_CODE_BANDS: Array<{
   lo: number | null;
@@ -161,8 +176,8 @@ export function scoreDirectorSeats(
     }
     if (mcapF != null) {
       knownMcapN += 1;
-      if (mcapF >= LARGE_MCAP_CR) bigN += 1;
-      if (mcapF <= SMALL_MCAP_CR) smallN += 1;
+      if (mcapF >= BRIDGE_LARGE_MIN_CR) bigN += 1;
+      if (mcapF < BRIDGE_SMALL_MAX_CR) smallN += 1;
     }
     raw += seatContribution({
       marketCapCr: mcapF,
