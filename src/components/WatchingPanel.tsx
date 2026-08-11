@@ -21,7 +21,6 @@ type ApiResponse = {
   gaps?: {
     missingPrice: number;
     missingMcap: number;
-    missingForwardPe?: number;
     any: number;
     metrics: number;
   };
@@ -29,6 +28,7 @@ type ApiResponse = {
     bb: number;
     tq: number;
     hold?: number;
+    distress?: number;
     edge?: number;
     note?: number;
   };
@@ -45,6 +45,7 @@ export function WatchingPanel() {
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
+  const [filterDistress, setFilterDistress] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
@@ -61,7 +62,7 @@ export function WatchingPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [market, debouncedQ, mode, cap, sme, sector, filterBb, filterTq, filterHold, filterEdge, filterNote]);
+  }, [market, debouncedQ, mode, cap, sme, sector, filterBb, filterTq, filterHold, filterDistress, filterEdge, filterNote]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -80,6 +81,7 @@ export function WatchingPanel() {
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
       if (filterHold) params.set("hold", "1");
+      if (filterDistress) params.set("distress", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
@@ -101,6 +103,7 @@ export function WatchingPanel() {
       filterBb,
       filterTq,
       filterHold,
+      filterDistress,
       filterEdge,
       filterNote,
       page,
@@ -117,11 +120,7 @@ export function WatchingPanel() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(
-        key === "price" || key === "mcap_cr" || key === "forward_pe"
-          ? "desc"
-          : "asc",
-      );
+      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
     }
   }
 
@@ -224,25 +223,25 @@ export function WatchingPanel() {
           bb={filterBb}
           tq={filterTq}
           hold={filterHold}
+          distress={filterDistress}
           edge={filterEdge}
           note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
           onHold={setFilterHold}
+          onDistress={setFilterDistress}
           onEdge={setFilterEdge}
           onNote={setFilterNote}
           bbCount={data?.signals?.bb}
           tqCount={data?.signals?.tq}
           holdCount={data?.signals?.hold}
+          distressCount={data?.signals?.distress}
           edgeCount={data?.signals?.edge}
           noteCount={data?.signals?.note}
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
           market={listMarket}
           onDone={() => void load({ refresh: true })}
-          fpeTickers={pageTickers}
-          fpePending={data?.gaps?.missingForwardPe}
-          onFpeDone={() => void load({ refresh: true })}
         />
       </div>
 

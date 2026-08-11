@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { FillForwardPeButton } from "@/components/FillForwardPeButton";
 
 type Props = {
   bb: boolean;
@@ -10,6 +9,8 @@ type Props = {
   onTq: (on: boolean) => void;
   hold?: boolean;
   onHold?: (on: boolean) => void;
+  distress?: boolean;
+  onDistress?: (on: boolean) => void;
   edge?: boolean;
   onEdge?: (on: boolean) => void;
   note?: boolean;
@@ -17,15 +18,13 @@ type Props = {
   bbCount?: number;
   tqCount?: number;
   holdCount?: number;
+  distressCount?: number;
   edgeCount?: number;
   noteCount?: number;
   bbDate?: string | null;
   tqDate?: string | null;
   market: string;
   onDone?: () => void | Promise<void>;
-  fpeTickers?: string[];
-  fpePending?: number;
-  onFpeDone?: () => void | Promise<void>;
 };
 
 type Progress = {
@@ -65,7 +64,16 @@ async function scanOnce(body: Record<string, unknown>) {
   return json;
 }
 
-/** Filters + Scan: weekly BB/TQ (incremental). Fwd PE fills separately. */
+/** Weekly BB/TQ stamp → readable "week Fri 14 Aug" (not scan time). */
+function weekStamp(iso: string): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
+  if (!Number.isFinite(d.getTime())) return iso;
+  const day = d.getUTCDate();
+  const mon = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  return `week Fri ${day} ${mon}`;
+}
+
+/** Filters + Scan: weekly BB/TQ (incremental). */
 export function ScanFilters({
   bb,
   tq,
@@ -73,6 +81,8 @@ export function ScanFilters({
   onTq,
   hold = false,
   onHold,
+  distress = false,
+  onDistress,
   edge = false,
   onEdge,
   note = false,
@@ -80,15 +90,13 @@ export function ScanFilters({
   bbCount,
   tqCount,
   holdCount,
+  distressCount,
   edgeCount,
   noteCount,
   bbDate,
   tqDate,
   market,
   onDone,
-  fpeTickers,
-  fpePending,
-  onFpeDone,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -118,7 +126,8 @@ export function ScanFilters({
         gotTq += json.tqHits ?? 0;
         remaining = json.remaining ?? 0;
         if (json.session?.bb || json.session?.tq) {
-          sessionLabel = json.session.bb || json.session.tq || "";
+          const iso = json.session.bb || json.session.tq || "";
+          sessionLabel = iso ? weekStamp(iso) : "";
         }
         setProgress({
           pct: remaining <= 0 ? 100 : Math.min(98, 3 + round * 1.5),
@@ -192,6 +201,17 @@ export function ScanFilters({
             {holdCount != null ? <em>{holdCount}</em> : null}
           </button>
         ) : null}
+        {onDistress ? (
+          <button
+            type="button"
+            className={`breakout-chip distress ${distress ? "on" : ""}`}
+            onClick={() => onDistress(!distress)}
+            title="8 fixed distress turnaround seed monitors"
+          >
+            DISTRESS
+            {distressCount != null ? <em>{distressCount}</em> : null}
+          </button>
+        ) : null}
         <button
           type="button"
           className={`breakout-chip bb ${bb ? "on" : ""}`}
@@ -226,14 +246,6 @@ export function ScanFilters({
         </button>
       </div>
       <div className="breakout-actions">
-        {onFpeDone ? (
-          <FillForwardPeButton
-            market={market}
-            tickers={fpeTickers}
-            pendingCount={fpePending}
-            onDone={onFpeDone}
-          />
-        ) : null}
         <button
           type="button"
           className="breakout-scan"
@@ -248,15 +260,16 @@ export function ScanFilters({
           className={`breakout-progress ${progress?.error ? "is-error" : ""} ${progress?.done ? "is-done" : ""}`}
           role="status"
         >
+          <div className="breakout-progress-label">
+            <strong>{progress?.label ?? "…"}</strong>
+            {progress?.detail ? <span>{progress.detail}</span> : null}
+          </div>
           <div className="breakout-progress-track">
             <div
-              className="breakout-progress-bar"
+              className="breakout-progress-fill"
               style={{ width: `${progress?.pct ?? 0}%` }}
             />
           </div>
-          <span className="breakout-progress-text">
-            {progress?.detail || progress?.label || "Working…"}
-          </span>
         </div>
       ) : null}
     </div>

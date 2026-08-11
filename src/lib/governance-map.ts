@@ -58,7 +58,11 @@ export type GovernanceMapRow = {
   name_collision: boolean;
   big_n: number;
   small_n: number;
+  tiny_n: number;
+  ti_n: number;
   bridge: boolean;
+  tiny_bridge: boolean;
+  ti_bridge: boolean;
   sme_n: number;
   main_n: number;
   sme_cross: boolean;
@@ -304,7 +308,11 @@ function buildRows(minBoards: number): GovernanceMapRow[] {
       name_collision: scored.name_collision,
       big_n: scored.big_n,
       small_n: scored.small_n,
+      tiny_n: scored.tiny_n,
+      ti_n: scored.ti_n,
       bridge: scored.bridge,
+      tiny_bridge: scored.tiny_bridge,
+      ti_bridge: scored.ti_bridge,
       sme_n: smeN,
       main_n: mainN,
       sme_cross: smeN >= 1 && mainN >= 1,
@@ -358,6 +366,8 @@ export type GovernanceMapStats = {
   din_backed: number;
   name_only: number;
   bridges: number;
+  tiny_bridges: number;
+  ti_bridges: number;
   sme_cross: number;
   companies: number;
 };
@@ -368,10 +378,14 @@ export function governanceMapStats(
   const tickers = new Set<string>();
   let dinBacked = 0;
   let bridges = 0;
+  let tinyBridges = 0;
+  let tiBridges = 0;
   let smeCross = 0;
   for (const r of rows) {
     if (r.din_backed) dinBacked += 1;
     if (r.bridge) bridges += 1;
+    if (r.tiny_bridge) tinyBridges += 1;
+    if (r.ti_bridge) tiBridges += 1;
     if (r.sme_cross) smeCross += 1;
     for (const c of r.companies) tickers.add(c.ticker);
   }
@@ -380,6 +394,8 @@ export function governanceMapStats(
     din_backed: dinBacked,
     name_only: rows.length - dinBacked,
     bridges,
+    tiny_bridges: tinyBridges,
+    ti_bridges: tiBridges,
     sme_cross: smeCross,
     companies: tickers.size,
   };

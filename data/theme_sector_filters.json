@@ -1,0 +1,389 @@
+{
+  "meta": {
+    "source_db": "data/classifications.db",
+    "rule": "match = keyword AND (sub_sector in allow_subsectors OR sector in allow_sectors) AND pair NOT in exclude_pairs",
+    "note": "Themes with no filter entry stay keyword-only. Empty allow lists with no entry = keyword-only.",
+    "updated": "2026-08-11"
+  },
+  "filters": {
+    "copper_value_add": {
+      "allow_sectors": [
+        "Metals & Mining",
+        "Engineering & Capital Goods"
+      ],
+      "allow_subsectors": [
+        "Metals - Copper",
+        "Mining - Copper",
+        "Metal Fabrication",
+        "Metals - Diversified",
+        "Electrical Components & Equipments",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Cables",
+        "Electrical Equipment & Parts",
+        "Other Electrical Equipment"
+      ],
+      "exclude_pairs": [
+        "Diversified & Others > Commodities Trading",
+        "Retail > Precious Metals, Jewellery & Watches",
+        "Consumer Discretionary > Gems, Jewellery And Watches"
+      ]
+    },
+    "capacitors_dielectric": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Power & Utilities"
+      ],
+      "allow_subsectors": [
+        "Electrical Components & Equipments",
+        "Heavy Electrical Equipments",
+        "Other Electrical Equipment",
+        "Electrical Equipment & Parts",
+        "Plastic Products",
+        "Renewable Energy Equipment & Services"
+      ]
+    },
+    "foundry_consumables": {
+      "allow_sectors": [
+        "Chemicals & Petrochemicals",
+        "Engineering & Capital Goods"
+      ],
+      "allow_subsectors": [
+        "Specialty Chemicals",
+        "Commodity Chemicals",
+        "Diversified Chemicals",
+        "Castings & Forgings",
+        "Industrial Machinery"
+      ]
+    },
+    "gravure_cylinders": {
+      "allow_sectors": [
+        "Engineering & Capital Goods"
+      ],
+      "allow_subsectors": [
+        "Packaging",
+        "Packaging & Containers",
+        "Paper Products",
+        "Paper & Paper Products",
+        "Plastic Products"
+      ]
+    },
+    "pib_additives": {
+      "allow_sectors": [
+        "Chemicals & Petrochemicals"
+      ],
+      "allow_subsectors": [
+        "Specialty Chemicals",
+        "Commodity Chemicals",
+        "Diversified Chemicals",
+        "Organic Chemicals",
+        "Manufacturing & Processing"
+      ]
+    },
+    "seismic_geophysical": {
+      "allow_sectors": [
+        "Oil & Gas & Energy",
+        "Capital Goods"
+      ],
+      "allow_subsectors": [
+        "Oil & Gas - Equipment & Services",
+        "Oil & Gas - Exploration & Production",
+        "Oil Equipment & Services",
+        "Drilling Equipment",
+        "Oil, Gas & Mining"
+      ]
+    },
+    "offshore_diving": {
+      "allow_sectors": [
+        "Transportation & Logistics",
+        "Oil & Gas & Energy"
+      ],
+      "allow_subsectors": [
+        "Shipbuilding",
+        "Ports",
+        "Dredging",
+        "Oil & Gas - Equipment & Services",
+        "Oil Equipment & Services"
+      ]
+    },
+    "micro_irrigation": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Power & Utilities",
+        "Agriculture & Agro"
+      ],
+      "allow_subsectors": [
+        "Agricultural & Farm Machinery",
+        "Industrial Machinery",
+        "Water Management",
+        "Water Supply & Management",
+        "Agro Products"
+      ]
+    },
+    "coated_steel": {
+      "allow_sectors": [
+        "Metals & Mining"
+      ],
+      "allow_subsectors": [
+        "Iron & Steel",
+        "Iron & Steel Products",
+        "Steel",
+        "Steel & Metals",
+        "Metals - Aluminium",
+        "Metal Fabrication"
+      ]
+    },
+    "aseptic_food": {
+      "allow_sectors": [
+        "FMCG & Consumer Goods",
+        "Agriculture & Agro",
+        "Fast Moving Consumer Goods"
+      ],
+      "allow_subsectors": [
+        "Packaged Foods & Meats",
+        "FMCG - Foods",
+        "Packaged Foods",
+        "Agro Products",
+        "Other Food Products"
+      ]
+    },
+    "maize_derivatives": {
+      "allow_sectors": [
+        "Chemicals & Petrochemicals",
+        "FMCG & Consumer Goods",
+        "Agriculture & Agro",
+        "Fast Moving Consumer Goods"
+      ],
+      "allow_subsectors": [
+        "Commodity Chemicals",
+        "Specialty Chemicals",
+        "Manufacturing & Processing",
+        "Agro Products",
+        "Other Food Products",
+        "Packaged Foods & Meats"
+      ]
+    },
+    "gilts_primary_dealer": {
+      "allow_sectors": [
+        "Banking & Finance"
+      ],
+      "allow_subsectors": [
+        "Investment Banking & Brokerage",
+        "Specialized Finance",
+        "Diversified Financials",
+        "Financial Services",
+        "Stock Exchanges & Ratings",
+        "Private Banks",
+        "Public Banks"
+      ]
+    },
+    "merchant_banking": {
+      "allow_sectors": [
+        "Banking & Finance"
+      ],
+      "allow_subsectors": [
+        "Investment Banking & Brokerage",
+        "Financial Services",
+        "Diversified Financials",
+        "Specialized Finance"
+      ]
+    },
+    "tmt_royalty": {
+      "allow_sectors": [
+        "Metals & Mining"
+      ],
+      "allow_subsectors": [
+        "Iron & Steel",
+        "Iron & Steel Products",
+        "Steel",
+        "Steel & Metals"
+      ]
+    },
+    "packaging_materials": {
+      "allow_sectors": [
+        "Engineering & Capital Goods"
+      ],
+      "allow_subsectors": [
+        "Packaging",
+        "Packaging & Containers",
+        "Paper Products",
+        "Paper & Paper Products",
+        "Plastic Products",
+        "Plastic Products - Industrial"
+      ]
+    },
+    "hospitals_healthcare": {
+      "allow_sectors": [
+        "Pharmaceuticals & Healthcare"
+      ],
+      "allow_subsectors": [
+        "Hospitals & Diagnostic Centres",
+        "Medical Care Facilities",
+        "Healthcare Services",
+        "Healthcare Service Provider",
+        "Healthcare",
+        "Medical Equipment & Supplies",
+        "Health Care Equipment & Supplies"
+      ],
+      "exclude_pairs": [
+        "Pharmaceuticals & Healthcare > Hotels & Hospitality",
+        "Pharmaceuticals & Healthcare > Hotels, Resorts & Cruise Lines"
+      ]
+    },
+    "real_estate_redevelopment": {
+      "allow_sectors": [
+        "Real Estate & Construction"
+      ],
+      "allow_subsectors": [
+        "Real Estate",
+        "Real Estate - Development",
+        "Residential, Commercial Projects",
+        "Real Estate Services"
+      ]
+    },
+    "pharma_cdmo": {
+      "allow_sectors": [
+        "Pharmaceuticals & Healthcare",
+        "Chemicals & Petrochemicals"
+      ],
+      "allow_subsectors": [
+        "Pharmaceuticals",
+        "Drug Manufacturers - Specialty & Generic",
+        "Biotechnology",
+        "Labs & Life Sciences Services",
+        "Specialty Chemicals"
+      ]
+    },
+    "electronics_ems": {
+      "allow_sectors": [
+        "IT & Technology",
+        "Information Technology",
+        "Consumer Durables",
+        "Automobile & Ancillaries"
+      ],
+      "allow_subsectors": [
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Technology Hardware",
+        "Computers Hardware & Equipments",
+        "Home Electronics & Appliances",
+        "Auto Components & Equipments"
+      ]
+    },
+    "gems_jewellery": {
+      "allow_sectors": [
+        "Retail",
+        "Consumer Discretionary"
+      ],
+      "allow_subsectors": [
+        "Precious Metals, Jewellery & Watches",
+        "Gems, Jewellery And Watches"
+      ]
+    },
+    "solar_epc": {
+      "allow_sectors": [
+        "Power & Utilities"
+      ],
+      "allow_subsectors": [
+        "Renewable Energy",
+        "Renewable Energy Equipment & Services",
+        "Power Infrastructure",
+        "Power Generation"
+      ]
+    },
+    "power_electrical": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Power & Utilities"
+      ],
+      "allow_subsectors": [
+        "Electrical Components & Equipments",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Cables",
+        "Other Electrical Equipment",
+        "Electrical Equipment & Parts",
+        "Power Transmission & Distribution",
+        "Power Infrastructure",
+        "Renewable Energy Equipment & Services"
+      ]
+    },
+    "auto_components": {
+      "allow_sectors": [
+        "Automobile & Ancillaries"
+      ],
+      "allow_subsectors": [
+        "Auto Parts",
+        "Auto Components & Equipments",
+        "Automobile & Components",
+        "Electronic Equipments",
+        "Batteries",
+        "Two Wheelers",
+        "Three Wheelers",
+        "Tractors"
+      ],
+      "exclude_pairs": [
+        "Automobile & Ancillaries > Real Estate",
+        "Automobile & Ancillaries > Real Estate Services",
+        "Automobile & Ancillaries > Dealers-Commercial Vehicles"
+      ]
+    },
+    "financials": {
+      "allow_sectors": [
+        "Banking & Finance"
+      ],
+      "allow_subsectors": []
+    },
+    "ai_bottleneck_power": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Power & Utilities"
+      ],
+      "allow_subsectors": [
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments",
+        "Cables",
+        "Other Electrical Equipment",
+        "Electrical Equipment & Parts",
+        "Power Transmission & Distribution",
+        "Power Infrastructure",
+        "Industrial Machinery",
+        "Renewable Energy Equipment & Services",
+        "Batteries"
+      ]
+    },
+    "ai_bottleneck_memory": {
+      "allow_sectors": [
+        "IT & Technology",
+        "Information Technology",
+        "Chemicals & Petrochemicals"
+      ],
+      "allow_subsectors": [
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Technology Hardware",
+        "Computers Hardware & Equipments",
+        "Specialty Chemicals",
+        "Commodity Chemicals"
+      ]
+    },
+    "ai_bottleneck_compute": {
+      "allow_sectors": [
+        "IT & Technology",
+        "Information Technology",
+        "Consumer Durables",
+        "Automobile & Ancillaries"
+      ],
+      "allow_subsectors": [
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Technology Hardware",
+        "Computers Hardware & Equipments",
+        "Home Electronics & Appliances",
+        "Auto Components & Equipments",
+        "Telecom Equipment"
+      ]
+    }
+  }
+}

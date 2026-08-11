@@ -42,6 +42,8 @@ function filterRows(
     q: string;
     dinOnly: boolean;
     bridge: boolean;
+    tinyBridge: boolean;
+    tiBridge: boolean;
     smeCross: boolean;
     bb: boolean;
     tq: boolean;
@@ -59,6 +61,8 @@ function filterRows(
 
   for (const r of rows) {
     if (opts.dinOnly && !r.din_backed) continue;
+    if (opts.tiBridge && !r.ti_bridge) continue;
+    if (opts.tinyBridge && !r.tiny_bridge) continue;
     if (opts.bridge && !r.bridge) continue;
     if (opts.smeCross && !r.sme_cross) continue;
     if (opts.hideCollision && r.name_collision) continue;
@@ -266,6 +270,8 @@ export async function GET(req: NextRequest) {
     q,
     dinOnly: sp.get("dinOnly") !== "0",
     bridge: sp.get("bridge") === "1",
+    tinyBridge: sp.get("tinyBridge") === "1",
+    tiBridge: sp.get("tiBridge") === "1",
     smeCross: sp.get("smeCross") === "1",
     bb: sp.get("bb") === "1",
     tq: sp.get("tq") === "1",

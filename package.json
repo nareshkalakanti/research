@@ -13,7 +13,11 @@
     "test:gov": "tsx scripts/test-gov-map.ts",
     "test:gov-scan": "tsx scripts/test-gov-scan.ts",
     "test:quarters": "tsx scripts/test-quarters.ts",
-    "test:forward-pe": "tsx scripts/test-forward-pe.ts",
+    "test:hidden-portfolio": "tsx scripts/test-hidden-portfolio.ts",
+    "test:bulk-deals": "tsx scripts/test-bulk-deals.ts",
+    "test:turnaround-holdings": "tsx scripts/test-turnaround-holdings.ts",
+    "test:smart-money": "tsx scripts/test-smart-money.ts",
+    "sync:smart-money": "tsx scripts/sync-smart-money.ts",
     "sync:holdings": "tsx scripts/sync-holdings.ts",
     "sync:edge": "tsx scripts/sync-edge.ts"
   },

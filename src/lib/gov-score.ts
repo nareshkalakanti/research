@@ -4,6 +4,10 @@
 export const BRIDGE_LARGE_MIN_CR = 5_000;
 /** Cap-bridge small side: TI + MIC + SC (strictly below MC). */
 export const BRIDGE_SMALL_MAX_CR = 5_000;
+/** Micro side: TI + MIC. */
+export const BRIDGE_TINY_MAX_CR = 500;
+/** Ultra-small side: TI only. */
+export const BRIDGE_TI_MAX_CR = 100;
 
 /** @deprecated use BRIDGE_LARGE_MIN_CR */
 export const LARGE_MCAP_CR = BRIDGE_LARGE_MIN_CR;
@@ -11,9 +15,18 @@ export const LARGE_MCAP_CR = BRIDGE_LARGE_MIN_CR;
 export const SMALL_MCAP_CR = BRIDGE_SMALL_MAX_CR;
 
 export const GOV_CAP_BRIDGE_LABEL = "Cap bridge";
-export const GOV_CAP_BRIDGE_HINT = "≥5k ↔ <5k Cr";
 export const GOV_CAP_BRIDGE_TITLE =
-  "Director on both a mid/large cap board (≥ ₹5,000 Cr · MC/LC) and a sub-mid cap board (< ₹5,000 Cr · TI/MIC/SC)";
+  "Mid/large board (≥ ₹5,000 Cr) + any board under ₹5,000 Cr";
+export const GOV_MIC_BRIDGE_LABEL = "< ₹500 Cr";
+export const GOV_MIC_BRIDGE_TITLE =
+  "Mid/large board (≥ ₹5,000 Cr) + tiny/micro board under ₹500 Cr";
+export const GOV_TI_BRIDGE_LABEL = "< ₹100 Cr";
+export const GOV_TI_BRIDGE_TITLE =
+  "Mid/large board (≥ ₹5,000 Cr) + tiny board under ₹100 Cr";
+export const GOV_TINY_BRIDGE_LABEL = GOV_MIC_BRIDGE_LABEL;
+export const GOV_TINY_BRIDGE_HINT = "≥5k ↔ <500 Cr";
+export const GOV_TINY_BRIDGE_TITLE = GOV_MIC_BRIDGE_TITLE;
+export const GOV_CAP_BRIDGE_HINT = "≥5k ↔ <5k Cr";
 export const GOV_SME_CROSS_LABEL = "SME ↔ Mainboard";
 export const GOV_SME_CROSS_TITLE =
   "Director on both an NSE SME listing and a main NSE board";
@@ -143,7 +156,13 @@ export type DirectorScore = {
   board_count: number;
   big_n: number;
   small_n: number;
+  tiny_n: number;
+  ti_n: number;
   bridge: boolean;
+  /** Mid/large (≥5k) + micro/tiny (<500 Cr). */
+  tiny_bridge: boolean;
+  /** Mid/large (≥5k) + TI only (<100 Cr). */
+  ti_bridge: boolean;
   raw: number;
   base: number;
   bonus: number;
@@ -166,6 +185,8 @@ export function scoreDirectorSeats(
   let raw = 0;
   let bigN = 0;
   let smallN = 0;
+  let tinyN = 0;
+  let tiN = 0;
   let knownMcapN = 0;
 
   for (const seat of seats) {
@@ -178,6 +199,8 @@ export function scoreDirectorSeats(
       knownMcapN += 1;
       if (mcapF >= BRIDGE_LARGE_MIN_CR) bigN += 1;
       if (mcapF < BRIDGE_SMALL_MAX_CR) smallN += 1;
+      if (mcapF < BRIDGE_TINY_MAX_CR) tinyN += 1;
+      if (mcapF < BRIDGE_TI_MAX_CR) tiN += 1;
     }
     raw += seatContribution({
       marketCapCr: mcapF,
@@ -194,10 +217,12 @@ export function scoreDirectorSeats(
   let boardCount = tickers.size;
   if (boardCount <= 0) boardCount = seats.length;
 
-  let bridge = false;
+  const tiBridge = bigN >= 1 && tiN >= 1;
+  const tinyBridge = bigN >= 1 && tinyN >= 1;
+  const bridge = bigN >= 1 && smallN >= 1;
+
   let bonus = 0;
-  if (bigN >= 1 && smallN >= 1) {
-    bridge = true;
+  if (tiBridge || tinyBridge || bridge) {
     bonus += BRIDGE_BONUS;
   } else if (bigN >= 1) {
     bonus += HAS_LARGE_BONUS;
@@ -218,7 +243,11 @@ export function scoreDirectorSeats(
     board_count: boardCount,
     big_n: bigN,
     small_n: smallN,
+    tiny_n: tinyN,
+    ti_n: tiN,
     bridge,
+    tiny_bridge: tinyBridge,
+    ti_bridge: tiBridge,
     raw: Math.round(raw * 1000) / 1000,
     base: Math.round(base * 10) / 10,
     bonus,

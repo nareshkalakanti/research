@@ -3,14 +3,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
-import { forwardPeBand } from "@/lib/forward-pe-band";
 import type { Company } from "@/lib/types";
 import { formatInr, formatMcap } from "@/lib/types";
 
 export type SortKey =
   | "name"
   | "price"
-  | "forward_pe"
   | "sector"
   | "sub_sector"
   | "mcap_cr";
@@ -45,10 +43,6 @@ function SortIcon({
   return <span className="sort-active">{dir === "asc" ? "↑" : "↓"}</span>;
 }
 
-function fmtPe(n: number): string {
-  return n.toFixed(1);
-}
-
 function SignalTags({ company }: { company: Company }) {
   return (
     <span className="result-tags">
@@ -65,6 +59,14 @@ function SignalTags({ company }: { company: Company }) {
       {company.has_hold ? (
         <span className="result-tag tag-hold" title="In your holdings">
           HOLD
+        </span>
+      ) : null}
+      {company.has_distress ? (
+        <span
+          className="result-tag tag-distress"
+          title="Distress turnaround seed monitor"
+        >
+          DISTRESS
         </span>
       ) : null}
       {company.has_bb ? (
@@ -95,23 +97,6 @@ function SignalTags({ company }: { company: Company }) {
   );
 }
 
-function ForwardPeCell({ pe }: { pe: number | null | undefined }) {
-  const band = forwardPeBand(pe);
-  if (band === "none") {
-    return <td className="num col-forward_pe">—</td>;
-  }
-  return (
-    <td className="num col-forward_pe">
-      <span
-        className={`badge-fpe ${band}`}
-        title="Forward PE = price ÷ (latest quarter EPS × 4)"
-      >
-        {fmtPe(pe!)}
-      </span>
-    </td>
-  );
-}
-
 export function CompanyTable({
   rows,
   sort,
@@ -126,7 +111,7 @@ export function CompanyTable({
   const [more, setMore] = useState<Record<string, boolean>>({});
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
-  const colSpan = 7;
+  const colSpan = 6;
 
   useEffect(() => {
     setExpanded(null);
@@ -146,11 +131,6 @@ export function CompanyTable({
       [
         { key: "name" as const, label: "Company", align: "left" as const },
         { key: "price" as const, label: "Price", align: "right" as const },
-        {
-          key: "forward_pe" as const,
-          label: "Fwd PE",
-          align: "right" as const,
-        },
         { key: "sector" as const, label: "Sector", align: "left" as const },
         {
           key: "sub_sector" as const,
@@ -174,7 +154,6 @@ export function CompanyTable({
           <colgroup>
             <col className="col-name" />
             <col className="col-price" />
-            <col className="col-forward_pe" />
             <col className="col-sector" />
             <col className="col-sub_sector" />
             <col className="col-mcap_cr" />
@@ -293,7 +272,6 @@ function CompanyRows({
             ["sector", r.missing.sector],
             ["about", r.missing.about],
             ["web", r.missing.web],
-            ["fwd pe", r.missing.forward_pe],
           ] as const
         )
           .filter(([, on]) => on)
@@ -360,7 +338,6 @@ function CompanyRows({
             {formatInr(r.price)}
           </button>
         </td>
-        <ForwardPeCell pe={r.forward_pe} />
         <td className="col-sector" title={r.sector || undefined}>
           {r.sector || "—"}
         </td>
