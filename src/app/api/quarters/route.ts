@@ -1,9 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  computeForwardPe,
-  latestEpsFromQuarters,
-  upsertForwardPe,
-} from "@/lib/forward-pe";
 import { buildQuarterPanel } from "@/lib/quarter-panel";
 import { fetchQuarterlyFundamentals } from "@/lib/yahoo-quarters";
 
@@ -20,33 +15,17 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { quarters, price, symbol } = await fetchQuarterlyFundamentals(
-      ticker,
-      market,
-    );
+    const { quarters, price, symbol, source } =
+      await fetchQuarterlyFundamentals(ticker, market);
     const panel = buildQuarterPanel(quarters);
-    const { eps, quarter_end } = latestEpsFromQuarters(quarters);
-    const forward_pe = computeForwardPe(price, eps);
-    if (forward_pe != null && Number.isFinite(forward_pe)) {
-      upsertForwardPe([
-        {
-          ticker,
-          market,
-          forward_pe,
-          latest_eps: eps,
-          quarter_end,
-          price,
-        },
-      ]);
-    }
 
     return NextResponse.json({
       ok: true,
       ticker,
       market,
       symbol: symbol || undefined,
-      source: "yahoo",
-      forward_pe: forward_pe ?? undefined,
+      source: panel ? source : undefined,
+      price: price ?? undefined,
       quarters: panel,
     });
   } catch (e) {

@@ -8,8 +8,6 @@ export type Company = {
   sector: string | null;
   sub_sector: string | null;
   price: number | null;
-  /** Forward PE = price ÷ (latest Q EPS × 4). */
-  forward_pe?: number | null;
   mcap_cr: number | null;
   web: string | null;
   sc: string;
@@ -23,6 +21,8 @@ export type Company = {
   has_tq?: boolean;
   /** In personal holdings (data/holdings.db). */
   has_hold?: boolean;
+  /** Fixed distress turnaround seed (8 monitors). */
+  has_distress?: boolean;
   /** In Edge watchlist — Early Edge + Negen + Niveshaay (data/edge.db). */
   has_edge?: boolean;
   /** Has a saved research note (data/notes.db). */
@@ -48,7 +48,6 @@ export type Company = {
     sector: boolean;
     about: boolean;
     web: boolean;
-    forward_pe?: boolean;
   };
 };
 

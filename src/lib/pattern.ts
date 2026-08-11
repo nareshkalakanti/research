@@ -6,7 +6,8 @@
  *
  * AND terms must each appear as whole words/phrases somewhere in the text
  * (so HQ/location can combine with About). Hits inside financing product
- * phrases (e.g. "rooftop solar loan") are ignored.
+ * phrases (e.g. "rooftop solar loan") are ignored. Bare "nuclear" hits inside
+ * "nuclear medicine" / hospital imaging are ignored.
  */
 
 export type OrClause = string[]; // AND terms within one OR branch
@@ -15,12 +16,57 @@ const FINANCE_LOOKAHEAD = 120;
 const FINANCE_NOISE =
   /\b(loan|loans|lending|financing|finance|credit|emi|mortgage|nbfc)\b/i;
 
+/** Terms that often false-positive on hospitals / diagnostics. */
+const MEDICAL_NOISE_TERMS = new Set([
+  "nuclear",
+  "isotope",
+  "isotopes",
+  "radiation",
+  "irradiation",
+  "cobalt",
+  "cobalt-60",
+  "radiography",
+  "dosimetry",
+]);
+
 function financeContext(text: string, start: number, end: number): boolean {
   const span = text.slice(
     Math.max(0, start - 16),
     Math.min(text.length, end + FINANCE_LOOKAHEAD),
   );
   return FINANCE_NOISE.test(span);
+}
+
+/** Skip nuclear/radiation hits that are hospital / nuclear-medicine context. */
+function medicalNuclearContext(
+  text: string,
+  start: number,
+  end: number,
+  term: string,
+): boolean {
+  if (!MEDICAL_NOISE_TERMS.has(term.toLowerCase())) return false;
+  const window = text.slice(
+    Math.max(0, start - 24),
+    Math.min(text.length, end + 64),
+  );
+  if (
+    /\bnuclear\s+(medicine|imaging|scan|cardiology|diagnostics?)\b/i.test(
+      window,
+    )
+  ) {
+    return true;
+  }
+  if (/\b(pet[\s-]?ct|spect|gamma\s+camera|radiology\s+dept)\b/i.test(window)) {
+    return true;
+  }
+  // "nuclear" immediately followed by medicine
+  if (
+    term.toLowerCase() === "nuclear" &&
+    /^\s*medicine\b/i.test(text.slice(end, end + 24))
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function parsePattern(pattern: string): OrClause[] {
@@ -67,6 +113,7 @@ export function clauseMatches(haystack: string, clause: OrClause): boolean {
     let ok = false;
     for (const i of positions) {
       if (financeContext(text, i, i + term.length)) continue;
+      if (medicalNuclearContext(text, i, i + term.length, term)) continue;
       ok = true;
       break;
     }

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
-import { FillForwardPeButton } from "@/components/FillForwardPeButton";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import type { Company } from "@/lib/types";
@@ -14,7 +13,6 @@ type GapKey =
   | "sector"
   | "about"
   | "web"
-  | "forward_pe"
   | "any";
 
 type Gaps = {
@@ -23,7 +21,6 @@ type Gaps = {
   missingSector: number;
   missingAbout: number;
   missingWeb: number;
-  missingForwardPe: number;
   any: number;
   metrics: number;
 };
@@ -44,7 +41,6 @@ const GAP_OPTIONS: { id: GapKey; label: string; countKey: keyof Gaps }[] = [
   { id: "sector", label: "Sector", countKey: "missingSector" },
   { id: "about", label: "About", countKey: "missingAbout" },
   { id: "web", label: "Web", countKey: "missingWeb" },
-  { id: "forward_pe", label: "Fwd PE", countKey: "missingForwardPe" },
   { id: "any", label: "Any gap", countKey: "any" },
 ];
 
@@ -92,11 +88,7 @@ export function MissingDataPanel() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(
-        key === "price" || key === "mcap_cr" || key === "forward_pe"
-          ? "desc"
-          : "asc",
-      );
+      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
     }
   }
 
@@ -111,7 +103,6 @@ export function MissingDataPanel() {
     (r) => r.missing?.price || r.missing?.mcap,
   ).length;
   const totalMetricsGaps = gaps?.metrics ?? 0;
-  const totalFpeGaps = gaps?.missingForwardPe ?? 0;
   const gapLabel =
     GAP_OPTIONS.find((o) => o.id === gap)?.label.toLowerCase() ?? gap;
 
@@ -125,18 +116,8 @@ export function MissingDataPanel() {
             {gaps ? (
               <>
                 {" "}
-                ·{" "}
-                {gap === "forward_pe" ? (
-                  <>
-                    <strong>{totalFpeGaps.toLocaleString()}</strong> missing Fwd
-                    PE
-                  </>
-                ) : (
-                  <>
-                    <strong>{(gaps.metrics ?? 0).toLocaleString()}</strong> need
-                    price/mcap
-                  </>
-                )}
+                · <strong>{(gaps.metrics ?? 0).toLocaleString()}</strong> need
+                price/mcap
               </>
             ) : null}
           </p>
@@ -156,22 +137,13 @@ export function MissingDataPanel() {
         </div>
       </div>
 
-      {gap === "forward_pe" ? (
-        <FillForwardPeButton
-          market={market}
-          tickers={pageTickers}
-          pendingCount={totalFpeGaps}
-          onDone={() => load({ refresh: true })}
-        />
-      ) : (
-        <FillMissingButton
-          market={market}
-          tickers={pageTickers}
-          gapCount={fillableGaps}
-          totalGaps={totalMetricsGaps}
-          onDone={() => load({ refresh: true })}
-        />
-      )}
+      <FillMissingButton
+        market={market}
+        tickers={pageTickers}
+        gapCount={fillableGaps}
+        totalGaps={totalMetricsGaps}
+        onDone={() => load({ refresh: true })}
+      />
 
       <div className="toolbar">
         <label className="field">

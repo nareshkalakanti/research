@@ -25,11 +25,12 @@ type ScanApi = {
   pages: number;
   scanPattern: string | null;
   markets: Record<string, number>;
-  gaps?: { missingForwardPe?: number };
+  gaps?: Record<string, number>;
   signals?: {
     bb: number;
     tq: number;
     hold?: number;
+    distress?: number;
     edge?: number;
     note?: number;
   };
@@ -50,6 +51,7 @@ export function ThemeScanner() {
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
+  const [filterDistress, setFilterDistress] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [page, setPage] = useState(1);
@@ -57,17 +59,18 @@ export function ThemeScanner() {
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ScanApi | null>(null);
   const [loading, setLoading] = useState(false);
-  const [fpePending, setFpePending] = useState(0);
   const [signalCounts, setSignalCounts] = useState<{
     bb: number;
     tq: number;
     hold: number;
+    distress: number;
     edge: number;
     note: number;
   }>({
     bb: 0,
     tq: 0,
     hold: 0,
+    distress: 0,
     edge: 0,
     note: 0,
   });
@@ -84,22 +87,22 @@ export function ThemeScanner() {
       .then(
         (j: {
           markets: Record<string, number>;
-          gaps?: { missingForwardPe?: number };
           signals?: {
             bb: number;
             tq: number;
             hold?: number;
+            distress?: number;
             edge?: number;
             note?: number;
           };
         }) => {
           setMarkets(j.markets ?? {});
-          setFpePending(j.gaps?.missingForwardPe ?? 0);
           if (j.signals) {
             setSignalCounts({
               bb: j.signals.bb ?? 0,
               tq: j.signals.tq ?? 0,
               hold: j.signals.hold ?? 0,
+              distress: j.signals.distress ?? 0,
               edge: j.signals.edge ?? 0,
               note: j.signals.note ?? 0,
             });
@@ -115,11 +118,11 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [selected, debouncedCustom, market, cap, sme, filterBb, filterTq, filterHold, filterEdge, filterNote]);
+  }, [selected, debouncedCustom, market, cap, sme, filterBb, filterTq, filterHold, filterDistress, filterEdge, filterNote]);
 
   const themeActive = selected.length > 0 || debouncedCustom.trim().length > 0;
   const signalActive =
-    filterBb || filterTq || filterHold || filterEdge || filterNote;
+    filterBb || filterTq || filterHold || filterDistress || filterEdge || filterNote;
   const capActive = cap !== "All";
   const active = themeActive || signalActive || capActive;
   const listMarket = sme ? "NSE SME" : market;
@@ -147,6 +150,7 @@ export function ThemeScanner() {
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
       if (filterHold) params.set("hold", "1");
+      if (filterDistress) params.set("distress", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
@@ -155,12 +159,12 @@ export function ThemeScanner() {
         const json = (await res.json()) as ScanApi;
         setData(json);
         if (json.markets) setMarkets(json.markets);
-        setFpePending(json.gaps?.missingForwardPe ?? 0);
         if (json.signals) {
           setSignalCounts({
             bb: json.signals.bb ?? 0,
             tq: json.signals.tq ?? 0,
             hold: json.signals.hold ?? 0,
+            distress: json.signals.distress ?? 0,
             edge: json.signals.edge ?? 0,
             note: json.signals.note ?? 0,
           });
@@ -179,6 +183,7 @@ export function ThemeScanner() {
       filterBb,
       filterTq,
       filterHold,
+      filterDistress,
       filterEdge,
       filterNote,
       page,
@@ -200,11 +205,7 @@ export function ThemeScanner() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(
-        key === "price" || key === "mcap_cr" || key === "forward_pe"
-          ? "desc"
-          : "asc",
-      );
+      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
     }
   }
 
@@ -328,25 +329,25 @@ export function ThemeScanner() {
           bb={filterBb}
           tq={filterTq}
           hold={filterHold}
+          distress={filterDistress}
           edge={filterEdge}
           note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
           onHold={setFilterHold}
+          onDistress={setFilterDistress}
           onEdge={setFilterEdge}
           onNote={setFilterNote}
           bbCount={data?.signals?.bb ?? signalCounts.bb}
           tqCount={data?.signals?.tq ?? signalCounts.tq}
           holdCount={data?.signals?.hold ?? signalCounts.hold}
+          distressCount={data?.signals?.distress ?? signalCounts.distress}
           edgeCount={data?.signals?.edge ?? signalCounts.edge}
           noteCount={data?.signals?.note ?? signalCounts.note}
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
           market={listMarket}
           onDone={() => void load({ refresh: true })}
-          fpeTickers={data?.rows?.map((r) => r.ticker)}
-          fpePending={fpePending}
-          onFpeDone={() => void load({ refresh: true })}
         />
       </div>
 

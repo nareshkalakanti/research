@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadAllCompanies } from "@/lib/db";
-import { loadForwardPeMap } from "@/lib/forward-pe";
 
 export const runtime = "nodejs";
 
@@ -20,26 +19,18 @@ export async function GET(req: NextRequest) {
     companies = companies.filter((c) => c.market === market);
   }
 
-  const forwardPe = loadForwardPeMap();
-
   companies = companies.filter((c) => {
     const price = c.price == null;
     const mcap = c.mcap_cr == null;
     const sector = !c.sector?.trim();
     const about = !c.about?.trim();
     const web = !c.web;
-    const fpeRow = forwardPe.get(c.ticker.toUpperCase());
-    const missingFpe =
-      fpeRow?.forward_pe == null || !Number.isFinite(fpeRow.forward_pe);
     if (missing === "any") return price || mcap || sector || about || web;
     if (missing === "price") return price;
     if (missing === "mcap") return mcap;
     if (missing === "sector") return sector;
     if (missing === "about") return about;
     if (missing === "web") return web;
-    if (missing === "forward_pe" || missing === "fwd_pe" || missing === "fpe") {
-      return missingFpe;
-    }
     if (missing === "metrics") return price || mcap;
     return price || mcap;
   });
@@ -58,17 +49,12 @@ export async function GET(req: NextRequest) {
     "missing_sector",
     "missing_about",
     "missing_web",
-    "forward_pe",
-    "missing_forward_pe",
     "screener",
     "tradingview",
   ];
 
   const lines = [header.join(",")];
   for (const c of companies) {
-    const fpeRow = forwardPe.get(c.ticker.toUpperCase());
-    const fpe = fpeRow?.forward_pe ?? null;
-    const missingFpe = fpe == null || !Number.isFinite(fpe);
     lines.push(
       [
         c.ticker,
@@ -84,8 +70,6 @@ export async function GET(req: NextRequest) {
         !c.sector?.trim() ? "1" : "0",
         !c.about?.trim() ? "1" : "0",
         !c.web ? "1" : "0",
-        fpe,
-        missingFpe ? "1" : "0",
         c.sc,
         c.tv,
       ]

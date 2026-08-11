@@ -8,6 +8,7 @@ import {
   trimReportedQuarters,
   type QuarterPoint,
 } from "./quarter-panel";
+import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
 import { toYfinanceSymbol } from "./yfinance";
 
 export type { QuarterPoint };
@@ -107,58 +108,105 @@ export async function fetchQuarterlyFundamentals(
   price: number | null;
   ret_3m_pct: number | null;
   symbol: string;
+  source: "yahoo" | "nse" | "none";
 }> {
   const symbol = toYfinanceSymbol(ticker, market);
   if (!symbol) {
-    return { quarters: [], price: null, ret_3m_pct: null, symbol: "" };
+    return {
+      quarters: [],
+      price: null,
+      ret_3m_pct: null,
+      symbol: "",
+      source: "none",
+    };
   }
 
-  const period1 = new Date();
-  period1.setFullYear(period1.getFullYear() - 4);
+  /** Yahoo often lists SME names as TICKER-SM.NS while db market stays "NSE". */
+  const symbolCandidates = [symbol];
+  if (symbol.endsWith(".NS") && !symbol.includes("-SM")) {
+    symbolCandidates.push(symbol.replace(/\.NS$/i, "-SM.NS"));
+  } else if (symbol.includes("-SM.NS")) {
+    symbolCandidates.push(symbol.replace(/-SM\.NS$/i, ".NS"));
+  }
 
-  let series: Array<Record<string, unknown>> = [];
-  try {
-    series = await withYahooThrottle(async () => {
-      const ft = await yf.fundamentalsTimeSeries(symbol, {
-        period1: toDateStr(period1),
-        type: "quarterly",
-        module: "financials",
+  let usedSymbol = symbol;
+  let quarters: QuarterPoint[] = [];
+  let source: "yahoo" | "nse" | "none" = "none";
+
+  for (const sym of symbolCandidates) {
+    const period1 = new Date();
+    period1.setFullYear(period1.getFullYear() - 4);
+
+    let series: Array<Record<string, unknown>> = [];
+    try {
+      series = await withYahooThrottle(async () => {
+        const ft = await yf.fundamentalsTimeSeries(sym, {
+          period1: toDateStr(period1),
+          type: "quarterly",
+          module: "financials",
+        });
+        return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
       });
-      return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
-    });
-  } catch {
-    series = [];
+    } catch {
+      series = [];
+    }
+
+    const byDate = new Map<string, QuarterPoint>();
+    for (const row of series) {
+      const date = toDateStr(row.date as Date);
+      if (!date) continue;
+      const prev = byDate.get(date);
+      byDate.set(date, {
+        date,
+        revenue: pickField(row, REVENUE_FIELDS) ?? prev?.revenue ?? null,
+        ebit: pickField(row, EBIDT_FIELDS) ?? prev?.ebit ?? null,
+        netIncome: pickField(row, NET_INCOME_FIELDS) ?? prev?.netIncome ?? null,
+        eps: pickField(row, EPS_FIELDS) ?? prev?.eps ?? null,
+        otherIncome:
+          pickField(row, OTHER_INCOME_FIELDS) ?? prev?.otherIncome ?? null,
+      });
+    }
+
+    const candidate = trimReportedQuarters(
+      [...byDate.values()].filter(
+        (q) => q.revenue != null || q.netIncome != null || q.eps != null,
+      ),
+    );
+    if (candidate.length >= 2) {
+      quarters = candidate;
+      usedSymbol = sym;
+      source = "yahoo";
+      break;
+    }
+    if (candidate.length > quarters.length) {
+      quarters = candidate;
+      usedSymbol = sym;
+    }
   }
 
-  // Merge sparse Yahoo rows per period-end (same date may appear in chunks).
-  const byDate = new Map<string, QuarterPoint>();
-  for (const row of series) {
-    const date = toDateStr(row.date as Date);
-    if (!date) continue;
-    const prev = byDate.get(date);
-    byDate.set(date, {
-      date,
-      revenue: pickField(row, REVENUE_FIELDS) ?? prev?.revenue ?? null,
-      ebit: pickField(row, EBIDT_FIELDS) ?? prev?.ebit ?? null,
-      netIncome: pickField(row, NET_INCOME_FIELDS) ?? prev?.netIncome ?? null,
-      eps: pickField(row, EPS_FIELDS) ?? prev?.eps ?? null,
-      otherIncome:
-        pickField(row, OTHER_INCOME_FIELDS) ?? prev?.otherIncome ?? null,
-    });
-  }
+  source = quarters.length >= 2 ? source : "none";
 
-  let quarters = trimReportedQuarters(
-    [...byDate.values()].filter(
-      (q) => q.revenue != null || q.netIncome != null || q.eps != null,
-    ),
-  );
+  // Yahoo often has no Ind-AS time series for smaller India names (e.g. ZODIAC).
+  if (quarters.length < 2) {
+    try {
+      const nse = await fetchNseQuarterlyFundamentals(ticker, {
+        maxQuarters: 6,
+      });
+      if (nse.length >= 2) {
+        quarters = nse;
+        source = "nse";
+      }
+    } catch {
+      /* keep Yahoo (possibly empty) */
+    }
+  }
 
   let price: number | null = null;
   let ret_3m_pct: number | null = null;
   if (!opts?.skipChart) {
     try {
       const chart = await withYahooThrottle(() =>
-        yf.chart(symbol, {
+        yf.chart(usedSymbol, {
           period1: toDateStr(new Date(Date.now() - 200 * 86400000)),
           interval: "1d",
         }),
@@ -184,5 +232,5 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  return { quarters, price, ret_3m_pct, symbol };
+  return { quarters, price, ret_3m_pct, symbol: usedSymbol, source };
 }

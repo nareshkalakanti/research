@@ -8,11 +8,10 @@ import {
 import {
   combinePatterns,
   matchedKeywords,
-  matchedTerms,
-  patternMatches,
   textHasTerm,
 } from "@/lib/pattern";
 import { themesByIds } from "@/lib/themes";
+import { matchThemesForRow } from "@/lib/theme-match";
 import {
   invalidateBreakoutCache,
   latestSignalDates,
@@ -24,11 +23,7 @@ import {
 } from "@/lib/holdings";
 import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
 import { invalidateNotesCache, notesTickerSet } from "@/lib/notes";
-import {
-  invalidateForwardPeCache,
-  loadForwardPeMap,
-  missingForwardPeTickers,
-} from "@/lib/forward-pe";
+import { distressSeedSet } from "@/lib/distress/tickers";
 import { capTier, type CapTier } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -43,7 +38,6 @@ export async function GET(req: NextRequest) {
     invalidateHoldingsCache();
     invalidateEdgeCache();
     invalidateNotesCache();
-    invalidateForwardPeCache();
   }
   const market = sp.get("market") || "NSE";
   const q = (sp.get("q") || "").trim();
@@ -54,6 +48,7 @@ export async function GET(req: NextRequest) {
   const filterBb = sp.get("bb") === "1";
   const filterTq = sp.get("tq") === "1";
   const filterHold = sp.get("hold") === "1";
+  const filterDistress = sp.get("distress") === "1";
   const filterEdge = sp.get("edge") === "1";
   const filterNote = sp.get("note") === "1";
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
@@ -72,14 +67,14 @@ export async function GET(req: NextRequest) {
 
   const breakouts = loadBreakoutMap();
   const holdings = holdingsTickerSet();
+  const distress = distressSeedSet();
   const edge = edgeTickerSet();
   const notes = notesTickerSet();
-  const forwardPe = loadForwardPeMap();
 
   let companies = loadAllCompanies();
 
   // Hold / Edge / Notes are cross-market lists — don't hide SME/BSE when those chips are on.
-  const watchlistMode = filterHold || filterEdge || filterNote;
+  const watchlistMode = filterHold || filterDistress || filterEdge || filterNote;
   if (!watchlistMode && market && market !== "All") {
     companies = companies.filter((c) => c.market === market);
   }
@@ -115,10 +110,6 @@ export async function GET(req: NextRequest) {
       if (missing === "about") return g.about;
       if (missing === "web") return g.web;
       if (missing === "metrics") return g.price || g.mcap;
-      if (missing === "forward_pe" || missing === "fwd_pe" || missing === "fpe") {
-        const row = forwardPe.get(c.ticker.toUpperCase());
-        return row?.forward_pe == null || !Number.isFinite(row.forward_pe);
-      }
       return true;
     });
   }
@@ -143,24 +134,22 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const themePatterns = themesByIds(themeIds).map((t) => t.display_pattern);
+  const selectedThemes = themesByIds(themeIds);
+  const themePatterns = selectedThemes.map((t) => t.display_pattern);
   const scanPattern = combinePatterns([...themePatterns, custom]);
   const matchedByTheme: Record<string, string[]> = {};
   const highlightsByTicker: Record<string, string[]> = {};
 
-  if (scan && scanPattern) {
+  if (scan && (selectedThemes.length > 0 || custom.trim())) {
     const hits = [];
     for (const c of companies) {
-      if (patternMatches(c.search_text, scanPattern)) {
-        hits.push(c);
-        matchedByTheme[c.ticker] = matchedTerms(c.search_text, scanPattern);
-        // Match clauses on full search_text; highlight terms that appear in About.
-        highlightsByTicker[c.ticker] = matchedKeywords(
-          [c.about, c.headquarters].filter(Boolean).join("\n"),
-          scanPattern,
-          c.search_text,
-        );
-      }
+      const result = matchThemesForRow(c, selectedThemes, {
+        customPattern: custom.trim() || null,
+      });
+      if (!result.matched) continue;
+      hits.push(c);
+      matchedByTheme[c.ticker] = result.matchedTerms;
+      highlightsByTicker[c.ticker] = result.highlights;
     }
     companies = hits;
   } else if (scan && !scanPattern) {
@@ -190,6 +179,7 @@ export async function GET(req: NextRequest) {
       bb,
       tq,
       hold: holdings.size,
+      distress: distress.size,
       edge: edge.size,
       note: notes.size,
     };
@@ -198,6 +188,12 @@ export async function GET(req: NextRequest) {
   if (filterHold) {
     companies = companies.filter((c) =>
       holdings.has(c.ticker.toUpperCase()),
+    );
+  }
+
+  if (filterDistress) {
+    companies = companies.filter((c) =>
+      distress.has(c.ticker.toUpperCase()),
     );
   }
 
@@ -230,25 +226,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Attach Fwd PE before sort so column sorting works.
-  type RowWithPe = (typeof companies)[number] & { forward_pe: number | null };
-  let withPe: RowWithPe[] = companies.map((c) => ({
-    ...c,
-    forward_pe: forwardPe.get(c.ticker.toUpperCase())?.forward_pe ?? null,
-  }));
-
   const mul = dir === "desc" ? -1 : 1;
-  withPe = [...withPe].sort((a, b) => {
-    if (sort === "forward_pe") {
-      const av = a.forward_pe;
-      const bv = b.forward_pe;
-      // Missing PE sorts last in both directions.
-      if (av == null && bv == null) return 0;
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      return (av - bv) * mul;
-    }
-    const sortKey = sort as keyof RowWithPe;
+  companies = [...companies].sort((a, b) => {
+    const sortKey = sort as keyof (typeof companies)[number];
     const av = a[sortKey];
     const bv = b[sortKey];
     if (typeof av === "number" || typeof bv === "number") {
@@ -262,23 +242,20 @@ export async function GET(req: NextRequest) {
     scan &&
     !filterBb &&
     !filterTq &&
-    withPe.length > 0 &&
-    withPe.every((c) => {
+    companies.length > 0 &&
+    companies.every((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
       return !!flags?.has_bb || !!flags?.has_tq;
     });
 
-  const total = withPe.length;
+  const total = companies.length;
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const pageSafe = Math.min(page, pages);
   const start = (pageSafe - 1) * pageSize;
-  const slice = withPe.slice(start, start + pageSize).map((c) => {
+  const slice = companies.slice(start, start + pageSize).map((c) => {
     const { search_text: _, ...rest } = c;
     const g = gapFlags(c);
     const flags = breakouts.get(c.ticker.toUpperCase());
-    const fpeRow = forwardPe.get(c.ticker.toUpperCase());
-    const missingFpe =
-      fpeRow?.forward_pe == null || !Number.isFinite(fpeRow.forward_pe);
     return {
       ...rest,
       matched: matchedByTheme[c.ticker] ?? [],
@@ -286,9 +263,9 @@ export async function GET(req: NextRequest) {
       has_bb: !!flags?.has_bb,
       has_tq: !!flags?.has_tq,
       has_hold: holdings.has(c.ticker.toUpperCase()),
+      has_distress: distress.has(c.ticker.toUpperCase()),
       has_edge: edge.has(c.ticker.toUpperCase()),
       has_note: notes.has(c.ticker.toUpperCase()),
-      forward_pe: c.forward_pe ?? null,
       bb: flags?.bb,
       tq: flags?.tq,
       missing: {
@@ -297,7 +274,6 @@ export async function GET(req: NextRequest) {
         sector: g.sector,
         about: g.about,
         web: g.web,
-        forward_pe: missingFpe,
       },
     };
   });
@@ -312,9 +288,6 @@ export async function GET(req: NextRequest) {
     missingSector: marketUniverse.filter((c) => !c.sector?.trim()).length,
     missingAbout: marketUniverse.filter((c) => !c.about?.trim()).length,
     missingWeb: marketUniverse.filter((c) => !c.web).length,
-    missingForwardPe: missingForwardPeTickers(
-      marketUniverse.map((c) => c.ticker),
-    ).size,
     any: marketUniverse.filter(
       (c) =>
         c.price == null ||

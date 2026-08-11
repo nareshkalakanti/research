@@ -20,6 +20,9 @@
 # production
 /build
 
+# generated reports
+/output/
+
 # misc
 .DS_Store
 *.pem
