@@ -1,0 +1,56 @@
+{
+  "symbol": "RELIANCE",
+  "name": "Reliance Industries Limited",
+  "cap_segment": "large",
+  "sector": "Energy",
+  "market": "NSE",
+  "price": {
+    "live": 1425.5,
+    "day_open": 1410,
+    "day_high": 1432,
+    "day_low": 1405,
+    "prev_close": 1408,
+    "day_change_pct": 1.24,
+    "volume": 12500000
+  },
+  "range_52w": {
+    "high": 1608,
+    "low": 1180,
+    "pct_from_high": -11.4,
+    "position_pct": 68
+  },
+  "technicals": {
+    "rvol": 2.8,
+    "price_vs_sma_pct": 3.2,
+    "window_return_pct": 8.5,
+    "swing_high": 1450,
+    "swing_low": 1380,
+    "day_range_position_pct": 72,
+    "trend": "up"
+  },
+  "analyst": {
+    "consensus": "buy",
+    "num_analysts": 32,
+    "buy_pct": 78,
+    "hold_pct": 18,
+    "sell_pct": 4,
+    "target_mean": 1580,
+    "target_low": 1320,
+    "target_high": 1750,
+    "upside_pct": 10.8
+  },
+  "news": {
+    "total": 5,
+    "positive": 3,
+    "negative": 1,
+    "neutral": 1,
+    "recent": [
+      {
+        "title": "Reliance Jio adds subscribers in Q1",
+        "link": "https://example.com/ril-jio",
+        "published": "2026-08-10"
+      }
+    ]
+  },
+  "data_gaps": []
+}

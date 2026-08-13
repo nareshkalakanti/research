@@ -2,11 +2,100 @@
   "meta": {
     "source_db": "data/classifications.db",
     "rule": "match = keyword AND (sub_sector in allow_subsectors OR sector in allow_sectors) AND pair NOT in exclude_pairs",
-    "note": "Themes with no filter entry stay keyword-only. Empty allow lists with no entry = keyword-only.",
-    "updated": "2026-08-11"
+    "updated": "2026-08-12",
+    "aligned_to": "themes.json"
   },
   "filters": {
-    "copper_value_add": {
+    "pharma_medicine_factory": {
+      "allow_sectors": [
+        "Healthcare & Pharmaceuticals",
+        "Pharmaceuticals"
+      ],
+      "allow_subsectors": [
+        "Pharmaceuticals",
+        "Pharmaceuticals - Diversified",
+        "Pharmaceuticals - Formulations",
+        "API & Intermediates",
+        "Biotechnology"
+      ]
+    },
+    "electronics_value_chain": {
+      "allow_sectors": [
+        "Consumer Durables",
+        "Engineering & Capital Goods",
+        "IT & Technology"
+      ],
+      "allow_subsectors": [
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Technology Hardware",
+        "Computers Hardware & Equipments",
+        "Home Electronics & Appliances",
+        "Electrical Components & Equipments",
+        "Consumer Electronics"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting",
+        "IT & Technology > Software Products"
+      ]
+    },
+    "private_space": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Telecommunications"
+      ],
+      "allow_subsectors": [
+        "Aerospace & Defense",
+        "Defence",
+        "Electronic Equipments",
+        "Telecom Equipment",
+        "Satellite Communication"
+      ]
+    },
+    "ai_compute_datacenter": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Power & Utilities",
+        "IT & Technology"
+      ],
+      "allow_subsectors": [
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments",
+        "Power Infrastructure",
+        "Computers Hardware & Equipments",
+        "IT Consulting & Software"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting"
+      ]
+    },
+    "defence_aerospace": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Aerospace & Defense"
+      ],
+      "allow_subsectors": [
+        "Aerospace & Defense",
+        "Defence",
+        "Ship Building",
+        "Industrial Machinery",
+        "Heavy Electrical Equipments"
+      ]
+    },
+    "memory_dram_hbm": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "IT & Technology"
+      ],
+      "allow_subsectors": [
+        "Computers Hardware & Equipments",
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Technology Hardware"
+      ]
+    },
+    "copper_value_chain": {
       "allow_sectors": [
         "Metals & Mining",
         "Engineering & Capital Goods"
@@ -15,374 +104,170 @@
         "Metals - Copper",
         "Mining - Copper",
         "Metal Fabrication",
-        "Metals - Diversified",
         "Electrical Components & Equipments",
-        "Heavy Electrical Equipments",
-        "Heavy Electrical Equipment",
         "Cables",
-        "Electrical Equipment & Parts",
+        "Heavy Electrical Equipments",
         "Other Electrical Equipment"
       ],
       "exclude_pairs": [
         "Diversified & Others > Commodities Trading",
-        "Retail > Precious Metals, Jewellery & Watches",
-        "Consumer Discretionary > Gems, Jewellery And Watches"
+        "Retail > Precious Metals, Jewellery & Watches"
       ]
     },
-    "capacitors_dielectric": {
+    "peb_steel_structures": {
       "allow_sectors": [
         "Engineering & Capital Goods",
-        "Power & Utilities"
+        "Real Estate & Construction"
       ],
       "allow_subsectors": [
-        "Electrical Components & Equipments",
-        "Heavy Electrical Equipments",
-        "Other Electrical Equipment",
-        "Electrical Equipment & Parts",
-        "Plastic Products",
-        "Renewable Energy Equipment & Services"
-      ]
-    },
-    "foundry_consumables": {
-      "allow_sectors": [
-        "Chemicals & Petrochemicals",
-        "Engineering & Capital Goods"
-      ],
-      "allow_subsectors": [
-        "Specialty Chemicals",
-        "Commodity Chemicals",
-        "Diversified Chemicals",
+        "Construction & Engineering",
+        "Building Products",
+        "Iron & Steel Products",
         "Castings & Forgings",
-        "Industrial Machinery"
+        "Industrial Products",
+        "Heavy Engineering"
       ]
     },
-    "gravure_cylinders": {
+    "solar_clean_energy": {
       "allow_sectors": [
+        "Power & Utilities",
         "Engineering & Capital Goods"
       ],
       "allow_subsectors": [
-        "Packaging",
-        "Packaging & Containers",
-        "Paper Products",
-        "Paper & Paper Products",
-        "Plastic Products"
+        "Renewable Energy Equipment & Services",
+        "Power Infrastructure",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments"
       ]
     },
-    "pib_additives": {
+    "flexible_packaging": {
       "allow_sectors": [
+        "Engineering & Capital Goods",
         "Chemicals & Petrochemicals"
       ],
       "allow_subsectors": [
+        "Packaging",
+        "Plastic Products",
+        "Paper Products",
         "Specialty Chemicals",
-        "Commodity Chemicals",
-        "Diversified Chemicals",
-        "Organic Chemicals",
-        "Manufacturing & Processing"
+        "Commodity Chemicals"
       ]
     },
-    "seismic_geophysical": {
+    "food_processing": {
       "allow_sectors": [
-        "Oil & Gas & Energy",
-        "Capital Goods"
+        "FMCG & Consumer Goods",
+        "Agriculture & Agro"
       ],
       "allow_subsectors": [
-        "Oil & Gas - Equipment & Services",
-        "Oil & Gas - Exploration & Production",
-        "Oil Equipment & Services",
-        "Drilling Equipment",
-        "Oil, Gas & Mining"
-      ]
-    },
-    "offshore_diving": {
-      "allow_sectors": [
-        "Transportation & Logistics",
-        "Oil & Gas & Energy"
-      ],
-      "allow_subsectors": [
-        "Shipbuilding",
-        "Ports",
-        "Dredging",
-        "Oil & Gas - Equipment & Services",
-        "Oil Equipment & Services"
+        "FMCG - Foods",
+        "Agro Products",
+        "Food Processing",
+        "Agricultural Products"
       ]
     },
     "micro_irrigation": {
       "allow_sectors": [
         "Engineering & Capital Goods",
-        "Power & Utilities",
         "Agriculture & Agro"
       ],
       "allow_subsectors": [
         "Agricultural & Farm Machinery",
-        "Industrial Machinery",
-        "Water Management",
-        "Water Supply & Management",
-        "Agro Products"
-      ]
-    },
-    "coated_steel": {
-      "allow_sectors": [
-        "Metals & Mining"
-      ],
-      "allow_subsectors": [
-        "Iron & Steel",
-        "Iron & Steel Products",
-        "Steel",
-        "Steel & Metals",
-        "Metals - Aluminium",
-        "Metal Fabrication"
-      ]
-    },
-    "aseptic_food": {
-      "allow_sectors": [
-        "FMCG & Consumer Goods",
-        "Agriculture & Agro",
-        "Fast Moving Consumer Goods"
-      ],
-      "allow_subsectors": [
-        "Packaged Foods & Meats",
-        "FMCG - Foods",
-        "Packaged Foods",
         "Agro Products",
-        "Other Food Products"
+        "Irrigation Equipment"
       ]
     },
-    "maize_derivatives": {
+    "oil_gas_geophysical": {
       "allow_sectors": [
-        "Chemicals & Petrochemicals",
-        "FMCG & Consumer Goods",
-        "Agriculture & Agro",
-        "Fast Moving Consumer Goods"
+        "Oil & Gas & Energy"
       ],
       "allow_subsectors": [
-        "Commodity Chemicals",
-        "Specialty Chemicals",
-        "Manufacturing & Processing",
-        "Agro Products",
-        "Other Food Products",
-        "Packaged Foods & Meats"
-      ]
-    },
-    "gilts_primary_dealer": {
-      "allow_sectors": [
-        "Banking & Finance"
-      ],
-      "allow_subsectors": [
-        "Investment Banking & Brokerage",
-        "Specialized Finance",
-        "Diversified Financials",
-        "Financial Services",
-        "Stock Exchanges & Ratings",
-        "Private Banks",
-        "Public Banks"
-      ]
-    },
-    "merchant_banking": {
-      "allow_sectors": [
-        "Banking & Finance"
-      ],
-      "allow_subsectors": [
-        "Investment Banking & Brokerage",
-        "Financial Services",
-        "Diversified Financials",
-        "Specialized Finance"
-      ]
-    },
-    "tmt_royalty": {
-      "allow_sectors": [
-        "Metals & Mining"
-      ],
-      "allow_subsectors": [
-        "Iron & Steel",
-        "Iron & Steel Products",
-        "Steel",
-        "Steel & Metals"
-      ]
-    },
-    "packaging_materials": {
-      "allow_sectors": [
-        "Engineering & Capital Goods"
-      ],
-      "allow_subsectors": [
-        "Packaging",
-        "Packaging & Containers",
-        "Paper Products",
-        "Paper & Paper Products",
-        "Plastic Products",
-        "Plastic Products - Industrial"
+        "Oil & Gas - Equipment & Services",
+        "Oil & Gas - Exploration",
+        "Oil & Gas - Drilling"
       ]
     },
     "hospitals_healthcare": {
-      "allow_sectors": [
-        "Pharmaceuticals & Healthcare"
-      ],
+      "allow_sectors": [],
       "allow_subsectors": [
         "Hospitals & Diagnostic Centres",
-        "Medical Care Facilities",
         "Healthcare Services",
-        "Healthcare Service Provider",
-        "Healthcare",
-        "Medical Equipment & Supplies",
-        "Health Care Equipment & Supplies"
-      ],
-      "exclude_pairs": [
-        "Pharmaceuticals & Healthcare > Hotels & Hospitality",
-        "Pharmaceuticals & Healthcare > Hotels, Resorts & Cruise Lines"
+        "Hospitals"
       ]
     },
-    "real_estate_redevelopment": {
+    "realty_redevelopment": {
       "allow_sectors": [
         "Real Estate & Construction"
       ],
       "allow_subsectors": [
         "Real Estate",
-        "Real Estate - Development",
-        "Residential, Commercial Projects",
-        "Real Estate Services"
+        "Construction & Engineering",
+        "Residential Real Estate",
+        "Commercial Real Estate"
       ]
     },
-    "pharma_cdmo": {
+    "foundry_casting": {
       "allow_sectors": [
-        "Pharmaceuticals & Healthcare",
-        "Chemicals & Petrochemicals"
+        "Engineering & Capital Goods",
+        "Chemicals & Petrochemicals",
+        "Metals & Mining"
       ],
       "allow_subsectors": [
-        "Pharmaceuticals",
-        "Drug Manufacturers - Specialty & Generic",
-        "Biotechnology",
-        "Labs & Life Sciences Services",
-        "Specialty Chemicals"
+        "Castings & Forgings",
+        "Specialty Chemicals",
+        "Industrial Products",
+        "Iron & Steel Products",
+        "Metal Fabrication"
       ]
     },
-    "electronics_ems": {
+    "jewellery_lgd_export": {
       "allow_sectors": [
-        "IT & Technology",
-        "Information Technology",
-        "Consumer Durables",
-        "Automobile & Ancillaries"
-      ],
-      "allow_subsectors": [
-        "Electronic Equipments",
-        "Electronics & Technology",
-        "Technology Hardware",
-        "Computers Hardware & Equipments",
-        "Home Electronics & Appliances",
-        "Auto Components & Equipments"
-      ]
-    },
-    "gems_jewellery": {
-      "allow_sectors": [
-        "Retail",
-        "Consumer Discretionary"
+        "Retail"
       ],
       "allow_subsectors": [
         "Precious Metals, Jewellery & Watches",
-        "Gems, Jewellery And Watches"
+        "Jewellery"
       ]
     },
-    "solar_epc": {
+    "steel_tmt_coated": {
       "allow_sectors": [
-        "Power & Utilities"
-      ],
-      "allow_subsectors": [
-        "Renewable Energy",
-        "Renewable Energy Equipment & Services",
-        "Power Infrastructure",
-        "Power Generation"
-      ]
-    },
-    "power_electrical": {
-      "allow_sectors": [
+        "Metals & Mining",
         "Engineering & Capital Goods",
-        "Power & Utilities"
+        "Real Estate & Construction"
       ],
       "allow_subsectors": [
-        "Electrical Components & Equipments",
-        "Heavy Electrical Equipments",
-        "Heavy Electrical Equipment",
-        "Cables",
-        "Other Electrical Equipment",
-        "Electrical Equipment & Parts",
-        "Power Transmission & Distribution",
-        "Power Infrastructure",
-        "Renewable Energy Equipment & Services"
-      ]
-    },
-    "auto_components": {
-      "allow_sectors": [
-        "Automobile & Ancillaries"
-      ],
-      "allow_subsectors": [
-        "Auto Parts",
-        "Auto Components & Equipments",
-        "Automobile & Components",
-        "Electronic Equipments",
-        "Batteries",
-        "Two Wheelers",
-        "Three Wheelers",
-        "Tractors"
+        "Iron & Steel Products",
+        "Iron & Steel",
+        "Metals - Diversified",
+        "Metals - Aluminium",
+        "Building Products",
+        "Building Products - Pipes"
       ],
       "exclude_pairs": [
-        "Automobile & Ancillaries > Real Estate",
-        "Automobile & Ancillaries > Real Estate Services",
-        "Automobile & Ancillaries > Dealers-Commercial Vehicles"
+        "Diversified & Others > Commodities Trading"
       ]
     },
-    "financials": {
-      "allow_sectors": [
-        "Banking & Finance"
-      ],
-      "allow_subsectors": []
-    },
-    "ai_bottleneck_power": {
+    "auto_fasteners": {
       "allow_sectors": [
         "Engineering & Capital Goods",
-        "Power & Utilities"
+        "Automobiles & Auto Components"
       ],
       "allow_subsectors": [
-        "Heavy Electrical Equipments",
-        "Heavy Electrical Equipment",
-        "Electrical Components & Equipments",
-        "Cables",
-        "Other Electrical Equipment",
-        "Electrical Equipment & Parts",
-        "Power Transmission & Distribution",
-        "Power Infrastructure",
+        "Auto Components",
+        "Auto Ancillaries",
         "Industrial Machinery",
-        "Renewable Energy Equipment & Services",
-        "Batteries"
+        "Castings & Forgings",
+        "Forgings"
       ]
     },
-    "ai_bottleneck_memory": {
+    "specialty_pib_chemicals": {
       "allow_sectors": [
-        "IT & Technology",
-        "Information Technology",
         "Chemicals & Petrochemicals"
       ],
       "allow_subsectors": [
-        "Electronic Equipments",
-        "Electronics & Technology",
-        "Technology Hardware",
-        "Computers Hardware & Equipments",
         "Specialty Chemicals",
-        "Commodity Chemicals"
-      ]
-    },
-    "ai_bottleneck_compute": {
-      "allow_sectors": [
-        "IT & Technology",
-        "Information Technology",
-        "Consumer Durables",
-        "Automobile & Ancillaries"
-      ],
-      "allow_subsectors": [
-        "Electronic Equipments",
-        "Electronics & Technology",
-        "Technology Hardware",
-        "Computers Hardware & Equipments",
-        "Home Electronics & Appliances",
-        "Auto Components & Equipments",
-        "Telecom Equipment"
+        "Commodity Chemicals",
+        "Petrochemicals"
       ]
     }
   }

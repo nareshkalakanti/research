@@ -13,6 +13,6 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-Data DBs are in the repo — no scrape needed for a first run.
+All research data lives in `data/` and is committed (SQLite DBs, themes, notes, screenshots). Clone on a new machine and you keep holdings, governance, superstars, notes, and paper trades — no scrape required.
 
 **Demo login:** any email · password `demo`

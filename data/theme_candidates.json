@@ -1,0 +1,154 @@
+{
+  "meta": {
+    "purpose": "Phrases to probe in About text when mining themes (scripts/mine-theme-keywords.ts --suggest)",
+    "updated": "2026-08-12"
+  },
+  "pharma_medicine_factory": [
+    "active pharmaceutical",
+    "formulations",
+    "formulation",
+    "contract manufacturing",
+    "injectable",
+    "injectables",
+    "CDMO",
+    "bulk drug",
+    "bulk drugs"
+  ],
+  "electronics_value_chain": [
+    "printed circuit",
+    "PCB",
+    "connector",
+    "connectors",
+    "electronic components",
+    "multilayer",
+    "electronic + manufacturing"
+  ],
+  "private_space": [
+    "satellite",
+    "rocket",
+    "rockets",
+    "propulsion",
+    "launch vehicles",
+    "space + launch"
+  ],
+  "ai_compute_datacenter": [
+    "data center",
+    "data centre",
+    "power transformer",
+    "battery energy storage",
+    "cloud infrastructure"
+  ],
+  "defence_aerospace": [
+    "defence",
+    "defense",
+    "aerospace",
+    "missile",
+    "missiles",
+    "drone",
+    "drones",
+    "unmanned + aerial"
+  ],
+  "memory_dram_hbm": [
+    "DRAM",
+    "OSAT",
+    "SSD",
+    "semiconductor + packaging",
+    "memory + module"
+  ],
+  "copper_value_chain": [
+    "bus bars",
+    "busbars",
+    "copper wire",
+    "copper rods",
+    "copper tubes",
+    "copper + scrap",
+    "recycled + copper",
+    "CTC",
+    "enamelled copper"
+  ],
+  "peb_steel_structures": [
+    "pre-engineered",
+    "structural steel",
+    "steel structure",
+    "steel structures",
+    "PEB",
+    "industrial shed"
+  ],
+  "solar_clean_energy": [
+    "solar power",
+    "rooftop solar",
+    "photovoltaic",
+    "battery energy storage",
+    "solar EPC",
+    "ground-mounted solar"
+  ],
+  "flexible_packaging": [
+    "flexible packaging",
+    "BOPP",
+    "biaxially oriented",
+    "flexible packaging films",
+    "paperboard packaging"
+  ],
+  "food_processing": [
+    "food processing",
+    "fruit pulp",
+    "spray-dried",
+    "mango pulp",
+    "processed food"
+  ],
+  "micro_irrigation": [
+    "micro irrigation",
+    "drip irrigation",
+    "sprinkler irrigation",
+    "precision irrigation"
+  ],
+  "oil_gas_geophysical": [
+    "geophysical",
+    "seismic data",
+    "oil and gas exploration",
+    "seismic survey"
+  ],
+  "hospitals_healthcare": [
+    "multi-specialty hospital",
+    "multispecialty",
+    "tertiary care",
+    "hospital chain"
+  ],
+  "realty_redevelopment": [
+    "redevelopment",
+    "real estate development",
+    "tenanted",
+    "property development"
+  ],
+  "foundry_casting": [
+    "foundry",
+    "metal casting",
+    "foundry chemicals",
+    "ferrous casting"
+  ],
+  "jewellery_lgd_export": [
+    "gold jewellery",
+    "laboratory grown",
+    "diamond jewellery",
+    "lab grown",
+    "jewellery export"
+  ],
+  "steel_tmt_coated": [
+    "TMT bars",
+    "thermo-mechanically treated",
+    "galvanized steel",
+    "colour coated",
+    "pre-painted steel"
+  ],
+  "auto_fasteners": [
+    "fasteners",
+    "cold forged",
+    "automotive fasteners",
+    "high-tensile fasteners"
+  ],
+  "specialty_pib_chemicals": [
+    "polyisobutylene",
+    "lubricant additive",
+    "PIB"
+  ]
+}

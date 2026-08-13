@@ -1,0 +1,14 @@
+{
+  "meta": {
+    "purpose": "Pinned directors for governance movement alerts",
+    "updated": "2026-08-12"
+  },
+  "pinned": [
+    {
+      "person_id": "00121863",
+      "din": "00121863",
+      "name": "Chandrasekaran Natarajan",
+      "note": "Tata group chairman — multi-LC boards"
+    }
+  ]
+}

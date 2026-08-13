@@ -1,0 +1,56 @@
+{
+  "symbol": "KAYNES",
+  "name": "Kaynes Technology India Limited",
+  "cap_segment": "small",
+  "sector": "Industrials",
+  "market": "NSE",
+  "price": {
+    "live": 4850,
+    "day_open": 4720,
+    "day_high": 4920,
+    "day_low": 4680,
+    "prev_close": 4685,
+    "day_change_pct": 3.52,
+    "volume": 890000
+  },
+  "range_52w": {
+    "high": 5100,
+    "low": 2800,
+    "pct_from_high": -4.9,
+    "position_pct": 88
+  },
+  "technicals": {
+    "rvol": 4.2,
+    "price_vs_sma_pct": 6.8,
+    "window_return_pct": 18.5,
+    "swing_high": 4920,
+    "swing_low": 4550,
+    "day_range_position_pct": 85,
+    "trend": "up"
+  },
+  "analyst": {
+    "consensus": "buy",
+    "num_analysts": 8,
+    "buy_pct": 88,
+    "hold_pct": 12,
+    "sell_pct": 0,
+    "target_mean": 5400,
+    "target_low": 4800,
+    "target_high": 6000,
+    "upside_pct": 11.3
+  },
+  "news": {
+    "total": 3,
+    "positive": 2,
+    "negative": 0,
+    "neutral": 1,
+    "recent": [
+      {
+        "title": "Kaynes expands EMS capacity",
+        "link": "https://example.com/kaynes",
+        "published": "2026-08-11"
+      }
+    ]
+  },
+  "data_gaps": []
+}
