@@ -1,5 +1,5 @@
 /**
- * Edge watchlist — Early Edge + Negen + Niveshaay merged (data/edge.db).
+ * Edge watchlist — Early Edge curated names (data/edge.db).
  */
 import Database from "better-sqlite3";
 import fs from "fs";
@@ -12,7 +12,7 @@ export type EdgeRow = {
   ticker: string;
   name: string | null;
   market: string;
-  /** Comma-separated source keys: early_edge, negen, niveshaay */
+  /** Comma-separated source keys — currently early_edge (Early Edge watchlist). */
   sources: string;
 };
 

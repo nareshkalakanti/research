@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { DistressPanel } from "@/components/DistressPanel";
+import { AgentsPanel } from "@/components/AgentsPanel";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
+import { InvestorsPanel } from "@/components/InvestorsPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
 import { ThemeScanner } from "@/components/ThemeScanner";
 import { WatchingPanel } from "@/components/WatchingPanel";
@@ -13,14 +14,16 @@ type Tab =
   | "watching"
   | "theme-scanner"
   | "governance"
-  | "distress"
+  | "investors"
+  | "agents"
   | "missing";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "watching", label: "Watching" },
   { id: "theme-scanner", label: "Theme Scanner" },
   { id: "governance", label: "Governance" },
-  { id: "distress", label: "Distress" },
+  { id: "investors", label: "Investors" },
+  { id: "agents", label: "Agents" },
   { id: "missing", label: "Missing data" },
 ];
 
@@ -69,15 +72,17 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="main">
+      <main className={tab === "investors" ? "main main-wide" : "main"}>
         {tab === "watching" ? (
           <WatchingPanel />
         ) : tab === "missing" ? (
           <MissingDataPanel />
         ) : tab === "governance" ? (
           <GovernanceMapPanel />
-        ) : tab === "distress" ? (
-          <DistressPanel />
+        ) : tab === "investors" ? (
+          <InvestorsPanel />
+        ) : tab === "agents" ? (
+          <AgentsPanel />
         ) : (
           <ThemeScanner />
         )}

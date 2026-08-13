@@ -8,9 +8,12 @@
  * (so HQ/location can combine with About). Hits inside financing product
  * phrases (e.g. "rooftop solar loan") are ignored. Bare "nuclear" hits inside
  * "nuclear medicine" / hospital imaging are ignored.
+ *
+ * Acronyms kept uppercase in the pattern (LED, CTC, BESS) match case-sensitively
+ * so "AI-led" does not satisfy LED. Hyphen-suffix hits (`…-led`) are ignored.
  */
 
-export type OrClause = string[]; // AND terms within one OR branch
+export type OrClause = string[]; // AND terms within one OR branch (original casing)
 
 const FINANCE_LOOKAHEAD = 120;
 const FINANCE_NOISE =
@@ -28,6 +31,11 @@ const MEDICAL_NOISE_TERMS = new Set([
   "radiography",
   "dosimetry",
 ]);
+
+/** Short uppercase tokens in patterns → case-sensitive match (LED ≠ led). */
+function isAcronymTerm(term: string): boolean {
+  return /^[A-Z0-9][A-Z0-9.&/-]{1,7}$/.test(term.trim());
+}
 
 function financeContext(text: string, start: number, end: number): boolean {
   const span = text.slice(
@@ -59,7 +67,6 @@ function medicalNuclearContext(
   if (/\b(pet[\s-]?ct|spect|gamma\s+camera|radiology\s+dept)\b/i.test(window)) {
     return true;
   }
-  // "nuclear" immediately followed by medicine
   if (
     term.toLowerCase() === "nuclear" &&
     /^\s*medicine\b/i.test(text.slice(end, end + 24))
@@ -69,13 +76,18 @@ function medicalNuclearContext(
   return false;
 }
 
+/** Skip "AI-led", "tech-led", etc. — hyphen makes a compound, not the term. */
+function hyphenCompoundContext(text: string, start: number): boolean {
+  return start > 0 && text[start - 1] === "-";
+}
+
 export function parsePattern(pattern: string): OrClause[] {
   return pattern
     .split("|")
     .map((clause) =>
       clause
         .split("+")
-        .map((term) => term.trim().toLowerCase())
+        .map((term) => term.trim())
         .filter(Boolean),
     )
     .filter((clause) => clause.length > 0);
@@ -85,15 +97,30 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Whole-phrase positions (case-insensitive) in haystack. */
+/**
+ * Whole-phrase positions in haystack.
+ * Acronym terms (LED, BESS) use case-sensitive search on the original text.
+ */
 function termPositions(haystack: string, term: string): number[] {
+  const raw = term.trim();
+  if (!raw) return [];
+  const acronym = isAcronymTerm(raw);
+  const needle = acronym ? raw : raw.toLowerCase();
+  const source = acronym ? haystack : haystack.toLowerCase();
   const re = new RegExp(
-    `\\b${escapeRegExp(term).replace(/\s+/g, "\\s+")}\\b`,
-    "gi",
+    `\\b${escapeRegExp(needle).replace(/\s+/g, "\\s+")}\\b`,
+    acronym ? "g" : "gi",
   );
   const out: number[] = [];
   let m: RegExpExecArray | null;
-  while ((m = re.exec(haystack)) !== null) {
+  while ((m = re.exec(source)) !== null) {
+    // Always inspect original casing for hyphen compounds
+    if (hyphenCompoundContext(haystack, m.index)) {
+      if (m[0].length === 0) re.lastIndex += 1;
+      continue;
+    }
+    // Acronym already case-sensitive; for lowercase "led" also reject if
+    // the source span is a hyphen suffix (checked above on haystack).
     out.push(m.index);
     if (m[0].length === 0) re.lastIndex += 1;
   }
@@ -106,14 +133,15 @@ function termPositions(haystack: string, term: string): number[] {
  */
 export function clauseMatches(haystack: string, clause: OrClause): boolean {
   if (clause.length === 0) return false;
-  const text = haystack.toLowerCase();
+  const lower = haystack.toLowerCase();
 
   for (const term of clause) {
-    const positions = termPositions(text, term);
+    const positions = termPositions(haystack, term);
     let ok = false;
     for (const i of positions) {
-      if (financeContext(text, i, i + term.length)) continue;
-      if (medicalNuclearContext(text, i, i + term.length, term)) continue;
+      const tLow = term.toLowerCase();
+      if (financeContext(lower, i, i + term.length)) continue;
+      if (medicalNuclearContext(lower, i, i + term.length, tLow)) continue;
       ok = true;
       break;
     }
@@ -130,9 +158,9 @@ export function patternMatches(haystack: string, pattern: string): boolean {
 
 /** Whole-word/phrase substring check (avoids "tata" matching "parastatals"). */
 export function textHasTerm(haystack: string, term: string): boolean {
-  const t = term.trim().toLowerCase();
+  const t = term.trim();
   if (!t) return false;
-  return termPositions(haystack.toLowerCase(), t).length > 0;
+  return termPositions(haystack, t).length > 0;
 }
 
 /** Combine selected theme patterns + custom input into one OR of clauses. */
@@ -165,7 +193,7 @@ export function matchedKeywords(
 ): string[] {
   const found = new Set<string>();
   const source = matchSource ?? haystack;
-  const about = haystack.toLowerCase();
+  const about = haystack;
   for (const clause of parsePattern(pattern)) {
     if (!clauseMatches(source, clause)) continue;
     for (const term of clause) {

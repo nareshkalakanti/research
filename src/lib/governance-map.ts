@@ -60,9 +60,11 @@ export type GovernanceMapRow = {
   small_n: number;
   tiny_n: number;
   ti_n: number;
+  lc_n: number;
   bridge: boolean;
   tiny_bridge: boolean;
   ti_bridge: boolean;
+  multi_lc: boolean;
   sme_n: number;
   main_n: number;
   sme_cross: boolean;
@@ -125,12 +127,7 @@ function getAbout(): Database.Database | null {
   }
 }
 
-function loadMultiBoardSeats(minBoards: number): SeatRow[] {
-  const min = Math.max(2, minBoards);
-  const db = getGov();
-  return db
-    .prepare(
-      `
+const SEAT_SELECT = `
       SELECT
         d.person_id,
         d.din,
@@ -145,7 +142,15 @@ function loadMultiBoardSeats(minBoards: number): SeatRow[] {
       FROM directors d
       JOIN board_seats s ON s.person_id = d.person_id
       JOIN companies c ON c.ticker = s.ticker
-      WHERE UPPER(c.market) IN ('NSE', 'NSE SME')
+      WHERE UPPER(c.market) IN ('NSE', 'NSE SME')`;
+
+function loadMultiBoardSeats(minBoards: number): SeatRow[] {
+  const min = Math.max(2, minBoards);
+  const db = getGov();
+  return db
+    .prepare(
+      `
+      ${SEAT_SELECT}
         AND d.person_id IN (
           SELECT s2.person_id
           FROM board_seats s2
@@ -158,6 +163,36 @@ function loadMultiBoardSeats(minBoards: number): SeatRow[] {
       `,
     )
     .all(min) as SeatRow[];
+}
+
+/**
+ * Directors linked to a company (ticker/name) or matching DIN/name —
+ * includes single-board directors so company search works.
+ */
+function loadSeatsForSearchQuery(q: string): SeatRow[] {
+  const term = q.trim();
+  if (!term) return [];
+  const like = `%${term.toLowerCase()}%`;
+  const db = getGov();
+  return db
+    .prepare(
+      `
+      ${SEAT_SELECT}
+        AND d.person_id IN (
+          SELECT DISTINCT d2.person_id
+          FROM directors d2
+          LEFT JOIN board_seats s2 ON s2.person_id = d2.person_id
+          LEFT JOIN companies c2 ON c2.ticker = s2.ticker
+            AND UPPER(c2.market) IN ('NSE', 'NSE SME')
+          WHERE LOWER(d2.name) LIKE ?
+             OR (d2.din IS NOT NULL AND LOWER(d2.din) LIKE ?)
+             OR (c2.ticker IS NOT NULL AND LOWER(c2.ticker) LIKE ?)
+             OR (c2.name IS NOT NULL AND LOWER(c2.name) LIKE ?)
+        )
+      ORDER BY d.name COLLATE NOCASE, c.name COLLATE NOCASE
+      `,
+    )
+    .all(like, like, like, like) as SeatRow[];
 }
 
 function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
@@ -208,8 +243,10 @@ function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
   return map;
 }
 
-function buildRows(minBoards: number): GovernanceMapRow[] {
-  const seats = loadMultiBoardSeats(minBoards);
+function buildRowsFromSeats(
+  seats: SeatRow[],
+  minBoards: number,
+): GovernanceMapRow[] {
   if (seats.length === 0) return [];
 
   const byPerson = new Map<string, SeatRow[]>();
@@ -310,9 +347,11 @@ function buildRows(minBoards: number): GovernanceMapRow[] {
       small_n: scored.small_n,
       tiny_n: scored.tiny_n,
       ti_n: scored.ti_n,
+      lc_n: scored.lc_n,
       bridge: scored.bridge,
       tiny_bridge: scored.tiny_bridge,
       ti_bridge: scored.ti_bridge,
+      multi_lc: scored.multi_lc,
       sme_n: smeN,
       main_n: mainN,
       sme_cross: smeN >= 1 && mainN >= 1,
@@ -331,6 +370,10 @@ function buildRows(minBoards: number): GovernanceMapRow[] {
   return rows;
 }
 
+function buildRows(minBoards: number): GovernanceMapRow[] {
+  return buildRowsFromSeats(loadMultiBoardSeats(minBoards), minBoards);
+}
+
 export function invalidateGovernanceMapCache(): void {
   mapCache = null;
 }
@@ -338,9 +381,22 @@ export function invalidateGovernanceMapCache(): void {
 export function loadGovernanceMap(opts?: {
   minBoards?: number;
   refresh?: boolean;
+  /** When set, search directors + companies (incl. single-board). */
+  q?: string;
 }): GovernanceMapRow[] {
   const minBoards = opts?.minBoards ?? 2;
+  const q = (opts?.q || "").trim();
   const now = Date.now();
+
+  if (!fs.existsSync(path.join(DATA_DIR, "governance.db"))) {
+    return [];
+  }
+
+  if (q) {
+    // Company / director search: include 1-board directors so tickers resolve.
+    return buildRowsFromSeats(loadSeatsForSearchQuery(q), 1);
+  }
+
   if (
     !opts?.refresh &&
     mapCache &&
@@ -348,10 +404,6 @@ export function loadGovernanceMap(opts?: {
     minBoards === 2
   ) {
     return mapCache.rows;
-  }
-
-  if (!fs.existsSync(path.join(DATA_DIR, "governance.db"))) {
-    return [];
   }
 
   const rows = buildRows(minBoards);
@@ -368,6 +420,7 @@ export type GovernanceMapStats = {
   bridges: number;
   tiny_bridges: number;
   ti_bridges: number;
+  multi_lc: number;
   sme_cross: number;
   companies: number;
 };
@@ -380,12 +433,14 @@ export function governanceMapStats(
   let bridges = 0;
   let tinyBridges = 0;
   let tiBridges = 0;
+  let multiLc = 0;
   let smeCross = 0;
   for (const r of rows) {
     if (r.din_backed) dinBacked += 1;
     if (r.bridge) bridges += 1;
     if (r.tiny_bridge) tinyBridges += 1;
     if (r.ti_bridge) tiBridges += 1;
+    if (r.multi_lc) multiLc += 1;
     if (r.sme_cross) smeCross += 1;
     for (const c of r.companies) tickers.add(c.ticker);
   }
@@ -396,6 +451,7 @@ export function governanceMapStats(
     bridges,
     tiny_bridges: tinyBridges,
     ti_bridges: tiBridges,
+    multi_lc: multiLc,
     sme_cross: smeCross,
     companies: tickers.size,
   };

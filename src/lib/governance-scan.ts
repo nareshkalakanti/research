@@ -36,6 +36,7 @@ export type GovScanBatchResult = {
   new_dins: string[];
   new_directors: NewIdentity[];
   new_seats: number;
+  seat_events: number;
   done: boolean;
   source: string;
 };
@@ -109,6 +110,7 @@ export async function runGovernanceScanBatch(opts: {
     new_dins: [],
     new_directors: [],
     new_seats: 0,
+    seat_events: 0,
     done: pending.length === 0,
     source: "nse_governance",
   };
@@ -122,6 +124,7 @@ export async function runGovernanceScanBatch(opts: {
   let skippedEmpty = 0;
   let skippedProtected = 0;
   let failed = 0;
+  let seatEvents = 0;
   const savedTickers: string[] = [];
 
   // Process in small waves to respect NSE rate limits.
@@ -164,6 +167,7 @@ export async function runGovernanceScanBatch(opts: {
             return;
           }
           saved += 1;
+          seatEvents += result.events_recorded ?? 0;
           savedTickers.push(job.ticker);
           recordScanAttempt(job.ticker, "saved", payload.source);
         } catch (err) {
@@ -195,6 +199,7 @@ export async function runGovernanceScanBatch(opts: {
     new_dins: diff.newDins,
     new_directors: diff.newDirectors,
     new_seats: diff.newSeats,
+    seat_events: seatEvents,
     done: remaining === 0,
     source: "nse_governance",
   };

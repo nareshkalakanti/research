@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CapMarketFilters,
   type CapFilter,
 } from "@/components/CapMarketFilters";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
@@ -47,11 +46,9 @@ export function ThemeScanner() {
   const [debouncedCustom, setDebouncedCustom] = useState("");
   const [market, setMarket] = useState("NSE");
   const [cap, setCap] = useState<CapFilter>("All");
-  const [sme, setSme] = useState(false);
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
-  const [filterDistress, setFilterDistress] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [page, setPage] = useState(1);
@@ -82,34 +79,44 @@ export function ThemeScanner() {
         setGroups(j.groups);
         setMeta(j.meta ?? {});
       });
-    void fetch("/api/companies?market=All&pageSize=10")
-      .then((r) => r.json())
-      .then(
-        (j: {
-          markets: Record<string, number>;
-          signals?: {
-            bb: number;
-            tq: number;
-            hold?: number;
-            distress?: number;
-            edge?: number;
-            note?: number;
-          };
-        }) => {
-          setMarkets(j.markets ?? {});
-          if (j.signals) {
-            setSignalCounts({
-              bb: j.signals.bb ?? 0,
-              tq: j.signals.tq ?? 0,
-              hold: j.signals.hold ?? 0,
-              distress: j.signals.distress ?? 0,
-              edge: j.signals.edge ?? 0,
-              note: j.signals.note ?? 0,
-            });
-          }
-        },
-      );
   }, []);
+
+  useEffect(() => {
+    void fetch(`/api/companies?market=${encodeURIComponent(market)}&pageSize=1`)
+      .then(async (r) => {
+        const raw = await r.text();
+        if (!raw.trim() || !r.ok) return null;
+        try {
+          return JSON.parse(raw) as {
+            markets: Record<string, number>;
+            signals?: {
+              bb: number;
+              tq: number;
+              hold?: number;
+              distress?: number;
+              edge?: number;
+              note?: number;
+            };
+          };
+        } catch {
+          return null;
+        }
+      })
+      .then((j) => {
+        if (!j) return;
+        setMarkets(j.markets ?? {});
+        if (j.signals) {
+          setSignalCounts({
+            bb: j.signals.bb ?? 0,
+            tq: j.signals.tq ?? 0,
+            hold: j.signals.hold ?? 0,
+            distress: j.signals.distress ?? 0,
+            edge: j.signals.edge ?? 0,
+            note: j.signals.note ?? 0,
+          });
+        }
+      });
+  }, [market]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedCustom(custom), 300);
@@ -118,14 +125,14 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [selected, debouncedCustom, market, cap, sme, filterBb, filterTq, filterHold, filterDistress, filterEdge, filterNote]);
+  }, [selected, debouncedCustom, market, cap, filterBb, filterTq, filterHold, filterEdge, filterNote]);
 
   const themeActive = selected.length > 0 || debouncedCustom.trim().length > 0;
   const signalActive =
-    filterBb || filterTq || filterHold || filterDistress || filterEdge || filterNote;
+    filterBb || filterTq || filterHold || filterEdge || filterNote;
   const capActive = cap !== "All";
   const active = themeActive || signalActive || capActive;
-  const listMarket = sme ? "NSE SME" : market;
+  const listMarket = market;
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -150,13 +157,24 @@ export function ThemeScanner() {
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
       if (filterHold) params.set("hold", "1");
-      if (filterDistress) params.set("distress", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
-        const json = (await res.json()) as ScanApi;
+        const raw = await res.text();
+        if (!raw.trim()) {
+          throw new Error(`Empty response (${res.status})`);
+        }
+        let json: ScanApi;
+        try {
+          json = JSON.parse(raw) as ScanApi;
+        } catch {
+          throw new Error(`Invalid JSON (${res.status})`);
+        }
+        if (!res.ok) {
+          throw new Error(`Request failed (${res.status})`);
+        }
         setData(json);
         if (json.markets) setMarkets(json.markets);
         if (json.signals) {
@@ -183,7 +201,6 @@ export function ThemeScanner() {
       filterBb,
       filterTq,
       filterHold,
-      filterDistress,
       filterEdge,
       filterNote,
       page,
@@ -213,6 +230,7 @@ export function ThemeScanner() {
   const end = data ? Math.min(data.page * 100, data.total) : 0;
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
+  const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
 
   return (
     <div className="panel">
@@ -270,23 +288,14 @@ export function ThemeScanner() {
         <label className="field">
           <span>List</span>
           <select
-            value={sme ? "NSE SME" : market}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "NSE SME") {
-                setSme(true);
-                setMarket("NSE SME");
-              } else {
-                setSme(false);
-                setMarket(v);
-              }
-            }}
+            value={market}
+            onChange={(e) => setMarket(e.target.value)}
           >
             <option value="NSE">NSE ({nseCount.toLocaleString() || "…"})</option>
             <option value="NSE SME">
               NSE SME ({smeCount.toLocaleString() || "…"})
             </option>
-            <option value="All">All</option>
+            <option value="All">All ({allCount.toLocaleString() || "…"})</option>
           </select>
         </label>
       </div>
@@ -315,27 +324,18 @@ export function ThemeScanner() {
         </div>
       ) : null}
 
-      <div className="filters filters-stack">
-        <CapMarketFilters
+      <div className="filters filters-compact">
+        <ScanFilters
           cap={cap}
           onCap={setCap}
-          sme={sme}
-          onSme={(next) => {
-            setSme(next);
-            if (!next && market === "NSE SME") setMarket("NSE");
-          }}
-        />
-        <ScanFilters
           bb={filterBb}
           tq={filterTq}
           hold={filterHold}
-          distress={filterDistress}
           edge={filterEdge}
           note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
           onHold={setFilterHold}
-          onDistress={setFilterDistress}
           onEdge={setFilterEdge}
           onNote={setFilterNote}
           bbCount={data?.signals?.bb ?? signalCounts.bb}
@@ -368,10 +368,8 @@ export function ThemeScanner() {
 
       {!active ? (
         <div className="empty-state">
-          Select themes, Cap (TI / MIC…), keywords, or tap{" "}
-          <strong>NOTE</strong> / <strong>EDGE</strong> / <strong>HOLD</strong>{" "}
-          / <strong>BB</strong> / <strong>TQ</strong>. Use <strong>Scan</strong>{" "}
-          to refresh BB/TQ.
+          Select themes, cap band, keywords, or a watch / weekly chip. Use{" "}
+          <strong>Scan</strong> to refresh BB/TQ.
         </div>
       ) : (
         <>
