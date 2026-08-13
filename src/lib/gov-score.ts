@@ -8,6 +8,10 @@ export const BRIDGE_SMALL_MAX_CR = 5_000;
 export const BRIDGE_TINY_MAX_CR = 500;
 /** Ultra-small side: TI only. */
 export const BRIDGE_TI_MAX_CR = 100;
+/** Large-cap band lower bound (matches cap code LC). */
+export const LC_MIN_CR = 20_000;
+/** Multi-LC: director on this many LC boards or more. */
+export const MULTI_LC_MIN_BOARDS = 2;
 
 /** @deprecated use BRIDGE_LARGE_MIN_CR */
 export const LARGE_MCAP_CR = BRIDGE_LARGE_MIN_CR;
@@ -30,6 +34,9 @@ export const GOV_CAP_BRIDGE_HINT = "≥5k ↔ <5k Cr";
 export const GOV_SME_CROSS_LABEL = "SME ↔ Mainboard";
 export const GOV_SME_CROSS_TITLE =
   "Director on both an NSE SME listing and a main NSE board";
+export const GOV_MULTI_LC_LABEL = "Multi-LC";
+export const GOV_MULTI_LC_TITLE =
+  "Director on 2+ large-cap boards (≥ ₹20,000 Cr) — group chairs, cross-holdings";
 
 const CAP_CODE_BANDS: Array<{
   lo: number | null;
@@ -158,11 +165,15 @@ export type DirectorScore = {
   small_n: number;
   tiny_n: number;
   ti_n: number;
+  /** Boards with mcap ≥ LC_MIN_CR. */
+  lc_n: number;
   bridge: boolean;
   /** Mid/large (≥5k) + micro/tiny (<500 Cr). */
   tiny_bridge: boolean;
   /** Mid/large (≥5k) + TI only (<100 Cr). */
   ti_bridge: boolean;
+  /** 2+ large-cap (≥20k Cr) boards, no small-cap bridge required. */
+  multi_lc: boolean;
   raw: number;
   base: number;
   bonus: number;
@@ -187,6 +198,7 @@ export function scoreDirectorSeats(
   let smallN = 0;
   let tinyN = 0;
   let tiN = 0;
+  let lcN = 0;
   let knownMcapN = 0;
 
   for (const seat of seats) {
@@ -201,6 +213,7 @@ export function scoreDirectorSeats(
       if (mcapF < BRIDGE_SMALL_MAX_CR) smallN += 1;
       if (mcapF < BRIDGE_TINY_MAX_CR) tinyN += 1;
       if (mcapF < BRIDGE_TI_MAX_CR) tiN += 1;
+      if (mcapF >= LC_MIN_CR) lcN += 1;
     }
     raw += seatContribution({
       marketCapCr: mcapF,
@@ -220,10 +233,13 @@ export function scoreDirectorSeats(
   const tiBridge = bigN >= 1 && tiN >= 1;
   const tinyBridge = bigN >= 1 && tinyN >= 1;
   const bridge = bigN >= 1 && smallN >= 1;
+  const multiLc = lcN >= MULTI_LC_MIN_BOARDS;
 
   let bonus = 0;
   if (tiBridge || tinyBridge || bridge) {
     bonus += BRIDGE_BONUS;
+  } else if (multiLc) {
+    bonus += HAS_LARGE_BONUS + 4;
   } else if (bigN >= 1) {
     bonus += HAS_LARGE_BONUS;
   }
@@ -245,9 +261,11 @@ export function scoreDirectorSeats(
     small_n: smallN,
     tiny_n: tinyN,
     ti_n: tiN,
+    lc_n: lcN,
     bridge,
     tiny_bridge: tinyBridge,
     ti_bridge: tiBridge,
+    multi_lc: multiLc,
     raw: Math.round(raw * 1000) / 1000,
     base: Math.round(base * 10) / 10,
     bonus,

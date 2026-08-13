@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CapMarketFilters,
+  type CapFilter,
+} from "@/components/CapMarketFilters";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
+import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
 import { HighlightedText } from "@/components/HighlightedText";
 import {
   BRIDGE_TI_MAX_CR,
@@ -12,6 +17,8 @@ import {
   GOV_MIC_BRIDGE_TITLE,
   GOV_TI_BRIDGE_LABEL,
   GOV_TI_BRIDGE_TITLE,
+  GOV_MULTI_LC_LABEL,
+  GOV_MULTI_LC_TITLE,
   GOV_SME_CROSS_TITLE,
 } from "@/lib/gov-score";
 import { formatMcap } from "@/lib/types";
@@ -26,6 +33,7 @@ type Stats = {
   bridges: number;
   tiny_bridges: number;
   ti_bridges: number;
+  multi_lc: number;
   sme_cross: number;
   companies: number;
 };
@@ -59,6 +67,8 @@ type ScoreBreakdown = {
   bridge?: boolean;
   tiny_bridge?: boolean;
   ti_bridge?: boolean;
+  multi_lc?: boolean;
+  lc_n?: number;
   bonus: number;
   overload_penalty: number;
 };
@@ -74,6 +84,8 @@ type DirectorRow = {
   bridge: boolean;
   tiny_bridge?: boolean;
   ti_bridge?: boolean;
+  multi_lc?: boolean;
+  lc_n?: number;
   sme_cross?: boolean;
   score_breakdown?: ScoreBreakdown;
   companies: Seat[];
@@ -159,12 +171,16 @@ export function GovernanceMapPanel() {
   const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
   const [minBoards, setMinBoards] = useState(2);
-  const [bridgeMode, setBridgeMode] = useState<BridgeMode>("ti");
+  const [bridgeMode, setBridgeMode] = useState<BridgeMode>("off");
+  const [filterMultiLc, setFilterMultiLc] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [cap, setCap] = useState<CapFilter>("All");
+  const [sme, setSme] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [changesRefreshKey, setChangesRefreshKey] = useState(0);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 250);
@@ -174,7 +190,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterHold, filterEdge]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, cap, sme]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -192,8 +208,11 @@ export function GovernanceMapPanel() {
       if (bridgeMode === "ti") params.set("tiBridge", "1");
       if (bridgeMode === "mic") params.set("tinyBridge", "1");
       if (bridgeMode === "cap") params.set("bridge", "1");
+      if (filterMultiLc) params.set("multiLc", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
+      if (cap !== "All") params.set("cap", cap);
+      if (sme) params.set("sme", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/governance-map?${params}`);
@@ -203,7 +222,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterHold, filterEdge],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, cap, sme],
   );
 
   useEffect(() => {
@@ -235,6 +254,17 @@ export function GovernanceMapPanel() {
     return [...set];
   }, [view, directorRows, companyRows]);
 
+  function drillDirector(personId: string, name: string) {
+    setQ(name);
+    setDebouncedQ(name);
+    setView("director");
+    setOpenId(personId);
+  }
+
+  function bumpChanges() {
+    setChangesRefreshKey((k) => k + 1);
+  }
+
   function drillTicker(ticker: string) {
     setQ(ticker);
     setDebouncedQ(ticker);
@@ -246,8 +276,15 @@ export function GovernanceMapPanel() {
     setBridgeMode((cur) => (cur === mode ? "off" : mode));
   }
 
-  const bridgeHint =
-    bridgeMode === "ti"
+  function onCapChange(next: CapFilter) {
+    setCap(next);
+    // Cap band filter is independent of bridge size; clear bridge so MIC/SC aren't empty.
+    if (next !== "All") setBridgeMode("off");
+  }
+
+  const bridgeHint = filterMultiLc
+    ? "2+ large-cap boards (≥ ₹20,000 Cr) — group chairs, cross-holdings"
+    : bridgeMode === "ti"
       ? `≥ ₹5,000 Cr board + under ₹${BRIDGE_TI_MAX_CR} Cr`
       : bridgeMode === "mic"
         ? `≥ ₹5,000 Cr board + under ₹${BRIDGE_TINY_MAX_CR} Cr`
@@ -283,7 +320,8 @@ export function GovernanceMapPanel() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Director, DIN, ticker…"
+            placeholder="Director, DIN, company, ticker…"
+            aria-label="Search directors and companies"
           />
         </label>
 
@@ -311,6 +349,18 @@ export function GovernanceMapPanel() {
       </div>
 
       <div className="gov-focus-bar">
+        <span className="gov-focus-label">Large side</span>
+        <div className="gov-focus-seg" role="group" aria-label="Multi large-cap directors">
+          <button
+            type="button"
+            className={filterMultiLc ? "on" : undefined}
+            onClick={() => setFilterMultiLc((v) => !v)}
+            title={GOV_MULTI_LC_TITLE}
+          >
+            {GOV_MULTI_LC_LABEL}
+            {stats?.multi_lc != null ? <i>{stats.multi_lc}</i> : null}
+          </button>
+        </div>
         <span className="gov-focus-label">Small side</span>
         <div className="gov-focus-seg" role="group" aria-label="Small company size">
           <button
@@ -348,24 +398,43 @@ export function GovernanceMapPanel() {
             onClick={() => setFilterHold((v) => !v)}
             title="Any board seat is in your HOLD list"
           >
-            HOLD
+            Hold
           </button>
           <button
             type="button"
             className={`edge ${filterEdge ? "on" : ""}`}
             onClick={() => setFilterEdge((v) => !v)}
-            title="Any board seat is on EDGE watchlist"
+            title="Any board seat is on Early Edge"
           >
-            EDGE
+            Edge
           </button>
         </div>
         <p className="gov-focus-hint">{bridgeHint}</p>
       </div>
 
+      <div className="gov-cap-filters">
+        <CapMarketFilters
+          cap={cap}
+          onCap={onCapChange}
+          sme={sme}
+          onSme={setSme}
+          showSme
+        />
+      </div>
+
       <GovernanceScanBar
         market="All"
         pageTickers={pageTickers}
-        onDone={() => load({ refresh: true })}
+        onDone={async () => {
+          bumpChanges();
+          await load({ refresh: true });
+        }}
+      />
+
+      <GovernanceChangesPanel
+        refreshKey={changesRefreshKey}
+        onDrillDirector={drillDirector}
+        onDrillTicker={drillTicker}
       />
 
       {stats ? (
@@ -375,6 +444,9 @@ export function GovernanceMapPanel() {
           </span>
           <span>
             <strong>{stats.companies.toLocaleString()}</strong> companies
+          </span>
+          <span>
+            <strong>{(stats.multi_lc ?? 0).toLocaleString()}</strong> multi-LC
           </span>
           <span>
             <strong>{(stats.ti_bridges ?? 0).toLocaleString()}</strong> &lt;₹100
@@ -447,6 +519,14 @@ export function GovernanceMapPanel() {
                         >
                           &lt;₹500
                         </span>
+                      ) : r.multi_lc ? (
+                        <span
+                          className="gov-badge multi-lc"
+                          title={GOV_MULTI_LC_TITLE}
+                        >
+                          {GOV_MULTI_LC_LABEL}
+                          {r.lc_n != null && r.lc_n > 0 ? ` · ${r.lc_n}` : ""}
+                        </span>
                       ) : r.bridge ? (
                         <span
                           className="gov-badge bridge"
@@ -511,6 +591,9 @@ export function GovernanceMapPanel() {
                         {r.score_breakdown.small_n > 0
                           ? ` · ${r.score_breakdown.small_n} sub-mid`
                           : ""}
+                        {r.score_breakdown.lc_n > 0
+                          ? ` · ${r.score_breakdown.lc_n} LC`
+                          : ""}
                         {r.score_breakdown.ti_bridge
                           ? " · big→TI"
                           : r.score_breakdown.tiny_bridge
@@ -567,13 +650,11 @@ export function GovernanceMapPanel() {
                                 <span className="gov-tag gov-tag-sme">SME</span>
                               ) : null}
                               {c.has_edge ? (
-                                <span className="gov-tag gov-tag-edge">
-                                  EDGE
-                                </span>
+                                <span className="gov-tag gov-tag-edge">Edge</span>
                               ) : null}
                               {c.has_hold ? (
                                 <span className="gov-tag gov-tag-hold">
-                                  HOLD
+                                  Hold
                                 </span>
                               ) : null}
                               {c.has_bb ? (
@@ -644,10 +725,10 @@ export function GovernanceMapPanel() {
                         </span>
                       ) : null}
                       {c.has_edge ? (
-                        <span className="gov-tag gov-tag-edge">EDGE</span>
+                        <span className="gov-tag gov-tag-edge">Edge</span>
                       ) : null}
                       {c.has_hold ? (
-                        <span className="gov-tag gov-tag-hold">HOLD</span>
+                        <span className="gov-tag gov-tag-hold">Hold</span>
                       ) : null}
                       {c.has_bb ? (
                         <span className="gov-tag gov-tag-bb">BB</span>

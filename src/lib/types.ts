@@ -23,7 +23,7 @@ export type Company = {
   has_hold?: boolean;
   /** Fixed distress turnaround seed (8 monitors). */
   has_distress?: boolean;
-  /** In Edge watchlist — Early Edge + Negen + Niveshaay (data/edge.db). */
+  /** In Early Edge watchlist (data/edge.db). */
   has_edge?: boolean;
   /** Has a saved research note (data/notes.db). */
   has_note?: boolean;

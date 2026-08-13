@@ -1,16 +1,21 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import {
+  CapMarketFilters,
+  type CapFilter,
+} from "@/components/CapMarketFilters";
 
 type Props = {
+  cap?: CapFilter;
+  onCap?: (cap: CapFilter) => void;
   bb: boolean;
   tq: boolean;
   onBb: (on: boolean) => void;
   onTq: (on: boolean) => void;
   hold?: boolean;
   onHold?: (on: boolean) => void;
-  distress?: boolean;
-  onDistress?: (on: boolean) => void;
+  distressCount?: number;
   edge?: boolean;
   onEdge?: (on: boolean) => void;
   note?: boolean;
@@ -18,7 +23,6 @@ type Props = {
   bbCount?: number;
   tqCount?: number;
   holdCount?: number;
-  distressCount?: number;
   edgeCount?: number;
   noteCount?: number;
   bbDate?: string | null;
@@ -64,7 +68,6 @@ async function scanOnce(body: Record<string, unknown>) {
   return json;
 }
 
-/** Weekly BB/TQ stamp → readable "week Fri 14 Aug" (not scan time). */
 function weekStamp(iso: string): string {
   const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
   if (!Number.isFinite(d.getTime())) return iso;
@@ -73,16 +76,21 @@ function weekStamp(iso: string): string {
   return `week Fri ${day} ${mon}`;
 }
 
-/** Filters + Scan: weekly BB/TQ (incremental). */
+function Count({ n }: { n?: number }) {
+  if (n == null) return null;
+  return <span className="chip-count">{n}</span>;
+}
+
+/** Cap + watchlists + weekly BB/TQ — one compact toolbar row. */
 export function ScanFilters({
+  cap,
+  onCap,
   bb,
   tq,
   onBb,
   onTq,
   hold = false,
   onHold,
-  distress = false,
-  onDistress,
   edge = false,
   onEdge,
   note = false,
@@ -103,11 +111,7 @@ export function ScanFilters({
 
   const runScan = useCallback(async () => {
     setBusy(true);
-    setProgress({
-      pct: 3,
-      label: "Scanning",
-      detail: "BB/TQ…",
-    });
+    setProgress({ pct: 2, label: "Scanning", detail: "Starting BB/TQ…" });
 
     let remaining = 1;
     let gotBb = 0;
@@ -129,10 +133,12 @@ export function ScanFilters({
           const iso = json.session.bb || json.session.tq || "";
           sessionLabel = iso ? weekStamp(iso) : "";
         }
+        const pct =
+          remaining <= 0 ? 100 : Math.min(97, 3 + round * 2);
         setProgress({
-          pct: remaining <= 0 ? 100 : Math.min(98, 3 + round * 1.5),
-          label: remaining <= 0 ? "Done" : "Scanning",
-          detail: `BB/TQ ${gotBb}/${gotTq} · ${remaining.toLocaleString()} left${
+          pct,
+          label: remaining <= 0 ? "Done" : "Scanning BB/TQ",
+          detail: `${gotBb} BB · ${gotTq} TQ · ${remaining.toLocaleString()} left${
             sessionLabel ? ` · ${sessionLabel}` : ""
           }`,
           done: remaining <= 0,
@@ -166,55 +172,62 @@ export function ScanFilters({
     }
   }, [market, onDone, onBb, onTq]);
 
+  const holdTitle =
+    distressCount && distressCount > 0
+      ? `Holdings (${holdCount ?? 0}) · ${distressCount} distress monitors`
+      : "Your holdings";
+
   return (
-    <div className="breakout-bar">
-      <div className="breakout-filters">
+    <div className="filter-bar">
+      <div className="filter-bar-main">
+        {onCap && cap != null ? (
+          <>
+            <CapMarketFilters cap={cap} onCap={onCap} inline />
+            <span className="filter-sep" aria-hidden />
+          </>
+        ) : null}
+
         {onNote ? (
           <button
             type="button"
-            className={`breakout-chip note ${note ? "on" : ""}`}
+            className={`chip tag-chip tag-note ${note ? "on" : ""}`}
             onClick={() => onNote(!note)}
             title="Stocks with a saved research note"
           >
-            NOTE
-            {noteCount != null ? <em>{noteCount}</em> : null}
+            Note
+            <Count n={noteCount} />
           </button>
         ) : null}
         {onEdge ? (
           <button
             type="button"
-            className={`breakout-chip edge ${edge ? "on" : ""}`}
+            className={`chip tag-chip tag-edge ${edge ? "on" : ""}`}
             onClick={() => onEdge(!edge)}
-            title="Early Edge + Negen + Niveshaay"
+            title="Early Edge watchlist"
           >
-            EDGE
-            {edgeCount != null ? <em>{edgeCount}</em> : null}
+            Edge
+            <Count n={edgeCount} />
           </button>
         ) : null}
         {onHold ? (
           <button
             type="button"
-            className={`breakout-chip hold ${hold ? "on" : ""}`}
+            className={`chip tag-chip tag-hold ${hold ? "on" : ""}`}
             onClick={() => onHold(!hold)}
+            title={holdTitle}
           >
-            HOLD
-            {holdCount != null ? <em>{holdCount}</em> : null}
+            Hold
+            <Count n={holdCount} />
           </button>
         ) : null}
-        {onDistress ? (
-          <button
-            type="button"
-            className={`breakout-chip distress ${distress ? "on" : ""}`}
-            onClick={() => onDistress(!distress)}
-            title="8 fixed distress turnaround seed monitors"
-          >
-            DISTRESS
-            {distressCount != null ? <em>{distressCount}</em> : null}
-          </button>
+
+        {(onNote || onEdge || onHold) && (onBb || onTq) ? (
+          <span className="filter-sep" aria-hidden />
         ) : null}
+
         <button
           type="button"
-          className={`breakout-chip bb ${bb ? "on" : ""}`}
+          className={`chip tag-chip tag-scan-bb ${bb ? "on" : ""}`}
           onClick={() => onBb(!bb)}
           title={
             bbDate
@@ -223,14 +236,12 @@ export function ScanFilters({
           }
         >
           BB
-          {bbCount != null ? <em>{bbCount}</em> : null}
-          {bbDate ? (
-            <span className="breakout-date">{bbDate.slice(5)}</span>
-          ) : null}
+          <Count n={bbCount} />
+          {bbDate ? <span className="chip-date">{bbDate.slice(5)}</span> : null}
         </button>
         <button
           type="button"
-          className={`breakout-chip tq ${tq ? "on" : ""}`}
+          className={`chip tag-chip tag-scan-tq ${tq ? "on" : ""}`}
           onClick={() => onTq(!tq)}
           title={
             tqDate
@@ -239,37 +250,37 @@ export function ScanFilters({
           }
         >
           TQ
-          {tqCount != null ? <em>{tqCount}</em> : null}
-          {tqDate ? (
-            <span className="breakout-date">{tqDate.slice(5)}</span>
-          ) : null}
+          <Count n={tqCount} />
+          {tqDate ? <span className="chip-date">{tqDate.slice(5)}</span> : null}
         </button>
-      </div>
-      <div className="breakout-actions">
+
         <button
           type="button"
-          className="breakout-scan"
+          className="chip chip-scan"
           disabled={busy}
           onClick={() => void runScan()}
+          title="Refresh weekly BB/TQ stamps"
         >
-          {busy ? "Scanning…" : "Scan"}
+          {busy ? "…" : "Scan"}
         </button>
       </div>
+
       {busy || progress ? (
         <div
-          className={`breakout-progress ${progress?.error ? "is-error" : ""} ${progress?.done ? "is-done" : ""}`}
+          className={`filter-progress ${progress?.error ? "is-error" : ""} ${progress?.done ? "is-done" : ""}`}
           role="status"
+          aria-live="polite"
         >
-          <div className="breakout-progress-label">
-            <strong>{progress?.label ?? "…"}</strong>
-            {progress?.detail ? <span>{progress.detail}</span> : null}
-          </div>
-          <div className="breakout-progress-track">
+          <div className="filter-progress-track">
             <div
-              className="breakout-progress-fill"
+              className="filter-progress-fill"
               style={{ width: `${progress?.pct ?? 0}%` }}
             />
           </div>
+          <span className="filter-progress-text">
+            <strong>{progress?.label ?? "…"}</strong>
+            {progress?.detail ? ` · ${progress.detail}` : null}
+          </span>
         </div>
       ) : null}
     </div>

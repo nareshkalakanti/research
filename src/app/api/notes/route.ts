@@ -6,20 +6,25 @@ import {
   notesTickerSet,
   upsertNote,
 } from "@/lib/notes";
+import { listAttachments, noteAiContext } from "@/lib/note-attachments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET ?ticker=XYZ → one note; else list all + count. */
+/** GET ?ticker=XYZ → one note + screenshots; else list all + count. */
 export async function GET(req: NextRequest) {
   const ticker = (req.nextUrl.searchParams.get("ticker") || "").trim();
   if (ticker) {
     const note = getNote(ticker);
+    const attachments = listAttachments(ticker);
+    const ai = noteAiContext(ticker);
     return NextResponse.json({
       ok: true,
       ticker: ticker.toUpperCase(),
       note,
-      has_note: !!note,
+      attachments,
+      ai_text: ai.combined,
+      has_note: !!note || attachments.length > 0,
     });
   }
   const notes = listNotes();

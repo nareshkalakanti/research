@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
 import type { Company } from "@/lib/types";
@@ -48,25 +48,27 @@ function SignalTags({ company }: { company: Company }) {
     <span className="result-tags">
       {company.has_note ? (
         <span className="result-tag tag-note" title="Has research note">
-          NOTE
+          Note
         </span>
       ) : null}
       {company.has_edge ? (
-        <span className="result-tag tag-edge" title="Edge · Early Edge / Negen / Niveshaay">
-          EDGE
+        <span className="result-tag tag-edge" title="Early Edge watchlist">
+          Edge
         </span>
       ) : null}
-      {company.has_hold ? (
-        <span className="result-tag tag-hold" title="In your holdings">
-          HOLD
-        </span>
-      ) : null}
-      {company.has_distress ? (
-        <span
-          className="result-tag tag-distress"
-          title="Distress turnaround seed monitor"
-        >
-          DISTRESS
+      {company.has_hold || company.has_distress ? (
+        <span className="result-tag-group" title="Holdings">
+          {company.has_hold ? (
+            <span className="result-tag tag-hold">Hold</span>
+          ) : null}
+          {company.has_distress ? (
+            <span
+              className="result-tag tag-distress tag-sub"
+              title="Distress turnaround monitor"
+            >
+              distress
+            </span>
+          ) : null}
         </span>
       ) : null}
       {company.has_bb ? (
@@ -452,34 +454,53 @@ function NotesPanel({
   ticker: string;
   onSaved: (body: string | null) => void;
 }) {
+  type Attachment = {
+    id: number;
+    ticker: string;
+    filename: string;
+    mime: string;
+    size: number;
+    ocr_text: string | null;
+    created_at: string;
+    url: string;
+  };
+
   const [body, setBody] = useState("");
   const [saved, setSaved] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
+  const [ocrOpen, setOcrOpen] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const reload = useCallback(async () => {
+    const res = await fetch(`/api/notes?ticker=${encodeURIComponent(ticker)}`);
+    const j = (await res.json()) as {
+      note?: { body: string; updated_at: string } | null;
+      attachments?: Attachment[];
+    };
+    const text = j.note?.body?.trim() || "";
+    const atts = j.attachments ?? [];
+    setSaved(text || null);
+    setBody(text);
+    setAttachments(atts);
+    setUpdatedAt(j.note?.updated_at ?? null);
+    setEditing(!text && atts.length === 0);
+    return { text, atts };
+  }, [ticker]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     setShowMore(false);
-    void fetch(`/api/notes?ticker=${encodeURIComponent(ticker)}`)
-      .then((r) => r.json())
-      .then(
-        (j: {
-          note?: { body: string; updated_at: string } | null;
-        }) => {
-          if (cancelled) return;
-          const text = j.note?.body?.trim() || "";
-          setSaved(text || null);
-          setBody(text);
-          setUpdatedAt(j.note?.updated_at ?? null);
-          setEditing(!text);
-        },
-      )
+    setOcrOpen(null);
+    void reload()
       .catch(() => {
         if (!cancelled) setError("Could not load note");
       })
@@ -489,7 +510,7 @@ function NotesPanel({
     return () => {
       cancelled = true;
     };
-  }, [ticker]);
+  }, [reload]);
 
   async function save() {
     setBusy(true);
@@ -501,15 +522,9 @@ function NotesPanel({
         body: JSON.stringify({ ticker, body }),
       });
       if (!res.ok) throw new Error("save failed");
-      const j = (await res.json()) as {
-        note?: { body: string; updated_at: string } | null;
-      };
-      const text = j.note?.body?.trim() || "";
-      setSaved(text || null);
-      setBody(text);
-      setUpdatedAt(j.note?.updated_at ?? null);
-      setEditing(!text);
-      onSaved(text || null);
+      const { text, atts } = await reload();
+      setEditing(!(text || atts.length));
+      onSaved(text || atts.length ? text || "(screenshots)" : null);
     } catch {
       setError("Save failed");
     } finally {
@@ -528,11 +543,65 @@ function NotesPanel({
       if (!res.ok) throw new Error("clear failed");
       setSaved(null);
       setBody("");
+      setAttachments([]);
       setUpdatedAt(null);
       setEditing(true);
       onSaved(null);
     } catch {
       setError("Clear failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function uploadFiles(files: FileList | File[]) {
+    const list = [...files].filter((f) => f.type.startsWith("image/"));
+    if (!list.length) {
+      setError("Pick image screenshots (PNG, JPEG, WebP, GIF)");
+      return;
+    }
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.set("ticker", ticker);
+      for (const f of list) form.append("files", f);
+      const res = await fetch("/api/notes/attachments", {
+        method: "POST",
+        body: form,
+      });
+      const j = (await res.json()) as {
+        ok?: boolean;
+        attachments?: Attachment[];
+        errors?: string[];
+        error?: string;
+      };
+      if (!res.ok && !j.attachments?.length) {
+        throw new Error(j.error || "Upload failed");
+      }
+      setAttachments(j.attachments ?? []);
+      if (j.errors?.length) setError(j.errors.join(" · "));
+      onSaved(saved || body.trim() || "(screenshots)");
+      setEditing(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function removeAttachment(id: number) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/notes/attachments?id=${id}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("delete failed");
+      setAttachments((prev) => prev.filter((a) => a.id !== id));
+    } catch {
+      setError("Could not remove screenshot");
     } finally {
       setBusy(false);
     }
@@ -545,12 +614,91 @@ function NotesPanel({
   const display = saved || "";
   const short = display.length > 320 && !showMore;
   const text = short ? `${display.slice(0, 320).trim()}…` : display;
+  const hasContent = Boolean(saved) || attachments.length > 0;
 
-  if (!editing && saved) {
+  const shots = (
+    <div className="notes-shots">
+      <div className="notes-shots-head">
+        <span className="about-label">Screenshots</span>
+        <span className="notes-muted">
+          {attachments.length
+            ? `${attachments.length} saved · OCR for AI`
+            : "Attach charts / filings for AI to read"}
+        </span>
+      </div>
+      {attachments.length > 0 ? (
+        <ul className="notes-shot-grid">
+          {attachments.map((a) => (
+            <li key={a.id} className="notes-shot">
+              <a href={a.url} target="_blank" rel="noopener noreferrer">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.url} alt={`Screenshot ${a.id}`} />
+              </a>
+              <div className="notes-shot-meta">
+                {a.ocr_text ? (
+                  <button
+                    type="button"
+                    className="notes-shot-ocr"
+                    onClick={() =>
+                      setOcrOpen((cur) => (cur === a.id ? null : a.id))
+                    }
+                  >
+                    {ocrOpen === a.id ? "Hide OCR" : "OCR text"}
+                  </button>
+                ) : (
+                  <span className="notes-muted" title="Install tesseract for OCR">
+                    No OCR
+                  </span>
+                )}
+                {(editing || !saved) && (
+                  <button
+                    type="button"
+                    className="notes-shot-del"
+                    disabled={busy}
+                    onClick={() => void removeAttachment(a.id)}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {ocrOpen === a.id && a.ocr_text ? (
+                <pre className="notes-shot-ocr-text">{a.ocr_text}</pre>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {(editing || !hasContent) && (
+        <div className="notes-upload">
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            multiple
+            hidden
+            onChange={(e) => {
+              if (e.target.files?.length) void uploadFiles(e.target.files);
+            }}
+          />
+          <button
+            type="button"
+            className="notes-btn"
+            disabled={uploading || busy}
+            onClick={() => fileRef.current?.click()}
+          >
+            {uploading ? "Uploading…" : "Add screenshots"}
+          </button>
+          <span className="notes-muted">Multiple PNG/JPEG · max 8 MB each</span>
+        </div>
+      )}
+    </div>
+  );
+
+  if (!editing && hasContent) {
     return (
       <>
         <div className="about-label">Notes</div>
-        <p>{text}</p>
+        {display ? <p>{text}</p> : <p className="notes-muted">No text note — screenshots only.</p>}
         {display.length > 320 ? (
           <button
             type="button"
@@ -560,6 +708,7 @@ function NotesPanel({
             {showMore ? "Show less" : "Show more"}
           </button>
         ) : null}
+        {shots}
         <div className="notes-actions">
           {updatedAt ? (
             <span className="notes-muted">
@@ -570,7 +719,7 @@ function NotesPanel({
             type="button"
             className="notes-btn"
             onClick={() => {
-              setBody(saved);
+              setBody(saved || "");
               setEditing(true);
             }}
           >
@@ -582,7 +731,7 @@ function NotesPanel({
             disabled={busy}
             onClick={() => void clear()}
           >
-            Clear
+            Clear all
           </button>
         </div>
         {error ? <p className="notes-error">{error}</p> : null}
@@ -600,14 +749,15 @@ function NotesPanel({
         placeholder="Thesis, risks, catalysts, valuation notes…"
         onChange={(e) => setBody(e.target.value)}
       />
+      {shots}
       <div className="notes-actions">
-        {saved ? (
+        {hasContent ? (
           <button
             type="button"
             className="notes-btn ghost"
             disabled={busy}
             onClick={() => {
-              setBody(saved);
+              setBody(saved || "");
               setEditing(false);
             }}
           >

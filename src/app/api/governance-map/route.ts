@@ -36,6 +36,15 @@ function seatWithHighlights(
   };
 }
 
+function seatMatchesCap(
+  c: { cap_code: string | null },
+  cap: string,
+): boolean {
+  if (!cap || cap === "All") return true;
+  if (cap === "NC") return !c.cap_code;
+  return (c.cap_code || "").toUpperCase() === cap.toUpperCase();
+}
+
 function filterRows(
   rows: GovernanceMapRow[],
   opts: {
@@ -45,6 +54,7 @@ function filterRows(
     tinyBridge: boolean;
     tiBridge: boolean;
     smeCross: boolean;
+    multiLc: boolean;
     bb: boolean;
     tq: boolean;
     hold: boolean;
@@ -54,20 +64,30 @@ function filterRows(
     minBoards: number;
     themePattern: string | null;
     themeShowAll: boolean;
+    /** Cap band filter: All | NC | TI | MIC | SC | MC | LC */
+    cap: string;
+    /** NSE SME seats only */
+    sme: boolean;
+    /** When searching by company, drop non-matching seats (Companies tab). */
+    narrowCompanies: boolean;
   },
 ): GovernanceMapRow[] {
   const q = opts.q.trim().toLowerCase();
   const out: GovernanceMapRow[] = [];
+  const cap = (opts.cap || "All").toUpperCase();
+  const capActive = cap !== "ALL" && Boolean(cap);
 
   for (const r of rows) {
     if (opts.dinOnly && !r.din_backed) continue;
     if (opts.tiBridge && !r.ti_bridge) continue;
     if (opts.tinyBridge && !r.tiny_bridge) continue;
     if (opts.bridge && !r.bridge) continue;
+    if (opts.multiLc && !r.multi_lc) continue;
     if (opts.smeCross && !r.sme_cross) continue;
     if (opts.hideCollision && r.name_collision) continue;
     if (r.dir_score < opts.minScore) continue;
-    if (r.board_count < opts.minBoards) continue;
+    // Company/director search includes 1-board rows; only enforce minBoards when browsing.
+    if (!q && r.board_count < opts.minBoards) continue;
 
     let companies = r.companies;
     let themeMatched = 0;
@@ -80,6 +100,18 @@ function filterRows(
       themeMatched = matched.length;
       if (!themeMatched) continue;
       companies = opts.themeShowAll ? companies : matched;
+    }
+
+    if (capActive) {
+      const matched = companies.filter((c) => seatMatchesCap(c, cap));
+      if (!matched.length) continue;
+      companies = matched;
+    }
+
+    if (opts.sme) {
+      const matched = companies.filter((c) => c.is_sme);
+      if (!matched.length) continue;
+      companies = matched;
     }
 
     if (opts.bb || opts.tq) {
@@ -99,13 +131,18 @@ function filterRows(
     if (q) {
       const nameHit = r.name.toLowerCase().includes(q);
       const dinHit = Boolean(r.din && r.din.toLowerCase().includes(q));
-      const coHit = companies.some(
+      const matchingCos = companies.filter(
         (c) =>
           c.ticker.toLowerCase().includes(q) ||
           c.name.toLowerCase().includes(q) ||
           (c.designation || "").toLowerCase().includes(q),
       );
+      const coHit = matchingCos.length > 0;
       if (!nameHit && !dinHit && !coHit) continue;
+      // Narrow seats only for Companies view — Directors keep full board network.
+      if (opts.narrowCompanies && coHit && !nameHit && !dinHit) {
+        companies = matchingCos;
+      }
     }
 
     if (opts.themePattern && opts.themeShowAll && themeMatched > 0) {
@@ -265,7 +302,11 @@ export async function GET(req: NextRequest) {
   const themePattern =
     combinePatterns([...themePatterns, custom]) || null;
 
-  const all = loadGovernanceMap({ minBoards, refresh });
+  const all = loadGovernanceMap({ minBoards, refresh, q });
+  // Stats from the multi-board universe (stable), not the search subset.
+  const stats = governanceMapStats(
+    q.trim() ? loadGovernanceMap({ minBoards }) : all,
+  );
   const filtered = filterRows(all, {
     q,
     dinOnly: sp.get("dinOnly") !== "0",
@@ -273,6 +314,7 @@ export async function GET(req: NextRequest) {
     tinyBridge: sp.get("tinyBridge") === "1",
     tiBridge: sp.get("tiBridge") === "1",
     smeCross: sp.get("smeCross") === "1",
+    multiLc: sp.get("multiLc") === "1",
     bb: sp.get("bb") === "1",
     tq: sp.get("tq") === "1",
     hold: sp.get("hold") === "1",
@@ -282,6 +324,9 @@ export async function GET(req: NextRequest) {
     minBoards,
     themePattern,
     themeShowAll: sp.get("themeShowAll") === "1",
+    cap: (sp.get("cap") || "All").trim() || "All",
+    sme: sp.get("sme") === "1",
+    narrowCompanies: view === "company",
   });
 
   if (format === "csv" && view === "director") {
@@ -296,9 +341,6 @@ export async function GET(req: NextRequest) {
       },
     });
   }
-
-  // Universe stats stay stable while list filters narrow the rows.
-  const stats = governanceMapStats(all);
 
   if (view === "company") {
     const byTicker = new Map<string, CompanyAgg>();

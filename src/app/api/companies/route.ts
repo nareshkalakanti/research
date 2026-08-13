@@ -67,16 +67,24 @@ export async function GET(req: NextRequest) {
 
   const breakouts = loadBreakoutMap();
   const holdings = holdingsTickerSet();
-  const distress = distressSeedSet();
+  const distressSet = distressSeedSet();
   const edge = edgeTickerSet();
   const notes = notesTickerSet();
 
   let companies = loadAllCompanies();
+  const allCompanies = companies;
 
   // Hold / Edge / Notes are cross-market lists — don't hide SME/BSE when those chips are on.
   const watchlistMode = filterHold || filterDistress || filterEdge || filterNote;
   if (!watchlistMode && market && market !== "All") {
-    companies = companies.filter((c) => c.market === market);
+    // Theme scan on NSE main board also checks NSE SME (e.g. Sunlite).
+    if (market === "NSE" && scan) {
+      companies = companies.filter(
+        (c) => c.market === "NSE" || c.market === "NSE SME",
+      );
+    } else {
+      companies = companies.filter((c) => c.market === market);
+    }
   }
   if (!watchlistMode && smeOnly) {
     companies = companies.filter((c) => c.market === "NSE SME");
@@ -166,23 +174,41 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // BB / TQ: current market set. Hold / Edge: full watchlist sizes.
+  // Signal counts for current list — NSE counts include NSE SME when listing NSE.
   const signalCounts = (() => {
+    let pool = allCompanies;
+    if (!watchlistMode && market && market !== "All") {
+      if (market === "NSE") {
+        pool = pool.filter(
+          (c) => c.market === "NSE" || c.market === "NSE SME",
+        );
+      } else {
+        pool = pool.filter((c) => c.market === market);
+      }
+    }
+    if (sector && sector !== "All") {
+      pool = pool.filter((c) => c.sector === sector);
+    }
+    if (cap && cap !== "All") {
+      pool = pool.filter((c) => capTier(c.mcap_cr) === cap);
+    }
     let bb = 0;
     let tq = 0;
-    for (const c of companies) {
-      const flags = breakouts.get(c.ticker.toUpperCase());
+    let hold = 0;
+    let edgeCount = 0;
+    let note = 0;
+    let distressCount = 0;
+    for (const c of pool) {
+      const t = c.ticker.toUpperCase();
+      const flags = breakouts.get(t);
       if (flags?.has_bb) bb += 1;
       if (flags?.has_tq) tq += 1;
+      if (holdings.has(t)) hold += 1;
+      if (edge.has(t)) edgeCount += 1;
+      if (notes.has(t)) note += 1;
+      if (distressSet.has(t)) distressCount += 1;
     }
-    return {
-      bb,
-      tq,
-      hold: holdings.size,
-      distress: distress.size,
-      edge: edge.size,
-      note: notes.size,
-    };
+    return { bb, tq, hold, edge: edgeCount, note, distress: distressCount };
   })();
 
   if (filterHold) {
@@ -193,7 +219,7 @@ export async function GET(req: NextRequest) {
 
   if (filterDistress) {
     companies = companies.filter((c) =>
-      distress.has(c.ticker.toUpperCase()),
+      distressSet.has(c.ticker.toUpperCase()),
     );
   }
 
@@ -263,7 +289,7 @@ export async function GET(req: NextRequest) {
       has_bb: !!flags?.has_bb,
       has_tq: !!flags?.has_tq,
       has_hold: holdings.has(c.ticker.toUpperCase()),
-      has_distress: distress.has(c.ticker.toUpperCase()),
+      has_distress: distressSet.has(c.ticker.toUpperCase()),
       has_edge: edge.has(c.ticker.toUpperCase()),
       has_note: notes.has(c.ticker.toUpperCase()),
       bb: flags?.bb,

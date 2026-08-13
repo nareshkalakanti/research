@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  CapMarketFilters,
-  type CapFilter,
-} from "@/components/CapMarketFilters";
+import { type CapFilter } from "@/components/CapMarketFilters";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
@@ -41,11 +38,9 @@ export function WatchingPanel() {
   const [debouncedQ, setDebouncedQ] = useState("");
   const [mode, setMode] = useState<"AND" | "OR">("OR");
   const [cap, setCap] = useState<CapFilter>("All");
-  const [sme, setSme] = useState(false);
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
-  const [filterDistress, setFilterDistress] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
@@ -62,13 +57,13 @@ export function WatchingPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [market, debouncedQ, mode, cap, sme, sector, filterBb, filterTq, filterHold, filterDistress, filterEdge, filterNote]);
+  }, [market, debouncedQ, mode, cap, sector, filterBb, filterTq, filterHold, filterEdge, filterNote]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
       setLoading(true);
       const params = new URLSearchParams({
-        market: sme ? "NSE SME" : market,
+        market,
         q: debouncedQ,
         mode,
         cap,
@@ -81,7 +76,6 @@ export function WatchingPanel() {
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
       if (filterHold) params.set("hold", "1");
-      if (filterDistress) params.set("distress", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
@@ -98,12 +92,10 @@ export function WatchingPanel() {
       debouncedQ,
       mode,
       cap,
-      sme,
       sector,
       filterBb,
       filterTq,
       filterHold,
-      filterDistress,
       filterEdge,
       filterNote,
       page,
@@ -124,10 +116,11 @@ export function WatchingPanel() {
     }
   }
 
-  const listMarket = sme ? "NSE SME" : market;
+  const listMarket = market;
   const markets = data?.markets ?? {};
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
+  const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
   const start = data ? (data.page - 1) * 100 + 1 : 0;
   const end = data ? Math.min(data.page * 100, data.total) : 0;
   const pageTickers = data?.rows.map((r) => r.ticker) ?? [];
@@ -139,24 +132,10 @@ export function WatchingPanel() {
       <div className="toolbar">
         <label className="field">
           <span>List</span>
-          <select
-            value={sme ? "NSE SME" : market}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "NSE SME") {
-                setSme(true);
-                setMarket("NSE SME");
-              } else {
-                setSme(false);
-                setMarket(v);
-              }
-            }}
-          >
+          <select value={market} onChange={(e) => setMarket(e.target.value)}>
             <option value="NSE">NSE ({nseCount.toLocaleString()})</option>
             <option value="NSE SME">NSE SME ({smeCount.toLocaleString()})</option>
-            <option value="All">
-              All ({(nseCount + smeCount).toLocaleString()})
-            </option>
+            <option value="All">All ({allCount.toLocaleString()})</option>
           </select>
         </label>
         <div className="toolbar-actions">
@@ -209,27 +188,18 @@ export function WatchingPanel() {
         </div>
       </div>
 
-      <div className="filters filters-stack">
-        <CapMarketFilters
+      <div className="filters filters-compact">
+        <ScanFilters
           cap={cap}
           onCap={setCap}
-          sme={sme}
-          onSme={(next) => {
-            setSme(next);
-            if (!next && market === "NSE SME") setMarket("NSE");
-          }}
-        />
-        <ScanFilters
           bb={filterBb}
           tq={filterTq}
           hold={filterHold}
-          distress={filterDistress}
           edge={filterEdge}
           note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
           onHold={setFilterHold}
-          onDistress={setFilterDistress}
           onEdge={setFilterEdge}
           onNote={setFilterNote}
           bbCount={data?.signals?.bb}
@@ -269,7 +239,7 @@ export function WatchingPanel() {
             <div className="pager">
               <span>
                 {data
-                  ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()} · ${sme ? "NSE SME" : market}`
+                  ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()} · ${market}`
                   : "…"}
               </span>
               <div className="pager-btns">

@@ -1,5 +1,5 @@
 /**
- * Merge Early Edge + Negen + Niveshaay from stocks-ai into data/edge.db.
+ * Sync Early Edge watchlist from stocks-ai into data/edge.db.
  * Also upserts missing Edge tickers into company_about.db so BSE names show up.
  *
  *   npm run sync:edge
@@ -9,7 +9,7 @@ import path from "path";
 import Database from "better-sqlite3";
 import { replaceEdge } from "../src/lib/edge";
 
-const SOURCE_KEYS = ["early_edge", "negen", "niveshaay"] as const;
+const SOURCE_KEYS = ["early_edge"] as const;
 
 const CANDIDATES = [
   path.join(process.cwd(), "..", "stocks-ai", "data", "stocks_ai.db"),

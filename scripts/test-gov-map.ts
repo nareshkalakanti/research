@@ -62,6 +62,18 @@ function main() {
   );
   assert.equal(midSmall.ti_bridge, false);
 
+  const multiLc = scoreDirectorSeats(
+    [
+      { ticker: "TCS", market_cap_cr: 855_000 },
+      { ticker: "TATASTEEL", market_cap_cr: 236_000 },
+      { ticker: "TATAPOWER", market_cap_cr: 121_000 },
+    ],
+    { personId: "00121863", din: "00121863" },
+  );
+  assert.ok(multiLc.multi_lc, "3 LC boards should be multi-LC");
+  assert.equal(multiLc.lc_n, 3);
+  assert.equal(multiLc.ti_bridge, false);
+
   const gapOnly = scoreDirectorSeats(
     [
       { ticker: "A", market_cap_cr: 2_000 },

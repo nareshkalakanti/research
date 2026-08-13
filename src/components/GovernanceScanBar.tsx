@@ -26,6 +26,7 @@ type ScanJson = {
   new_dins: string[];
   new_directors: Array<{ person_id: string; din: string | null; name: string }>;
   new_seats: number;
+  seat_events?: number;
   message?: string;
 };
 
@@ -79,8 +80,9 @@ export function GovernanceScanBar({
       let gotSaved = 0;
       let gotDins = 0;
       let gotDirs = 0;
-      let gotSeats = 0;
-      let remaining = pageMode
+  let gotSeats = 0;
+  let gotEvents = 0;
+  let remaining = pageMode
         ? Math.max(pageTickers?.length || 1, 1)
         : Math.max(pending ?? 200, 1);
 
@@ -98,6 +100,7 @@ export function GovernanceScanBar({
           gotDins += json.new_dins?.length || 0;
           gotDirs += json.new_directors?.length || 0;
           gotSeats += json.new_seats || 0;
+          gotEvents += json.seat_events || 0;
           remaining = json.remaining;
           const pct = pageMode
             ? 100
@@ -108,8 +111,8 @@ export function GovernanceScanBar({
             pct,
             label: pageMode ? "Page done" : `Batch ${round}`,
             detail: `+${gotDins} DIN · +${gotDirs} directors · ${gotSaved} saved${
-              pageMode ? "" : ` · ${remaining.toLocaleString()} left`
-            }`,
+              gotEvents ? ` · ${gotEvents} changes` : ""
+            }${pageMode ? "" : ` · ${remaining.toLocaleString()} left`}`,
             done: pageMode || remaining <= 0,
           });
           await onDone?.();
@@ -120,7 +123,7 @@ export function GovernanceScanBar({
         setProgress({
           pct: 100,
           label: "Complete",
-          detail: `+${gotDins} new DIN · +${gotDirs} new directors · +${gotSeats} seats · ${gotSaved} boards saved`,
+          detail: `+${gotDins} new DIN · +${gotDirs} new directors · +${gotSeats} seats · ${gotSaved} boards · ${gotEvents} changes`,
           done: true,
         });
         await refreshStatus();

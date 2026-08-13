@@ -107,8 +107,30 @@ export function getGovernanceWriteDb(): Database.Database {
       detail TEXT,
       fetched_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS board_seat_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      ticker TEXT NOT NULL,
+      person_id TEXT NOT NULL,
+      director_name TEXT NOT NULL,
+      din TEXT,
+      event_type TEXT NOT NULL
+        CHECK (event_type IN ('joined', 'resigned', 'role_changed')),
+      old_designation TEXT,
+      new_designation TEXT,
+      old_category TEXT,
+      new_category TEXT,
+      source TEXT,
+      as_of TEXT,
+      detected_at TEXT NOT NULL
+    );
     CREATE INDEX IF NOT EXISTS idx_gov_seats_person ON board_seats(person_id);
     CREATE INDEX IF NOT EXISTS idx_gov_seats_ticker ON board_seats(ticker);
+    CREATE INDEX IF NOT EXISTS idx_seat_events_detected
+      ON board_seat_events(detected_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_seat_events_person
+      ON board_seat_events(person_id);
+    CREATE INDEX IF NOT EXISTS idx_seat_events_ticker
+      ON board_seat_events(ticker);
   `);
   writeDb = db;
   return db;
@@ -215,7 +237,133 @@ export type SaveBoardResult = {
   seats: number;
   skipped: boolean;
   reason?: string;
+  events_recorded?: number;
 };
+
+export type SeatEventType = "joined" | "resigned" | "role_changed";
+
+type OldSeatRow = {
+  person_id: string;
+  name: string;
+  din: string | null;
+  designation: string;
+  category: string | null;
+};
+
+function loadOldSeats(db: Database.Database, ticker: string): OldSeatRow[] {
+  return db
+    .prepare(
+      `
+      SELECT
+        s.person_id,
+        d.name,
+        d.din,
+        s.designation,
+        s.category
+      FROM board_seats s
+      JOIN directors d ON d.person_id = s.person_id
+      WHERE s.ticker = ?
+      `,
+    )
+    .all(ticker) as OldSeatRow[];
+}
+
+function normRole(designation: string, category: string): string {
+  return `${designation.trim()}|${category.trim()}`.toLowerCase();
+}
+
+function recordSeatDiffs(opts: {
+  db: Database.Database;
+  ticker: string;
+  oldSeats: OldSeatRow[];
+  newSeats: Array<{
+    person_id: string;
+    din: string;
+    name: string;
+    designation: string;
+    category: string;
+    source: string;
+    as_of: string;
+  }>;
+  detectedAt: string;
+}): number {
+  if (!opts.oldSeats.length) return 0;
+
+  const oldByPerson = new Map(opts.oldSeats.map((s) => [s.person_id, s]));
+  const newByPerson = new Map(opts.newSeats.map((s) => [s.person_id, s]));
+  const insert = opts.db.prepare(
+    `
+    INSERT INTO board_seat_events (
+      ticker, person_id, director_name, din, event_type,
+      old_designation, new_designation, old_category, new_category,
+      source, as_of, detected_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `,
+  );
+
+  let n = 0;
+  for (const [personId, oldSeat] of oldByPerson) {
+    const next = newByPerson.get(personId);
+    if (!next) {
+      insert.run(
+        opts.ticker,
+        personId,
+        oldSeat.name,
+        oldSeat.din,
+        "resigned",
+        oldSeat.designation,
+        null,
+        oldSeat.category,
+        null,
+        null,
+        null,
+        opts.detectedAt,
+      );
+      n += 1;
+      continue;
+    }
+    const oldRole = normRole(oldSeat.designation, oldSeat.category || "");
+    const newRole = normRole(next.designation, next.category || "");
+    if (oldRole !== newRole) {
+      insert.run(
+        opts.ticker,
+        personId,
+        next.name,
+        next.din || oldSeat.din,
+        "role_changed",
+        oldSeat.designation,
+        next.designation,
+        oldSeat.category,
+        next.category || null,
+        next.source,
+        next.as_of || null,
+        opts.detectedAt,
+      );
+      n += 1;
+    }
+  }
+
+  for (const [personId, next] of newByPerson) {
+    if (oldByPerson.has(personId)) continue;
+    insert.run(
+      opts.ticker,
+      personId,
+      next.name,
+      next.din || null,
+      "joined",
+      null,
+      next.designation,
+      null,
+      next.category || null,
+      next.source,
+      next.as_of || null,
+      opts.detectedAt,
+    );
+    n += 1;
+  }
+
+  return n;
+}
 
 export function saveCompanyBoard(opts: {
   ticker: string;
@@ -280,6 +428,8 @@ export function saveCompanyBoard(opts: {
   const now = utcNow();
   const db = getGovernanceWriteDb();
   const replaceSeats = opts.replaceSeats !== false;
+  const oldSeats = replaceSeats ? loadOldSeats(db, tickerKey) : [];
+  let eventsRecorded = 0;
 
   const tx = db.transaction(() => {
     db.prepare(
@@ -296,6 +446,14 @@ export function saveCompanyBoard(opts: {
         updated_at=excluded.updated_at
       `,
     ).run(tickerKey, market, companyName, safeStr(opts.notes) || null, now);
+
+    eventsRecorded = recordSeatDiffs({
+      db,
+      ticker: tickerKey,
+      oldSeats,
+      newSeats: cleanSeats,
+      detectedAt: now,
+    });
 
     if (replaceSeats) {
       db.prepare(`DELETE FROM board_seats WHERE ticker = ?`).run(tickerKey);
@@ -347,7 +505,12 @@ export function saveCompanyBoard(opts: {
   });
 
   tx();
-  return { ticker: tickerKey, seats: cleanSeats.length, skipped: false };
+  return {
+    ticker: tickerKey,
+    seats: cleanSeats.length,
+    skipped: false,
+    events_recorded: eventsRecorded,
+  };
 }
 
 export function recordScanAttempt(
