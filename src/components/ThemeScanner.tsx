@@ -230,7 +230,6 @@ export function ThemeScanner() {
   const end = data ? Math.min(data.page * 100, data.total) : 0;
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
-  const bseCount = markets["BSE"] ?? 0;
   const bseSmeCount = markets["BSE SME"] ?? 0;
   const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
 
@@ -297,7 +296,6 @@ export function ThemeScanner() {
             <option value="NSE SME">
               NSE SME ({smeCount.toLocaleString() || "…"})
             </option>
-            <option value="BSE">BSE ({bseCount.toLocaleString() || "…"})</option>
             <option value="BSE SME">
               BSE SME ({bseSmeCount.toLocaleString() || "…"})
             </option>

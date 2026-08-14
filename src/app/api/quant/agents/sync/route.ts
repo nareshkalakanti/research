@@ -13,7 +13,6 @@ export const dynamic = "force-dynamic";
 function parseMarket(raw: unknown): QuantListMarket {
   if (
     raw === "NSE SME" ||
-    raw === "BSE" ||
     raw === "BSE SME" ||
     raw === "All"
   ) {

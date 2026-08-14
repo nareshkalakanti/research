@@ -3,7 +3,7 @@ import { loadBreakoutMap } from "@/lib/signals";
 import { capTier, type CapTier } from "@/lib/types";
 import type { EvidenceBundle } from "./types";
 
-export type QuantListMarket = "NSE" | "NSE SME" | "BSE" | "BSE SME" | "All";
+export type QuantListMarket = "NSE" | "NSE SME" | "BSE SME" | "All";
 
 function matchesMarket(companyMarket: string, list: QuantListMarket): boolean {
   if (list === "All") return true;
