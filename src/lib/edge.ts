@@ -115,3 +115,65 @@ export function replaceEdge(
     db.close();
   }
 }
+
+/** Insert or update Edge names without wiping the rest of the list. */
+export function upsertEdge(
+  rows: Array<{
+    ticker: string;
+    name?: string | null;
+    market?: string | null;
+    sources?: string | null;
+  }>,
+): number {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const db = new Database(DB_PATH);
+  try {
+    ensureSchema(db);
+    const now = new Date().toISOString();
+    const existing = db
+      .prepare(`SELECT ticker, sources FROM edge`)
+      .all() as Array<{ ticker: string; sources: string | null }>;
+    const srcByTicker = new Map(
+      existing.map((r) => [r.ticker.toUpperCase(), r.sources || ""]),
+    );
+    const ins = db.prepare(
+      `INSERT INTO edge (ticker, market, name, sources, updated_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(ticker) DO UPDATE SET
+         market = excluded.market,
+         name = COALESCE(excluded.name, edge.name),
+         sources = excluded.sources,
+         updated_at = excluded.updated_at`,
+    );
+    const tx = db.transaction(() => {
+      let n = 0;
+      for (const r of rows) {
+        const ticker = (r.ticker || "").trim().toUpperCase();
+        if (!ticker) continue;
+        const prev = srcByTicker.get(ticker) || "";
+        const extra = (r.sources || "early_edge").trim();
+        const merged = [
+          ...new Set(
+            [...prev.split(","), extra]
+              .map((s) => s.trim())
+              .filter(Boolean),
+          ),
+        ].join(",");
+        ins.run(
+          ticker,
+          (r.market || "NSE").toUpperCase(),
+          r.name?.trim() || null,
+          merged,
+          now,
+        );
+        n += 1;
+      }
+      return n;
+    });
+    const n = tx() as number;
+    invalidateEdgeCache();
+    return n;
+  } finally {
+    db.close();
+  }
+}

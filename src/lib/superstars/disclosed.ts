@@ -12,6 +12,8 @@ export type DisclosedPick = {
   company_name?: string;
   holding_entity?: string;
   change_type?: string;
+  holding_percent?: number | null;
+  holding_value_cr?: number | null;
   /** e.g. "ET Now interview, Jun 2026" */
   source?: string;
 };
@@ -33,10 +35,10 @@ function pickToResolved(investor: string, pick: DisclosedPick): ResolvedHolding 
     holder_name: investor,
     price: co?.price ?? null,
     quantity: null,
-    holding_percent: null,
+    holding_percent: pick.holding_percent ?? null,
     change_qtr: null,
     change_type: pick.change_type ?? "disclosed",
-    holding_value_cr: 0,
+    holding_value_cr: pick.holding_value_cr ?? 0,
     holding_entity: `${entity}${sourceNote}`,
     symbol: sym,
     exchange: pick.exchange ?? (co?.market === "BSE" ? "BSE" : "NSE"),
@@ -144,6 +146,10 @@ export function mergeAllDisclosedRaw(rows: DisclosedRawRow[]): DisclosedRawRow[]
     const list = byInvestor.get(r.investor) ?? [];
     list.push(r);
     byInvestor.set(r.investor, list);
+  }
+  for (const inv of investorsJson as InvestorEntry[]) {
+    if (!inv.disclosed_picks?.length) continue;
+    if (!byInvestor.has(inv.name)) byInvestor.set(inv.name, []);
   }
   const fetchedAt = rows.reduce<string | null>((best, r) => {
     if (!r.fetched_at) return best;

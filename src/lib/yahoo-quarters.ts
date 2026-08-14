@@ -9,7 +9,7 @@ import {
   type QuarterPoint,
 } from "./quarter-panel";
 import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
-import { toYfinanceSymbol } from "./yfinance";
+import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
 export type { QuarterPoint };
 
@@ -121,13 +121,8 @@ export async function fetchQuarterlyFundamentals(
     };
   }
 
-  /** Yahoo often lists SME names as TICKER-SM.NS while db market stays "NSE". */
-  const symbolCandidates = [symbol];
-  if (symbol.endsWith(".NS") && !symbol.includes("-SM")) {
-    symbolCandidates.push(symbol.replace(/\.NS$/i, "-SM.NS"));
-  } else if (symbol.includes("-SM.NS")) {
-    symbolCandidates.push(symbol.replace(/-SM\.NS$/i, ".NS"));
-  }
+  /** Yahoo often lists SME names as TICKER-SM.NS; some ghost as TICKER.NS only. */
+  const symbolCandidates = yfSymbolCandidates(ticker, market);
 
   let usedSymbol = symbol;
   let quarters: QuarterPoint[] = [];

@@ -129,6 +129,8 @@ export type VerdictRow = {
   tv: string;
   about: string | null;
   headquarters: string | null;
+  has_hold?: boolean;
+  has_edge?: boolean;
 };
 
 export type AgentRunState = {

@@ -1,6 +1,6 @@
 import YahooFinance from "yahoo-finance2";
 import type { Bar } from "./indicators";
-import { toYfinanceSymbol } from "./yfinance";
+import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
@@ -53,40 +53,78 @@ function normalizeWeeklyBars(bars: Bar[]): Bar[] {
   return bars;
 }
 
+function mapChartBars(
+  quotes: Array<{
+    date?: Date;
+    open?: number | null;
+    high?: number | null;
+    low?: number | null;
+    close?: number | null;
+    volume?: number | null;
+  }>,
+): Bar[] {
+  return quotes
+    .filter(
+      (q) =>
+        q.date &&
+        q.close != null &&
+        q.high != null &&
+        q.low != null &&
+        q.open != null,
+    )
+    .map((q) => ({
+      date: toDateStr(new Date(q.date!)),
+      open: Number(q.open),
+      high: Number(q.high),
+      low: Number(q.low),
+      close: Number(q.close),
+      volume: Number(q.volume ?? 0),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Try NSE / SME / BSE Yahoo aliases; keep the series with the most bars.
+ * Prefer the primary SME `-SM.NS` series when it has enough history so we
+ * don't silently switch to a ghost `.NS` listing with a different price.
+ */
+async function fetchBarsWithCandidates(
+  ticker: string,
+  market: string | null | undefined,
+  interval: "1d" | "1wk",
+  yearsBack: number,
+): Promise<Bar[]> {
+  const symbols = yfSymbolCandidates(ticker, market);
+  if (!symbols.length) return [];
+  const primary = toYfinanceSymbol(ticker, market);
+  const period1 = periodStart(yearsBack);
+  let best: Bar[] = [];
+  let primaryBars: Bar[] = [];
+
+  for (const symbol of symbols) {
+    try {
+      const chart = await yf.chart(symbol, { period1, interval });
+      const bars = mapChartBars(chart.quotes ?? []);
+      const cleaned =
+        interval === "1wk" ? normalizeWeeklyBars(bars) : bars;
+      if (symbol === primary) primaryBars = cleaned;
+      if (cleaned.length > best.length) best = cleaned;
+    } catch {
+      /* try next alias */
+    }
+  }
+
+  // Prefer primary (correct board) when it has usable history.
+  if (primaryBars.length >= 5) return primaryBars;
+  return best;
+}
+
 export async function fetchWeeklyBars(
   ticker: string,
   market?: string | null,
   yearsBack = 2,
 ): Promise<Bar[]> {
-  const symbol = toYfinanceSymbol(ticker, market);
-  if (!symbol) return [];
-  try {
-    const chart = await yf.chart(symbol, {
-      period1: periodStart(yearsBack),
-      interval: "1wk",
-    });
-    const bars = (chart.quotes ?? [])
-      .filter(
-        (q) =>
-          q.date &&
-          q.close != null &&
-          q.high != null &&
-          q.low != null &&
-          q.open != null,
-      )
-      .map((q) => ({
-        date: toDateStr(new Date(q.date)),
-        open: Number(q.open),
-        high: Number(q.high),
-        low: Number(q.low),
-        close: Number(q.close),
-        volume: Number(q.volume ?? 0),
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-    return normalizeWeeklyBars(bars);
-  } catch {
-    return [];
-  }
+  return fetchBarsWithCandidates(ticker, market, "1wk", yearsBack);
 }
 
 /** Daily OHLC for BB NEW / TQ “today / latest session” scans. */
@@ -95,34 +133,7 @@ export async function fetchDailyBars(
   market?: string | null,
   yearsBack = 1,
 ): Promise<Bar[]> {
-  const symbol = toYfinanceSymbol(ticker, market);
-  if (!symbol) return [];
-  try {
-    const chart = await yf.chart(symbol, {
-      period1: periodStart(yearsBack),
-      interval: "1d",
-    });
-    return (chart.quotes ?? [])
-      .filter(
-        (q) =>
-          q.date &&
-          q.close != null &&
-          q.high != null &&
-          q.low != null &&
-          q.open != null,
-      )
-      .map((q) => ({
-        date: toDateStr(new Date(q.date)),
-        open: Number(q.open),
-        high: Number(q.high),
-        low: Number(q.low),
-        close: Number(q.close),
-        volume: Number(q.volume ?? 0),
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    return [];
-  }
+  return fetchBarsWithCandidates(ticker, market, "1d", yearsBack);
 }
 
 let niftyCache: { at: number; bars: Bar[] } | null = null;

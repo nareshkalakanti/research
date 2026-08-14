@@ -5,7 +5,7 @@ import { loadAllCompanies } from "@/lib/db";
 import { edgeTickerSet, loadEdge } from "@/lib/edge";
 import { holdingsTickerSet, loadHoldings } from "@/lib/holdings";
 import { capTier } from "@/lib/types";
-import { toYfinanceSymbol } from "@/lib/yfinance";
+import { toYfinanceSymbol, yfSymbolCandidates } from "@/lib/yfinance";
 import type { EvidenceBundle } from "./types";
 import type { UniverseFile } from "./config";
 import type { ListMarket } from "./types";
@@ -17,6 +17,119 @@ function num(v: unknown): number | null {
   if (v == null) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+type DayBar = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+};
+
+async function chartBarsForSymbol(
+  sym: string,
+  period1Str: string,
+): Promise<DayBar[]> {
+  try {
+    const chart = await yf.chart(sym, {
+      period1: period1Str,
+      interval: "1d",
+    });
+    return (chart.quotes ?? [])
+      .filter(
+        (q) =>
+          q.date &&
+          q.close != null &&
+          q.high != null &&
+          q.low != null &&
+          q.open != null,
+      )
+      .map((q) => ({
+        date: new Date(q.date).toISOString().slice(0, 10),
+        open: Number(q.open),
+        high: Number(q.high),
+        low: Number(q.low),
+        close: Number(q.close),
+        volume: Number(q.volume ?? 0),
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
+/** Prefer primary board bars when usable; else richest alias (SME ghost .NS, etc.). */
+async function bestDailyBars(
+  ticker: string,
+  market: string,
+  period1Str: string,
+): Promise<{ bars: DayBar[]; symbol: string }> {
+  const primary = toYfinanceSymbol(ticker, market);
+  const candidates = yfSymbolCandidates(ticker, market);
+  let best: DayBar[] = [];
+  let bestSym = primary;
+  let primaryBars: DayBar[] = [];
+
+  for (const sym of candidates) {
+    const bars = await chartBarsForSymbol(sym, period1Str);
+    if (sym === primary) primaryBars = bars;
+    if (bars.length > best.length) {
+      best = bars;
+      bestSym = sym;
+    }
+  }
+
+  if (primaryBars.length >= 5) {
+    return { bars: primaryBars, symbol: primary };
+  }
+  return { bars: best, symbol: bestSym || primary };
+}
+
+async function quoteAcrossCandidates(
+  ticker: string,
+  market: string,
+): Promise<{
+  symbol: string;
+  price: number | null;
+  prev: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  volume: number | null;
+  avgVol: number | null;
+  changePct: number | null;
+} | null> {
+  for (const sym of yfSymbolCandidates(ticker, market)) {
+    try {
+      const q = await yf.quote(sym);
+      const price = num(q?.regularMarketPrice);
+      if (price == null) continue;
+      const prev = num(q?.regularMarketPreviousClose);
+      let changePct: number | null = null;
+      if (prev != null && prev > 0) {
+        changePct = round2(((price - prev) / prev) * 100);
+      } else if (q?.regularMarketChangePercent != null) {
+        changePct = round2(Number(q.regularMarketChangePercent));
+      }
+      return {
+        symbol: sym,
+        price,
+        prev,
+        open: num(q?.regularMarketOpen),
+        high: num(q?.regularMarketDayHigh),
+        low: num(q?.regularMarketDayLow),
+        volume: num(q?.regularMarketVolume),
+        avgVol:
+          num(q?.averageDailyVolume3Month) ?? num(q?.averageDailyVolume10Day),
+        changePct,
+      };
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
 }
 
 function round1(n: number | null): number | null {
@@ -194,47 +307,14 @@ export async function buildLiveEvidence(
   const market = row?.market || "NSE";
   const name = row?.name || ticker;
   const sector = row?.sector || row?.sub_sector || null;
-  const sym = toYfinanceSymbol(ticker, market);
 
   const period1 = new Date();
   period1.setDate(period1.getDate() - 35);
   const period1Str = period1.toISOString().slice(0, 10);
 
-  let monthBars: Array<{
-    date: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume: number;
-  }> = [];
-
-  try {
-    const chart = await yf.chart(sym, {
-      period1: period1Str,
-      interval: "1d",
-    });
-    monthBars = (chart.quotes ?? [])
-      .filter(
-        (q) =>
-          q.date &&
-          q.close != null &&
-          q.high != null &&
-          q.low != null &&
-          q.open != null,
-      )
-      .map((q) => ({
-        date: new Date(q.date).toISOString().slice(0, 10),
-        open: Number(q.open),
-        high: Number(q.high),
-        low: Number(q.low),
-        close: Number(q.close),
-        volume: Number(q.volume ?? 0),
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  } catch {
-    gaps.push("daily_ohlc");
-  }
+  const { bars: monthBars } = await bestDailyBars(ticker, market, period1Str);
+  const quote = await quoteAcrossCandidates(ticker, market);
+  if (!quote) gaps.push("quote");
 
   let live: number | null = null;
   let dayOpen: number | null = null;
@@ -260,9 +340,24 @@ export async function buildLiveEvidence(
     gaps.push("daily_ohlc");
   }
 
+  // Prefer live quote for current price (SME `-SM.NS` is correct board;
+  // ghost `.NS` history can disagree on last close).
+  if (quote) {
+    live = quote.price ?? live;
+    if (quote.prev != null) prevClose = quote.prev;
+    if (dayOpen == null) dayOpen = quote.open;
+    if (dayHigh == null) dayHigh = quote.high;
+    if (dayLow == null) dayLow = quote.low;
+    if ((volume == null || volume <= 0) && quote.volume != null) {
+      volume = quote.volume;
+    }
+  }
+
   let dayChangePct: number | null = null;
   if (live != null && prevClose != null && prevClose > 0) {
     dayChangePct = round2(((live - prevClose) / prevClose) * 100);
+  } else if (quote?.changePct != null) {
+    dayChangePct = quote.changePct;
   }
 
   let pctFromHigh: number | null = null;
@@ -275,16 +370,8 @@ export async function buildLiveEvidence(
   const closes = monthBars.map((b) => b.close);
   const vols = monthBars.map((b) => b.volume);
 
-  let quoteVol: number | null = null;
-  let quoteAvgVol: number | null = null;
-  try {
-    const q = await yf.quote(sym);
-    quoteVol = num(q.regularMarketVolume);
-    quoteAvgVol =
-      num(q.averageDailyVolume3Month) ?? num(q.averageDailyVolume10Day);
-  } catch {
-    gaps.push("quote");
-  }
+  const quoteVol = quote?.volume ?? null;
+  const quoteAvgVol = quote?.avgVol ?? null;
 
   if ((volume == null || volume <= 0) && quoteVol != null && quoteVol > 0) {
     volume = quoteVol;
@@ -345,7 +432,9 @@ export async function buildLiveEvidence(
   };
 
   try {
-    const qs = await yf.quoteSummary(sym, {
+    const summarySym =
+      quote?.symbol || toYfinanceSymbol(ticker, market);
+    const qs = await yf.quoteSummary(summarySym, {
       modules: [
         "financialData",
         "recommendationTrend",
@@ -485,15 +574,14 @@ export async function scoutShortlistLive(
     for (const entry of bucket.items) {
       scanned += 1;
       try {
-        const sym = toYfinanceSymbol(entry.ticker, entry.market);
-        const q = await yf.quote(sym);
-        const price = num(q?.regularMarketPrice);
-        const prev = num(q?.regularMarketPreviousClose);
-        if (price != null && prev != null && prev > 0) {
+        const q = await quoteAcrossCandidates(entry.ticker, entry.market);
+        if (q?.price != null && q.prev != null && q.prev > 0) {
           scored.push({
             entry,
-            change: Math.abs(((price - prev) / prev) * 100),
+            change: Math.abs(((q.price - q.prev) / q.prev) * 100),
           });
+        } else if (q?.changePct != null) {
+          scored.push({ entry, change: Math.abs(q.changePct) });
         }
       } catch {
         /* skip */

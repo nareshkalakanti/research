@@ -1,0 +1,5116 @@
+{
+  "fetched_at": "2026-08-14T06:05:44.143Z",
+  "count": 511,
+  "listings": [
+    {
+      "ticker": "3BFILMS",
+      "name": "3B FILMS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544412",
+      "group": "M",
+      "isin": "INE0TE101010",
+      "industry": null,
+      "mcap_cr": 33.54
+    },
+    {
+      "ticker": "3CIT",
+      "name": "3C IT Solutions and Telecoms (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "544190",
+      "group": "M",
+      "isin": "INE0R7D01018",
+      "industry": null,
+      "mcap_cr": 9.18
+    },
+    {
+      "ticker": "AAPLUSTRAD",
+      "name": "AA Plus Tradelink Limited",
+      "market": "BSE SME",
+      "scrip_code": "543319",
+      "group": "M",
+      "isin": "INE0C5901022",
+      "industry": null,
+      "mcap_cr": 29.92
+    },
+    {
+      "ticker": "AASHKA",
+      "name": "Aashka Hospitals Limited",
+      "market": "BSE SME",
+      "scrip_code": "543346",
+      "group": "M",
+      "isin": "INE0EAX01014",
+      "industry": null,
+      "mcap_cr": 168.48
+    },
+    {
+      "ticker": "AAYUSHBULL",
+      "name": "AAYUSH ART AND BULLION LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "540718",
+      "group": "M",
+      "isin": "INE777X01017",
+      "industry": null,
+      "mcap_cr": 1907.9
+    },
+    {
+      "ticker": "ABRFL",
+      "name": "Abram Food Limited",
+      "market": "BSE SME",
+      "scrip_code": "544422",
+      "group": "M",
+      "isin": "INE0ZDY01011",
+      "industry": null,
+      "mcap_cr": 19.03
+    },
+    {
+      "ticker": "ABRIL",
+      "name": "ABRIL PAPER TECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544500",
+      "group": "M",
+      "isin": "INE15MX01014",
+      "industry": null,
+      "mcap_cr": 27.54
+    },
+    {
+      "ticker": "ACCELERATE",
+      "name": "ACCELERATEBS INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543938",
+      "group": "M",
+      "isin": "INE0POP01017",
+      "industry": null,
+      "mcap_cr": 34.45
+    },
+    {
+      "ticker": "ACCORDTS",
+      "name": "ACCORD TRANSFORMER & SWITCHGEAR LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544710",
+      "group": "M",
+      "isin": "INE132201018",
+      "industry": null,
+      "mcap_cr": 129.63
+    },
+    {
+      "ticker": "ACEALPHA",
+      "name": "Ace Alpha Tech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544431",
+      "group": "M",
+      "isin": "INE0S9X01011",
+      "industry": null,
+      "mcap_cr": 237.91
+    },
+    {
+      "ticker": "ACFSL",
+      "name": "Amrapali Capital and Finance Services Limited",
+      "market": "BSE SME",
+      "scrip_code": "536737",
+      "group": "MT",
+      "isin": "INE218P01018",
+      "industry": null,
+      "mcap_cr": 72.46
+    },
+    {
+      "ticker": "ACLD",
+      "name": "AELEA COMMODITIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544213",
+      "group": "M",
+      "isin": "INE0T3401029",
+      "industry": null,
+      "mcap_cr": 288.52
+    },
+    {
+      "ticker": "ACML",
+      "name": "ADITYA CONSUMER MARKETING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "540146",
+      "group": "M",
+      "isin": "INE427V01013",
+      "industry": null,
+      "mcap_cr": 55.24
+    },
+    {
+      "ticker": "ADCOUNTY",
+      "name": "ADCOUNTY MEDIA INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544435",
+      "group": "M",
+      "isin": "INE0W1601012",
+      "industry": null,
+      "mcap_cr": 186.76
+    },
+    {
+      "ticker": "ADESHWAR",
+      "name": "Adeshwar Meditex Limited",
+      "market": "BSE SME",
+      "scrip_code": "543309",
+      "group": "M",
+      "isin": "INE0H8J01015",
+      "industry": null,
+      "mcap_cr": 23.52
+    },
+    {
+      "ticker": "ADISHAKTI",
+      "name": "Adishakti Loha and Ispat Limited",
+      "market": "BSE SME",
+      "scrip_code": "543377",
+      "group": "M",
+      "isin": "INE0CWK01019",
+      "industry": null,
+      "mcap_cr": 7.61
+    },
+    {
+      "ticker": "ADMACH",
+      "name": "ADMACH SYSTEMS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544669",
+      "group": "MT",
+      "isin": "INE0XLO01010",
+      "industry": null,
+      "mcap_cr": 253.98
+    },
+    {
+      "ticker": "ADON",
+      "name": "ADON AGRO COMMODITIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544809",
+      "group": "M",
+      "isin": "INE1SME01017",
+      "industry": null,
+      "mcap_cr": 194.5
+    },
+    {
+      "ticker": "ADVANCETL",
+      "name": "ADVANCE TECHNOFORGE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544843",
+      "group": "MT",
+      "isin": "INE13ZJ01010",
+      "industry": null,
+      "mcap_cr": 50.86
+    },
+    {
+      "ticker": "AEGEUS",
+      "name": "AEGEUS TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544858",
+      "group": "MT",
+      "isin": "INE0WR901013",
+      "industry": null,
+      "mcap_cr": 123.94
+    },
+    {
+      "ticker": "AFCOM",
+      "name": "Afcom Holdings Limited",
+      "market": "BSE SME",
+      "scrip_code": "544224",
+      "group": "M",
+      "isin": "INE0OXY01013",
+      "industry": null,
+      "mcap_cr": 4103.47
+    },
+    {
+      "ticker": "AFLTD",
+      "name": "Autofurnish Limited",
+      "market": "BSE SME",
+      "scrip_code": "544767",
+      "group": "M",
+      "isin": "INE18HI01019",
+      "industry": null,
+      "mcap_cr": 77.71
+    },
+    {
+      "ticker": "AHASOLAR",
+      "name": "AHASOLAR TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543941",
+      "group": "M",
+      "isin": "INE0NEV01011",
+      "industry": null,
+      "mcap_cr": 24.66
+    },
+    {
+      "ticker": "AIKPIPES",
+      "name": "AIK Pipes and Polymers Limited",
+      "market": "BSE SME",
+      "scrip_code": "544072",
+      "group": "M",
+      "isin": "INE0QFT01015",
+      "industry": null,
+      "mcap_cr": 17.38
+    },
+    {
+      "ticker": "AIRFLOA",
+      "name": "AIRFLOA RAIL TECHNOLOGY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544516",
+      "group": "M",
+      "isin": "INE0XBS01012",
+      "industry": null,
+      "mcap_cr": 825.53
+    },
+    {
+      "ticker": "AJCJEWEL",
+      "name": "AJC Jewel Manufacturers Limited",
+      "market": "BSE SME",
+      "scrip_code": "544425",
+      "group": "M",
+      "isin": "INE0XRR01010",
+      "industry": null,
+      "mcap_cr": 88.6
+    },
+    {
+      "ticker": "ALKOSIGN",
+      "name": "ALKOSIGN LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543453",
+      "group": "M",
+      "isin": "INE0KA601012",
+      "industry": null,
+      "mcap_cr": 65.08
+    },
+    {
+      "ticker": "ALPHAIND",
+      "name": "ALPHALOGIC INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543937",
+      "group": "M",
+      "isin": "INE0NZF01019",
+      "industry": null,
+      "mcap_cr": 142.39
+    },
+    {
+      "ticker": "AMANAYA",
+      "name": "AMANAYA VENTURES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543804",
+      "group": "M",
+      "isin": "INE0G1V01016",
+      "industry": null,
+      "mcap_cr": 6.35
+    },
+    {
+      "ticker": "AMBOAGRI",
+      "name": "AMBO AGRITEC LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543678",
+      "group": "M",
+      "isin": "INE0N6V01016",
+      "industry": null,
+      "mcap_cr": 23.81
+    },
+    {
+      "ticker": "AMEENJI",
+      "name": "AMEENJI RUBBER LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544555",
+      "group": "M",
+      "isin": "INE14QA01016",
+      "industry": null,
+      "mcap_cr": 213.14
+    },
+    {
+      "ticker": "AMIC",
+      "name": "Amic Forging Limited",
+      "market": "BSE SME",
+      "scrip_code": "544037",
+      "group": "M",
+      "isin": "INE0P9J01013",
+      "industry": null,
+      "mcap_cr": 2149.77
+    },
+    {
+      "ticker": "AMKAY",
+      "name": "Amkay Products Limited",
+      "market": "BSE SME",
+      "scrip_code": "544169",
+      "group": "M",
+      "isin": "INE0QSB01016",
+      "industry": null,
+      "mcap_cr": 39.82
+    },
+    {
+      "ticker": "AMRAFIN",
+      "name": "Amrapali Fincap Limited",
+      "market": "BSE SME",
+      "scrip_code": "539265",
+      "group": "MT",
+      "isin": "INE990S01016",
+      "industry": null,
+      "mcap_cr": 48.41
+    },
+    {
+      "ticker": "AMWILL",
+      "name": "Amwill Health Care Limited",
+      "market": "BSE SME",
+      "scrip_code": "544353",
+      "group": "M",
+      "isin": "INE0U2L01017",
+      "industry": null,
+      "mcap_cr": 86.2
+    },
+    {
+      "ticker": "ANGEL",
+      "name": "Angel Fibers Limited",
+      "market": "BSE SME",
+      "scrip_code": "541006",
+      "group": "M",
+      "isin": "INE339Z01011",
+      "industry": null,
+      "mcap_cr": 26.58
+    },
+    {
+      "ticker": "ANL",
+      "name": "Accretion Nutraveda Limited",
+      "market": "BSE SME",
+      "scrip_code": "544694",
+      "group": "MT",
+      "isin": "INE1KVQ01019",
+      "industry": null,
+      "mcap_cr": 216.48
+    },
+    {
+      "ticker": "ANUBHAV",
+      "name": "ANUBHAV PLAST LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544800",
+      "group": "M",
+      "isin": "INE1O7201010",
+      "industry": null,
+      "mcap_cr": 53.9
+    },
+    {
+      "ticker": "APL",
+      "name": "ASSTON PHARMACEUTICALS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544445",
+      "group": "M",
+      "isin": "INE0SJX01015",
+      "industry": null,
+      "mcap_cr": 66.82
+    },
+    {
+      "ticker": "APPL",
+      "name": "Aptus Pharma Limited",
+      "market": "BSE SME",
+      "scrip_code": "544529",
+      "group": "MT",
+      "isin": "INE15XJ01010",
+      "industry": null,
+      "mcap_cr": 451.65
+    },
+    {
+      "ticker": "ARITAS",
+      "name": "Aritas Vinyl Limited",
+      "market": "BSE SME",
+      "scrip_code": "544683",
+      "group": "MT",
+      "isin": "INE1D8001016",
+      "industry": null,
+      "mcap_cr": 24.85
+    },
+    {
+      "ticker": "ARROWHEAD",
+      "name": "Arrowhead Seperation Engineering Limited",
+      "market": "BSE SME",
+      "scrip_code": "544025",
+      "group": "M",
+      "isin": "INE0PP401015",
+      "industry": null,
+      "mcap_cr": 13.29
+    },
+    {
+      "ticker": "ARTEMISADR",
+      "name": "Artemis ADR Marketplace Limited",
+      "market": "BSE SME",
+      "scrip_code": "543286",
+      "group": "MT",
+      "isin": "INE0D9X01018",
+      "industry": null,
+      "mcap_cr": 60.86
+    },
+    {
+      "ticker": "ASARFI",
+      "name": "ASARFI HOSPITAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543943",
+      "group": "M",
+      "isin": "INE0DN001027",
+      "industry": null,
+      "mcap_cr": 457.2
+    },
+    {
+      "ticker": "ASSOCIATED",
+      "name": "Associated Coaters Limited",
+      "market": "BSE SME",
+      "scrip_code": "544183",
+      "group": "M",
+      "isin": "INE0RIQ01013",
+      "industry": null,
+      "mcap_cr": 13.59
+    },
+    {
+      "ticker": "ASTONEALAB",
+      "name": "ASTONEA LABS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544409",
+      "group": "MT",
+      "isin": "INE0TG901011",
+      "industry": null,
+      "mcap_cr": 292.21
+    },
+    {
+      "ticker": "ASTRONMULT",
+      "name": "Astron Multigrain Limited",
+      "market": "BSE SME",
+      "scrip_code": "544628",
+      "group": "MT",
+      "isin": "INE0RUY01012",
+      "industry": null,
+      "mcap_cr": 14.56
+    },
+    {
+      "ticker": "ATENPAPERS",
+      "name": "Aten Papers & Foam Limited",
+      "market": "BSE SME",
+      "scrip_code": "544417",
+      "group": "MT",
+      "isin": "INE0XCV01014",
+      "industry": null,
+      "mcap_cr": 21.12
+    },
+    {
+      "ticker": "ATHARVA",
+      "name": "Atharva Poly-Plast Limited",
+      "market": "BSE SME",
+      "scrip_code": "544812",
+      "group": "M",
+      "isin": "INE226801012",
+      "industry": null,
+      "mcap_cr": 126.37
+    },
+    {
+      "ticker": "ATHCON",
+      "name": "Athena Constructions Limited",
+      "market": "BSE SME",
+      "scrip_code": "539099",
+      "group": "M",
+      "isin": "INE291R01011",
+      "industry": null,
+      "mcap_cr": 3.01
+    },
+    {
+      "ticker": "ATIL",
+      "name": "APOLLO TECHNO INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544671",
+      "group": "M",
+      "isin": "INE0X4A01013",
+      "industry": null,
+      "mcap_cr": 153.59
+    },
+    {
+      "ticker": "AUREATE",
+      "name": "AUREATE TRADDE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544772",
+      "group": "M",
+      "isin": "INE1KVL01010",
+      "industry": null,
+      "mcap_cr": 46.88
+    },
+    {
+      "ticker": "AUSTERE",
+      "name": "AUSTERE SYSTEMS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544505",
+      "group": "M",
+      "isin": "INE104201012",
+      "industry": null,
+      "mcap_cr": 42.96
+    },
+    {
+      "ticker": "AVAX",
+      "name": "Avax Apparels and Ornaments Limited",
+      "market": "BSE SME",
+      "scrip_code": "544337",
+      "group": "MT",
+      "isin": "INE0NQ401024",
+      "industry": null,
+      "mcap_cr": 42.36
+    },
+    {
+      "ticker": "AZTEC",
+      "name": "Aztec Fluids & Machinery Limited",
+      "market": "BSE SME",
+      "scrip_code": "544177",
+      "group": "M",
+      "isin": "INE0SCB01016",
+      "industry": null,
+      "mcap_cr": 130.49
+    },
+    {
+      "ticker": "BAIKAKAJI",
+      "name": "BAI-KAKAJI POLYMERS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544670",
+      "group": "M",
+      "isin": "INE1IJQ01026",
+      "industry": null,
+      "mcap_cr": 507.28
+    },
+    {
+      "ticker": "BCCL",
+      "name": "Bhatia Colour Chem Limited",
+      "market": "BSE SME",
+      "scrip_code": "543497",
+      "group": "M",
+      "isin": "INE0KQ001017",
+      "industry": null,
+      "mcap_cr": 35.18
+    },
+    {
+      "ticker": "BDI",
+      "name": "B. D. Industries (Pune) Limited",
+      "market": "BSE SME",
+      "scrip_code": "544468",
+      "group": "M",
+      "isin": "INE1LJ801017",
+      "industry": null,
+      "mcap_cr": 156.31
+    },
+    {
+      "ticker": "BEEZAASAN",
+      "name": "Beezaasan Explotech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544369",
+      "group": "MT",
+      "isin": "INE13VU01016",
+      "industry": null,
+      "mcap_cr": 698.72
+    },
+    {
+      "ticker": "BENARA",
+      "name": "Benara Bearings and Pistons Limited",
+      "market": "BSE SME",
+      "scrip_code": "541178",
+      "group": "MT",
+      "isin": "INE495Z01011",
+      "industry": null,
+      "mcap_cr": 18.5
+    },
+    {
+      "ticker": "BENCHMARK",
+      "name": "Benchmark Computer Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "544052",
+      "group": "MT",
+      "isin": "INE0Q2Z01013",
+      "industry": null,
+      "mcap_cr": 24.88
+    },
+    {
+      "ticker": "BHANDERI",
+      "name": "Bhanderi Infracon Limited",
+      "market": "BSE SME",
+      "scrip_code": "538576",
+      "group": "MT",
+      "isin": "INE336Q01016",
+      "industry": null,
+      "mcap_cr": 36.35
+    },
+    {
+      "ticker": "BHARATROHAN",
+      "name": "BHARATROHAN AIRBORNE INNOVATIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544535",
+      "group": "M",
+      "isin": "INE0QMV01017",
+      "industry": null,
+      "mcap_cr": 229.81
+    },
+    {
+      "ticker": "BHAVIK",
+      "name": "BHAVIK ENTERPRISES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544551",
+      "group": "M",
+      "isin": "INE18PB01017",
+      "industry": null,
+      "mcap_cr": 287.05
+    },
+    {
+      "ticker": "BILLWIN",
+      "name": "Billwin Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "543209",
+      "group": "M",
+      "isin": "INE0CRS01012",
+      "industry": null,
+      "mcap_cr": 6.7
+    },
+    {
+      "ticker": "BINDALEXPO",
+      "name": "Bindal Exports Limited",
+      "market": "BSE SME",
+      "scrip_code": "540148",
+      "group": "MT",
+      "isin": "INE564V01013",
+      "industry": null,
+      "mcap_cr": 12.79
+    },
+    {
+      "ticker": "BIZOTIC",
+      "name": "Bizotic Commercial Limited",
+      "market": "BSE SME",
+      "scrip_code": "543926",
+      "group": "M",
+      "isin": "INE0OJ401014",
+      "industry": null,
+      "mcap_cr": 643.84
+    },
+    {
+      "ticker": "BLT",
+      "name": "BLT Logistics Limited",
+      "market": "BSE SME",
+      "scrip_code": "544474",
+      "group": "MT",
+      "isin": "INE0W4K01013",
+      "industry": null,
+      "mcap_cr": 13.39
+    },
+    {
+      "ticker": "BMAL",
+      "name": "Bothra Metals & Alloys Limited",
+      "market": "BSE SME",
+      "scrip_code": "535279",
+      "group": "M",
+      "isin": "INE583M01012",
+      "industry": null,
+      "mcap_cr": 13.52
+    },
+    {
+      "ticker": "BONDADA",
+      "name": "Bondada Engineering Limited",
+      "market": "BSE SME",
+      "scrip_code": "543971",
+      "group": "M",
+      "isin": "INE0Q8P01029",
+      "industry": null,
+      "mcap_cr": 3164.21
+    },
+    {
+      "ticker": "BRGIL",
+      "name": "B.R.GOYAL INFRASTRUCTURE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544335",
+      "group": "MT",
+      "isin": "INE00ST01011",
+      "industry": null,
+      "mcap_cr": 452.67
+    },
+    {
+      "ticker": "BRIGHT",
+      "name": "Bright Outdoor Media Limited",
+      "market": "BSE SME",
+      "scrip_code": "543831",
+      "group": "M",
+      "isin": "INE0OMI01019",
+      "industry": null,
+      "mcap_cr": 785.63
+    },
+    {
+      "ticker": "BRISK",
+      "name": "Brisk Technovision Limited",
+      "market": "BSE SME",
+      "scrip_code": "544101",
+      "group": "MT",
+      "isin": "INE0Q6L01014",
+      "industry": null,
+      "mcap_cr": 15.2
+    },
+    {
+      "ticker": "BROACH",
+      "name": "BROACH LIFECARE HOSPITAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544231",
+      "group": "M",
+      "isin": "INE0SFZ01018",
+      "industry": null,
+      "mcap_cr": 11.05
+    },
+    {
+      "ticker": "BRRL",
+      "name": "B-RIGHT REALESTATE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543543",
+      "group": "M",
+      "isin": "INE0IZQ01016",
+      "industry": null,
+      "mcap_cr": 947.37
+    },
+    {
+      "ticker": "CARGOSOL",
+      "name": "Cargosol Logistics Limited",
+      "market": "BSE SME",
+      "scrip_code": "543621",
+      "group": "MT",
+      "isin": "INE0KZM01011",
+      "industry": null,
+      "mcap_cr": 26.42
+    },
+    {
+      "ticker": "CARGOTRANS",
+      "name": "Cargotrans Maritime Limited",
+      "market": "BSE SME",
+      "scrip_code": "543618",
+      "group": "M",
+      "isin": "INE0M4L01013",
+      "industry": null,
+      "mcap_cr": 49.45
+    },
+    {
+      "ticker": "CBPL",
+      "name": "Chandra Bhagat Pharma Limited",
+      "market": "BSE SME",
+      "scrip_code": "542934",
+      "group": "M",
+      "isin": "INE07QQ01016",
+      "industry": null,
+      "mcap_cr": 37.65
+    },
+    {
+      "ticker": "CCAL",
+      "name": "CITY CROPS AGRO LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544000",
+      "group": "MT",
+      "isin": "INE0M7501019",
+      "industry": null,
+      "mcap_cr": 51.51
+    },
+    {
+      "ticker": "CFF",
+      "name": "CFF FLUID CONTROL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543920",
+      "group": "M",
+      "isin": "INE0NJ001013",
+      "industry": null,
+      "mcap_cr": 2100.87
+    },
+    {
+      "ticker": "CHATHA",
+      "name": "CHATHA FOODS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544151",
+      "group": "M",
+      "isin": "INE0AH901011",
+      "industry": null,
+      "mcap_cr": 272.1
+    },
+    {
+      "ticker": "CHCL",
+      "name": "Cian Healthcare Limited",
+      "market": "BSE SME",
+      "scrip_code": "542678",
+      "group": "MT",
+      "isin": "INE05BN01027",
+      "industry": null,
+      "mcap_cr": 23.88
+    },
+    {
+      "ticker": "CHEMKART",
+      "name": "Chemkart India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544442",
+      "group": "MT",
+      "isin": "INE0VWL01017",
+      "industry": null,
+      "mcap_cr": 229.88
+    },
+    {
+      "ticker": "CHIRAHARIT",
+      "name": "Chiraharit Limited",
+      "market": "BSE SME",
+      "scrip_code": "544561",
+      "group": "M",
+      "isin": "INE12P101018",
+      "industry": null,
+      "mcap_cr": 43.89
+    },
+    {
+      "ticker": "CHOTHANI",
+      "name": "CHOTHANI FOODS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "540681",
+      "group": "MT",
+      "isin": "INE344X01016",
+      "industry": null,
+      "mcap_cr": 8.9
+    },
+    {
+      "ticker": "CHTR",
+      "name": "Chatterbox Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "544546",
+      "group": "M",
+      "isin": "INE1B4801017",
+      "industry": null,
+      "mcap_cr": 69.3
+    },
+    {
+      "ticker": "CITICHEM",
+      "name": "Citichem India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544324",
+      "group": "M",
+      "isin": "INE0A8401016",
+      "industry": null,
+      "mcap_cr": 11.56
+    },
+    {
+      "ticker": "CITYSQUARE",
+      "name": "JAY AMBE SUPERMARKETS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544514",
+      "group": "MT",
+      "isin": "INE1DRH01011",
+      "industry": null,
+      "mcap_cr": 97.68
+    },
+    {
+      "ticker": "CLARA",
+      "name": "CLARA INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543435",
+      "group": "M",
+      "isin": "INE0JJS01014",
+      "industry": null,
+      "mcap_cr": 77.4
+    },
+    {
+      "ticker": "CLN",
+      "name": "CLN ENERGY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544347",
+      "group": "MT",
+      "isin": "INE0WDX01010",
+      "industry": null,
+      "mcap_cr": 536.11
+    },
+    {
+      "ticker": "CNCRD",
+      "name": "Concord Control Systems Limited",
+      "market": "BSE SME",
+      "scrip_code": "543619",
+      "group": "M",
+      "isin": "INE0N0J01014",
+      "industry": null,
+      "mcap_cr": 2585.47
+    },
+    {
+      "ticker": "CNINFOTECH",
+      "name": "CAPITALNUMBERS INFOTECH  LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544343",
+      "group": "M",
+      "isin": "INE0WXM01011",
+      "industry": null,
+      "mcap_cr": 219.84
+    },
+    {
+      "ticker": "COMMAND",
+      "name": "Command Polymers Limited",
+      "market": "BSE SME",
+      "scrip_code": "543843",
+      "group": "MT",
+      "isin": "INE0LKQ01012",
+      "industry": null,
+      "mcap_cr": 20.49
+    },
+    {
+      "ticker": "COMRADE",
+      "name": "Comrade Appliances Limited",
+      "market": "BSE SME",
+      "scrip_code": "543921",
+      "group": "MT",
+      "isin": "INE0NXA01015",
+      "industry": null,
+      "mcap_cr": 32.97
+    },
+    {
+      "ticker": "CONTAINE",
+      "name": "CONTAINE TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543606",
+      "group": "M",
+      "isin": "INE0M8901010",
+      "industry": null,
+      "mcap_cr": 17.49
+    },
+    {
+      "ticker": "COSMICCRF",
+      "name": "Cosmic CRF Limited",
+      "market": "BSE SME",
+      "scrip_code": "543928",
+      "group": "MT",
+      "isin": "INE0ORA01015",
+      "industry": null,
+      "mcap_cr": 1158.56
+    },
+    {
+      "ticker": "COSPOWER",
+      "name": "Cospower Engineering Limited",
+      "market": "BSE SME",
+      "scrip_code": "543172",
+      "group": "MT",
+      "isin": "INE0CQB01010",
+      "industry": null,
+      "mcap_cr": 348.92
+    },
+    {
+      "ticker": "COTFAB",
+      "name": "United Cotfab Limited",
+      "market": "BSE SME",
+      "scrip_code": "544195",
+      "group": "M",
+      "isin": "INE0S0I01011",
+      "industry": null,
+      "mcap_cr": 24.07
+    },
+    {
+      "ticker": "CPML",
+      "name": "CITY PULSE MULTIVENTURES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "542727",
+      "group": "M",
+      "isin": "INE056001014",
+      "industry": null,
+      "mcap_cr": 271.4
+    },
+    {
+      "ticker": "CRAZY",
+      "name": "CRAZY SNACKS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544807",
+      "group": "M",
+      "isin": "INE0RBX01014",
+      "industry": null,
+      "mcap_cr": 148.65
+    },
+    {
+      "ticker": "CRYOGENIC",
+      "name": "CRYOGENIC OGS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544440",
+      "group": "MT",
+      "isin": "INE0TL001013",
+      "industry": null,
+      "mcap_cr": 504.8
+    },
+    {
+      "ticker": "CTCL",
+      "name": "Captain Technocast Limited",
+      "market": "BSE SME",
+      "scrip_code": "540652",
+      "group": "M",
+      "isin": "INE931X01010",
+      "industry": null,
+      "mcap_cr": 615.33
+    },
+    {
+      "ticker": "CTLLAB",
+      "name": "Clinitech Laboratory Limited",
+      "market": "BSE SME",
+      "scrip_code": "544220",
+      "group": "M",
+      "isin": "INE0QMR01015",
+      "industry": null,
+      "mcap_cr": 9.13
+    },
+    {
+      "ticker": "DACHEPALLI",
+      "name": "Dachepalli Publishers Limited",
+      "market": "BSE SME",
+      "scrip_code": "544667",
+      "group": "M",
+      "isin": "INE1F9M01018",
+      "industry": null,
+      "mcap_cr": 124
+    },
+    {
+      "ticker": "DAPS",
+      "name": "DAPS ADVERTISING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543651",
+      "group": "MT",
+      "isin": "INE975Z01012",
+      "industry": null,
+      "mcap_cr": 12.66
+    },
+    {
+      "ticker": "DAVIN",
+      "name": "Davin Sons Retail Limited",
+      "market": "BSE SME",
+      "scrip_code": "544331",
+      "group": "M",
+      "isin": "INE0Q2L01013",
+      "industry": null,
+      "mcap_cr": 17.19
+    },
+    {
+      "ticker": "DEEPAKCHEM",
+      "name": "DEEPAK CHEMTEX LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544036",
+      "group": "M",
+      "isin": "INE0RDM01013",
+      "industry": null,
+      "mcap_cr": 97.23
+    },
+    {
+      "ticker": "DEFRAIL",
+      "name": "Defrail Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "544677",
+      "group": "M",
+      "isin": "INE0ZE201010",
+      "industry": null,
+      "mcap_cr": 48.95
+    },
+    {
+      "ticker": "DESCO",
+      "name": "Desco Infratech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544387",
+      "group": "M",
+      "isin": "INE0TGG01014",
+      "industry": null,
+      "mcap_cr": 137.4
+    },
+    {
+      "ticker": "DEVLAB",
+      "name": "Dev Labtech Venture Limited",
+      "market": "BSE SME",
+      "scrip_code": "543848",
+      "group": "M",
+      "isin": "INE0NIJ01025",
+      "industry": null,
+      "mcap_cr": 90.4
+    },
+    {
+      "ticker": "DEVSON",
+      "name": "DEVSON CATALYST LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544823",
+      "group": "M",
+      "isin": "INE2KRP01017",
+      "industry": null,
+      "mcap_cr": 329.17
+    },
+    {
+      "ticker": "DFPL",
+      "name": "DINDIGUL FARM PRODUCT LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544201",
+      "group": "M",
+      "isin": "INE0S6R01027",
+      "industry": null,
+      "mcap_cr": 33.47
+    },
+    {
+      "ticker": "DGL",
+      "name": "Diksha Greens Limited",
+      "market": "BSE SME",
+      "scrip_code": "542155",
+      "group": "MT",
+      "isin": "INE01GR01018",
+      "industry": null,
+      "mcap_cr": 0.96
+    },
+    {
+      "ticker": "DHARNI",
+      "name": "DHARNI CAPITAL SERVICES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543753",
+      "group": "M",
+      "isin": "INE0M9Q01011",
+      "industry": null,
+      "mcap_cr": 112.04
+    },
+    {
+      "ticker": "DHAVAL",
+      "name": "Dhaval Packaging Limited",
+      "market": "BSE SME",
+      "scrip_code": "544854",
+      "group": "MT",
+      "isin": "INE1HX301016",
+      "industry": null,
+      "mcap_cr": 149.32
+    },
+    {
+      "ticker": "DHILLON",
+      "name": "Dhillon Freight Carrier Limited",
+      "market": "BSE SME",
+      "scrip_code": "544556",
+      "group": "M",
+      "isin": "INE0SPJ01011",
+      "industry": null,
+      "mcap_cr": 11.76
+    },
+    {
+      "ticker": "DHYAANITR",
+      "name": "DHYAANI TRADEVENTTURES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543516",
+      "group": "MT",
+      "isin": "INE0K5F01014",
+      "industry": null,
+      "mcap_cr": 10.73
+    },
+    {
+      "ticker": "DIGILOGIC",
+      "name": "DIGILOGIC SYSTEMS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544684",
+      "group": "MT",
+      "isin": "INE1OOT01028",
+      "industry": null,
+      "mcap_cr": 473.35
+    },
+    {
+      "ticker": "DIKSAT",
+      "name": "Diksat Transworld Limited",
+      "market": "BSE SME",
+      "scrip_code": "540151",
+      "group": "MT",
+      "isin": "INE942P01013",
+      "industry": null,
+      "mcap_cr": 219.46
+    },
+    {
+      "ticker": "DIKSHA",
+      "name": "DIKSHA POLYMERS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544798",
+      "group": "M",
+      "isin": "INE1OSI01014",
+      "industry": null,
+      "mcap_cr": 72.75
+    },
+    {
+      "ticker": "DKUAL",
+      "name": "Dolphin Kitchen Utencils and Appliances Limited",
+      "market": "BSE SME",
+      "scrip_code": "544170",
+      "group": "M",
+      "isin": "INE0QXT01018",
+      "industry": null,
+      "mcap_cr": 10.98
+    },
+    {
+      "ticker": "DLCL",
+      "name": "DR LALCHANDANI LABS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "541299",
+      "group": "M",
+      "isin": "INE871Z01013",
+      "industry": null,
+      "mcap_cr": 5.18
+    },
+    {
+      "ticker": "DML",
+      "name": "Diggi Multitrade Limited",
+      "market": "BSE SME",
+      "scrip_code": "540811",
+      "group": "M",
+      "isin": "INE158R01012",
+      "industry": null,
+      "mcap_cr": 13.16
+    },
+    {
+      "ticker": "DMR",
+      "name": "DMR ENGINEERING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543410",
+      "group": "M",
+      "isin": "INE07L501010",
+      "industry": null,
+      "mcap_cr": 25.99
+    },
+    {
+      "ticker": "DPL",
+      "name": "DIPNA PHARMACHEM LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543594",
+      "group": "M",
+      "isin": "INE0MC401013",
+      "industry": null,
+      "mcap_cr": 13.14
+    },
+    {
+      "ticker": "DRA",
+      "name": "DRA CONSULTANTS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "540144",
+      "group": "M",
+      "isin": "INE746V01016",
+      "industry": null,
+      "mcap_cr": 20.24
+    },
+    {
+      "ticker": "DRONACHRYA",
+      "name": "Droneacharya Aerial Innovations Limited",
+      "market": "BSE SME",
+      "scrip_code": "543713",
+      "group": "M",
+      "isin": "INE0MQD01015",
+      "industry": null,
+      "mcap_cr": 86.36
+    },
+    {
+      "ticker": "EARKART",
+      "name": "EARKART LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544549",
+      "group": "M",
+      "isin": "INE1A8F01035",
+      "industry": null,
+      "mcap_cr": 192.49
+    },
+    {
+      "ticker": "EARTH",
+      "name": "Earthstahl & Alloys Limited",
+      "market": "BSE SME",
+      "scrip_code": "543765",
+      "group": "M",
+      "isin": "INE0O4V01010",
+      "industry": null,
+      "mcap_cr": 17.38
+    },
+    {
+      "ticker": "EIGHTY",
+      "name": "Eighty Jewellers Limited",
+      "market": "BSE SME",
+      "scrip_code": "543518",
+      "group": "MT",
+      "isin": "INE0KSN01014",
+      "industry": null,
+      "mcap_cr": 38.66
+    },
+    {
+      "ticker": "EKENNIS",
+      "name": "Ekennis Software Service Limited",
+      "market": "BSE SME",
+      "scrip_code": "543475",
+      "group": "M",
+      "isin": "INE0KCM01010",
+      "industry": null,
+      "mcap_cr": 9.75
+    },
+    {
+      "ticker": "ELFIN",
+      "name": "Elfin Agro India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544724",
+      "group": "MT",
+      "isin": "INE1FEW01013",
+      "industry": null,
+      "mcap_cr": 145.69
+    },
+    {
+      "ticker": "EMIAC",
+      "name": "EMIAC TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544747",
+      "group": "M",
+      "isin": "INE1OSW01015",
+      "industry": null,
+      "mcap_cr": 112.56
+    },
+    {
+      "ticker": "EMMFORCE",
+      "name": "EMMFORCE AUTOTECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544166",
+      "group": "MT",
+      "isin": "INE0SDC01012",
+      "industry": null,
+      "mcap_cr": 403.23
+    },
+    {
+      "ticker": "EPBIO",
+      "name": "EP BIOCOMPOSITES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543595",
+      "group": "M",
+      "isin": "INE0D2I01014",
+      "industry": null,
+      "mcap_cr": 18.07
+    },
+    {
+      "ticker": "ESSEX",
+      "name": "ESSEX MARINE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544475",
+      "group": "M",
+      "isin": "INE1IBY01019",
+      "industry": null,
+      "mcap_cr": 62.56
+    },
+    {
+      "ticker": "EUPHORIAIT",
+      "name": "Euphoria Infotech (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "544094",
+      "group": "M",
+      "isin": "INE0PYT01018",
+      "industry": null,
+      "mcap_cr": 9.16
+    },
+    {
+      "ticker": "EVANS",
+      "name": "EVANS ELECTRIC LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "542668",
+      "group": "M",
+      "isin": "INE06TD01010",
+      "industry": null,
+      "mcap_cr": 39.86
+    },
+    {
+      "ticker": "EVOQ",
+      "name": "Evoq Remedies Limited",
+      "market": "BSE SME",
+      "scrip_code": "543500",
+      "group": "MT",
+      "isin": "INE0JVD01011",
+      "industry": null,
+      "mcap_cr": 4.53
+    },
+    {
+      "ticker": "EXATO",
+      "name": "EXATO TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544626",
+      "group": "MT",
+      "isin": "INE1E4401010",
+      "industry": null,
+      "mcap_cr": 618.27
+    },
+    {
+      "ticker": "EXHICON",
+      "name": "Exhicon Events Media Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "543895",
+      "group": "M",
+      "isin": "INE0O8901016",
+      "industry": null,
+      "mcap_cr": 708.79
+    },
+    {
+      "ticker": "FAALCON",
+      "name": "Faalcon Concepts Limited",
+      "market": "BSE SME",
+      "scrip_code": "544164",
+      "group": "MT",
+      "isin": "INE0Q9W01015",
+      "industry": null,
+      "mcap_cr": 39.38
+    },
+    {
+      "ticker": "FABCLEAN",
+      "name": "Fabtech Cleanrooms Limited",
+      "market": "BSE SME",
+      "scrip_code": "544332",
+      "group": "MT",
+      "isin": "INE0HSD01011",
+      "industry": null,
+      "mcap_cr": 514.95
+    },
+    {
+      "ticker": "FABINO",
+      "name": "FABINO ENTERPRISES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543444",
+      "group": "MT",
+      "isin": "INE0DRT01018",
+      "industry": null,
+      "mcap_cr": 4.27
+    },
+    {
+      "ticker": "FIL",
+      "name": "Fractal Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544707",
+      "group": "M",
+      "isin": "INE1W3Q01011",
+      "industry": null,
+      "mcap_cr": 156.82
+    },
+    {
+      "ticker": "FILTRA",
+      "name": "Filtra Consultants and Engineers Limited",
+      "market": "BSE SME",
+      "scrip_code": "539098",
+      "group": "M",
+      "isin": "INE541R01019",
+      "industry": null,
+      "mcap_cr": 65.78
+    },
+    {
+      "ticker": "FOCUS",
+      "name": "Focus Business Solution Limited",
+      "market": "BSE SME",
+      "scrip_code": "543312",
+      "group": "M",
+      "isin": "INE0DXR01010",
+      "industry": null,
+      "mcap_cr": 142.1
+    },
+    {
+      "ticker": "FONE4",
+      "name": "Fone4 Communications (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "543521",
+      "group": "M",
+      "isin": "INE0L3H01014",
+      "industry": null,
+      "mcap_cr": 13.07
+    },
+    {
+      "ticker": "FRANKLIN",
+      "name": "Franklin Leasing and Finance Limited",
+      "market": "BSE SME",
+      "scrip_code": "539839",
+      "group": "M",
+      "isin": "INE399S01010",
+      "industry": null,
+      "mcap_cr": 14.06
+    },
+    {
+      "ticker": "FTL",
+      "name": "Finelistings Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "544173",
+      "group": "M",
+      "isin": "INE0QOQ01013",
+      "industry": null,
+      "mcap_cr": 4.51
+    },
+    {
+      "ticker": "GALLARD",
+      "name": "Gallard Steel Limited",
+      "market": "BSE SME",
+      "scrip_code": "544616",
+      "group": "M",
+      "isin": "INE0BUQ01012",
+      "industry": null,
+      "mcap_cr": 183.35
+    },
+    {
+      "ticker": "GANGAPHARM",
+      "name": "Ganga Pharmaceuticals Limited",
+      "market": "BSE SME",
+      "scrip_code": "539680",
+      "group": "M",
+      "isin": "INE615T01017",
+      "industry": null,
+      "mcap_cr": 7.09
+    },
+    {
+      "ticker": "GANVERSE",
+      "name": "GANESHA ECOVERSE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "539041",
+      "group": "MT",
+      "isin": "INE369Q01017",
+      "industry": null,
+      "mcap_cr": 55.51
+    },
+    {
+      "ticker": "GARGI",
+      "name": "PNGS GARGI FASHION JEWELLERY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543709",
+      "group": "M",
+      "isin": "INE0NT601018",
+      "industry": null,
+      "mcap_cr": 598.9
+    },
+    {
+      "ticker": "GBLOGISTIC",
+      "name": "GB Logistics Commerce Limited",
+      "market": "BSE SME",
+      "scrip_code": "544348",
+      "group": "M",
+      "isin": "INE0RWU01016",
+      "industry": null,
+      "mcap_cr": 19.46
+    },
+    {
+      "ticker": "GCMCAPI",
+      "name": "GCM Capital Advisors Limited",
+      "market": "BSE SME",
+      "scrip_code": "538319",
+      "group": "MT",
+      "isin": "INE191P01017",
+      "industry": null,
+      "mcap_cr": 6.23
+    },
+    {
+      "ticker": "GCMCOMM",
+      "name": "GCM Commodity & Derivatives Limited",
+      "market": "BSE SME",
+      "scrip_code": "535917",
+      "group": "M",
+      "isin": "INE200P01016",
+      "industry": null,
+      "mcap_cr": 3.01
+    },
+    {
+      "ticker": "GCONNECT",
+      "name": "Gconnect Logitech and Supply Chain Limited",
+      "market": "BSE SME",
+      "scrip_code": "544156",
+      "group": "M",
+      "isin": "INE0QHY01011",
+      "industry": null,
+      "mcap_cr": 4.46
+    },
+    {
+      "ticker": "GEL",
+      "name": "Gautam Exim Limited",
+      "market": "BSE SME",
+      "scrip_code": "540613",
+      "group": "M",
+      "isin": "INE721X01023",
+      "industry": null,
+      "mcap_cr": 68.89
+    },
+    {
+      "ticker": "GEMENVIRO",
+      "name": "GEM Enviro Management Limited",
+      "market": "BSE SME",
+      "scrip_code": "544199",
+      "group": "M",
+      "isin": "INE0RUJ01013",
+      "industry": null,
+      "mcap_cr": 78.25
+    },
+    {
+      "ticker": "GETALONG",
+      "name": "Getalong Enterprise Limited",
+      "market": "BSE SME",
+      "scrip_code": "543372",
+      "group": "MT",
+      "isin": "INE0H1201020",
+      "industry": null,
+      "mcap_cr": 15.76
+    },
+    {
+      "ticker": "GHUSHINE",
+      "name": "Ghushine Fintrrade Ocean Limited",
+      "market": "BSE SME",
+      "scrip_code": "539864",
+      "group": "MT",
+      "isin": "INE009U01011",
+      "industry": null,
+      "mcap_cr": 10.63
+    },
+    {
+      "ticker": "GLAAMUP",
+      "name": "GLAAM UP JWEL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "542477",
+      "group": "MT",
+      "isin": "INE03CM01014",
+      "industry": null,
+      "mcap_cr": 22.04
+    },
+    {
+      "ticker": "GLEN",
+      "name": "Glen Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544444",
+      "group": "M",
+      "isin": "INE0UMC01019",
+      "industry": null,
+      "mcap_cr": 276.71
+    },
+    {
+      "ticker": "GLHRL",
+      "name": "Global Longlife Hospital and Research Limited",
+      "market": "BSE SME",
+      "scrip_code": "543520",
+      "group": "M",
+      "isin": "INE0J2K01014",
+      "industry": null,
+      "mcap_cr": 12.59
+    },
+    {
+      "ticker": "GLOBALLOG",
+      "name": "Global Ocean Logistics India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544665",
+      "group": "M",
+      "isin": "INE1ITY01011",
+      "industry": null,
+      "mcap_cr": 158.87
+    },
+    {
+      "ticker": "GLOBTIER",
+      "name": "Globtier Infotech limited",
+      "market": "BSE SME",
+      "scrip_code": "544494",
+      "group": "MT",
+      "isin": "INE12P601017",
+      "industry": null,
+      "mcap_cr": 25.71
+    },
+    {
+      "ticker": "GLPL",
+      "name": "GOLDLINE PHARMACEUTICAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544759",
+      "group": "M",
+      "isin": "INE1CLW01015",
+      "industry": null,
+      "mcap_cr": 38.49
+    },
+    {
+      "ticker": "GMPL",
+      "name": "G M Polyplast Limited",
+      "market": "BSE SME",
+      "scrip_code": "543239",
+      "group": "M",
+      "isin": "INE0E2801015",
+      "industry": null,
+      "mcap_cr": 96.91
+    },
+    {
+      "ticker": "GOBLIN",
+      "name": "GOBLIN INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "542850",
+      "group": "MT",
+      "isin": "INE492Z01018",
+      "industry": null,
+      "mcap_cr": 11.61
+    },
+    {
+      "ticker": "GOEL",
+      "name": "Goel Food Products Limited",
+      "market": "BSE SME",
+      "scrip_code": "543538",
+      "group": "M",
+      "isin": "INE0K6L01010",
+      "industry": null,
+      "mcap_cr": 21.4
+    },
+    {
+      "ticker": "GOELCONS",
+      "name": "GOEL CONSTRUCTION COMPANY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544504",
+      "group": "MT",
+      "isin": "INE0ZOM01013",
+      "industry": null,
+      "mcap_cr": 662.73
+    },
+    {
+      "ticker": "GPAPL",
+      "name": "GUJARAT PEANUT AND AGRI PRODUCTS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544548",
+      "group": "M",
+      "isin": "INE0SIK01014",
+      "industry": null,
+      "mcap_cr": 73.37
+    },
+    {
+      "ticker": "GPSL",
+      "name": "Gabriel Pet Straps Limited",
+      "market": "BSE SME",
+      "scrip_code": "544108",
+      "group": "M",
+      "isin": "INE0QZF01012",
+      "industry": null,
+      "mcap_cr": 53.31
+    },
+    {
+      "ticker": "GRERENEW",
+      "name": "GRE Renew Enertech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544682",
+      "group": "MT",
+      "isin": "INE0U8P01015",
+      "industry": null,
+      "mcap_cr": 255.04
+    },
+    {
+      "ticker": "GTIL",
+      "name": "Gabion Technologies India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544675",
+      "group": "M",
+      "isin": "INE1H1501013",
+      "industry": null,
+      "mcap_cr": 100.05
+    },
+    {
+      "ticker": "GUJHYSPIN",
+      "name": "Gujarat Hy-Spin Limited",
+      "market": "BSE SME",
+      "scrip_code": "540938",
+      "group": "MT",
+      "isin": "INE578V01013",
+      "industry": null,
+      "mcap_cr": 15.44
+    },
+    {
+      "ticker": "GULFLLOYDS",
+      "name": "GULF LLOYDS (INDIA) LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544834",
+      "group": "M",
+      "isin": "INE1WDC01012",
+      "industry": null,
+      "mcap_cr": 28.23
+    },
+    {
+      "ticker": "GVELECTRIC",
+      "name": "G V ELECTRICALS LTD",
+      "market": "BSE SME",
+      "scrip_code": "544859",
+      "group": "MT",
+      "isin": "INE1ZGR01024",
+      "industry": null,
+      "mcap_cr": 168.96
+    },
+    {
+      "ticker": "GVL",
+      "name": "Greenhitech Ventures Limited",
+      "market": "BSE SME",
+      "scrip_code": "544163",
+      "group": "M",
+      "isin": "INE0S0701019",
+      "industry": null,
+      "mcap_cr": 51.96
+    },
+    {
+      "ticker": "HAMPS",
+      "name": "HAMPS BIO LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544312",
+      "group": "M",
+      "isin": "INE0QBD01018",
+      "industry": null,
+      "mcap_cr": 21.24
+    },
+    {
+      "ticker": "HANMAN",
+      "name": "HANMAN FIT LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "538731",
+      "group": "M",
+      "isin": "INE982Q01017",
+      "industry": null,
+      "mcap_cr": 4.1
+    },
+    {
+      "ticker": "HANNAH",
+      "name": "Hannah Joseph Hospital Limited",
+      "market": "BSE SME",
+      "scrip_code": "544687",
+      "group": "MT",
+      "isin": "INE0JVH01012",
+      "industry": null,
+      "mcap_cr": 254.22
+    },
+    {
+      "ticker": "HARIKANTA",
+      "name": "HARIKANTA OVERSEAS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544769",
+      "group": "M",
+      "isin": "INE1UYW01010",
+      "industry": null,
+      "mcap_cr": 69.06
+    },
+    {
+      "ticker": "HARSHDEEP",
+      "name": "HARSHDEEP HORTICO LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544105",
+      "group": "M",
+      "isin": "INE0OLZ01015",
+      "industry": null,
+      "mcap_cr": 136.8
+    },
+    {
+      "ticker": "HBEL",
+      "name": "Humming Bird Education Limited",
+      "market": "BSE SME",
+      "scrip_code": "542592",
+      "group": "MT",
+      "isin": "INE02PC01027",
+      "industry": null,
+      "mcap_cr": 10.33
+    },
+    {
+      "ticker": "HEALTHYLIFE",
+      "name": "HEALTHY LIFE AGRITEC LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543546",
+      "group": "MT",
+      "isin": "INE0L3501015",
+      "industry": null,
+      "mcap_cr": 26
+    },
+    {
+      "ticker": "HELLOJI",
+      "name": "HELLOJI HOLIDAYS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544630",
+      "group": "M",
+      "isin": "INE1FJE01010",
+      "industry": null,
+      "mcap_cr": 39.43
+    },
+    {
+      "ticker": "HIGHNESS",
+      "name": "Highness Microelectronics Limited",
+      "market": "BSE SME",
+      "scrip_code": "544741",
+      "group": "MT",
+      "isin": "INE1KI801019",
+      "industry": null,
+      "mcap_cr": 101.21
+    },
+    {
+      "ticker": "HMEML",
+      "name": "H.M. ELECTRO MECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544349",
+      "group": "M",
+      "isin": "INE0DZD01015",
+      "industry": null,
+      "mcap_cr": 69.88
+    },
+    {
+      "ticker": "HORIZON",
+      "name": "HORIZON RECLAIM (INDIA) LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544794",
+      "group": "M",
+      "isin": "INE1SEO01013",
+      "industry": null,
+      "mcap_cr": 240.04
+    },
+    {
+      "ticker": "HRHYGIENE",
+      "name": "H. R. HYGIENE PRODUCTS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544848",
+      "group": "MT",
+      "isin": "INE17DP01015",
+      "industry": null,
+      "mcap_cr": 165.8
+    },
+    {
+      "ticker": "HRS",
+      "name": "HRS ALUGLAZE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544656",
+      "group": "M",
+      "isin": "INE1E1V01017",
+      "industry": null,
+      "mcap_cr": 483.88
+    },
+    {
+      "ticker": "HSIL",
+      "name": "Hemant Surgical Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "543916",
+      "group": "MT",
+      "isin": "INE0GYI01028",
+      "industry": null,
+      "mcap_cr": 524.81
+    },
+    {
+      "ticker": "ICODEX",
+      "name": "ICODEX PUBLISHING SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544483",
+      "group": "M",
+      "isin": "INE111601014",
+      "industry": null,
+      "mcap_cr": 64.74
+    },
+    {
+      "ticker": "ICON",
+      "name": "Icon Facilitators Limited",
+      "market": "BSE SME",
+      "scrip_code": "544426",
+      "group": "M",
+      "isin": "INE0Y0E01012",
+      "industry": null,
+      "mcap_cr": 65.04
+    },
+    {
+      "ticker": "IDENTIXWEB",
+      "name": "Identixweb Limited",
+      "market": "BSE SME",
+      "scrip_code": "544388",
+      "group": "M",
+      "isin": "INE0PA401012",
+      "industry": null,
+      "mcap_cr": 63.69
+    },
+    {
+      "ticker": "INDOBELL",
+      "name": "Indobell Insulations Limited",
+      "market": "BSE SME",
+      "scrip_code": "544334",
+      "group": "MT",
+      "isin": "INE0FK501019",
+      "industry": null,
+      "mcap_cr": 50.33
+    },
+    {
+      "ticker": "INDONG",
+      "name": "INDONG TEA COMPANY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543769",
+      "group": "MT",
+      "isin": "INE0KN201016",
+      "industry": null,
+      "mcap_cr": 16.51
+    },
+    {
+      "ticker": "INDOSMC",
+      "name": "INDO SMC Limited",
+      "market": "BSE SME",
+      "scrip_code": "544681",
+      "group": "M",
+      "isin": "INE0WKY01013",
+      "industry": null,
+      "mcap_cr": 1147.34
+    },
+    {
+      "ticker": "INFINITY",
+      "name": "Infinity Infoway Limited",
+      "market": "BSE SME",
+      "scrip_code": "544567",
+      "group": "M",
+      "isin": "INE16XA01017",
+      "industry": null,
+      "mcap_cr": 217.57
+    },
+    {
+      "ticker": "INFLAME",
+      "name": "Inflame Appliances Limited",
+      "market": "BSE SME",
+      "scrip_code": "541083",
+      "group": "M",
+      "isin": "INE464Z01017",
+      "industry": null,
+      "mcap_cr": 155.74
+    },
+    {
+      "ticker": "INFONATIVE",
+      "name": "INFONATIVE SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544393",
+      "group": "MT",
+      "isin": "INE12IB01015",
+      "industry": null,
+      "mcap_cr": 42.77
+    },
+    {
+      "ticker": "INNOKAIZ",
+      "name": "INNOKAIZ INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543905",
+      "group": "MT",
+      "isin": "INE0LDI01022",
+      "industry": null,
+      "mcap_cr": 12.63
+    },
+    {
+      "ticker": "INNOVATIVE",
+      "name": "Innovative Ideals and Services (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "541983",
+      "group": "M",
+      "isin": "INE492Y01011",
+      "industry": null,
+      "mcap_cr": 24.65
+    },
+    {
+      "ticker": "INNOVATORS",
+      "name": "Innovators Facade Systems Limited",
+      "market": "BSE SME",
+      "scrip_code": "541353",
+      "group": "M",
+      "isin": "INE870Z01015",
+      "industry": null,
+      "mcap_cr": 226.41
+    },
+    {
+      "ticker": "ITCONS",
+      "name": "ITCONS E-Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "543806",
+      "group": "M",
+      "isin": "INE0O6A01019",
+      "industry": null,
+      "mcap_cr": 296.33
+    },
+    {
+      "ticker": "JAYANT",
+      "name": "JAYANT INFRATECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543544",
+      "group": "MT",
+      "isin": "INE0KR801019",
+      "industry": null,
+      "mcap_cr": 72.57
+    },
+    {
+      "ticker": "JAYKAILASH",
+      "name": "Jay Kailash Namkeen Limited",
+      "market": "BSE SME",
+      "scrip_code": "544160",
+      "group": "MT",
+      "isin": "INE0MSS01019",
+      "industry": null,
+      "mcap_cr": 27.84
+    },
+    {
+      "ticker": "JDCABLES",
+      "name": "JD CABLES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544524",
+      "group": "M",
+      "isin": "INE14VP01014",
+      "industry": null,
+      "mcap_cr": 476.39
+    },
+    {
+      "ticker": "JETSOLAR",
+      "name": "JET SOLAR LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "538794",
+      "group": "M",
+      "isin": "INE155R01018",
+      "industry": null,
+      "mcap_cr": 8.98
+    },
+    {
+      "ticker": "JFL",
+      "name": "Jhandewalas Foods Limited",
+      "market": "BSE SME",
+      "scrip_code": "540850",
+      "group": "M",
+      "isin": "INE841Y01019",
+      "industry": null,
+      "mcap_cr": 32.04
+    },
+    {
+      "ticker": "JIGAR",
+      "name": "Jigar Cables Limited",
+      "market": "BSE SME",
+      "scrip_code": "540651",
+      "group": "M",
+      "isin": "INE943X01015",
+      "industry": null,
+      "mcap_cr": 54.07
+    },
+    {
+      "ticker": "JIVIAL",
+      "name": "Jivial Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544805",
+      "group": "M",
+      "isin": "INE0V3T01017",
+      "industry": null,
+      "mcap_cr": 38.1
+    },
+    {
+      "ticker": "JOINTECAED",
+      "name": "Jointeca Education Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "534659",
+      "group": "MT",
+      "isin": "INE131N01018",
+      "industry": null,
+      "mcap_cr": 5.71
+    },
+    {
+      "ticker": "JONJUA",
+      "name": "Jonjua Overseas Limited",
+      "market": "BSE SME",
+      "scrip_code": "542446",
+      "group": "MT",
+      "isin": "INE793Z01027",
+      "industry": null,
+      "mcap_cr": 10.94
+    },
+    {
+      "ticker": "JSHL",
+      "name": "JLA Infraville Shoppers Limited",
+      "market": "BSE SME",
+      "scrip_code": "538765",
+      "group": "MT",
+      "isin": "INE401Q01018",
+      "industry": null,
+      "mcap_cr": 1.54
+    },
+    {
+      "ticker": "JUNGLECAMP",
+      "name": "JUNGLE CAMPS INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544304",
+      "group": "M",
+      "isin": "INE0WCH01015",
+      "industry": null,
+      "mcap_cr": 77.49
+    },
+    {
+      "ticker": "JUSTO",
+      "name": "Justo Realfintech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544542",
+      "group": "M",
+      "isin": "INE0W5Q01017",
+      "industry": null,
+      "mcap_cr": 180.84
+    },
+    {
+      "ticker": "KAARYAFSL",
+      "name": "Kaarya Facilities and Services Limited",
+      "market": "BSE SME",
+      "scrip_code": "540756",
+      "group": "M",
+      "isin": "INE282Y01016",
+      "industry": null,
+      "mcap_cr": 10.84
+    },
+    {
+      "ticker": "KAHAN",
+      "name": "Kahan Packaging Limited",
+      "market": "BSE SME",
+      "scrip_code": "543979",
+      "group": "MT",
+      "isin": "INE04T901017",
+      "industry": null,
+      "mcap_cr": 19.3
+    },
+    {
+      "ticker": "KAKA",
+      "name": "Kaka Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "543939",
+      "group": "M",
+      "isin": "INE0P3N01018",
+      "industry": null,
+      "mcap_cr": 305.44
+    },
+    {
+      "ticker": "KALYANI",
+      "name": "Kalyani Cast-Tech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544023",
+      "group": "M",
+      "isin": "INE0N6U01018",
+      "industry": null,
+      "mcap_cr": 581.62
+    },
+    {
+      "ticker": "KANISHK",
+      "name": "KANISHK ALUMINIUM INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544693",
+      "group": "MT",
+      "isin": "INE163401016",
+      "industry": null,
+      "mcap_cr": 33.6
+    },
+    {
+      "ticker": "KARBON",
+      "name": "Karbonsteel Engineering Limited",
+      "market": "BSE SME",
+      "scrip_code": "544511",
+      "group": "M",
+      "isin": "INE0V8A01016",
+      "industry": null,
+      "mcap_cr": 152.87
+    },
+    {
+      "ticker": "KASTURI",
+      "name": "KASTURI METAL COMPOSITE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544688",
+      "group": "M",
+      "isin": "INE0T1301023",
+      "industry": null,
+      "mcap_cr": 62.37
+    },
+    {
+      "ticker": "KCSL",
+      "name": "Karnimata Cold Storage Limited",
+      "market": "BSE SME",
+      "scrip_code": "537784",
+      "group": "M",
+      "isin": "INE576P01019",
+      "industry": null,
+      "mcap_cr": 3.89
+    },
+    {
+      "ticker": "KDML",
+      "name": "Khemani Distributors & Marketing Limited",
+      "market": "BSE SME",
+      "scrip_code": "539788",
+      "group": "MT",
+      "isin": "INE030U01025",
+      "industry": null,
+      "mcap_cr": 274.77
+    },
+    {
+      "ticker": "KENRIK",
+      "name": "Kenrik Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544398",
+      "group": "M",
+      "isin": "INE0AOG01018",
+      "industry": null,
+      "mcap_cr": 8.8
+    },
+    {
+      "ticker": "KESAR",
+      "name": "KESAR INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543542",
+      "group": "M",
+      "isin": "INE0L1C01019",
+      "industry": null,
+      "mcap_cr": 3831.16
+    },
+    {
+      "ticker": "KGVL",
+      "name": "Khyati Global Ventures Limited",
+      "market": "BSE SME",
+      "scrip_code": "544270",
+      "group": "M",
+      "isin": "INE0S9501014",
+      "industry": null,
+      "mcap_cr": 35.98
+    },
+    {
+      "ticker": "KHAZANCHI",
+      "name": "Khazanchi Jewellers Limited",
+      "market": "BSE SME",
+      "scrip_code": "543953",
+      "group": "M",
+      "isin": "INE0OWC01011",
+      "industry": null,
+      "mcap_cr": 1926.55
+    },
+    {
+      "ticker": "KIAASA",
+      "name": "KIAASA RETAIL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544711",
+      "group": "M",
+      "isin": "INE1C3F01018",
+      "industry": null,
+      "mcap_cr": 56.55
+    },
+    {
+      "ticker": "KIZI",
+      "name": "Kizi Apparels Limited",
+      "market": "BSE SME",
+      "scrip_code": "544221",
+      "group": "MT",
+      "isin": "INE0RMR01013",
+      "industry": null,
+      "mcap_cr": 13.72
+    },
+    {
+      "ticker": "KKSHL",
+      "name": "KK Shah Hospitals Limited",
+      "market": "BSE SME",
+      "scrip_code": "544013",
+      "group": "M",
+      "isin": "INE0OH401016",
+      "industry": null,
+      "mcap_cr": 29.89
+    },
+    {
+      "ticker": "KKSILK",
+      "name": "K K SILK MILLS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544624",
+      "group": "MT",
+      "isin": "INE0EOJ01014",
+      "industry": null,
+      "mcap_cr": 20.98
+    },
+    {
+      "ticker": "KLASSROOM",
+      "name": "FUSION KLASSROOM EDUTECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544856",
+      "group": "MT",
+      "isin": "INE1LMA01010",
+      "industry": null,
+      "mcap_cr": 147.72
+    },
+    {
+      "ticker": "KMSMEDI",
+      "name": "KMS Medisurgi Limited",
+      "market": "BSE SME",
+      "scrip_code": "540468",
+      "group": "MT",
+      "isin": "INE870V01014",
+      "industry": null,
+      "mcap_cr": 43.82
+    },
+    {
+      "ticker": "KOURA",
+      "name": "KOURA FINE DIAMOND JEWELRY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544139",
+      "group": "M",
+      "isin": "INE0M8R01011",
+      "industry": null,
+      "mcap_cr": 24.15
+    },
+    {
+      "ticker": "KPGEL",
+      "name": "KP GREEN ENGINEERING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544150",
+      "group": "M",
+      "isin": "INE0QVH01025",
+      "industry": null,
+      "mcap_cr": 1410.5
+    },
+    {
+      "ticker": "KRATIKAL",
+      "name": "KRATIKAL TECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544811",
+      "group": "M",
+      "isin": "INE1L0M01019",
+      "industry": null,
+      "mcap_cr": 176.5
+    },
+    {
+      "ticker": "KRUPALU",
+      "name": "Krupalu Metals Limited",
+      "market": "BSE SME",
+      "scrip_code": "544509",
+      "group": "M",
+      "isin": "INE0XZB01017",
+      "industry": null,
+      "mcap_cr": 16.24
+    },
+    {
+      "ticker": "KVSCASTING",
+      "name": "KVS Castings Limited",
+      "market": "BSE SME",
+      "scrip_code": "544554",
+      "group": "M",
+      "isin": "INE163701019",
+      "industry": null,
+      "mcap_cr": 149
+    },
+    {
+      "ticker": "KVTOYS",
+      "name": "K. V. TOYS INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544641",
+      "group": "M",
+      "isin": "INE1IE301018",
+      "industry": null,
+      "mcap_cr": 170.82
+    },
+    {
+      "ticker": "LABELKRAFT",
+      "name": "LABELKRAFT TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543830",
+      "group": "M",
+      "isin": "INE0NLJ01011",
+      "industry": null,
+      "mcap_cr": 20.11
+    },
+    {
+      "ticker": "LAPL",
+      "name": "LAPL AUTOMOTIVE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544863",
+      "group": "MT",
+      "isin": "INE0X9I01023",
+      "industry": null,
+      "mcap_cr": 152.79
+    },
+    {
+      "ticker": "LAXMIPATI",
+      "name": "LAXMIPATI ENGINEERING WORKS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "537669",
+      "group": "MT",
+      "isin": "INE920P01019",
+      "industry": null,
+      "mcap_cr": 272.07
+    },
+    {
+      "ticker": "LESL",
+      "name": "LEAPFROG ENGINEERING SERVICES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544797",
+      "group": "M",
+      "isin": "INE0X6O01027",
+      "industry": null,
+      "mcap_cr": 304.85
+    },
+    {
+      "ticker": "LEX",
+      "name": "Lex Nimble Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "541196",
+      "group": "MT",
+      "isin": "INE860Y01019",
+      "industry": null,
+      "mcap_cr": 35.62
+    },
+    {
+      "ticker": "LGLL",
+      "name": "LANDMARK GLOBAL LEARNING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544341",
+      "group": "M",
+      "isin": "INE12QA01010",
+      "industry": null,
+      "mcap_cr": 23.39
+    },
+    {
+      "ticker": "LGT",
+      "name": "LGT GLOBAL HOSPITALITY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544489",
+      "group": "M",
+      "isin": "INE191201016",
+      "industry": null,
+      "mcap_cr": 38.43
+    },
+    {
+      "ticker": "LIOTECH",
+      "name": "LIOTECH INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544796",
+      "group": "M",
+      "isin": "INE0TKX01011",
+      "industry": null,
+      "mcap_cr": 39.78
+    },
+    {
+      "ticker": "LKMEHTA",
+      "name": "L.K.MEHTA POLYMERS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544366",
+      "group": "M",
+      "isin": "INE0FFF01017",
+      "industry": null,
+      "mcap_cr": 14.71
+    },
+    {
+      "ticker": "LOGICA",
+      "name": "LOGICA INFOWAY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543746",
+      "group": "M",
+      "isin": "INE0BSU01018",
+      "industry": null,
+      "mcap_cr": 283.6
+    },
+    {
+      "ticker": "LOGICIEL",
+      "name": "Logiciel Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "544625",
+      "group": "M",
+      "isin": "INE1BA901016",
+      "industry": null,
+      "mcap_cr": 22.49
+    },
+    {
+      "ticker": "LTELEVATOR",
+      "name": "L. T. ELEVATOR LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544518",
+      "group": "MT",
+      "isin": "INE0TJ801010",
+      "industry": null,
+      "mcap_cr": 615.13
+    },
+    {
+      "ticker": "LUXURY",
+      "name": "Luxury Time Limited",
+      "market": "BSE SME",
+      "scrip_code": "544635",
+      "group": "M",
+      "isin": "INE1CJB01013",
+      "industry": null,
+      "mcap_cr": 51.18
+    },
+    {
+      "ticker": "MACH",
+      "name": "Mac Hotels Limited",
+      "market": "BSE SME",
+      "scrip_code": "541973",
+      "group": "M",
+      "isin": "INE004Z01011",
+      "industry": null,
+      "mcap_cr": 52.93
+    },
+    {
+      "ticker": "MACHLTD",
+      "name": "MACH TRAVEL SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544248",
+      "group": "M",
+      "isin": "INE0UYT01018",
+      "industry": null,
+      "mcap_cr": 378.67
+    },
+    {
+      "ticker": "MAFIA",
+      "name": "MAFIA TRENDS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543613",
+      "group": "M",
+      "isin": "INE0KQQ01011",
+      "industry": null,
+      "mcap_cr": 2
+    },
+    {
+      "ticker": "MAGENTA",
+      "name": "Magenta Lifecare Limited",
+      "market": "BSE SME",
+      "scrip_code": "544188",
+      "group": "M",
+      "isin": "INE0QZ901011",
+      "industry": null,
+      "mcap_cr": 5.8
+    },
+    {
+      "ticker": "MAHALIFE",
+      "name": "MAHAMAYA LIFESCIENCES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544611",
+      "group": "M",
+      "isin": "INE0U9D01019",
+      "industry": null,
+      "mcap_cr": 437.67
+    },
+    {
+      "ticker": "MAHIP",
+      "name": "Mahip Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "542503",
+      "group": "MT",
+      "isin": "INE00CX01017",
+      "industry": null,
+      "mcap_cr": 33.29
+    },
+    {
+      "ticker": "MAIDEN",
+      "name": "Maiden Forgings Limited",
+      "market": "BSE SME",
+      "scrip_code": "543874",
+      "group": "M",
+      "isin": "INE0O1T01010",
+      "industry": null,
+      "mcap_cr": 160.08
+    },
+    {
+      "ticker": "MALA",
+      "name": "Shree Balaji (Mala) Textiles Limited",
+      "market": "BSE SME",
+      "scrip_code": "544835",
+      "group": "M",
+      "isin": "INE1N3Y01016",
+      "industry": null,
+      "mcap_cr": 63.39
+    },
+    {
+      "ticker": "MALPANI",
+      "name": "MALPANI PIPES AND FITTINGS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544351",
+      "group": "M",
+      "isin": "INE0YON01014",
+      "industry": null,
+      "mcap_cr": 72.21
+    },
+    {
+      "ticker": "MANAS",
+      "name": "Manas Properties Limited",
+      "market": "BSE SME",
+      "scrip_code": "540402",
+      "group": "MT",
+      "isin": "INE800W01019",
+      "industry": null,
+      "mcap_cr": 162.24
+    },
+    {
+      "ticker": "MANGALCOMP",
+      "name": "Mangal Compusolution Limited",
+      "market": "BSE SME",
+      "scrip_code": "544287",
+      "group": "M",
+      "isin": "INE0RU901015",
+      "industry": null,
+      "mcap_cr": 58.51
+    },
+    {
+      "ticker": "MANIVENI",
+      "name": "M.R.MANIVENI FOODS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544768",
+      "group": "M",
+      "isin": "INE0YD301010",
+      "industry": null,
+      "mcap_cr": 67.43
+    },
+    {
+      "ticker": "MANOJJEWEL",
+      "name": "Manoj Jewellers Limited",
+      "market": "BSE SME",
+      "scrip_code": "544400",
+      "group": "M",
+      "isin": "INE0MV001018",
+      "industry": null,
+      "mcap_cr": 37.74
+    },
+    {
+      "ticker": "MARCLOIRE",
+      "name": "MARC LOIRE FASHIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544437",
+      "group": "M",
+      "isin": "INE0TBQ01014",
+      "industry": null,
+      "mcap_cr": 24
+    },
+    {
+      "ticker": "MCFL",
+      "name": "Mayank Cattle Food Limited",
+      "market": "BSE SME",
+      "scrip_code": "544106",
+      "group": "MT",
+      "isin": "INE0R5Z01015",
+      "industry": null,
+      "mcap_cr": 126.36
+    },
+    {
+      "ticker": "MCPL",
+      "name": "Manoj Ceramic Limited",
+      "market": "BSE SME",
+      "scrip_code": "544073",
+      "group": "M",
+      "isin": "INE0A6N01026",
+      "industry": null,
+      "mcap_cr": 122.88
+    },
+    {
+      "ticker": "MDRC",
+      "name": "MODERN DIAGNOSTIC & RESEARCH CENTRE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544673",
+      "group": "M",
+      "isin": "INE1HK501016",
+      "industry": null,
+      "mcap_cr": 78.52
+    },
+    {
+      "ticker": "MEHUL",
+      "name": "MEHUL COLOURS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544472",
+      "group": "M",
+      "isin": "INE1KH601014",
+      "industry": null,
+      "mcap_cr": 58.01
+    },
+    {
+      "ticker": "METAINFO",
+      "name": "META INFOTECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544441",
+      "group": "MT",
+      "isin": "INE162901016",
+      "industry": null,
+      "mcap_cr": 171.82
+    },
+    {
+      "ticker": "METHODHUB",
+      "name": "Methodhub Software Limited",
+      "market": "BSE SME",
+      "scrip_code": "544637",
+      "group": "M",
+      "isin": "INE0QZR01017",
+      "industry": null,
+      "mcap_cr": 135.74
+    },
+    {
+      "ticker": "MHEL",
+      "name": "Mewar Hi-Tech Engineering Limited",
+      "market": "BSE SME",
+      "scrip_code": "540150",
+      "group": "MT",
+      "isin": "INE957U01011",
+      "industry": null,
+      "mcap_cr": 24.98
+    },
+    {
+      "ticker": "MILEFUR",
+      "name": "Milestone Furniture Limited",
+      "market": "BSE SME",
+      "scrip_code": "541337",
+      "group": "MT",
+      "isin": "INE424Z01011",
+      "industry": null,
+      "mcap_cr": 23.83
+    },
+    {
+      "ticker": "MILLWORKS",
+      "name": "MILLWORKS TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544826",
+      "group": "M",
+      "isin": "INE1SRC01010",
+      "industry": null,
+      "mcap_cr": 1365.23
+    },
+    {
+      "ticker": "MISHDESIGN",
+      "name": "Mish Designs Limited",
+      "market": "BSE SME",
+      "scrip_code": "544015",
+      "group": "M",
+      "isin": "INE0QI101019",
+      "industry": null,
+      "mcap_cr": 10.34
+    },
+    {
+      "ticker": "MISQUITA",
+      "name": "Misquita Engineering Limited",
+      "market": "BSE SME",
+      "scrip_code": "542801",
+      "group": "M",
+      "isin": "INE957W01025",
+      "industry": null,
+      "mcap_cr": 32.11
+    },
+    {
+      "ticker": "MITTALSTL",
+      "name": "Mittal Sections Limited",
+      "market": "BSE SME",
+      "scrip_code": "544575",
+      "group": "M",
+      "isin": "INE833Q01012",
+      "industry": null,
+      "mcap_cr": 31.23
+    },
+    {
+      "ticker": "MNFL",
+      "name": "Mother Nutri Foods Limited",
+      "market": "BSE SME",
+      "scrip_code": "544623",
+      "group": "M",
+      "isin": "INE0UH001016",
+      "industry": null,
+      "mcap_cr": 202.44
+    },
+    {
+      "ticker": "MONIKA",
+      "name": "MONIKA ALCOBEV LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544451",
+      "group": "M",
+      "isin": "INE0LCG01010",
+      "industry": null,
+      "mcap_cr": 338.91
+    },
+    {
+      "ticker": "MPKSTEELS",
+      "name": "M P K STEELS (I) LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544553",
+      "group": "M",
+      "isin": "INE1PJP01015",
+      "industry": null,
+      "mcap_cr": 98.5
+    },
+    {
+      "ticker": "MRP",
+      "name": "MRP Agro Limited",
+      "market": "BSE SME",
+      "scrip_code": "543262",
+      "group": "M",
+      "isin": "INE0D7801012",
+      "industry": null,
+      "mcap_cr": 105.8
+    },
+    {
+      "ticker": "MRTX",
+      "name": "Merritronix Limited",
+      "market": "BSE SME",
+      "scrip_code": "544773",
+      "group": "M",
+      "isin": "INE1RQS01010",
+      "industry": null,
+      "mcap_cr": 572.45
+    },
+    {
+      "ticker": "MSAFE",
+      "name": "Msafe Equipments Limited",
+      "market": "BSE SME",
+      "scrip_code": "544695",
+      "group": "MT",
+      "isin": "INE2B5L01011",
+      "industry": null,
+      "mcap_cr": 408.31
+    },
+    {
+      "ticker": "MSECL",
+      "name": "Monarch Surveyors and Engineering Consultants Limited",
+      "market": "BSE SME",
+      "scrip_code": "544453",
+      "group": "M",
+      "isin": "INE0V0L01028",
+      "industry": null,
+      "mcap_cr": 325.38
+    },
+    {
+      "ticker": "MTL",
+      "name": "MEHUL TELECOM LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544751",
+      "group": "M",
+      "isin": "INE1K0V01011",
+      "industry": null,
+      "mcap_cr": 89.88
+    },
+    {
+      "ticker": "NACDAC",
+      "name": "NACDAC Infrastructure Limited",
+      "market": "BSE SME",
+      "scrip_code": "544313",
+      "group": "M",
+      "isin": "INE0LB101011",
+      "industry": null,
+      "mcap_cr": 24.73
+    },
+    {
+      "ticker": "NANTA",
+      "name": "NANTA TECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544668",
+      "group": "M",
+      "isin": "INE0YJA01011",
+      "industry": null,
+      "mcap_cr": 165.7
+    },
+    {
+      "ticker": "NAPSGLOBAL",
+      "name": "NAPS Global India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544373",
+      "group": "M",
+      "isin": "INE0VNH01014",
+      "industry": null,
+      "mcap_cr": 22.15
+    },
+    {
+      "ticker": "NARMADESH",
+      "name": "Narmadesh Brass Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544680",
+      "group": "MT",
+      "isin": "INE0S1B01014",
+      "industry": null,
+      "mcap_cr": 96.12
+    },
+    {
+      "ticker": "NAVIGANT",
+      "name": "Navigant Corporate Advisors Limited",
+      "market": "BSE SME",
+      "scrip_code": "539521",
+      "group": "MT",
+      "isin": "INE364T01012",
+      "industry": null,
+      "mcap_cr": 22.99
+    },
+    {
+      "ticker": "NCML",
+      "name": "NILACHAL CARBO METALICKS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544510",
+      "group": "M",
+      "isin": "INE346R01013",
+      "industry": null,
+      "mcap_cr": 220.6
+    },
+    {
+      "ticker": "NEETUYOSHI",
+      "name": "Neetu Yoshi Limited",
+      "market": "BSE SME",
+      "scrip_code": "544434",
+      "group": "MT",
+      "isin": "INE0UZO01024",
+      "industry": null,
+      "mcap_cr": 601.6
+    },
+    {
+      "ticker": "NEPLOG",
+      "name": "NEPTUNE LOGITEK LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544663",
+      "group": "MT",
+      "isin": "INE1NQ501012",
+      "industry": null,
+      "mcap_cr": 44.95
+    },
+    {
+      "ticker": "NEXXUS",
+      "name": "Nexxus Petro Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544265",
+      "group": "M",
+      "isin": "INE0QUL01011",
+      "industry": null,
+      "mcap_cr": 56.99
+    },
+    {
+      "ticker": "NHL",
+      "name": "Naturewings Holidays Limited",
+      "market": "BSE SME",
+      "scrip_code": "544245",
+      "group": "M",
+      "isin": "INE0N4701016",
+      "industry": null,
+      "mcap_cr": 28.83
+    },
+    {
+      "ticker": "NISMGMT",
+      "name": "NIS MANAGEMENT LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544495",
+      "group": "M",
+      "isin": "INE0M3X01010",
+      "industry": null,
+      "mcap_cr": 96.03
+    },
+    {
+      "ticker": "NISUS",
+      "name": "NISUS FINANCE SERVICES CO LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544296",
+      "group": "M",
+      "isin": "INE0DQN01013",
+      "industry": null,
+      "mcap_cr": 412.97
+    },
+    {
+      "ticker": "NOVATEOR",
+      "name": "Novateor Research Laboratories Limited",
+      "market": "BSE SME",
+      "scrip_code": "542771",
+      "group": "M",
+      "isin": "INE08JY01013",
+      "industry": null,
+      "mcap_cr": 19.88
+    },
+    {
+      "ticker": "NOVUS",
+      "name": "Novus Loyalty Limited",
+      "market": "BSE SME",
+      "scrip_code": "544735",
+      "group": "M",
+      "isin": "INE1TFS01019",
+      "industry": null,
+      "mcap_cr": 233.25
+    },
+    {
+      "ticker": "NPFL",
+      "name": "NEOPOLITAN PIZZA AND FOODS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544269",
+      "group": "M",
+      "isin": "INE471R01019",
+      "industry": null,
+      "mcap_cr": 11.56
+    },
+    {
+      "ticker": "NSBBPO",
+      "name": "NSB BPO Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "544571",
+      "group": "M",
+      "isin": "INE0SLP01017",
+      "industry": null,
+      "mcap_cr": 135.41
+    },
+    {
+      "ticker": "NUKLEUS",
+      "name": "NUKLEUS OFFICE SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544370",
+      "group": "M",
+      "isin": "INE0VYX01018",
+      "industry": null,
+      "mcap_cr": 84.55
+    },
+    {
+      "ticker": "NVENTURES",
+      "name": "Nanavati Ventures Limited",
+      "market": "BSE SME",
+      "scrip_code": "543522",
+      "group": "M",
+      "isin": "INE0E5R01017",
+      "industry": null,
+      "mcap_cr": 41.14
+    },
+    {
+      "ticker": "OCTAWARE",
+      "name": "Octaware Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "540416",
+      "group": "MT",
+      "isin": "INE208U01019",
+      "industry": null,
+      "mcap_cr": 22.84
+    },
+    {
+      "ticker": "OLATECH",
+      "name": "Olatech Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "543578",
+      "group": "M",
+      "isin": "INE0M3901015",
+      "industry": null,
+      "mcap_cr": 27.17
+    },
+    {
+      "ticker": "OML",
+      "name": "OM METALLOGIC LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544559",
+      "group": "MT",
+      "isin": "INE0R8Q01018",
+      "industry": null,
+      "mcap_cr": 25.05
+    },
+    {
+      "ticker": "OMNIPOTENT",
+      "name": "Omnipotent Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "543400",
+      "group": "M",
+      "isin": "INE0JFE01012",
+      "industry": null,
+      "mcap_cr": 1.4
+    },
+    {
+      "ticker": "ONEINDIG",
+      "name": "Oneindig Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "544852",
+      "group": "MT",
+      "isin": "INE0UR501013",
+      "industry": null,
+      "mcap_cr": 167.14
+    },
+    {
+      "ticker": "OPCHAINS",
+      "name": "O. P. Chains Limited",
+      "market": "BSE SME",
+      "scrip_code": "539116",
+      "group": "MT",
+      "isin": "INE118Q01018",
+      "industry": null,
+      "mcap_cr": 20.38
+    },
+    {
+      "ticker": "ORGANICREC",
+      "name": "ORGANIC RECYCLING SYSTEMS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543997",
+      "group": "M",
+      "isin": "INE0MIO01019",
+      "industry": null,
+      "mcap_cr": 250.67
+    },
+    {
+      "ticker": "OVAL",
+      "name": "OVAL PROJECTS ENGINEERING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544498",
+      "group": "M",
+      "isin": "INE0RTI01017",
+      "industry": null,
+      "mcap_cr": 112.15
+    },
+    {
+      "ticker": "PACE",
+      "name": "PACE E-COMMERCE VENTURES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543637",
+      "group": "M",
+      "isin": "INE0N1L01018",
+      "industry": null,
+      "mcap_cr": 33.78
+    },
+    {
+      "ticker": "PAJSON",
+      "name": "Pajson Agro India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544657",
+      "group": "M",
+      "isin": "INE14LM01012",
+      "industry": null,
+      "mcap_cr": 464.29
+    },
+    {
+      "ticker": "PANHR",
+      "name": "PAN HR SOLUTION LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544698",
+      "group": "MT",
+      "isin": "INE1N9E01015",
+      "industry": null,
+      "mcap_cr": 42
+    },
+    {
+      "ticker": "PARMESHWAR",
+      "name": "PARMESHWAR METAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544330",
+      "group": "M",
+      "isin": "INE0QQJ01021",
+      "industry": null,
+      "mcap_cr": 287.75
+    },
+    {
+      "ticker": "PATELCHEM",
+      "name": "PATEL CHEM SPECIALITIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544460",
+      "group": "MT",
+      "isin": "INE161701011",
+      "industry": null,
+      "mcap_cr": 233.65
+    },
+    {
+      "ticker": "PATRON",
+      "name": "Patron Exim Limited",
+      "market": "BSE SME",
+      "scrip_code": "543798",
+      "group": "M",
+      "isin": "INE0NPA01011",
+      "industry": null,
+      "mcap_cr": 4.64
+    },
+    {
+      "ticker": "PBFL",
+      "name": "P. B. Films Limited",
+      "market": "BSE SME",
+      "scrip_code": "539352",
+      "group": "MT",
+      "isin": "INE212Q01019",
+      "industry": null,
+      "mcap_cr": 0
+    },
+    {
+      "ticker": "PCL",
+      "name": "PROSPECT CONSUMER PRODUCTS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543814",
+      "group": "M",
+      "isin": "INE0OKG01017",
+      "industry": null,
+      "mcap_cr": 21
+    },
+    {
+      "ticker": "PECOS",
+      "name": "PECOS Hotels And Pubs Limited",
+      "market": "BSE SME",
+      "scrip_code": "539273",
+      "group": "M",
+      "isin": "INE484S01010",
+      "industry": null,
+      "mcap_cr": 33.01
+    },
+    {
+      "ticker": "PESB",
+      "name": "Pune E - Stock Broking Limited",
+      "market": "BSE SME",
+      "scrip_code": "544141",
+      "group": "M",
+      "isin": "INE510U01018",
+      "industry": null,
+      "mcap_cr": 418.97
+    },
+    {
+      "ticker": "PFL",
+      "name": "POPULAR FOUNDATIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544259",
+      "group": "M",
+      "isin": "INE0PZB01013",
+      "industry": null,
+      "mcap_cr": 61.34
+    },
+    {
+      "ticker": "PGCRL",
+      "name": "Pearl Green Clubs and Resorts Limited",
+      "market": "BSE SME",
+      "scrip_code": "543540",
+      "group": "M",
+      "isin": "INE0GTX01019",
+      "industry": null,
+      "mcap_cr": 30.2
+    },
+    {
+      "ticker": "PIOTEX",
+      "name": "PIOTEX INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544178",
+      "group": "M",
+      "isin": "INE0R4W01015",
+      "industry": null,
+      "mcap_cr": 16.08
+    },
+    {
+      "ticker": "PJL",
+      "name": "Patdiam Jewellery Limited",
+      "market": "BSE SME",
+      "scrip_code": "539401",
+      "group": "M",
+      "isin": "INE473T01011",
+      "industry": null,
+      "mcap_cr": 131.67
+    },
+    {
+      "ticker": "POBS",
+      "name": "PlatinumOne Business Services Limited",
+      "market": "BSE SME",
+      "scrip_code": "543352",
+      "group": "M",
+      "isin": "INE0DTJ01015",
+      "industry": null,
+      "mcap_cr": 26.11
+    },
+    {
+      "ticker": "POLYMAC",
+      "name": "Polymac Thermoformers Limited",
+      "market": "BSE SME",
+      "scrip_code": "537573",
+      "group": "M",
+      "isin": "INE826P01018",
+      "industry": null,
+      "mcap_cr": 4.02
+    },
+    {
+      "ticker": "PPARIVAH",
+      "name": "PARADEEP PARIVAHAN LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544383",
+      "group": "MT",
+      "isin": "INE0SMW01011",
+      "industry": null,
+      "mcap_cr": 431.22
+    },
+    {
+      "ticker": "PPEL",
+      "name": "POOJAA PRECISION ENGG. LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544844",
+      "group": "MT",
+      "isin": "INE288301026",
+      "industry": null,
+      "mcap_cr": 1125
+    },
+    {
+      "ticker": "PRARUH",
+      "name": "PRARUH TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544538",
+      "group": "M",
+      "isin": "INE0TI501017",
+      "industry": null,
+      "mcap_cr": 105.17
+    },
+    {
+      "ticker": "PREVEST",
+      "name": "Prevest Denpro Limited",
+      "market": "BSE SME",
+      "scrip_code": "543363",
+      "group": "M",
+      "isin": "INE0GAO01018",
+      "industry": null,
+      "mcap_cr": 473.64
+    },
+    {
+      "ticker": "PRODOCS",
+      "name": "PRODOCS SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544643",
+      "group": "M",
+      "isin": "INE10XK01019",
+      "industry": null,
+      "mcap_cr": 114.53
+    },
+    {
+      "ticker": "PROMAX",
+      "name": "Promax Power Limited",
+      "market": "BSE SME",
+      "scrip_code": "543375",
+      "group": "M",
+      "isin": "INE0I2F01015",
+      "industry": null,
+      "mcap_cr": 28.03
+    },
+    {
+      "ticker": "PSPL",
+      "name": "PDP Shipping & Projects Limited",
+      "market": "BSE SME",
+      "scrip_code": "544378",
+      "group": "M",
+      "isin": "INE0ABU01016",
+      "industry": null,
+      "mcap_cr": 17.25
+    },
+    {
+      "ticker": "PURPLEWAVE",
+      "name": "PURPLE WAVE INFOCOM LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544627",
+      "group": "MT",
+      "isin": "INE0VDK01019",
+      "industry": null,
+      "mcap_cr": 277.38
+    },
+    {
+      "ticker": "PYXISFIN",
+      "name": "Pyxis Finvest Limited",
+      "market": "BSE SME",
+      "scrip_code": "534109",
+      "group": "MT",
+      "isin": "INE883L01018",
+      "industry": null,
+      "mcap_cr": 11.23
+    },
+    {
+      "ticker": "QLL",
+      "name": "Qualitek Labs Limited",
+      "market": "BSE SME",
+      "scrip_code": "544091",
+      "group": "M",
+      "isin": "INE0Q1R01012",
+      "industry": null,
+      "mcap_cr": 515.02
+    },
+    {
+      "ticker": "QRIL",
+      "name": "Quality RO Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "543460",
+      "group": "M",
+      "isin": "INE0KAF01018",
+      "industry": null,
+      "mcap_cr": 10.17
+    },
+    {
+      "ticker": "QUESTFLOW",
+      "name": "QUEST FLOW CONTROLS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543982",
+      "group": "MT",
+      "isin": "INE0OYE01013",
+      "industry": null,
+      "mcap_cr": 197
+    },
+    {
+      "ticker": "RACHIT",
+      "name": "Rachit Prints Limited",
+      "market": "BSE SME",
+      "scrip_code": "544503",
+      "group": "MT",
+      "isin": "INE0ZN101029",
+      "industry": null,
+      "mcap_cr": 98.25
+    },
+    {
+      "ticker": "RACONTEUR",
+      "name": "RACONTEUR GLOBAL RESOURCES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "541703",
+      "group": "M",
+      "isin": "INE00WY01013",
+      "industry": null,
+      "mcap_cr": 12.09
+    },
+    {
+      "ticker": "RAFL",
+      "name": "Raghuvansh Agrofarms Limited",
+      "market": "BSE SME",
+      "scrip_code": "538921",
+      "group": "M",
+      "isin": "INE865P01016",
+      "industry": null,
+      "mcap_cr": 40.58
+    },
+    {
+      "ticker": "RAJESH",
+      "name": "RAJESH POWER SERVICES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544291",
+      "group": "M",
+      "isin": "INE0VN801010",
+      "industry": null,
+      "mcap_cr": 1482.73
+    },
+    {
+      "ticker": "RAL",
+      "name": "Resourceful Automobile Limited",
+      "market": "BSE SME",
+      "scrip_code": "544236",
+      "group": "MT",
+      "isin": "INE0SK201011",
+      "industry": null,
+      "mcap_cr": 10.01
+    },
+    {
+      "ticker": "RANJEET",
+      "name": "Ranjeet Mechatronics Limited",
+      "market": "BSE SME",
+      "scrip_code": "541945",
+      "group": "M",
+      "isin": "INE01A501027",
+      "industry": null,
+      "mcap_cr": 27.68
+    },
+    {
+      "ticker": "RAPID",
+      "name": "RAPID MULTIMODAL LOGISTICS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544237",
+      "group": "M",
+      "isin": "INE0QA901010",
+      "industry": null,
+      "mcap_cr": 50.31
+    },
+    {
+      "ticker": "RAVEL",
+      "name": "Ravelcare Limited",
+      "market": "BSE SME",
+      "scrip_code": "544629",
+      "group": "M",
+      "isin": "INE0W4D01018",
+      "industry": null,
+      "mcap_cr": 78.91
+    },
+    {
+      "ticker": "RCAN",
+      "name": "Rajeshwari Cans Limited",
+      "market": "BSE SME",
+      "scrip_code": "543285",
+      "group": "M",
+      "isin": "INE0CQ101015",
+      "industry": null,
+      "mcap_cr": 17.26
+    },
+    {
+      "ticker": "RDEL",
+      "name": "Riddhi Display Equipments Limited",
+      "market": "BSE SME",
+      "scrip_code": "544640",
+      "group": "M",
+      "isin": "INE1DKT01011",
+      "industry": null,
+      "mcap_cr": 31.8
+    },
+    {
+      "ticker": "RDGAIL",
+      "name": "RUKMANI DEVI GARG AGRO IMPEX LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544552",
+      "group": "M",
+      "isin": "INE0S5T01017",
+      "industry": null,
+      "mcap_cr": 130.48
+    },
+    {
+      "ticker": "RECODE",
+      "name": "RECODE STUDIOS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544755",
+      "group": "M",
+      "isin": "INE2B6701015",
+      "industry": null,
+      "mcap_cr": 287.4
+    },
+    {
+      "ticker": "REETECH",
+      "name": "REETECH INTERNATIONAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543617",
+      "group": "M",
+      "isin": "INE0MKO01015",
+      "industry": null,
+      "mcap_cr": 6.34
+    },
+    {
+      "ticker": "REPONO",
+      "name": "REPONO LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544463",
+      "group": "MT",
+      "isin": "INE15WN01014",
+      "industry": null,
+      "mcap_cr": 83.26
+    },
+    {
+      "ticker": "RESGEN",
+      "name": "RESGEN LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543805",
+      "group": "M",
+      "isin": "INE0NYN01016",
+      "industry": null,
+      "mcap_cr": 98.56
+    },
+    {
+      "ticker": "RETAGGIO",
+      "name": "Retaggio Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544391",
+      "group": "M",
+      "isin": "INE0KWJ01014",
+      "industry": null,
+      "mcap_cr": 90.35
+    },
+    {
+      "ticker": "RETINA",
+      "name": "Retina Paints Limited",
+      "market": "BSE SME",
+      "scrip_code": "543902",
+      "group": "M",
+      "isin": "INE0NTC01019",
+      "industry": null,
+      "mcap_cr": 61.36
+    },
+    {
+      "ticker": "REXSEAL",
+      "name": "Rex Sealing and Packing Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "543744",
+      "group": "M",
+      "isin": "INE0MFT01014",
+      "industry": null,
+      "mcap_cr": 31.02
+    },
+    {
+      "ticker": "RFIL",
+      "name": "Rajnandini Fashion India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544771",
+      "group": "M",
+      "isin": "INE1GM501015",
+      "industry": null,
+      "mcap_cr": 37.8
+    },
+    {
+      "ticker": "RIKHAV",
+      "name": "Rikhav Securities Limited",
+      "market": "BSE SME",
+      "scrip_code": "544340",
+      "group": "M",
+      "isin": "INE0CFH01028",
+      "industry": null,
+      "mcap_cr": 174.42
+    },
+    {
+      "ticker": "RITHWIKFMS",
+      "name": "Rithwik Facility Management Services Limited",
+      "market": "BSE SME",
+      "scrip_code": "540843",
+      "group": "MT",
+      "isin": "INE819Y01015",
+      "industry": null,
+      "mcap_cr": 47.74
+    },
+    {
+      "ticker": "RIYAASAT",
+      "name": "Riyaasat Lifestyle Limited",
+      "market": "BSE SME",
+      "scrip_code": "544804",
+      "group": "M",
+      "isin": "INE0KYI01012",
+      "industry": null,
+      "mcap_cr": 60.06
+    },
+    {
+      "ticker": "ROBU",
+      "name": "Macfos Limited",
+      "market": "BSE SME",
+      "scrip_code": "543787",
+      "group": "M",
+      "isin": "INE0OLH01013",
+      "industry": null,
+      "mcap_cr": 1196.41
+    },
+    {
+      "ticker": "RONI",
+      "name": "Roni Households Limited",
+      "market": "BSE SME",
+      "scrip_code": "542145",
+      "group": "M",
+      "isin": "INE02AP01013",
+      "industry": null,
+      "mcap_cr": 39.25
+    },
+    {
+      "ticker": "ROOPSHRI",
+      "name": "Roopshri Resorts Limited",
+      "market": "BSE SME",
+      "scrip_code": "542599",
+      "group": "MT",
+      "isin": "INE03WT01017",
+      "industry": null,
+      "mcap_cr": 49.23
+    },
+    {
+      "ticker": "ROYAL",
+      "name": "Royal Sense Limited",
+      "market": "BSE SME",
+      "scrip_code": "544143",
+      "group": "M",
+      "isin": "INE0QQG01019",
+      "industry": null,
+      "mcap_cr": 50.83
+    },
+    {
+      "ticker": "RSTL",
+      "name": "Riddhi Steel and Tube Limited",
+      "market": "BSE SME",
+      "scrip_code": "540082",
+      "group": "MT",
+      "isin": "INE367U01013",
+      "industry": null,
+      "mcap_cr": 244.23
+    },
+    {
+      "ticker": "RUDRAGAS",
+      "name": "Rudra Gas Enterprise Limited",
+      "market": "BSE SME",
+      "scrip_code": "544121",
+      "group": "M",
+      "isin": "INE0OYK01010",
+      "industry": null,
+      "mcap_cr": 61.7
+    },
+    {
+      "ticker": "SAFE",
+      "name": "Sodhani Academy of Fintech Enablers Limited",
+      "market": "BSE SME",
+      "scrip_code": "544257",
+      "group": "M",
+      "isin": "INE0Q3401017",
+      "industry": null,
+      "mcap_cr": 85.43
+    },
+    {
+      "ticker": "SAFECURE",
+      "name": "Safecure Services Limited",
+      "market": "BSE SME",
+      "scrip_code": "544596",
+      "group": "M",
+      "isin": "INE0SVZ01015",
+      "industry": null,
+      "mcap_cr": 21.13
+    },
+    {
+      "ticker": "SAILANI",
+      "name": "SAILANI TOURS N TRAVELS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543541",
+      "group": "M",
+      "isin": "INE0KHQ01010",
+      "industry": null,
+      "mcap_cr": 5.42
+    },
+    {
+      "ticker": "SAMPAT",
+      "name": "SAMPAT ALUMINIUM LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544520",
+      "group": "MT",
+      "isin": "INE10XS01012",
+      "industry": null,
+      "mcap_cr": 32.23
+    },
+    {
+      "ticker": "SANCODE",
+      "name": "Sancode Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "543897",
+      "group": "MT",
+      "isin": "INE0P7001013",
+      "industry": null,
+      "mcap_cr": 209.06
+    },
+    {
+      "ticker": "SATTRIX",
+      "name": "SATTRIX INFORMATION SECURITY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544189",
+      "group": "M",
+      "isin": "INE0QUV01010",
+      "industry": null,
+      "mcap_cr": 406.27
+    },
+    {
+      "ticker": "SBLI",
+      "name": "SBL Infratech Limited",
+      "market": "BSE SME",
+      "scrip_code": "543366",
+      "group": "M",
+      "isin": "INE0DLM01024",
+      "industry": null,
+      "mcap_cr": 4.31
+    },
+    {
+      "ticker": "SBRANDS",
+      "name": "Sanghvi Brands Limited",
+      "market": "BSE SME",
+      "scrip_code": "540782",
+      "group": "MT",
+      "isin": "INE204Y01010",
+      "industry": null,
+      "mcap_cr": 11.38
+    },
+    {
+      "ticker": "SBVCL",
+      "name": "Shri Balaji Valve Components Limited",
+      "market": "BSE SME",
+      "scrip_code": "544074",
+      "group": "MT",
+      "isin": "INE0RNZ01014",
+      "industry": null,
+      "mcap_cr": 85.48
+    },
+    {
+      "ticker": "SCARNOSE",
+      "name": "Scarnose International Limited",
+      "market": "BSE SME",
+      "scrip_code": "543537",
+      "group": "M",
+      "isin": "INE0IXR01019",
+      "industry": null,
+      "mcap_cr": 11.31
+    },
+    {
+      "ticker": "SCDL",
+      "name": "SAFETY CONTROLS & DEVICES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544746",
+      "group": "M",
+      "isin": "INE0UMH01018",
+      "industry": null,
+      "mcap_cr": 129.07
+    },
+    {
+      "ticker": "SDC",
+      "name": "SDC TECHMEDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "535647",
+      "group": "MT",
+      "isin": "INE807O01011",
+      "industry": null,
+      "mcap_cr": 11.72
+    },
+    {
+      "ticker": "SEALMATIC",
+      "name": "Sealmatic India Limited",
+      "market": "BSE SME",
+      "scrip_code": "543782",
+      "group": "M",
+      "isin": "INE0O4601016",
+      "industry": null,
+      "mcap_cr": 434.4
+    },
+    {
+      "ticker": "SEEMAX",
+      "name": "Seemax Resources Limited",
+      "market": "BSE SME",
+      "scrip_code": "544813",
+      "group": "M",
+      "isin": "INE1EVO01017",
+      "industry": null,
+      "mcap_cr": 27.28
+    },
+    {
+      "ticker": "SEML",
+      "name": "Sunrise Efficient Marketing Limited",
+      "market": "BSE SME",
+      "scrip_code": "543515",
+      "group": "MT",
+      "isin": "INE0KPY01017",
+      "industry": null,
+      "mcap_cr": 64.19
+    },
+    {
+      "ticker": "SEVL",
+      "name": "SUPERTECH EV LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544428",
+      "group": "M",
+      "isin": "INE0SC101013",
+      "industry": null,
+      "mcap_cr": 43.56
+    },
+    {
+      "ticker": "SFSL",
+      "name": "Shashwat Furnishing Solutions Limited",
+      "market": "BSE SME",
+      "scrip_code": "543519",
+      "group": "M",
+      "isin": "INE0JMN01019",
+      "industry": null,
+      "mcap_cr": 16.24
+    },
+    {
+      "ticker": "SGFRL",
+      "name": "Suyog Gurbaxani Funicular Ropeways Limited",
+      "market": "BSE SME",
+      "scrip_code": "543391",
+      "group": "M",
+      "isin": "INE07GA01011",
+      "industry": null,
+      "mcap_cr": 260.43
+    },
+    {
+      "ticker": "SHANMUGA",
+      "name": "SHANMUGA HOSPITAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544365",
+      "group": "M",
+      "isin": "INE0TD301017",
+      "industry": null,
+      "mcap_cr": 57.17
+    },
+    {
+      "ticker": "SHANTIDENM",
+      "name": "SHANTI SPINTEX LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544059",
+      "group": "M",
+      "isin": "INE0QZQ01019",
+      "industry": null,
+      "mcap_cr": 61.73
+    },
+    {
+      "ticker": "SHANTIGURU",
+      "name": "SHANTI GURU INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "534708",
+      "group": "M",
+      "isin": "INE892L01019",
+      "industry": null,
+      "mcap_cr": 11.65
+    },
+    {
+      "ticker": "SHARVAYA",
+      "name": "SHARVAYA METALS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544506",
+      "group": "MT",
+      "isin": "INE0UJF01018",
+      "industry": null,
+      "mcap_cr": 145.44
+    },
+    {
+      "ticker": "SHAYONAENG",
+      "name": "SHAYONA ENGINEERING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544686",
+      "group": "M",
+      "isin": "INE0UCL01011",
+      "industry": null,
+      "mcap_cr": 54.9
+    },
+    {
+      "ticker": "SHELTER",
+      "name": "SHELTER PHARMA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543963",
+      "group": "M",
+      "isin": "INE013V01011",
+      "industry": null,
+      "mcap_cr": 43.35
+    },
+    {
+      "ticker": "SHINEFASH",
+      "name": "Shine Fashions (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "543244",
+      "group": "M",
+      "isin": "INE0BLY01023",
+      "industry": null,
+      "mcap_cr": 66.12
+    },
+    {
+      "ticker": "SHIPWAVES",
+      "name": "Shipwaves Online Limited",
+      "market": "BSE SME",
+      "scrip_code": "544646",
+      "group": "M",
+      "isin": "INE0O9L01010",
+      "industry": null,
+      "mcap_cr": 37.5
+    },
+    {
+      "ticker": "SHIVAEXPO",
+      "name": "Shiva Granito Export Limited",
+      "market": "BSE SME",
+      "scrip_code": "540072",
+      "group": "MT",
+      "isin": "INE191V01015",
+      "industry": null,
+      "mcap_cr": 13.48
+    },
+    {
+      "ticker": "SHIVAM",
+      "name": "SHIVAM CHEMICALS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544165",
+      "group": "M",
+      "isin": "INE0SGR01013",
+      "industry": null,
+      "mcap_cr": 169.87
+    },
+    {
+      "ticker": "SHIVTEXCHEM",
+      "name": "SHIV TEXCHEM LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544272",
+      "group": "M",
+      "isin": "INE0YRO01015",
+      "industry": null,
+      "mcap_cr": 257.44
+    },
+    {
+      "ticker": "SHLOKKA",
+      "name": "SHLOKKA DYES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544582",
+      "group": "M",
+      "isin": "INE1EUB01016",
+      "industry": null,
+      "mcap_cr": 53.5
+    },
+    {
+      "ticker": "SHOORA",
+      "name": "Shoora Designs Limited",
+      "market": "BSE SME",
+      "scrip_code": "543970",
+      "group": "MT",
+      "isin": "INE0OJZ01019",
+      "industry": null,
+      "mcap_cr": 35.93
+    },
+    {
+      "ticker": "SHREE",
+      "name": "Shree Marutinandan Tubes Limited",
+      "market": "BSE SME",
+      "scrip_code": "544083",
+      "group": "M",
+      "isin": "INE0QIS01011",
+      "industry": null,
+      "mcap_cr": 16.26
+    },
+    {
+      "ticker": "SHREENATH",
+      "name": "SHREENATH PAPER PRODUCTS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544372",
+      "group": "M",
+      "isin": "INE0RXS01018",
+      "industry": null,
+      "mcap_cr": 25.55
+    },
+    {
+      "ticker": "SHREEREF",
+      "name": "SHREE REFRIGERATIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544458",
+      "group": "M",
+      "isin": "INE0FMZ01045",
+      "industry": null,
+      "mcap_cr": 1127.59
+    },
+    {
+      "ticker": "SHREESHAY",
+      "name": "Shreeshay Engineers Limited",
+      "market": "BSE SME",
+      "scrip_code": "541112",
+      "group": "M",
+      "isin": "INE452Z01012",
+      "industry": null,
+      "mcap_cr": 29.05
+    },
+    {
+      "ticker": "SHTL",
+      "name": "SHINING TOOLS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544607",
+      "group": "MT",
+      "isin": "INE0D8001018",
+      "industry": null,
+      "mcap_cr": 56.1
+    },
+    {
+      "ticker": "SIHORA",
+      "name": "SIHORA INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544585",
+      "group": "M",
+      "isin": "INE0SFA01011",
+      "industry": null,
+      "mcap_cr": 31.7
+    },
+    {
+      "ticker": "SILL",
+      "name": "Sampark India Logistics Limited",
+      "market": "BSE SME",
+      "scrip_code": "544810",
+      "group": "M",
+      "isin": "INE147701010",
+      "industry": null,
+      "mcap_cr": 107.88
+    },
+    {
+      "ticker": "SILVERPRL",
+      "name": "Silver Pearl Hospitality & Luxury Spaces Limited",
+      "market": "BSE SME",
+      "scrip_code": "543536",
+      "group": "M",
+      "isin": "INE0KXN01014",
+      "industry": null,
+      "mcap_cr": 3.93
+    },
+    {
+      "ticker": "SIROHIA",
+      "name": "Sirohia & Sons Limited",
+      "market": "BSE SME",
+      "scrip_code": "538667",
+      "group": "M",
+      "isin": "INE785O01019",
+      "industry": null,
+      "mcap_cr": 7.42
+    },
+    {
+      "ticker": "SISL",
+      "name": "SHANTIDOOT INFRA SERVICES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543598",
+      "group": "MT",
+      "isin": "INE0LU301014",
+      "industry": null,
+      "mcap_cr": 106.08
+    },
+    {
+      "ticker": "SIYARAM",
+      "name": "Siyaram Recycling Industries Limited",
+      "market": "BSE SME",
+      "scrip_code": "544047",
+      "group": "M",
+      "isin": "INE0QSK01017",
+      "industry": null,
+      "mcap_cr": 82.73
+    },
+    {
+      "ticker": "SKIEL",
+      "name": "SK International Export Limited",
+      "market": "BSE SME",
+      "scrip_code": "542728",
+      "group": "MT",
+      "isin": "INE04ST01013",
+      "industry": null,
+      "mcap_cr": 15.78
+    },
+    {
+      "ticker": "SKIFL",
+      "name": "Shree Krishna Infrastructure Limited",
+      "market": "BSE SME",
+      "scrip_code": "542146",
+      "group": "M",
+      "isin": "INE951Z01013",
+      "industry": null,
+      "mcap_cr": 8.55
+    },
+    {
+      "ticker": "SKL",
+      "name": "SUPER FINE KNITTERS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "540269",
+      "group": "MT",
+      "isin": "INE459U01018",
+      "industry": null,
+      "mcap_cr": 14.57
+    },
+    {
+      "ticker": "SKM",
+      "name": "SK Minerals & Additives Limited",
+      "market": "BSE SME",
+      "scrip_code": "544584",
+      "group": "MT",
+      "isin": "INE13YH01017",
+      "industry": null,
+      "mcap_cr": 516.53
+    },
+    {
+      "ticker": "SMARITIME",
+      "name": "Sahara Maritime Limited",
+      "market": "BSE SME",
+      "scrip_code": "544056",
+      "group": "M",
+      "isin": "INE0PSJ01011",
+      "industry": null,
+      "mcap_cr": 7.06
+    },
+    {
+      "ticker": "SMAUTO",
+      "name": "SM Auto Stamping Limited",
+      "market": "BSE SME",
+      "scrip_code": "543065",
+      "group": "M",
+      "isin": "INE0C4I01011",
+      "industry": null,
+      "mcap_cr": 40.63
+    },
+    {
+      "ticker": "SMEL",
+      "name": "Sungold Media and Entertainment Limited",
+      "market": "BSE SME",
+      "scrip_code": "541799",
+      "group": "MT",
+      "isin": "INE266S01011",
+      "industry": null,
+      "mcap_cr": 14.91
+    },
+    {
+      "ticker": "SMR",
+      "name": "SMR Jewels Limited",
+      "market": "BSE SME",
+      "scrip_code": "544774",
+      "group": "M",
+      "isin": "INE11XK01017",
+      "industry": null,
+      "mcap_cr": 158.84
+    },
+    {
+      "ticker": "SODHACAP",
+      "name": "SODHANI CAPITAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544560",
+      "group": "M",
+      "isin": "INE0QU501030",
+      "industry": null,
+      "mcap_cr": 51.64
+    },
+    {
+      "ticker": "SOLARIUM",
+      "name": "SOLARIUM GREEN ENERGY LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544354",
+      "group": "M",
+      "isin": "INE0W0H01017",
+      "industry": null,
+      "mcap_cr": 341.43
+    },
+    {
+      "ticker": "SOLVEX",
+      "name": "Solvex Edibles Limited",
+      "market": "BSE SME",
+      "scrip_code": "544539",
+      "group": "MT",
+      "isin": "INE1IIQ01028",
+      "industry": null,
+      "mcap_cr": 14.93
+    },
+    {
+      "ticker": "SONALIS",
+      "name": "Sonalis Consumer Products Limited",
+      "market": "BSE SME",
+      "scrip_code": "543924",
+      "group": "M",
+      "isin": "INE0N5O01013",
+      "industry": null,
+      "mcap_cr": 21.15
+    },
+    {
+      "ticker": "SOTEFIN",
+      "name": "Sotefin Bharat Limited",
+      "market": "BSE SME",
+      "scrip_code": "544832",
+      "group": "M",
+      "isin": "INE12Z301012",
+      "industry": null,
+      "mcap_cr": 433.12
+    },
+    {
+      "ticker": "SPINAROO",
+      "name": "SPINAROO COMMERCIAL LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544392",
+      "group": "M",
+      "isin": "INE10XX01012",
+      "industry": null,
+      "mcap_cr": 35.04
+    },
+    {
+      "ticker": "SPITZE",
+      "name": "Maruti Interior Products Limited",
+      "market": "BSE SME",
+      "scrip_code": "543464",
+      "group": "M",
+      "isin": "INE0JSJ01014",
+      "industry": null,
+      "mcap_cr": 208.62
+    },
+    {
+      "ticker": "SPL",
+      "name": "Swashthik Plascon Limited",
+      "market": "BSE SME",
+      "scrip_code": "544035",
+      "group": "M",
+      "isin": "INE0RDR01012",
+      "industry": null,
+      "mcap_cr": 46.72
+    },
+    {
+      "ticker": "SPML",
+      "name": "SPECIALITY MEDICINES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544738",
+      "group": "M",
+      "isin": "INE0R0M01014",
+      "industry": null,
+      "mcap_cr": 138.82
+    },
+    {
+      "ticker": "SRGFFL",
+      "name": "SRG FINGROW FINANCE LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "536710",
+      "group": "M",
+      "isin": "INE326P01019",
+      "industry": null,
+      "mcap_cr": 13.98
+    },
+    {
+      "ticker": "SRIGEE",
+      "name": "SRIGEE DLM LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544399",
+      "group": "M",
+      "isin": "INE0RJ901010",
+      "industry": null,
+      "mcap_cr": 45.2
+    },
+    {
+      "ticker": "SRSOLTD",
+      "name": "SILICON RENTAL SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543615",
+      "group": "M",
+      "isin": "INE0MNV01014",
+      "industry": null,
+      "mcap_cr": 89.07
+    },
+    {
+      "ticker": "SSL",
+      "name": "Share Samadhan Limited",
+      "market": "BSE SME",
+      "scrip_code": "544251",
+      "group": "M",
+      "isin": "INE0LY301010",
+      "industry": null,
+      "mcap_cr": 55.49
+    },
+    {
+      "ticker": "SSMD",
+      "name": "SSMD AGROTECH INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544621",
+      "group": "M",
+      "isin": "INE1U2R01013",
+      "industry": null,
+      "mcap_cr": 53.73
+    },
+    {
+      "ticker": "SSPNFIN",
+      "name": "SSPN Finance Limited",
+      "market": "BSE SME",
+      "scrip_code": "539026",
+      "group": "M",
+      "isin": "INE820R01017",
+      "industry": null,
+      "mcap_cr": 2.81
+    },
+    {
+      "ticker": "SSPRL",
+      "name": "SILVERSTORM PARKS AND RESORTS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544840",
+      "group": "M",
+      "isin": "INE1EJ401023",
+      "industry": null,
+      "mcap_cr": 278.92
+    },
+    {
+      "ticker": "SSTL",
+      "name": "Safa Systems & Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "543461",
+      "group": "M",
+      "isin": "INE0JNA01014",
+      "industry": null,
+      "mcap_cr": 50.08
+    },
+    {
+      "ticker": "STAL",
+      "name": "Storage Technologies and Automation Limited",
+      "market": "BSE SME",
+      "scrip_code": "544171",
+      "group": "MT",
+      "isin": "INE0RGM01016",
+      "industry": null,
+      "mcap_cr": 41.74
+    },
+    {
+      "ticker": "STANBIK",
+      "name": "STANBIK AGRO LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544659",
+      "group": "M",
+      "isin": "INE16QA01011",
+      "industry": null,
+      "mcap_cr": 37.18
+    },
+    {
+      "ticker": "STARIMAGIN",
+      "name": "STAR IMAGING AND PATH LAB LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544482",
+      "group": "M",
+      "isin": "INE0YG001013",
+      "industry": null,
+      "mcap_cr": 169.67
+    },
+    {
+      "ticker": "STELLAR",
+      "name": "STELLAR CAPITAL SERVICES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "536738",
+      "group": "M",
+      "isin": "INE325P01011",
+      "industry": null,
+      "mcap_cr": 14.23
+    },
+    {
+      "ticker": "STML",
+      "name": "STEELMAN TELECOM LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543622",
+      "group": "M",
+      "isin": "INE0MSK01016",
+      "industry": null,
+      "mcap_cr": 65.8
+    },
+    {
+      "ticker": "SUBAM",
+      "name": "SUBAM PAPERS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544267",
+      "group": "M",
+      "isin": "INE0U6201010",
+      "industry": null,
+      "mcap_cr": 580.36
+    },
+    {
+      "ticker": "SUDARSHAN",
+      "name": "SUDARSHAN PHARMA INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543828",
+      "group": "M",
+      "isin": "INE00TV01023",
+      "industry": null,
+      "mcap_cr": 863.97
+    },
+    {
+      "ticker": "SUGSLLOYD",
+      "name": "SUGS LLOYD LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544501",
+      "group": "M",
+      "isin": "INE0XX801016",
+      "industry": null,
+      "mcap_cr": 424.82
+    },
+    {
+      "ticker": "SUNITATOOL",
+      "name": "Sunita Tools Limited",
+      "market": "BSE SME",
+      "scrip_code": "544001",
+      "group": "MT",
+      "isin": "INE0Q1S01010",
+      "industry": null,
+      "mcap_cr": 620.7
+    },
+    {
+      "ticker": "SUNRETAIL",
+      "name": "Sun Retail Limited",
+      "market": "BSE SME",
+      "scrip_code": "542025",
+      "group": "M",
+      "isin": "INE206Z01020",
+      "industry": null,
+      "mcap_cr": 4.66
+    },
+    {
+      "ticker": "SUNSKY",
+      "name": "Sunsky Logistics Limited",
+      "market": "BSE SME",
+      "scrip_code": "544566",
+      "group": "M",
+      "isin": "INE10CM01027",
+      "industry": null,
+      "mcap_cr": 44.31
+    },
+    {
+      "ticker": "SUPERIRON",
+      "name": "Super Iron Foundry Limited",
+      "market": "BSE SME",
+      "scrip_code": "544381",
+      "group": "M",
+      "isin": "INE16IQ01014",
+      "industry": null,
+      "mcap_cr": 84.22
+    },
+    {
+      "ticker": "SUPERSHAKT",
+      "name": "Supershakti Metaliks Limited",
+      "market": "BSE SME",
+      "scrip_code": "541701",
+      "group": "M",
+      "isin": "INE00SY01011",
+      "industry": null,
+      "mcap_cr": 289.17
+    },
+    {
+      "ticker": "SUSAN",
+      "name": "Susan Electricals India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544793",
+      "group": "M",
+      "isin": "INE2L0V01019",
+      "industry": null,
+      "mcap_cr": 553
+    },
+    {
+      "ticker": "SVJ",
+      "name": "S.V.J.ENTERPRISES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543799",
+      "group": "M",
+      "isin": "INE0JZS01010",
+      "industry": null,
+      "mcap_cr": 114.21
+    },
+    {
+      "ticker": "SVS",
+      "name": "SVS VENTURES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543745",
+      "group": "M",
+      "isin": "INE0MID01012",
+      "industry": null,
+      "mcap_cr": 12.87
+    },
+    {
+      "ticker": "SWANAGRO",
+      "name": "New Swan Multitech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544082",
+      "group": "M",
+      "isin": "INE0GEN01012",
+      "industry": null,
+      "mcap_cr": 83.67
+    },
+    {
+      "ticker": "SWASTH",
+      "name": "Swasth Foodtech India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544368",
+      "group": "M",
+      "isin": "INE0TIR01017",
+      "industry": null,
+      "mcap_cr": 9.66
+    },
+    {
+      "ticker": "SWASTIKAAL",
+      "name": "Swastika Castal Limited",
+      "market": "BSE SME",
+      "scrip_code": "544452",
+      "group": "MT",
+      "isin": "INE0PTF01017",
+      "industry": null,
+      "mcap_cr": 65.59
+    },
+    {
+      "ticker": "SYSTEMATIC",
+      "name": "SYSTEMATIC INDUSTRIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544541",
+      "group": "M",
+      "isin": "INE1KLZ01011",
+      "industry": null,
+      "mcap_cr": 506.92
+    },
+    {
+      "ticker": "TAKYON",
+      "name": "TAKYON NETWORKS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544471",
+      "group": "M",
+      "isin": "INE14OX01013",
+      "industry": null,
+      "mcap_cr": 28.64
+    },
+    {
+      "ticker": "TANVI",
+      "name": "Tanvi Foods (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "540332",
+      "group": "M",
+      "isin": "INE978V01015",
+      "industry": null,
+      "mcap_cr": 63.22
+    },
+    {
+      "ticker": "TARINI",
+      "name": "Tarini International Limited",
+      "market": "BSE SME",
+      "scrip_code": "538496",
+      "group": "M",
+      "isin": "INE849M01017",
+      "industry": null,
+      "mcap_cr": 10.79
+    },
+    {
+      "ticker": "TECHKGREEN",
+      "name": "TECHKNOWGREEN SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543991",
+      "group": "M",
+      "isin": "INE0P4P01011",
+      "industry": null,
+      "mcap_cr": 98.19
+    },
+    {
+      "ticker": "TECHNICHEM",
+      "name": "TECHNICHEM ORGANICS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544327",
+      "group": "M",
+      "isin": "INE0ZHT01012",
+      "industry": null,
+      "mcap_cr": 77.95
+    },
+    {
+      "ticker": "TECHNOPACK",
+      "name": "Technopack Polymers Limited",
+      "market": "BSE SME",
+      "scrip_code": "543656",
+      "group": "M",
+      "isin": "INE0MXP01015",
+      "industry": null,
+      "mcap_cr": 15.12
+    },
+    {
+      "ticker": "TELGE",
+      "name": "TELGE PROJECTS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544544",
+      "group": "MT",
+      "isin": "INE0SRP01014",
+      "industry": null,
+      "mcap_cr": 164.92
+    },
+    {
+      "ticker": "TGIF",
+      "name": "TGIF AGRIBUSINESS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544175",
+      "group": "M",
+      "isin": "INE0SMU01015",
+      "industry": null,
+      "mcap_cr": 26.39
+    },
+    {
+      "ticker": "THREEMPAPE",
+      "name": "THREE M PAPER BOARDS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544214",
+      "group": "M",
+      "isin": "INE0UK501010",
+      "industry": null,
+      "mcap_cr": 46.17
+    },
+    {
+      "ticker": "TIMESGREEN",
+      "name": "Times Green Energy (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "543310",
+      "group": "MT",
+      "isin": "INE0B6101012",
+      "industry": null,
+      "mcap_cr": 44.87
+    },
+    {
+      "ticker": "TIPCO",
+      "name": "Tipco Engineering India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544740",
+      "group": "MT",
+      "isin": "INE1U6D01014",
+      "industry": null,
+      "mcap_cr": 355.64
+    },
+    {
+      "ticker": "TITAANIUM",
+      "name": "Titaanium Ten Enterprise Limited",
+      "market": "BSE SME",
+      "scrip_code": "539985",
+      "group": "MT",
+      "isin": "INE120V01014",
+      "industry": null,
+      "mcap_cr": 13.32
+    },
+    {
+      "ticker": "TLL",
+      "name": "Trident Lifeline Limited",
+      "market": "BSE SME",
+      "scrip_code": "543616",
+      "group": "M",
+      "isin": "INE0MKA01014",
+      "industry": null,
+      "mcap_cr": 314.91
+    },
+    {
+      "ticker": "TRADEUNO",
+      "name": "GAME CHANGERS TEXFAB LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544594",
+      "group": "M",
+      "isin": "INE1GUJ01014",
+      "industry": null,
+      "mcap_cr": 222.32
+    },
+    {
+      "ticker": "TRANSVOY",
+      "name": "TRANSVOY LOGISTICS INDIA LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543754",
+      "group": "MT",
+      "isin": "INE0MPU01011",
+      "industry": null,
+      "mcap_cr": 23.97
+    },
+    {
+      "ticker": "TRAVELS",
+      "name": "Travels & rentals Limited",
+      "market": "BSE SME",
+      "scrip_code": "544242",
+      "group": "M",
+      "isin": "INE0SG001011",
+      "industry": null,
+      "mcap_cr": 17.9
+    },
+    {
+      "ticker": "TRUECOLORS",
+      "name": "TRUE COLORS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544531",
+      "group": "M",
+      "isin": "INE1LDV01015",
+      "industry": null,
+      "mcap_cr": 378.45
+    },
+    {
+      "ticker": "TTC",
+      "name": "TOSS THE COIN LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544303",
+      "group": "M",
+      "isin": "INE0XAY01012",
+      "industry": null,
+      "mcap_cr": 37.23
+    },
+    {
+      "ticker": "UHMVL",
+      "name": "UHM Vacation Limited",
+      "market": "BSE SME",
+      "scrip_code": "544779",
+      "group": "M",
+      "isin": "INE0YZ901011",
+      "industry": null,
+      "mcap_cr": 22.63
+    },
+    {
+      "ticker": "UML",
+      "name": "Umiya Mobile Limited",
+      "market": "BSE SME",
+      "scrip_code": "544464",
+      "group": "M",
+      "isin": "INE1P1A01018",
+      "industry": null,
+      "mcap_cr": 83.97
+    },
+    {
+      "ticker": "UNIFIED",
+      "name": "UNIFIED DATA TECH SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544406",
+      "group": "M",
+      "isin": "INE1ABX01018",
+      "industry": null,
+      "mcap_cr": 743.33
+    },
+    {
+      "ticker": "UNISEM",
+      "name": "UNISEM AGRITECH LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544648",
+      "group": "M",
+      "isin": "INE1FHV01026",
+      "industry": null,
+      "mcap_cr": 56.66
+    },
+    {
+      "ticker": "UNISHIRE",
+      "name": "Unishire Urban Infra Limited",
+      "market": "BSE SME",
+      "scrip_code": "537582",
+      "group": "M",
+      "isin": "INE210P01015",
+      "industry": null,
+      "mcap_cr": 3.07
+    },
+    {
+      "ticker": "VAHH",
+      "name": "Vahh Chemicals Limited",
+      "market": "BSE SME",
+      "scrip_code": "544778",
+      "group": "M",
+      "isin": "INE0H3U01013",
+      "industry": null,
+      "mcap_cr": 45.27
+    },
+    {
+      "ticker": "VALINDIA",
+      "name": "Valencia India Limited",
+      "market": "BSE SME",
+      "scrip_code": "544433",
+      "group": "M",
+      "isin": "INE130701019",
+      "industry": null,
+      "mcap_cr": 23.4
+    },
+    {
+      "ticker": "VALPLAST",
+      "name": "Valplast Technologies Limited",
+      "market": "BSE SME",
+      "scrip_code": "544565",
+      "group": "M",
+      "isin": "INE0QP701017",
+      "industry": null,
+      "mcap_cr": 72.7
+    },
+    {
+      "ticker": "VANDAN",
+      "name": "VANDAN FOODS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544436",
+      "group": "M",
+      "isin": "INE0RDJ01019",
+      "industry": null,
+      "mcap_cr": 20.04
+    },
+    {
+      "ticker": "VANDU",
+      "name": "LEO DRYFRUITS & SPICES TRADING LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544329",
+      "group": "M",
+      "isin": "INE0RH001011",
+      "industry": null,
+      "mcap_cr": 105.6
+    },
+    {
+      "ticker": "VANTABIO",
+      "name": "Vanta Bioscience Limited",
+      "market": "BSE SME",
+      "scrip_code": "540729",
+      "group": "MT",
+      "isin": "INE695X01011",
+      "industry": null,
+      "mcap_cr": 13.97
+    },
+    {
+      "ticker": "VARYAA",
+      "name": "VARYAA CREATIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544168",
+      "group": "M",
+      "isin": "INE0R6801013",
+      "industry": null,
+      "mcap_cr": 13.41
+    },
+    {
+      "ticker": "VASHISHTHA",
+      "name": "VASHISHTHA LUXURY FASHION LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544508",
+      "group": "M",
+      "isin": "INE0WRP01016",
+      "industry": null,
+      "mcap_cr": 13.67
+    },
+    {
+      "ticker": "VEDANTASSET",
+      "name": "VEDANT ASSET LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543623",
+      "group": "MT",
+      "isin": "INE0NC801013",
+      "industry": null,
+      "mcap_cr": 17.57
+    },
+    {
+      "ticker": "VEEFIN",
+      "name": "VEEFIN SOLUTIONS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "543931",
+      "group": "M",
+      "isin": "INE0Q0M01015",
+      "industry": null,
+      "mcap_cr": 658.92
+    },
+    {
+      "ticker": "VEERKRUPA",
+      "name": "Veerkrupa Jewellers Limited",
+      "market": "BSE SME",
+      "scrip_code": "543545",
+      "group": "M",
+      "isin": "INE0ID001024",
+      "industry": null,
+      "mcap_cr": 6.42
+    },
+    {
+      "ticker": "VIVAA",
+      "name": "Vivaa Tradecom Limited",
+      "market": "BSE SME",
+      "scrip_code": "544002",
+      "group": "MT",
+      "isin": "INE0PA601017",
+      "industry": null,
+      "mcap_cr": 44.53
+    },
+    {
+      "ticker": "VPAL",
+      "name": "Vegorama Punjabi Angithi Limited",
+      "market": "BSE SME",
+      "scrip_code": "544765",
+      "group": "MT",
+      "isin": "INE1L3801017",
+      "industry": null,
+      "mcap_cr": 333.88
+    },
+    {
+      "ticker": "VPL",
+      "name": "Vrundavan Plantation Limited",
+      "market": "BSE SME",
+      "scrip_code": "544011",
+      "group": "M",
+      "isin": "INE0Q6901013",
+      "industry": null,
+      "mcap_cr": 21.04
+    },
+    {
+      "ticker": "VRUDDHI",
+      "name": "Vruddhi Engineering Works Limited",
+      "market": "BSE SME",
+      "scrip_code": "544157",
+      "group": "M",
+      "isin": "INE0OMZ01013",
+      "industry": null,
+      "mcap_cr": 47.95
+    },
+    {
+      "ticker": "VVIPIL",
+      "name": "VVIP Infratech Limited",
+      "market": "BSE SME",
+      "scrip_code": "544219",
+      "group": "M",
+      "isin": "INE0MNP01016",
+      "industry": null,
+      "mcap_cr": 299.51
+    },
+    {
+      "ticker": "WAA",
+      "name": "Waa Solar Limited",
+      "market": "BSE SME",
+      "scrip_code": "541445",
+      "group": "M",
+      "isin": "INE799N01012",
+      "industry": null,
+      "mcap_cr": 57.51
+    },
+    {
+      "ticker": "WAAREE",
+      "name": "WAAREE TECHNOLOGIES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "539337",
+      "group": "M",
+      "isin": "INE725P01012",
+      "industry": null,
+      "mcap_cr": 239.27
+    },
+    {
+      "ticker": "WORKMATES",
+      "name": "WORKMATES CORE2CLOUD SOLUTION LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544610",
+      "group": "M",
+      "isin": "INE1I1301016",
+      "industry": null,
+      "mcap_cr": 442.92
+    },
+    {
+      "ticker": "WOSAL",
+      "name": "Western Overseas Study Abroad Limited",
+      "market": "BSE SME",
+      "scrip_code": "544636",
+      "group": "M",
+      "isin": "INE1MF401019",
+      "industry": null,
+      "mcap_cr": 9.8
+    },
+    {
+      "ticker": "YAASHVI",
+      "name": "YAASHVI JEWELLERS LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544770",
+      "group": "M",
+      "isin": "INE1T6L01010",
+      "industry": null,
+      "mcap_cr": 139.21
+    },
+    {
+      "ticker": "YAJUR",
+      "name": "YAJUR FIBRES LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "544676",
+      "group": "MT",
+      "isin": "INE0CNJ01010",
+      "industry": null,
+      "mcap_cr": 75.31
+    },
+    {
+      "ticker": "YASHHTEJ",
+      "name": "Yashhtej Industries (India) Limited",
+      "market": "BSE SME",
+      "scrip_code": "544708",
+      "group": "M",
+      "isin": "INE1O6P01016",
+      "industry": null,
+      "mcap_cr": 124.08
+    },
+    {
+      "ticker": "YASHHV",
+      "name": "Yash Highvoltage Limited",
+      "market": "BSE SME",
+      "scrip_code": "544310",
+      "group": "M",
+      "isin": "INE00GK01023",
+      "industry": null,
+      "mcap_cr": 2667.89
+    },
+    {
+      "ticker": "YUG",
+      "name": "Yug Decor Limited",
+      "market": "BSE SME",
+      "scrip_code": "540550",
+      "group": "MT",
+      "isin": "INE796W01019",
+      "industry": null,
+      "mcap_cr": 37.22
+    },
+    {
+      "ticker": "ZAPPFRESH",
+      "name": "DSM Fresh Foods Limited",
+      "market": "BSE SME",
+      "scrip_code": "544568",
+      "group": "M",
+      "isin": "INE0SUM01015",
+      "industry": null,
+      "mcap_cr": 153.78
+    },
+    {
+      "ticker": "ZELIO",
+      "name": "Zelio E Mobility Limited",
+      "market": "BSE SME",
+      "scrip_code": "544563",
+      "group": "MT",
+      "isin": "INE1B3501014",
+      "industry": null,
+      "mcap_cr": 1658.58
+    },
+    {
+      "ticker": "ZINEMA",
+      "name": "ZINEMA MEDIA AND ENTERTAINMENT LIMITED",
+      "market": "BSE SME",
+      "scrip_code": "538579",
+      "group": "MT",
+      "isin": "INE641Q01019",
+      "industry": null,
+      "mcap_cr": 12.24
+    }
+  ]
+}

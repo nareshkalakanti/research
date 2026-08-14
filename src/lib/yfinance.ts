@@ -25,7 +25,11 @@ export function toYfinanceSymbol(
   if (mk === "NSE SME" || mk === "SME" || mk === "EMERGE") {
     return `${sym}-SM.NS`;
   }
-  if (mk === "BSE" || mk === "BOMBAY STOCK EXCHANGE") {
+  if (
+    mk === "BSE" ||
+    mk === "BSE SME" ||
+    mk === "BOMBAY STOCK EXCHANGE"
+  ) {
     return `${sym}.BO`;
   }
   return `${sym}.NS`;
@@ -35,6 +39,39 @@ function toBoSymbol(nsSymbol: string): string {
   return nsSymbol
     .replace(/-SM\.NS$/i, ".BO")
     .replace(/\.NS$/i, ".BO");
+}
+
+/**
+ * Yahoo symbol candidates for India names.
+ * SME quotes live on `TICKER-SM.NS`; some also have a ghost `TICKER.NS`
+ * (e.g. VILAS) while others (e.g. SUNLITE) only resolve as `-SM.NS`.
+ */
+export function yfSymbolCandidates(
+  ticker: string,
+  market?: string | null,
+): string[] {
+  const primary = toYfinanceSymbol(ticker, market);
+  if (!primary) return [];
+
+  const bare = (ticker || "")
+    .trim()
+    .toUpperCase()
+    .replace(/-SM$/i, "")
+    .replace(/\.(NS|BO)$/i, "");
+  if (!bare) return [primary];
+
+  const out: string[] = [];
+  const add = (s: string) => {
+    if (s && !out.includes(s)) out.push(s);
+  };
+
+  add(primary);
+  add(`${bare}-SM.NS`);
+  add(`${bare}.NS`);
+  add(`${bare}.BO`);
+  add(toBoSymbol(primary));
+
+  return out;
 }
 
 function num(v: unknown): number | null {
@@ -122,7 +159,8 @@ export async function fetchQuoteDetailed(
   ticker: string,
   market?: string | null,
 ): Promise<YfQuote> {
-  const base = toYfinanceSymbol(ticker, market);
+  const symbols = yfSymbolCandidates(ticker, market);
+  const base = symbols[0] ?? "";
   if (!base) {
     return {
       ticker,
@@ -132,12 +170,6 @@ export async function fetchQuoteDetailed(
       sector: null,
       error: "empty symbol",
     };
-  }
-
-  const symbols = [base];
-  if (base.endsWith(".NS")) symbols.push(toBoSymbol(base));
-  if (base.includes("-SM.NS")) {
-    symbols.push(base.replace("-SM.NS", ".NS"));
   }
 
   let bits: QuoteBits = {

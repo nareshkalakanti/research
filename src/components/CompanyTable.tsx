@@ -46,6 +46,11 @@ function SortIcon({
 function SignalTags({ company }: { company: Company }) {
   return (
     <span className="result-tags">
+      {/\bSME\b/i.test(company.market) ? (
+        <span className="result-tag tag-mkt-sme" title={`${company.market} listing`}>
+          SME
+        </span>
+      ) : null}
       {company.has_note ? (
         <span className="result-tag tag-note" title="Has research note">
           Note

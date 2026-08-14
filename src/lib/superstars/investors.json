@@ -91,6 +91,58 @@
         "portfolio_slug": null,
         "query": "abakkus diversified alpha fund"
       }
+    ],
+    "disclosed_picks": [
+      {
+        "symbol": "BAIKAKAJI",
+        "exchange": "BSE",
+        "company_name": "Bai-Kakaji Polymers Limited",
+        "holding_entity": "Abakkus Venture Opportunities Fund",
+        "change_type": "disclosed",
+        "holding_percent": 2.84,
+        "source": "BSE bulk deal, 30 Jul 2026"
+      },
+      {
+        "symbol": "DHABRIYA",
+        "exchange": "BSE",
+        "company_name": "Dhabriya Polywood Limited",
+        "holding_entity": "Abakkus Venture Opportunities Fund",
+        "change_type": "disclosed",
+        "holding_percent": 5.56,
+        "source": "BSE bulk deal, 23 Jul 2026"
+      },
+      {
+        "symbol": "NILKAMAL",
+        "exchange": "NSE",
+        "company_name": "Nilkamal Limited",
+        "holding_entity": "Abakkus Investment Managers",
+        "change_type": "disclosed",
+        "source": "NSE bulk deal, 16 Jul 2026"
+      },
+      {
+        "symbol": "BECTORFOOD",
+        "exchange": "NSE",
+        "company_name": "Mrs. Bectors Food Specialities Limited",
+        "holding_entity": "Abakkus Investment Managers",
+        "change_type": "disclosed",
+        "source": "NSE bulk deal, 15 Jul 2026"
+      },
+      {
+        "symbol": "BIOCON",
+        "exchange": "NSE",
+        "company_name": "Biocon Limited",
+        "holding_entity": "Abakkus Growth Fund",
+        "change_type": "disclosed",
+        "source": "BSE block deal, 14 Jul 2026"
+      },
+      {
+        "symbol": "JTLIND",
+        "exchange": "NSE",
+        "company_name": "JTL Industries Limited",
+        "holding_entity": "Abakkus Asset Manager",
+        "change_type": "disclosed",
+        "source": "BSE bulk deals, 8 Apr 2026"
+      }
     ]
   },
   {
