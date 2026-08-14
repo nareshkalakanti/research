@@ -24,6 +24,8 @@ type Props = {
   showMissing?: boolean;
   /** @deprecated Cap tags no longer shown in results — filter still works via API. */
   capFilter?: string;
+  /** Quant tab: only BB/TQ/SME tags — no Hold/Edge/Note watchlist badges. */
+  tagMode?: "full" | "quant";
   /** Called after a note is saved/cleared so parent can refresh NOTE counts. */
   onNoteChange?: () => void;
   /** Sector filter, pager, etc. — rendered above the table header row. */
@@ -43,7 +45,14 @@ function SortIcon({
   return <span className="sort-active">{dir === "asc" ? "↑" : "↓"}</span>;
 }
 
-function SignalTags({ company }: { company: Company }) {
+function SignalTags({
+  company,
+  mode = "full",
+}: {
+  company: Company;
+  mode?: "full" | "quant";
+}) {
+  const watchlist = mode === "full";
   return (
     <span className="result-tags">
       {/\bSME\b/i.test(company.market) ? (
@@ -51,17 +60,17 @@ function SignalTags({ company }: { company: Company }) {
           SME
         </span>
       ) : null}
-      {company.has_note ? (
+      {watchlist && company.has_note ? (
         <span className="result-tag tag-note" title="Has research note">
           Note
         </span>
       ) : null}
-      {company.has_edge ? (
+      {watchlist && company.has_edge ? (
         <span className="result-tag tag-edge" title="Early Edge watchlist">
           Edge
         </span>
       ) : null}
-      {company.has_hold || company.has_distress ? (
+      {watchlist && (company.has_hold || company.has_distress) ? (
         <span className="result-tag-group" title="Holdings">
           {company.has_hold ? (
             <span className="result-tag tag-hold">Hold</span>
@@ -111,6 +120,7 @@ export function CompanyTable({
   onSort,
   showMatched,
   showMissing,
+  tagMode = "full",
   onNoteChange,
   toolbar,
 }: Props) {
@@ -206,6 +216,7 @@ export function CompanyTable({
                 <CompanyRows
                   key={r.ticker}
                   company={{ ...r, has_note: hasNote }}
+                  tagMode={tagMode}
                   open={open}
                   panel={open ? panel : "about"}
                   showMore={!!more[r.ticker]}
@@ -240,6 +251,7 @@ export function CompanyTable({
 
 function CompanyRows({
   company: r,
+  tagMode = "full",
   open,
   panel,
   showMore,
@@ -252,6 +264,7 @@ function CompanyRows({
   onNoteSaved,
 }: {
   company: Company;
+  tagMode?: "full" | "quant";
   open: boolean;
   panel: ExpandPanel;
   showMore: boolean;
@@ -304,7 +317,7 @@ function CompanyRows({
                 </>
               ) : null}
             </span>
-            <SignalTags company={r} />
+            <SignalTags company={r} mode={tagMode} />
           </button>
           {missingTags.length > 0 ? (
             <div className="matched-tags">

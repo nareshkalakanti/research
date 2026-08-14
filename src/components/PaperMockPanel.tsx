@@ -131,9 +131,14 @@ type TopPick = {
 
 type Props = {
   topPick: TopPick | null;
+  /** Shown when topPick is null */
+  emptyHint?: string;
 };
 
-export function PaperMockPanel({ topPick }: Props) {
+export function PaperMockPanel({
+  topPick,
+  emptyHint = "Run agents to get a top pick",
+}: Props) {
   const [amount, setAmount] = useState(10_000);
   const [custom, setCustom] = useState("10000");
   const [data, setData] = useState<PaperResponse | null>(null);
@@ -296,7 +301,7 @@ export function PaperMockPanel({ topPick }: Props) {
               ) : null}
             </>
           ) : (
-            <span className="ag-muted">Run agents to get a top pick</span>
+            <span className="ag-muted">{emptyHint}</span>
           )}
         </div>
 

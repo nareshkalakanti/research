@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { invalidateCompanyCache, loadAllCompanies } from "@/lib/db";
-import { metricsGapCount, upsertMetrics } from "@/lib/metrics";
+import {
+  fillBseSmeMetricsGaps,
+  metricsGapCount,
+  seedBseSmeMcapFromCache,
+  upsertMetrics,
+} from "@/lib/metrics";
 import { fetchQuotes } from "@/lib/yfinance";
 
 export const runtime = "nodejs";
@@ -82,7 +87,14 @@ export async function POST(req: NextRequest) {
   const marketBy: Record<string, string> = {};
   for (const c of batch) marketBy[c.ticker.toUpperCase()] = c.market;
 
-  const saved = upsertMetrics(quotes, marketBy);
+  let saved = upsertMetrics(quotes, marketBy);
+
+  if (batch.some((c) => c.market === "BSE SME")) {
+    seedBseSmeMcapFromCache(batch.map((c) => c.ticker));
+    const bse = await fillBseSmeMetricsGaps(batch);
+    saved += bse.saved;
+  }
+
   invalidateCompanyCache();
 
   const afterCompanies = loadAllCompanies().filter((c) =>

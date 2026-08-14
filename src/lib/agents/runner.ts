@@ -57,6 +57,7 @@ function cloneState(): AgentRunState {
     finished_at: null,
     engine: null,
     error: null,
+    progress: null,
     kpis: {
       universe: 0,
       in_debate: 0,

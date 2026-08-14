@@ -6,9 +6,15 @@ import {
   type CapFilter,
 } from "@/components/CapMarketFilters";
 
+/** stocks-ai Quant / PEAD signal toolbar modes. */
+export type SignalMode = "all" | "tq" | "bb" | "either" | "both";
+
 type Props = {
   cap?: CapFilter;
   onCap?: (cap: CapFilter) => void;
+  /** Unified signal filter (stocks-ai style). When set, drives BB/TQ chips. */
+  signal?: SignalMode;
+  onSignal?: (mode: SignalMode) => void;
   bb: boolean;
   tq: boolean;
   onBb: (on: boolean) => void;
@@ -28,7 +34,11 @@ type Props = {
   bbDate?: string | null;
   tqDate?: string | null;
   market: string;
+  /** Called after each scan batch (live count refresh). */
+  onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
+  /** Quant tab: hide “All” — only scan hits (TQ / BB / union / intersection). */
+  quantMode?: boolean;
 };
 
 type Progress = {
@@ -85,6 +95,8 @@ function Count({ n }: { n?: number }) {
 export function ScanFilters({
   cap,
   onCap,
+  signal,
+  onSignal,
   bb,
   tq,
   onBb,
@@ -104,7 +116,9 @@ export function ScanFilters({
   bbDate,
   tqDate,
   market,
+  onBatch,
   onDone,
+  quantMode = false,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -143,13 +157,16 @@ export function ScanFilters({
           }`,
           done: remaining <= 0,
         });
-        await onDone?.();
+        await (onBatch ?? onDone)?.();
         if (json.tried === 0 || remaining <= 0) break;
         await new Promise((r) => setTimeout(r, 200));
       }
 
-      onBb(true);
-      onTq(true);
+      onSignal?.("either");
+      if (!onSignal) {
+        onBb(true);
+        onTq(true);
+      }
       setProgress({
         pct: 100,
         label: "Done",
@@ -170,7 +187,7 @@ export function ScanFilters({
     } finally {
       setBusy(false);
     }
-  }, [market, onDone, onBb, onTq]);
+  }, [market, onBatch, onDone, onBb, onTq, onSignal]);
 
   const holdTitle =
     distressCount && distressCount > 0
@@ -221,38 +238,96 @@ export function ScanFilters({
           </button>
         ) : null}
 
-        {(onNote || onEdge || onHold) && (onBb || onTq) ? (
+        {(onNote || onEdge || onHold) && onSignal ? (
           <span className="filter-sep" aria-hidden />
         ) : null}
 
-        <button
-          type="button"
-          className={`chip tag-chip tag-scan-bb ${bb ? "on" : ""}`}
-          onClick={() => onBb(!bb)}
-          title={
-            bbDate
-              ? `Weekly BB NEW · week of Fri ${bbDate}`
-              : "Weekly BB NEW (Fri stamp)"
-          }
-        >
-          BB
-          <Count n={bbCount} />
-          {bbDate ? <span className="chip-date">{bbDate.slice(5)}</span> : null}
-        </button>
-        <button
-          type="button"
-          className={`chip tag-chip tag-scan-tq ${tq ? "on" : ""}`}
-          onClick={() => onTq(!tq)}
-          title={
-            tqDate
-              ? `Weekly TQ · week of Fri ${tqDate}`
-              : "Weekly TQ (Fri stamp)"
-          }
-        >
-          TQ
-          <Count n={tqCount} />
-          {tqDate ? <span className="chip-date">{tqDate.slice(5)}</span> : null}
-        </button>
+        {onSignal ? (
+          <>
+            {!quantMode ? (
+              <button
+                type="button"
+                className={`chip signal-chip ${signal === "all" ? "on" : ""}`}
+                onClick={() => onSignal("all")}
+                title="All stocks in list"
+              >
+                All
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`chip signal-chip tag-scan-tq ${signal === "tq" ? "on" : ""}`}
+              onClick={() => onSignal("tq")}
+              title="Weekly TQ only"
+            >
+              TQ
+              <Count n={tqCount} />
+            </button>
+            <button
+              type="button"
+              className={`chip signal-chip tag-scan-bb ${signal === "bb" ? "on" : ""}`}
+              onClick={() => onSignal("bb")}
+              title="Weekly BB NEW only"
+            >
+              BB
+              <Count n={bbCount} />
+            </button>
+            <button
+              type="button"
+              className={`chip signal-chip ${signal === "either" ? "on" : ""}`}
+              onClick={() => onSignal("either")}
+              title="TQ or BB (union)"
+            >
+              TQ | BB
+            </button>
+            <button
+              type="button"
+              className={`chip signal-chip ${signal === "both" ? "on" : ""}`}
+              onClick={() => onSignal("both")}
+              title="TQ and BB (intersection)"
+            >
+              TQ + BB
+            </button>
+            <span className="filter-sep" aria-hidden />
+          </>
+        ) : null}
+
+        {!onSignal ? (
+          <>
+            <button
+              type="button"
+              className={`chip tag-chip tag-scan-bb ${bb ? "on" : ""}`}
+              onClick={() => onBb(!bb)}
+              title={
+                bbDate
+                  ? `Weekly BB NEW · week of Fri ${bbDate}`
+                  : "Weekly BB NEW (Fri stamp)"
+              }
+            >
+              BB
+              <Count n={bbCount} />
+              {bbDate ? (
+                <span className="chip-date">{bbDate.slice(5)}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className={`chip tag-chip tag-scan-tq ${tq ? "on" : ""}`}
+              onClick={() => onTq(!tq)}
+              title={
+                tqDate
+                  ? `Weekly TQ · week of Fri ${tqDate}`
+                  : "Weekly TQ (Fri stamp)"
+              }
+            >
+              TQ
+              <Count n={tqCount} />
+              {tqDate ? (
+                <span className="chip-date">{tqDate.slice(5)}</span>
+              ) : null}
+            </button>
+          </>
+        ) : null}
 
         <button
           type="button"

@@ -616,3 +616,66 @@ export function loadDemoBundles(list: ListMarket = "All"): EvidenceBundle[] {
       return mk === list;
     }) as EvidenceBundle[];
 }
+
+/** Offline evidence from company DB — used for Quant debate on TQ/BB hits. */
+export function buildQuantEvidenceLocal(
+  ticker: string,
+  market: string,
+): EvidenceBundle | null {
+  const row = loadAllCompanies().find(
+    (c) => c.ticker.toUpperCase() === ticker.toUpperCase(),
+  );
+  if (!row) return null;
+  const bucket = capBucket(capTier(row.mcap_cr));
+  const price = row.price;
+  return {
+    symbol: ticker.toUpperCase(),
+    name: row.name,
+    cap_segment: bucket,
+    sector: row.sector || row.sub_sector || null,
+    market: row.market || market,
+    price: {
+      live: price,
+      day_open: null,
+      day_high: null,
+      day_low: null,
+      prev_close: null,
+      day_change_pct: null,
+      volume: null,
+    },
+    range_52w: {
+      high: null,
+      low: null,
+      pct_from_high: null,
+      position_pct: null,
+    },
+    technicals: {
+      rvol: null,
+      price_vs_sma_pct: null,
+      window_return_pct: null,
+      swing_high: null,
+      swing_low: null,
+      day_range_position_pct: null,
+      trend: null,
+    },
+    analyst: {
+      consensus: null,
+      num_analysts: null,
+      buy_pct: null,
+      hold_pct: null,
+      sell_pct: null,
+      target_mean: null,
+      target_low: null,
+      target_high: null,
+      upside_pct: null,
+    },
+    news: {
+      total: 0,
+      positive: 0,
+      negative: 0,
+      neutral: 0,
+      recent: [],
+    },
+    data_gaps: ["local_quant"],
+  };
+}

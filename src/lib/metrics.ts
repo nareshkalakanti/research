@@ -2,6 +2,11 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import type { YfQuote } from "./yfinance";
+import {
+  BSE_SME_MARKET,
+  fetchBseSmeMetrics,
+  loadBseSmeCacheMap,
+} from "./bse-sme";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const METRICS_PATH = path.join(DATA_DIR, "metrics.db");
@@ -140,4 +145,94 @@ export function metricsGapCount(
     if (needP || needM) any += 1;
   }
   return { missingPrice, missingMcap, any };
+}
+
+/** Seed mcap from cached BSE list API (fast, no live calls). */
+export function seedBseSmeMcapFromCache(
+  tickers?: Iterable<string>,
+): number {
+  const cache = loadBseSmeCacheMap();
+  if (!cache.size) return 0;
+
+  const want =
+    tickers == null
+      ? null
+      : new Set([...tickers].map((t) => t.toUpperCase()));
+
+  const quotes: YfQuote[] = [];
+  for (const [ticker, row] of cache) {
+    if (want && !want.has(ticker)) continue;
+    if (row.mcap_cr == null || row.mcap_cr <= 0) continue;
+    quotes.push({
+      ticker,
+      yf_symbol: row.scrip_code ? `BSE:${row.scrip_code}` : `${ticker}.BO`,
+      price: null,
+      mcap_cr: row.mcap_cr,
+      sector: null,
+    });
+  }
+  if (!quotes.length) return 0;
+
+  const marketBy: Record<string, string> = {};
+  for (const q of quotes) marketBy[q.ticker] = BSE_SME_MARKET;
+  return upsertMetrics(quotes, marketBy);
+}
+
+/** Fill remaining BSE SME price/mcap gaps from BSE live APIs. */
+export async function fillBseSmeMetricsGaps(
+  items: Array<{ ticker: string; market?: string | null }>,
+  opts?: { concurrency?: number; delayMs?: number },
+): Promise<{ saved: number; filledPrice: number; filledMcap: number }> {
+  const map = loadMetricsMap();
+  const cache = loadBseSmeCacheMap();
+  const pending = items.filter((c) => {
+    if ((c.market || "").toUpperCase() !== BSE_SME_MARKET) return false;
+    if (!cache.has(c.ticker.toUpperCase())) return false;
+    const m = map.get(c.ticker.toUpperCase());
+    return !m || m.price == null || m.market_cap_cr == null;
+  });
+
+  const concurrency = Math.max(1, opts?.concurrency ?? 4);
+  const delayMs = opts?.delayMs ?? 120;
+  const quotes: YfQuote[] = [];
+  let next = 0;
+
+  async function worker() {
+    while (next < pending.length) {
+      const item = pending[next++]!;
+      const have = map.get(item.ticker.toUpperCase());
+      const q = await fetchBseSmeMetrics(item.ticker, {
+        needPrice: have?.price == null,
+        needMcap: have?.market_cap_cr == null,
+      });
+      if (q && (q.price != null || q.mcap_cr != null)) {
+        quotes.push({
+          ticker: q.ticker,
+          yf_symbol: q.yf_symbol,
+          price: q.price,
+          mcap_cr: q.mcap_cr,
+          sector: null,
+        });
+      }
+      if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+
+  const marketBy: Record<string, string> = {};
+  for (const c of pending) marketBy[c.ticker.toUpperCase()] = BSE_SME_MARKET;
+
+  let filledPrice = 0;
+  let filledMcap = 0;
+  for (const q of quotes) {
+    if (q.price != null) filledPrice += 1;
+    if (q.mcap_cr != null) filledMcap += 1;
+  }
+
+  return {
+    saved: upsertMetrics(quotes, marketBy),
+    filledPrice,
+    filledMcap,
+  };
 }

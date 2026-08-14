@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
   const smeOnly = sp.get("sme") === "1";
   const filterBb = sp.get("bb") === "1";
   const filterTq = sp.get("tq") === "1";
+  const bbAnd = sp.get("bbAnd") === "1";
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
   const filterEdge = sp.get("edge") === "1";
@@ -231,12 +232,13 @@ export async function GET(req: NextRequest) {
     companies = companies.filter((c) => notes.has(c.ticker.toUpperCase()));
   }
 
-  // Explicit BB / TQ chips (OR when both on).
+  // Explicit BB / TQ chips (OR when both on unless bbAnd).
   if (filterBb || filterTq) {
     companies = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
       const hasBb = !!flags?.has_bb;
       const hasTq = !!flags?.has_tq;
+      if (filterBb && filterTq && bbAnd) return hasBb && hasTq;
       if (filterBb && filterTq) return hasBb || hasTq;
       if (filterBb) return hasBb;
       return hasTq;
