@@ -120,7 +120,6 @@ export function WatchingPanel() {
   const markets = data?.markets ?? {};
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
-  const bseCount = markets["BSE"] ?? 0;
   const bseSmeCount = markets["BSE SME"] ?? 0;
   const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
   const start = data ? (data.page - 1) * 100 + 1 : 0;
@@ -137,7 +136,6 @@ export function WatchingPanel() {
           <select value={market} onChange={(e) => setMarket(e.target.value)}>
             <option value="NSE">NSE ({nseCount.toLocaleString()})</option>
             <option value="NSE SME">NSE SME ({smeCount.toLocaleString()})</option>
-            <option value="BSE">BSE ({bseCount.toLocaleString()})</option>
             <option value="BSE SME">
               BSE SME ({bseSmeCount.toLocaleString()})
             </option>

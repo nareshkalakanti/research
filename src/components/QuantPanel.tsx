@@ -19,7 +19,7 @@ type ApiResponse = {
   pages: number;
   markets: Record<string, number>;
   sectors: string[];
-  signals?: { bb: number; tq: number };
+  signals?: { bb: number; tq: number; hold?: number; edge?: number; note?: number };
   session?: { bb: string | null; tq: string | null };
 };
 
@@ -50,6 +50,9 @@ export function QuantPanel() {
   const [market, setMarket] = useState<QuantListMarket>("NSE");
   const [cap, setCap] = useState<CapFilter>("All");
   const [signal, setSignal] = useState<SignalMode>("either");
+  const [filterHold, setFilterHold] = useState(false);
+  const [filterEdge, setFilterEdge] = useState(false);
+  const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
   const [sort, setSort] = useState<SortKey>("sector");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
@@ -90,7 +93,7 @@ export function QuantPanel() {
 
   useEffect(() => {
     setSector("All");
-  }, [market, cap, signal]);
+  }, [market, cap, signal, filterHold, filterEdge, filterNote]);
 
   const applyScanAgents = useCallback(
     (json: ApiResponse) => {
@@ -168,6 +171,9 @@ export function QuantPanel() {
     });
     if (filterBb) params.set("bb", "1");
     if (filterTq) params.set("tq", "1");
+    if (filterHold) params.set("hold", "1");
+    if (filterEdge) params.set("edge", "1");
+    if (filterNote) params.set("note", "1");
     if (signal === "both") params.set("bbAnd", "1");
     try {
       const res = await fetch(`/api/companies?${params}`);
@@ -184,6 +190,9 @@ export function QuantPanel() {
     sector,
     filterBb,
     filterTq,
+    filterHold,
+    filterEdge,
+    filterNote,
     sort,
     dir,
     applyScanAgents,
@@ -251,7 +260,6 @@ export function QuantPanel() {
   const markets = data?.markets ?? {};
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
-  const bseCount = markets["BSE"] ?? 0;
   const bseSmeCount = markets["BSE SME"] ?? 0;
   const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
 
@@ -300,7 +308,6 @@ export function QuantPanel() {
           >
             <option value="NSE">NSE ({nseCount.toLocaleString()})</option>
             <option value="NSE SME">NSE SME ({smeCount.toLocaleString()})</option>
-            <option value="BSE">BSE ({bseCount.toLocaleString()})</option>
             <option value="BSE SME">
               BSE SME ({bseSmeCount.toLocaleString()})
             </option>
@@ -319,6 +326,15 @@ export function QuantPanel() {
           onTq={() => {}}
           bbCount={data?.signals?.bb}
           tqCount={data?.signals?.tq}
+          holdCount={data?.signals?.hold}
+          edgeCount={data?.signals?.edge}
+          noteCount={data?.signals?.note}
+          hold={filterHold}
+          edge={filterEdge}
+          note={filterNote}
+          onHold={setFilterHold}
+          onEdge={setFilterEdge}
+          onNote={setFilterNote}
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
           market={market}
