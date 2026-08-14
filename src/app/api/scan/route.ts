@@ -25,6 +25,19 @@ type Body = {
   clearFirst?: boolean;
 };
 
+function filterCompaniesByMarket<T extends { market: string }>(
+  companies: T[],
+  market: string,
+): T[] {
+  if (!market || market === "All") return companies;
+  if (market === "NSE") {
+    return companies.filter(
+      (c) => c.market === "NSE" || c.market === "NSE SME",
+    );
+  }
+  return companies.filter((c) => c.market === market);
+}
+
 export async function POST(req: NextRequest) {
   let body: Body = {};
   try {
@@ -49,9 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   let companies = loadAllCompanies();
-  if (market && market !== "All") {
-    companies = companies.filter((c) => c.market === market);
-  }
+  companies = filterCompaniesByMarket(companies, market);
   if (body.tickers?.length) {
     const set = new Set(body.tickers.map((t) => t.toUpperCase()));
     companies = companies.filter((c) => set.has(c.ticker.toUpperCase()));
@@ -90,9 +101,7 @@ export async function POST(req: NextRequest) {
   invalidateBreakoutCache();
 
   let remUniverse = loadAllCompanies();
-  if (market && market !== "All") {
-    remUniverse = remUniverse.filter((c) => c.market === market);
-  }
+  remUniverse = filterCompaniesByMarket(remUniverse, market);
   if (body.tickers?.length) {
     const set = new Set(body.tickers.map((t) => t.toUpperCase()));
     remUniverse = remUniverse.filter((c) => set.has(c.ticker.toUpperCase()));

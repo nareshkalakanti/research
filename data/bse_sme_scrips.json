@@ -1,6 +1,6 @@
 {
-  "fetched_at": "2026-08-14T06:05:44.143Z",
-  "count": 511,
+  "fetched_at": "2026-08-14T10:04:49.668Z",
+  "count": 510,
   "listings": [
     {
       "ticker": "3BFILMS",
@@ -9,8 +9,10 @@
       "scrip_code": "544412",
       "group": "M",
       "isin": "INE0TE101010",
-      "industry": null,
-      "mcap_cr": 33.54
+      "industry": "Industrial Products",
+      "mcap_cr": 33.54,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "3CIT",
@@ -19,8 +21,10 @@
       "scrip_code": "544190",
       "group": "M",
       "isin": "INE0R7D01018",
-      "industry": null,
-      "mcap_cr": 9.18
+      "industry": "IT - Services",
+      "mcap_cr": 9.18,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "AAPLUSTRAD",
@@ -29,8 +33,10 @@
       "scrip_code": "543319",
       "group": "M",
       "isin": "INE0C5901022",
-      "industry": null,
-      "mcap_cr": 29.92
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 29.92,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "AASHKA",
@@ -39,8 +45,10 @@
       "scrip_code": "543346",
       "group": "M",
       "isin": "INE0EAX01014",
-      "industry": null,
-      "mcap_cr": 168.48
+      "industry": "Healthcare Services",
+      "mcap_cr": 168.48,
+      "sector": "Healthcare",
+      "sub_sector": "Hospital"
     },
     {
       "ticker": "AAYUSHBULL",
@@ -49,8 +57,10 @@
       "scrip_code": "540718",
       "group": "M",
       "isin": "INE777X01017",
-      "industry": null,
-      "mcap_cr": 1907.9
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 1903.69,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "ABRFL",
@@ -59,8 +69,10 @@
       "scrip_code": "544422",
       "group": "M",
       "isin": "INE0ZDY01011",
-      "industry": null,
-      "mcap_cr": 19.03
+      "industry": "Food Products",
+      "mcap_cr": 19.03,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "ABRIL",
@@ -69,8 +81,10 @@
       "scrip_code": "544500",
       "group": "M",
       "isin": "INE15MX01014",
-      "industry": null,
-      "mcap_cr": 27.54
+      "industry": "Industrial Products",
+      "mcap_cr": 27.54,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "ACCELERATE",
@@ -79,8 +93,10 @@
       "scrip_code": "543938",
       "group": "M",
       "isin": "INE0POP01017",
-      "industry": null,
-      "mcap_cr": 34.45
+      "industry": "IT - Software",
+      "mcap_cr": 34.45,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "ACCORDTS",
@@ -89,8 +105,10 @@
       "scrip_code": "544710",
       "group": "M",
       "isin": "INE132201018",
-      "industry": null,
-      "mcap_cr": 129.63
+      "industry": "Electrical Equipment",
+      "mcap_cr": 131.63,
+      "sector": "Industrials",
+      "sub_sector": "Heavy Electrical Equipment"
     },
     {
       "ticker": "ACEALPHA",
@@ -99,8 +117,10 @@
       "scrip_code": "544431",
       "group": "M",
       "isin": "INE0S9X01011",
-      "industry": null,
-      "mcap_cr": 237.91
+      "industry": "IT - Software",
+      "mcap_cr": 233.52,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "ACFSL",
@@ -109,8 +129,10 @@
       "scrip_code": "536737",
       "group": "MT",
       "isin": "INE218P01018",
-      "industry": null,
-      "mcap_cr": 72.46
+      "industry": "Finance",
+      "mcap_cr": 72.46,
+      "sector": "Financial Services",
+      "sub_sector": "Non Banking Financial Company (NBFC)"
     },
     {
       "ticker": "ACLD",
@@ -119,8 +141,10 @@
       "scrip_code": "544213",
       "group": "M",
       "isin": "INE0T3401029",
-      "industry": null,
-      "mcap_cr": 288.52
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 289.95,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "ACML",
@@ -129,8 +153,10 @@
       "scrip_code": "540146",
       "group": "M",
       "isin": "INE427V01013",
-      "industry": null,
-      "mcap_cr": 55.24
+      "industry": "Retailing",
+      "mcap_cr": 55.24,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Diversified Retail"
     },
     {
       "ticker": "ADCOUNTY",
@@ -139,8 +165,10 @@
       "scrip_code": "544435",
       "group": "M",
       "isin": "INE0W1601012",
-      "industry": null,
-      "mcap_cr": 186.76
+      "industry": "Media",
+      "mcap_cr": 180.23,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Web based media and service"
     },
     {
       "ticker": "ADESHWAR",
@@ -149,8 +177,10 @@
       "scrip_code": "543309",
       "group": "M",
       "isin": "INE0H8J01015",
-      "industry": null,
-      "mcap_cr": 23.52
+      "industry": "Healthcare Services",
+      "mcap_cr": 24.24,
+      "sector": "Healthcare",
+      "sub_sector": "Healthcare Research, Analytics & Technology"
     },
     {
       "ticker": "ADISHAKTI",
@@ -159,8 +189,10 @@
       "scrip_code": "543377",
       "group": "M",
       "isin": "INE0CWK01019",
-      "industry": null,
-      "mcap_cr": 7.61
+      "industry": "Industrial Products",
+      "mcap_cr": 8.79,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "ADMACH",
@@ -169,8 +201,10 @@
       "scrip_code": "544669",
       "group": "MT",
       "isin": "INE0XLO01010",
-      "industry": null,
-      "mcap_cr": 253.98
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 253.98,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "ADON",
@@ -179,8 +213,10 @@
       "scrip_code": "544809",
       "group": "M",
       "isin": "INE1SME01017",
-      "industry": null,
-      "mcap_cr": 194.5
+      "industry": "Food Products",
+      "mcap_cr": 195.42,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "ADVANCETL",
@@ -189,8 +225,10 @@
       "scrip_code": "544843",
       "group": "MT",
       "isin": "INE13ZJ01010",
-      "industry": null,
-      "mcap_cr": 50.86
+      "industry": "Industrial Products",
+      "mcap_cr": 50.86,
+      "sector": "Industrials",
+      "sub_sector": "Castings & Forgings"
     },
     {
       "ticker": "AEGEUS",
@@ -199,8 +237,10 @@
       "scrip_code": "544858",
       "group": "MT",
       "isin": "INE0WR901013",
-      "industry": null,
-      "mcap_cr": 123.94
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 125.74,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "AFCOM",
@@ -209,8 +249,10 @@
       "scrip_code": "544224",
       "group": "M",
       "isin": "INE0OXY01013",
-      "industry": null,
-      "mcap_cr": 4103.47
+      "industry": "Transport Services",
+      "mcap_cr": 4204.35,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "AFLTD",
@@ -219,8 +261,10 @@
       "scrip_code": "544767",
       "group": "M",
       "isin": "INE18HI01019",
-      "industry": null,
-      "mcap_cr": 77.71
+      "industry": "Auto Components",
+      "mcap_cr": 77.71,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Components & Equipments"
     },
     {
       "ticker": "AHASOLAR",
@@ -229,8 +273,10 @@
       "scrip_code": "543941",
       "group": "M",
       "isin": "INE0NEV01011",
-      "industry": null,
-      "mcap_cr": 24.66
+      "industry": "Retailing",
+      "mcap_cr": 24.66,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "E-Retail/ E-Commerce"
     },
     {
       "ticker": "AIKPIPES",
@@ -239,8 +285,10 @@
       "scrip_code": "544072",
       "group": "M",
       "isin": "INE0QFT01015",
-      "industry": null,
-      "mcap_cr": 17.38
+      "industry": "Industrial Products",
+      "mcap_cr": 17.38,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "AIRFLOA",
@@ -249,8 +297,10 @@
       "scrip_code": "544516",
       "group": "M",
       "isin": "INE0XBS01012",
-      "industry": null,
-      "mcap_cr": 825.53
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 831.52,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "AJCJEWEL",
@@ -259,8 +309,10 @@
       "scrip_code": "544425",
       "group": "M",
       "isin": "INE0XRR01010",
-      "industry": null,
-      "mcap_cr": 88.6
+      "industry": "Consumer Durables",
+      "mcap_cr": 93.91,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "ALKOSIGN",
@@ -269,8 +321,10 @@
       "scrip_code": "543453",
       "group": "M",
       "isin": "INE0KA601012",
-      "industry": null,
-      "mcap_cr": 65.08
+      "industry": "Household Products",
+      "mcap_cr": 65.08,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Stationary"
     },
     {
       "ticker": "ALPHAIND",
@@ -279,8 +333,10 @@
       "scrip_code": "543937",
       "group": "M",
       "isin": "INE0NZF01019",
-      "industry": null,
-      "mcap_cr": 142.39
+      "industry": "Industrial Products",
+      "mcap_cr": 142.39,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "AMANAYA",
@@ -289,8 +345,10 @@
       "scrip_code": "543804",
       "group": "M",
       "isin": "INE0G1V01016",
-      "industry": null,
-      "mcap_cr": 6.35
+      "industry": "Non - Ferrous Metals",
+      "mcap_cr": 5.44,
+      "sector": "Commodities",
+      "sub_sector": "Precious Metals"
     },
     {
       "ticker": "AMBOAGRI",
@@ -299,8 +357,10 @@
       "scrip_code": "543678",
       "group": "M",
       "isin": "INE0N6V01016",
-      "industry": null,
-      "mcap_cr": 23.81
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 22.66,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Edible Oil"
     },
     {
       "ticker": "AMEENJI",
@@ -309,8 +369,10 @@
       "scrip_code": "544555",
       "group": "M",
       "isin": "INE14QA01016",
-      "industry": null,
-      "mcap_cr": 213.14
+      "industry": "Industrial Products",
+      "mcap_cr": 207.55,
+      "sector": "Industrials",
+      "sub_sector": "Rubber"
     },
     {
       "ticker": "AMIC",
@@ -319,8 +381,10 @@
       "scrip_code": "544037",
       "group": "M",
       "isin": "INE0P9J01013",
-      "industry": null,
-      "mcap_cr": 2149.77
+      "industry": "Industrial Products",
+      "mcap_cr": 2178.79,
+      "sector": "Industrials",
+      "sub_sector": "Castings & Forgings"
     },
     {
       "ticker": "AMKAY",
@@ -329,8 +393,10 @@
       "scrip_code": "544169",
       "group": "M",
       "isin": "INE0QSB01016",
-      "industry": null,
-      "mcap_cr": 39.82
+      "industry": "Healthcare Equipment & Supplies",
+      "mcap_cr": 39.82,
+      "sector": "Healthcare",
+      "sub_sector": "Medical Equipment & Supplies"
     },
     {
       "ticker": "AMRAFIN",
@@ -339,8 +405,10 @@
       "scrip_code": "539265",
       "group": "MT",
       "isin": "INE990S01016",
-      "industry": null,
-      "mcap_cr": 48.41
+      "industry": "Finance",
+      "mcap_cr": 48.41,
+      "sector": "Financial Services",
+      "sub_sector": "Investment Company"
     },
     {
       "ticker": "AMWILL",
@@ -349,8 +417,10 @@
       "scrip_code": "544353",
       "group": "M",
       "isin": "INE0U2L01017",
-      "industry": null,
-      "mcap_cr": 86.2
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 83.01,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "ANGEL",
@@ -359,8 +429,10 @@
       "scrip_code": "541006",
       "group": "M",
       "isin": "INE339Z01011",
-      "industry": null,
-      "mcap_cr": 26.58
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 26.58,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "ANL",
@@ -369,8 +441,10 @@
       "scrip_code": "544694",
       "group": "MT",
       "isin": "INE1KVQ01019",
-      "industry": null,
-      "mcap_cr": 216.48
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 207.06,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "ANUBHAV",
@@ -379,8 +453,10 @@
       "scrip_code": "544800",
       "group": "M",
       "isin": "INE1O7201010",
-      "industry": null,
-      "mcap_cr": 53.9
+      "industry": "Industrial Products",
+      "mcap_cr": 55,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "APL",
@@ -389,8 +465,10 @@
       "scrip_code": "544445",
       "group": "M",
       "isin": "INE0SJX01015",
-      "industry": null,
-      "mcap_cr": 66.82
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 68.06,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "APPL",
@@ -399,8 +477,10 @@
       "scrip_code": "544529",
       "group": "MT",
       "isin": "INE15XJ01010",
-      "industry": null,
-      "mcap_cr": 451.65
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 451.65,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "ARITAS",
@@ -409,8 +489,10 @@
       "scrip_code": "544683",
       "group": "MT",
       "isin": "INE1D8001016",
-      "industry": null,
-      "mcap_cr": 24.85
+      "industry": "Consumer Durables",
+      "mcap_cr": 25.4,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Leather And Leather Products"
     },
     {
       "ticker": "ARROWHEAD",
@@ -419,8 +501,10 @@
       "scrip_code": "544025",
       "group": "M",
       "isin": "INE0PP401015",
-      "industry": null,
-      "mcap_cr": 13.29
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 13.29,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "ARTEMISADR",
@@ -429,8 +513,10 @@
       "scrip_code": "543286",
       "group": "MT",
       "isin": "INE0D9X01018",
-      "industry": null,
-      "mcap_cr": 60.86
+      "industry": "Food Products",
+      "mcap_cr": 60.86,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "ASARFI",
@@ -439,8 +525,10 @@
       "scrip_code": "543943",
       "group": "M",
       "isin": "INE0DN001027",
-      "industry": null,
-      "mcap_cr": 457.2
+      "industry": "Healthcare Services",
+      "mcap_cr": 453.56,
+      "sector": "Healthcare",
+      "sub_sector": "Hospital"
     },
     {
       "ticker": "ASSOCIATED",
@@ -449,8 +537,10 @@
       "scrip_code": "544183",
       "group": "M",
       "isin": "INE0RIQ01013",
-      "industry": null,
-      "mcap_cr": 13.59
+      "industry": "Industrial Products",
+      "mcap_cr": 13.59,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "ASTONEALAB",
@@ -459,8 +549,10 @@
       "scrip_code": "544409",
       "group": "MT",
       "isin": "INE0TG901011",
-      "industry": null,
-      "mcap_cr": 292.21
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 292.21,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "ASTRONMULT",
@@ -469,8 +561,10 @@
       "scrip_code": "544628",
       "group": "MT",
       "isin": "INE0RUY01012",
-      "industry": null,
-      "mcap_cr": 14.56
+      "industry": "Food Products",
+      "mcap_cr": 15.2,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "ATENPAPERS",
@@ -479,8 +573,10 @@
       "scrip_code": "544417",
       "group": "MT",
       "isin": "INE0XCV01014",
-      "industry": null,
-      "mcap_cr": 21.12
+      "industry": "Paper, Forest & Jute Products",
+      "mcap_cr": 21.89,
+      "sector": "Commodities",
+      "sub_sector": "Paper & Paper Products"
     },
     {
       "ticker": "ATHARVA",
@@ -489,8 +585,10 @@
       "scrip_code": "544812",
       "group": "M",
       "isin": "INE226801012",
-      "industry": null,
-      "mcap_cr": 126.37
+      "industry": "Consumer Durables",
+      "mcap_cr": 123.34,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Plastic Products - Consumer"
     },
     {
       "ticker": "ATHCON",
@@ -499,8 +597,10 @@
       "scrip_code": "539099",
       "group": "M",
       "isin": "INE291R01011",
-      "industry": null,
-      "mcap_cr": 3.01
+      "industry": "Realty",
+      "mcap_cr": 3.01,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "ATIL",
@@ -509,8 +609,10 @@
       "scrip_code": "544671",
       "group": "M",
       "isin": "INE0X4A01013",
-      "industry": null,
-      "mcap_cr": 153.59
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 147.16,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "AUREATE",
@@ -519,8 +621,10 @@
       "scrip_code": "544772",
       "group": "M",
       "isin": "INE1KVL01010",
-      "industry": null,
-      "mcap_cr": 46.88
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 47.01,
+      "sector": "Commodities",
+      "sub_sector": "Trading - Chemicals"
     },
     {
       "ticker": "AUSTERE",
@@ -529,8 +633,10 @@
       "scrip_code": "544505",
       "group": "M",
       "isin": "INE104201012",
-      "industry": null,
-      "mcap_cr": 42.96
+      "industry": "IT - Software",
+      "mcap_cr": 42.02,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "AVAX",
@@ -539,8 +645,10 @@
       "scrip_code": "544337",
       "group": "MT",
       "isin": "INE0NQ401024",
-      "industry": null,
-      "mcap_cr": 42.36
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 42.36,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "AZTEC",
@@ -549,8 +657,10 @@
       "scrip_code": "544177",
       "group": "M",
       "isin": "INE0SCB01016",
-      "industry": null,
-      "mcap_cr": 130.49
+      "industry": "IT - Hardware",
+      "mcap_cr": 127.84,
+      "sector": "Information Technology",
+      "sub_sector": "Computers Hardware & Equipments"
     },
     {
       "ticker": "BAIKAKAJI",
@@ -559,8 +669,10 @@
       "scrip_code": "544670",
       "group": "M",
       "isin": "INE1IJQ01026",
-      "industry": null,
-      "mcap_cr": 507.28
+      "industry": "Consumer Durables",
+      "mcap_cr": 503,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Plastic Products - Consumer"
     },
     {
       "ticker": "BCCL",
@@ -569,8 +681,10 @@
       "scrip_code": "543497",
       "group": "M",
       "isin": "INE0KQ001017",
-      "industry": null,
-      "mcap_cr": 35.18
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 35.35,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "BDI",
@@ -579,8 +693,10 @@
       "scrip_code": "544468",
       "group": "M",
       "isin": "INE1LJ801017",
-      "industry": null,
-      "mcap_cr": 156.31
+      "industry": "Industrial Products",
+      "mcap_cr": 148.57,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "BEEZAASAN",
@@ -589,8 +705,10 @@
       "scrip_code": "544369",
       "group": "MT",
       "isin": "INE13VU01016",
-      "industry": null,
-      "mcap_cr": 698.72
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 713.65,
+      "sector": "Commodities",
+      "sub_sector": "Explosives"
     },
     {
       "ticker": "BENARA",
@@ -599,8 +717,10 @@
       "scrip_code": "541178",
       "group": "MT",
       "isin": "INE495Z01011",
-      "industry": null,
-      "mcap_cr": 18.5
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 18.5,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "BENCHMARK",
@@ -609,8 +729,10 @@
       "scrip_code": "544052",
       "group": "MT",
       "isin": "INE0Q2Z01013",
-      "industry": null,
-      "mcap_cr": 24.88
+      "industry": "IT - Services",
+      "mcap_cr": 24.88,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "BHANDERI",
@@ -619,8 +741,10 @@
       "scrip_code": "538576",
       "group": "MT",
       "isin": "INE336Q01016",
-      "industry": null,
-      "mcap_cr": 36.35
+      "industry": "Realty",
+      "mcap_cr": 36.35,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "BHARATROHAN",
@@ -629,8 +753,10 @@
       "scrip_code": "544535",
       "group": "M",
       "isin": "INE0QMV01017",
-      "industry": null,
-      "mcap_cr": 229.81
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 227.12,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "BHAVIK",
@@ -639,8 +765,10 @@
       "scrip_code": "544551",
       "group": "M",
       "isin": "INE18PB01017",
-      "industry": null,
-      "mcap_cr": 287.05
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 287.05,
+      "sector": "Commodities",
+      "sub_sector": "Trading - Chemicals"
     },
     {
       "ticker": "BILLWIN",
@@ -649,8 +777,10 @@
       "scrip_code": "543209",
       "group": "M",
       "isin": "INE0CRS01012",
-      "industry": null,
-      "mcap_cr": 6.7
+      "industry": "Diversified",
+      "mcap_cr": 6.7,
+      "sector": "Diversified",
+      "sub_sector": "Diversified"
     },
     {
       "ticker": "BINDALEXPO",
@@ -659,8 +789,10 @@
       "scrip_code": "540148",
       "group": "MT",
       "isin": "INE564V01013",
-      "industry": null,
-      "mcap_cr": 12.79
+      "industry": "Consumer Durables",
+      "mcap_cr": 12.79,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "BIZOTIC",
@@ -669,8 +801,10 @@
       "scrip_code": "543926",
       "group": "M",
       "isin": "INE0OJ401014",
-      "industry": null,
-      "mcap_cr": 643.84
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 684.58,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "BLT",
@@ -679,8 +813,10 @@
       "scrip_code": "544474",
       "group": "MT",
       "isin": "INE0W4K01013",
-      "industry": null,
-      "mcap_cr": 13.39
+      "industry": "Transport Services",
+      "mcap_cr": 12.95,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "BMAL",
@@ -689,8 +825,10 @@
       "scrip_code": "535279",
       "group": "M",
       "isin": "INE583M01012",
-      "industry": null,
-      "mcap_cr": 13.52
+      "industry": "Non - Ferrous Metals",
+      "mcap_cr": 13.52,
+      "sector": "Commodities",
+      "sub_sector": "Aluminium"
     },
     {
       "ticker": "BONDADA",
@@ -699,8 +837,10 @@
       "scrip_code": "543971",
       "group": "M",
       "isin": "INE0Q8P01029",
-      "industry": null,
-      "mcap_cr": 3164.21
+      "industry": "Telecom - Services",
+      "mcap_cr": 3104.47,
+      "sector": "Telecommunication",
+      "sub_sector": "Telecom - Infrastructure"
     },
     {
       "ticker": "BRGIL",
@@ -709,8 +849,10 @@
       "scrip_code": "544335",
       "group": "MT",
       "isin": "INE00ST01011",
-      "industry": null,
-      "mcap_cr": 452.67
+      "industry": "Construction",
+      "mcap_cr": 452.67,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "BRIGHT",
@@ -719,8 +861,10 @@
       "scrip_code": "543831",
       "group": "M",
       "isin": "INE0OMI01019",
-      "industry": null,
-      "mcap_cr": 785.63
+      "industry": "Media",
+      "mcap_cr": 792.18,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Advertising & Media Agencies"
     },
     {
       "ticker": "BRISK",
@@ -729,8 +873,10 @@
       "scrip_code": "544101",
       "group": "MT",
       "isin": "INE0Q6L01014",
-      "industry": null,
-      "mcap_cr": 15.2
+      "industry": "IT - Hardware",
+      "mcap_cr": 15.2,
+      "sector": "Information Technology",
+      "sub_sector": "Computers Hardware & Equipments"
     },
     {
       "ticker": "BROACH",
@@ -739,8 +885,10 @@
       "scrip_code": "544231",
       "group": "M",
       "isin": "INE0SFZ01018",
-      "industry": null,
-      "mcap_cr": 11.05
+      "industry": "Healthcare Services",
+      "mcap_cr": 11.05,
+      "sector": "Healthcare",
+      "sub_sector": "Hospital"
     },
     {
       "ticker": "BRRL",
@@ -749,8 +897,10 @@
       "scrip_code": "543543",
       "group": "M",
       "isin": "INE0IZQ01016",
-      "industry": null,
-      "mcap_cr": 947.37
+      "industry": "Realty",
+      "mcap_cr": 968.03,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "CARGOSOL",
@@ -759,8 +909,10 @@
       "scrip_code": "543621",
       "group": "MT",
       "isin": "INE0KZM01011",
-      "industry": null,
-      "mcap_cr": 26.42
+      "industry": "Transport Services",
+      "mcap_cr": 26.42,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "CARGOTRANS",
@@ -769,8 +921,10 @@
       "scrip_code": "543618",
       "group": "M",
       "isin": "INE0M4L01013",
-      "industry": null,
-      "mcap_cr": 49.45
+      "industry": "Transport Services",
+      "mcap_cr": 49.45,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "CBPL",
@@ -779,8 +933,10 @@
       "scrip_code": "542934",
       "group": "M",
       "isin": "INE07QQ01016",
-      "industry": null,
-      "mcap_cr": 37.65
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 37.65,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "CCAL",
@@ -789,8 +945,10 @@
       "scrip_code": "544000",
       "group": "MT",
       "isin": "INE0M7501019",
-      "industry": null,
-      "mcap_cr": 51.51
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 52.54,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "CFF",
@@ -799,8 +957,10 @@
       "scrip_code": "543920",
       "group": "M",
       "isin": "INE0NJ001013",
-      "industry": null,
-      "mcap_cr": 2100.87
+      "industry": "Aerospace & Defense",
+      "mcap_cr": 2141.46,
+      "sector": "Industrials",
+      "sub_sector": "Aerospace & Defense"
     },
     {
       "ticker": "CHATHA",
@@ -809,8 +969,10 @@
       "scrip_code": "544151",
       "group": "M",
       "isin": "INE0AH901011",
-      "industry": null,
-      "mcap_cr": 272.1
+      "industry": "Food Products",
+      "mcap_cr": 273.33,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "CHCL",
@@ -819,8 +981,10 @@
       "scrip_code": "542678",
       "group": "MT",
       "isin": "INE05BN01027",
-      "industry": null,
-      "mcap_cr": 23.88
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 23.88,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "CHEMKART",
@@ -829,8 +993,10 @@
       "scrip_code": "544442",
       "group": "MT",
       "isin": "INE0VWL01017",
-      "industry": null,
-      "mcap_cr": 229.88
+      "industry": "Food Products",
+      "mcap_cr": 231.09,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "CHIRAHARIT",
@@ -839,8 +1005,10 @@
       "scrip_code": "544561",
       "group": "M",
       "isin": "INE12P101018",
-      "industry": null,
-      "mcap_cr": 43.89
+      "industry": "Construction",
+      "mcap_cr": 43.89,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "CHOTHANI",
@@ -849,8 +1017,10 @@
       "scrip_code": "540681",
       "group": "MT",
       "isin": "INE344X01016",
-      "industry": null,
-      "mcap_cr": 8.9
+      "industry": "Food Products",
+      "mcap_cr": 8.9,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "CHTR",
@@ -859,8 +1029,10 @@
       "scrip_code": "544546",
       "group": "M",
       "isin": "INE1B4801017",
-      "industry": null,
-      "mcap_cr": 69.3
+      "industry": "Media",
+      "mcap_cr": 69.3,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Advertising & Media Agencies"
     },
     {
       "ticker": "CITICHEM",
@@ -869,8 +1041,10 @@
       "scrip_code": "544324",
       "group": "M",
       "isin": "INE0A8401016",
-      "industry": null,
-      "mcap_cr": 11.56
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 11.56,
+      "sector": "Commodities",
+      "sub_sector": "Trading - Chemicals"
     },
     {
       "ticker": "CITYSQUARE",
@@ -879,8 +1053,10 @@
       "scrip_code": "544514",
       "group": "MT",
       "isin": "INE1DRH01011",
-      "industry": null,
-      "mcap_cr": 97.68
+      "industry": "Retailing",
+      "mcap_cr": 97.68,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Diversified Retail"
     },
     {
       "ticker": "CLARA",
@@ -889,8 +1065,10 @@
       "scrip_code": "543435",
       "group": "M",
       "isin": "INE0JJS01014",
-      "industry": null,
-      "mcap_cr": 77.4
+      "industry": "Industrial Products",
+      "mcap_cr": 77.4,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "CLN",
@@ -899,8 +1077,10 @@
       "scrip_code": "544347",
       "group": "MT",
       "isin": "INE0WDX01010",
-      "industry": null,
-      "mcap_cr": 536.11
+      "industry": "Auto Components",
+      "mcap_cr": 546.61,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Components & Equipments"
     },
     {
       "ticker": "CNCRD",
@@ -909,8 +1089,10 @@
       "scrip_code": "543619",
       "group": "M",
       "isin": "INE0N0J01014",
-      "industry": null,
-      "mcap_cr": 2585.47
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 2595.85,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "CNINFOTECH",
@@ -919,8 +1101,10 @@
       "scrip_code": "544343",
       "group": "M",
       "isin": "INE0WXM01011",
-      "industry": null,
-      "mcap_cr": 219.84
+      "industry": "IT - Software",
+      "mcap_cr": 201.77,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "COMMAND",
@@ -929,8 +1113,10 @@
       "scrip_code": "543843",
       "group": "MT",
       "isin": "INE0LKQ01012",
-      "industry": null,
-      "mcap_cr": 20.49
+      "industry": "Industrial Products",
+      "mcap_cr": 20.49,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "COMRADE",
@@ -939,8 +1125,10 @@
       "scrip_code": "543921",
       "group": "MT",
       "isin": "INE0NXA01015",
-      "industry": null,
-      "mcap_cr": 32.97
+      "industry": "Consumer Durables",
+      "mcap_cr": 33.06,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Consumer Electronics"
     },
     {
       "ticker": "CONTAINE",
@@ -949,8 +1137,10 @@
       "scrip_code": "543606",
       "group": "M",
       "isin": "INE0M8901010",
-      "industry": null,
-      "mcap_cr": 17.49
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 17.49,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "COSMICCRF",
@@ -959,8 +1149,10 @@
       "scrip_code": "543928",
       "group": "MT",
       "isin": "INE0ORA01015",
-      "industry": null,
-      "mcap_cr": 1158.56
+      "industry": "Industrial Products",
+      "mcap_cr": 1148.46,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "COSPOWER",
@@ -969,8 +1161,10 @@
       "scrip_code": "543172",
       "group": "MT",
       "isin": "INE0CQB01010",
-      "industry": null,
-      "mcap_cr": 348.92
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 348.92,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "COTFAB",
@@ -979,8 +1173,10 @@
       "scrip_code": "544195",
       "group": "M",
       "isin": "INE0S0I01011",
-      "industry": null,
-      "mcap_cr": 24.07
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 24.07,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "CPML",
@@ -989,8 +1185,10 @@
       "scrip_code": "542727",
       "group": "M",
       "isin": "INE056001014",
-      "industry": null,
-      "mcap_cr": 271.4
+      "industry": "Retailing",
+      "mcap_cr": 271.4,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Speciality Retail"
     },
     {
       "ticker": "CRAZY",
@@ -999,8 +1197,10 @@
       "scrip_code": "544807",
       "group": "M",
       "isin": "INE0RBX01014",
-      "industry": null,
-      "mcap_cr": 148.65
+      "industry": "Food Products",
+      "mcap_cr": 143.99,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "CRYOGENIC",
@@ -1009,8 +1209,10 @@
       "scrip_code": "544440",
       "group": "MT",
       "isin": "INE0TL001013",
-      "industry": null,
-      "mcap_cr": 504.8
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 498.16,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "CTCL",
@@ -1019,8 +1221,10 @@
       "scrip_code": "540652",
       "group": "M",
       "isin": "INE931X01010",
-      "industry": null,
-      "mcap_cr": 615.33
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 630.43,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "CTLLAB",
@@ -1029,8 +1233,10 @@
       "scrip_code": "544220",
       "group": "M",
       "isin": "INE0QMR01015",
-      "industry": null,
-      "mcap_cr": 9.13
+      "industry": "Healthcare Services",
+      "mcap_cr": 9.13,
+      "sector": "Healthcare",
+      "sub_sector": "Healthcare Service Provider"
     },
     {
       "ticker": "DACHEPALLI",
@@ -1039,8 +1245,10 @@
       "scrip_code": "544667",
       "group": "M",
       "isin": "INE1F9M01018",
-      "industry": null,
-      "mcap_cr": 124
+      "industry": "Printing & Publication",
+      "mcap_cr": 127.3,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Printing & Publication"
     },
     {
       "ticker": "DAPS",
@@ -1049,8 +1257,10 @@
       "scrip_code": "543651",
       "group": "MT",
       "isin": "INE975Z01012",
-      "industry": null,
-      "mcap_cr": 12.66
+      "industry": "Media",
+      "mcap_cr": 12.66,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Advertising & Media Agencies"
     },
     {
       "ticker": "DAVIN",
@@ -1059,8 +1269,10 @@
       "scrip_code": "544331",
       "group": "M",
       "isin": "INE0Q2L01013",
-      "industry": null,
-      "mcap_cr": 17.19
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 17.19,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "DEEPAKCHEM",
@@ -1069,8 +1281,10 @@
       "scrip_code": "544036",
       "group": "M",
       "isin": "INE0RDM01013",
-      "industry": null,
-      "mcap_cr": 97.23
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 96.69,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "DEFRAIL",
@@ -1079,8 +1293,10 @@
       "scrip_code": "544677",
       "group": "M",
       "isin": "INE0ZE201010",
-      "industry": null,
-      "mcap_cr": 48.95
+      "industry": "Industrial Products",
+      "mcap_cr": 48.95,
+      "sector": "Industrials",
+      "sub_sector": "Rubber"
     },
     {
       "ticker": "DESCO",
@@ -1089,8 +1305,10 @@
       "scrip_code": "544387",
       "group": "M",
       "isin": "INE0TGG01014",
-      "industry": null,
-      "mcap_cr": 137.4
+      "industry": "Construction",
+      "mcap_cr": 141.24,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "DEVLAB",
@@ -1099,8 +1317,10 @@
       "scrip_code": "543848",
       "group": "M",
       "isin": "INE0NIJ01025",
-      "industry": null,
-      "mcap_cr": 90.4
+      "industry": "Consumer Durables",
+      "mcap_cr": 90.44,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "DEVSON",
@@ -1109,8 +1329,10 @@
       "scrip_code": "544823",
       "group": "M",
       "isin": "INE2KRP01017",
-      "industry": null,
-      "mcap_cr": 329.17
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 342.42,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "DFPL",
@@ -1119,8 +1341,10 @@
       "scrip_code": "544201",
       "group": "M",
       "isin": "INE0S6R01027",
-      "industry": null,
-      "mcap_cr": 33.47
+      "industry": "Food Products",
+      "mcap_cr": 34.2,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Dairy Products"
     },
     {
       "ticker": "DGL",
@@ -1129,8 +1353,10 @@
       "scrip_code": "542155",
       "group": "MT",
       "isin": "INE01GR01018",
-      "industry": null,
-      "mcap_cr": 0.96
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 0.96,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "DHARNI",
@@ -1139,8 +1365,10 @@
       "scrip_code": "543753",
       "group": "M",
       "isin": "INE0M9Q01011",
-      "industry": null,
-      "mcap_cr": 112.04
+      "industry": "Capital Markets",
+      "mcap_cr": 112.04,
+      "sector": "Financial Services",
+      "sub_sector": "Financial Products Distributor"
     },
     {
       "ticker": "DHAVAL",
@@ -1149,8 +1377,10 @@
       "scrip_code": "544854",
       "group": "MT",
       "isin": "INE1HX301016",
-      "industry": null,
-      "mcap_cr": 149.32
+      "industry": "Industrial Products",
+      "mcap_cr": 148.36,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "DHILLON",
@@ -1159,8 +1389,10 @@
       "scrip_code": "544556",
       "group": "M",
       "isin": "INE0SPJ01011",
-      "industry": null,
-      "mcap_cr": 11.76
+      "industry": "Transport Services",
+      "mcap_cr": 11.76,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "DHYAANITR",
@@ -1169,8 +1401,10 @@
       "scrip_code": "543516",
       "group": "MT",
       "isin": "INE0K5F01014",
-      "industry": null,
-      "mcap_cr": 10.73
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 10.93,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "DIGILOGIC",
@@ -1179,8 +1413,10 @@
       "scrip_code": "544684",
       "group": "MT",
       "isin": "INE1OOT01028",
-      "industry": null,
-      "mcap_cr": 473.35
+      "industry": "Aerospace & Defense",
+      "mcap_cr": 516.78,
+      "sector": "Industrials",
+      "sub_sector": "Aerospace & Defense"
     },
     {
       "ticker": "DIKSAT",
@@ -1189,8 +1425,10 @@
       "scrip_code": "540151",
       "group": "MT",
       "isin": "INE942P01013",
-      "industry": null,
-      "mcap_cr": 219.46
+      "industry": "Entertainment",
+      "mcap_cr": 219.46,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Film Production, Distribution & Exhibition"
     },
     {
       "ticker": "DIKSHA",
@@ -1199,8 +1437,10 @@
       "scrip_code": "544798",
       "group": "M",
       "isin": "INE1OSI01014",
-      "industry": null,
-      "mcap_cr": 72.75
+      "industry": "Industrial Products",
+      "mcap_cr": 72.75,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "DKUAL",
@@ -1209,8 +1449,10 @@
       "scrip_code": "544170",
       "group": "M",
       "isin": "INE0QXT01018",
-      "industry": null,
-      "mcap_cr": 10.98
+      "industry": "Consumer Durables",
+      "mcap_cr": 10.61,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Household Appliances"
     },
     {
       "ticker": "DLCL",
@@ -1219,8 +1461,10 @@
       "scrip_code": "541299",
       "group": "M",
       "isin": "INE871Z01013",
-      "industry": null,
-      "mcap_cr": 5.18
+      "industry": "Healthcare Services",
+      "mcap_cr": 5.68,
+      "sector": "Healthcare",
+      "sub_sector": "Healthcare Service Provider"
     },
     {
       "ticker": "DML",
@@ -1229,8 +1473,10 @@
       "scrip_code": "540811",
       "group": "M",
       "isin": "INE158R01012",
-      "industry": null,
-      "mcap_cr": 13.16
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 13.16,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "DMR",
@@ -1239,8 +1485,10 @@
       "scrip_code": "543410",
       "group": "M",
       "isin": "INE07L501010",
-      "industry": null,
-      "mcap_cr": 25.99
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 25.99,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "DPL",
@@ -1249,8 +1497,10 @@
       "scrip_code": "543594",
       "group": "M",
       "isin": "INE0MC401013",
-      "industry": null,
-      "mcap_cr": 13.14
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 15.22,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "DRA",
@@ -1259,8 +1509,10 @@
       "scrip_code": "540144",
       "group": "M",
       "isin": "INE746V01016",
-      "industry": null,
-      "mcap_cr": 20.24
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 20.24,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "DRONACHRYA",
@@ -1269,8 +1521,10 @@
       "scrip_code": "543713",
       "group": "M",
       "isin": "INE0MQD01015",
-      "industry": null,
-      "mcap_cr": 86.36
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 86.36,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "EARKART",
@@ -1279,8 +1533,10 @@
       "scrip_code": "544549",
       "group": "M",
       "isin": "INE1A8F01035",
-      "industry": null,
-      "mcap_cr": 192.49
+      "industry": "Healthcare Equipment & Supplies",
+      "mcap_cr": 192.49,
+      "sector": "Healthcare",
+      "sub_sector": "Medical Equipment & Supplies"
     },
     {
       "ticker": "EARTH",
@@ -1289,8 +1545,10 @@
       "scrip_code": "543765",
       "group": "M",
       "isin": "INE0O4V01010",
-      "industry": null,
-      "mcap_cr": 17.38
+      "industry": "Industrial Products",
+      "mcap_cr": 17.38,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "EIGHTY",
@@ -1299,8 +1557,10 @@
       "scrip_code": "543518",
       "group": "MT",
       "isin": "INE0KSN01014",
-      "industry": null,
-      "mcap_cr": 38.66
+      "industry": "Consumer Durables",
+      "mcap_cr": 38.66,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "EKENNIS",
@@ -1309,8 +1569,10 @@
       "scrip_code": "543475",
       "group": "M",
       "isin": "INE0KCM01010",
-      "industry": null,
-      "mcap_cr": 9.75
+      "industry": "IT - Services",
+      "mcap_cr": 9.75,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "ELFIN",
@@ -1319,8 +1581,10 @@
       "scrip_code": "544724",
       "group": "MT",
       "isin": "INE1FEW01013",
-      "industry": null,
-      "mcap_cr": 145.69
+      "industry": "Food Products",
+      "mcap_cr": 158.31,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "EMIAC",
@@ -1329,8 +1593,10 @@
       "scrip_code": "544747",
       "group": "M",
       "isin": "INE1OSW01015",
-      "industry": null,
-      "mcap_cr": 112.56
+      "industry": "Media",
+      "mcap_cr": 113.86,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Web based media and service"
     },
     {
       "ticker": "EMMFORCE",
@@ -1339,8 +1605,10 @@
       "scrip_code": "544166",
       "group": "MT",
       "isin": "INE0SDC01012",
-      "industry": null,
-      "mcap_cr": 403.23
+      "industry": "Auto Components",
+      "mcap_cr": 393.69,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Components & Equipments"
     },
     {
       "ticker": "EPBIO",
@@ -1349,8 +1617,10 @@
       "scrip_code": "543595",
       "group": "M",
       "isin": "INE0D2I01014",
-      "industry": null,
-      "mcap_cr": 18.07
+      "industry": "Other Utilities",
+      "mcap_cr": 16.15,
+      "sector": "Utilities",
+      "sub_sector": "Waste Management"
     },
     {
       "ticker": "ESSEX",
@@ -1359,8 +1629,10 @@
       "scrip_code": "544475",
       "group": "M",
       "isin": "INE1IBY01019",
-      "industry": null,
-      "mcap_cr": 62.56
+      "industry": "Food Products",
+      "mcap_cr": 64.05,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Seafood"
     },
     {
       "ticker": "EUPHORIAIT",
@@ -1369,8 +1641,10 @@
       "scrip_code": "544094",
       "group": "M",
       "isin": "INE0PYT01018",
-      "industry": null,
-      "mcap_cr": 9.16
+      "industry": "IT - Services",
+      "mcap_cr": 9.16,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "EVANS",
@@ -1379,8 +1653,10 @@
       "scrip_code": "542668",
       "group": "M",
       "isin": "INE06TD01010",
-      "industry": null,
-      "mcap_cr": 39.86
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 38.42,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "EVOQ",
@@ -1389,8 +1665,10 @@
       "scrip_code": "543500",
       "group": "MT",
       "isin": "INE0JVD01011",
-      "industry": null,
-      "mcap_cr": 4.53
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 4.53,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "EXATO",
@@ -1399,8 +1677,10 @@
       "scrip_code": "544626",
       "group": "MT",
       "isin": "INE1E4401010",
-      "industry": null,
-      "mcap_cr": 618.27
+      "industry": "IT - Services",
+      "mcap_cr": 618.27,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "EXHICON",
@@ -1409,8 +1689,10 @@
       "scrip_code": "543895",
       "group": "M",
       "isin": "INE0O8901016",
-      "industry": null,
-      "mcap_cr": 708.79
+      "industry": "Other Consumer Services",
+      "mcap_cr": 726.51,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Consumer Services"
     },
     {
       "ticker": "FAALCON",
@@ -1419,8 +1701,10 @@
       "scrip_code": "544164",
       "group": "MT",
       "isin": "INE0Q9W01015",
-      "industry": null,
-      "mcap_cr": 39.38
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 39.38,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "FABCLEAN",
@@ -1429,8 +1713,10 @@
       "scrip_code": "544332",
       "group": "MT",
       "isin": "INE0HSD01011",
-      "industry": null,
-      "mcap_cr": 514.95
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 504.29,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "FABINO",
@@ -1439,8 +1725,10 @@
       "scrip_code": "543444",
       "group": "MT",
       "isin": "INE0DRT01018",
-      "industry": null,
-      "mcap_cr": 4.27
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 4.27,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "FIL",
@@ -1449,8 +1737,10 @@
       "scrip_code": "544707",
       "group": "M",
       "isin": "INE1W3Q01011",
-      "industry": null,
-      "mcap_cr": 156.82
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 156.82,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "FILTRA",
@@ -1459,8 +1749,10 @@
       "scrip_code": "539098",
       "group": "M",
       "isin": "INE541R01019",
-      "industry": null,
-      "mcap_cr": 65.78
+      "industry": "Other Utilities",
+      "mcap_cr": 65.78,
+      "sector": "Utilities",
+      "sub_sector": "Other Utilities"
     },
     {
       "ticker": "FOCUS",
@@ -1469,8 +1761,13 @@
       "scrip_code": "543312",
       "group": "M",
       "isin": "INE0DXR01010",
-      "industry": null,
-      "mcap_cr": 142.1
+      "industry": "IT - Software",
+      "mcap_cr": 145.74,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting",
+      "about": "Focus Business Solution Limited engages in the recovery agent business in India. It offers skip tracing services that allows creditors to locate debtors; bad debt recovery; non-performing assets; and write-off services. The company was incorporated in 2006 and is based in Surat, India.",
+      "website": "https://www.focusbsl.com",
+      "headquarters": "Surat, India"
     },
     {
       "ticker": "FONE4",
@@ -1479,8 +1776,10 @@
       "scrip_code": "543521",
       "group": "M",
       "isin": "INE0L3H01014",
-      "industry": null,
-      "mcap_cr": 13.07
+      "industry": "Retailing",
+      "mcap_cr": 13.07,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "E-Retail/ E-Commerce"
     },
     {
       "ticker": "FRANKLIN",
@@ -1489,8 +1788,10 @@
       "scrip_code": "539839",
       "group": "M",
       "isin": "INE399S01010",
-      "industry": null,
-      "mcap_cr": 14.06
+      "industry": "Finance",
+      "mcap_cr": 14.06,
+      "sector": "Financial Services",
+      "sub_sector": "Non Banking Financial Company (NBFC)"
     },
     {
       "ticker": "FTL",
@@ -1499,8 +1800,10 @@
       "scrip_code": "544173",
       "group": "M",
       "isin": "INE0QOQ01013",
-      "industry": null,
-      "mcap_cr": 4.51
+      "industry": "Retailing",
+      "mcap_cr": 4.51,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "E-Retail/ E-Commerce"
     },
     {
       "ticker": "GALLARD",
@@ -1509,8 +1812,10 @@
       "scrip_code": "544616",
       "group": "M",
       "isin": "INE0BUQ01012",
-      "industry": null,
-      "mcap_cr": 183.35
+      "industry": "Auto Components",
+      "mcap_cr": 185.25,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Components & Equipments"
     },
     {
       "ticker": "GANGAPHARM",
@@ -1519,8 +1824,10 @@
       "scrip_code": "539680",
       "group": "M",
       "isin": "INE615T01017",
-      "industry": null,
-      "mcap_cr": 7.09
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 7.09,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "GANVERSE",
@@ -1529,8 +1836,10 @@
       "scrip_code": "539041",
       "group": "MT",
       "isin": "INE369Q01017",
-      "industry": null,
-      "mcap_cr": 55.51
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 60.01,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "GARGI",
@@ -1539,8 +1848,10 @@
       "scrip_code": "543709",
       "group": "M",
       "isin": "INE0NT601018",
-      "industry": null,
-      "mcap_cr": 598.9
+      "industry": "Consumer Durables",
+      "mcap_cr": 604.14,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "GBLOGISTIC",
@@ -1549,8 +1860,10 @@
       "scrip_code": "544348",
       "group": "M",
       "isin": "INE0RWU01016",
-      "industry": null,
-      "mcap_cr": 19.46
+      "industry": "Transport Services",
+      "mcap_cr": 19.67,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "GCMCAPI",
@@ -1559,8 +1872,10 @@
       "scrip_code": "538319",
       "group": "MT",
       "isin": "INE191P01017",
-      "industry": null,
-      "mcap_cr": 6.23
+      "industry": "Finance",
+      "mcap_cr": 6.23,
+      "sector": "Financial Services",
+      "sub_sector": "Other Financial Services"
     },
     {
       "ticker": "GCMCOMM",
@@ -1569,8 +1884,10 @@
       "scrip_code": "535917",
       "group": "M",
       "isin": "INE200P01016",
-      "industry": null,
-      "mcap_cr": 3.01
+      "industry": "Finance",
+      "mcap_cr": 3.01,
+      "sector": "Financial Services",
+      "sub_sector": "Other Financial Services"
     },
     {
       "ticker": "GCONNECT",
@@ -1579,8 +1896,10 @@
       "scrip_code": "544156",
       "group": "M",
       "isin": "INE0QHY01011",
-      "industry": null,
-      "mcap_cr": 4.46
+      "industry": "Transport Services",
+      "mcap_cr": 4.46,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "GEL",
@@ -1589,8 +1908,10 @@
       "scrip_code": "540613",
       "group": "M",
       "isin": "INE721X01023",
-      "industry": null,
-      "mcap_cr": 68.89
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 68.89,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "GEMENVIRO",
@@ -1599,8 +1920,10 @@
       "scrip_code": "544199",
       "group": "M",
       "isin": "INE0RUJ01013",
-      "industry": null,
-      "mcap_cr": 78.25
+      "industry": "Other Utilities",
+      "mcap_cr": 76.45,
+      "sector": "Utilities",
+      "sub_sector": "Waste Management"
     },
     {
       "ticker": "GETALONG",
@@ -1609,8 +1932,10 @@
       "scrip_code": "543372",
       "group": "MT",
       "isin": "INE0H1201020",
-      "industry": null,
-      "mcap_cr": 15.76
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 15.76,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "GHUSHINE",
@@ -1619,8 +1944,10 @@
       "scrip_code": "539864",
       "group": "MT",
       "isin": "INE009U01011",
-      "industry": null,
-      "mcap_cr": 10.63
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 10.63,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "GLAAMUP",
@@ -1629,8 +1956,10 @@
       "scrip_code": "542477",
       "group": "MT",
       "isin": "INE03CM01014",
-      "industry": null,
-      "mcap_cr": 22.04
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 22.04,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "GLEN",
@@ -1639,8 +1968,10 @@
       "scrip_code": "544444",
       "group": "M",
       "isin": "INE0UMC01019",
-      "industry": null,
-      "mcap_cr": 276.71
+      "industry": "Industrial Products",
+      "mcap_cr": 282.46,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "GLHRL",
@@ -1649,8 +1980,10 @@
       "scrip_code": "543520",
       "group": "M",
       "isin": "INE0J2K01014",
-      "industry": null,
-      "mcap_cr": 12.59
+      "industry": "Healthcare Services",
+      "mcap_cr": 12.43,
+      "sector": "Healthcare",
+      "sub_sector": "Hospital"
     },
     {
       "ticker": "GLOBALLOG",
@@ -1659,8 +1992,10 @@
       "scrip_code": "544665",
       "group": "M",
       "isin": "INE1ITY01011",
-      "industry": null,
-      "mcap_cr": 158.87
+      "industry": "Transport Services",
+      "mcap_cr": 159.88,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "GLOBTIER",
@@ -1669,8 +2004,10 @@
       "scrip_code": "544494",
       "group": "MT",
       "isin": "INE12P601017",
-      "industry": null,
-      "mcap_cr": 25.71
+      "industry": "IT - Services",
+      "mcap_cr": 25.71,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "GLPL",
@@ -1679,8 +2016,10 @@
       "scrip_code": "544759",
       "group": "M",
       "isin": "INE1CLW01015",
-      "industry": null,
-      "mcap_cr": 38.49
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 38.49,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "GMPL",
@@ -1689,8 +2028,10 @@
       "scrip_code": "543239",
       "group": "M",
       "isin": "INE0E2801015",
-      "industry": null,
-      "mcap_cr": 96.91
+      "industry": "Industrial Products",
+      "mcap_cr": 96.91,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "GOBLIN",
@@ -1699,8 +2040,10 @@
       "scrip_code": "542850",
       "group": "MT",
       "isin": "INE492Z01018",
-      "industry": null,
-      "mcap_cr": 11.61
+      "industry": "Consumer Durables",
+      "mcap_cr": 11.1,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "GOEL",
@@ -1709,8 +2052,10 @@
       "scrip_code": "543538",
       "group": "M",
       "isin": "INE0K6L01010",
-      "industry": null,
-      "mcap_cr": 21.4
+      "industry": "Leisure Services",
+      "mcap_cr": 23.38,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Hotels & Resorts"
     },
     {
       "ticker": "GOELCONS",
@@ -1719,8 +2064,10 @@
       "scrip_code": "544504",
       "group": "MT",
       "isin": "INE0ZOM01013",
-      "industry": null,
-      "mcap_cr": 662.73
+      "industry": "Construction",
+      "mcap_cr": 653.12,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "GPAPL",
@@ -1729,8 +2076,10 @@
       "scrip_code": "544548",
       "group": "M",
       "isin": "INE0SIK01014",
-      "industry": null,
-      "mcap_cr": 73.37
+      "industry": "Food Products",
+      "mcap_cr": 73.37,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "GPSL",
@@ -1739,8 +2088,10 @@
       "scrip_code": "544108",
       "group": "M",
       "isin": "INE0QZF01012",
-      "industry": null,
-      "mcap_cr": 53.31
+      "industry": "Industrial Products",
+      "mcap_cr": 50.65,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "GRERENEW",
@@ -1749,8 +2100,10 @@
       "scrip_code": "544682",
       "group": "MT",
       "isin": "INE0U8P01015",
-      "industry": null,
-      "mcap_cr": 255.04
+      "industry": "Construction",
+      "mcap_cr": 255.04,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "GTIL",
@@ -1759,8 +2112,10 @@
       "scrip_code": "544675",
       "group": "M",
       "isin": "INE1H1501013",
-      "industry": null,
-      "mcap_cr": 100.05
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 101,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "GUJHYSPIN",
@@ -1769,8 +2124,10 @@
       "scrip_code": "540938",
       "group": "MT",
       "isin": "INE578V01013",
-      "industry": null,
-      "mcap_cr": 15.44
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 15.44,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "GULFLLOYDS",
@@ -1779,8 +2136,10 @@
       "scrip_code": "544834",
       "group": "M",
       "isin": "INE1WDC01012",
-      "industry": null,
-      "mcap_cr": 28.23
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 27.25,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "GVELECTRIC",
@@ -1789,8 +2148,10 @@
       "scrip_code": "544859",
       "group": "MT",
       "isin": "INE1ZGR01024",
-      "industry": null,
-      "mcap_cr": 168.96
+      "industry": "Electrical Equipment",
+      "mcap_cr": 168.96,
+      "sector": "Industrials",
+      "sub_sector": "Other Electrical Equipment"
     },
     {
       "ticker": "GVL",
@@ -1799,8 +2160,10 @@
       "scrip_code": "544163",
       "group": "M",
       "isin": "INE0S0701019",
-      "industry": null,
-      "mcap_cr": 51.96
+      "industry": "Petroleum Products",
+      "mcap_cr": 51.96,
+      "sector": "Energy",
+      "sub_sector": "Lubricants"
     },
     {
       "ticker": "HAMPS",
@@ -1809,8 +2172,10 @@
       "scrip_code": "544312",
       "group": "M",
       "isin": "INE0QBD01018",
-      "industry": null,
-      "mcap_cr": 21.24
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 21.34,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "HANMAN",
@@ -1819,8 +2184,10 @@
       "scrip_code": "538731",
       "group": "M",
       "isin": "INE982Q01017",
-      "industry": null,
-      "mcap_cr": 4.1
+      "industry": "Leisure Services",
+      "mcap_cr": 4.34,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Amusement Parks/ Other Recreation"
     },
     {
       "ticker": "HANNAH",
@@ -1829,8 +2196,10 @@
       "scrip_code": "544687",
       "group": "MT",
       "isin": "INE0JVH01012",
-      "industry": null,
-      "mcap_cr": 254.22
+      "industry": "Healthcare Services",
+      "mcap_cr": 246.28,
+      "sector": "Healthcare",
+      "sub_sector": "Hospital"
     },
     {
       "ticker": "HARIKANTA",
@@ -1839,8 +2208,10 @@
       "scrip_code": "544769",
       "group": "M",
       "isin": "INE1UYW01010",
-      "industry": null,
-      "mcap_cr": 69.06
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 68.96,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "HARSHDEEP",
@@ -1849,8 +2220,10 @@
       "scrip_code": "544105",
       "group": "M",
       "isin": "INE0OLZ01015",
-      "industry": null,
-      "mcap_cr": 136.8
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 137.6,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "HBEL",
@@ -1859,8 +2232,10 @@
       "scrip_code": "542592",
       "group": "MT",
       "isin": "INE02PC01027",
-      "industry": null,
-      "mcap_cr": 10.33
+      "industry": "Other Consumer Services",
+      "mcap_cr": 11.16,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Education"
     },
     {
       "ticker": "HEALTHYLIFE",
@@ -1869,8 +2244,10 @@
       "scrip_code": "543546",
       "group": "MT",
       "isin": "INE0L3501015",
-      "industry": null,
-      "mcap_cr": 26
+      "industry": "Food Products",
+      "mcap_cr": 25.31,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Dairy Products"
     },
     {
       "ticker": "HELLOJI",
@@ -1879,8 +2256,10 @@
       "scrip_code": "544630",
       "group": "M",
       "isin": "INE1FJE01010",
-      "industry": null,
-      "mcap_cr": 39.43
+      "industry": "Leisure Services",
+      "mcap_cr": 39.43,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "HIGHNESS",
@@ -1889,8 +2268,10 @@
       "scrip_code": "544741",
       "group": "MT",
       "isin": "INE1KI801019",
-      "industry": null,
-      "mcap_cr": 101.21
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 102.24,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "HMEML",
@@ -1899,8 +2280,10 @@
       "scrip_code": "544349",
       "group": "M",
       "isin": "INE0DZD01015",
-      "industry": null,
-      "mcap_cr": 69.88
+      "industry": "Construction",
+      "mcap_cr": 72.61,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "HORIZON",
@@ -1909,8 +2292,10 @@
       "scrip_code": "544794",
       "group": "M",
       "isin": "INE1SEO01013",
-      "industry": null,
-      "mcap_cr": 240.04
+      "industry": "Industrial Products",
+      "mcap_cr": 239.84,
+      "sector": "Industrials",
+      "sub_sector": "Rubber"
     },
     {
       "ticker": "HRHYGIENE",
@@ -1919,8 +2304,10 @@
       "scrip_code": "544848",
       "group": "MT",
       "isin": "INE17DP01015",
-      "industry": null,
-      "mcap_cr": 165.8
+      "industry": "Personal Products",
+      "mcap_cr": 161.51,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Personal Care"
     },
     {
       "ticker": "HRS",
@@ -1929,8 +2316,10 @@
       "scrip_code": "544656",
       "group": "M",
       "isin": "INE1E1V01017",
-      "industry": null,
-      "mcap_cr": 483.88
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 483.02,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "HSIL",
@@ -1939,8 +2328,10 @@
       "scrip_code": "543916",
       "group": "MT",
       "isin": "INE0GYI01028",
-      "industry": null,
-      "mcap_cr": 524.81
+      "industry": "Healthcare Equipment & Supplies",
+      "mcap_cr": 530.62,
+      "sector": "Healthcare",
+      "sub_sector": "Medical Equipment & Supplies"
     },
     {
       "ticker": "ICODEX",
@@ -1949,8 +2340,10 @@
       "scrip_code": "544483",
       "group": "M",
       "isin": "INE111601014",
-      "industry": null,
-      "mcap_cr": 64.74
+      "industry": "IT - Services",
+      "mcap_cr": 59.73,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "ICON",
@@ -1959,8 +2352,10 @@
       "scrip_code": "544426",
       "group": "M",
       "isin": "INE0Y0E01012",
-      "industry": null,
-      "mcap_cr": 65.04
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 61.27,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "IDENTIXWEB",
@@ -1969,8 +2364,10 @@
       "scrip_code": "544388",
       "group": "M",
       "isin": "INE0PA401012",
-      "industry": null,
-      "mcap_cr": 63.69
+      "industry": "IT - Software",
+      "mcap_cr": 63.69,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "INDOBELL",
@@ -1979,8 +2376,10 @@
       "scrip_code": "544334",
       "group": "MT",
       "isin": "INE0FK501019",
-      "industry": null,
-      "mcap_cr": 50.33
+      "industry": "Industrial Products",
+      "mcap_cr": 46.62,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "INDONG",
@@ -1989,8 +2388,10 @@
       "scrip_code": "543769",
       "group": "MT",
       "isin": "INE0KN201016",
-      "industry": null,
-      "mcap_cr": 16.51
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 16.51,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Tea & Coffee"
     },
     {
       "ticker": "INDOSMC",
@@ -1999,8 +2400,10 @@
       "scrip_code": "544681",
       "group": "M",
       "isin": "INE0WKY01013",
-      "industry": null,
-      "mcap_cr": 1147.34
+      "industry": "Electrical Equipment",
+      "mcap_cr": 1092.49,
+      "sector": "Industrials",
+      "sub_sector": "Other Electrical Equipment"
     },
     {
       "ticker": "INFINITY",
@@ -2009,8 +2412,10 @@
       "scrip_code": "544567",
       "group": "M",
       "isin": "INE16XA01017",
-      "industry": null,
-      "mcap_cr": 217.57
+      "industry": "IT - Services",
+      "mcap_cr": 209.4,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "INFLAME",
@@ -2019,8 +2424,10 @@
       "scrip_code": "541083",
       "group": "M",
       "isin": "INE464Z01017",
-      "industry": null,
-      "mcap_cr": 155.74
+      "industry": "Consumer Durables",
+      "mcap_cr": 158.81,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Houseware"
     },
     {
       "ticker": "INFONATIVE",
@@ -2029,8 +2436,10 @@
       "scrip_code": "544393",
       "group": "MT",
       "isin": "INE12IB01015",
-      "industry": null,
-      "mcap_cr": 42.77
+      "industry": "IT - Services",
+      "mcap_cr": 45.01,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "INNOKAIZ",
@@ -2039,8 +2448,10 @@
       "scrip_code": "543905",
       "group": "MT",
       "isin": "INE0LDI01022",
-      "industry": null,
-      "mcap_cr": 12.63
+      "industry": "Media",
+      "mcap_cr": 12.63,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Advertising & Media Agencies"
     },
     {
       "ticker": "INNOVATIVE",
@@ -2049,8 +2460,10 @@
       "scrip_code": "541983",
       "group": "M",
       "isin": "INE492Y01011",
-      "industry": null,
-      "mcap_cr": 24.65
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 24.65,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "INNOVATORS",
@@ -2059,8 +2472,10 @@
       "scrip_code": "541353",
       "group": "M",
       "isin": "INE870Z01015",
-      "industry": null,
-      "mcap_cr": 226.41
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 226.32,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "ITCONS",
@@ -2069,8 +2484,10 @@
       "scrip_code": "543806",
       "group": "M",
       "isin": "INE0O6A01019",
-      "industry": null,
-      "mcap_cr": 296.33
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 294.08,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "JAYANT",
@@ -2079,8 +2496,10 @@
       "scrip_code": "543544",
       "group": "MT",
       "isin": "INE0KR801019",
-      "industry": null,
-      "mcap_cr": 72.57
+      "industry": "Construction",
+      "mcap_cr": 72.57,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "JAYKAILASH",
@@ -2089,8 +2508,10 @@
       "scrip_code": "544160",
       "group": "MT",
       "isin": "INE0MSS01019",
-      "industry": null,
-      "mcap_cr": 27.84
+      "industry": "Food Products",
+      "mcap_cr": 27.84,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "JDCABLES",
@@ -2099,8 +2520,10 @@
       "scrip_code": "544524",
       "group": "M",
       "isin": "INE14VP01014",
-      "industry": null,
-      "mcap_cr": 476.39
+      "industry": "Industrial Products",
+      "mcap_cr": 468.5,
+      "sector": "Industrials",
+      "sub_sector": "Cables - Electricals"
     },
     {
       "ticker": "JETSOLAR",
@@ -2109,8 +2532,10 @@
       "scrip_code": "538794",
       "group": "M",
       "isin": "INE155R01018",
-      "industry": null,
-      "mcap_cr": 8.98
+      "industry": "Realty",
+      "mcap_cr": 8.98,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "JFL",
@@ -2119,8 +2544,10 @@
       "scrip_code": "540850",
       "group": "M",
       "isin": "INE841Y01019",
-      "industry": null,
-      "mcap_cr": 32.04
+      "industry": "Food Products",
+      "mcap_cr": 32.04,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "JIGAR",
@@ -2129,8 +2556,10 @@
       "scrip_code": "540651",
       "group": "M",
       "isin": "INE943X01015",
-      "industry": null,
-      "mcap_cr": 54.07
+      "industry": "Electrical Equipment",
+      "mcap_cr": 54.07,
+      "sector": "Industrials",
+      "sub_sector": "Other Electrical Equipment"
     },
     {
       "ticker": "JIVIAL",
@@ -2139,8 +2568,10 @@
       "scrip_code": "544805",
       "group": "M",
       "isin": "INE0V3T01017",
-      "industry": null,
-      "mcap_cr": 38.1
+      "industry": "Non - Ferrous Metals",
+      "mcap_cr": 38.06,
+      "sector": "Commodities",
+      "sub_sector": "Aluminium"
     },
     {
       "ticker": "JOINTECAED",
@@ -2149,8 +2580,10 @@
       "scrip_code": "534659",
       "group": "MT",
       "isin": "INE131N01018",
-      "industry": null,
-      "mcap_cr": 5.71
+      "industry": "IT - Software",
+      "mcap_cr": 5.71,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "JONJUA",
@@ -2159,8 +2592,10 @@
       "scrip_code": "542446",
       "group": "MT",
       "isin": "INE793Z01027",
-      "industry": null,
-      "mcap_cr": 10.94
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 11.18,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "JSHL",
@@ -2169,8 +2604,10 @@
       "scrip_code": "538765",
       "group": "MT",
       "isin": "INE401Q01018",
-      "industry": null,
-      "mcap_cr": 1.54
+      "industry": "Retailing",
+      "mcap_cr": 1.54,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Internet & Catalogue Retail"
     },
     {
       "ticker": "JUNGLECAMP",
@@ -2179,8 +2616,10 @@
       "scrip_code": "544304",
       "group": "M",
       "isin": "INE0WCH01015",
-      "industry": null,
-      "mcap_cr": 77.49
+      "industry": "Leisure Services",
+      "mcap_cr": 73.94,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Hotels & Resorts"
     },
     {
       "ticker": "JUSTO",
@@ -2189,8 +2628,10 @@
       "scrip_code": "544542",
       "group": "M",
       "isin": "INE0W5Q01017",
-      "industry": null,
-      "mcap_cr": 180.84
+      "industry": "Realty",
+      "mcap_cr": 167.3,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Real Estate related services"
     },
     {
       "ticker": "KAARYAFSL",
@@ -2199,8 +2640,10 @@
       "scrip_code": "540756",
       "group": "M",
       "isin": "INE282Y01016",
-      "industry": null,
-      "mcap_cr": 10.84
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 10.84,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "KAHAN",
@@ -2209,8 +2652,10 @@
       "scrip_code": "543979",
       "group": "MT",
       "isin": "INE04T901017",
-      "industry": null,
-      "mcap_cr": 19.3
+      "industry": "Industrial Products",
+      "mcap_cr": 19.3,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "KAKA",
@@ -2219,8 +2664,10 @@
       "scrip_code": "543939",
       "group": "M",
       "isin": "INE0P3N01018",
-      "industry": null,
-      "mcap_cr": 305.44
+      "industry": "Industrial Products",
+      "mcap_cr": 320.67,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "KALYANI",
@@ -2229,8 +2676,13 @@
       "scrip_code": "544023",
       "group": "M",
       "isin": "INE0N6U01018",
-      "industry": null,
-      "mcap_cr": 581.62
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 575.88,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products",
+      "about": "Kalyani Cast-Tech Limited engages in the manufacturing of container, class of foundry, casting of steel and iron, and railway parts in India. The company offers various castings, including finished components; a range of cargo containers; and other special containers, such as dwarf containers, cuboid containers, special containers for parcel cargo, and containers for two and three wheelers. It serves railways, mining, cement, chemical, fertilizer plants, and power industries. The company was incorporated in 2012 and is based in New Delhi, India.",
+      "website": "https://kalyanicasttech.com",
+      "headquarters": "New Delhi, India"
     },
     {
       "ticker": "KANISHK",
@@ -2239,8 +2691,10 @@
       "scrip_code": "544693",
       "group": "MT",
       "isin": "INE163401016",
-      "industry": null,
-      "mcap_cr": 33.6
+      "industry": "Non - Ferrous Metals",
+      "mcap_cr": 33.6,
+      "sector": "Commodities",
+      "sub_sector": "Aluminium"
     },
     {
       "ticker": "KARBON",
@@ -2249,8 +2703,10 @@
       "scrip_code": "544511",
       "group": "M",
       "isin": "INE0V8A01016",
-      "industry": null,
-      "mcap_cr": 152.87
+      "industry": "Construction",
+      "mcap_cr": 149.9,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "KASTURI",
@@ -2259,8 +2715,10 @@
       "scrip_code": "544688",
       "group": "M",
       "isin": "INE0T1301023",
-      "industry": null,
-      "mcap_cr": 62.37
+      "industry": "Industrial Products",
+      "mcap_cr": 59.25,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "KCSL",
@@ -2269,8 +2727,10 @@
       "scrip_code": "537784",
       "group": "M",
       "isin": "INE576P01019",
-      "industry": null,
-      "mcap_cr": 3.89
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 3.89,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "KDML",
@@ -2279,8 +2739,10 @@
       "scrip_code": "539788",
       "group": "MT",
       "isin": "INE030U01025",
-      "industry": null,
-      "mcap_cr": 274.77
+      "industry": "Retailing",
+      "mcap_cr": 274.77,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Distributors"
     },
     {
       "ticker": "KENRIK",
@@ -2289,8 +2751,10 @@
       "scrip_code": "544398",
       "group": "M",
       "isin": "INE0AOG01018",
-      "industry": null,
-      "mcap_cr": 8.8
+      "industry": "Consumer Durables",
+      "mcap_cr": 8.8,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "KESAR",
@@ -2299,8 +2763,10 @@
       "scrip_code": "543542",
       "group": "M",
       "isin": "INE0L1C01019",
-      "industry": null,
-      "mcap_cr": 3831.16
+      "industry": "Realty",
+      "mcap_cr": 3828,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "KGVL",
@@ -2309,8 +2775,10 @@
       "scrip_code": "544270",
       "group": "M",
       "isin": "INE0S9501014",
-      "industry": null,
-      "mcap_cr": 35.98
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 35.98,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "KHAZANCHI",
@@ -2319,8 +2787,10 @@
       "scrip_code": "543953",
       "group": "M",
       "isin": "INE0OWC01011",
-      "industry": null,
-      "mcap_cr": 1926.55
+      "industry": "Consumer Durables",
+      "mcap_cr": 1961.81,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "KIAASA",
@@ -2329,8 +2799,10 @@
       "scrip_code": "544711",
       "group": "M",
       "isin": "INE1C3F01018",
-      "industry": null,
-      "mcap_cr": 56.55
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 56.7,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "KIZI",
@@ -2339,8 +2811,10 @@
       "scrip_code": "544221",
       "group": "MT",
       "isin": "INE0RMR01013",
-      "industry": null,
-      "mcap_cr": 13.72
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 13.37,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "KKSHL",
@@ -2349,8 +2823,10 @@
       "scrip_code": "544013",
       "group": "M",
       "isin": "INE0OH401016",
-      "industry": null,
-      "mcap_cr": 29.89
+      "industry": "Healthcare Services",
+      "mcap_cr": 29.89,
+      "sector": "Healthcare",
+      "sub_sector": "Hospital"
     },
     {
       "ticker": "KKSILK",
@@ -2359,8 +2835,10 @@
       "scrip_code": "544624",
       "group": "MT",
       "isin": "INE0EOJ01014",
-      "industry": null,
-      "mcap_cr": 20.98
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 21.09,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "KLASSROOM",
@@ -2369,8 +2847,10 @@
       "scrip_code": "544856",
       "group": "MT",
       "isin": "INE1LMA01010",
-      "industry": null,
-      "mcap_cr": 147.72
+      "industry": "Other Consumer Services",
+      "mcap_cr": 151.87,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "E-Learning"
     },
     {
       "ticker": "KMSMEDI",
@@ -2379,8 +2859,10 @@
       "scrip_code": "540468",
       "group": "MT",
       "isin": "INE870V01014",
-      "industry": null,
-      "mcap_cr": 43.82
+      "industry": "Healthcare Equipment & Supplies",
+      "mcap_cr": 43.82,
+      "sector": "Healthcare",
+      "sub_sector": "Medical Equipment & Supplies"
     },
     {
       "ticker": "KOURA",
@@ -2389,8 +2871,10 @@
       "scrip_code": "544139",
       "group": "M",
       "isin": "INE0M8R01011",
-      "industry": null,
-      "mcap_cr": 24.15
+      "industry": "Consumer Durables",
+      "mcap_cr": 24.45,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "KPGEL",
@@ -2399,8 +2883,10 @@
       "scrip_code": "544150",
       "group": "M",
       "isin": "INE0QVH01025",
-      "industry": null,
-      "mcap_cr": 1410.5
+      "industry": "Electrical Equipment",
+      "mcap_cr": 1405,
+      "sector": "Industrials",
+      "sub_sector": "Heavy Electrical Equipment"
     },
     {
       "ticker": "KRATIKAL",
@@ -2409,8 +2895,10 @@
       "scrip_code": "544811",
       "group": "M",
       "isin": "INE1L0M01019",
-      "industry": null,
-      "mcap_cr": 176.5
+      "industry": "IT - Software",
+      "mcap_cr": 173.17,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "KRUPALU",
@@ -2419,8 +2907,10 @@
       "scrip_code": "544509",
       "group": "M",
       "isin": "INE0XZB01017",
-      "industry": null,
-      "mcap_cr": 16.24
+      "industry": "Industrial Products",
+      "mcap_cr": 16.24,
+      "sector": "Industrials",
+      "sub_sector": "Aluminium, Copper & Zinc Products"
     },
     {
       "ticker": "KVSCASTING",
@@ -2429,8 +2919,10 @@
       "scrip_code": "544554",
       "group": "M",
       "isin": "INE163701019",
-      "industry": null,
-      "mcap_cr": 149
+      "industry": "Industrial Products",
+      "mcap_cr": 150.96,
+      "sector": "Industrials",
+      "sub_sector": "Castings & Forgings"
     },
     {
       "ticker": "KVTOYS",
@@ -2439,8 +2931,10 @@
       "scrip_code": "544641",
       "group": "M",
       "isin": "INE1IE301018",
-      "industry": null,
-      "mcap_cr": 170.82
+      "industry": "Consumer Durables",
+      "mcap_cr": 171.54,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Leisure Products"
     },
     {
       "ticker": "LABELKRAFT",
@@ -2449,8 +2943,10 @@
       "scrip_code": "543830",
       "group": "M",
       "isin": "INE0NLJ01011",
-      "industry": null,
-      "mcap_cr": 20.11
+      "industry": "Paper, Forest & Jute Products",
+      "mcap_cr": 20.11,
+      "sector": "Commodities",
+      "sub_sector": "Paper & Paper Products"
     },
     {
       "ticker": "LAPL",
@@ -2459,8 +2955,10 @@
       "scrip_code": "544863",
       "group": "MT",
       "isin": "INE0X9I01023",
-      "industry": null,
-      "mcap_cr": 152.79
+      "industry": "Auto Components",
+      "mcap_cr": 160.46,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Components & Equipments"
     },
     {
       "ticker": "LAXMIPATI",
@@ -2469,8 +2967,10 @@
       "scrip_code": "537669",
       "group": "MT",
       "isin": "INE920P01019",
-      "industry": null,
-      "mcap_cr": 272.07
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 272.07,
+      "sector": "Industrials",
+      "sub_sector": "Ship Building & Allied Services"
     },
     {
       "ticker": "LESL",
@@ -2479,8 +2979,10 @@
       "scrip_code": "544797",
       "group": "M",
       "isin": "INE0X6O01027",
-      "industry": null,
-      "mcap_cr": 304.85
+      "industry": "Construction",
+      "mcap_cr": 310.52,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "LEX",
@@ -2489,8 +2991,10 @@
       "scrip_code": "541196",
       "group": "MT",
       "isin": "INE860Y01019",
-      "industry": null,
-      "mcap_cr": 35.62
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 35.62,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "LGLL",
@@ -2499,8 +3003,10 @@
       "scrip_code": "544341",
       "group": "M",
       "isin": "INE12QA01010",
-      "industry": null,
-      "mcap_cr": 23.39
+      "industry": "Leisure Services",
+      "mcap_cr": 22.53,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "LGT",
@@ -2509,8 +3015,10 @@
       "scrip_code": "544489",
       "group": "M",
       "isin": "INE191201016",
-      "industry": null,
-      "mcap_cr": 38.43
+      "industry": "Leisure Services",
+      "mcap_cr": 37.68,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "LIOTECH",
@@ -2519,8 +3027,10 @@
       "scrip_code": "544796",
       "group": "M",
       "isin": "INE0TKX01011",
-      "industry": null,
-      "mcap_cr": 39.78
+      "industry": "Industrial Products",
+      "mcap_cr": 39.78,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "LKMEHTA",
@@ -2529,8 +3039,10 @@
       "scrip_code": "544366",
       "group": "M",
       "isin": "INE0FFF01017",
-      "industry": null,
-      "mcap_cr": 14.71
+      "industry": "Industrial Products",
+      "mcap_cr": 14.71,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "LOGICA",
@@ -2539,8 +3051,10 @@
       "scrip_code": "543746",
       "group": "M",
       "isin": "INE0BSU01018",
-      "industry": null,
-      "mcap_cr": 283.6
+      "industry": "Retailing",
+      "mcap_cr": 302.56,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Speciality Retail"
     },
     {
       "ticker": "LOGICIEL",
@@ -2549,8 +3063,10 @@
       "scrip_code": "544625",
       "group": "M",
       "isin": "INE1BA901016",
-      "industry": null,
-      "mcap_cr": 22.49
+      "industry": "IT - Software",
+      "mcap_cr": 23.16,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "LTELEVATOR",
@@ -2559,8 +3075,10 @@
       "scrip_code": "544518",
       "group": "MT",
       "isin": "INE0TJ801010",
-      "industry": null,
-      "mcap_cr": 615.13
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 615.13,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "LUXURY",
@@ -2569,8 +3087,10 @@
       "scrip_code": "544635",
       "group": "M",
       "isin": "INE1CJB01013",
-      "industry": null,
-      "mcap_cr": 51.18
+      "industry": "Consumer Durables",
+      "mcap_cr": 51.18,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "MACH",
@@ -2579,8 +3099,10 @@
       "scrip_code": "541973",
       "group": "M",
       "isin": "INE004Z01011",
-      "industry": null,
-      "mcap_cr": 52.93
+      "industry": "Leisure Services",
+      "mcap_cr": 52.93,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Hotels & Resorts"
     },
     {
       "ticker": "MACHLTD",
@@ -2589,8 +3111,10 @@
       "scrip_code": "544248",
       "group": "M",
       "isin": "INE0UYT01018",
-      "industry": null,
-      "mcap_cr": 378.67
+      "industry": "Leisure Services",
+      "mcap_cr": 359.73,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "MAFIA",
@@ -2599,8 +3123,10 @@
       "scrip_code": "543613",
       "group": "M",
       "isin": "INE0KQQ01011",
-      "industry": null,
-      "mcap_cr": 2
+      "industry": "Retailing",
+      "mcap_cr": 2,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Speciality Retail"
     },
     {
       "ticker": "MAGENTA",
@@ -2609,8 +3135,10 @@
       "scrip_code": "544188",
       "group": "M",
       "isin": "INE0QZ901011",
-      "industry": null,
-      "mcap_cr": 5.8
+      "industry": "Consumer Durables",
+      "mcap_cr": 5.8,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Furniture, Home Furnishing"
     },
     {
       "ticker": "MAHALIFE",
@@ -2619,8 +3147,10 @@
       "scrip_code": "544611",
       "group": "M",
       "isin": "INE0U9D01019",
-      "industry": null,
-      "mcap_cr": 437.67
+      "industry": "Fertilizers & Agrochemicals",
+      "mcap_cr": 435.33,
+      "sector": "Commodities",
+      "sub_sector": "Pesticides & Agrochemicals"
     },
     {
       "ticker": "MAHIP",
@@ -2629,8 +3159,10 @@
       "scrip_code": "542503",
       "group": "MT",
       "isin": "INE00CX01017",
-      "industry": null,
-      "mcap_cr": 33.29
+      "industry": "Industrial Products",
+      "mcap_cr": 34.94,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "MAIDEN",
@@ -2639,8 +3171,10 @@
       "scrip_code": "543874",
       "group": "M",
       "isin": "INE0O1T01010",
-      "industry": null,
-      "mcap_cr": 160.08
+      "industry": "Industrial Products",
+      "mcap_cr": 160.6,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "MALA",
@@ -2649,8 +3183,10 @@
       "scrip_code": "544835",
       "group": "M",
       "isin": "INE1N3Y01016",
-      "industry": null,
-      "mcap_cr": 63.39
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 65.37,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "MALPANI",
@@ -2659,8 +3195,10 @@
       "scrip_code": "544351",
       "group": "M",
       "isin": "INE0YON01014",
-      "industry": null,
-      "mcap_cr": 72.21
+      "industry": "Industrial Products",
+      "mcap_cr": 72.21,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "MANAS",
@@ -2669,8 +3207,10 @@
       "scrip_code": "540402",
       "group": "MT",
       "isin": "INE800W01019",
-      "industry": null,
-      "mcap_cr": 162.24
+      "industry": "Realty",
+      "mcap_cr": 162.24,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "MANGALCOMP",
@@ -2679,8 +3219,10 @@
       "scrip_code": "544287",
       "group": "M",
       "isin": "INE0RU901015",
-      "industry": null,
-      "mcap_cr": 58.51
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 58.51,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "MANIVENI",
@@ -2689,8 +3231,10 @@
       "scrip_code": "544768",
       "group": "M",
       "isin": "INE0YD301010",
-      "industry": null,
-      "mcap_cr": 67.43
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 59.4,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "MANOJJEWEL",
@@ -2699,8 +3243,10 @@
       "scrip_code": "544400",
       "group": "M",
       "isin": "INE0MV001018",
-      "industry": null,
-      "mcap_cr": 37.74
+      "industry": "Consumer Durables",
+      "mcap_cr": 37.74,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "MARCLOIRE",
@@ -2709,8 +3255,10 @@
       "scrip_code": "544437",
       "group": "M",
       "isin": "INE0TBQ01014",
-      "industry": null,
-      "mcap_cr": 24
+      "industry": "Consumer Durables",
+      "mcap_cr": 23.57,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Footwear"
     },
     {
       "ticker": "MCFL",
@@ -2719,8 +3267,10 @@
       "scrip_code": "544106",
       "group": "MT",
       "isin": "INE0R5Z01015",
-      "industry": null,
-      "mcap_cr": 126.36
+      "industry": "Food Products",
+      "mcap_cr": 124.74,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Animal Feed"
     },
     {
       "ticker": "MCPL",
@@ -2729,8 +3279,10 @@
       "scrip_code": "544073",
       "group": "M",
       "isin": "INE0A6N01026",
-      "industry": null,
-      "mcap_cr": 122.88
+      "industry": "Consumer Durables",
+      "mcap_cr": 122.88,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Ceramics"
     },
     {
       "ticker": "MDRC",
@@ -2739,8 +3291,10 @@
       "scrip_code": "544673",
       "group": "M",
       "isin": "INE1HK501016",
-      "industry": null,
-      "mcap_cr": 78.52
+      "industry": "Healthcare Services",
+      "mcap_cr": 77.01,
+      "sector": "Healthcare",
+      "sub_sector": "Healthcare Service Provider"
     },
     {
       "ticker": "MEHUL",
@@ -2749,8 +3303,10 @@
       "scrip_code": "544472",
       "group": "M",
       "isin": "INE1KH601014",
-      "industry": null,
-      "mcap_cr": 58.01
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 58.01,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "METAINFO",
@@ -2759,8 +3315,10 @@
       "scrip_code": "544441",
       "group": "MT",
       "isin": "INE162901016",
-      "industry": null,
-      "mcap_cr": 171.82
+      "industry": "IT - Services",
+      "mcap_cr": 169.88,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "METHODHUB",
@@ -2769,8 +3327,10 @@
       "scrip_code": "544637",
       "group": "M",
       "isin": "INE0QZR01017",
-      "industry": null,
-      "mcap_cr": 135.74
+      "industry": "IT - Software",
+      "mcap_cr": 133.86,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "MHEL",
@@ -2779,8 +3339,10 @@
       "scrip_code": "540150",
       "group": "MT",
       "isin": "INE957U01011",
-      "industry": null,
-      "mcap_cr": 24.98
+      "industry": "Construction",
+      "mcap_cr": 24.98,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "MILEFUR",
@@ -2789,8 +3351,10 @@
       "scrip_code": "541337",
       "group": "MT",
       "isin": "INE424Z01011",
-      "industry": null,
-      "mcap_cr": 23.83
+      "industry": "Consumer Durables",
+      "mcap_cr": 23.83,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Furniture, Home Furnishing"
     },
     {
       "ticker": "MILLWORKS",
@@ -2799,8 +3363,10 @@
       "scrip_code": "544826",
       "group": "M",
       "isin": "INE1SRC01010",
-      "industry": null,
-      "mcap_cr": 1365.23
+      "industry": "Aerospace & Defense",
+      "mcap_cr": 1365.14,
+      "sector": "Industrials",
+      "sub_sector": "Aerospace & Defense"
     },
     {
       "ticker": "MISHDESIGN",
@@ -2809,8 +3375,10 @@
       "scrip_code": "544015",
       "group": "M",
       "isin": "INE0QI101019",
-      "industry": null,
-      "mcap_cr": 10.34
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 10.34,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "MISQUITA",
@@ -2819,8 +3387,10 @@
       "scrip_code": "542801",
       "group": "M",
       "isin": "INE957W01025",
-      "industry": null,
-      "mcap_cr": 32.11
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 35.82,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "MITTALSTL",
@@ -2829,8 +3399,10 @@
       "scrip_code": "544575",
       "group": "M",
       "isin": "INE833Q01012",
-      "industry": null,
-      "mcap_cr": 31.23
+      "industry": "Industrial Products",
+      "mcap_cr": 31.23,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "MNFL",
@@ -2839,8 +3411,10 @@
       "scrip_code": "544623",
       "group": "M",
       "isin": "INE0UH001016",
-      "industry": null,
-      "mcap_cr": 202.44
+      "industry": "Food Products",
+      "mcap_cr": 202.44,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "MONIKA",
@@ -2849,8 +3423,10 @@
       "scrip_code": "544451",
       "group": "M",
       "isin": "INE0LCG01010",
-      "industry": null,
-      "mcap_cr": 338.91
+      "industry": "Beverages",
+      "mcap_cr": 330.44,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Breweries & Distilleries"
     },
     {
       "ticker": "MPKSTEELS",
@@ -2859,8 +3435,10 @@
       "scrip_code": "544553",
       "group": "M",
       "isin": "INE1PJP01015",
-      "industry": null,
-      "mcap_cr": 98.5
+      "industry": "Industrial Products",
+      "mcap_cr": 99.77,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "MRP",
@@ -2869,8 +3447,10 @@
       "scrip_code": "543262",
       "group": "M",
       "isin": "INE0D7801012",
-      "industry": null,
-      "mcap_cr": 105.8
+      "industry": "Retailing",
+      "mcap_cr": 105.8,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Distributors"
     },
     {
       "ticker": "MRTX",
@@ -2879,8 +3459,10 @@
       "scrip_code": "544773",
       "group": "M",
       "isin": "INE1RQS01010",
-      "industry": null,
-      "mcap_cr": 572.45
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 583.99,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "MSAFE",
@@ -2889,8 +3471,10 @@
       "scrip_code": "544695",
       "group": "MT",
       "isin": "INE2B5L01011",
-      "industry": null,
-      "mcap_cr": 408.31
+      "industry": "Non - Ferrous Metals",
+      "mcap_cr": 432.48,
+      "sector": "Commodities",
+      "sub_sector": "Aluminium"
     },
     {
       "ticker": "MSECL",
@@ -2899,8 +3483,10 @@
       "scrip_code": "544453",
       "group": "M",
       "isin": "INE0V0L01028",
-      "industry": null,
-      "mcap_cr": 325.38
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 322.4,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "MTL",
@@ -2909,8 +3495,10 @@
       "scrip_code": "544751",
       "group": "M",
       "isin": "INE1K0V01011",
-      "industry": null,
-      "mcap_cr": 89.88
+      "industry": "Retailing",
+      "mcap_cr": 94.05,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Speciality Retail"
     },
     {
       "ticker": "NACDAC",
@@ -2919,8 +3507,10 @@
       "scrip_code": "544313",
       "group": "M",
       "isin": "INE0LB101011",
-      "industry": null,
-      "mcap_cr": 24.73
+      "industry": "Construction",
+      "mcap_cr": 24.73,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "NANTA",
@@ -2929,8 +3519,10 @@
       "scrip_code": "544668",
       "group": "M",
       "isin": "INE0YJA01011",
-      "industry": null,
-      "mcap_cr": 165.7
+      "industry": "Consumer Durables",
+      "mcap_cr": 160.57,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Consumer Electronics"
     },
     {
       "ticker": "NAPSGLOBAL",
@@ -2939,8 +3531,10 @@
       "scrip_code": "544373",
       "group": "M",
       "isin": "INE0VNH01014",
-      "industry": null,
-      "mcap_cr": 22.15
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 22.15,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "NARMADESH",
@@ -2949,8 +3543,10 @@
       "scrip_code": "544680",
       "group": "MT",
       "isin": "INE0S1B01014",
-      "industry": null,
-      "mcap_cr": 96.12
+      "industry": "Industrial Products",
+      "mcap_cr": 96.12,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "NAVIGANT",
@@ -2959,8 +3555,10 @@
       "scrip_code": "539521",
       "group": "MT",
       "isin": "INE364T01012",
-      "industry": null,
-      "mcap_cr": 22.99
+      "industry": "Finance",
+      "mcap_cr": 22.99,
+      "sector": "Financial Services",
+      "sub_sector": "Other Financial Services"
     },
     {
       "ticker": "NCML",
@@ -2969,8 +3567,10 @@
       "scrip_code": "544510",
       "group": "M",
       "isin": "INE346R01013",
-      "industry": null,
-      "mcap_cr": 220.6
+      "industry": "Ferrous Metals",
+      "mcap_cr": 224.34,
+      "sector": "Commodities",
+      "sub_sector": "Ferro & Silica Manganese"
     },
     {
       "ticker": "NEETUYOSHI",
@@ -2979,8 +3579,10 @@
       "scrip_code": "544434",
       "group": "MT",
       "isin": "INE0UZO01024",
-      "industry": null,
-      "mcap_cr": 601.6
+      "industry": "Industrial Products",
+      "mcap_cr": 589.95,
+      "sector": "Industrials",
+      "sub_sector": "Castings & Forgings"
     },
     {
       "ticker": "NEPLOG",
@@ -2989,8 +3591,10 @@
       "scrip_code": "544663",
       "group": "MT",
       "isin": "INE1NQ501012",
-      "industry": null,
-      "mcap_cr": 44.95
+      "industry": "Transport Services",
+      "mcap_cr": 44.95,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "NEXXUS",
@@ -2999,8 +3603,10 @@
       "scrip_code": "544265",
       "group": "M",
       "isin": "INE0QUL01011",
-      "industry": null,
-      "mcap_cr": 56.99
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 56.99,
+      "sector": "Commodities",
+      "sub_sector": "Petrochemicals"
     },
     {
       "ticker": "NHL",
@@ -3009,8 +3615,10 @@
       "scrip_code": "544245",
       "group": "M",
       "isin": "INE0N4701016",
-      "industry": null,
-      "mcap_cr": 28.83
+      "industry": "Leisure Services",
+      "mcap_cr": 28.83,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "NISMGMT",
@@ -3019,8 +3627,10 @@
       "scrip_code": "544495",
       "group": "M",
       "isin": "INE0M3X01010",
-      "industry": null,
-      "mcap_cr": 96.03
+      "industry": "Other Consumer Services",
+      "mcap_cr": 96.03,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Consumer Services"
     },
     {
       "ticker": "NISUS",
@@ -3029,8 +3639,10 @@
       "scrip_code": "544296",
       "group": "M",
       "isin": "INE0DQN01013",
-      "industry": null,
-      "mcap_cr": 412.97
+      "industry": "Finance",
+      "mcap_cr": 413.33,
+      "sector": "Financial Services",
+      "sub_sector": "Holding Company"
     },
     {
       "ticker": "NOVATEOR",
@@ -3039,8 +3651,10 @@
       "scrip_code": "542771",
       "group": "M",
       "isin": "INE08JY01013",
-      "industry": null,
-      "mcap_cr": 19.88
+      "industry": "Personal Products",
+      "mcap_cr": 19.88,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Personal Care"
     },
     {
       "ticker": "NOVUS",
@@ -3049,8 +3663,10 @@
       "scrip_code": "544735",
       "group": "M",
       "isin": "INE1TFS01019",
-      "industry": null,
-      "mcap_cr": 233.25
+      "industry": "Media",
+      "mcap_cr": 237.68,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Web based media and service"
     },
     {
       "ticker": "NPFL",
@@ -3059,8 +3675,10 @@
       "scrip_code": "544269",
       "group": "M",
       "isin": "INE471R01019",
-      "industry": null,
-      "mcap_cr": 11.56
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 11.56,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "NSBBPO",
@@ -3069,8 +3687,10 @@
       "scrip_code": "544571",
       "group": "M",
       "isin": "INE0SLP01017",
-      "industry": null,
-      "mcap_cr": 135.41
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 135.41,
+      "sector": "Services",
+      "sub_sector": "Business Process Outsourcing (BPO)/ Knowledge Process Outsourcing (KPO)"
     },
     {
       "ticker": "NUKLEUS",
@@ -3079,8 +3699,10 @@
       "scrip_code": "544370",
       "group": "M",
       "isin": "INE0VYX01018",
-      "industry": null,
-      "mcap_cr": 84.55
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 84.55,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "NVENTURES",
@@ -3089,8 +3711,10 @@
       "scrip_code": "543522",
       "group": "M",
       "isin": "INE0E5R01017",
-      "industry": null,
-      "mcap_cr": 41.14
+      "industry": "Non - Ferrous Metals",
+      "mcap_cr": 38.35,
+      "sector": "Commodities",
+      "sub_sector": "Precious Metals"
     },
     {
       "ticker": "OCTAWARE",
@@ -3099,8 +3723,10 @@
       "scrip_code": "540416",
       "group": "MT",
       "isin": "INE208U01019",
-      "industry": null,
-      "mcap_cr": 22.84
+      "industry": "IT - Services",
+      "mcap_cr": 22.84,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "OLATECH",
@@ -3109,8 +3735,10 @@
       "scrip_code": "543578",
       "group": "M",
       "isin": "INE0M3901015",
-      "industry": null,
-      "mcap_cr": 27.17
+      "industry": "IT - Software",
+      "mcap_cr": 27.37,
+      "sector": "Information Technology",
+      "sub_sector": "Software Products"
     },
     {
       "ticker": "OML",
@@ -3119,8 +3747,10 @@
       "scrip_code": "544559",
       "group": "MT",
       "isin": "INE0R8Q01018",
-      "industry": null,
-      "mcap_cr": 25.05
+      "industry": "Industrial Products",
+      "mcap_cr": 25.05,
+      "sector": "Industrials",
+      "sub_sector": "Aluminium, Copper & Zinc Products"
     },
     {
       "ticker": "OMNIPOTENT",
@@ -3129,8 +3759,10 @@
       "scrip_code": "543400",
       "group": "M",
       "isin": "INE0JFE01012",
-      "industry": null,
-      "mcap_cr": 1.4
+      "industry": "Petroleum Products",
+      "mcap_cr": 1.4,
+      "sector": "Energy",
+      "sub_sector": "Refineries & Marketing"
     },
     {
       "ticker": "ONEINDIG",
@@ -3139,8 +3771,10 @@
       "scrip_code": "544852",
       "group": "MT",
       "isin": "INE0UR501013",
-      "industry": null,
-      "mcap_cr": 167.14
+      "industry": "Construction",
+      "mcap_cr": 171.5,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "OPCHAINS",
@@ -3149,8 +3783,10 @@
       "scrip_code": "539116",
       "group": "MT",
       "isin": "INE118Q01018",
-      "industry": null,
-      "mcap_cr": 20.38
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 20.38,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "ORGANICREC",
@@ -3159,8 +3795,10 @@
       "scrip_code": "543997",
       "group": "M",
       "isin": "INE0MIO01019",
-      "industry": null,
-      "mcap_cr": 250.67
+      "industry": "Other Utilities",
+      "mcap_cr": 249.06,
+      "sector": "Utilities",
+      "sub_sector": "Waste Management"
     },
     {
       "ticker": "OVAL",
@@ -3169,8 +3807,10 @@
       "scrip_code": "544498",
       "group": "M",
       "isin": "INE0RTI01017",
-      "industry": null,
-      "mcap_cr": 112.15
+      "industry": "Construction",
+      "mcap_cr": 112.15,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "PACE",
@@ -3179,8 +3819,10 @@
       "scrip_code": "543637",
       "group": "M",
       "isin": "INE0N1L01018",
-      "industry": null,
-      "mcap_cr": 33.78
+      "industry": "Retailing",
+      "mcap_cr": 32.67,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "E-Retail/ E-Commerce"
     },
     {
       "ticker": "PAJSON",
@@ -3189,8 +3831,10 @@
       "scrip_code": "544657",
       "group": "M",
       "isin": "INE14LM01012",
-      "industry": null,
-      "mcap_cr": 464.29
+      "industry": "Food Products",
+      "mcap_cr": 461.91,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "PANHR",
@@ -3199,8 +3843,10 @@
       "scrip_code": "544698",
       "group": "MT",
       "isin": "INE1N9E01015",
-      "industry": null,
-      "mcap_cr": 42
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 42,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "PARMESHWAR",
@@ -3209,8 +3855,10 @@
       "scrip_code": "544330",
       "group": "M",
       "isin": "INE0QQJ01021",
-      "industry": null,
-      "mcap_cr": 287.75
+      "industry": "Industrial Products",
+      "mcap_cr": 292.34,
+      "sector": "Industrials",
+      "sub_sector": "Aluminium, Copper & Zinc Products"
     },
     {
       "ticker": "PATELCHEM",
@@ -3219,8 +3867,10 @@
       "scrip_code": "544460",
       "group": "MT",
       "isin": "INE161701011",
-      "industry": null,
-      "mcap_cr": 233.65
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 228.53,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "PATRON",
@@ -3229,18 +3879,10 @@
       "scrip_code": "543798",
       "group": "M",
       "isin": "INE0NPA01011",
-      "industry": null,
-      "mcap_cr": 4.64
-    },
-    {
-      "ticker": "PBFL",
-      "name": "P. B. Films Limited",
-      "market": "BSE SME",
-      "scrip_code": "539352",
-      "group": "MT",
-      "isin": "INE212Q01019",
-      "industry": null,
-      "mcap_cr": 0
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 4.64,
+      "sector": "Commodities",
+      "sub_sector": "Trading - Chemicals"
     },
     {
       "ticker": "PCL",
@@ -3249,8 +3891,10 @@
       "scrip_code": "543814",
       "group": "M",
       "isin": "INE0OKG01017",
-      "industry": null,
-      "mcap_cr": 21
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 22.7,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "PECOS",
@@ -3259,8 +3903,10 @@
       "scrip_code": "539273",
       "group": "M",
       "isin": "INE484S01010",
-      "industry": null,
-      "mcap_cr": 33.01
+      "industry": "Leisure Services",
+      "mcap_cr": 33.01,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Restaurants"
     },
     {
       "ticker": "PESB",
@@ -3269,8 +3915,10 @@
       "scrip_code": "544141",
       "group": "M",
       "isin": "INE510U01018",
-      "industry": null,
-      "mcap_cr": 418.97
+      "industry": "Capital Markets",
+      "mcap_cr": 421.34,
+      "sector": "Financial Services",
+      "sub_sector": "Stockbroking & Allied"
     },
     {
       "ticker": "PFL",
@@ -3279,8 +3927,10 @@
       "scrip_code": "544259",
       "group": "M",
       "isin": "INE0PZB01013",
-      "industry": null,
-      "mcap_cr": 61.34
+      "industry": "Construction",
+      "mcap_cr": 60.73,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "PGCRL",
@@ -3289,8 +3939,10 @@
       "scrip_code": "543540",
       "group": "M",
       "isin": "INE0GTX01019",
-      "industry": null,
-      "mcap_cr": 30.2
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 30.2,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "PIOTEX",
@@ -3299,8 +3951,10 @@
       "scrip_code": "544178",
       "group": "M",
       "isin": "INE0R4W01015",
-      "industry": null,
-      "mcap_cr": 16.08
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 16.08,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "PJL",
@@ -3309,8 +3963,10 @@
       "scrip_code": "539401",
       "group": "M",
       "isin": "INE473T01011",
-      "industry": null,
-      "mcap_cr": 131.67
+      "industry": "Consumer Durables",
+      "mcap_cr": 131.67,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "POBS",
@@ -3319,8 +3975,10 @@
       "scrip_code": "543352",
       "group": "M",
       "isin": "INE0DTJ01015",
-      "industry": null,
-      "mcap_cr": 26.11
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 26.11,
+      "sector": "Services",
+      "sub_sector": "Business Process Outsourcing (BPO)/ Knowledge Process Outsourcing (KPO)"
     },
     {
       "ticker": "POLYMAC",
@@ -3329,8 +3987,10 @@
       "scrip_code": "537573",
       "group": "M",
       "isin": "INE826P01018",
-      "industry": null,
-      "mcap_cr": 4.02
+      "industry": "Industrial Products",
+      "mcap_cr": 4.42,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "PPARIVAH",
@@ -3339,8 +3999,10 @@
       "scrip_code": "544383",
       "group": "MT",
       "isin": "INE0SMW01011",
-      "industry": null,
-      "mcap_cr": 431.22
+      "industry": "Transport Services",
+      "mcap_cr": 426.6,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "PPEL",
@@ -3349,8 +4011,10 @@
       "scrip_code": "544844",
       "group": "MT",
       "isin": "INE288301026",
-      "industry": null,
-      "mcap_cr": 1125
+      "industry": "Auto Components",
+      "mcap_cr": 1139.26,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Components & Equipments"
     },
     {
       "ticker": "PRARUH",
@@ -3359,8 +4023,10 @@
       "scrip_code": "544538",
       "group": "M",
       "isin": "INE0TI501017",
-      "industry": null,
-      "mcap_cr": 105.17
+      "industry": "IT - Services",
+      "mcap_cr": 105.17,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "PREVEST",
@@ -3369,8 +4035,10 @@
       "scrip_code": "543363",
       "group": "M",
       "isin": "INE0GAO01018",
-      "industry": null,
-      "mcap_cr": 473.64
+      "industry": "Healthcare Equipment & Supplies",
+      "mcap_cr": 456.11,
+      "sector": "Healthcare",
+      "sub_sector": "Medical Equipment & Supplies"
     },
     {
       "ticker": "PRODOCS",
@@ -3379,8 +4047,10 @@
       "scrip_code": "544643",
       "group": "M",
       "isin": "INE10XK01019",
-      "industry": null,
-      "mcap_cr": 114.53
+      "industry": "IT - Services",
+      "mcap_cr": 114.53,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "PROMAX",
@@ -3389,8 +4059,10 @@
       "scrip_code": "543375",
       "group": "M",
       "isin": "INE0I2F01015",
-      "industry": null,
-      "mcap_cr": 28.03
+      "industry": "Construction",
+      "mcap_cr": 28.03,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "PSPL",
@@ -3399,8 +4071,10 @@
       "scrip_code": "544378",
       "group": "M",
       "isin": "INE0ABU01016",
-      "industry": null,
-      "mcap_cr": 17.25
+      "industry": "Transport Services",
+      "mcap_cr": 17.25,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "PURPLEWAVE",
@@ -3409,8 +4083,10 @@
       "scrip_code": "544627",
       "group": "MT",
       "isin": "INE0VDK01019",
-      "industry": null,
-      "mcap_cr": 277.38
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 277.38,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "PYXISFIN",
@@ -3419,8 +4095,10 @@
       "scrip_code": "534109",
       "group": "MT",
       "isin": "INE883L01018",
-      "industry": null,
-      "mcap_cr": 11.23
+      "industry": "Finance",
+      "mcap_cr": 11.23,
+      "sector": "Financial Services",
+      "sub_sector": "Non Banking Financial Company (NBFC)"
     },
     {
       "ticker": "QLL",
@@ -3429,8 +4107,10 @@
       "scrip_code": "544091",
       "group": "M",
       "isin": "INE0Q1R01012",
-      "industry": null,
-      "mcap_cr": 515.02
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 498.71,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "QRIL",
@@ -3439,8 +4119,10 @@
       "scrip_code": "543460",
       "group": "M",
       "isin": "INE0KAF01018",
-      "industry": null,
-      "mcap_cr": 10.17
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 10.17,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "QUESTFLOW",
@@ -3449,8 +4131,10 @@
       "scrip_code": "543982",
       "group": "MT",
       "isin": "INE0OYE01013",
-      "industry": null,
-      "mcap_cr": 197
+      "industry": "Industrial Products",
+      "mcap_cr": 195.92,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "RACHIT",
@@ -3459,8 +4143,10 @@
       "scrip_code": "544503",
       "group": "MT",
       "isin": "INE0ZN101029",
-      "industry": null,
-      "mcap_cr": 98.25
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 96.15,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "RACONTEUR",
@@ -3469,8 +4155,10 @@
       "scrip_code": "541703",
       "group": "M",
       "isin": "INE00WY01013",
-      "industry": null,
-      "mcap_cr": 12.09
+      "industry": "Retailing",
+      "mcap_cr": 12.09,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Speciality Retail"
     },
     {
       "ticker": "RAFL",
@@ -3479,8 +4167,10 @@
       "scrip_code": "538921",
       "group": "M",
       "isin": "INE865P01016",
-      "industry": null,
-      "mcap_cr": 40.58
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 40.58,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "RAJESH",
@@ -3489,8 +4179,10 @@
       "scrip_code": "544291",
       "group": "M",
       "isin": "INE0VN801010",
-      "industry": null,
-      "mcap_cr": 1482.73
+      "industry": "Other Utilities",
+      "mcap_cr": 1515.86,
+      "sector": "Utilities",
+      "sub_sector": "Multi Utilities"
     },
     {
       "ticker": "RAL",
@@ -3499,8 +4191,10 @@
       "scrip_code": "544236",
       "group": "MT",
       "isin": "INE0SK201011",
-      "industry": null,
-      "mcap_cr": 10.01
+      "industry": "Automobiles",
+      "mcap_cr": 10.01,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto -Dealer"
     },
     {
       "ticker": "RANJEET",
@@ -3509,8 +4203,10 @@
       "scrip_code": "541945",
       "group": "M",
       "isin": "INE01A501027",
-      "industry": null,
-      "mcap_cr": 27.68
+      "industry": "Construction",
+      "mcap_cr": 27.68,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "RAPID",
@@ -3519,8 +4215,10 @@
       "scrip_code": "544237",
       "group": "M",
       "isin": "INE0QA901010",
-      "industry": null,
-      "mcap_cr": 50.31
+      "industry": "Transport Services",
+      "mcap_cr": 50.69,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "RAVEL",
@@ -3529,8 +4227,10 @@
       "scrip_code": "544629",
       "group": "M",
       "isin": "INE0W4D01018",
-      "industry": null,
-      "mcap_cr": 78.91
+      "industry": "Personal Products",
+      "mcap_cr": 78.91,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Personal Care"
     },
     {
       "ticker": "RCAN",
@@ -3539,8 +4239,10 @@
       "scrip_code": "543285",
       "group": "M",
       "isin": "INE0CQ101015",
-      "industry": null,
-      "mcap_cr": 17.26
+      "industry": "Industrial Products",
+      "mcap_cr": 17.06,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "RDEL",
@@ -3549,8 +4251,10 @@
       "scrip_code": "544640",
       "group": "M",
       "isin": "INE1DKT01011",
-      "industry": null,
-      "mcap_cr": 31.8
+      "industry": "Consumer Durables",
+      "mcap_cr": 29.57,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Houseware"
     },
     {
       "ticker": "RDGAIL",
@@ -3559,8 +4263,10 @@
       "scrip_code": "544552",
       "group": "M",
       "isin": "INE0S5T01017",
-      "industry": null,
-      "mcap_cr": 130.48
+      "industry": "Food Products",
+      "mcap_cr": 128.7,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "RECODE",
@@ -3569,8 +4275,10 @@
       "scrip_code": "544755",
       "group": "M",
       "isin": "INE2B6701015",
-      "industry": null,
-      "mcap_cr": 287.4
+      "industry": "Personal Products",
+      "mcap_cr": 306.56,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Personal Care"
     },
     {
       "ticker": "REETECH",
@@ -3579,8 +4287,10 @@
       "scrip_code": "543617",
       "group": "M",
       "isin": "INE0MKO01015",
-      "industry": null,
-      "mcap_cr": 6.34
+      "industry": "Consumable Fuels",
+      "mcap_cr": 6.34,
+      "sector": "Energy",
+      "sub_sector": "Trading Coal"
     },
     {
       "ticker": "REPONO",
@@ -3589,8 +4299,10 @@
       "scrip_code": "544463",
       "group": "MT",
       "isin": "INE15WN01014",
-      "industry": null,
-      "mcap_cr": 83.26
+      "industry": "Oil",
+      "mcap_cr": 85.32,
+      "sector": "Energy",
+      "sub_sector": "Oil Storage & Transportation"
     },
     {
       "ticker": "RESGEN",
@@ -3599,8 +4311,10 @@
       "scrip_code": "543805",
       "group": "M",
       "isin": "INE0NYN01016",
-      "industry": null,
-      "mcap_cr": 98.56
+      "industry": "Petroleum Products",
+      "mcap_cr": 101.08,
+      "sector": "Energy",
+      "sub_sector": "Refineries & Marketing"
     },
     {
       "ticker": "RETAGGIO",
@@ -3609,8 +4323,10 @@
       "scrip_code": "544391",
       "group": "M",
       "isin": "INE0KWJ01014",
-      "industry": null,
-      "mcap_cr": 90.35
+      "industry": "Consumer Durables",
+      "mcap_cr": 90.35,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "RETINA",
@@ -3619,8 +4335,10 @@
       "scrip_code": "543902",
       "group": "M",
       "isin": "INE0NTC01019",
-      "industry": null,
-      "mcap_cr": 61.36
+      "industry": "Consumer Durables",
+      "mcap_cr": 65.95,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Paints"
     },
     {
       "ticker": "REXSEAL",
@@ -3629,8 +4347,10 @@
       "scrip_code": "543744",
       "group": "M",
       "isin": "INE0MFT01014",
-      "industry": null,
-      "mcap_cr": 31.02
+      "industry": "Industrial Products",
+      "mcap_cr": 31.02,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "RFIL",
@@ -3639,8 +4359,10 @@
       "scrip_code": "544771",
       "group": "M",
       "isin": "INE1GM501015",
-      "industry": null,
-      "mcap_cr": 37.8
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 37.64,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "RIKHAV",
@@ -3649,8 +4371,10 @@
       "scrip_code": "544340",
       "group": "M",
       "isin": "INE0CFH01028",
-      "industry": null,
-      "mcap_cr": 174.42
+      "industry": "Capital Markets",
+      "mcap_cr": 174.42,
+      "sector": "Financial Services",
+      "sub_sector": "Stockbroking & Allied"
     },
     {
       "ticker": "RITHWIKFMS",
@@ -3659,8 +4383,10 @@
       "scrip_code": "540843",
       "group": "MT",
       "isin": "INE819Y01015",
-      "industry": null,
-      "mcap_cr": 47.74
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 47.74,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "RIYAASAT",
@@ -3669,8 +4395,10 @@
       "scrip_code": "544804",
       "group": "M",
       "isin": "INE0KYI01012",
-      "industry": null,
-      "mcap_cr": 60.06
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 59.09,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "ROBU",
@@ -3679,8 +4407,10 @@
       "scrip_code": "543787",
       "group": "M",
       "isin": "INE0OLH01013",
-      "industry": null,
-      "mcap_cr": 1196.41
+      "industry": "Retailing",
+      "mcap_cr": 1185.01,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "E-Retail/ E-Commerce"
     },
     {
       "ticker": "RONI",
@@ -3689,8 +4419,10 @@
       "scrip_code": "542145",
       "group": "M",
       "isin": "INE02AP01013",
-      "industry": null,
-      "mcap_cr": 39.25
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 40.23,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "ROOPSHRI",
@@ -3699,8 +4431,10 @@
       "scrip_code": "542599",
       "group": "MT",
       "isin": "INE03WT01017",
-      "industry": null,
-      "mcap_cr": 49.23
+      "industry": "Leisure Services",
+      "mcap_cr": 49.23,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Hotels & Resorts"
     },
     {
       "ticker": "ROYAL",
@@ -3709,8 +4443,10 @@
       "scrip_code": "544143",
       "group": "M",
       "isin": "INE0QQG01019",
-      "industry": null,
-      "mcap_cr": 50.83
+      "industry": "Healthcare Equipment & Supplies",
+      "mcap_cr": 50.83,
+      "sector": "Healthcare",
+      "sub_sector": "Medical Equipment & Supplies"
     },
     {
       "ticker": "RSTL",
@@ -3719,8 +4455,10 @@
       "scrip_code": "540082",
       "group": "MT",
       "isin": "INE367U01013",
-      "industry": null,
-      "mcap_cr": 244.23
+      "industry": "Industrial Products",
+      "mcap_cr": 244.23,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "RUDRAGAS",
@@ -3729,8 +4467,10 @@
       "scrip_code": "544121",
       "group": "M",
       "isin": "INE0OYK01010",
-      "industry": null,
-      "mcap_cr": 61.7
+      "industry": "Construction",
+      "mcap_cr": 59.2,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "SAFE",
@@ -3739,8 +4479,10 @@
       "scrip_code": "544257",
       "group": "M",
       "isin": "INE0Q3401017",
-      "industry": null,
-      "mcap_cr": 85.43
+      "industry": "Other Consumer Services",
+      "mcap_cr": 83.15,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "E-Learning"
     },
     {
       "ticker": "SAFECURE",
@@ -3749,8 +4491,10 @@
       "scrip_code": "544596",
       "group": "M",
       "isin": "INE0SVZ01015",
-      "industry": null,
-      "mcap_cr": 21.13
+      "industry": "Other Consumer Services",
+      "mcap_cr": 21.76,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Consumer Services"
     },
     {
       "ticker": "SAILANI",
@@ -3759,8 +4503,10 @@
       "scrip_code": "543541",
       "group": "M",
       "isin": "INE0KHQ01010",
-      "industry": null,
-      "mcap_cr": 5.42
+      "industry": "Leisure Services",
+      "mcap_cr": 5.42,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "SAMPAT",
@@ -3769,8 +4515,10 @@
       "scrip_code": "544520",
       "group": "MT",
       "isin": "INE10XS01012",
-      "industry": null,
-      "mcap_cr": 32.23
+      "industry": "Industrial Products",
+      "mcap_cr": 32.23,
+      "sector": "Industrials",
+      "sub_sector": "Aluminium, Copper & Zinc Products"
     },
     {
       "ticker": "SANCODE",
@@ -3779,8 +4527,10 @@
       "scrip_code": "543897",
       "group": "MT",
       "isin": "INE0P7001013",
-      "industry": null,
-      "mcap_cr": 209.06
+      "industry": "IT - Services",
+      "mcap_cr": 209.06,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "SATTRIX",
@@ -3789,8 +4539,10 @@
       "scrip_code": "544189",
       "group": "M",
       "isin": "INE0QUV01010",
-      "industry": null,
-      "mcap_cr": 406.27
+      "industry": "IT - Services",
+      "mcap_cr": 388.11,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "SBLI",
@@ -3799,8 +4551,10 @@
       "scrip_code": "543366",
       "group": "M",
       "isin": "INE0DLM01024",
-      "industry": null,
-      "mcap_cr": 4.31
+      "industry": "Realty",
+      "mcap_cr": 4.14,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "SBRANDS",
@@ -3809,8 +4563,10 @@
       "scrip_code": "540782",
       "group": "MT",
       "isin": "INE204Y01010",
-      "industry": null,
-      "mcap_cr": 11.38
+      "industry": "Leisure Services",
+      "mcap_cr": 11.38,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Hotels & Resorts"
     },
     {
       "ticker": "SBVCL",
@@ -3819,8 +4575,10 @@
       "scrip_code": "544074",
       "group": "MT",
       "isin": "INE0RNZ01014",
-      "industry": null,
-      "mcap_cr": 85.48
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 82.78,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "SCARNOSE",
@@ -3829,8 +4587,10 @@
       "scrip_code": "543537",
       "group": "M",
       "isin": "INE0IXR01019",
-      "industry": null,
-      "mcap_cr": 11.31
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 11.31,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "SCDL",
@@ -3839,8 +4599,10 @@
       "scrip_code": "544746",
       "group": "M",
       "isin": "INE0UMH01018",
-      "industry": null,
-      "mcap_cr": 129.07
+      "industry": "Construction",
+      "mcap_cr": 132.84,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "SDC",
@@ -3849,8 +4611,10 @@
       "scrip_code": "535647",
       "group": "MT",
       "isin": "INE807O01011",
-      "industry": null,
-      "mcap_cr": 11.72
+      "industry": "Entertainment",
+      "mcap_cr": 11.72,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Film Production, Distribution & Exhibition"
     },
     {
       "ticker": "SEALMATIC",
@@ -3859,8 +4623,10 @@
       "scrip_code": "543782",
       "group": "M",
       "isin": "INE0O4601016",
-      "industry": null,
-      "mcap_cr": 434.4
+      "industry": "Industrial Products",
+      "mcap_cr": 439.83,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "SEEMAX",
@@ -3869,8 +4635,10 @@
       "scrip_code": "544813",
       "group": "M",
       "isin": "INE1EVO01017",
-      "industry": null,
-      "mcap_cr": 27.28
+      "industry": "Agricultural, Commercial & Construction Vehicles",
+      "mcap_cr": 27.72,
+      "sector": "Industrials",
+      "sub_sector": "Dealers-Commercial Vehicles, Tractors, Construction Vehicles"
     },
     {
       "ticker": "SEML",
@@ -3879,8 +4647,10 @@
       "scrip_code": "543515",
       "group": "MT",
       "isin": "INE0KPY01017",
-      "industry": null,
-      "mcap_cr": 64.19
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 65.78,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "SEVL",
@@ -3889,8 +4659,10 @@
       "scrip_code": "544428",
       "group": "M",
       "isin": "INE0SC101013",
-      "industry": null,
-      "mcap_cr": 43.56
+      "industry": "Automobiles",
+      "mcap_cr": 44.85,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "2/3 Wheelers"
     },
     {
       "ticker": "SFSL",
@@ -3899,8 +4671,10 @@
       "scrip_code": "543519",
       "group": "M",
       "isin": "INE0JMN01019",
-      "industry": null,
-      "mcap_cr": 16.24
+      "industry": "Consumer Durables",
+      "mcap_cr": 16.24,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Furniture, Home Furnishing"
     },
     {
       "ticker": "SGFRL",
@@ -3909,8 +4683,10 @@
       "scrip_code": "543391",
       "group": "M",
       "isin": "INE07GA01011",
-      "industry": null,
-      "mcap_cr": 260.43
+      "industry": "Construction",
+      "mcap_cr": 260.43,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "SHANMUGA",
@@ -3919,8 +4695,10 @@
       "scrip_code": "544365",
       "group": "M",
       "isin": "INE0TD301017",
-      "industry": null,
-      "mcap_cr": 57.17
+      "industry": "Healthcare Services",
+      "mcap_cr": 58.39,
+      "sector": "Healthcare",
+      "sub_sector": "Hospital"
     },
     {
       "ticker": "SHANTIDENM",
@@ -3929,8 +4707,10 @@
       "scrip_code": "544059",
       "group": "M",
       "isin": "INE0QZQ01019",
-      "industry": null,
-      "mcap_cr": 61.73
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 61.73,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "SHANTIGURU",
@@ -3939,8 +4719,10 @@
       "scrip_code": "534708",
       "group": "M",
       "isin": "INE892L01019",
-      "industry": null,
-      "mcap_cr": 11.65
+      "industry": "Retailing",
+      "mcap_cr": 11.65,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Diversified Retail"
     },
     {
       "ticker": "SHARVAYA",
@@ -3949,8 +4731,10 @@
       "scrip_code": "544506",
       "group": "MT",
       "isin": "INE0UJF01018",
-      "industry": null,
-      "mcap_cr": 145.44
+      "industry": "Industrial Products",
+      "mcap_cr": 146.34,
+      "sector": "Industrials",
+      "sub_sector": "Aluminium, Copper & Zinc Products"
     },
     {
       "ticker": "SHAYONAENG",
@@ -3959,8 +4743,10 @@
       "scrip_code": "544686",
       "group": "M",
       "isin": "INE0UCL01011",
-      "industry": null,
-      "mcap_cr": 54.9
+      "industry": "Industrial Products",
+      "mcap_cr": 54.9,
+      "sector": "Industrials",
+      "sub_sector": "Castings & Forgings"
     },
     {
       "ticker": "SHELTER",
@@ -3969,8 +4755,10 @@
       "scrip_code": "543963",
       "group": "M",
       "isin": "INE013V01011",
-      "industry": null,
-      "mcap_cr": 43.35
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 42.43,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "SHINEFASH",
@@ -3979,8 +4767,10 @@
       "scrip_code": "543244",
       "group": "M",
       "isin": "INE0BLY01023",
-      "industry": null,
-      "mcap_cr": 66.12
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 64.63,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "SHIPWAVES",
@@ -3989,8 +4779,10 @@
       "scrip_code": "544646",
       "group": "M",
       "isin": "INE0O9L01010",
-      "industry": null,
-      "mcap_cr": 37.5
+      "industry": "Transport Services",
+      "mcap_cr": 37.64,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "SHIVAEXPO",
@@ -3999,8 +4791,10 @@
       "scrip_code": "540072",
       "group": "MT",
       "isin": "INE191V01015",
-      "industry": null,
-      "mcap_cr": 13.48
+      "industry": "Other Construction Materials",
+      "mcap_cr": 12.81,
+      "sector": "Commodities",
+      "sub_sector": "Other Construction Materials"
     },
     {
       "ticker": "SHIVAM",
@@ -4009,8 +4803,10 @@
       "scrip_code": "544165",
       "group": "M",
       "isin": "INE0SGR01013",
-      "industry": null,
-      "mcap_cr": 169.87
+      "industry": "Food Products",
+      "mcap_cr": 160.27,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Animal Feed"
     },
     {
       "ticker": "SHIVTEXCHEM",
@@ -4019,8 +4815,10 @@
       "scrip_code": "544272",
       "group": "M",
       "isin": "INE0YRO01015",
-      "industry": null,
-      "mcap_cr": 257.44
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 259.53,
+      "sector": "Commodities",
+      "sub_sector": "Trading - Chemicals"
     },
     {
       "ticker": "SHLOKKA",
@@ -4029,8 +4827,10 @@
       "scrip_code": "544582",
       "group": "M",
       "isin": "INE1EUB01016",
-      "industry": null,
-      "mcap_cr": 53.5
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 53.46,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "SHOORA",
@@ -4039,8 +4839,10 @@
       "scrip_code": "543970",
       "group": "MT",
       "isin": "INE0OJZ01019",
-      "industry": null,
-      "mcap_cr": 35.93
+      "industry": "Consumer Durables",
+      "mcap_cr": 35.93,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "SHREE",
@@ -4049,8 +4851,10 @@
       "scrip_code": "544083",
       "group": "M",
       "isin": "INE0QIS01011",
-      "industry": null,
-      "mcap_cr": 16.26
+      "industry": "Industrial Products",
+      "mcap_cr": 16.12,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "SHREENATH",
@@ -4059,8 +4863,10 @@
       "scrip_code": "544372",
       "group": "M",
       "isin": "INE0RXS01018",
-      "industry": null,
-      "mcap_cr": 25.55
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 25.55,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "SHREEREF",
@@ -4069,8 +4875,10 @@
       "scrip_code": "544458",
       "group": "M",
       "isin": "INE0FMZ01045",
-      "industry": null,
-      "mcap_cr": 1127.59
+      "industry": "Aerospace & Defense",
+      "mcap_cr": 1136.54,
+      "sector": "Industrials",
+      "sub_sector": "Aerospace & Defense"
     },
     {
       "ticker": "SHREESHAY",
@@ -4079,8 +4887,10 @@
       "scrip_code": "541112",
       "group": "M",
       "isin": "INE452Z01012",
-      "industry": null,
-      "mcap_cr": 29.05
+      "industry": "Construction",
+      "mcap_cr": 33.93,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "SHTL",
@@ -4089,8 +4899,10 @@
       "scrip_code": "544607",
       "group": "MT",
       "isin": "INE0D8001018",
-      "industry": null,
-      "mcap_cr": 56.1
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 56.1,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "SIHORA",
@@ -4099,8 +4911,10 @@
       "scrip_code": "544585",
       "group": "M",
       "isin": "INE0SFA01011",
-      "industry": null,
-      "mcap_cr": 31.7
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 32.02,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "SILL",
@@ -4109,8 +4923,10 @@
       "scrip_code": "544810",
       "group": "M",
       "isin": "INE147701010",
-      "industry": null,
-      "mcap_cr": 107.88
+      "industry": "Transport Services",
+      "mcap_cr": 106.65,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "SILVERPRL",
@@ -4119,8 +4935,10 @@
       "scrip_code": "543536",
       "group": "M",
       "isin": "INE0KXN01014",
-      "industry": null,
-      "mcap_cr": 3.93
+      "industry": "Leisure Services",
+      "mcap_cr": 3.93,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Hotels & Resorts"
     },
     {
       "ticker": "SIROHIA",
@@ -4129,8 +4947,10 @@
       "scrip_code": "538667",
       "group": "M",
       "isin": "INE785O01019",
-      "industry": null,
-      "mcap_cr": 7.42
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 7.42,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "SISL",
@@ -4139,8 +4959,10 @@
       "scrip_code": "543598",
       "group": "MT",
       "isin": "INE0LU301014",
-      "industry": null,
-      "mcap_cr": 106.08
+      "industry": "Realty",
+      "mcap_cr": 106.08,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "SIYARAM",
@@ -4149,8 +4971,10 @@
       "scrip_code": "544047",
       "group": "M",
       "isin": "INE0QSK01017",
-      "industry": null,
-      "mcap_cr": 82.73
+      "industry": "Industrial Products",
+      "mcap_cr": 81.71,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "SKIEL",
@@ -4159,8 +4983,10 @@
       "scrip_code": "542728",
       "group": "MT",
       "isin": "INE04ST01013",
-      "industry": null,
-      "mcap_cr": 15.78
+      "industry": "Consumer Durables",
+      "mcap_cr": 15.78,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "SKIFL",
@@ -4169,8 +4995,10 @@
       "scrip_code": "542146",
       "group": "M",
       "isin": "INE951Z01013",
-      "industry": null,
-      "mcap_cr": 8.55
+      "industry": "Realty",
+      "mcap_cr": 8.55,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "SKL",
@@ -4179,8 +5007,10 @@
       "scrip_code": "540269",
       "group": "MT",
       "isin": "INE459U01018",
-      "industry": null,
-      "mcap_cr": 14.57
+      "industry": "Consumer Durables",
+      "mcap_cr": 14.57,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "SKM",
@@ -4189,8 +5019,10 @@
       "scrip_code": "544584",
       "group": "MT",
       "isin": "INE13YH01017",
-      "industry": null,
-      "mcap_cr": 516.53
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 512.86,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "SMARITIME",
@@ -4199,8 +5031,10 @@
       "scrip_code": "544056",
       "group": "M",
       "isin": "INE0PSJ01011",
-      "industry": null,
-      "mcap_cr": 7.06
+      "industry": "Transport Services",
+      "mcap_cr": 7.06,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "SMAUTO",
@@ -4209,8 +5043,10 @@
       "scrip_code": "543065",
       "group": "M",
       "isin": "INE0C4I01011",
-      "industry": null,
-      "mcap_cr": 40.63
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 40.63,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "SMEL",
@@ -4219,8 +5055,10 @@
       "scrip_code": "541799",
       "group": "MT",
       "isin": "INE266S01011",
-      "industry": null,
-      "mcap_cr": 14.91
+      "industry": "Media",
+      "mcap_cr": 15.64,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Advertising & Media Agencies"
     },
     {
       "ticker": "SMR",
@@ -4229,8 +5067,10 @@
       "scrip_code": "544774",
       "group": "M",
       "isin": "INE11XK01017",
-      "industry": null,
-      "mcap_cr": 158.84
+      "industry": "Consumer Durables",
+      "mcap_cr": 162.38,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "SODHACAP",
@@ -4239,8 +5079,10 @@
       "scrip_code": "544560",
       "group": "M",
       "isin": "INE0QU501030",
-      "industry": null,
-      "mcap_cr": 51.64
+      "industry": "Capital Markets",
+      "mcap_cr": 51.64,
+      "sector": "Financial Services",
+      "sub_sector": "Financial Products Distributor"
     },
     {
       "ticker": "SOLARIUM",
@@ -4249,8 +5091,10 @@
       "scrip_code": "544354",
       "group": "M",
       "isin": "INE0W0H01017",
-      "industry": null,
-      "mcap_cr": 341.43
+      "industry": "Construction",
+      "mcap_cr": 341.64,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "SOLVEX",
@@ -4259,8 +5103,10 @@
       "scrip_code": "544539",
       "group": "MT",
       "isin": "INE1IIQ01028",
-      "industry": null,
-      "mcap_cr": 14.93
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 16.49,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Edible Oil"
     },
     {
       "ticker": "SONALIS",
@@ -4269,8 +5115,10 @@
       "scrip_code": "543924",
       "group": "M",
       "isin": "INE0N5O01013",
-      "industry": null,
-      "mcap_cr": 21.15
+      "industry": "Food Products",
+      "mcap_cr": 20.83,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "SOTEFIN",
@@ -4279,8 +5127,10 @@
       "scrip_code": "544832",
       "group": "M",
       "isin": "INE12Z301012",
-      "industry": null,
-      "mcap_cr": 433.12
+      "industry": "IT - Software",
+      "mcap_cr": 444.75,
+      "sector": "Information Technology",
+      "sub_sector": "Software Products"
     },
     {
       "ticker": "SPINAROO",
@@ -4289,8 +5139,10 @@
       "scrip_code": "544392",
       "group": "M",
       "isin": "INE10XX01012",
-      "industry": null,
-      "mcap_cr": 35.04
+      "industry": "Paper, Forest & Jute Products",
+      "mcap_cr": 33.22,
+      "sector": "Commodities",
+      "sub_sector": "Paper & Paper Products"
     },
     {
       "ticker": "SPITZE",
@@ -4299,8 +5151,10 @@
       "scrip_code": "543464",
       "group": "M",
       "isin": "INE0JSJ01014",
-      "industry": null,
-      "mcap_cr": 208.62
+      "industry": "Consumer Durables",
+      "mcap_cr": 208.62,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Houseware"
     },
     {
       "ticker": "SPL",
@@ -4309,8 +5163,10 @@
       "scrip_code": "544035",
       "group": "M",
       "isin": "INE0RDR01012",
-      "industry": null,
-      "mcap_cr": 46.72
+      "industry": "Industrial Products",
+      "mcap_cr": 46.72,
+      "sector": "Industrials",
+      "sub_sector": "Plastic Products - Industrial"
     },
     {
       "ticker": "SPML",
@@ -4319,8 +5175,10 @@
       "scrip_code": "544738",
       "group": "M",
       "isin": "INE0R0M01014",
-      "industry": null,
-      "mcap_cr": 138.82
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 142.77,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "SRGFFL",
@@ -4329,8 +5187,10 @@
       "scrip_code": "536710",
       "group": "M",
       "isin": "INE326P01019",
-      "industry": null,
-      "mcap_cr": 13.98
+      "industry": "Finance",
+      "mcap_cr": 13.98,
+      "sector": "Financial Services",
+      "sub_sector": "Non Banking Financial Company (NBFC)"
     },
     {
       "ticker": "SRIGEE",
@@ -4339,8 +5199,10 @@
       "scrip_code": "544399",
       "group": "M",
       "isin": "INE0RJ901010",
-      "industry": null,
-      "mcap_cr": 45.2
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 45.4,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "SRSOLTD",
@@ -4349,8 +5211,10 @@
       "scrip_code": "543615",
       "group": "M",
       "isin": "INE0MNV01014",
-      "industry": null,
-      "mcap_cr": 89.07
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 89.07,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "SSL",
@@ -4359,8 +5223,10 @@
       "scrip_code": "544251",
       "group": "M",
       "isin": "INE0LY301010",
-      "industry": null,
-      "mcap_cr": 55.49
+      "industry": "Finance",
+      "mcap_cr": 56.44,
+      "sector": "Financial Services",
+      "sub_sector": "Other Financial Services"
     },
     {
       "ticker": "SSMD",
@@ -4369,8 +5235,10 @@
       "scrip_code": "544621",
       "group": "M",
       "isin": "INE1U2R01013",
-      "industry": null,
-      "mcap_cr": 53.73
+      "industry": "Food Products",
+      "mcap_cr": 53.73,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "SSPNFIN",
@@ -4379,8 +5247,10 @@
       "scrip_code": "539026",
       "group": "M",
       "isin": "INE820R01017",
-      "industry": null,
-      "mcap_cr": 2.81
+      "industry": "Finance",
+      "mcap_cr": 2.81,
+      "sector": "Financial Services",
+      "sub_sector": "Other Financial Services"
     },
     {
       "ticker": "SSPRL",
@@ -4389,8 +5259,10 @@
       "scrip_code": "544840",
       "group": "M",
       "isin": "INE1EJ401023",
-      "industry": null,
-      "mcap_cr": 278.92
+      "industry": "Leisure Services",
+      "mcap_cr": 283.46,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Amusement Parks/ Other Recreation"
     },
     {
       "ticker": "SSTL",
@@ -4399,8 +5271,10 @@
       "scrip_code": "543461",
       "group": "M",
       "isin": "INE0JNA01014",
-      "industry": null,
-      "mcap_cr": 50.08
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 50.2,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "STAL",
@@ -4409,8 +5283,10 @@
       "scrip_code": "544171",
       "group": "MT",
       "isin": "INE0RGM01016",
-      "industry": null,
-      "mcap_cr": 41.74
+      "industry": "Industrial Products",
+      "mcap_cr": 44.49,
+      "sector": "Industrials",
+      "sub_sector": "Other Industrial Products"
     },
     {
       "ticker": "STANBIK",
@@ -4419,8 +5295,10 @@
       "scrip_code": "544659",
       "group": "M",
       "isin": "INE16QA01011",
-      "industry": null,
-      "mcap_cr": 37.18
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 37.18,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "STARIMAGIN",
@@ -4429,8 +5307,10 @@
       "scrip_code": "544482",
       "group": "M",
       "isin": "INE0YG001013",
-      "industry": null,
-      "mcap_cr": 169.67
+      "industry": "Healthcare Services",
+      "mcap_cr": 166.36,
+      "sector": "Healthcare",
+      "sub_sector": "Healthcare Service Provider"
     },
     {
       "ticker": "STELLAR",
@@ -4439,8 +5319,10 @@
       "scrip_code": "536738",
       "group": "M",
       "isin": "INE325P01011",
-      "industry": null,
-      "mcap_cr": 14.23
+      "industry": "Finance",
+      "mcap_cr": 14.23,
+      "sector": "Financial Services",
+      "sub_sector": "Other Financial Services"
     },
     {
       "ticker": "STML",
@@ -4449,8 +5331,10 @@
       "scrip_code": "543622",
       "group": "M",
       "isin": "INE0MSK01016",
-      "industry": null,
-      "mcap_cr": 65.8
+      "industry": "Telecom - Services",
+      "mcap_cr": 65.8,
+      "sector": "Telecommunication",
+      "sub_sector": "Other Telecom Services"
     },
     {
       "ticker": "SUBAM",
@@ -4459,8 +5343,10 @@
       "scrip_code": "544267",
       "group": "M",
       "isin": "INE0U6201010",
-      "industry": null,
-      "mcap_cr": 580.36
+      "industry": "Industrial Products",
+      "mcap_cr": 604.27,
+      "sector": "Industrials",
+      "sub_sector": "Packaging"
     },
     {
       "ticker": "SUDARSHAN",
@@ -4469,8 +5355,10 @@
       "scrip_code": "543828",
       "group": "M",
       "isin": "INE00TV01023",
-      "industry": null,
-      "mcap_cr": 863.97
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 864.93,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "SUGSLLOYD",
@@ -4479,8 +5367,10 @@
       "scrip_code": "544501",
       "group": "M",
       "isin": "INE0XX801016",
-      "industry": null,
-      "mcap_cr": 424.82
+      "industry": "Electrical Equipment",
+      "mcap_cr": 424.82,
+      "sector": "Industrials",
+      "sub_sector": "Other Electrical Equipment"
     },
     {
       "ticker": "SUNITATOOL",
@@ -4489,8 +5379,10 @@
       "scrip_code": "544001",
       "group": "MT",
       "isin": "INE0Q1S01010",
-      "industry": null,
-      "mcap_cr": 620.7
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 620.7,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "SUNRETAIL",
@@ -4499,8 +5391,10 @@
       "scrip_code": "542025",
       "group": "M",
       "isin": "INE206Z01020",
-      "industry": null,
-      "mcap_cr": 4.66
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 4.34,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     },
     {
       "ticker": "SUNSKY",
@@ -4509,8 +5403,10 @@
       "scrip_code": "544566",
       "group": "M",
       "isin": "INE10CM01027",
-      "industry": null,
-      "mcap_cr": 44.31
+      "industry": "Transport Services",
+      "mcap_cr": 48.47,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "SUPERIRON",
@@ -4519,8 +5415,10 @@
       "scrip_code": "544381",
       "group": "M",
       "isin": "INE16IQ01014",
-      "industry": null,
-      "mcap_cr": 84.22
+      "industry": "Industrial Products",
+      "mcap_cr": 86.56,
+      "sector": "Industrials",
+      "sub_sector": "Castings & Forgings"
     },
     {
       "ticker": "SUPERSHAKT",
@@ -4529,8 +5427,10 @@
       "scrip_code": "541701",
       "group": "M",
       "isin": "INE00SY01011",
-      "industry": null,
-      "mcap_cr": 289.17
+      "industry": "Industrial Products",
+      "mcap_cr": 289.17,
+      "sector": "Industrials",
+      "sub_sector": "Iron & Steel Products"
     },
     {
       "ticker": "SUSAN",
@@ -4539,8 +5439,10 @@
       "scrip_code": "544793",
       "group": "M",
       "isin": "INE2L0V01019",
-      "industry": null,
-      "mcap_cr": 553
+      "industry": "Industrial Products",
+      "mcap_cr": 560.93,
+      "sector": "Industrials",
+      "sub_sector": "Cables - Electricals"
     },
     {
       "ticker": "SVJ",
@@ -4549,8 +5451,10 @@
       "scrip_code": "543799",
       "group": "M",
       "isin": "INE0JZS01010",
-      "industry": null,
-      "mcap_cr": 114.21
+      "industry": "Paper, Forest & Jute Products",
+      "mcap_cr": 109.36,
+      "sector": "Commodities",
+      "sub_sector": "Paper & Paper Products"
     },
     {
       "ticker": "SVS",
@@ -4559,8 +5463,10 @@
       "scrip_code": "543745",
       "group": "M",
       "isin": "INE0MID01012",
-      "industry": null,
-      "mcap_cr": 12.87
+      "industry": "Realty",
+      "mcap_cr": 12.87,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "SWANAGRO",
@@ -4569,8 +5475,10 @@
       "scrip_code": "544082",
       "group": "M",
       "isin": "INE0GEN01012",
-      "industry": null,
-      "mcap_cr": 83.67
+      "industry": "Auto Components",
+      "mcap_cr": 83.67,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Auto Components & Equipments"
     },
     {
       "ticker": "SWASTH",
@@ -4579,8 +5487,10 @@
       "scrip_code": "544368",
       "group": "M",
       "isin": "INE0TIR01017",
-      "industry": null,
-      "mcap_cr": 9.66
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 9.95,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "SWASTIKAAL",
@@ -4589,8 +5499,10 @@
       "scrip_code": "544452",
       "group": "MT",
       "isin": "INE0PTF01017",
-      "industry": null,
-      "mcap_cr": 65.59
+      "industry": "Industrial Products",
+      "mcap_cr": 65.59,
+      "sector": "Industrials",
+      "sub_sector": "Castings & Forgings"
     },
     {
       "ticker": "SYSTEMATIC",
@@ -4599,8 +5511,10 @@
       "scrip_code": "544541",
       "group": "M",
       "isin": "INE1KLZ01011",
-      "industry": null,
-      "mcap_cr": 506.92
+      "industry": "Industrial Products",
+      "mcap_cr": 527.02,
+      "sector": "Industrials",
+      "sub_sector": "Cables - Electricals"
     },
     {
       "ticker": "TAKYON",
@@ -4609,8 +5523,10 @@
       "scrip_code": "544471",
       "group": "M",
       "isin": "INE14OX01013",
-      "industry": null,
-      "mcap_cr": 28.64
+      "industry": "IT - Services",
+      "mcap_cr": 27.36,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "TANVI",
@@ -4619,8 +5535,10 @@
       "scrip_code": "540332",
       "group": "M",
       "isin": "INE978V01015",
-      "industry": null,
-      "mcap_cr": 63.22
+      "industry": "Food Products",
+      "mcap_cr": 63.22,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Packaged Foods"
     },
     {
       "ticker": "TARINI",
@@ -4629,8 +5547,10 @@
       "scrip_code": "538496",
       "group": "M",
       "isin": "INE849M01017",
-      "industry": null,
-      "mcap_cr": 10.79
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 10.79,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "TECHKGREEN",
@@ -4639,8 +5559,10 @@
       "scrip_code": "543991",
       "group": "M",
       "isin": "INE0P4P01011",
-      "industry": null,
-      "mcap_cr": 98.19
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 98.19,
+      "sector": "Services",
+      "sub_sector": "Consulting Services"
     },
     {
       "ticker": "TECHNICHEM",
@@ -4649,8 +5571,10 @@
       "scrip_code": "544327",
       "group": "M",
       "isin": "INE0ZHT01012",
-      "industry": null,
-      "mcap_cr": 77.95
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 77.95,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "TECHNOPACK",
@@ -4659,8 +5583,10 @@
       "scrip_code": "543656",
       "group": "M",
       "isin": "INE0MXP01015",
-      "industry": null,
-      "mcap_cr": 15.12
+      "industry": "Consumer Durables",
+      "mcap_cr": 14.04,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Plastic Products - Consumer"
     },
     {
       "ticker": "TELGE",
@@ -4669,8 +5595,10 @@
       "scrip_code": "544544",
       "group": "MT",
       "isin": "INE0SRP01014",
-      "industry": null,
-      "mcap_cr": 164.92
+      "industry": "Construction",
+      "mcap_cr": 164.92,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "TGIF",
@@ -4679,8 +5607,10 @@
       "scrip_code": "544175",
       "group": "M",
       "isin": "INE0SMU01015",
-      "industry": null,
-      "mcap_cr": 26.39
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 26.39,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "THREEMPAPE",
@@ -4689,8 +5619,10 @@
       "scrip_code": "544214",
       "group": "M",
       "isin": "INE0UK501010",
-      "industry": null,
-      "mcap_cr": 46.17
+      "industry": "Paper, Forest & Jute Products",
+      "mcap_cr": 46.17,
+      "sector": "Commodities",
+      "sub_sector": "Paper & Paper Products"
     },
     {
       "ticker": "TIMESGREEN",
@@ -4699,8 +5631,10 @@
       "scrip_code": "543310",
       "group": "MT",
       "isin": "INE0B6101012",
-      "industry": null,
-      "mcap_cr": 44.87
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 44.87,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "TIPCO",
@@ -4709,8 +5643,10 @@
       "scrip_code": "544740",
       "group": "MT",
       "isin": "INE1U6D01014",
-      "industry": null,
-      "mcap_cr": 355.64
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 364.47,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "TITAANIUM",
@@ -4719,8 +5655,10 @@
       "scrip_code": "539985",
       "group": "MT",
       "isin": "INE120V01014",
-      "industry": null,
-      "mcap_cr": 13.32
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 13.32,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "TLL",
@@ -4729,8 +5667,10 @@
       "scrip_code": "543616",
       "group": "M",
       "isin": "INE0MKA01014",
-      "industry": null,
-      "mcap_cr": 314.91
+      "industry": "Pharmaceuticals & Biotechnology",
+      "mcap_cr": 314.79,
+      "sector": "Healthcare",
+      "sub_sector": "Pharmaceuticals"
     },
     {
       "ticker": "TRADEUNO",
@@ -4739,8 +5679,10 @@
       "scrip_code": "544594",
       "group": "M",
       "isin": "INE1GUJ01014",
-      "industry": null,
-      "mcap_cr": 222.32
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 196.82,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "TRANSVOY",
@@ -4749,8 +5691,10 @@
       "scrip_code": "543754",
       "group": "MT",
       "isin": "INE0MPU01011",
-      "industry": null,
-      "mcap_cr": 23.97
+      "industry": "Transport Services",
+      "mcap_cr": 23.97,
+      "sector": "Services",
+      "sub_sector": "Logistics Solution Provider"
     },
     {
       "ticker": "TRAVELS",
@@ -4759,8 +5703,10 @@
       "scrip_code": "544242",
       "group": "M",
       "isin": "INE0SG001011",
-      "industry": null,
-      "mcap_cr": 17.9
+      "industry": "Leisure Services",
+      "mcap_cr": 18.66,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "TRUECOLORS",
@@ -4769,8 +5715,10 @@
       "scrip_code": "544531",
       "group": "M",
       "isin": "INE1LDV01015",
-      "industry": null,
-      "mcap_cr": 378.45
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 377.71,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "TTC",
@@ -4779,8 +5727,10 @@
       "scrip_code": "544303",
       "group": "M",
       "isin": "INE0XAY01012",
-      "industry": null,
-      "mcap_cr": 37.23
+      "industry": "Media",
+      "mcap_cr": 37.78,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Advertising & Media Agencies"
     },
     {
       "ticker": "UHMVL",
@@ -4789,8 +5739,10 @@
       "scrip_code": "544779",
       "group": "M",
       "isin": "INE0YZ901011",
-      "industry": null,
-      "mcap_cr": 22.63
+      "industry": "Leisure Services",
+      "mcap_cr": 22.33,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "UML",
@@ -4799,8 +5751,10 @@
       "scrip_code": "544464",
       "group": "M",
       "isin": "INE1P1A01018",
-      "industry": null,
-      "mcap_cr": 83.97
+      "industry": "Retailing",
+      "mcap_cr": 85.32,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Speciality Retail"
     },
     {
       "ticker": "UNIFIED",
@@ -4809,8 +5763,10 @@
       "scrip_code": "544406",
       "group": "M",
       "isin": "INE1ABX01018",
-      "industry": null,
-      "mcap_cr": 743.33
+      "industry": "IT - Services",
+      "mcap_cr": 755.39,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "UNISEM",
@@ -4819,8 +5775,10 @@
       "scrip_code": "544648",
       "group": "M",
       "isin": "INE1FHV01026",
-      "industry": null,
-      "mcap_cr": 56.66
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 56.66,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Agricultural Products"
     },
     {
       "ticker": "UNISHIRE",
@@ -4829,8 +5787,10 @@
       "scrip_code": "537582",
       "group": "M",
       "isin": "INE210P01015",
-      "industry": null,
-      "mcap_cr": 3.07
+      "industry": "Realty",
+      "mcap_cr": 3.07,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Residential, Commercial Projects"
     },
     {
       "ticker": "VAHH",
@@ -4839,8 +5799,10 @@
       "scrip_code": "544778",
       "group": "M",
       "isin": "INE0H3U01013",
-      "industry": null,
-      "mcap_cr": 45.27
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 45.27,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "VALINDIA",
@@ -4849,8 +5811,10 @@
       "scrip_code": "544433",
       "group": "M",
       "isin": "INE130701019",
-      "industry": null,
-      "mcap_cr": 23.4
+      "industry": "Leisure Services",
+      "mcap_cr": 24.11,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Hotels & Resorts"
     },
     {
       "ticker": "VALPLAST",
@@ -4859,8 +5823,10 @@
       "scrip_code": "544565",
       "group": "M",
       "isin": "INE0QP701017",
-      "industry": null,
-      "mcap_cr": 72.7
+      "industry": "Construction",
+      "mcap_cr": 78.51,
+      "sector": "Industrials",
+      "sub_sector": "Civil Construction"
     },
     {
       "ticker": "VANDAN",
@@ -4869,8 +5835,10 @@
       "scrip_code": "544436",
       "group": "M",
       "isin": "INE0RDJ01019",
-      "industry": null,
-      "mcap_cr": 20.04
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 20.96,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Edible Oil"
     },
     {
       "ticker": "VANDU",
@@ -4879,8 +5847,10 @@
       "scrip_code": "544329",
       "group": "M",
       "isin": "INE0RH001011",
-      "industry": null,
-      "mcap_cr": 105.6
+      "industry": "Food Products",
+      "mcap_cr": 107.35,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Other Food Products"
     },
     {
       "ticker": "VANTABIO",
@@ -4889,8 +5859,10 @@
       "scrip_code": "540729",
       "group": "MT",
       "isin": "INE695X01011",
-      "industry": null,
-      "mcap_cr": 13.97
+      "industry": "Healthcare Services",
+      "mcap_cr": 13.97,
+      "sector": "Healthcare",
+      "sub_sector": "Healthcare Research, Analytics & Technology"
     },
     {
       "ticker": "VARYAA",
@@ -4899,8 +5871,10 @@
       "scrip_code": "544168",
       "group": "M",
       "isin": "INE0R6801013",
-      "industry": null,
-      "mcap_cr": 13.41
+      "industry": "Consumer Durables",
+      "mcap_cr": 13.41,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "VASHISHTHA",
@@ -4909,8 +5883,10 @@
       "scrip_code": "544508",
       "group": "M",
       "isin": "INE0WRP01016",
-      "industry": null,
-      "mcap_cr": 13.67
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 14.85,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Garments & Apparels"
     },
     {
       "ticker": "VEDANTASSET",
@@ -4919,8 +5895,10 @@
       "scrip_code": "543623",
       "group": "MT",
       "isin": "INE0NC801013",
-      "industry": null,
-      "mcap_cr": 17.57
+      "industry": "Capital Markets",
+      "mcap_cr": 17.57,
+      "sector": "Financial Services",
+      "sub_sector": "Financial Products Distributor"
     },
     {
       "ticker": "VEEFIN",
@@ -4929,8 +5907,10 @@
       "scrip_code": "543931",
       "group": "M",
       "isin": "INE0Q0M01015",
-      "industry": null,
-      "mcap_cr": 658.92
+      "industry": "IT - Services",
+      "mcap_cr": 628.01,
+      "sector": "Information Technology",
+      "sub_sector": "IT Enabled Services"
     },
     {
       "ticker": "VEERKRUPA",
@@ -4939,8 +5919,10 @@
       "scrip_code": "543545",
       "group": "M",
       "isin": "INE0ID001024",
-      "industry": null,
-      "mcap_cr": 6.42
+      "industry": "Consumer Durables",
+      "mcap_cr": 6.29,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "VIVAA",
@@ -4949,8 +5931,10 @@
       "scrip_code": "544002",
       "group": "MT",
       "isin": "INE0PA601017",
-      "industry": null,
-      "mcap_cr": 44.53
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 44.53,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Trading - Textile Products"
     },
     {
       "ticker": "VPAL",
@@ -4959,8 +5943,10 @@
       "scrip_code": "544765",
       "group": "MT",
       "isin": "INE1L3801017",
-      "industry": null,
-      "mcap_cr": 333.88
+      "industry": "Leisure Services",
+      "mcap_cr": 338.86,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Restaurants"
     },
     {
       "ticker": "VPL",
@@ -4969,8 +5955,10 @@
       "scrip_code": "544011",
       "group": "M",
       "isin": "INE0Q6901013",
-      "industry": null,
-      "mcap_cr": 21.04
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 21.04,
+      "sector": "Services",
+      "sub_sector": "Diversified Commercial Services"
     },
     {
       "ticker": "VRUDDHI",
@@ -4979,8 +5967,10 @@
       "scrip_code": "544157",
       "group": "M",
       "isin": "INE0OMZ01013",
-      "industry": null,
-      "mcap_cr": 47.95
+      "industry": "Industrial Manufacturing",
+      "mcap_cr": 50.17,
+      "sector": "Industrials",
+      "sub_sector": "Industrial Products"
     },
     {
       "ticker": "VVIPIL",
@@ -4989,8 +5979,10 @@
       "scrip_code": "544219",
       "group": "M",
       "isin": "INE0MNP01016",
-      "industry": null,
-      "mcap_cr": 299.51
+      "industry": "Other Utilities",
+      "mcap_cr": 294.64,
+      "sector": "Utilities",
+      "sub_sector": "Waste Management"
     },
     {
       "ticker": "WAA",
@@ -4999,8 +5991,10 @@
       "scrip_code": "541445",
       "group": "M",
       "isin": "INE799N01012",
-      "industry": null,
-      "mcap_cr": 57.51
+      "industry": "Power",
+      "mcap_cr": 59.97,
+      "sector": "Utilities",
+      "sub_sector": "Power Generation"
     },
     {
       "ticker": "WAAREE",
@@ -5009,8 +6003,10 @@
       "scrip_code": "539337",
       "group": "M",
       "isin": "INE725P01012",
-      "industry": null,
-      "mcap_cr": 239.27
+      "industry": "Power",
+      "mcap_cr": 236.41,
+      "sector": "Utilities",
+      "sub_sector": "Power Generation"
     },
     {
       "ticker": "WORKMATES",
@@ -5019,8 +6015,10 @@
       "scrip_code": "544610",
       "group": "M",
       "isin": "INE1I1301016",
-      "industry": null,
-      "mcap_cr": 442.92
+      "industry": "IT - Software",
+      "mcap_cr": 443.44,
+      "sector": "Information Technology",
+      "sub_sector": "Computers - Software & Consulting"
     },
     {
       "ticker": "WOSAL",
@@ -5029,8 +6027,10 @@
       "scrip_code": "544636",
       "group": "M",
       "isin": "INE1MF401019",
-      "industry": null,
-      "mcap_cr": 9.8
+      "industry": "Leisure Services",
+      "mcap_cr": 9.8,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Tour, Travel Related Services"
     },
     {
       "ticker": "YAASHVI",
@@ -5039,8 +6039,10 @@
       "scrip_code": "544770",
       "group": "M",
       "isin": "INE1T6L01010",
-      "industry": null,
-      "mcap_cr": 139.21
+      "industry": "Consumer Durables",
+      "mcap_cr": 129.61,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Gems, Jewellery And Watches"
     },
     {
       "ticker": "YAJUR",
@@ -5049,8 +6051,10 @@
       "scrip_code": "544676",
       "group": "MT",
       "isin": "INE0CNJ01010",
-      "industry": null,
-      "mcap_cr": 75.31
+      "industry": "Textiles & Apparels",
+      "mcap_cr": 75.99,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "Other Textile Products"
     },
     {
       "ticker": "YASHHTEJ",
@@ -5059,8 +6063,10 @@
       "scrip_code": "544708",
       "group": "M",
       "isin": "INE1O6P01016",
-      "industry": null,
-      "mcap_cr": 124.08
+      "industry": "Agricultural Food & other Products",
+      "mcap_cr": 124.08,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Edible Oil"
     },
     {
       "ticker": "YASHHV",
@@ -5069,8 +6075,10 @@
       "scrip_code": "544310",
       "group": "M",
       "isin": "INE00GK01023",
-      "industry": null,
-      "mcap_cr": 2667.89
+      "industry": "Electrical Equipment",
+      "mcap_cr": 2689.34,
+      "sector": "Industrials",
+      "sub_sector": "Other Electrical Equipment"
     },
     {
       "ticker": "YUG",
@@ -5079,8 +6087,10 @@
       "scrip_code": "540550",
       "group": "MT",
       "isin": "INE796W01019",
-      "industry": null,
-      "mcap_cr": 37.22
+      "industry": "Chemicals & Petrochemicals",
+      "mcap_cr": 37.22,
+      "sector": "Commodities",
+      "sub_sector": "Specialty Chemicals"
     },
     {
       "ticker": "ZAPPFRESH",
@@ -5089,8 +6099,10 @@
       "scrip_code": "544568",
       "group": "M",
       "isin": "INE0SUM01015",
-      "industry": null,
-      "mcap_cr": 153.78
+      "industry": "Food Products",
+      "mcap_cr": 160.47,
+      "sector": "Fast Moving Consumer Goods",
+      "sub_sector": "Meat Products including Poultry"
     },
     {
       "ticker": "ZELIO",
@@ -5099,8 +6111,10 @@
       "scrip_code": "544563",
       "group": "MT",
       "isin": "INE1B3501014",
-      "industry": null,
-      "mcap_cr": 1658.58
+      "industry": "Automobiles",
+      "mcap_cr": 1658.58,
+      "sector": "Consumer Discretionary",
+      "sub_sector": "2/3 Wheelers"
     },
     {
       "ticker": "ZINEMA",
@@ -5109,8 +6123,10 @@
       "scrip_code": "538579",
       "group": "MT",
       "isin": "INE641Q01019",
-      "industry": null,
-      "mcap_cr": 12.24
+      "industry": "Commercial Services & Supplies",
+      "mcap_cr": 12.09,
+      "sector": "Services",
+      "sub_sector": "Trading & Distributors"
     }
   ]
 }

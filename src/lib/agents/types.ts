@@ -68,6 +68,24 @@ export type EvidenceBundle = {
     recent: Array<{ title: string; link: string; published: string | null }>;
   };
   data_gaps: string[];
+  /** Weekly BB/TQ stamps (Quant pipeline — Technician agent). */
+  weekly?: {
+    has_bb: boolean;
+    has_tq: boolean;
+    bb?: {
+      timeframe: string;
+      signal: string;
+      price: number | null;
+      upper_band: number | null;
+      signal_date: string | null;
+    };
+    tq?: {
+      timeframe: string;
+      score: number | null;
+      crossover_type: string | null;
+      signal_date: string | null;
+    };
+  };
 };
 
 export type AgentScore = {
@@ -131,6 +149,16 @@ export type VerdictRow = {
   headquarters: string | null;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_tq?: boolean;
+  has_bb?: boolean;
+};
+
+export type AgentRunProgress = {
+  pct: number;
+  label: string;
+  detail: string;
+  done?: boolean;
+  error?: boolean;
 };
 
 export type AgentRunState = {
@@ -141,6 +169,7 @@ export type AgentRunState = {
   finished_at: string | null;
   engine: "deterministic" | "llm" | null;
   error: string | null;
+  progress: AgentRunProgress | null;
   kpis: {
     universe: number;
     in_debate: number;
@@ -216,3 +245,20 @@ export const AGENT_DEFS: Array<{
     stat2Label: "Engine",
   },
 ];
+
+/** Quant tab — Technician reads weekly BB + TQ (not RVOL). */
+export const QUANT_AGENT_DEFS: typeof AGENT_DEFS = AGENT_DEFS.map((d) =>
+  d.id === "technician"
+    ? {
+        ...d,
+        role: "reads weekly BB NEW & TQ trend",
+        stat1Label: "TQ",
+        stat2Label: "BB",
+      }
+    : d.id === "scout"
+      ? {
+          ...d,
+          role: "screens universe for weekly TQ/BB hits",
+        }
+      : d,
+);

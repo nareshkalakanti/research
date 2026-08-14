@@ -9,6 +9,7 @@ import {
   type QuarterPoint,
 } from "./quarter-panel";
 import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
+import { fetchBseQuarterlyByTicker } from "./bse-quarters";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
 export type { QuarterPoint };
@@ -108,7 +109,7 @@ export async function fetchQuarterlyFundamentals(
   price: number | null;
   ret_3m_pct: number | null;
   symbol: string;
-  source: "yahoo" | "nse" | "none";
+  source: "yahoo" | "nse" | "bse" | "none";
 }> {
   const symbol = toYfinanceSymbol(ticker, market);
   if (!symbol) {
@@ -126,7 +127,7 @@ export async function fetchQuarterlyFundamentals(
 
   let usedSymbol = symbol;
   let quarters: QuarterPoint[] = [];
-  let source: "yahoo" | "nse" | "none" = "none";
+  let source: "yahoo" | "nse" | "bse" | "none" = "none";
 
   for (const sym of symbolCandidates) {
     const period1 = new Date();
@@ -181,7 +182,7 @@ export async function fetchQuarterlyFundamentals(
 
   source = quarters.length >= 2 ? source : "none";
 
-  // Yahoo often has no Ind-AS time series for smaller India names (e.g. ZODIAC).
+  // NSE integrated filing fallback for NSE / NSE SME names.
   if (quarters.length < 2) {
     try {
       const nse = await fetchNseQuarterlyFundamentals(ticker, {
@@ -193,6 +194,20 @@ export async function fetchQuarterlyFundamentals(
       }
     } catch {
       /* keep Yahoo (possibly empty) */
+    }
+  }
+
+  // BSE TabResults fallback for BSE / BSE SME names.
+  const mk = (market || "").trim().toUpperCase();
+  if (quarters.length < 2 && (mk === "BSE SME" || mk === "BSE")) {
+    try {
+      const bse = await fetchBseQuarterlyByTicker(ticker);
+      if (bse.length >= 2) {
+        quarters = bse;
+        source = "bse";
+      }
+    } catch {
+      /* keep prior source */
     }
   }
 

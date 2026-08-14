@@ -216,6 +216,12 @@ async function main() {
   const seed = seedFromStocksAi(metrics);
   console.log("   seeded rows:", seed.seeded);
 
+  const { seedBseSmeMcapFromCache, fillBseSmeMetricsGaps } = await import(
+    "../src/lib/metrics"
+  );
+  const bseSeed = seedBseSmeMcapFromCache();
+  console.log("1b) Seed BSE SME mcap from BSE cache…", bseSeed);
+
   let gaps = gapList(metrics);
   console.log("2) Gaps after seed:", {
     total: gaps.total,
@@ -241,6 +247,15 @@ async function main() {
     console.log("   yahoo filled:", yf);
   } else {
     console.log("4) Nothing left for Yahoo");
+  }
+
+  const bsePending = gapList(metrics).missing.filter(
+    (m) => m.market === "BSE SME",
+  );
+  if (bsePending.length) {
+    console.log(`4b) BSE API fill ${bsePending.length} BSE SME gaps…`);
+    const bse = await fillBseSmeMetricsGaps(bsePending);
+    console.log("   bse filled:", bse);
   }
 
   gaps = gapList(metrics);
