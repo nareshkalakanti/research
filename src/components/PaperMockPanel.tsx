@@ -21,6 +21,9 @@ export type PaperPosition = {
   market_value: number | null;
   pnl_inr: number | null;
   pnl_pct: number | null;
+  held_days: number;
+  has_hold?: boolean;
+  has_edge?: boolean;
 };
 
 type PaperSummary = {
@@ -44,6 +47,20 @@ function fmtInr(n: number | null | undefined): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+/** P&L with paise so row totals match the summary. */
+function fmtPnl(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  const sign = n > 0 ? "+" : n < 0 ? "" : "";
+  const rounded = Math.round(n * 100) / 100;
+  if (Number.isInteger(rounded)) {
+    return `${sign}₹${Math.round(n).toLocaleString("en-IN")}`;
+  }
+  return `${sign}₹${rounded.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
@@ -65,12 +82,51 @@ function fmtWhen(iso: string): string {
   });
 }
 
+function fmtHeld(days: number): string {
+  if (days <= 0) return "Held today";
+  if (days === 1) return "Held 1 day";
+  return `Held ${days} days`;
+}
+
+function PaperTags({
+  market,
+  hasHold,
+  hasEdge,
+}: {
+  market?: string | null;
+  hasHold?: boolean;
+  hasEdge?: boolean;
+}) {
+  if (!/\bSME\b/i.test(market || "") && !hasHold && !hasEdge) return null;
+  return (
+    <span className="ag-paper-tags">
+      {/\bSME\b/i.test(market || "") ? (
+        <span className="ag-mkt" title={`${market} listing`}>
+          SME
+        </span>
+      ) : null}
+      {hasEdge ? (
+        <span className="ag-tag ag-tag-edge" title="Early Edge">
+          Edge
+        </span>
+      ) : null}
+      {hasHold ? (
+        <span className="ag-tag ag-tag-hold" title="Holdings">
+          Hold
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 type TopPick = {
   symbol: string;
   name?: string | null;
   market?: string | null;
   confidence: number;
   price?: number | null;
+  has_hold?: boolean;
+  has_edge?: boolean;
 };
 
 type Props = {
@@ -224,6 +280,11 @@ export function PaperMockPanel({ topPick }: Props) {
           {topPick ? (
             <>
               <strong>{topPick.symbol}</strong>
+              <PaperTags
+                market={topPick.market}
+                hasHold={topPick.has_hold}
+                hasEdge={topPick.has_edge}
+              />
               <span className="ag-paper-conf">{topPick.confidence}/10</span>
               {topPick.price != null ? (
                 <span className="ag-paper-entry">{fmtPrice(topPick.price)}</span>
@@ -288,7 +349,7 @@ export function PaperMockPanel({ topPick }: Props) {
           <div className={pnlUp ? "up" : "down"}>
             <span>P&amp;L</span>
             <strong>
-              {fmtInr(summary.pnl_inr)}{" "}
+              {fmtPnl(summary.pnl_inr)}{" "}
               <em>({fmtPct(summary.pnl_pct)})</em>
             </strong>
           </div>
@@ -309,23 +370,36 @@ export function PaperMockPanel({ topPick }: Props) {
         <ul className="ag-paper-list">
           {open.map((p) => {
             const up = (p.pnl_inr ?? 0) >= 0;
+            const days = p.held_days ?? 0;
             return (
               <li key={p.id} className="ag-paper-row">
                 <div className="ag-paper-row-main">
-                  <strong>{p.symbol}</strong>
+                  <div className="ag-paper-row-title">
+                    <strong>{p.symbol}</strong>
+                    <PaperTags
+                      market={p.market}
+                      hasHold={p.has_hold}
+                      hasEdge={p.has_edge}
+                    />
+                  </div>
                   <span className="ag-paper-row-meta">
                     {fmtInr(p.amount_inr)} · {p.qty.toFixed(2)} sh @{" "}
                     {fmtPrice(p.entry_price)}
                   </span>
                   <span className="ag-paper-row-when">
-                    {fmtWhen(p.opened_at)}
+                    {fmtHeld(days)} · bought {fmtWhen(p.opened_at)}
                     {p.confidence != null ? ` · conf ${p.confidence}/10` : ""}
+                  </span>
+                  <span className={`ag-paper-profit ${up ? "up" : "down"}`}>
+                    Profit {fmtPnl(p.pnl_inr)} ({fmtPct(p.pnl_pct)}) · value{" "}
+                    {fmtInr(p.market_value)}
                   </span>
                 </div>
                 <div className="ag-paper-row-side">
                   <span className="ag-paper-live">{fmtPrice(p.live_price)}</span>
+                  <span className="ag-paper-held">{fmtHeld(days)}</span>
                   <span className={up ? "ag-up" : "ag-down"}>
-                    {fmtInr(p.pnl_inr)} ({fmtPct(p.pnl_pct)})
+                    {fmtPnl(p.pnl_inr)} ({fmtPct(p.pnl_pct)})
                   </span>
                   <button
                     type="button"
@@ -355,17 +429,29 @@ export function PaperMockPanel({ topPick }: Props) {
             <ul className="ag-paper-list closed">
               {closed.map((p) => {
                 const up = (p.pnl_inr ?? 0) >= 0;
+                const days = p.held_days ?? 0;
                 return (
                   <li key={p.id} className="ag-paper-row">
                     <div className="ag-paper-row-main">
-                      <strong>{p.symbol}</strong>
+                      <div className="ag-paper-row-title">
+                        <strong>{p.symbol}</strong>
+                        <PaperTags
+                          market={p.market}
+                          hasHold={p.has_hold}
+                          hasEdge={p.has_edge}
+                        />
+                      </div>
                       <span className="ag-paper-row-meta">
                         {fmtInr(p.amount_inr)} → {fmtPrice(p.close_price)}
+                      </span>
+                      <span className="ag-paper-row-when">
+                        {fmtHeld(days)}
+                        {p.closed_at ? ` · closed ${fmtWhen(p.closed_at)}` : ""}
                       </span>
                     </div>
                     <div className="ag-paper-row-side">
                       <span className={up ? "ag-up" : "ag-down"}>
-                        {fmtInr(p.pnl_inr)} ({fmtPct(p.pnl_pct)})
+                        Profit {fmtPnl(p.pnl_inr)} ({fmtPct(p.pnl_pct)})
                       </span>
                     </div>
                   </li>

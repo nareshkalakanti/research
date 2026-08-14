@@ -185,8 +185,20 @@ function VerdictRowCard({
                   {row.name}
                 </span>
                 <span className="ag-cap-pill">{row.cap_segment}</span>
-                {row.market === "NSE SME" ? (
-                  <span className="ag-mkt">SME</span>
+                {/\bSME\b/i.test(row.market) ? (
+                  <span className="ag-mkt" title={`${row.market} listing`}>
+                    SME
+                  </span>
+                ) : null}
+                {row.has_edge ? (
+                  <span className="ag-tag ag-tag-edge" title="Early Edge">
+                    Edge
+                  </span>
+                ) : null}
+                {row.has_hold ? (
+                  <span className="ag-tag ag-tag-hold" title="Holdings">
+                    Hold
+                  </span>
                 ) : null}
                 {row.fired ? <span className="ag-fired">Signal</span> : null}
               </div>
@@ -457,6 +469,8 @@ export function AgentsPanel() {
                   name: row?.name ?? null,
                   market: row?.market ?? null,
                   price: row?.price ?? null,
+                  has_hold: row?.has_hold,
+                  has_edge: row?.has_edge,
                 };
               })()
             : null

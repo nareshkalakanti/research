@@ -77,8 +77,8 @@ export async function GET(req: NextRequest) {
   // Hold / Edge / Notes are cross-market lists — don't hide SME/BSE when those chips are on.
   const watchlistMode = filterHold || filterDistress || filterEdge || filterNote;
   if (!watchlistMode && market && market !== "All") {
-    // Theme scan on NSE main board also checks NSE SME (e.g. Sunlite).
-    if (market === "NSE" && scan) {
+    // Theme scan + Watching search on NSE also check NSE SME (Sunlite, Vilas, …).
+    if (market === "NSE" && (scan || q.trim())) {
       companies = companies.filter(
         (c) => c.market === "NSE" || c.market === "NSE SME",
       );

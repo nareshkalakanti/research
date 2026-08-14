@@ -7,6 +7,8 @@ import {
 import { evaluateWithEngine, llmEngineLabel, resolveLlmEngine } from "./llm";
 import { finishRun, saveVerdict, startRun } from "./store";
 import { loadAllCompanies } from "@/lib/db";
+import { isEdge } from "@/lib/edge";
+import { isHolding } from "@/lib/holdings";
 import { researchLinks } from "@/lib/links";
 import {
   AGENT_DEFS,
@@ -262,6 +264,8 @@ export async function startAgentRun(
           tv: meta.tv,
           about: meta.about,
           headquarters: meta.headquarters,
+          has_hold: isHolding(ev.symbol),
+          has_edge: isEdge(ev.symbol),
         });
 
         setAgent("judge", {

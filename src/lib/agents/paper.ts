@@ -7,7 +7,9 @@ import fs from "fs";
 import path from "path";
 import YahooFinance from "yahoo-finance2";
 import { loadAllCompanies } from "@/lib/db";
-import { toYfinanceSymbol } from "@/lib/yfinance";
+import { isEdge } from "@/lib/edge";
+import { isHolding } from "@/lib/holdings";
+import { yfSymbolCandidates } from "@/lib/yfinance";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "agents.db");
@@ -36,7 +38,66 @@ export type PaperPosition = PaperTrade & {
   market_value: number | null;
   pnl_inr: number | null;
   pnl_pct: number | null;
+  /** Calendar days held (IST). 0 = opened today. */
+  held_days: number;
+  has_hold: boolean;
+  has_edge: boolean;
 };
+
+function istDayKey(iso: string | Date): string {
+  const d = typeof iso === "string" ? new Date(iso) : iso;
+  return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+}
+
+/** Full calendar days between open and end (IST). Same day → 0. */
+export function heldCalendarDays(
+  openedAt: string,
+  endAt?: string | null,
+): number {
+  const start = istDayKey(openedAt);
+  const end = istDayKey(endAt || new Date());
+  const [sy, sm, sd] = start.split("-").map(Number);
+  const [ey, em, ed] = end.split("-").map(Number);
+  const a = Date.UTC(sy!, sm! - 1, sd!);
+  const b = Date.UTC(ey!, em! - 1, ed!);
+  return Math.max(0, Math.round((b - a) / 86_400_000));
+}
+
+function enrich(
+  t: PaperTrade,
+  live: { price: number | null; day_change_pct: number | null },
+): PaperPosition {
+  const co = loadAllCompanies().find(
+    (c) => c.ticker.toUpperCase() === t.symbol.toUpperCase(),
+  );
+  const market = co?.market || t.market || "NSE";
+  const mark =
+    t.status === "closed"
+      ? t.close_price
+      : live.price ?? t.entry_price;
+  const market_value =
+    mark != null ? Math.round(mark * t.qty * 100) / 100 : null;
+  const pnl_inr =
+    market_value != null
+      ? Math.round((market_value - t.amount_inr) * 100) / 100
+      : null;
+  const pnl_pct =
+    pnl_inr != null && t.amount_inr > 0
+      ? Math.round((pnl_inr / t.amount_inr) * 10000) / 100
+      : null;
+  return {
+    ...t,
+    market,
+    live_price: t.status === "closed" ? t.close_price : live.price,
+    day_change_pct: t.status === "closed" ? null : live.day_change_pct,
+    market_value,
+    pnl_inr,
+    pnl_pct,
+    held_days: heldCalendarDays(t.opened_at, t.closed_at),
+    has_hold: isHolding(t.symbol),
+    has_edge: isEdge(t.symbol),
+  };
+}
 
 let db: Database.Database | null = null;
 
@@ -107,57 +168,29 @@ async function fetchLiveQuote(
   symbol: string,
   market: string,
 ): Promise<{ price: number | null; day_change_pct: number | null }> {
-  const sym = toYfinanceSymbol(symbol, market);
-  try {
-    const q = await yf.quote(sym);
-    const price =
-      q?.regularMarketPrice != null ? Number(q.regularMarketPrice) : null;
-    const prev =
-      q?.regularMarketPreviousClose != null
-        ? Number(q.regularMarketPreviousClose)
-        : null;
-    let day_change_pct: number | null = null;
-    if (price != null && prev != null && prev > 0) {
-      day_change_pct = Math.round(((price - prev) / prev) * 10000) / 100;
-    } else if (q?.regularMarketChangePercent != null) {
-      day_change_pct =
-        Math.round(Number(q.regularMarketChangePercent) * 100) / 100;
+  for (const sym of yfSymbolCandidates(symbol, market)) {
+    try {
+      const q = await yf.quote(sym);
+      const price =
+        q?.regularMarketPrice != null ? Number(q.regularMarketPrice) : null;
+      if (price == null || !Number.isFinite(price)) continue;
+      const prev =
+        q?.regularMarketPreviousClose != null
+          ? Number(q.regularMarketPreviousClose)
+          : null;
+      let day_change_pct: number | null = null;
+      if (prev != null && prev > 0) {
+        day_change_pct = Math.round(((price - prev) / prev) * 10000) / 100;
+      } else if (q?.regularMarketChangePercent != null) {
+        day_change_pct =
+          Math.round(Number(q.regularMarketChangePercent) * 100) / 100;
+      }
+      return { price, day_change_pct };
+    } catch {
+      /* try next alias */
     }
-    return {
-      price: price != null && Number.isFinite(price) ? price : null,
-      day_change_pct,
-    };
-  } catch {
-    return { price: null, day_change_pct: null };
   }
-}
-
-function enrich(
-  t: PaperTrade,
-  live: { price: number | null; day_change_pct: number | null },
-): PaperPosition {
-  const mark =
-    t.status === "closed"
-      ? t.close_price
-      : live.price ?? t.entry_price;
-  const market_value =
-    mark != null ? Math.round(mark * t.qty * 100) / 100 : null;
-  const pnl_inr =
-    market_value != null
-      ? Math.round((market_value - t.amount_inr) * 100) / 100
-      : null;
-  const pnl_pct =
-    pnl_inr != null && t.amount_inr > 0
-      ? Math.round((pnl_inr / t.amount_inr) * 10000) / 100
-      : null;
-  return {
-    ...t,
-    live_price: t.status === "closed" ? t.close_price : live.price,
-    day_change_pct: t.status === "closed" ? null : live.day_change_pct,
-    market_value,
-    pnl_inr,
-    pnl_pct,
-  };
+  return { price: null, day_change_pct: null };
 }
 
 export async function listPaperPositions(opts?: {

@@ -150,6 +150,7 @@ function enrichSector(
 
 function marketFromExchange(exchange: string | null): string {
   const e = (exchange ?? "").trim().toUpperCase();
+  if (e === "BSE SME") return "BSE SME";
   if (e === "BSE") return "BSE";
   if (e.includes("SME")) return "NSE SME";
   return "NSE";

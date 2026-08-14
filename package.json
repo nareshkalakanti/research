@@ -22,7 +22,8 @@
     "test:smart-money": "tsx scripts/test-smart-money.ts",
     "sync:smart-money": "tsx scripts/sync-smart-money.ts",
     "sync:holdings": "tsx scripts/sync-holdings.ts",
-    "sync:edge": "tsx scripts/sync-edge.ts"
+    "sync:edge": "tsx scripts/sync-edge.ts",
+    "sync:bse-sme": "tsx scripts/sync-bse-sme.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
