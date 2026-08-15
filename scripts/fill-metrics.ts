@@ -47,14 +47,17 @@ function seedFromStocksAi(metrics: Database.Database) {
   }
 
   const about = new Database(ABOUT_PATH, { readonly: true });
-  const tickers = new Set(
-    (
-      about.prepare("SELECT ticker FROM company_about").all() as {
-        ticker: string;
-      }[]
-    ).map((r) => r.ticker.toUpperCase()),
-  );
+  const aboutRows = about
+    .prepare("SELECT ticker, market FROM company_about")
+    .all() as Array<{ ticker: string; market: string | null }>;
   about.close();
+  const tickers = new Set(aboutRows.map((r) => r.ticker.toUpperCase()));
+  // BSE SME universe comes from BSE APIs, not stocks-ai's BSE mainboard dump.
+  const skipStocksAi = new Set(
+    aboutRows
+      .filter((r) => (r.market || "").toUpperCase() === "BSE SME")
+      .map((r) => r.ticker.toUpperCase()),
+  );
 
   const src = new Database(STOCKS_AI, { readonly: true });
   const rows = src
@@ -90,7 +93,7 @@ function seedFromStocksAi(metrics: Database.Database) {
   const tx = metrics.transaction(() => {
     for (const r of rows) {
       const ticker = r.ticker.toUpperCase();
-      if (!tickers.has(ticker)) continue;
+      if (!tickers.has(ticker) || skipStocksAi.has(ticker)) continue;
       upsert.run({
         ticker,
         market: r.market,

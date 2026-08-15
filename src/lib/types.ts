@@ -19,6 +19,12 @@ export type Company = {
   has_bb?: boolean;
   /** TQ weekly signal (local Yahoo scan). */
   has_tq?: boolean;
+  /** Quant Newsdesk headlines for this ticker (tags only). */
+  news?: {
+    count: number;
+    netTone: number;
+    titles?: string[];
+  };
   /** In personal holdings (data/holdings.db). */
   has_hold?: boolean;
   /** Fixed distress turnaround seed (8 monitors). */

@@ -24,7 +24,7 @@ type Props = {
   showMissing?: boolean;
   /** @deprecated Cap tags no longer shown in results — filter still works via API. */
   capFilter?: string;
-  /** Quant tab: only BB/TQ/SME tags — no Hold/Edge/Note watchlist badges. */
+  /** Quant tab: BB / TQ / News / SME tags — no Hold/Edge/Note watchlist badges. */
   tagMode?: "full" | "quant";
   /** Called after a note is saved/cleared so parent can refresh NOTE counts. */
   onNoteChange?: () => void;
@@ -86,27 +86,27 @@ function SignalTags({
         </span>
       ) : null}
       {company.has_bb ? (
-        <span
-          className="result-tag tag-scan-bb"
-          title={
-            company.bb
-              ? `BB NEW ${company.bb.timeframe}${company.bb.signal_date ? ` · ${company.bb.signal_date}` : ""}`
-              : "BB NEW weekly"
-          }
-        >
-          BB
-        </span>
+        <span className="result-tag tag-scan-bb">BB</span>
       ) : null}
       {company.has_tq ? (
+        <span className="result-tag tag-scan-tq">TQ</span>
+      ) : null}
+      {company.news && company.news.count > 0 ? (
         <span
-          className="result-tag tag-scan-tq"
+          className={`result-tag tag-scan-news${
+            company.news.netTone > 0
+              ? " pos"
+              : company.news.netTone < 0
+                ? " neg"
+                : ""
+          }`}
           title={
-            company.tq
-              ? `TQ ${company.tq.timeframe}${company.tq.crossover_type ? ` · ${company.tq.crossover_type}` : ""}${company.tq.score != null ? ` · score ${Math.round(company.tq.score)}` : ""}`
-              : "TQ weekly"
+            company.news.titles?.length
+              ? company.news.titles.join("\n")
+              : `${company.news.count} headline${company.news.count === 1 ? "" : "s"}`
           }
         >
-          TQ
+          News{company.news.count > 1 ? ` ${company.news.count}` : ""}
         </span>
       ) : null}
     </span>
@@ -214,7 +214,7 @@ export function CompanyTable({
               const hasNote = noteFlags[r.ticker] ?? !!r.has_note;
               return (
                 <CompanyRows
-                  key={r.ticker}
+                  key={`${r.market}:${r.ticker}`}
                   company={{ ...r, has_note: hasNote }}
                   tagMode={tagMode}
                   open={open}

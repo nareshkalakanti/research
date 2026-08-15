@@ -3,10 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentCardsGrid } from "@/components/AgentCardsGrid";
 import { type CapFilter } from "@/components/CapMarketFilters";
-import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { PaperMockPanel } from "@/components/PaperMockPanel";
+import {
+  useQuantNewsdesk,
+  type QuantNewsStats,
+} from "@/components/QuantNewsdesk";
 import { ScanFilters, type SignalMode } from "@/components/ScanFilters";
 import { VerdictRowCard } from "@/components/VerdictRowCard";
+import { QUANT_NEWS_LIMIT } from "@/lib/agents/newsdesk-types";
 import type { AgentRunState } from "@/lib/agents/types";
 import { QUANT_AGENT_DEFS } from "@/lib/agents/types";
 import type { QuantListMarket } from "@/lib/agents/quant-shortlist";
@@ -22,15 +26,6 @@ type ApiResponse = {
   signals?: { bb: number; tq: number; hold?: number; edge?: number; note?: number };
   session?: { bb: string | null; tq: string | null };
 };
-
-function weekLabel(iso: string | null | undefined): string {
-  if (!iso) return "";
-  const d = new Date(`${iso.slice(0, 10)}T12:00:00Z`);
-  if (!Number.isFinite(d.getTime())) return iso;
-  const day = d.getUTCDate();
-  const mon = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
-  return `week Fri ${day} ${mon}`;
-}
 
 function scanPool(
   market: QuantListMarket,
@@ -53,25 +48,16 @@ export function QuantPanel() {
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
-  const [sector, setSector] = useState("All");
-  const [sort, setSort] = useState<SortKey>("sector");
-  const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [runState, setRunState] = useState<AgentRunState | null>(null);
   const [debateMode, setDebateMode] = useState<"demo" | "live">("demo");
   const [startingDebate, setStartingDebate] = useState(false);
-  const [tqVisible, setTqVisible] = useState(true);
-  const [bbVisible, setBbVisible] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const filterBb = signal === "bb" || signal === "both" || signal === "either";
   const filterTq = signal === "tq" || signal === "both" || signal === "either";
-  const showTqSection =
-    signal === "tq" || signal === "either" || signal === "both";
-  const showBbSection =
-    signal === "bb" || signal === "either" || signal === "both";
 
   const defaultAgents = useMemo(
     () =>
@@ -90,10 +76,6 @@ export function QuantPanel() {
 
   const agents = runState?.agents ?? defaultAgents;
   const running = runState?.running ?? false;
-
-  useEffect(() => {
-    setSector("All");
-  }, [market, cap, signal, filterHold, filterEdge, filterNote]);
 
   const applyScanAgents = useCallback(
     (json: ApiResponse) => {
@@ -140,7 +122,8 @@ export function QuantPanel() {
       if (!prev) return next;
       const scout = prev.agents.find((a) => a.id === "scout");
       const tech = prev.agents.find((a) => a.id === "technician");
-      if (!scout && !tech) return next;
+      const news = prev.agents.find((a) => a.id === "newsdesk");
+      if (!scout && !tech && !news) return next;
       const agents = next.agents.map((a) => {
         if (a.id === "scout" && scout?.status === "done" && a.stat1 === "—") {
           return scout;
@@ -151,6 +134,13 @@ export function QuantPanel() {
           a.stat1 === "—"
         ) {
           return tech;
+        }
+        if (
+          a.id === "newsdesk" &&
+          news?.status === "done" &&
+          a.stat1 === "—"
+        ) {
+          return news;
         }
         return a;
       });
@@ -163,11 +153,8 @@ export function QuantPanel() {
     const params = new URLSearchParams({
       market,
       cap,
-      sector,
       page: "1",
       pageSize: "500",
-      sort,
-      dir,
     });
     if (filterBb) params.set("bb", "1");
     if (filterTq) params.set("tq", "1");
@@ -187,14 +174,11 @@ export function QuantPanel() {
     market,
     cap,
     signal,
-    sector,
     filterBb,
     filterTq,
     filterHold,
     filterEdge,
     filterNote,
-    sort,
-    dir,
     applyScanAgents,
   ]);
 
@@ -221,14 +205,6 @@ export function QuantPanel() {
 
   const rows = data?.rows ?? [];
   const hitCount = rows.length;
-
-  function onSort(key: SortKey) {
-    if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
-    else {
-      setSort(key);
-      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
-    }
-  }
 
   const startDebate = useCallback(async () => {
     setStartingDebate(true);
@@ -263,29 +239,97 @@ export function QuantPanel() {
   const bseSmeCount = markets["BSE SME"] ?? 0;
   const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
 
-  const tqRows = useMemo(() => rows.filter((r) => r.has_tq), [rows]);
-  const bbRows = useMemo(() => rows.filter((r) => r.has_bb), [rows]);
+  const newsCompanies = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        ticker: string;
+        name: string;
+        market: string;
+        has_tq?: boolean;
+        has_bb?: boolean;
+      }
+    >();
+    for (const r of rows) {
+      const k = r.ticker.toUpperCase();
+      const have = map.get(k);
+      if (!have) {
+        map.set(k, {
+          ticker: k,
+          name: r.name,
+          market: r.market,
+          has_tq: Boolean(r.has_tq),
+          has_bb: Boolean(r.has_bb),
+        });
+        continue;
+      }
+      have.has_tq = have.has_tq || Boolean(r.has_tq);
+      have.has_bb = have.has_bb || Boolean(r.has_bb);
+    }
+    return [...map.values()].slice(0, QUANT_NEWS_LIMIT);
+  }, [rows]);
 
-  const tqStamp = weekLabel(data?.session?.tq);
-  const bbStamp = weekLabel(data?.session?.bb);
+  const onNewsStats = useCallback(
+    (stats: QuantNewsStats | null, fetching: boolean) => {
+      setRunState((prev) => {
+        if (prev?.running) return prev;
+        const base = prev ?? {
+          running: false,
+          mode: null,
+          list: null,
+          started_at: null,
+          finished_at: null,
+          engine: null,
+          error: null,
+          progress: null,
+          kpis: {
+            universe: 0,
+            in_debate: 0,
+            buy_signals: 0,
+            top_pick: null,
+          },
+          agents: defaultAgents,
+          verdicts: [],
+          run_id: null,
+        };
+        const agents = base.agents.map((a) => {
+          if (a.id !== "newsdesk") return a;
+          if (fetching) {
+            return { ...a, stat1: "…", stat2: "…", status: "working" as const };
+          }
+          if (!stats) {
+            return {
+              ...a,
+              stat1: "—",
+              stat2: "—",
+              status: "offline" as const,
+            };
+          }
+          const tone =
+            stats.netTone >= 0 ? `+${stats.netTone}` : String(stats.netTone);
+          return {
+            ...a,
+            stat1: stats.headlines,
+            stat2: tone,
+            status: stats.headlines > 0 ? ("done" as const) : ("offline" as const),
+          };
+        });
+        return { ...base, agents };
+      });
+    },
+    [defaultAgents],
+  );
+
   const scanned = Boolean(data?.session?.bb || data?.session?.tq);
+  const { byTicker: newsByTicker } = useQuantNewsdesk(
+    newsCompanies,
+    scanned,
+    onNewsStats,
+  );
+
   const progress = runState?.progress;
   const showDebateProgress =
     running || startingDebate || Boolean(progress && !progress.error);
-
-  const sectorToolbar = (
-    <label className="field sector-field sector-field--table">
-      <span>Sector</span>
-      <select value={sector} onChange={(e) => setSector(e.target.value)}>
-        <option value="All">All sectors</option>
-        {(data?.sectors ?? []).map((s) => (
-          <option key={s} value={s}>
-            {s}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
 
   return (
     <div className="panel quant-panel">
@@ -293,8 +337,9 @@ export function QuantPanel() {
         <h2 className="quant-title">Quant scan</h2>
         <p className="panel-lead">
           Weekly <strong>TQ</strong> &amp; <strong>BB</strong> — run{" "}
-          <strong>Scan</strong>, review hits, then <strong>Run debate</strong>{" "}
-          for agents 3–8. (Agents tab is separate — RVOL movers debate.)
+          <strong>Scan</strong>, then <strong>Run debate</strong>. Hits show as
+          TQ / BB / News tags on verdicts. (Agents tab is separate — RVOL
+          movers debate.)
         </p>
       </div>
 
@@ -344,24 +389,6 @@ export function QuantPanel() {
         />
 
         <div className="quant-debate">
-          <div className="quant-view-toggles">
-            <button
-              type="button"
-              className={`chip quant-view-chip tag-scan-tq ${tqVisible ? "on" : ""}`}
-              onClick={() => setTqVisible((v) => !v)}
-              title={tqVisible ? "Hide TQ table" : "Show TQ table"}
-            >
-              TQ {tqVisible ? "Hide" : "View"}
-            </button>
-            <button
-              type="button"
-              className={`chip quant-view-chip tag-scan-bb ${bbVisible ? "on" : ""}`}
-              onClick={() => setBbVisible((v) => !v)}
-              title={bbVisible ? "Hide BB table" : "Show BB table"}
-            >
-              BB {bbVisible ? "Hide" : "View"}
-            </button>
-          </div>
           <label className="field">
             <span>Debate</span>
             <select
@@ -484,90 +511,6 @@ export function QuantPanel() {
         </p>
       ) : null}
 
-      {showTqSection ? (
-        <section
-          className={`quant-section${tqVisible ? "" : " quant-section--collapsed"}`}
-        >
-          <header className="quant-section-head">
-            <h3 className="quant-section-title">
-              2 · Technician — TQ
-              {tqStamp ? (
-                <span className="quant-section-meta"> · {tqStamp}</span>
-              ) : null}
-            </h3>
-            <div className="quant-section-actions">
-              <span className="quant-section-count">
-                {tqRows.length.toLocaleString()} hit
-                {tqRows.length === 1 ? "" : "s"}
-              </span>
-              <button
-                type="button"
-                className="quant-section-toggle"
-                onClick={() => setTqVisible((v) => !v)}
-              >
-                {tqVisible ? "Hide" : "View"}
-              </button>
-            </div>
-          </header>
-          {tqVisible ? (
-            tqRows.length > 0 ? (
-              <CompanyTable
-                rows={tqRows}
-                sort={sort}
-                dir={dir}
-                onSort={onSort}
-                tagMode="quant"
-                toolbar={sectorToolbar}
-              />
-            ) : (
-              <p className="quant-section-empty">No TQ hits in this filter.</p>
-            )
-          ) : null}
-        </section>
-      ) : null}
-
-      {showBbSection ? (
-        <section
-          className={`quant-section${bbVisible ? "" : " quant-section--collapsed"}`}
-        >
-          <header className="quant-section-head">
-            <h3 className="quant-section-title">
-              2 · Technician — BB NEW
-              {bbStamp ? (
-                <span className="quant-section-meta"> · {bbStamp}</span>
-              ) : null}
-            </h3>
-            <div className="quant-section-actions">
-              <span className="quant-section-count">
-                {bbRows.length.toLocaleString()} hit
-                {bbRows.length === 1 ? "" : "s"}
-              </span>
-              <button
-                type="button"
-                className="quant-section-toggle"
-                onClick={() => setBbVisible((v) => !v)}
-              >
-                {bbVisible ? "Hide" : "View"}
-              </button>
-            </div>
-          </header>
-          {bbVisible ? (
-            bbRows.length > 0 ? (
-              <CompanyTable
-                rows={bbRows}
-                sort={sort}
-                dir={dir}
-                onSort={onSort}
-                tagMode="quant"
-                toolbar={sectorToolbar}
-              />
-            ) : (
-              <p className="quant-section-empty">No BB hits in this filter.</p>
-            )
-          ) : null}
-        </section>
-      ) : null}
-
       <section className="ag-verdicts quant-verdicts">
         <div className="ag-verdicts-head">
           <h3>7 · Judge — verdicts</h3>
@@ -588,6 +531,7 @@ export function QuantPanel() {
               <VerdictRowCard
                 key={row.symbol}
                 row={row}
+                news={newsByTicker[row.symbol]}
                 open={expanded === row.symbol}
                 onToggle={() =>
                   setExpanded((cur) =>

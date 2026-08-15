@@ -277,16 +277,32 @@ export function loadAllCompanies(): CompanyRow[] {
   if (cache && now - cache.at < CACHE_MS) return cache.rows;
 
   const db = getAbout();
+  // Walk the ticker PK index (not the table heap). A corrupt heap can emit
+  // the same row twice under ORDER BY name, which React then flags as duplicate keys.
   const rows = db
     .prepare(
       `SELECT ticker, name, market, website, about, yf_about, scraped_about,
               company_sector, company_industry, headquarters,
               products, end_markets, theme_tags
-       FROM company_about ORDER BY name COLLATE NOCASE`,
+       FROM company_about ORDER BY ticker`,
     )
     .all() as RawAbout[];
 
-  const enriched = enrichAll(rows);
+  const seen = new Set<string>();
+  const unique: RawAbout[] = [];
+  for (const row of rows) {
+    const key = row.ticker.toUpperCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(row);
+  }
+  unique.sort((a, b) =>
+    (a.name || a.ticker).localeCompare(b.name || b.ticker, undefined, {
+      sensitivity: "base",
+    }),
+  );
+
+  const enriched = enrichAll(unique);
   cache = { at: now, rows: enriched };
   return enriched;
 }
