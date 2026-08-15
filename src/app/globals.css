@@ -1265,6 +1265,25 @@ a {
   color: #fff;
 }
 
+.tag-scan-news {
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #6b21a8;
+}
+.result-tag.tag-scan-news {
+  background: #7c3aed;
+  border-color: #6d28d9;
+  color: #fff;
+}
+.result-tag.tag-scan-news.pos {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+.result-tag.tag-scan-news.neg {
+  background: #b91c1c;
+  border-color: #991b1b;
+}
+
 .tag-hold {
   background: #fce7f3;
   border-color: #f9a8d4;

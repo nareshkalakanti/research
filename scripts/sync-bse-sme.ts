@@ -310,41 +310,49 @@ function upsertClassifications(listings: BseSmeListing[]): {
   }
 }
 
+function loadCachedListings(): BseSmeListing[] {
+  if (!fs.existsSync(CACHE)) {
+    throw new Error(`Missing BSE SME cache ${CACHE} — run without --from-cache`);
+  }
+  const json = JSON.parse(fs.readFileSync(CACHE, "utf8")) as {
+    listings?: BseSmeListing[];
+  };
+  const listings = (json.listings ?? []).filter(
+    (r) => !isBseSmeExcluded(r.ticker),
+  );
+  if (listings.length < 50) {
+    throw new Error(`BSE SME cache too small (${listings.length})`);
+  }
+  return listings;
+}
+
 async function main() {
+  const fromCache = process.argv.includes("--from-cache");
   const purged = removeExcluded();
   if (purged.length) {
     console.log(`Removed excluded BSE SME: ${purged.join(", ")}`);
   }
 
-  console.log("1) Fetch BSE SME scrips (groups M + MT)…");
-  let listings = (await fetchBseSmeListings()).filter(
-    (r) => !isBseSmeExcluded(r.ticker),
-  );
-  if (listings.length < 50) {
-    throw new Error(`BSE SME fetch too small (${listings.length})`);
-  }
+  let listings: BseSmeListing[];
+  if (fromCache) {
+    console.log("1) Load BSE SME cache (BSE API snapshot, not stocks-ai)…");
+    listings = loadCachedListings();
+    console.log(`2) Sector already in cache (${listings.length}) — skip ComHeader`);
+    console.log("3) About already in cache — skip Yahoo");
+  } else {
+    console.log("1) Fetch BSE SME scrips (groups M + MT)…");
+    listings = (await fetchBseSmeListings()).filter(
+      (r) => !isBseSmeExcluded(r.ticker),
+    );
+    if (listings.length < 50) {
+      throw new Error(`BSE SME fetch too small (${listings.length})`);
+    }
 
-  console.log(`2) Sector / industry from BSE ComHeader (${listings.length})…`);
-  let lastPct = -1;
-  listings = await enrichBseSmeTaxonomy(listings, {
-    onProgress: (done) => {
-      const pct = Math.floor((done / listings.length) * 100);
-      if (pct >= lastPct + 10) {
-        lastPct = pct;
-        process.stdout.write(`  ${pct}%\r`);
-      }
-    },
-  });
-  process.stdout.write("\n");
-
-  const synced = listings;
-  const needAbout = tickersMissingAbout(synced.map((r) => r.ticker));
-  if (needAbout.size) {
-    console.log(`3) About / website for ${needAbout.size} names…`);
-    lastPct = -1;
-    const profiles = await enrichBseAboutProfiles([...needAbout], {
+    console.log(`2) Sector / industry from BSE ComHeader (${listings.length})…`);
+    let lastPct = -1;
+    listings = await enrichBseSmeTaxonomy(listings, {
       onProgress: (done) => {
-        const pct = Math.floor((done / needAbout.size) * 100);
+        const pct = Math.floor((done / listings.length) * 100);
         if (pct >= lastPct + 10) {
           lastPct = pct;
           process.stdout.write(`  ${pct}%\r`);
@@ -352,32 +360,50 @@ async function main() {
       },
     });
     process.stdout.write("\n");
-    for (const r of listings) {
-      const p = profiles.get(r.ticker.toUpperCase());
-      if (!p) continue;
-      r.about = p.about;
-      r.website = p.website;
-      r.headquarters = p.headquarters;
+
+    const needAbout = tickersMissingAbout(listings.map((r) => r.ticker));
+    if (needAbout.size) {
+      console.log(`3) About / website for ${needAbout.size} names…`);
+      lastPct = -1;
+      const profiles = await enrichBseAboutProfiles([...needAbout], {
+        onProgress: (done) => {
+          const pct = Math.floor((done / needAbout.size) * 100);
+          if (pct >= lastPct + 10) {
+            lastPct = pct;
+            process.stdout.write(`  ${pct}%\r`);
+          }
+        },
+      });
+      process.stdout.write("\n");
+      for (const r of listings) {
+        const p = profiles.get(r.ticker.toUpperCase());
+        if (!p) continue;
+        r.about = p.about;
+        r.website = p.website;
+        r.headquarters = p.headquarters;
+      }
+      console.log(`   profiles fetched ${profiles.size}`);
+    } else {
+      console.log("3) About / website already complete — skip fetch");
     }
-    console.log(`   profiles fetched ${profiles.size}`);
-  } else {
-    console.log("3) About / website already complete — skip fetch");
   }
   hydrateAboutFromDb(listings);
 
-  fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(
-    CACHE,
-    JSON.stringify(
-      {
-        fetched_at: new Date().toISOString(),
-        count: listings.length,
-        listings,
-      },
-      null,
-      2,
-    ) + "\n",
-  );
+  if (!fromCache) {
+    fs.mkdirSync(DATA, { recursive: true });
+    fs.writeFileSync(
+      CACHE,
+      JSON.stringify(
+        {
+          fetched_at: new Date().toISOString(),
+          count: listings.length,
+          listings,
+        },
+        null,
+        2,
+      ) + "\n",
+    );
+  }
 
   console.log("4) Upsert company_about.db + classifications…");
   const { inserted, reclassified, updated, skippedNse } = upsertAbout(listings);
