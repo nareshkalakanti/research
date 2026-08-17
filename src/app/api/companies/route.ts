@@ -31,6 +31,7 @@ export const runtime = "nodejs";
 export type { CapTier };
 
 export async function GET(req: NextRequest) {
+  try {
   const sp = req.nextUrl.searchParams;
   if (sp.get("refresh") === "1") {
     invalidateCompanyCache();
@@ -342,4 +343,10 @@ export async function GET(req: NextRequest) {
     session: latestSignalDates(),
     breakoutsPreferred: !!breakoutsPreferred,
   });
+  } catch (err) {
+    const message =
+      err instanceof Error ? err.message.slice(0, 200) : "Companies load failed";
+    console.error("[api/companies]", err);
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
 }
