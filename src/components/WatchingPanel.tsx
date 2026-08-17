@@ -81,6 +81,11 @@ export function WatchingPanel() {
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
+        if (!res.ok) {
+          const body = await res.text();
+          console.error("Companies load failed:", res.status, body.slice(0, 200));
+          return;
+        }
         const json = (await res.json()) as ApiResponse;
         setData(json);
       } finally {
