@@ -156,6 +156,14 @@ export function patternMatches(haystack: string, pattern: string): boolean {
   return clauses.some((clause) => clauseMatches(haystack, clause));
 }
 
+/** Ticker code match: exact or prefix (TATA → TATAINVEST), not mid-string (atam ↛ DATAMATICS). */
+export function tickerMatchesSearch(ticker: string, term: string): boolean {
+  const sym = ticker.toLowerCase();
+  const t = term.trim().toLowerCase();
+  if (!t) return false;
+  return sym === t || sym.startsWith(t);
+}
+
 /** Whole-word/phrase substring check (avoids "tata" matching "parastatals"). */
 export function textHasTerm(haystack: string, term: string): boolean {
   const t = term.trim();

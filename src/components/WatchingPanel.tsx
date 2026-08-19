@@ -24,12 +24,16 @@ type ApiResponse = {
   signals?: {
     bb: number;
     tq: number;
+    ema?: number;
     hold?: number;
     distress?: number;
     edge?: number;
+    niveshaay?: number;
+    negen?: number;
+    sme?: number;
     note?: number;
   };
-  session?: { bb: string | null; tq: string | null };
+  session?: { bb: string | null; tq: string | null; ema?: string | null };
 };
 
 export function WatchingPanel() {
@@ -40,8 +44,12 @@ export function WatchingPanel() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
+  const [filterEma, setFilterEma] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [filterNiveshaay, setFilterNiveshaay] = useState(false);
+  const [filterNegen, setFilterNegen] = useState(false);
+  const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
   const [page, setPage] = useState(1);
@@ -57,7 +65,7 @@ export function WatchingPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [market, debouncedQ, mode, cap, sector, filterBb, filterTq, filterHold, filterEdge, filterNote]);
+  }, [market, debouncedQ, mode, cap, sector, filterBb, filterTq, filterEma, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -75,8 +83,12 @@ export function WatchingPanel() {
       });
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
+      if (filterEma) params.set("ema", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
+      if (filterNiveshaay) params.set("niveshaay", "1");
+      if (filterNegen) params.set("negen", "1");
+      if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
@@ -100,8 +112,12 @@ export function WatchingPanel() {
       sector,
       filterBb,
       filterTq,
+      filterEma,
       filterHold,
       filterEdge,
+      filterNiveshaay,
+      filterNegen,
+      filterSme,
       filterNote,
       page,
       sort,
@@ -203,22 +219,51 @@ export function WatchingPanel() {
           onCap={setCap}
           bb={filterBb}
           tq={filterTq}
+          ema={filterEma}
           hold={filterHold}
           edge={filterEdge}
+          niveshaay={filterNiveshaay}
+          negen={filterNegen}
+          sme={filterSme}
           note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
+          onEma={setFilterEma}
           onHold={setFilterHold}
           onEdge={setFilterEdge}
+          onNiveshaay={(on) => {
+            setFilterNiveshaay(on);
+            if (on) {
+              setFilterBb(false);
+              setFilterTq(false);
+              setFilterEma(false);
+              setSector("All");
+            }
+          }}
+          onNegen={(on) => {
+            setFilterNegen(on);
+            if (on) {
+              setFilterBb(false);
+              setFilterTq(false);
+              setFilterEma(false);
+              setSector("All");
+            }
+          }}
+          onSme={setFilterSme}
           onNote={setFilterNote}
           bbCount={data?.signals?.bb}
           tqCount={data?.signals?.tq}
+          emaCount={data?.signals?.ema}
           holdCount={data?.signals?.hold}
           distressCount={data?.signals?.distress}
           edgeCount={data?.signals?.edge}
+          niveshaayCount={data?.signals?.niveshaay}
+          negenCount={data?.signals?.negen}
+          smeCount={data?.signals?.sme}
           noteCount={data?.signals?.note}
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
+          emaDate={data?.session?.ema ?? null}
           market={listMarket}
           onDone={() => void load({ refresh: true })}
         />

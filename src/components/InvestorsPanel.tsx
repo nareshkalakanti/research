@@ -644,9 +644,9 @@ export function InvestorsPanel() {
                     {" · "}
                     <em className="new">{inv.new_picks} new</em>
                   </>
-                ) : (
-                  ` · ${inv.increased}↑`
-                )}
+                ) : null}
+                {inv.increased > 0 ? <> · {inv.increased}↑</> : null}
+                {inv.decreased > 0 ? <> · {inv.decreased}↓</> : null}
               </span>
             </span>
           </button>

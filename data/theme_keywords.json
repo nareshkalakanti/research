@@ -7,7 +7,7 @@
       "About-us mining — scripts/mine-theme-keywords.ts"
     ],
     "syntax": "+ means AND, | means OR (AND binds tighter)",
-    "updated": "2026-08-12",
+    "updated": "2026-08-19",
     "note": "Keywords validated against ~3k company About texts. Re-run mine script after edits.",
     "derived_from": "themes.json"
   },
@@ -102,6 +102,46 @@
         "power transformer": "Grid-scale transformers for DC / industrial loads.",
         "battery energy storage": "BESS for backup and peak shaving.",
         "cloud infrastructure": "Cloud / colo infrastructure build-out."
+      }
+    },
+    {
+      "id": "pcb_fabrication_process",
+      "name": "EMS & PCB Manufacturing — Kaynes / AI supply chain",
+      "blog_theme": "AI bottlenecks",
+      "display_pattern": "integrated electronics + manufacturer | integrated electronics + manufacturing | integrated manufacturing + electronics | conceptual design + process engineering | life cycle support + electronics | outer-space | IoT solutions + electronics | electronic manufacturing services | electronic + manufacturing + services | electronic manufacturing | printed circuit board | printed circuit | PCB assembly | PCB + assembly | box build",
+      "keywords": [
+        "integrated electronics + manufacturer",
+        "integrated electronics + manufacturing",
+        "integrated manufacturing + electronics",
+        "conceptual design + process engineering",
+        "life cycle support + electronics",
+        "outer-space",
+        "IoT solutions + electronics",
+        "electronic manufacturing services",
+        "electronic + manufacturing + services",
+        "electronic manufacturing",
+        "printed circuit board",
+        "printed circuit",
+        "PCB assembly",
+        "PCB + assembly",
+        "box build"
+      ],
+      "keyword_definitions": {
+        "integrated electronics + manufacturer": "Kaynes-style end-to-end EMS (matches Yahoo About)",
+        "integrated electronics + manufacturing": "Integrated electronics manufacturing",
+        "integrated manufacturing + electronics": "Vertically integrated electronics production",
+        "conceptual design + process engineering": "Design-through-manufacturing EMS offering (Kaynes About)",
+        "life cycle support + electronics": "Product lifecycle support for electronics (Kaynes About)",
+        "outer-space": "Space-grade electronics end markets (Kaynes About)",
+        "IoT solutions + electronics": "IoT-enabled integrated electronics (Kaynes About)",
+        "electronic manufacturing services": "EMS / contract electronics manufacturing",
+        "electronic + manufacturing + services": "Electronics manufacturing services phrasing in About",
+        "electronic manufacturing": "Electronics manufacturing (broader EMS/PCB)",
+        "printed circuit board": "PCB / bare board fabrication or assembly",
+        "printed circuit": "Printed circuit boards / PCBs",
+        "PCB assembly": "PCB assembly operations",
+        "PCB + assembly": "PCB assembly phrasing in About",
+        "box build": "Full system box-build EMS"
       }
     },
     {
