@@ -9,6 +9,7 @@ import {
   combinePatterns,
   matchedKeywords,
   textHasTerm,
+  tickerMatchesSearch,
 } from "@/lib/pattern";
 import { themesByIds } from "@/lib/themes";
 import { matchThemesForRow } from "@/lib/theme-match";
@@ -22,8 +23,16 @@ import {
   invalidateHoldingsCache,
 } from "@/lib/holdings";
 import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
+import {
+  fundWatchlistCounts,
+  invalidateFundWatchlistCache,
+  loadFundWatchlistStubs,
+  negenTickerSet,
+  niveshaayTickerSet,
+} from "@/lib/fund-watchlists";
 import { invalidateNotesCache, notesTickerSet } from "@/lib/notes";
 import { distressSeedSet } from "@/lib/distress/tickers";
+import { researchLinks } from "@/lib/links";
 import { capTier, type CapTier } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -41,6 +50,78 @@ export async function GET(req: NextRequest) {
   }
 }
 
+function fundStubRow(stub: {
+  ticker: string;
+  name: string;
+  market: string;
+}) {
+  const links = researchLinks(stub.ticker, stub.market, null);
+  const name = stub.name?.trim() || stub.ticker;
+  return {
+    ticker: stub.ticker,
+    name,
+    market: stub.market,
+    website: null,
+    about: null,
+    headquarters: null,
+    sector: null,
+    sub_sector: null,
+    price: null,
+    mcap_cr: null,
+    search_text: `${stub.ticker} ${name}`.toLowerCase(),
+    web: links.web,
+    sc: links.sc,
+    tv: links.tv,
+  };
+}
+
+function appendFundWatchlistStubs(
+  companies: ReturnType<typeof loadAllCompanies>,
+  tickers: Set<string>,
+  all: ReturnType<typeof loadAllCompanies>,
+) {
+  if (!tickers.size) return companies;
+  const byTicker = new Map(all.map((c) => [c.ticker.toUpperCase(), c]));
+  const have = new Set(companies.map((c) => c.ticker.toUpperCase()));
+  const out = [...companies];
+  for (const listKey of ["niveshaay", "negen"] as const) {
+    for (const stub of loadFundWatchlistStubs(listKey, have)) {
+      if (!tickers.has(stub.ticker.toUpperCase())) continue;
+      out.push(byTicker.get(stub.ticker.toUpperCase()) ?? fundStubRow(stub));
+      have.add(stub.ticker.toUpperCase());
+    }
+  }
+  return out;
+}
+
+function activeFundFilterSet(
+  niveshaay: Set<string>,
+  negen: Set<string>,
+  opts: { niveshaay: boolean; negen: boolean },
+): Set<string> | null {
+  if (!opts.niveshaay && !opts.negen) return null;
+  if (opts.niveshaay && opts.negen) {
+    return new Set([...niveshaay].filter((t) => negen.has(t)));
+  }
+  if (opts.niveshaay) return niveshaay;
+  return negen;
+}
+
+function mergeFundWatchlistUniverse(
+  companies: ReturnType<typeof loadAllCompanies>,
+  all: ReturnType<typeof loadAllCompanies>,
+  fund: { niveshaay: Set<string>; negen: Set<string> },
+) {
+  const fundAll = new Set([...fund.niveshaay, ...fund.negen]);
+  if (!fundAll.size) return companies;
+  const byTicker = new Map(companies.map((c) => [c.ticker.toUpperCase(), c]));
+  for (const c of all) {
+    const t = c.ticker.toUpperCase();
+    if (fundAll.has(t)) byTicker.set(t, c);
+  }
+  return appendFundWatchlistStubs([...byTicker.values()], fundAll, all);
+}
+
 function buildCompaniesResponse(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   if (sp.get("refresh") === "1") {
@@ -48,6 +129,7 @@ function buildCompaniesResponse(req: NextRequest) {
     invalidateBreakoutCache();
     invalidateHoldingsCache();
     invalidateEdgeCache();
+    invalidateFundWatchlistCache();
     invalidateNotesCache();
   }
   const market = sp.get("market") || "NSE";
@@ -55,14 +137,18 @@ function buildCompaniesResponse(req: NextRequest) {
   const mode = (sp.get("mode") || "OR").toUpperCase() === "AND" ? "AND" : "OR";
   const sector = sp.get("sector") || "All";
   const cap = (sp.get("cap") || "All") as CapTier | "All";
-  const smeOnly = sp.get("sme") === "1";
+  const filterSme = sp.get("sme") === "1";
   const filterBb = sp.get("bb") === "1";
   const filterTq = sp.get("tq") === "1";
+  const filterEma = sp.get("ema") === "1";
   const bbAnd = sp.get("bbAnd") === "1";
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
   const filterEdge = sp.get("edge") === "1";
+  const filterNiveshaay = sp.get("niveshaay") === "1";
+  const filterNegen = sp.get("negen") === "1";
   const filterNote = sp.get("note") === "1";
+  const fundListMode = filterNiveshaay || filterNegen;
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
   const preferBreakouts = sp.get("preferBreakouts") === "1";
   const themeIds = (sp.get("themes") || "")
@@ -81,13 +167,23 @@ function buildCompaniesResponse(req: NextRequest) {
   const holdings = holdingsTickerSet();
   const distressSet = distressSeedSet();
   const edge = edgeTickerSet();
+  const niveshaay = niveshaayTickerSet();
+  const negen = negenTickerSet();
+  const fundCounts = fundWatchlistCounts();
   const notes = notesTickerSet();
 
   let companies = loadAllCompanies();
   const allCompanies = companies;
 
   // Hold / Edge / Notes are cross-market lists — don't hide SME/BSE when those chips are on.
-  const watchlistMode = filterHold || filterDistress || filterEdge || filterNote;
+  const watchlistMode =
+    filterHold ||
+    filterDistress ||
+    filterEdge ||
+    filterNiveshaay ||
+    filterNegen ||
+    filterSme ||
+    filterNote;
   if (!watchlistMode && market && market !== "All") {
     // Theme scan + Watching search on NSE also check NSE SME (Sunlite, Vilas, …).
     if (market === "NSE" && (scan || q.trim())) {
@@ -98,14 +194,19 @@ function buildCompaniesResponse(req: NextRequest) {
       companies = companies.filter((c) => c.market === market);
     }
   }
-  if (!watchlistMode && smeOnly) {
-    companies = companies.filter((c) => c.market === "NSE SME");
-  }
   if (sector && sector !== "All") {
     companies = companies.filter((c) => c.sector === sector);
   }
   if (cap && cap !== "All") {
     companies = companies.filter((c) => capTier(c.mcap_cr) === cap);
+  }
+
+  // Missing-data tab: always surface fund watchlist names (often BSE) even on NSE list.
+  if (missing) {
+    companies = mergeFundWatchlistUniverse(companies, allCompanies, {
+      niveshaay,
+      negen,
+    });
   }
 
   function gapFlags(c: (typeof companies)[number]) {
@@ -145,8 +246,8 @@ function buildCompaniesResponse(req: NextRequest) {
     companies = companies.filter((c) => {
       const hit = (term: string) => {
         const t = term.toLowerCase();
-        // Tickers are codes — allow substring (TATA → TATAINVEST).
-        if (c.ticker.toLowerCase().includes(t)) return true;
+        // Tickers: exact or prefix (TATA → TATAINVEST), not mid-string (atam ↛ DATAMATICS).
+        if (tickerMatchesSearch(c.ticker, t)) return true;
         // Names / about / sector: whole-word only (avoid parastatals → tata).
         return textHasTerm(c.search_text, t);
       };
@@ -172,7 +273,7 @@ function buildCompaniesResponse(req: NextRequest) {
       highlightsByTicker[c.ticker] = result.highlights;
     }
     companies = hits;
-  } else if (scan && !scanPattern) {
+  } else if (scan && !scanPattern && !fundListMode) {
     companies = [];
   } else if (qTerms.length) {
     const qPattern = qTerms.join(" | ");
@@ -206,8 +307,10 @@ function buildCompaniesResponse(req: NextRequest) {
     }
     let bb = 0;
     let tq = 0;
+    let ema = 0;
     let hold = 0;
     let edgeCount = 0;
+    let smeCount = 0;
     let note = 0;
     let distressCount = 0;
     for (const c of pool) {
@@ -215,13 +318,30 @@ function buildCompaniesResponse(req: NextRequest) {
       const flags = breakouts.get(t);
       if (flags?.has_bb) bb += 1;
       if (flags?.has_tq) tq += 1;
+      if (flags?.has_ema) ema += 1;
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
+      if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
     }
-    return { bb, tq, hold, edge: edgeCount, note, distress: distressCount };
+    return {
+      bb,
+      tq,
+      ema,
+      hold,
+      edge: edgeCount,
+      niveshaay: fundCounts.niveshaay,
+      negen: fundCounts.negen,
+      sme: smeCount,
+      note,
+      distress: distressCount,
+    };
   })();
+
+  if (filterSme) {
+    companies = companies.filter((c) => /\bSME\b/i.test(c.market));
+  }
 
   if (filterHold) {
     companies = companies.filter((c) =>
@@ -239,26 +359,45 @@ function buildCompaniesResponse(req: NextRequest) {
     companies = companies.filter((c) => edge.has(c.ticker.toUpperCase()));
   }
 
+  const fundFilter = activeFundFilterSet(niveshaay, negen, {
+    niveshaay: filterNiveshaay,
+    negen: filterNegen,
+  });
+  if (fundFilter) {
+    companies = companies.filter((c) =>
+      fundFilter.has(c.ticker.toUpperCase()),
+    );
+    companies = appendFundWatchlistStubs(companies, fundFilter, allCompanies);
+  }
+
   if (filterNote) {
     companies = companies.filter((c) => notes.has(c.ticker.toUpperCase()));
   }
 
-  // Explicit BB / TQ chips (OR when both on unless bbAnd).
-  if (filterBb || filterTq) {
+  // BB/TQ/EMA narrows scan results — skip when viewing a fund watchlist (Negen / Niveshaay).
+  if ((filterBb || filterTq || filterEma) && !fundListMode) {
     companies = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
       const hasBb = !!flags?.has_bb;
       const hasTq = !!flags?.has_tq;
+      const hasEma = !!flags?.has_ema;
+      if (filterBb && filterTq && filterEma) {
+        if (bbAnd) return hasBb && hasTq && hasEma;
+        return hasBb || hasTq || hasEma;
+      }
       if (filterBb && filterTq && bbAnd) return hasBb && hasTq;
       if (filterBb && filterTq) return hasBb || hasTq;
+      if (filterBb && filterEma) return hasBb || hasEma;
+      if (filterTq && filterEma) return hasTq || hasEma;
       if (filterBb) return hasBb;
-      return hasTq;
+      if (filterTq) return hasTq;
+      return hasEma;
     });
   } else if (preferBreakouts && scan) {
-    // Theme results: if any hit has BB or TQ, show only those.
+    // Theme results: if any hit has BB, TQ, or EMA, show only those.
     const withSignal = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
-      return !!flags?.has_bb || !!flags?.has_tq;
+      return !!flags?.has_bb || !!flags?.has_tq || !!flags?.has_ema;
     });
     if (withSignal.length > 0) {
       companies = withSignal;
@@ -281,10 +420,11 @@ function buildCompaniesResponse(req: NextRequest) {
     scan &&
     !filterBb &&
     !filterTq &&
+    !filterEma &&
     companies.length > 0 &&
     companies.every((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
-      return !!flags?.has_bb || !!flags?.has_tq;
+      return !!flags?.has_bb || !!flags?.has_tq || !!flags?.has_ema;
     });
 
   const total = companies.length;
@@ -301,12 +441,16 @@ function buildCompaniesResponse(req: NextRequest) {
       highlights: highlightsByTicker[c.ticker] ?? [],
       has_bb: !!flags?.has_bb,
       has_tq: !!flags?.has_tq,
+      has_ema: !!flags?.has_ema,
       has_hold: holdings.has(c.ticker.toUpperCase()),
       has_distress: distressSet.has(c.ticker.toUpperCase()),
       has_edge: edge.has(c.ticker.toUpperCase()),
+      has_niveshaay: niveshaay.has(c.ticker.toUpperCase()),
+      has_negen: negen.has(c.ticker.toUpperCase()),
       has_note: notes.has(c.ticker.toUpperCase()),
       bb: flags?.bb,
       tq: flags?.tq,
+      ema: flags?.ema,
       missing: {
         price: g.price,
         mcap: g.mcap,
@@ -317,27 +461,42 @@ function buildCompaniesResponse(req: NextRequest) {
     };
   });
 
-  // Gap summary over the selected market (before missing filter), for dashboard chips.
-  const marketUniverse = loadAllCompanies().filter(
+  // Gap summary: Missing tab uses market universe (+ fund lists); Watching uses active filters.
+  function buildGapSummary(pool: typeof companies) {
+    return {
+      missingPrice: pool.filter((c) => c.price == null).length,
+      missingMcap: pool.filter((c) => c.mcap_cr == null).length,
+      missingSector: pool.filter((c) => !c.sector?.trim()).length,
+      missingAbout: pool.filter((c) => !c.about?.trim()).length,
+      missingWeb: pool.filter((c) => !c.web).length,
+      any: pool.filter(
+        (c) =>
+          c.price == null ||
+          c.mcap_cr == null ||
+          !c.sector?.trim() ||
+          !c.about?.trim() ||
+          !c.web,
+      ).length,
+      metrics: pool.filter((c) => c.price == null || c.mcap_cr == null).length,
+    };
+  }
+
+  let gapUniverse = loadAllCompanies().filter(
     (c) => !market || market === "All" || c.market === market,
   );
-  const gapSummary = {
-    missingPrice: marketUniverse.filter((c) => c.price == null).length,
-    missingMcap: marketUniverse.filter((c) => c.mcap_cr == null).length,
-    missingSector: marketUniverse.filter((c) => !c.sector?.trim()).length,
-    missingAbout: marketUniverse.filter((c) => !c.about?.trim()).length,
-    missingWeb: marketUniverse.filter((c) => !c.web).length,
-    any: marketUniverse.filter(
-      (c) =>
-        c.price == null ||
-        c.mcap_cr == null ||
-        !c.sector?.trim() ||
-        !c.about?.trim() ||
-        !c.web,
-    ).length,
-    metrics: marketUniverse.filter((c) => c.price == null || c.mcap_cr == null)
-      .length,
-  };
+  if (missing) {
+    gapUniverse = mergeFundWatchlistUniverse(gapUniverse, loadAllCompanies(), {
+      niveshaay,
+      negen,
+    });
+  } else if (market === "NSE") {
+    gapUniverse = loadAllCompanies().filter(
+      (c) => c.market === "NSE" || c.market === "NSE SME",
+    );
+  }
+  const gapSummary = missing
+    ? buildGapSummary(gapUniverse)
+    : buildGapSummary(companies);
 
   return NextResponse.json({
     rows: slice,

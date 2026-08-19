@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AgentsPanel } from "@/components/AgentsPanel";
-import { QuantPanel } from "@/components/QuantPanel";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
 import { InvestorsPanel } from "@/components/InvestorsPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
@@ -14,7 +13,6 @@ import { useAuth } from "@/lib/auth";
 type Tab =
   | "watching"
   | "theme-scanner"
-  | "quant"
   | "governance"
   | "investors"
   | "agents"
@@ -23,7 +21,6 @@ type Tab =
 const TABS: { id: Tab; label: string }[] = [
   { id: "watching", label: "Watching" },
   { id: "theme-scanner", label: "Theme Scanner" },
-  { id: "quant", label: "Quant" },
   { id: "governance", label: "Governance" },
   { id: "investors", label: "Investors" },
   { id: "agents", label: "Agents" },
@@ -84,8 +81,6 @@ export function AppShell() {
           <GovernanceMapPanel />
         ) : tab === "investors" ? (
           <InvestorsPanel />
-        ) : tab === "quant" ? (
-          <QuantPanel />
         ) : tab === "agents" ? (
           <AgentsPanel />
         ) : (

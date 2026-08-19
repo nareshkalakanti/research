@@ -269,6 +269,26 @@
         "Commodity Chemicals",
         "Petrochemicals"
       ]
+    },
+    "pcb_fabrication_process": {
+      "allow_sectors": [
+        "Consumer Durables",
+        "Engineering & Capital Goods",
+        "IT & Technology"
+      ],
+      "allow_subsectors": [
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Technology Hardware",
+        "Computers Hardware & Equipments",
+        "Home Electronics & Appliances",
+        "Electrical Components & Equipments",
+        "Consumer Electronics"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting",
+        "IT & Technology > Software Products"
+      ]
     }
   }
 }

@@ -24,8 +24,6 @@ type Props = {
   showMissing?: boolean;
   /** @deprecated Cap tags no longer shown in results — filter still works via API. */
   capFilter?: string;
-  /** Quant tab: BB / TQ / News / SME tags — no Hold/Edge/Note watchlist badges. */
-  tagMode?: "full" | "quant";
   /** Called after a note is saved/cleared so parent can refresh NOTE counts. */
   onNoteChange?: () => void;
   /** Sector filter, pager, etc. — rendered above the table header row. */
@@ -45,14 +43,7 @@ function SortIcon({
   return <span className="sort-active">{dir === "asc" ? "↑" : "↓"}</span>;
 }
 
-function SignalTags({
-  company,
-  mode = "full",
-}: {
-  company: Company;
-  mode?: "full" | "quant";
-}) {
-  const watchlist = mode === "full";
+function SignalTags({ company }: { company: Company }) {
   return (
     <span className="result-tags">
       {/\bSME\b/i.test(company.market) ? (
@@ -60,17 +51,27 @@ function SignalTags({
           SME
         </span>
       ) : null}
-      {watchlist && company.has_note ? (
+      {company.has_note ? (
         <span className="result-tag tag-note" title="Has research note">
           Note
         </span>
       ) : null}
-      {watchlist && company.has_edge ? (
+      {company.has_edge ? (
         <span className="result-tag tag-edge" title="Early Edge watchlist">
           Edge
         </span>
       ) : null}
-      {watchlist && (company.has_hold || company.has_distress) ? (
+      {company.has_niveshaay ? (
+        <span className="result-tag tag-niveshaay" title="Niveshaay fund watchlist">
+          Niveshaay
+        </span>
+      ) : null}
+      {company.has_negen ? (
+        <span className="result-tag tag-negen" title="Negen fund watchlist">
+          Negen
+        </span>
+      ) : null}
+      {company.has_hold || company.has_distress ? (
         <span className="result-tag-group" title="Holdings">
           {company.has_hold ? (
             <span className="result-tag tag-hold">Hold</span>
@@ -91,22 +92,9 @@ function SignalTags({
       {company.has_tq ? (
         <span className="result-tag tag-scan-tq">TQ</span>
       ) : null}
-      {company.news && company.news.count > 0 ? (
-        <span
-          className={`result-tag tag-scan-news${
-            company.news.netTone > 0
-              ? " pos"
-              : company.news.netTone < 0
-                ? " neg"
-                : ""
-          }`}
-          title={
-            company.news.titles?.length
-              ? company.news.titles.join("\n")
-              : `${company.news.count} headline${company.news.count === 1 ? "" : "s"}`
-          }
-        >
-          News{company.news.count > 1 ? ` ${company.news.count}` : ""}
+      {company.has_ema ? (
+        <span className="result-tag tag-scan-ema" title="Daily close above 10/20/50/200 EMA">
+          EMA
         </span>
       ) : null}
     </span>
@@ -120,7 +108,6 @@ export function CompanyTable({
   onSort,
   showMatched,
   showMissing,
-  tagMode = "full",
   onNoteChange,
   toolbar,
 }: Props) {
@@ -216,7 +203,6 @@ export function CompanyTable({
                 <CompanyRows
                   key={`${r.market}:${r.ticker}`}
                   company={{ ...r, has_note: hasNote }}
-                  tagMode={tagMode}
                   open={open}
                   panel={open ? panel : "about"}
                   showMore={!!more[r.ticker]}
@@ -251,7 +237,6 @@ export function CompanyTable({
 
 function CompanyRows({
   company: r,
-  tagMode = "full",
   open,
   panel,
   showMore,
@@ -264,7 +249,6 @@ function CompanyRows({
   onNoteSaved,
 }: {
   company: Company;
-  tagMode?: "full" | "quant";
   open: boolean;
   panel: ExpandPanel;
   showMore: boolean;
@@ -317,7 +301,7 @@ function CompanyRows({
                 </>
               ) : null}
             </span>
-            <SignalTags company={r} mode={tagMode} />
+            <SignalTags company={r} />
           </button>
           {missingTags.length > 0 ? (
             <div className="matched-tags">

@@ -19,26 +19,37 @@ type Props = {
   tq: boolean;
   onBb: (on: boolean) => void;
   onTq: (on: boolean) => void;
+  ema?: boolean;
+  onEma?: (on: boolean) => void;
   hold?: boolean;
   onHold?: (on: boolean) => void;
   distressCount?: number;
   edge?: boolean;
   onEdge?: (on: boolean) => void;
+  niveshaay?: boolean;
+  onNiveshaay?: (on: boolean) => void;
+  negen?: boolean;
+  onNegen?: (on: boolean) => void;
+  sme?: boolean;
+  onSme?: (on: boolean) => void;
   note?: boolean;
   onNote?: (on: boolean) => void;
   bbCount?: number;
   tqCount?: number;
+  emaCount?: number;
   holdCount?: number;
   edgeCount?: number;
+  niveshaayCount?: number;
+  negenCount?: number;
+  smeCount?: number;
   noteCount?: number;
   bbDate?: string | null;
   tqDate?: string | null;
+  emaDate?: string | null;
   market: string;
   /** Called after each scan batch (live count refresh). */
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
-  /** Quant tab: hide “All” — only scan hits (TQ / BB / union / intersection). */
-  quantMode?: boolean;
 };
 
 type Progress = {
@@ -61,8 +72,9 @@ async function scanOnce(body: Record<string, unknown>) {
     tried?: number;
     bbHits?: number;
     tqHits?: number;
+    emaHits?: number;
     remaining?: number;
-    session?: { bb: string | null; tq: string | null };
+    session?: { bb: string | null; tq: string | null; ema?: string | null };
     error?: string;
   } = {};
   if (raw) {
@@ -101,58 +113,73 @@ export function ScanFilters({
   tq,
   onBb,
   onTq,
+  ema = false,
+  onEma,
   hold = false,
   onHold,
   edge = false,
   onEdge,
+  niveshaay = false,
+  onNiveshaay,
+  negen = false,
+  onNegen,
+  sme = false,
+  onSme,
   note = false,
   onNote,
   bbCount,
   tqCount,
+  emaCount,
   holdCount,
   distressCount,
   edgeCount,
+  niveshaayCount,
+  negenCount,
+  smeCount,
   noteCount,
   bbDate,
   tqDate,
+  emaDate,
   market,
   onBatch,
   onDone,
-  quantMode = false,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
 
   const runScan = useCallback(async () => {
     setBusy(true);
-    setProgress({ pct: 2, label: "Scanning", detail: "Starting BB/TQ…" });
+    setProgress({ pct: 2, label: "Scanning", detail: "Starting BB/TQ/EMA…" });
 
     let remaining = 1;
     let gotBb = 0;
     let gotTq = 0;
+    let gotEma = 0;
     let sessionLabel = "";
 
     try {
       for (let round = 1; round <= 120; round += 1) {
         const json = await scanOnce({
-          kind: "both",
+          kind: "all",
           market,
           limit: 40,
           missingOnly: true,
         });
         gotBb += json.bbHits ?? 0;
         gotTq += json.tqHits ?? 0;
+        gotEma += json.emaHits ?? 0;
         remaining = json.remaining ?? 0;
-        if (json.session?.bb || json.session?.tq) {
-          const iso = json.session.bb || json.session.tq || "";
+        if (json.session?.bb || json.session?.tq || json.session?.ema) {
+          const iso =
+            json.session.ema || json.session.bb || json.session.tq || "";
           sessionLabel = iso ? weekStamp(iso) : "";
         }
         const pct =
           remaining <= 0 ? 100 : Math.min(97, 3 + round * 2);
         setProgress({
           pct,
-          label: remaining <= 0 ? "Done" : "Scanning BB/TQ",
-          detail: `${gotBb} BB · ${gotTq} TQ · ${remaining.toLocaleString()} left${
+          label: remaining <= 0 ? "Done" : "Scanning BB/TQ/EMA",
+          detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${remaining.toLocaleString()} left${
             sessionLabel ? ` · ${sessionLabel}` : ""
           }`,
           done: remaining <= 0,
@@ -166,11 +193,12 @@ export function ScanFilters({
       if (!onSignal) {
         onBb(true);
         onTq(true);
+        onEma?.(true);
       }
       setProgress({
         pct: 100,
         label: "Done",
-        detail: `${gotBb} BB · ${gotTq} TQ${
+        detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA${
           sessionLabel ? ` · ${sessionLabel}` : ""
         }`,
         done: true,
@@ -187,12 +215,39 @@ export function ScanFilters({
     } finally {
       setBusy(false);
     }
-  }, [market, onBatch, onDone, onBb, onTq, onSignal]);
+  }, [market, onBatch, onDone, onBb, onTq, onEma, onSignal]);
 
   const holdTitle =
     distressCount && distressCount > 0
       ? `Holdings (${holdCount ?? 0}) · ${distressCount} distress monitors`
       : "Your holdings";
+
+  const filtersActive =
+    (cap != null && cap !== "All") ||
+    hold ||
+    edge ||
+    niveshaay ||
+    negen ||
+    sme ||
+    note ||
+    bb ||
+    tq ||
+    ema ||
+    (signal != null && signal !== "all");
+
+  const clearFilters = () => {
+    onCap?.("All");
+    onHold?.(false);
+    onEdge?.(false);
+    onNiveshaay?.(false);
+    onNegen?.(false);
+    onSme?.(false);
+    onNote?.(false);
+    onBb(false);
+    onTq(false);
+    onEma?.(false);
+    onSignal?.("all");
+  };
 
   return (
     <div className="filter-bar">
@@ -226,6 +281,39 @@ export function ScanFilters({
             <Count n={edgeCount} />
           </button>
         ) : null}
+        {onNiveshaay ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-niveshaay ${niveshaay ? "on" : ""}`}
+            onClick={() => onNiveshaay(!niveshaay)}
+            title="Niveshaay fund watchlist"
+          >
+            Niveshaay
+            <Count n={niveshaayCount} />
+          </button>
+        ) : null}
+        {onNegen ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-negen ${negen ? "on" : ""}`}
+            onClick={() => onNegen(!negen)}
+            title="Negen fund watchlist"
+          >
+            Negen
+            <Count n={negenCount} />
+          </button>
+        ) : null}
+        {onSme ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-mkt-sme ${sme ? "on" : ""}`}
+            onClick={() => onSme(!sme)}
+            title="SME listings (NSE SME + BSE SME)"
+          >
+            SME
+            <Count n={smeCount} />
+          </button>
+        ) : null}
         {onHold ? (
           <button
             type="button"
@@ -238,22 +326,32 @@ export function ScanFilters({
           </button>
         ) : null}
 
-        {(onNote || onEdge || onHold) && onSignal ? (
+        {filtersActive ? (
+          <button
+            type="button"
+            className="clear-filter"
+            onClick={clearFilters}
+            title="Reset cap and tag filters"
+          >
+            Clear
+          </button>
+        ) : null}
+
+        {(onNote || onEdge || onNiveshaay || onNegen || onSme || onHold) &&
+        onSignal ? (
           <span className="filter-sep" aria-hidden />
         ) : null}
 
         {onSignal ? (
           <>
-            {!quantMode ? (
-              <button
-                type="button"
-                className={`chip signal-chip ${signal === "all" ? "on" : ""}`}
-                onClick={() => onSignal("all")}
-                title="All stocks in list"
-              >
-                All
-              </button>
-            ) : null}
+            <button
+              type="button"
+              className={`chip signal-chip ${signal === "all" ? "on" : ""}`}
+              onClick={() => onSignal("all")}
+              title="All stocks in list"
+            >
+              All
+            </button>
             <button
               type="button"
               className={`chip signal-chip tag-scan-tq ${signal === "tq" ? "on" : ""}`}
@@ -326,6 +424,24 @@ export function ScanFilters({
                 <span className="chip-date">{tqDate.slice(5)}</span>
               ) : null}
             </button>
+            {onEma ? (
+              <button
+                type="button"
+                className={`chip tag-chip tag-scan-ema ${ema ? "on" : ""}`}
+                onClick={() => onEma(!ema)}
+                title={
+                  emaDate
+                    ? `Daily EMA · close above 10/20/50/200 · ${emaDate}`
+                    : "Daily EMA — price above 10/20/50/200"
+                }
+              >
+                EMA
+                <Count n={emaCount} />
+                {emaDate ? (
+                  <span className="chip-date">{emaDate.slice(5)}</span>
+                ) : null}
+              </button>
+            ) : null}
           </>
         ) : null}
 
@@ -334,7 +450,7 @@ export function ScanFilters({
           className="chip chip-scan"
           disabled={busy}
           onClick={() => void runScan()}
-          title="Refresh weekly BB/TQ stamps"
+          title="Refresh weekly BB/TQ and daily EMA signals"
         >
           {busy ? "…" : "Scan"}
         </button>

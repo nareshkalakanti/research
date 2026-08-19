@@ -59,6 +59,8 @@ function filterRows(
     tq: boolean;
     hold: boolean;
     edge: boolean;
+    niveshaay: boolean;
+    negen: boolean;
     hideCollision: boolean;
     minScore: number;
     minBoards: number;
@@ -121,9 +123,13 @@ function filterRows(
       if (!hit) continue;
     }
 
-    if (opts.hold || opts.edge) {
+    if (opts.hold || opts.edge || opts.niveshaay || opts.negen) {
       const hit = companies.some(
-        (c) => (opts.hold && c.has_hold) || (opts.edge && c.has_edge),
+        (c) =>
+          (opts.hold && c.has_hold) ||
+          (opts.edge && c.has_edge) ||
+          (opts.niveshaay && c.has_niveshaay) ||
+          (opts.negen && c.has_negen),
       );
       if (!hit) continue;
     }
@@ -253,6 +259,8 @@ type CompanyAgg = {
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
+  has_niveshaay: boolean;
+  has_negen: boolean;
   about: string | null;
   headquarters: string | null;
   highlights: string[];
@@ -319,6 +327,8 @@ export async function GET(req: NextRequest) {
     tq: sp.get("tq") === "1",
     hold: sp.get("hold") === "1",
     edge: sp.get("edge") === "1",
+    niveshaay: sp.get("niveshaay") === "1",
+    negen: sp.get("negen") === "1",
     hideCollision: sp.get("hideCollision") !== "0",
     minScore: Number.isFinite(minScore) ? minScore : 0,
     minBoards,
@@ -359,6 +369,8 @@ export async function GET(req: NextRequest) {
             has_tq: c.has_tq,
             has_hold: c.has_hold,
             has_edge: c.has_edge,
+            has_niveshaay: c.has_niveshaay,
+            has_negen: c.has_negen,
             about: c.about,
             headquarters: c.headquarters,
             highlights: highlighted.highlights,

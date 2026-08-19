@@ -19,7 +19,9 @@ export type Company = {
   has_bb?: boolean;
   /** TQ weekly signal (local Yahoo scan). */
   has_tq?: boolean;
-  /** Quant Newsdesk headlines for this ticker (tags only). */
+  /** Daily close above 10/20/50/200 EMA. */
+  has_ema?: boolean;
+  /** Saved research note headline tags when present. */
   news?: {
     count: number;
     netTone: number;
@@ -31,6 +33,10 @@ export type Company = {
   has_distress?: boolean;
   /** In Early Edge watchlist (data/edge.db). */
   has_edge?: boolean;
+  /** Niveshaay fund watchlist. */
+  has_niveshaay?: boolean;
+  /** Negen fund watchlist. */
+  has_negen?: boolean;
   /** Has a saved research note (data/notes.db). */
   has_note?: boolean;
   /** Saved note body when requested / expanded. */
@@ -46,6 +52,15 @@ export type Company = {
     timeframe: string;
     score: number | null;
     crossover_type: string | null;
+    signal_date: string | null;
+  };
+  ema?: {
+    timeframe: string;
+    price: number | null;
+    ema10: number | null;
+    ema20: number | null;
+    ema50: number | null;
+    ema200: number | null;
     signal_date: string | null;
   };
   missing?: {

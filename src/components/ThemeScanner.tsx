@@ -28,12 +28,16 @@ type ScanApi = {
   signals?: {
     bb: number;
     tq: number;
+    ema?: number;
     hold?: number;
     distress?: number;
     edge?: number;
+    niveshaay?: number;
+    negen?: number;
+    sme?: number;
     note?: number;
   };
-  session?: { bb: string | null; tq: string | null };
+  session?: { bb: string | null; tq: string | null; ema?: string | null };
   breakoutsPreferred?: boolean;
 };
 
@@ -48,8 +52,12 @@ export function ThemeScanner() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterBb, setFilterBb] = useState(false);
   const [filterTq, setFilterTq] = useState(false);
+  const [filterEma, setFilterEma] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [filterNiveshaay, setFilterNiveshaay] = useState(false);
+  const [filterNegen, setFilterNegen] = useState(false);
+  const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("sector");
@@ -62,13 +70,21 @@ export function ThemeScanner() {
     hold: number;
     distress: number;
     edge: number;
+    niveshaay: number;
+    negen: number;
+    sme: number;
+    ema: number;
     note: number;
   }>({
     bb: 0,
     tq: 0,
+    ema: 0,
     hold: 0,
     distress: 0,
     edge: 0,
+    niveshaay: 0,
+    negen: 0,
+    sme: 0,
     note: 0,
   });
 
@@ -92,9 +108,13 @@ export function ThemeScanner() {
             signals?: {
               bb: number;
               tq: number;
+              ema?: number;
               hold?: number;
               distress?: number;
               edge?: number;
+              niveshaay?: number;
+              negen?: number;
+              sme?: number;
               note?: number;
             };
           };
@@ -109,9 +129,13 @@ export function ThemeScanner() {
           setSignalCounts({
             bb: j.signals.bb ?? 0,
             tq: j.signals.tq ?? 0,
+            ema: j.signals.ema ?? 0,
             hold: j.signals.hold ?? 0,
             distress: j.signals.distress ?? 0,
             edge: j.signals.edge ?? 0,
+            niveshaay: j.signals.niveshaay ?? 0,
+            negen: j.signals.negen ?? 0,
+            sme: j.signals.sme ?? 0,
             note: j.signals.note ?? 0,
           });
         }
@@ -125,11 +149,11 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [selected, debouncedCustom, market, cap, filterBb, filterTq, filterHold, filterEdge, filterNote]);
+  }, [selected, debouncedCustom, market, cap, filterBb, filterTq, filterEma, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote]);
 
   const themeActive = selected.length > 0 || debouncedCustom.trim().length > 0;
   const signalActive =
-    filterBb || filterTq || filterHold || filterEdge || filterNote;
+    filterBb || filterTq || filterEma || filterHold || filterEdge || filterNiveshaay || filterNegen || filterSme || filterNote;
   const capActive = cap !== "All";
   const active = themeActive || signalActive || capActive;
   const listMarket = market;
@@ -156,8 +180,12 @@ export function ThemeScanner() {
       }
       if (filterBb) params.set("bb", "1");
       if (filterTq) params.set("tq", "1");
+      if (filterEma) params.set("ema", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
+      if (filterNiveshaay) params.set("niveshaay", "1");
+      if (filterNegen) params.set("negen", "1");
+      if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
@@ -181,9 +209,13 @@ export function ThemeScanner() {
           setSignalCounts({
             bb: json.signals.bb ?? 0,
             tq: json.signals.tq ?? 0,
+            ema: json.signals.ema ?? 0,
             hold: json.signals.hold ?? 0,
             distress: json.signals.distress ?? 0,
             edge: json.signals.edge ?? 0,
+            niveshaay: json.signals.niveshaay ?? 0,
+            negen: json.signals.negen ?? 0,
+            sme: json.signals.sme ?? 0,
             note: json.signals.note ?? 0,
           });
         }
@@ -200,8 +232,12 @@ export function ThemeScanner() {
       cap,
       filterBb,
       filterTq,
+      filterEma,
       filterHold,
       filterEdge,
+      filterNiveshaay,
+      filterNegen,
+      filterSme,
       filterNote,
       page,
       sort,
@@ -334,22 +370,49 @@ export function ThemeScanner() {
           onCap={setCap}
           bb={filterBb}
           tq={filterTq}
+          ema={filterEma}
           hold={filterHold}
           edge={filterEdge}
+          niveshaay={filterNiveshaay}
+          negen={filterNegen}
+          sme={filterSme}
           note={filterNote}
           onBb={setFilterBb}
           onTq={setFilterTq}
+          onEma={setFilterEma}
           onHold={setFilterHold}
           onEdge={setFilterEdge}
+          onNiveshaay={(on) => {
+            setFilterNiveshaay(on);
+            if (on) {
+              setFilterBb(false);
+              setFilterTq(false);
+              setFilterEma(false);
+            }
+          }}
+          onNegen={(on) => {
+            setFilterNegen(on);
+            if (on) {
+              setFilterBb(false);
+              setFilterTq(false);
+              setFilterEma(false);
+            }
+          }}
+          onSme={setFilterSme}
           onNote={setFilterNote}
           bbCount={data?.signals?.bb ?? signalCounts.bb}
           tqCount={data?.signals?.tq ?? signalCounts.tq}
+          emaCount={data?.signals?.ema ?? signalCounts.ema}
           holdCount={data?.signals?.hold ?? signalCounts.hold}
           distressCount={data?.signals?.distress ?? signalCounts.distress}
           edgeCount={data?.signals?.edge ?? signalCounts.edge}
+          niveshaayCount={data?.signals?.niveshaay ?? signalCounts.niveshaay}
+          negenCount={data?.signals?.negen ?? signalCounts.negen}
+          smeCount={data?.signals?.sme ?? signalCounts.sme}
           noteCount={data?.signals?.note ?? signalCounts.note}
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
+          emaDate={data?.session?.ema ?? null}
           market={listMarket}
           onDone={() => void load({ refresh: true })}
         />

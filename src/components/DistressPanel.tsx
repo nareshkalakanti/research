@@ -16,6 +16,8 @@ type DistressRow = {
   sc: string;
   tv: string;
   has_hold: boolean;
+  has_niveshaay?: boolean;
+  has_negen?: boolean;
   has_distress: boolean;
   distress_score: number;
   distress_flags: string[];
@@ -289,15 +291,26 @@ export function DistressPanel() {
                           <span className="distress-name" title={r.name ?? r.ticker}>
                             {r.name ?? r.ticker}
                           </span>
-                          {(r.has_distress || r.has_hold) && (
+                          {(r.has_distress ||
+                            r.has_hold ||
+                            r.has_niveshaay ||
+                            r.has_negen) && (
                             <span className="distress-badges">
                               {r.has_distress ? (
                                 <span className="result-tag tag-distress">
                                   DISTRESS
                                 </span>
                               ) : null}
+                              {r.has_niveshaay ? (
+                                <span className="result-tag tag-niveshaay">
+                                  Niveshaay
+                                </span>
+                              ) : null}
+                              {r.has_negen ? (
+                                <span className="result-tag tag-negen">Negen</span>
+                              ) : null}
                               {r.has_hold ? (
-                                <span className="result-tag tag-hold">HOLD</span>
+                                <span className="result-tag tag-hold">Hold</span>
                               ) : null}
                             </span>
                           )}

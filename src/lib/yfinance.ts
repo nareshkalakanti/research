@@ -1,6 +1,10 @@
 import YahooFinance from "yahoo-finance2";
 
-const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+const yf = new YahooFinance({
+  suppressNotices: ["yahooSurvey"],
+  // Yahoo occasionally returns valid partial payloads that fail strict schema checks.
+  validation: { logErrors: false, logOptionsErrors: false },
+});
 
 export type YfQuote = {
   ticker: string;
@@ -78,6 +82,21 @@ function num(v: unknown): number | null {
   if (v == null) return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Listed shares when Yahoo omits marketCap (rare NSE SME listings). */
+const KNOWN_LISTED_SHARES: Record<string, number> = {
+  VISDEM: 10_272_093,
+};
+
+function deriveMcapFromKnownShares(
+  ticker: string,
+  price: number | null,
+): number | null {
+  if (price == null) return null;
+  const shares = KNOWN_LISTED_SHARES[ticker.toUpperCase()];
+  if (!shares || shares <= 0) return null;
+  return price * shares;
 }
 
 function mcapToCr(mcap: number | null): number | null {
@@ -195,6 +214,11 @@ export async function fetchQuoteDetailed(
       if (s?.mcap != null || s?.price != null) used = sym;
       if (bits.price != null && bits.mcap != null) break;
     }
+  }
+
+  if (bits.mcap == null && bits.price != null) {
+    const derived = deriveMcapFromKnownShares(ticker, bits.price);
+    if (derived != null) bits.mcap = derived;
   }
 
   if (bits.price == null && bits.mcap == null) {

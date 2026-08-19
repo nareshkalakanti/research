@@ -24,6 +24,8 @@ export type PaperPosition = {
   held_days: number;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_niveshaay?: boolean;
+  has_negen?: boolean;
 };
 
 type PaperSummary = {
@@ -92,12 +94,24 @@ function PaperTags({
   market,
   hasHold,
   hasEdge,
+  hasNiveshaay,
+  hasNegen,
 }: {
   market?: string | null;
   hasHold?: boolean;
   hasEdge?: boolean;
+  hasNiveshaay?: boolean;
+  hasNegen?: boolean;
 }) {
-  if (!/\bSME\b/i.test(market || "") && !hasHold && !hasEdge) return null;
+  if (
+    !/\bSME\b/i.test(market || "") &&
+    !hasHold &&
+    !hasEdge &&
+    !hasNiveshaay &&
+    !hasNegen
+  ) {
+    return null;
+  }
   return (
     <span className="ag-paper-tags">
       {/\bSME\b/i.test(market || "") ? (
@@ -108,6 +122,16 @@ function PaperTags({
       {hasEdge ? (
         <span className="ag-tag ag-tag-edge" title="Early Edge">
           Edge
+        </span>
+      ) : null}
+      {hasNiveshaay ? (
+        <span className="ag-tag ag-tag-niveshaay" title="Niveshaay">
+          Niveshaay
+        </span>
+      ) : null}
+      {hasNegen ? (
+        <span className="ag-tag ag-tag-negen" title="Negen">
+          Negen
         </span>
       ) : null}
       {hasHold ? (
@@ -127,6 +151,8 @@ type TopPick = {
   price?: number | null;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_niveshaay?: boolean;
+  has_negen?: boolean;
 };
 
 type Props = {
@@ -289,6 +315,8 @@ export function PaperMockPanel({
                 market={topPick.market}
                 hasHold={topPick.has_hold}
                 hasEdge={topPick.has_edge}
+                hasNiveshaay={topPick.has_niveshaay}
+                hasNegen={topPick.has_negen}
               />
               <span className="ag-paper-conf">{topPick.confidence}/10</span>
               {topPick.price != null ? (
@@ -385,6 +413,8 @@ export function PaperMockPanel({
                       market={p.market}
                       hasHold={p.has_hold}
                       hasEdge={p.has_edge}
+                      hasNiveshaay={p.has_niveshaay}
+                      hasNegen={p.has_negen}
                     />
                   </div>
                   <span className="ag-paper-row-meta">

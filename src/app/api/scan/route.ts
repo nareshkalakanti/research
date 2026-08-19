@@ -48,9 +48,13 @@ export async function POST(req: NextRequest) {
 
   try {
   const kind: ScanKind =
-    body.kind === "bb" || body.kind === "tq" || body.kind === "both"
+    body.kind === "bb" ||
+    body.kind === "tq" ||
+    body.kind === "ema" ||
+    body.kind === "both" ||
+    body.kind === "all"
       ? body.kind
-      : "both";
+      : "all";
   const market = body.market || "NSE";
   const limit = Math.min(80, Math.max(1, Number(body.limit) || 40));
   const clearFirst = body.clearFirst === true;
@@ -87,10 +91,12 @@ export async function POST(req: NextRequest) {
       tried: 0,
       bbHits: 0,
       tqHits: 0,
+      emaHits: 0,
       failed: 0,
       remaining: 0,
       bbTickers: [],
       tqTickers: [],
+      emaTickers: [],
       cleared: clearFirst,
       signals: breakoutCounts(),
       message: "Nothing left to scan for this filter",

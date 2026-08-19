@@ -54,6 +54,8 @@ type Seat = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_niveshaay?: boolean;
+  has_negen?: boolean;
   web: string | null;
   sc: string;
   tv: string;
@@ -101,6 +103,8 @@ type CompanyRow = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_niveshaay?: boolean;
+  has_negen?: boolean;
   about?: string | null;
   headquarters?: string | null;
   sc: string;
@@ -175,6 +179,8 @@ export function GovernanceMapPanel() {
   const [filterMultiLc, setFilterMultiLc] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [filterNiveshaay, setFilterNiveshaay] = useState(false);
+  const [filterNegen, setFilterNegen] = useState(false);
   const [cap, setCap] = useState<CapFilter>("All");
   const [sme, setSme] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -190,7 +196,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, cap, sme]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, filterNiveshaay, filterNegen, cap, sme]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -211,6 +217,8 @@ export function GovernanceMapPanel() {
       if (filterMultiLc) params.set("multiLc", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
+      if (filterNiveshaay) params.set("niveshaay", "1");
+      if (filterNegen) params.set("negen", "1");
       if (cap !== "All") params.set("cap", cap);
       if (sme) params.set("sme", "1");
       if (opts?.refresh) params.set("refresh", "1");
@@ -222,7 +230,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, cap, sme],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, filterNiveshaay, filterNegen, cap, sme],
   );
 
   useEffect(() => {
@@ -291,6 +299,33 @@ export function GovernanceMapPanel() {
         : bridgeMode === "cap"
           ? "≥ ₹5,000 Cr board + under ₹5,000 Cr"
           : "Pick a size filter to find big-board directors on small names";
+
+  const filtersActive =
+    q.trim().length > 0 ||
+    minBoards !== 2 ||
+    bridgeMode !== "off" ||
+    filterMultiLc ||
+    filterHold ||
+    filterEdge ||
+    filterNiveshaay ||
+    filterNegen ||
+    cap !== "All" ||
+    sme;
+
+  function clearFilters() {
+    setQ("");
+    setDebouncedQ("");
+    setMinBoards(2);
+    setBridgeMode("off");
+    setFilterMultiLc(false);
+    setFilterHold(false);
+    setFilterEdge(false);
+    setFilterNiveshaay(false);
+    setFilterNegen(false);
+    setCap("All");
+    setSme(false);
+    setOpenId(null);
+  }
 
   return (
     <div className="panel">
@@ -408,6 +443,22 @@ export function GovernanceMapPanel() {
           >
             Edge
           </button>
+          <button
+            type="button"
+            className={`niveshaay ${filterNiveshaay ? "on" : ""}`}
+            onClick={() => setFilterNiveshaay((v) => !v)}
+            title="Any board seat is on Niveshaay"
+          >
+            Niveshaay
+          </button>
+          <button
+            type="button"
+            className={`negen ${filterNegen ? "on" : ""}`}
+            onClick={() => setFilterNegen((v) => !v)}
+            title="Any board seat is on Negen"
+          >
+            Negen
+          </button>
         </div>
         <p className="gov-focus-hint">{bridgeHint}</p>
       </div>
@@ -420,6 +471,16 @@ export function GovernanceMapPanel() {
           onSme={setSme}
           showSme
         />
+        {filtersActive ? (
+          <button
+            type="button"
+            className="clear-filter"
+            onClick={clearFilters}
+            title="Reset search and filters"
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
 
       <GovernanceScanBar
@@ -652,6 +713,14 @@ export function GovernanceMapPanel() {
                               {c.has_edge ? (
                                 <span className="gov-tag gov-tag-edge">Edge</span>
                               ) : null}
+                              {c.has_niveshaay ? (
+                                <span className="gov-tag gov-tag-niveshaay">
+                                  Niveshaay
+                                </span>
+                              ) : null}
+                              {c.has_negen ? (
+                                <span className="gov-tag gov-tag-negen">Negen</span>
+                              ) : null}
                               {c.has_hold ? (
                                 <span className="gov-tag gov-tag-hold">
                                   Hold
@@ -726,6 +795,12 @@ export function GovernanceMapPanel() {
                       ) : null}
                       {c.has_edge ? (
                         <span className="gov-tag gov-tag-edge">Edge</span>
+                      ) : null}
+                      {c.has_niveshaay ? (
+                        <span className="gov-tag gov-tag-niveshaay">Niveshaay</span>
+                      ) : null}
+                      {c.has_negen ? (
+                        <span className="gov-tag gov-tag-negen">Negen</span>
                       ) : null}
                       {c.has_hold ? (
                         <span className="gov-tag gov-tag-hold">Hold</span>

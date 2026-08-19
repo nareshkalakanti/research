@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
-import type { QuantNewsCompany } from "@/lib/agents/newsdesk-types";
 import type { VerdictLabel, VerdictRow } from "@/lib/agents/types";
 import { researchLinks } from "@/lib/links";
 
@@ -94,12 +93,10 @@ export function VerdictRowCard({
   row,
   open,
   onToggle,
-  news,
 }: {
   row: VerdictRow;
   open: boolean;
   onToggle: () => void;
-  news?: QuantNewsCompany | null;
 }) {
   const [panel, setPanel] = useState<VerdictPanel>("about");
   const [showMore, setShowMore] = useState(false);
@@ -137,6 +134,16 @@ export function VerdictRowCard({
                     Edge
                   </span>
                 ) : null}
+                {row.has_niveshaay ? (
+                  <span className="ag-tag ag-tag-niveshaay" title="Niveshaay">
+                    Niveshaay
+                  </span>
+                ) : null}
+                {row.has_negen ? (
+                  <span className="ag-tag ag-tag-negen" title="Negen">
+                    Negen
+                  </span>
+                ) : null}
                 {row.has_hold ? (
                   <span className="ag-tag ag-tag-hold" title="Holdings">
                     Hold
@@ -147,21 +154,6 @@ export function VerdictRowCard({
                 ) : null}
                 {row.has_bb ? (
                   <span className="result-tag tag-scan-bb">BB</span>
-                ) : null}
-                {news && news.headlines.length > 0 ? (
-                  <span
-                    className={`result-tag tag-scan-news${
-                      news.positive - news.negative > 0
-                        ? " pos"
-                        : news.positive - news.negative < 0
-                          ? " neg"
-                          : ""
-                    }`}
-                    title={news.headlines.map((h) => h.title).join("\n")}
-                  >
-                    News
-                    {news.headlines.length > 1 ? ` ${news.headlines.length}` : ""}
-                  </span>
                 ) : null}
                 {row.fired ? <span className="ag-fired">Signal</span> : null}
               </div>

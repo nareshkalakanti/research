@@ -68,7 +68,7 @@ export type EvidenceBundle = {
     recent: Array<{ title: string; link: string; published: string | null }>;
   };
   data_gaps: string[];
-  /** Weekly BB/TQ stamps (Quant pipeline — Technician agent). */
+  /** Weekly BB/TQ stamps from local scan. */
   weekly?: {
     has_bb: boolean;
     has_tq: boolean;
@@ -149,6 +149,8 @@ export type VerdictRow = {
   headquarters: string | null;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_niveshaay?: boolean;
+  has_negen?: boolean;
   has_tq?: boolean;
   has_bb?: boolean;
 };
@@ -245,20 +247,3 @@ export const AGENT_DEFS: Array<{
     stat2Label: "Engine",
   },
 ];
-
-/** Quant tab — Technician reads weekly BB + TQ (not RVOL). */
-export const QUANT_AGENT_DEFS: typeof AGENT_DEFS = AGENT_DEFS.map((d) =>
-  d.id === "technician"
-    ? {
-        ...d,
-        role: "reads weekly BB NEW & TQ trend",
-        stat1Label: "TQ",
-        stat2Label: "BB",
-      }
-    : d.id === "scout"
-      ? {
-          ...d,
-          role: "screens universe for weekly TQ/BB hits",
-        }
-      : d,
-);

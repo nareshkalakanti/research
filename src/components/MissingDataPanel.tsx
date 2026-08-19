@@ -122,6 +122,8 @@ export function MissingDataPanel() {
                 price/mcap
               </>
             ) : null}
+            {" "}
+            · includes Niveshaay &amp; Negen watchlists
           </p>
         </div>
         <div className="missing-head-actions">

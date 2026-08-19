@@ -23,6 +23,7 @@
     "sync:smart-money": "tsx scripts/sync-smart-money.ts",
     "sync:holdings": "tsx scripts/sync-holdings.ts",
     "sync:edge": "tsx scripts/sync-edge.ts",
+    "sync:fund-watchlists": "tsx scripts/sync-fund-watchlists.ts",
     "sync:bse-sme": "tsx scripts/sync-bse-sme.ts",
     "sync:bse-about": "tsx scripts/sync-bse-about.ts"
   },
