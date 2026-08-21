@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import type { YfQuote } from "./yfinance";
+import { fetchLivePrices, type YfQuote } from "./yfinance";
 import {
   BSE_SME_MARKET,
   fetchBseSmeMetrics,
@@ -82,6 +82,44 @@ export function loadMetricsMap(): Map<string, MetricsRow> {
 
 export function getMetrics(ticker: string): MetricsRow | undefined {
   return loadMetricsMap().get(ticker.toUpperCase());
+}
+
+/** Refresh cached page prices when older than this (ms). */
+export const PAGE_PRICE_MAX_AGE_MS = 5 * 60 * 1000;
+
+function metricsNeedsPriceRefresh(
+  row: MetricsRow | undefined,
+  maxAgeMs: number,
+): boolean {
+  if (!row || row.price == null) return true;
+  const t = Date.parse(row.fetched_at);
+  if (!Number.isFinite(t)) return true;
+  return Date.now() - t > maxAgeMs;
+}
+
+/** Pull live Yahoo quotes for visible rows and upsert into metrics.db. */
+export async function refreshPagePrices(
+  items: Array<{ ticker: string; market?: string | null }>,
+  opts?: { force?: boolean; maxAgeMs?: number; concurrency?: number },
+): Promise<number> {
+  if (!items.length) return 0;
+
+  const maxAgeMs = opts?.maxAgeMs ?? PAGE_PRICE_MAX_AGE_MS;
+  const map = loadMetricsMap();
+  const pending = items.filter((c) => {
+    if (opts?.force) return true;
+    return metricsNeedsPriceRefresh(map.get(c.ticker.toUpperCase()), maxAgeMs);
+  });
+  if (!pending.length) return 0;
+
+  const quotes = await fetchLivePrices(pending, {
+    concurrency: opts?.concurrency ?? 8,
+  });
+  const marketBy: Record<string, string> = {};
+  for (const c of pending) {
+    marketBy[c.ticker.toUpperCase()] = c.market ?? "";
+  }
+  return upsertMetrics(quotes, marketBy);
 }
 
 export function upsertMetrics(

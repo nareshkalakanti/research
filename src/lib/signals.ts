@@ -14,6 +14,7 @@ import {
 } from "./indicators";
 import {
   fetchDailyBars,
+  fetchMonthlyBars,
   fetchNiftyDailyBars,
   fetchNiftyWeeklyBars,
   fetchWeeklyBars,
@@ -23,10 +24,13 @@ import {
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const SIGNALS_PATH = path.join(DATA_DIR, "signals.db");
-/** BB/TQ use the latest weekly bar only. */
-const SIGNAL_TF = "weekly";
+/** TQ uses the latest weekly bar only. */
+const TQ_TF = "weekly";
 /** Daily EMA stack (10/20/50/200) — latest session only. */
 const EMA_TF = "daily";
+
+export type BbTimeframe = "weekly" | "monthly";
+export const BB_TIMEFRAMES: BbTimeframe[] = ["weekly", "monthly"];
 
 export type BbSignal = {
   timeframe: string;
@@ -63,7 +67,11 @@ export type BreakoutFlags = {
 };
 
 let signalsDb: Database.Database | null = null;
-let cache: { at: number; map: Map<string, BreakoutFlags> } | null = null;
+let cache: {
+  at: number;
+  map: Map<string, BreakoutFlags>;
+  bbTf: BbTimeframe;
+} | null = null;
 const CACHE_MS = 5_000;
 
 function ensureDb(): Database.Database {
@@ -169,14 +177,17 @@ export function latestSignalDates(map = loadBreakoutMap()): {
   return { bb, tq, ema };
 }
 
-export function loadBreakoutMap(): Map<string, BreakoutFlags> {
+export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string, BreakoutFlags> {
   const now = Date.now();
-  if (cache && now - cache.at < CACHE_MS) return cache.map;
+  if (cache && now - cache.at < CACHE_MS && cache.bbTf === bbTimeframe) {
+    return cache.map;
+  }
 
   const map = new Map<string, BreakoutFlags>();
+  const bbTf = bbTimeframe;
   try {
     if (!fs.existsSync(SIGNALS_PATH)) {
-      cache = { at: now, map };
+      cache = { at: now, map, bbTf };
       return map;
     }
     const db = ensureDb();
@@ -187,7 +198,7 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
           `SELECT MAX(signal_date) AS d FROM bb_signals
            WHERE signal = 'NEW_BREAKOUT' AND lower(timeframe) = ?`,
         )
-        .get(SIGNAL_TF) as { d: string | null } | undefined
+        .get(bbTf) as { d: string | null } | undefined
     )?.d;
     const latestTq = (
       db
@@ -197,7 +208,7 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
              AND crossover_type IS NOT NULL
              AND crossover_type != 'No Crossover'`,
         )
-        .get(SIGNAL_TF) as { d: string | null } | undefined
+        .get(TQ_TF) as { d: string | null } | undefined
     )?.d;
 
     // Drop older sessions so tags only ever show the latest day.
@@ -205,13 +216,13 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
       db.prepare(
         `DELETE FROM bb_signals
          WHERE lower(timeframe) = ? AND (signal_date IS NULL OR signal_date < ?)`,
-      ).run(SIGNAL_TF, latestBb.slice(0, 10));
+      ).run(bbTf, latestBb.slice(0, 10));
     }
     if (latestTq) {
       db.prepare(
         `DELETE FROM tq_signals
          WHERE lower(timeframe) = ? AND (signal_date IS NULL OR signal_date < ?)`,
-      ).run(SIGNAL_TF, latestTq.slice(0, 10));
+      ).run(TQ_TF, latestTq.slice(0, 10));
     }
 
     const bbRows = db
@@ -220,7 +231,7 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
          FROM bb_signals
          WHERE signal = 'NEW_BREAKOUT' AND lower(timeframe) = ?`,
       )
-      .all(SIGNAL_TF) as Array<{
+      .all(bbTf) as Array<{
       ticker: string;
       timeframe: string;
       signal: string;
@@ -251,7 +262,7 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
            AND crossover_type IS NOT NULL
            AND crossover_type != 'No Crossover'`,
       )
-      .all(SIGNAL_TF) as Array<{
+      .all(TQ_TF) as Array<{
       ticker: string;
       timeframe: string;
       score: number | null;
@@ -321,7 +332,7 @@ export function loadBreakoutMap(): Map<string, BreakoutFlags> {
     /* missing db */
   }
 
-  cache = { at: now, map };
+  cache = { at: now, map, bbTf };
   return map;
 }
 
@@ -341,8 +352,9 @@ export function breakoutCounts(map = loadBreakoutMap()): {
   return { bb, tq, ema };
 }
 
-export function analyzeBbWeekly(
+export function analyzeBbNewBreakout(
   bars: Bar[],
+  timeframe: BbTimeframe = "weekly",
 ): Omit<BbSignal, "timeframe"> & { price: number; upper_band: number } | null {
   if (bars.length < 50) return null;
   const closes = bars.map((b) => b.close);
@@ -365,13 +377,21 @@ export function analyzeBbWeekly(
     signal = "NEUTRAL";
   }
   if (signal !== "NEW_BREAKOUT") return null;
+  const signal_date =
+    timeframe === "monthly"
+      ? bars[i].date.slice(0, 10)
+      : toTradingWeekFriday(bars[i].date);
   return {
     signal,
     price: Math.round(price * 100) / 100,
     upper_band: Math.round(u * 100) / 100,
-    // Practical rule: weekly stamp = Friday of the NSE trading week.
-    signal_date: toTradingWeekFriday(bars[i].date),
+    signal_date,
   };
+}
+
+/** @deprecated use analyzeBbNewBreakout */
+export function analyzeBbWeekly(bars: Bar[]) {
+  return analyzeBbNewBreakout(bars, "weekly");
 }
 
 export function analyzeTqWeekly(
@@ -504,13 +524,14 @@ function upsertBb(
     upper_band: number;
     signal_date: string;
   }>,
+  timeframe: BbTimeframe,
 ): number {
   if (!rows.length) return 0;
   const db = ensureDb();
   const now = new Date().toISOString();
   const stmt = db.prepare(`
     INSERT INTO bb_signals (ticker, market, signal, timeframe, price, upper_band, signal_date, fetched_at)
-    VALUES (@ticker, @market, @signal, '${SIGNAL_TF}', @price, @upper_band, @signal_date, @fetched_at)
+    VALUES (@ticker, @market, @signal, @timeframe, @price, @upper_band, @signal_date, @fetched_at)
     ON CONFLICT(ticker, timeframe) DO UPDATE SET
       market = excluded.market,
       signal = excluded.signal,
@@ -521,20 +542,20 @@ function upsertBb(
   `);
   const tx = db.transaction((batch: typeof rows) => {
     for (const r of batch) {
-      stmt.run({ ...r, fetched_at: now });
+      stmt.run({ ...r, timeframe, fetched_at: now });
     }
   });
   tx(rows);
   return rows.length;
 }
 
-function clearBbForTickers(tickers: string[]): void {
+function clearBbForTickers(tickers: string[], timeframe: BbTimeframe): void {
   if (!tickers.length) return;
   const db = ensureDb();
   const placeholders = tickers.map(() => "?").join(",");
   db.prepare(
     `DELETE FROM bb_signals WHERE timeframe = ? AND ticker IN (${placeholders})`,
-  ).run(SIGNAL_TF, ...tickers.map((t) => t.toUpperCase()));
+  ).run(timeframe, ...tickers.map((t) => t.toUpperCase()));
 }
 
 function upsertTq(
@@ -552,7 +573,7 @@ function upsertTq(
   const now = new Date().toISOString();
   const stmt = db.prepare(`
     INSERT INTO tq_signals (ticker, timeframe, market, score, crossover_type, crossover_score, signal_date, fetched_at)
-    VALUES (@ticker, '${SIGNAL_TF}', @market, @score, @crossover_type, @crossover_score, @signal_date, @fetched_at)
+    VALUES (@ticker, '${TQ_TF}', @market, @score, @crossover_type, @crossover_score, @signal_date, @fetched_at)
     ON CONFLICT(ticker, timeframe) DO UPDATE SET
       market = excluded.market,
       score = excluded.score,
@@ -576,7 +597,7 @@ function clearTqForTickers(tickers: string[]): void {
   const placeholders = tickers.map(() => "?").join(",");
   db.prepare(
     `DELETE FROM tq_signals WHERE timeframe = ? AND ticker IN (${placeholders})`,
-  ).run(SIGNAL_TF, ...tickers.map((t) => t.toUpperCase()));
+  ).run(TQ_TF, ...tickers.map((t) => t.toUpperCase()));
 }
 
 function upsertEma(
@@ -651,8 +672,13 @@ function scanKinds(kind: ScanKind): Array<"bb" | "tq" | "ema"> {
   return [kind];
 }
 
-function kindTimeframe(k: "bb" | "tq" | "ema"): string {
-  return k === "ema" ? EMA_TF : SIGNAL_TF;
+function kindTimeframe(
+  k: "bb" | "tq" | "ema",
+  bbTimeframe: BbTimeframe = "weekly",
+): string {
+  if (k === "ema") return EMA_TF;
+  if (k === "bb") return bbTimeframe;
+  return TQ_TF;
 }
 
 function kindMaxAgeMs(k: "bb" | "tq" | "ema"): number {
@@ -662,10 +688,11 @@ function kindMaxAgeMs(k: "bb" | "tq" | "ema"): number {
 export function uncheckedTickers(
   tickers: string[],
   kind: ScanKind,
-  opts?: { maxAgeMs?: number },
+  opts?: { maxAgeMs?: number; bbTimeframe?: BbTimeframe },
 ): Set<string> {
   if (!tickers.length) return new Set();
   const kinds = scanKinds(kind);
+  const bbTf = opts?.bbTimeframe ?? "weekly";
   try {
     if (!fs.existsSync(SIGNALS_PATH)) return new Set(tickers.map((t) => t.toUpperCase()));
     const db = ensureDb();
@@ -673,7 +700,7 @@ export function uncheckedTickers(
     const now = Date.now();
     for (const k of kinds) {
       const maxAgeMs = opts?.maxAgeMs ?? kindMaxAgeMs(k);
-      const tf = kindTimeframe(k);
+      const tf = kindTimeframe(k, bbTf);
       const rows = db
         .prepare(
           `SELECT ticker, fetched_at FROM scan_checked WHERE kind = ? AND timeframe = ?`,
@@ -715,9 +742,10 @@ export type ScanBatchResult = {
 export async function runSignalBatch(
   items: Array<{ ticker: string; market?: string | null }>,
   kind: ScanKind = "both",
-  opts?: { concurrency?: number },
+  opts?: { concurrency?: number; bbTimeframe?: BbTimeframe },
 ): Promise<ScanBatchResult> {
   const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 4, 6));
+  const bbTf = opts?.bbTimeframe ?? "weekly";
   const tickers = items
     .map((i) => ({
       ticker: i.ticker.toUpperCase(),
@@ -767,7 +795,7 @@ export async function runSignalBatch(
     };
   }
 
-  if (doBb) clearBbForTickers(tickers.map((t) => t.ticker));
+  if (doBb) clearBbForTickers(tickers.map((t) => t.ticker), bbTf);
   if (doTq) clearTqForTickers(tickers.map((t) => t.ticker));
   if (doEma) clearEmaForTickers(tickers.map((t) => t.ticker));
 
@@ -806,7 +834,7 @@ export async function runSignalBatch(
         try {
           let any = false;
 
-          if (doBb || doTq) {
+          if (doTq) {
             const weeklyBars = await fetchWeeklyBars(ticker, market, 2);
             if (weeklyBars.length >= 50) {
               const lastDate = toTradingWeekFriday(
@@ -814,37 +842,50 @@ export async function runSignalBatch(
               );
               if (!sessionDate || lastDate === sessionDate) {
                 any = true;
-                if (doBb) {
-                  const hit = analyzeBbWeekly(weeklyBars);
-                  if (
-                    hit &&
-                    hit.signal_date?.slice(0, 10) === (sessionDate || lastDate)
-                  ) {
-                    bbRows.push({
-                      ticker,
-                      market,
-                      signal: hit.signal,
-                      price: hit.price,
-                      upper_band: hit.upper_band,
-                      signal_date: hit.signal_date!,
-                    });
-                  }
+                const hit = analyzeTqWeekly(weeklyBars, nifty);
+                if (
+                  hit &&
+                  hit.signal_date?.slice(0, 10) === (sessionDate || lastDate)
+                ) {
+                  tqRows.push({
+                    ticker,
+                    market,
+                    score: hit.score,
+                    crossover_type: hit.crossover_type,
+                    crossover_score: hit.crossover_score,
+                    signal_date: hit.signal_date,
+                  });
                 }
-                if (doTq) {
-                  const hit = analyzeTqWeekly(weeklyBars, nifty);
-                  if (
-                    hit &&
-                    hit.signal_date?.slice(0, 10) === (sessionDate || lastDate)
-                  ) {
-                    tqRows.push({
-                      ticker,
-                      market,
-                      score: hit.score,
-                      crossover_type: hit.crossover_type,
-                      crossover_score: hit.crossover_score,
-                      signal_date: hit.signal_date,
-                    });
-                  }
+              }
+            }
+          }
+
+          if (doBb) {
+            const bars =
+              bbTf === "monthly"
+                ? await fetchMonthlyBars(ticker, market, 5)
+                : await fetchWeeklyBars(ticker, market, 2);
+            if (bars.length >= 50) {
+              const lastDate =
+                bbTf === "monthly"
+                  ? bars[bars.length - 1].date.slice(0, 10)
+                  : toTradingWeekFriday(bars[bars.length - 1].date);
+              const sessionOk =
+                bbTf === "monthly" ||
+                !sessionDate ||
+                lastDate === sessionDate;
+              if (sessionOk) {
+                any = true;
+                const hit = analyzeBbNewBreakout(bars, bbTf);
+                if (hit && hit.signal_date?.slice(0, 10) === lastDate) {
+                  bbRows.push({
+                    ticker,
+                    market,
+                    signal: hit.signal,
+                    price: hit.price,
+                    upper_band: hit.upper_band,
+                    signal_date: hit.signal_date!,
+                  });
                 }
               }
             }
@@ -884,12 +925,12 @@ export async function runSignalBatch(
     );
   }
 
-  if (doBb) upsertBb(bbRows);
+  if (doBb) upsertBb(bbRows, bbTf);
   if (doTq) upsertTq(tqRows);
   if (doEma) upsertEma(emaRows);
   const checks = scanKinds(kind).map((k) => ({
     kind: k,
-    timeframe: kindTimeframe(k),
+    timeframe: kindTimeframe(k, bbTf),
   }));
   markChecked(
     tickers.map((t) => t.ticker),

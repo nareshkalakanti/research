@@ -12,6 +12,8 @@ const NSE_HOME = "https://www.nseindia.com/";
 const NSE_QUOTE = "https://www.nseindia.com/get-quotes/equity";
 const INTEGRATED_URL =
   "https://www.nseindia.com/api/integrated-filing-results";
+const CORPORATES_RESULTS_URL =
+  "https://www.nseindia.com/api/corporates-financial-results";
 const TIMEOUT_MS = 45_000;
 
 const MONTH_NUM: Record<string, string> = {
@@ -48,12 +50,42 @@ const EBIT_TAGS = [
 ] as const;
 const OTHER_INCOME_TAGS = ["OtherIncome"] as const;
 
+/** Non-Ind-AS (BSE-format) tags used on NSE SME corporates XBRL. */
+const NON_IND_REV_TAGS = ["RevenueFromOperations", "Revenue"] as const;
+const NON_IND_NP_TAGS = [
+  "ProfitLossForThePeriod",
+  "ProfitLossForPeriod",
+  "ProfitLossForPeriodFromContinuingOperations",
+  "ProfitLossForThePeriodFromContinuingOperations",
+] as const;
+const NON_IND_EPS_TAGS = [
+  "DilutedEarningsLossPerShareFromContinuingAndDiscontinuedOperations",
+  "BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations",
+  "DilutedEarningsLossPerShareFromContinuingOperations",
+  "BasicEarningsLossPerShareFromContinuingOperations",
+] as const;
+const NON_IND_EBIT_TAGS = [
+  "ProfitBeforeExceptionalAndExtraordinaryItemsAndTax",
+  "ProfitBeforeTax",
+  "ProfitBeforeExtraordinaryItemsAndTax",
+] as const;
+const NON_IND_OTHER_INCOME_TAGS = ["OtherIncome"] as const;
+
 type CookieJar = { cookie: string };
 
 type FilingMeta = {
   period_end: string;
   xbrl: string;
   is_consolidated: boolean;
+};
+
+type CorporatesFilingMeta = {
+  to_date: string;
+  from_date: string | null;
+  xbrl: string;
+  is_consolidated: boolean;
+  is_half_yearly: boolean;
+  broadcast_ms: number;
 };
 
 function safeStr(v: unknown): string {
@@ -205,6 +237,165 @@ export function parseIndAsQuarterXbrl(xmlText: string): QuarterPoint | null {
   };
 }
 
+function contextPeriodEnd($: cheerio.CheerioAPI, contextId: string): string {
+  let periodEnd = "";
+  $("*").each((_, el) => {
+    const tag = localTag(el.tagName || "").toLowerCase();
+    if (tag !== "context" || $(el).attr("id") !== contextId) return;
+    $(el)
+      .find("*")
+      .each((__, child) => {
+        if (localTag(child.tagName || "").toLowerCase() !== "enddate") return;
+        const end = safeStr($(child).text());
+        if (end) periodEnd = end.slice(0, 10);
+      });
+  });
+  return periodEnd;
+}
+
+function contextFacts(
+  $: cheerio.CheerioAPI,
+  contextRef: string,
+): Record<string, number> {
+  const facts: Record<string, number> = {};
+  $(`[contextRef='${contextRef}']`).each((_, el) => {
+    const name = localTag(el.tagName || "");
+    const raw = safeStr($(el).text()).replace(/,/g, "");
+    if (!name || !raw) return;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    facts[name] = n;
+  });
+  return facts;
+}
+
+function factsToQuarterPoint(
+  facts: Record<string, number>,
+  periodEnd: string,
+  revTags: readonly string[],
+  npTags: readonly string[],
+  epsTags: readonly string[],
+  ebitTags: readonly string[],
+  oiTags: readonly string[],
+): QuarterPoint | null {
+  if (!periodEnd) return null;
+  const revenue = pickFact(facts, revTags);
+  const netIncome = pickFact(facts, npTags);
+  const eps = pickFact(facts, epsTags);
+  const ebit = pickFact(facts, ebitTags);
+  const otherIncome = pickFact(facts, oiTags);
+  if (revenue == null && netIncome == null && eps == null) return null;
+  return { date: periodEnd, revenue, netIncome, eps, ebit, otherIncome };
+}
+
+/** Extract OneD (and optionally FourD) P&L from Non-Ind-AS NSE corporates XBRL. */
+export function parseNonIndAsQuarterXbrl(
+  xmlText: string,
+  opts?: { fallbackEnd?: string | null },
+): { oneD: QuarterPoint | null; fourD: QuarterPoint | null } {
+  if (!xmlText?.trim()) return { oneD: null, fourD: null };
+  const $ = cheerio.load(xmlText, { xml: true });
+  const fallbackEnd = opts?.fallbackEnd ?? null;
+
+  const oneEnd = contextPeriodEnd($, "OneD") || fallbackEnd || "";
+  const fourEnd =
+    contextPeriodEnd($, "FourD") || oneEnd || fallbackEnd || "";
+
+  const oneD = factsToQuarterPoint(
+    contextFacts($, "OneD"),
+    oneEnd,
+    NON_IND_REV_TAGS,
+    NON_IND_NP_TAGS,
+    NON_IND_EPS_TAGS,
+    NON_IND_EBIT_TAGS,
+    NON_IND_OTHER_INCOME_TAGS,
+  );
+  const fourD = factsToQuarterPoint(
+    contextFacts($, "FourD"),
+    fourEnd,
+    NON_IND_REV_TAGS,
+    NON_IND_NP_TAGS,
+    NON_IND_EPS_TAGS,
+    NON_IND_EBIT_TAGS,
+    NON_IND_OTHER_INCOME_TAGS,
+  );
+
+  return { oneD, fourD };
+}
+
+function subtractQuarterPoints(
+  cumulative: QuarterPoint,
+  current: QuarterPoint,
+  date: string,
+): QuarterPoint | null {
+  const sub = (a: number | null, b: number | null): number | null => {
+    if (a == null || b == null) return null;
+    const v = a - b;
+    return Number.isFinite(v) ? v : null;
+  };
+  const revenue = sub(cumulative.revenue, current.revenue);
+  const netIncome = sub(cumulative.netIncome, current.netIncome);
+  const ebit = sub(cumulative.ebit, current.ebit);
+  const otherIncome = sub(cumulative.otherIncome ?? null, current.otherIncome ?? null);
+  if (revenue == null && netIncome == null) return null;
+  return {
+    date,
+    revenue,
+    netIncome,
+    eps: null,
+    ebit,
+    otherIncome,
+  };
+}
+
+/** Last day of the first calendar quarter in a half-year block (fromDate + 3 months). */
+function firstQuarterEndFromHalfYearStart(fromDate: string): string | null {
+  const d = new Date(`${fromDate}T12:00:00Z`);
+  if (!Number.isFinite(d.getTime())) return null;
+  const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 3, 0));
+  return end.toISOString().slice(0, 10);
+}
+
+function isCumulativeHalfYear(
+  oneD: QuarterPoint,
+  fourD: QuarterPoint,
+): boolean {
+  const r4 = fourD.revenue;
+  const r1 = oneD.revenue;
+  if (r4 != null && r1 != null && r4 > r1 * 1.05) return true;
+  const n4 = fourD.netIncome;
+  const n1 = oneD.netIncome;
+  if (n4 != null && n1 != null && Math.abs(n4) > Math.abs(n1) * 1.05) {
+    return true;
+  }
+  return false;
+}
+
+function hasQuarterSignal(q: QuarterPoint): boolean {
+  if (q.eps != null && q.eps !== 0) return true;
+  if (q.revenue != null && q.revenue !== 0) return true;
+  if (q.netIncome != null && q.netIncome !== 0) return true;
+  return false;
+}
+
+function broadcastMs(raw: unknown): number {
+  const text = safeStr(raw);
+  const m = text.match(
+    /^(\d{2})-([A-Z]{3})-(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/i,
+  );
+  if (!m) return 0;
+  const mon = MONTH_NUM[m[2]!.toUpperCase()];
+  if (!mon) return 0;
+  return Date.UTC(
+    Number(m[3]),
+    Number(mon) - 1,
+    Number(m[1]),
+    Number(m[4]),
+    Number(m[5]),
+    Number(m[6]),
+  );
+}
+
 async function listFinancialFilings(
   symbol: string,
   jar: CookieJar,
@@ -251,6 +442,104 @@ function pickFiling(
   return pool.find((f) => f.is_consolidated) ?? pool[0]!;
 }
 
+function isStandaloneFiling(consolidated: unknown): boolean {
+  const text = safeStr(consolidated).toLowerCase();
+  return text.includes("non") || text.includes("stand");
+}
+
+async function listCorporatesFinancialFilings(
+  symbol: string,
+  jar: CookieJar,
+  index: "sme" | "equities",
+): Promise<CorporatesFilingMeta[]> {
+  const resp = await nseFetch(CORPORATES_RESULTS_URL, jar, {
+    params: { index, symbol },
+    referer: NSE_HOME,
+  });
+  if (!resp.ok) return [];
+  const rows = (await resp.json()) as unknown;
+  if (!Array.isArray(rows)) return [];
+
+  const out: CorporatesFilingMeta[] = [];
+  for (const item of rows) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const xbrl = safeStr(o.xbrl);
+    if (!xbrl.startsWith("http")) continue;
+    const to_date = quarterEndIso(o.toDate);
+    if (!to_date) continue;
+    const fromRaw = quarterEndIso(o.fromDate);
+    const relating = safeStr(o.relatingTo);
+    out.push({
+      to_date,
+      from_date: fromRaw,
+      xbrl,
+      is_consolidated: !isStandaloneFiling(o.consolidated),
+      is_half_yearly: /half/i.test(relating) || /half/i.test(safeStr(o.period)),
+      broadcast_ms: broadcastMs(o.broadCastDate || o.exchdisstime),
+    });
+  }
+  out.sort((a, b) => b.broadcast_ms - a.broadcast_ms);
+  return out;
+}
+
+async function fetchNseCorporatesQuarterlyFundamentals(
+  symbol: string,
+  jar: CookieJar,
+  opts?: { maxQuarters?: number },
+): Promise<QuarterPoint[]> {
+  const maxQ = Math.max(2, opts?.maxQuarters ?? 6);
+  let filings: CorporatesFilingMeta[] = [];
+  for (const index of ["sme", "equities"] as const) {
+    try {
+      const batch = await listCorporatesFinancialFilings(symbol, jar, index);
+      if (batch.length) filings = filings.concat(batch);
+    } catch {
+      /* try next index */
+    }
+  }
+  if (!filings.length) return [];
+
+  filings.sort((a, b) => b.broadcast_ms - a.broadcast_ms);
+  const byDate = new Map<string, QuarterPoint>();
+
+  for (const filing of filings) {
+    if (filing.is_consolidated) continue;
+    let parsed: { oneD: QuarterPoint | null; fourD: QuarterPoint | null };
+    try {
+      const resp = await nseFetch(filing.xbrl, jar, { referer: NSE_HOME });
+      if (!resp.ok) continue;
+      const xml = await resp.text();
+      parsed = parseNonIndAsQuarterXbrl(xml, { fallbackEnd: filing.to_date });
+    } catch {
+      continue;
+    }
+
+    const { oneD, fourD } = parsed;
+    if (oneD && hasQuarterSignal(oneD) && !byDate.has(oneD.date)) {
+      byDate.set(oneD.date, oneD);
+    }
+
+    if (
+      filing.is_half_yearly &&
+      filing.from_date &&
+      oneD &&
+      fourD &&
+      isCumulativeHalfYear(oneD, fourD)
+    ) {
+      const priorEnd = firstQuarterEndFromHalfYearStart(filing.from_date);
+      if (priorEnd && !byDate.has(priorEnd)) {
+        const derived = subtractQuarterPoints(fourD, oneD, priorEnd);
+        if (derived && hasQuarterSignal(derived)) byDate.set(priorEnd, derived);
+      }
+    }
+
+    if (byDate.size >= maxQ + 2) break;
+  }
+
+  return trimReportedQuarters([...byDate.values()]).slice(-maxQ);
+}
+
 /**
  * Last N reported quarters from NSE Integrated Filing XBRL.
  * Prefer consolidated Ind-AS filings per period-end.
@@ -267,30 +556,47 @@ export async function fetchNseQuarterlyFundamentals(
   try {
     filings = await listFinancialFilings(symbol, jar);
   } catch {
-    return [];
+    filings = [];
   }
-  if (!filings.length) return [];
 
   const maxQ = Math.max(2, opts?.maxQuarters ?? 6);
-  const periodEnds = [...new Set(filings.map((f) => f.period_end))].slice(
-    0,
-    maxQ,
-  );
-
   const points: QuarterPoint[] = [];
-  for (const pe of periodEnds) {
-    const filing = pickFiling(filings, pe);
-    if (!filing) continue;
-    try {
-      const resp = await nseFetch(filing.xbrl, jar, { referer: NSE_HOME });
-      if (!resp.ok) continue;
-      const xml = await resp.text();
-      const q = parseIndAsQuarterXbrl(xml);
-      if (q) points.push(q);
-    } catch {
-      /* skip filing */
+
+  if (filings.length) {
+    const periodEnds = [...new Set(filings.map((f) => f.period_end))].slice(
+      0,
+      maxQ,
+    );
+
+    for (const pe of periodEnds) {
+      const filing = pickFiling(filings, pe);
+      if (!filing) continue;
+      try {
+        const resp = await nseFetch(filing.xbrl, jar, { referer: NSE_HOME });
+        if (!resp.ok) continue;
+        const xml = await resp.text();
+        const q = parseIndAsQuarterXbrl(xml);
+        if (q) points.push(q);
+      } catch {
+        /* skip filing */
+      }
     }
   }
 
-  return trimReportedQuarters(points);
+  const integrated = trimReportedQuarters(points);
+  if (integrated.length >= 2) return integrated.slice(-maxQ);
+
+  try {
+    const corporates = await fetchNseCorporatesQuarterlyFundamentals(
+      symbol,
+      jar,
+      opts,
+    );
+    if (corporates.length >= 2) return corporates;
+    if (corporates.length > integrated.length) return corporates;
+  } catch {
+    /* keep integrated */
+  }
+
+  return integrated;
 }

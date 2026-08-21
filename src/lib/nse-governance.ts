@@ -1,6 +1,6 @@
 /**
  * NSE board composition with DIN — Integrated Filing + CG master.
- * Ported from stocks-ai nse_governance_board.py (no DB writes here).
+ * NSE corporate governance board fetch (no DB writes here).
  */
 import * as cheerio from "cheerio";
 

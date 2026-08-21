@@ -66,7 +66,7 @@ export function AgentsPanel() {
   const [config, setConfig] = useState<AgentConfigResponse | null>(null);
   const [state, setState] = useState<AgentRunState | null>(null);
   const [mode, setMode] = useState<RunMode>("demo");
-  const [list, setList] = useState<ListMarket>("NSE");
+  const [list, setList] = useState<ListMarket>("All");
   const [starting, setStarting] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -160,11 +160,11 @@ export function AgentsPanel() {
               disabled={running || starting}
               onChange={(e) => setList(e.target.value as ListMarket)}
             >
+              <option value="All">All ({allCount.toLocaleString()})</option>
               <option value="NSE">NSE ({nseCount.toLocaleString()})</option>
               <option value="NSE SME">
                 NSE SME ({smeCount.toLocaleString()})
               </option>
-              <option value="All">All ({allCount.toLocaleString()})</option>
               <option value="Hold">
                 Hold ({holdCount.toLocaleString()})
               </option>

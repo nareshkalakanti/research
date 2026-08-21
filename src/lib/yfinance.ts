@@ -241,6 +241,63 @@ export async function fetchQuoteDetailed(
   };
 }
 
+/** Fast live price refresh — single Yahoo quote per ticker (no quoteSummary fallbacks). */
+export async function fetchLivePrices(
+  items: Array<{ ticker: string; market?: string | null }>,
+  opts?: { concurrency?: number },
+): Promise<YfQuote[]> {
+  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 8, 12));
+  const out: YfQuote[] = [];
+
+  for (let i = 0; i < items.length; i += concurrency) {
+    const chunk = items.slice(i, i + concurrency);
+    const results = await Promise.all(
+      chunk.map(async ({ ticker, market }) => {
+        const sym = toYfinanceSymbol(ticker, market);
+        if (!sym) {
+          return {
+            ticker: ticker.toUpperCase(),
+            yf_symbol: "",
+            price: null,
+            mcap_cr: null,
+            sector: null,
+            error: "empty symbol",
+          };
+        }
+        const bits = await quoteBits(sym);
+        if (!bits || (bits.price == null && bits.mcap == null)) {
+          return {
+            ticker: ticker.toUpperCase(),
+            yf_symbol: sym,
+            price: null,
+            mcap_cr: null,
+            sector: null,
+            error: "no quote",
+          };
+        }
+        let mcap = bits.mcap;
+        if (mcap == null && bits.price != null && bits.shares != null) {
+          mcap = bits.price * bits.shares;
+        }
+        if (mcap == null && bits.price != null) {
+          mcap = deriveMcapFromKnownShares(ticker, bits.price);
+        }
+        return {
+          ticker: ticker.toUpperCase(),
+          yf_symbol: sym,
+          price:
+            bits.price != null ? Math.round(bits.price * 100) / 100 : null,
+          mcap_cr: mcapToCr(mcap),
+          sector: bits.sector,
+        };
+      }),
+    );
+    out.push(...results);
+  }
+
+  return out;
+}
+
 /**
  * Fetch price + market cap (₹ Cr) for a batch of tickers.
  */

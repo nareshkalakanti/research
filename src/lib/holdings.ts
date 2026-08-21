@@ -1,5 +1,5 @@
 /**
- * Personal holdings — data/holdings.db (synced from stocks-ai).
+ * Personal holdings — data/holdings.db
  */
 import Database from "better-sqlite3";
 import fs from "fs";

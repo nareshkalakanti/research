@@ -1,6 +1,6 @@
 /**
  * Solid metrics bootstrap:
- * 1) Seed price/mcap from stocks-ai stock_metrics (local, fast)
+ * 1) Seed BSE SME mcap from local BSE cache
  * 2) Yahoo-fill remaining gaps (.NS → .BO)
  *
  * Usage: npx tsx scripts/fill-metrics.ts
@@ -15,13 +15,6 @@ const ROOT = path.join(__dirname, "..");
 const DATA = path.join(ROOT, "data");
 const METRICS_PATH = path.join(DATA, "metrics.db");
 const ABOUT_PATH = path.join(DATA, "company_about.db");
-const STOCKS_AI = path.join(
-  ROOT,
-  "..",
-  "stocks-ai",
-  "data",
-  "stocks_ai.db",
-);
 
 function ensureMetrics() {
   const db = new Database(METRICS_PATH);
@@ -38,75 +31,6 @@ function ensureMetrics() {
     );
   `);
   return db;
-}
-
-function seedFromStocksAi(metrics: Database.Database) {
-  if (!fs.existsSync(STOCKS_AI)) {
-    console.log("stocks-ai db not found — skip seed:", STOCKS_AI);
-    return { seeded: 0 };
-  }
-
-  const about = new Database(ABOUT_PATH, { readonly: true });
-  const aboutRows = about
-    .prepare("SELECT ticker, market FROM company_about")
-    .all() as Array<{ ticker: string; market: string | null }>;
-  about.close();
-  const tickers = new Set(aboutRows.map((r) => r.ticker.toUpperCase()));
-  // BSE SME universe comes from BSE APIs, not stocks-ai's BSE mainboard dump.
-  const skipStocksAi = new Set(
-    aboutRows
-      .filter((r) => (r.market || "").toUpperCase() === "BSE SME")
-      .map((r) => r.ticker.toUpperCase()),
-  );
-
-  const src = new Database(STOCKS_AI, { readonly: true });
-  const rows = src
-    .prepare(
-      `SELECT ticker, market, price, market_cap_cr, sector
-       FROM stock_metrics
-       WHERE price IS NOT NULL OR market_cap_cr IS NOT NULL`,
-    )
-    .all() as Array<{
-    ticker: string;
-    market: string | null;
-    price: number | null;
-    market_cap_cr: number | null;
-    sector: string | null;
-  }>;
-  src.close();
-
-  const now = new Date().toISOString();
-  const upsert = metrics.prepare(`
-    INSERT INTO stock_metrics (ticker, market, yf_symbol, price, market_cap_cr, sector, fetched_at)
-    VALUES (@ticker, @market, NULL, @price, @market_cap_cr, @sector, @fetched_at)
-    ON CONFLICT(ticker) DO UPDATE SET
-      market = COALESCE(excluded.market, stock_metrics.market),
-      price = COALESCE(excluded.price, stock_metrics.price),
-      market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
-      sector = COALESCE(excluded.sector, stock_metrics.sector),
-      fetched_at = CASE
-        WHEN excluded.price IS NOT NULL OR excluded.market_cap_cr IS NOT NULL
-        THEN excluded.fetched_at ELSE stock_metrics.fetched_at END
-  `);
-
-  let seeded = 0;
-  const tx = metrics.transaction(() => {
-    for (const r of rows) {
-      const ticker = r.ticker.toUpperCase();
-      if (!tickers.has(ticker) || skipStocksAi.has(ticker)) continue;
-      upsert.run({
-        ticker,
-        market: r.market,
-        price: r.price,
-        market_cap_cr: r.market_cap_cr,
-        sector: r.sector,
-        fetched_at: now,
-      });
-      seeded += 1;
-    }
-  });
-  tx();
-  return { seeded };
 }
 
 function gapList(metrics: Database.Database) {
@@ -215,18 +139,15 @@ async function main() {
     );
 
   const metrics = ensureMetrics();
-  console.log("1) Seed from stocks-ai…");
-  const seed = seedFromStocksAi(metrics);
-  console.log("   seeded rows:", seed.seeded);
 
   const { seedBseSmeMcapFromCache, fillBseSmeMetricsGaps } = await import(
     "../src/lib/metrics"
   );
   const bseSeed = seedBseSmeMcapFromCache();
-  console.log("1b) Seed BSE SME mcap from BSE cache…", bseSeed);
+  console.log("1) Seed BSE SME mcap from BSE cache…", bseSeed);
 
   let gaps = gapList(metrics);
-  console.log("2) Gaps after seed:", {
+  console.log("2) Gaps:", {
     total: gaps.total,
     missPrice: gaps.missP,
     missMcap: gaps.missM,

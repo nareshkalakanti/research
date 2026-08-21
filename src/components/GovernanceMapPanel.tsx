@@ -381,6 +381,15 @@ export function GovernanceMapPanel() {
         >
           {loading ? "…" : "Refresh"}
         </button>
+        <GovernanceScanBar
+          variant="inline"
+          market="All"
+          pageTickers={pageTickers}
+          onDone={async () => {
+            bumpChanges();
+            await load({ refresh: true });
+          }}
+        />
       </div>
 
       <div className="gov-focus-bar">
@@ -482,15 +491,6 @@ export function GovernanceMapPanel() {
           </button>
         ) : null}
       </div>
-
-      <GovernanceScanBar
-        market="All"
-        pageTickers={pageTickers}
-        onDone={async () => {
-          bumpChanges();
-          await load({ refresh: true });
-        }}
-      />
 
       <GovernanceChangesPanel
         refreshKey={changesRefreshKey}

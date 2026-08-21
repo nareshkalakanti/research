@@ -2,13 +2,12 @@
   "meta": {
     "sources": [
       "Niveshaay Deep Dives — https://niveshaay.com/knowledge/deep-dives/",
-      "Nanocap Champs — Lotusdew newsletter (May 2026)",
-      "Listed Venture Capital — Lotusdew newsletter (Oct 2025, May 2026)",
+      "Global High Demand Themes",
       "About-us mining — scripts/mine-theme-keywords.ts"
     ],
     "syntax": "+ means AND, | means OR (AND binds tighter)",
-    "updated": "2026-08-19",
-    "note": "Keywords validated against ~3k company About texts. Re-run mine script after edits.",
+    "updated": "2026-08-20",
+    "note": "Niveshaay + Global High Demand + US Market Momentum 2026. US themes use India About hits only.",
     "derived_from": "themes.json"
   },
   "themes": [
@@ -42,7 +41,7 @@
       "id": "electronics_value_chain",
       "name": "Electronics — Beyond EMS (Components)",
       "blog_theme": "Niveshaay Deep Dives",
-      "display_pattern": "printed circuit | PCB | connector | connectors | electronic components | multilayer | electronic + manufacturing",
+      "display_pattern": "printed circuit | PCB | connector | connectors | electronic components | multilayer | PCB assembly | printed circuit + assembly",
       "keywords": [
         "printed circuit",
         "PCB",
@@ -50,7 +49,8 @@
         "connectors",
         "electronic components",
         "multilayer",
-        "electronic + manufacturing"
+        "PCB assembly",
+        "printed circuit + assembly"
       ],
       "keyword_definitions": {
         "printed circuit": "PCB fabrication or assembly.",
@@ -59,21 +59,22 @@
         "connectors": "Connectors — plural form in About text.",
         "electronic components": "Electronic components — common About phrasing.",
         "multilayer": "Multilayer PCB / laminate.",
-        "electronic + manufacturing": "Electronics manufacturing (not pure IT services)."
+        "PCB assembly": "PCB assembly lines — tighter than loose electronic + manufacturing.",
+        "printed circuit + assembly": "Printed circuit board assembly — EMS/component makers."
       }
     },
     {
       "id": "private_space",
       "name": "Private Space — Launch & Satellites",
       "blog_theme": "Niveshaay Deep Dives",
-      "display_pattern": "satellite | rocket | rockets | propulsion | launch vehicles | space + launch",
+      "display_pattern": "satellite | rocket | rockets | propulsion | launch vehicles | launch vehicle",
       "keywords": [
         "satellite",
         "rocket",
         "rockets",
         "propulsion",
         "launch vehicles",
-        "space + launch"
+        "launch vehicle"
       ],
       "keyword_definitions": {
         "satellite": "Satellite manufacturing or services.",
@@ -81,7 +82,7 @@
         "rockets": "Rockets — plural in About text.",
         "propulsion": "Rocket / spacecraft propulsion systems.",
         "launch vehicles": "Launch vehicles — plural form in About (not launch + vehicle).",
-        "space + launch": "Space launch services."
+        "launch vehicle": "Singular launch vehicle phrasing — DroneAcharya etc."
       }
     },
     {
@@ -102,46 +103,6 @@
         "power transformer": "Grid-scale transformers for DC / industrial loads.",
         "battery energy storage": "BESS for backup and peak shaving.",
         "cloud infrastructure": "Cloud / colo infrastructure build-out."
-      }
-    },
-    {
-      "id": "pcb_fabrication_process",
-      "name": "EMS & PCB Manufacturing — Kaynes / AI supply chain",
-      "blog_theme": "AI bottlenecks",
-      "display_pattern": "integrated electronics + manufacturer | integrated electronics + manufacturing | integrated manufacturing + electronics | conceptual design + process engineering | life cycle support + electronics | outer-space | IoT solutions + electronics | electronic manufacturing services | electronic + manufacturing + services | electronic manufacturing | printed circuit board | printed circuit | PCB assembly | PCB + assembly | box build",
-      "keywords": [
-        "integrated electronics + manufacturer",
-        "integrated electronics + manufacturing",
-        "integrated manufacturing + electronics",
-        "conceptual design + process engineering",
-        "life cycle support + electronics",
-        "outer-space",
-        "IoT solutions + electronics",
-        "electronic manufacturing services",
-        "electronic + manufacturing + services",
-        "electronic manufacturing",
-        "printed circuit board",
-        "printed circuit",
-        "PCB assembly",
-        "PCB + assembly",
-        "box build"
-      ],
-      "keyword_definitions": {
-        "integrated electronics + manufacturer": "Kaynes-style end-to-end EMS (matches Yahoo About)",
-        "integrated electronics + manufacturing": "Integrated electronics manufacturing",
-        "integrated manufacturing + electronics": "Vertically integrated electronics production",
-        "conceptual design + process engineering": "Design-through-manufacturing EMS offering (Kaynes About)",
-        "life cycle support + electronics": "Product lifecycle support for electronics (Kaynes About)",
-        "outer-space": "Space-grade electronics end markets (Kaynes About)",
-        "IoT solutions + electronics": "IoT-enabled integrated electronics (Kaynes About)",
-        "electronic manufacturing services": "EMS / contract electronics manufacturing",
-        "electronic + manufacturing + services": "Electronics manufacturing services phrasing in About",
-        "electronic manufacturing": "Electronics manufacturing (broader EMS/PCB)",
-        "printed circuit board": "PCB / bare board fabrication or assembly",
-        "printed circuit": "Printed circuit boards / PCBs",
-        "PCB assembly": "PCB assembly operations",
-        "PCB + assembly": "PCB assembly phrasing in About",
-        "box build": "Full system box-build EMS"
       }
     },
     {
@@ -174,35 +135,36 @@
       "id": "memory_dram_hbm",
       "name": "Memory — DRAM / Packaging",
       "blog_theme": "Niveshaay Deep Dives",
-      "display_pattern": "DRAM | OSAT | SSD | semiconductor + packaging | memory + module",
+      "display_pattern": "OSAT | semiconductor packaging | electronic manufacturing services | PCB assembly | printed circuit + assembly | semiconductor + assembly",
       "keywords": [
-        "DRAM",
         "OSAT",
-        "SSD",
-        "semiconductor + packaging",
-        "memory + module"
+        "semiconductor packaging",
+        "electronic manufacturing services",
+        "PCB assembly",
+        "printed circuit + assembly",
+        "semiconductor + assembly"
       ],
       "keyword_definitions": {
-        "DRAM": "Dynamic RAM — case-sensitive acronym.",
-        "OSAT": "Outsourced Semiconductor Assembly and Test.",
-        "SSD": "Solid-state drives / flash modules.",
-        "semiconductor + packaging": "Chip packaging / OSAT-style operations.",
-        "memory + module": "Memory module assembly."
+        "OSAT": "Outsourced Semiconductor Assembly and Test — MOSCHIP etc.",
+        "semiconductor packaging": "Chip packaging — SAHASRA About phrasing.",
+        "electronic manufacturing services": "EMS contract manufacturing for electronics.",
+        "PCB assembly": "PCB assembly / SMT lines.",
+        "printed circuit + assembly": "PCBA — printed circuit board assembly.",
+        "semiconductor + assembly": "Semiconductor assembly operations."
       }
     },
     {
       "id": "copper_value_chain",
       "name": "Copper — Recycling & Value-Add",
       "blog_theme": "Niveshaay Deep Dives",
-      "display_pattern": "bus bars | busbars | copper wire | copper rods | copper tubes | copper + scrap | recycled + copper | CTC | enamelled copper",
+      "display_pattern": "bus bars | busbars | copper wire | copper rods | copper tubes | copper scrap | CTC | enamelled copper",
       "keywords": [
         "bus bars",
         "busbars",
         "copper wire",
         "copper rods",
         "copper tubes",
-        "copper + scrap",
-        "recycled + copper",
+        "copper scrap",
         "CTC",
         "enamelled copper"
       ],
@@ -212,8 +174,7 @@
         "copper wire": "Drawn copper wire.",
         "copper rods": "Copper rods — plural form in About (Sunlite, Apar).",
         "copper tubes": "Copper tubing — electrical / industrial.",
-        "copper + scrap": "Copper scrap melting / recycling.",
-        "recycled + copper": "Recycled copper feedstock.",
+        "copper scrap": "Copper scrap melting / recycling — tighter than loose copper + scrap.",
         "CTC": "Continuously Transposed Conductor.",
         "enamelled copper": "Enamelled copper winding wire."
       }
@@ -241,193 +202,286 @@
       }
     },
     {
-      "id": "solar_clean_energy",
-      "name": "Solar — EPC & Clean Energy",
-      "blog_theme": "Nanocap Champs",
-      "display_pattern": "solar power | rooftop solar | photovoltaic | battery energy storage",
+      "id": "global_copper_electrification",
+      "name": "Copper & Electrification Supercycle (Busbars, Winding Wires)",
+      "blog_theme": "Global High Demand Themes",
+      "display_pattern": "bus bars | busbars | bus bar | copper wire | copper rods | copper tubes | copper tube | copper conductors | copper flats | enamelled copper | oxygen free copper | CTC | copper scrap | continuous cast copper",
       "keywords": [
-        "solar power",
-        "rooftop solar",
-        "photovoltaic",
-        "battery energy storage"
+        "bus bars",
+        "busbars",
+        "bus bar",
+        "copper wire",
+        "copper rods",
+        "copper tubes",
+        "copper tube",
+        "copper conductors",
+        "copper flats",
+        "enamelled copper",
+        "oxygen free copper",
+        "CTC",
+        "copper scrap",
+        "continuous cast copper"
       ],
       "keyword_definitions": {
-        "solar power": "Solar power generation or EPC projects.",
-        "rooftop solar": "Rooftop / distributed solar installations.",
-        "photovoltaic": "PV modules / solar photovoltaic systems.",
-        "battery energy storage": "BESS — battery energy storage systems."
+        "bus bars": "High-current copper conductors — bus bars phrasing in About.",
+        "busbars": "Single-word busbar spelling.",
+        "bus bar": "Singular bus bar — Krupalu etc.",
+        "copper wire": "Drawn copper wire for motors, transformers, grid.",
+        "copper rods": "Copper rod/conductor products.",
+        "copper conductors": "Copper conductor manufacturing.",
+        "enamelled copper": "Enamelled winding wire — matches About (not bare enamelled wire).",
+        "oxygen free copper": "OFHC copper for high-end conductors.",
+        "CTC": "Continuously transposed conductor for transformers.",
+        "copper scrap": "Copper scrap recycling feedstock.",
+        "continuous cast copper": "Continuous cast copper rods — Hindcopper etc."
       }
     },
     {
-      "id": "flexible_packaging",
-      "name": "Packaging — Flexible & Films",
-      "blog_theme": "Nanocap Champs",
-      "display_pattern": "flexible packaging | BOPP | biaxially oriented",
+      "id": "global_power_transformer_bottleneck",
+      "name": "Power Transformers & Grid Infrastructure (The 5-Year Backlog)",
+      "blog_theme": "Global High Demand Themes",
+      "display_pattern": "power transformer | distribution transformer | manufactures transformers | CRGO | switchgear | substation | grid interconnection | extra high voltage | EHV",
       "keywords": [
-        "flexible packaging",
-        "BOPP",
-        "biaxially oriented"
+        "power transformer",
+        "distribution transformer",
+        "manufactures transformers",
+        "CRGO",
+        "switchgear",
+        "substation",
+        "grid interconnection",
+        "extra high voltage",
+        "EHV"
       ],
       "keyword_definitions": {
-        "flexible packaging": "Flexible packaging films, pouches, laminates.",
-        "BOPP": "Biaxially oriented polypropylene film.",
-        "biaxially oriented": "BOPP / BOPE / oriented polymer films."
+        "power transformer": "Large power transformers — ATAM etc.",
+        "distribution transformer": "Distribution-class transformers.",
+        "manufactures transformers": "Explicit transformer manufacturing in About.",
+        "CRGO": "Cold rolled grain oriented steel — transformer core material.",
+        "switchgear": "Grid switchgear — ABB, Crompton etc.",
+        "substation": "Substation EPC / equipment.",
+        "grid interconnection": "Grid interconnection projects.",
+        "extra high voltage": "Extra-high-voltage transmission equipment.",
+        "EHV": "EHV cables and transmission — common Indian About acronym."
       }
     },
     {
-      "id": "food_processing",
-      "name": "Food — Processing & Agri Exports",
-      "blog_theme": "Nanocap Champs",
-      "display_pattern": "food processing | fruit pulp | spray-dried",
+      "id": "global_critical_war_metals",
+      "name": "Critical War Metals (Tungsten, Antimony, Gallium)",
+      "blog_theme": "Global High Demand Themes",
+      "display_pattern": "tungsten | antimony | tungsten carbide | hard metal | molybdenum | tantalum | niobium",
       "keywords": [
-        "food processing",
-        "fruit pulp",
-        "spray-dried"
+        "tungsten",
+        "antimony",
+        "tungsten carbide",
+        "hard metal",
+        "molybdenum",
+        "tantalum",
+        "niobium"
       ],
       "keyword_definitions": {
-        "food processing": "Processed foods manufacturing.",
-        "fruit pulp": "Fruit pulp / puree products.",
-        "spray-dried": "Spray-dried powders (fruit, dairy, pharma)."
+        "tungsten": "Tungsten metal / tooling — Kennametal, Ador etc.",
+        "antimony": "Antimony compounds — flame retardants, alloys.",
+        "tungsten carbide": "Cemented carbide tooling — Modison etc.",
+        "hard metal": "Hard metal / carbide inserts — Kennametal phrasing.",
+        "molybdenum": "Molybdenum alloys — Jubilant, Shah Alloys.",
+        "tantalum": "Tantalum process equipment — GMM Pfaudler etc.",
+        "niobium": "Niobium specialty metals — SMLT etc."
       }
     },
     {
-      "id": "micro_irrigation",
-      "name": "Agri — Micro Irrigation",
-      "blog_theme": "Nanocap Champs",
-      "display_pattern": "micro irrigation | drip irrigation | sprinkler irrigation",
+      "id": "global_hbm_advanced_packaging",
+      "name": "HBM & Advanced Packaging (The AI Memory Bottleneck)",
+      "blog_theme": "Global High Demand Themes",
+      "display_pattern": "OSAT | semiconductor packaging | electronic manufacturing services | PCB assembly | printed circuit + assembly | semiconductor + assembly | electronic + assembly",
       "keywords": [
-        "micro irrigation",
-        "drip irrigation",
-        "sprinkler irrigation"
+        "OSAT",
+        "semiconductor packaging",
+        "electronic manufacturing services",
+        "PCB assembly",
+        "printed circuit + assembly",
+        "semiconductor + assembly",
+        "electronic + assembly"
       ],
       "keyword_definitions": {
-        "micro irrigation": "Micro / precision irrigation systems.",
-        "drip irrigation": "Drip irrigation hardware and services.",
-        "sprinkler irrigation": "Sprinkler-based irrigation systems."
+        "OSAT": "Outsourced Semiconductor Assembly and Test — MOSCHIP.",
+        "semiconductor packaging": "Chip packaging — SAHASRA About phrasing.",
+        "electronic manufacturing services": "EMS — Dixon, PGEL, BEL etc.",
+        "PCB assembly": "PCB assembly / SMT.",
+        "printed circuit + assembly": "PCBA contract manufacturing.",
+        "semiconductor + assembly": "Semiconductor assembly operations.",
+        "electronic + assembly": "Electronic assembly lines — broader EMS catch."
       }
     },
     {
-      "id": "oil_gas_geophysical",
-      "name": "Oil & Gas — Exploration Services",
-      "blog_theme": "Nanocap Champs",
-      "display_pattern": "geophysical | seismic data | oil and gas exploration",
+      "id": "global_liquid_cooling_thermal",
+      "name": "Liquid Cooling & Thermal Management (AI Heat Solution)",
+      "blog_theme": "Global High Demand Themes",
+      "display_pattern": "chillers | screw chillers | scroll and screw | centrifugal chillers | data center chillers | unitary cooling | commercial refrigeration | industrial refrigeration",
       "keywords": [
-        "geophysical",
-        "seismic data",
-        "oil and gas exploration"
+        "chillers",
+        "screw chillers",
+        "scroll and screw",
+        "centrifugal chillers",
+        "data center chillers",
+        "unitary cooling",
+        "commercial refrigeration",
+        "industrial refrigeration"
       ],
       "keyword_definitions": {
-        "geophysical": "Geophysical survey / exploration services.",
-        "seismic data": "Seismic data acquisition or processing.",
-        "oil and gas exploration": "Upstream E&P exploration services."
+        "chillers": "Industrial and data-centre chillers — Blue Star, Voltas, Thermax.",
+        "screw chillers": "Screw chiller product lines — Blue Star phrasing.",
+        "scroll and screw": "Scroll and screw chiller combos — Blue Star About text.",
+        "centrifugal chillers": "Centrifugal chiller lines.",
+        "data center chillers": "Dedicated data-centre chiller products.",
+        "unitary cooling": "Unitary cooling products — Voltas etc.",
+        "commercial refrigeration": "Commercial refrigeration — Ice Make, Blue Star.",
+        "industrial refrigeration": "Industrial refrigeration systems — Kirloskar Pneumatic etc."
       }
     },
     {
-      "id": "hospitals_healthcare",
-      "name": "Healthcare — Hospitals & Tertiary Care",
-      "blog_theme": "Listed Venture Capital",
-      "display_pattern": "multi-specialty hospital | multi-specialty hospitals | multispecialty | tertiary care",
+      "id": "global_rare_earth",
+      "name": "Rare Earth & Magnets (Monazite, Mining, NdFeB)",
+      "blog_theme": "Global High Demand Themes",
+      "display_pattern": "rare earth | rare earth metals | rare earth + value chain | rare earth magnets | bonded + rare earth | monazite | heavy mineral | heavy mineral sand | mineral sand | ilmenite + monazite | beach sand | sillimanite",
       "keywords": [
-        "multi-specialty hospital",
-        "multi-specialty hospitals",
-        "multispecialty",
-        "tertiary care"
+        "rare earth",
+        "rare earth metals",
+        "rare earth + value chain",
+        "rare earth magnets",
+        "bonded + rare earth",
+        "monazite",
+        "heavy mineral",
+        "heavy mineral sand",
+        "mineral sand",
+        "ilmenite + monazite",
+        "beach sand",
+        "sillimanite"
       ],
       "keyword_definitions": {
-        "multi-specialty hospital": "Multi-specialty hospital operations.",
-        "multi-specialty hospitals": "Plural form in About text (Artemis).",
-        "multispecialty": "Multispecialty hospital (single word in About).",
-        "tertiary care": "Tertiary / quaternary healthcare services."
+        "rare earth": "Generic REE phrase in About (Delta, GMDC observatory, NMDC exploration)",
+        "rare earth metals": "NMDC exploration portfolio — beach sand & REE metals",
+        "rare earth + value chain": "GMDC Cambridge REE supply-chain observatory (not mining ops)",
+        "rare earth magnets": "NdFeB/sintered magnets for EV motors — Delta Manufacturing",
+        "bonded + rare earth": "Delta bonded NdFeB line — sharper than generic rare earth magnets",
+        "monazite": "Beach-sand REE-bearing mineral — Midwest HMS chain",
+        "heavy mineral": "Heavy mineral sand deposits (ilmenite, rutile, zircon, monazite)",
+        "heavy mineral sand": "Full HMS phrase — Midwest About text",
+        "mineral sand": "Beach sand mineral mining terminology",
+        "ilmenite + monazite": "Combined HMS feedstock — Midwest About lists both",
+        "beach sand": "Beach-sand mineral exploration — NMDC About text",
+        "sillimanite": "HMS co-product — Midwest About lists sillimanite with monazite"
       }
     },
     {
-      "id": "realty_redevelopment",
-      "name": "Real Estate — Redevelopment",
-      "blog_theme": "Listed Venture Capital",
-      "display_pattern": "redevelopment | real estate development",
+      "id": "us_nuclear_baseload_ai",
+      "name": "The Nuclear Renaissance & AI Baseload Power (IPPs & Uranium)",
+      "blog_theme": "US Market Momentum 2026",
+      "display_pattern": "independent power producer | nuclear power | heavy water | atomic energy",
       "keywords": [
-        "redevelopment",
-        "real estate development"
+        "independent power producer",
+        "nuclear power",
+        "heavy water",
+        "atomic energy"
       ],
       "keyword_definitions": {
-        "redevelopment": "Tenanted / slum / urban redevelopment projects.",
-        "real estate development": "Residential or commercial development."
+        "independent power producer": "IPP / merchant power — KPI Green, Powerica, Waaree Energies etc. (US behind-the-meter PPA proxy)",
+        "nuclear power": "Nuclear plant equipment or generation — BHEL, KLB Engineers, Azad Engineering",
+        "heavy water": "Heavy-water recovery systems for nuclear plants — KLB Engineers About text",
+        "atomic energy": "End-market phrasing for nuclear/atomic plant supply chain"
       }
     },
     {
-      "id": "foundry_casting",
-      "name": "Foundry — Casting Consumables",
-      "blog_theme": "Listed Venture Capital",
-      "display_pattern": "foundry | metal casting",
+      "id": "us_space_direct_to_cell",
+      "name": "Space Economy & Direct-to-Device Connectivity",
+      "blog_theme": "US Market Momentum 2026",
+      "display_pattern": "space + infrastructure | satellite | satellite + communication | satellite + servicing | rocket | propulsion | launch vehicle",
       "keywords": [
-        "foundry",
-        "metal casting"
+        "space + infrastructure",
+        "satellite",
+        "satellite + communication",
+        "satellite + servicing",
+        "rocket",
+        "propulsion",
+        "launch vehicle"
       ],
       "keyword_definitions": {
-        "foundry": "Foundry operations or consumables supply.",
-        "metal casting": "Ferrous / non-ferrous metal casting."
+        "space + infrastructure": "Ground/space infrastructure EPC — KEC, Aqylon, Enser etc.",
+        "satellite": "Satellite manufacturing, payloads, or services",
+        "satellite + communication": "Satcom equipment and services — Nelco, Avantel, ITI",
+        "satellite + servicing": "In-orbit servicing phrasing (ITI)",
+        "rocket": "Launch vehicle / rocket propulsion hardware",
+        "propulsion": "Space/defence propulsion systems",
+        "launch vehicle": "Launch vehicle development — DroneAcharya etc."
       }
     },
     {
-      "id": "jewellery_lgd_export",
-      "name": "Jewellery — Gold & Lab-Grown Export",
-      "blog_theme": "Listed Venture Capital",
-      "display_pattern": "gold jewellery | diamond studded jewelry | diamond studded jewellery | laboratory grown",
+      "id": "us_glp1_second_order",
+      "name": "GLP-1 Second-Order Effects (Muscle Sparing, Sleep Apnea, Consumer Shorts)",
+      "blog_theme": "US Market Momentum 2026",
+      "display_pattern": "semaglutide | obesity | anti-obesity | weight loss | peptide | bariatric",
       "keywords": [
-        "gold jewellery",
-        "diamond studded jewelry",
-        "diamond studded jewellery",
-        "laboratory grown"
+        "semaglutide",
+        "obesity",
+        "anti-obesity",
+        "weight loss",
+        "peptide",
+        "bariatric"
       ],
       "keyword_definitions": {
-        "gold jewellery": "Gold jewellery manufacturing or export.",
-        "diamond studded jewelry": "Diamond-studded jewellery (US spelling in About).",
-        "diamond studded jewellery": "Diamond-studded jewellery (UK spelling).",
-        "laboratory grown": "Lab-grown / CVD diamonds in jewellery."
+        "semaglutide": "GLP-1 API/brand — Emcure Poviztra semaglutide injection",
+        "obesity": "Obesity therapeutics portfolio in About",
+        "anti-obesity": "Anti-obesity drug pipeline",
+        "weight loss": "Weight-management therapeutics",
+        "peptide": "Peptide API/CDMO — Granules, Neuland, Syngene (GLP-1 supply chain)",
+        "bariatric": "Bariatric surgery / obesity-care providers — Apollo, Indraprastha etc."
       }
     },
     {
-      "id": "steel_tmt_coated",
-      "name": "Steel — TMT & Coated Products",
-      "blog_theme": "Listed Venture Capital",
-      "display_pattern": "TMT bars | thermo-mechanically treated | galvanized steel | colour coated",
+      "id": "us_defense_autonomous_swarm",
+      "name": "Next-Gen Defense Tech & Attritable Mass",
+      "blog_theme": "US Market Momentum 2026",
+      "display_pattern": "unmanned + aerial | UAV | counter-drone | electronic warfare | command and control | unmanned + surface + vessel | drone | drones",
       "keywords": [
-        "TMT bars",
-        "thermo-mechanically treated",
-        "galvanized steel",
-        "colour coated"
+        "unmanned + aerial",
+        "UAV",
+        "counter-drone",
+        "electronic warfare",
+        "command and control",
+        "unmanned + surface + vessel",
+        "drone",
+        "drones"
       ],
       "keyword_definitions": {
-        "TMT bars": "Thermo-mechanically treated reinforcement bars.",
-        "thermo-mechanically treated": "TMT steel manufacturing.",
-        "galvanized steel": "Galvanized / GI coated steel coils or sheets.",
-        "colour coated": "Pre-painted / colour-coated steel products."
+        "unmanned + aerial": "UAV platforms — IdeaForge, Dynamatic, DCMSIL",
+        "UAV": "Unmanned aerial vehicle acronym in About",
+        "counter-drone": "Counter-UAS / drone defence — Kavveri Defence etc.",
+        "electronic warfare": "EW systems — BEL, Datamatics, Axiscades",
+        "command and control": "C4ISR / command systems — CP Plus, Paras Defence",
+        "unmanned + surface + vessel": "USV / naval drones — GRSE",
+        "drone": "Defence or surveillance drone platforms",
+        "drones": "Plural drone portfolio in About"
       }
     },
     {
-      "id": "auto_fasteners",
-      "name": "Auto — Fasteners & Forging",
-      "blog_theme": "Listed Venture Capital",
-      "display_pattern": "fasteners | cold forged",
+      "id": "us_tokenization_private_credit",
+      "name": "Real-World Asset (RWA) Tokenization & Private Credit",
+      "blog_theme": "US Market Momentum 2026",
+      "display_pattern": "blockchain | digital asset | fintech | securitization | microfinance | custodian",
       "keywords": [
-        "fasteners",
-        "cold forged"
+        "blockchain",
+        "digital asset",
+        "fintech",
+        "securitization",
+        "microfinance",
+        "custodian"
       ],
       "keyword_definitions": {
-        "fasteners": "Automotive / industrial fasteners.",
-        "cold forged": "Cold forging / cold-headed components."
-      }
-    },
-    {
-      "id": "specialty_pib_chemicals",
-      "name": "Chemicals — PIB & Lubricant Additives",
-      "blog_theme": "Listed Venture Capital",
-      "display_pattern": "polyisobutylene",
-      "keywords": [
-        "polyisobutylene"
-      ],
-      "keyword_definitions": {
-        "polyisobutylene": "PIB — polyisobutylene manufacturing."
+        "blockchain": "Blockchain settlement / platforms — Infosys, Mphasis, dev IT",
+        "digital asset": "Digital asset / tokenization services in About",
+        "fintech": "Fintech lenders and platforms — CAMS, Alankit, Kellton etc.",
+        "securitization": "Securitisation / structured credit — North ARC, Veefin",
+        "microfinance": "Microfinance / last-mile credit platforms",
+        "custodian": "Custodian / trustee services — PNB Gilts etc."
       }
     }
   ]

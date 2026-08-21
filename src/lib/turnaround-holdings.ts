@@ -1,10 +1,10 @@
 /**
  * Turnaround / distressed holdings — overlap of personal holdings with
- * stocks-ai distress seed monitor (8 names in current portfolio).
+ * Distress turnaround seed monitor (8 names in current portfolio).
  */
 import { loadHoldings, type HoldingRow } from "@/lib/holdings";
 
-/** Distress turnaround seed tickers (stocks-ai load_distress_seed_tickers). */
+/** Distress turnaround seed tickers. */
 export const TURNAROUND_SEED_TICKERS = [
   "ATAM",
   "BPL",

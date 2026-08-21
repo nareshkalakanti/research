@@ -6,12 +6,14 @@ import { AgentsPanel } from "@/components/AgentsPanel";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
 import { InvestorsPanel } from "@/components/InvestorsPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
+import { ScanPanel } from "@/components/ScanPanel";
 import { ThemeScanner } from "@/components/ThemeScanner";
 import { WatchingPanel } from "@/components/WatchingPanel";
 import { useAuth } from "@/lib/auth";
 
 type Tab =
   | "watching"
+  | "scan"
   | "theme-scanner"
   | "governance"
   | "investors"
@@ -20,6 +22,7 @@ type Tab =
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "watching", label: "Watching" },
+  { id: "scan", label: "Scan" },
   { id: "theme-scanner", label: "Theme Scanner" },
   { id: "governance", label: "Governance" },
   { id: "investors", label: "Investors" },
@@ -75,6 +78,8 @@ export function AppShell() {
       <main className={tab === "investors" ? "main main-wide" : "main"}>
         {tab === "watching" ? (
           <WatchingPanel />
+        ) : tab === "scan" ? (
+          <ScanPanel />
         ) : tab === "missing" ? (
           <MissingDataPanel />
         ) : tab === "governance" ? (

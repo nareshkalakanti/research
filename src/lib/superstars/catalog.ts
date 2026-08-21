@@ -1,4 +1,4 @@
-/** Curated ace-investor list (from stocks-ai SuperStars / Trendlyne). */
+/** Curated ace-investor list (Trendlyne / SuperStars). */
 
 import investorsJson from "./investors.json";
 

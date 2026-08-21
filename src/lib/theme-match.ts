@@ -24,7 +24,24 @@ export type ThemeMatchRow = {
   search_text?: string | null;
   sector?: string | null;
   sub_sector?: string | null;
+  mcap_cr?: number | null;
 };
+
+/** Max mcap (₹ Cr) by newsletter group — tightens Nanocap / LVC to investable size. */
+export const BLOG_THEME_MAX_MCAP_CR: Record<string, number> = {
+  "Nanocap Champs": 500,
+  "Listed Venture Capital": 6000,
+};
+
+function blogCapPasses(
+  blogTheme: string,
+  mcap: number | null | undefined,
+): boolean {
+  const max = BLOG_THEME_MAX_MCAP_CR[blogTheme];
+  if (max == null) return true;
+  if (mcap == null) return true;
+  return mcap <= max;
+}
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const FILTER_PATH = path.join(DATA_DIR, "theme_sector_filters.json");
@@ -94,6 +111,7 @@ export function themeMatch(
     row.search_text?.trim() ||
     [row.about, row.headquarters].filter(Boolean).join("\n");
   if (!text || !patternMatches(text, theme.display_pattern)) return false;
+  if (!blogCapPasses(theme.blog_theme, row.mcap_cr)) return false;
   const map = filters ?? loadThemeSectorFilters();
   return sectorGatePasses(row, map[theme.id]);
 }
@@ -150,4 +168,36 @@ export function matchThemesForRow(
     highlights: [...highlightSet].sort((a, b) => b.length - a.length),
     scanPattern: patterns.filter(Boolean).join(" | "),
   };
+}
+
+/** Keep portfolio names that match the active theme scan in the result set. */
+export function mergeThemePortfolioRows<
+  T extends ThemeMatchRow & { ticker: string },
+>(
+  rows: T[],
+  universe: T[],
+  themes: Theme[],
+  opts: {
+    customPattern?: string | null;
+    holdings: Set<string>;
+    matchedByTheme: Record<string, string[]>;
+    highlightsByTicker: Record<string, string[]>;
+  },
+): T[] {
+  if (!themes.length && !opts.customPattern?.trim()) return rows;
+  const have = new Set(rows.map((c) => c.ticker.toUpperCase()));
+  const out = [...rows];
+  for (const c of universe) {
+    const t = c.ticker.toUpperCase();
+    if (!opts.holdings.has(t) || have.has(t)) continue;
+    const result = matchThemesForRow(c, themes, {
+      customPattern: opts.customPattern?.trim() || null,
+    });
+    if (!result.matched) continue;
+    out.push(c);
+    opts.matchedByTheme[c.ticker] = result.matchedTerms;
+    opts.highlightsByTicker[c.ticker] = result.highlights;
+    have.add(t);
+  }
+  return out;
 }

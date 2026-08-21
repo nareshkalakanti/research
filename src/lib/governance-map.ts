@@ -1,6 +1,6 @@
 /**
  * Governance map data — multi-board directors from local governance.db,
- * enriched with metrics / about / BB·TQ (no stocks-ai runtime).
+ * enriched with metrics / about / BB·TQ.
  */
 import Database from "better-sqlite3";
 import fs from "fs";

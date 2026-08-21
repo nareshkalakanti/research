@@ -293,3 +293,49 @@ export function replaceFundWatchlists(
     db.close();
   }
 }
+
+/** Add or update watchlist rows without removing existing tickers (safe for manual adds). */
+export function upsertFundWatchlistRows(
+  listKey: FundWatchlistKey,
+  rows: Array<{
+    ticker: string;
+    name?: string | null;
+    market?: string | null;
+  }>,
+): number {
+  if (!rows.length) return 0;
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const db = new Database(DB_PATH);
+  try {
+    ensureSchema(db);
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO fund_watchlists (ticker, list_key, market, name, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(ticker, list_key) DO UPDATE SET
+        market = COALESCE(NULLIF(TRIM(excluded.market), ''), fund_watchlists.market),
+        name = COALESCE(NULLIF(TRIM(excluded.name), ''), fund_watchlists.name),
+        updated_at = excluded.updated_at
+    `);
+    let n = 0;
+    const tx = db.transaction(() => {
+      for (const r of rows) {
+        const ticker = (r.ticker || "").trim().toUpperCase();
+        if (!ticker) continue;
+        stmt.run(
+          ticker,
+          listKey,
+          (r.market || "NSE").toUpperCase(),
+          r.name?.trim() || null,
+          now,
+        );
+        n += 1;
+      }
+    });
+    tx();
+    invalidateFundWatchlistCache();
+    return n;
+  } finally {
+    db.close();
+  }
+}

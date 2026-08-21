@@ -10,6 +10,7 @@
     "fill-metrics": "tsx scripts/fill-metrics.ts",
     "test:scan": "tsx scripts/test-scan.ts",
     "test:themes": "tsx scripts/test-themes.ts",
+    "audit:themes": "tsx scripts/audit-theme-keywords.ts",
     "mine:themes": "tsx scripts/mine-theme-keywords.ts",
     "test:gov": "tsx scripts/test-gov-map.ts",
     "test:gov-changes": "tsx scripts/test-gov-changes.ts",
@@ -24,6 +25,7 @@
     "sync:holdings": "tsx scripts/sync-holdings.ts",
     "sync:edge": "tsx scripts/sync-edge.ts",
     "sync:fund-watchlists": "tsx scripts/sync-fund-watchlists.ts",
+    "add:fund-watchlist": "tsx scripts/add-fund-watchlist-tickers.ts",
     "sync:bse-sme": "tsx scripts/sync-bse-sme.ts",
     "sync:bse-about": "tsx scripts/sync-bse-about.ts"
   },

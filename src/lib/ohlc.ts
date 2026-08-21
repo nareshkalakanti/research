@@ -53,6 +53,19 @@ function normalizeWeeklyBars(bars: Bar[]): Bar[] {
   return bars;
 }
 
+/** Drop in-progress monthly stub (gap < 25 days from prior bar). */
+function normalizeMonthlyBars(bars: Bar[]): Bar[] {
+  if (bars.length < 2) return bars;
+  const last = bars[bars.length - 1];
+  const prev = bars[bars.length - 2];
+  const lastTs = Date.parse(`${last.date.slice(0, 10)}T00:00:00Z`);
+  const prevTs = Date.parse(`${prev.date.slice(0, 10)}T00:00:00Z`);
+  if (!Number.isFinite(lastTs) || !Number.isFinite(prevTs)) return bars;
+  const gapDays = (lastTs - prevTs) / 86_400_000;
+  if (gapDays < 25) return bars.slice(0, -1);
+  return bars;
+}
+
 function mapChartBars(
   quotes: Array<{
     date?: Date;
@@ -91,7 +104,7 @@ function mapChartBars(
 async function fetchBarsWithCandidates(
   ticker: string,
   market: string | null | undefined,
-  interval: "1d" | "1wk",
+  interval: "1d" | "1wk" | "1mo",
   yearsBack: number,
 ): Promise<Bar[]> {
   const symbols = yfSymbolCandidates(ticker, market);
@@ -106,7 +119,11 @@ async function fetchBarsWithCandidates(
       const chart = await yf.chart(symbol, { period1, interval });
       const bars = mapChartBars(chart.quotes ?? []);
       const cleaned =
-        interval === "1wk" ? normalizeWeeklyBars(bars) : bars;
+        interval === "1wk"
+          ? normalizeWeeklyBars(bars)
+          : interval === "1mo"
+            ? normalizeMonthlyBars(bars)
+            : bars;
       if (symbol === primary) primaryBars = cleaned;
       if (cleaned.length > best.length) best = cleaned;
     } catch {
@@ -125,6 +142,15 @@ export async function fetchWeeklyBars(
   yearsBack = 2,
 ): Promise<Bar[]> {
   return fetchBarsWithCandidates(ticker, market, "1wk", yearsBack);
+}
+
+/** Monthly OHLC for BB NEW on 50-period band (5y history). */
+export async function fetchMonthlyBars(
+  ticker: string,
+  market?: string | null,
+  yearsBack = 5,
+): Promise<Bar[]> {
+  return fetchBarsWithCandidates(ticker, market, "1mo", yearsBack);
 }
 
 /** Daily OHLC for BB NEW / TQ “today / latest session” scans. */

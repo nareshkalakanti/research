@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadAllCompanies } from "@/lib/db";
+import { filterCompaniesByScanList } from "@/lib/scan-lists-server";
 import {
   breakoutCounts,
   clearAllWeeklySignals,
@@ -8,6 +9,7 @@ import {
   loadBreakoutMap,
   runSignalBatch,
   uncheckedTickers,
+  type BbTimeframe,
   type ScanKind,
 } from "@/lib/signals";
 
@@ -19,23 +21,17 @@ type Body = {
   market?: string;
   tickers?: string[];
   limit?: number;
-  /** Skip tickers already scanned this week (default true). */
   missingOnly?: boolean;
-  /** Wipe weekly BB/TQ + scan progress before this batch (full rescan). */
   clearFirst?: boolean;
+  bbTimeframe?: BbTimeframe;
 };
 
-function filterCompaniesByMarket<T extends { market: string }>(
+function filterScanUniverse<T extends { ticker: string; market: string }>(
   companies: T[],
-  market: string,
+  list: string,
+  all: T[],
 ): T[] {
-  if (!market || market === "All") return companies;
-  if (market === "NSE") {
-    return companies.filter(
-      (c) => c.market === "NSE" || c.market === "NSE SME",
-    );
-  }
-  return companies.filter((c) => c.market === market);
+  return filterCompaniesByScanList(companies, list, all);
 }
 
 export async function POST(req: NextRequest) {
@@ -55,18 +51,19 @@ export async function POST(req: NextRequest) {
     body.kind === "all"
       ? body.kind
       : "all";
-  const market = body.market || "NSE";
+  const market = body.market || "All";
+  const bbTimeframe: BbTimeframe =
+    body.bbTimeframe === "monthly" ? "monthly" : "weekly";
   const limit = Math.min(80, Math.max(1, Number(body.limit) || 40));
   const clearFirst = body.clearFirst === true;
-  // After a wipe, every ticker is pending — don't skip.
   const missingOnly = clearFirst ? false : body.missingOnly !== false;
 
   if (clearFirst) {
     clearAllWeeklySignals();
   }
 
-  let companies = loadAllCompanies();
-  companies = filterCompaniesByMarket(companies, market);
+  const allCompanies = loadAllCompanies();
+  let companies = filterScanUniverse(allCompanies, market, allCompanies);
   if (body.tickers?.length) {
     const set = new Set(body.tickers.map((t) => t.toUpperCase()));
     companies = companies.filter((c) => set.has(c.ticker.toUpperCase()));
@@ -76,6 +73,7 @@ export async function POST(req: NextRequest) {
     const pending = uncheckedTickers(
       companies.map((c) => c.ticker),
       kind,
+      { bbTimeframe },
     );
     companies = companies.filter((c) => pending.has(c.ticker.toUpperCase()));
   }
@@ -98,16 +96,19 @@ export async function POST(req: NextRequest) {
       tqTickers: [],
       emaTickers: [],
       cleared: clearFirst,
-      signals: breakoutCounts(),
+      bbTimeframe,
+      signals: breakoutCounts(loadBreakoutMap(bbTimeframe)),
       message: "Nothing left to scan for this filter",
     });
   }
 
-  const result = await runSignalBatch(batch, kind, { concurrency: 4 });
+  const result = await runSignalBatch(batch, kind, {
+    concurrency: 4,
+    bbTimeframe,
+  });
   invalidateBreakoutCache();
 
-  let remUniverse = loadAllCompanies();
-  remUniverse = filterCompaniesByMarket(remUniverse, market);
+  let remUniverse = filterScanUniverse(loadAllCompanies(), market, allCompanies);
   if (body.tickers?.length) {
     const set = new Set(body.tickers.map((t) => t.toUpperCase()));
     remUniverse = remUniverse.filter((c) => set.has(c.ticker.toUpperCase()));
@@ -115,15 +116,18 @@ export async function POST(req: NextRequest) {
   const remaining = uncheckedTickers(
     remUniverse.map((c) => c.ticker),
     kind,
+    { bbTimeframe },
   ).size;
 
+  const map = loadBreakoutMap(bbTimeframe);
   return NextResponse.json({
     ok: true,
     ...result,
     remaining,
     cleared: clearFirst,
-    session: latestSignalDates(),
-    signals: breakoutCounts(loadBreakoutMap()),
+    bbTimeframe,
+    session: latestSignalDates(map),
+    signals: breakoutCounts(map),
   });
   } catch (e) {
     const message =
@@ -133,9 +137,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const bbTimeframe =
+    req.nextUrl.searchParams.get("bbTf") === "monthly" ? "monthly" : "weekly";
+  const map = loadBreakoutMap(bbTimeframe);
   return NextResponse.json({
     ok: true,
-    signals: breakoutCounts(loadBreakoutMap()),
+    bbTimeframe,
+    signals: breakoutCounts(map),
   });
 }
