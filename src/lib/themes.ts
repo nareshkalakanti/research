@@ -7,6 +7,7 @@ export type Theme = {
   blog_theme: string;
   display_pattern: string;
   keywords: string[];
+  keyword_definitions?: Record<string, string>;
 };
 
 export type ThemeFile = {
@@ -51,6 +52,12 @@ export function loadThemes(): ThemeFile {
       blog_theme: String(t.blog_theme ?? "Other"),
       display_pattern,
       keywords,
+      keyword_definitions:
+        t.keyword_definitions &&
+        typeof t.keyword_definitions === "object" &&
+        !Array.isArray(t.keyword_definitions)
+          ? (t.keyword_definitions as Record<string, string>)
+          : undefined,
     };
   });
 

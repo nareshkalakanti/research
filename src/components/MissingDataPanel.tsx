@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
@@ -11,6 +11,7 @@ type GapKey =
   | "price"
   | "mcap"
   | "sector"
+  | "sub_sector"
   | "about"
   | "web"
   | "any";
@@ -19,6 +20,7 @@ type Gaps = {
   missingPrice: number;
   missingMcap: number;
   missingSector: number;
+  missingSubSector: number;
   missingAbout: number;
   missingWeb: number;
   any: number;
@@ -38,20 +40,23 @@ const GAP_OPTIONS: { id: GapKey; label: string; countKey: keyof Gaps }[] = [
   { id: "metrics", label: "Price / Mcap", countKey: "metrics" },
   { id: "price", label: "Price", countKey: "missingPrice" },
   { id: "mcap", label: "Mcap", countKey: "missingMcap" },
-  { id: "sector", label: "Sector", countKey: "missingSector" },
+  { id: "sector", label: "Sector / Sub", countKey: "missingSector" },
+  { id: "sub_sector", label: "Sub-sector", countKey: "missingSubSector" },
   { id: "about", label: "About", countKey: "missingAbout" },
   { id: "web", label: "Web", countKey: "missingWeb" },
   { id: "any", label: "Any gap", countKey: "any" },
 ];
 
 export function MissingDataPanel() {
-  const [market, setMarket] = useState("NSE");
+  const [market, setMarket] = useState("All");
   const [gap, setGap] = useState<GapKey>("metrics");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("name");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasDataRef = useRef(false);
+  hasDataRef.current = !!data;
 
   useEffect(() => {
     setPage(1);
@@ -59,7 +64,7 @@ export function MissingDataPanel() {
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
-      setLoading(true);
+      if (!hasDataRef.current) setLoading(true);
       const params = new URLSearchParams({
         market,
         missing: gap,
@@ -131,13 +136,6 @@ export function MissingDataPanel() {
             busy={loading}
             onRefresh={() => load({ refresh: true })}
           />
-          <a
-            className="btn-download"
-            href={`/api/export?market=${encodeURIComponent(market)}&missing=${encodeURIComponent(gap)}`}
-            download
-          >
-            Download CSV
-          </a>
         </div>
       </div>
 
@@ -153,6 +151,7 @@ export function MissingDataPanel() {
         <label className="field">
           <span>List</span>
           <select value={market} onChange={(e) => setMarket(e.target.value)}>
+            <option value="All">All ({allCount.toLocaleString()})</option>
             <option value="NSE">NSE ({nseCount.toLocaleString()})</option>
             <option value="NSE SME">
               NSE SME ({smeCount.toLocaleString()})
@@ -160,7 +159,6 @@ export function MissingDataPanel() {
             <option value="BSE SME">
               BSE SME ({bseSmeCount.toLocaleString()})
             </option>
-            <option value="All">All ({allCount.toLocaleString()})</option>
           </select>
         </label>
         <label className="field">
@@ -179,7 +177,20 @@ export function MissingDataPanel() {
             })}
           </select>
         </label>
+        <a
+          className="btn-download btn-download-inline"
+          href={`/api/export?market=${encodeURIComponent(market)}&missing=${encodeURIComponent(gap)}&format=basic`}
+          download
+          title="company name · symbol · website"
+        >
+          Download CSV
+        </a>
       </div>
+      <p className="hint tight missing-export-hint">
+        CSV columns: <strong>company name</strong>, <strong>symbol</strong>,{" "}
+        <strong>website</strong> — all rows for the selected list and gap filter
+        {data ? ` (${data.total.toLocaleString()} stocks)` : null}.
+      </p>
 
       <div className="filters">
         <div className="pager">

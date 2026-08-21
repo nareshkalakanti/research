@@ -79,7 +79,6 @@ export function FillMissingButton({
         missingOnly: true,
         preferMcap: true,
       });
-      await onDone?.();
       const left = json.remainingMcap ?? json.remaining;
       await finish({
         pct: left === 0 ? 100 : 90,
@@ -145,8 +144,6 @@ export function FillMissingButton({
           stagnant = 0;
         }
         remaining = next;
-        await onDone?.();
-
         if (remaining <= 0) break;
         if (json.tried === 0) break;
         if (stagnant >= 2) break;

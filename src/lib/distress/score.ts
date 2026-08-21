@@ -1,5 +1,5 @@
 /**
- * Distress / turnaround score — rule-based (stocks-ai port).
+ * Distress / turnaround score — rule-based.
  */
 import {
   DISTRESS_DRAWDOWN_MIN_PCT,

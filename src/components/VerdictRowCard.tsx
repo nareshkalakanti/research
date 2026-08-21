@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import type { VerdictLabel, VerdictRow } from "@/lib/agents/types";
 import { researchLinks } from "@/lib/links";
+import { useExpandQuarters } from "@/lib/use-expand-quarters";
 
 type VerdictPanel = "about" | "qtr";
 
@@ -108,6 +110,12 @@ export function VerdictRowCard({
     : researchLinks(row.symbol, row.market);
   const up = row.day_change_pct != null && row.day_change_pct >= 0;
   const vClass = verdictClass(row.verdict);
+  const quarterData = useExpandQuarters(
+    row.symbol,
+    row.market,
+    row.price,
+    open,
+  );
 
   return (
     <li className={`ag-verdict-item ${vClass}${open ? " open" : ""}`}>
@@ -190,6 +198,18 @@ export function VerdictRowCard({
       </div>
       {open ? (
         <div className="ag-verdict-detail">
+          <ExpandMetricsStrip
+            forwardPe={quarterData.forward_pe}
+            epsYoY={quarterData.yoy?.eps_yoy}
+            loading={quarterData.loading}
+            empty={
+              !quarterData.loading &&
+              !quarterData.error &&
+              !quarterData.panel &&
+              quarterData.forward_pe == null &&
+              quarterData.yoy?.eps_yoy == null
+            }
+          />
           <div className="ag-detail-tabs" role="tablist">
             <button
               type="button"
@@ -235,7 +255,7 @@ export function VerdictRowCard({
             </div>
           ) : (
             <div className="ag-detail-body">
-              <ExpandQuarters ticker={row.symbol} market={row.market} />
+              <ExpandQuarters data={quarterData} />
             </div>
           )}
         </div>

@@ -1,44 +1,25 @@
 /**
- * Sync Early Edge watchlist from stocks-ai into data/edge.db.
- * Also upserts missing Edge tickers into company_about.db so BSE names show up.
+ * Ensure Early Edge tickers in edge.db exist in company_about.db (local only).
  *
  *   npm run sync:edge
  */
+import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import Database from "better-sqlite3";
-import { replaceEdge } from "../src/lib/edge";
+import { invalidateCompanyCache } from "../src/lib/db";
+import { loadEdge } from "../src/lib/edge";
+import { resolveTickerMeta } from "./lib/local-ticker-meta";
 
-const SOURCE_KEYS = ["early_edge"] as const;
-
-const CANDIDATES = [
-  path.join(process.cwd(), "..", "stocks-ai", "data", "stocks_ai.db"),
-  path.join(
-    process.env.HOME || "",
-    "Development/ai.com/stocks-ai/data/stocks_ai.db",
-  ),
-];
-
-function findSource(): string {
-  for (const p of CANDIDATES) {
-    if (fs.existsSync(p)) return p;
+function upsertMissingAbout(): number {
+  const edgeRows = loadEdge();
+  if (!edgeRows.length) {
+    console.log("edge.db empty — nothing to sync");
+    return 0;
   }
-  throw new Error(
-    `stocks_ai.db not found. Tried:\n${CANDIDATES.map((p) => `  ${p}`).join("\n")}`,
-  );
-}
 
-function upsertMissingAbout(
-  src: Database.Database,
-  rows: Array<{
-    ticker: string;
-    name: string | null;
-    market: string | null;
-  }>,
-): number {
   const aboutPath = path.join(process.cwd(), "data", "company_about.db");
   if (!fs.existsSync(aboutPath)) {
-    console.warn("company_about.db missing — skip universe upsert");
+    console.warn("company_about.db missing — skip");
     return 0;
   }
 
@@ -50,11 +31,6 @@ function upsertMissingAbout(
           t: string;
         }>
       ).map((r) => r.t),
-    );
-
-    const stockStmt = src.prepare(
-      `SELECT ticker, name, market, sector, industry
-       FROM stocks WHERE UPPER(ticker) = ? LIMIT 1`,
     );
     const ins = about.prepare(`
       INSERT INTO company_about (
@@ -69,85 +45,66 @@ function upsertMissingAbout(
         0, 0, 0
       )
     `);
-
+    const touch = about.prepare(`
+      UPDATE company_about
+      SET name = COALESCE(NULLIF(TRIM(@name), ''), name),
+          market = COALESCE(NULLIF(TRIM(@market), ''), market),
+          company_sector = COALESCE(NULLIF(TRIM(@sector), ''), company_sector),
+          company_industry = COALESCE(NULLIF(TRIM(@industry), ''), company_industry),
+          source = 'edge-sync',
+          fetched_at = @fetched_at
+      WHERE UPPER(ticker) = @ticker
+    `);
     const now = new Date().toISOString();
-    let n = 0;
+    let inserted = 0;
+    let touched = 0;
     const tx = about.transaction(() => {
-      for (const r of rows) {
-        const ticker = (r.ticker || "").trim().toUpperCase();
-        if (!ticker || have.has(ticker)) continue;
-
-        const stock = stockStmt.get(ticker) as
-          | {
-              ticker: string;
-              name: string | null;
-              market: string | null;
-              sector: string | null;
-              industry: string | null;
-            }
-          | undefined;
-
-        const market = (stock?.market || r.market || "BSE").toUpperCase();
-        const name = (stock?.name || r.name || ticker).trim();
-
-        ins.run({
-          ticker,
-          name,
-          market,
-          sector: stock?.sector?.trim() || null,
-          industry: stock?.industry?.trim() || null,
-          fetched_at: now,
-        });
-        have.add(ticker);
-        n += 1;
+      for (const r of edgeRows) {
+        const meta = resolveTickerMeta(r.ticker);
+        const name = r.name?.trim() || meta.name;
+        const market = (r.market || meta.market).toUpperCase();
+        const ticker = r.ticker.toUpperCase();
+        if (!have.has(ticker)) {
+          ins.run({
+            ticker,
+            name,
+            market,
+            sector: meta.sector,
+            industry: meta.industry,
+            fetched_at: now,
+          });
+          have.add(ticker);
+          inserted += 1;
+        } else {
+          const res = touch.run({
+            ticker,
+            name,
+            market,
+            sector: meta.sector,
+            industry: meta.industry,
+            fetched_at: now,
+          });
+          if (res.changes > 0) touched += 1;
+        }
       }
     });
     tx();
-    return n;
+    if (touched > 0) {
+      console.log(`Updated ${touched} existing tickers in company_about.db`);
+    }
+    return inserted;
   } finally {
     about.close();
   }
 }
 
 function main() {
-  const srcPath = findSource();
-  const src = new Database(srcPath, { readonly: true, fileMustExist: true });
-  const placeholders = SOURCE_KEYS.map(() => "?").join(",");
-  const raw = src
-    .prepare(
-      `
-      SELECT UPPER(ticker) AS ticker,
-             MAX(name) AS name,
-             MAX(market) AS market,
-             GROUP_CONCAT(DISTINCT list_key) AS sources
-      FROM fund_watchlists
-      WHERE list_key IN (${placeholders})
-      GROUP BY UPPER(ticker)
-      ORDER BY ticker
-      `,
-    )
-    .all(...SOURCE_KEYS) as Array<{
-    ticker: string;
-    name: string | null;
-    market: string | null;
-    sources: string | null;
-  }>;
-
-  const n = replaceEdge(raw);
-  const added = upsertMissingAbout(src, raw);
-  src.close();
-
-  const bySrc: Record<string, number> = {};
-  for (const r of raw) {
-    for (const s of (r.sources || "").split(",")) {
-      if (!s) continue;
-      bySrc[s] = (bySrc[s] || 0) + 1;
-    }
-  }
-  console.log(`Synced ${n} Edge tickers from ${srcPath} → data/edge.db`);
+  const rows = loadEdge();
+  console.log(`Local Edge watchlist: ${rows.length} tickers`);
+  const added = upsertMissingAbout();
+  invalidateCompanyCache();
   console.log(`Added ${added} missing tickers → data/company_about.db`);
-  console.log("sources:", bySrc);
-  console.log(raw.map((r) => r.ticker).join(", "));
+  console.log(rows.map((r) => r.ticker).join(", "));
 }
 
 main();

@@ -1,5 +1,5 @@
 /**
- * Smoke checks for local BB / TQ scanners (no stocks-ai).
+ * Smoke checks for local BB / TQ scanners.
  * Run: npx tsx scripts/test-scan.ts
  */
 import assert from "node:assert/strict";

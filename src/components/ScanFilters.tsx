@@ -6,13 +6,13 @@ import {
   type CapFilter,
 } from "@/components/CapMarketFilters";
 
-/** stocks-ai Quant / PEAD signal toolbar modes. */
+/** Quant / PEAD signal toolbar modes. */
 export type SignalMode = "all" | "tq" | "bb" | "either" | "both";
 
 type Props = {
   cap?: CapFilter;
   onCap?: (cap: CapFilter) => void;
-  /** Unified signal filter (stocks-ai style). When set, drives BB/TQ chips. */
+  /** Unified signal filter. When set, drives BB/TQ chips. */
   signal?: SignalMode;
   onSignal?: (mode: SignalMode) => void;
   bb: boolean;

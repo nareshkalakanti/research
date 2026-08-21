@@ -197,7 +197,11 @@ function upsertAbout(listings: BseSmeListing[]): {
     const reclass = db.prepare(`
       UPDATE company_about
       SET market = @market,
-          name = @name,
+          name = CASE
+            WHEN @name GLOB '[0-9]*' AND LENGTH(TRIM(@name)) <= 6
+              THEN COALESCE(NULLIF(TRIM(name), ''), @name)
+            ELSE @name
+          END,
           company_sector = COALESCE(@sector, company_sector),
           company_industry = COALESCE(@sub_sector, company_industry),
           yf_about = COALESCE(@about, yf_about),
@@ -213,7 +217,11 @@ function upsertAbout(listings: BseSmeListing[]): {
     `);
     const refresh = db.prepare(`
       UPDATE company_about
-      SET name = @name,
+      SET name = CASE
+            WHEN @name GLOB '[0-9]*' AND LENGTH(TRIM(@name)) <= 6
+              THEN COALESCE(NULLIF(TRIM(name), ''), @name)
+            ELSE @name
+          END,
           company_sector = COALESCE(@sector, company_sector),
           company_industry = COALESCE(@sub_sector, company_industry),
           yf_about = COALESCE(@about, yf_about),
@@ -335,7 +343,7 @@ async function main() {
 
   let listings: BseSmeListing[];
   if (fromCache) {
-    console.log("1) Load BSE SME cache (BSE API snapshot, not stocks-ai)…");
+    console.log("1) Load BSE SME cache (BSE API snapshot)…");
     listings = loadCachedListings();
     console.log(`2) Sector already in cache (${listings.length}) — skip ComHeader`);
     console.log("3) About already in cache — skip Yahoo");

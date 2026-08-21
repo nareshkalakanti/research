@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     body = {};
   }
 
-  const market = body.market || "NSE";
+  const market = body.market || "All";
   const limit = Math.min(30, Math.max(1, Number(body.limit) || 10));
   const missingOnly = body.missingOnly !== false;
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const market = req.nextUrl.searchParams.get("market") || "NSE";
+  const market = req.nextUrl.searchParams.get("market") || "All";
   const pending = pendingGovernanceJobs({ market, missingOnly: true });
   const dinDone = dinBoardTickerSet().size;
   return NextResponse.json({

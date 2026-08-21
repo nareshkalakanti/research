@@ -1,4 +1,4 @@
-/** Distress / turnaround scoring — ported from stocks-ai distress strategy. */
+/** Distress / turnaround scoring config. */
 
 export const DISTRESS_SEED_TICKERS = [
   "GPTINFRA",

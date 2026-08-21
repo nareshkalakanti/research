@@ -2,15 +2,19 @@
 
 import {
   fmtQVal,
+  fmtYoYPct,
   qCellClass,
+  yoyClass,
+  type PanelYoY,
   type QuarterPanel as QuarterPanelData,
 } from "@/lib/quarter-panel";
 
 type Props = {
   panel: QuarterPanelData | null | undefined;
+  yoy?: PanelYoY | null;
 };
 
-export function QuarterPanel({ panel }: Props) {
+export function QuarterPanel({ panel, yoy }: Props) {
   if (!panel?.labels?.length || !panel.rows?.length) {
     return <div className="q-empty">No quarterly data.</div>;
   }
@@ -61,6 +65,49 @@ export function QuarterPanel({ panel }: Props) {
             </tbody>
           </table>
         </div>
+        {panel && yoy ? (
+          <p className="q-yoy-foot">
+            YoY vs same Q last year
+            {yoy.sales_yoy != null ||
+            yoy.np_yoy != null ||
+            yoy.eps_yoy != null ? (
+              <>
+                :{" "}
+                {yoy.sales_yoy != null ? (
+                  <>
+                    Sales{" "}
+                    <strong className={yoyClass(yoy.sales_yoy)}>
+                      {fmtYoYPct(yoy.sales_yoy)}
+                    </strong>
+                  </>
+                ) : null}
+                {yoy.sales_yoy != null && yoy.np_yoy != null ? " · " : null}
+                {yoy.np_yoy != null ? (
+                  <>
+                    NP{" "}
+                    <strong className={yoyClass(yoy.np_yoy)}>
+                      {fmtYoYPct(yoy.np_yoy)}
+                    </strong>
+                  </>
+                ) : null}
+                {(yoy.sales_yoy != null || yoy.np_yoy != null) &&
+                yoy.eps_yoy != null
+                  ? " · "
+                  : null}
+                {yoy.eps_yoy != null ? (
+                  <>
+                    EPS{" "}
+                    <strong className={yoyClass(yoy.eps_yoy)}>
+                      {fmtYoYPct(yoy.eps_yoy)}
+                    </strong>
+                  </>
+                ) : null}
+              </>
+            ) : (
+              <span className="q-yoy-na"> — need same quarter last year</span>
+            )}
+          </p>
+        ) : null}
       </div>
     </div>
   );

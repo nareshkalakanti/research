@@ -1,53 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { QuarterPanel } from "@/components/QuarterPanel";
-import type { QuarterPanel as QuarterPanelData } from "@/lib/quarter-panel";
+import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 
 type Props = {
-  ticker: string;
-  market?: string | null;
+  data: ExpandQuarterData;
 };
 
-export function ExpandQuarters({ ticker, market }: Props) {
-  const [panel, setPanel] = useState<QuarterPanelData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    setPanel(null);
-
-    const params = new URLSearchParams({ ticker });
-    if (market) params.set("market", market);
-
-    void fetch(`/api/quarters?${params}`)
-      .then(async (r) => {
-        const j = (await r.json()) as {
-          ok?: boolean;
-          quarters?: QuarterPanelData | null;
-          error?: string;
-        };
-        if (cancelled) return;
-        if (!r.ok || j.ok === false) {
-          setError(j.error || "Could not load quarters");
-          return;
-        }
-        setPanel(j.quarters ?? null);
-      })
-      .catch(() => {
-        if (!cancelled) setError("Could not load quarters");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [ticker, market]);
+export function ExpandQuarters({ data }: Props) {
+  const { panel, yoy, loading, error } = data;
 
   if (loading) {
     return <p className="q-empty">Loading quarterly…</p>;
@@ -61,7 +22,7 @@ export function ExpandQuarters({ ticker, market }: Props) {
 
   return (
     <div className="about-quarters">
-      <QuarterPanel panel={panel} />
+      <QuarterPanel panel={panel} yoy={yoy} />
     </div>
   );
 }

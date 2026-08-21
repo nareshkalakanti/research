@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     body = {};
   }
 
-  const market = body.market || "NSE";
+  const market = body.market || "All";
   const limit = Math.min(150, Math.max(1, Number(body.limit) || 50));
   const missingOnly = body.missingOnly !== false;
   const preferMcap = body.preferMcap !== false;
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const market = req.nextUrl.searchParams.get("market") || "NSE";
+  const market = req.nextUrl.searchParams.get("market") || "All";
   let companies = loadAllCompanies();
   if (market && market !== "All") {
     companies = companies.filter((c) => c.market === market);

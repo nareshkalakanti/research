@@ -93,7 +93,7 @@ function scaleValues(
 
 /**
  * Build last N quarters panel — oldest → newest.
- * Mirrors stocks-ai `build_quarter_panel`.
+ * Build quarter comparison panel rows.
  */
 export function buildQuarterPanel(
   quarters: QuarterPoint[],
@@ -171,4 +171,94 @@ export function fmtQVal(v: number | null, decimals: number): string {
     });
   }
   return v.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+}
+
+const MONTH_ORDER: Record<string, number> = {
+  jan: 1,
+  feb: 2,
+  mar: 3,
+  apr: 4,
+  may: 5,
+  jun: 6,
+  jul: 7,
+  aug: 8,
+  sep: 9,
+  oct: 10,
+  nov: 11,
+  dec: 12,
+};
+
+export function parseQuarterLabel(
+  label: string,
+): { month: number; year: number } | null {
+  const parts = label.trim().split(/\s+/);
+  if (parts.length < 2) return null;
+  const month = MONTH_ORDER[parts[0]!.slice(0, 3).toLowerCase()];
+  const year = Number(parts[1]);
+  if (!month || !Number.isFinite(year)) return null;
+  return { month, year };
+}
+
+/** Latest column vs same fiscal quarter one year earlier (by label, not first column). */
+export function yoyPairFromPanel(
+  values: Array<number | null>,
+  labels: string[],
+): [number | null, number | null] {
+  if (values.length < 2 || labels.length !== values.length) return [null, null];
+  const latestIdx = values.length - 1;
+  const latest = parseQuarterLabel(labels[latestIdx]!);
+  if (!latest) return [null, null];
+
+  for (let i = latestIdx - 1; i >= 0; i -= 1) {
+    const prior = parseQuarterLabel(labels[i]!);
+    if (
+      prior &&
+      prior.month === latest.month &&
+      prior.year === latest.year - 1
+    ) {
+      return [values[latestIdx] ?? null, values[i] ?? null];
+    }
+  }
+  return [null, null];
+}
+
+export function yoyPct(
+  latest: number | null,
+  prior: number | null,
+): number | null {
+  if (latest == null || prior == null || !Number.isFinite(latest)) return null;
+  if (!Number.isFinite(prior) || prior <= 0) return null;
+  return Math.round(((latest / prior) - 1) * 1000) / 10;
+}
+
+export type PanelYoY = {
+  sales_yoy: number | null;
+  np_yoy: number | null;
+  eps_yoy: number | null;
+};
+
+export function yoyFromPanel(panel: QuarterPanel): PanelYoY | null {
+  if (panel.labels.length < 2) return null;
+  const byLabel = new Map(panel.rows.map((r) => [r.label, r.values]));
+  const salesRow = byLabel.get("Sales") ?? [];
+  const npRow = byLabel.get("Net Profit") ?? [];
+  const epsRow = byLabel.get("EPS in Rs") ?? [];
+  const sales = yoyPct(...yoyPairFromPanel(salesRow, panel.labels));
+  const np = yoyPct(...yoyPairFromPanel(npRow, panel.labels));
+  const eps = yoyPct(...yoyPairFromPanel(epsRow, panel.labels));
+  if (sales == null && np == null && eps == null) return null;
+  return { sales_yoy: sales, np_yoy: np, eps_yoy: eps };
+}
+
+export function fmtYoYPct(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "N/M";
+  const sign = v > 0 ? "+" : "";
+  return `${sign}${v.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%`;
+}
+
+export function yoyClass(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "yoy-na";
+  if (v > 0) return "yoy-up";
+  if (v < 0) return "yoy-down";
+  return "yoy-flat";
 }

@@ -12,7 +12,7 @@ export function RefreshButton({ onRefresh, busy }: Props) {
       className="btn-refresh"
       disabled={busy}
       onClick={() => void onRefresh()}
-      title="Reload data from disk (clears server cache)"
+      title="Reload list and refresh live prices for this page"
     >
       {busy ? "Refreshing…" : "Refresh"}
     </button>

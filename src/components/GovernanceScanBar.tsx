@@ -7,6 +7,8 @@ type Props = {
   /** Tickers visible on the current map page (for refresh). */
   pageTickers?: string[];
   onDone?: () => void | Promise<void>;
+  /** inline = compact toolbar buttons; block = full progress card */
+  variant?: "inline" | "block";
 };
 
 type Progress = {
@@ -40,11 +42,12 @@ async function scanOnce(body: Record<string, unknown>) {
   return (await res.json()) as ScanJson;
 }
 
-/** NSE DIN board refresh — upserts into governance.db, never wipes it. */
+/** NSE DIN board fetch — upserts into governance.db, never wipes it. */
 export function GovernanceScanBar({
-  market = "NSE",
+  market = "All",
   pageTickers,
   onDone,
+  variant = "block",
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -73,16 +76,16 @@ export function GovernanceScanBar({
       const pageMode = mode === "page";
       setProgress({
         pct: 8,
-        label: pageMode ? "Refresh page" : "Scan pending",
+        label: pageMode ? "Scan page" : "Scan",
         detail: "NSE DIN boards · upsert only",
       });
 
       let gotSaved = 0;
       let gotDins = 0;
       let gotDirs = 0;
-  let gotSeats = 0;
-  let gotEvents = 0;
-  let remaining = pageMode
+      let gotSeats = 0;
+      let gotEvents = 0;
+      let remaining = pageMode
         ? Math.max(pageTickers?.length || 1, 1)
         : Math.max(pending ?? 200, 1);
 
@@ -131,7 +134,7 @@ export function GovernanceScanBar({
         setProgress({
           pct: 100,
           label: "Failed",
-          detail: "NSE scan request failed",
+          detail: "NSE board scan failed",
           error: true,
         });
       } finally {
@@ -141,6 +144,50 @@ export function GovernanceScanBar({
     },
     [market, pageTickers, pending, onDone, refreshStatus],
   );
+
+  const progressBlock =
+    busy || progress ? (
+      <div
+        className={`fill-progress scan-progress ${progress?.error ? "is-error" : ""} ${progress?.done ? "is-done" : ""}`}
+        role="status"
+      >
+        <div className="fill-progress-meta">
+          <span className="fill-progress-label">
+            {progress?.label || "Working…"}
+          </span>
+          <span className="fill-progress-pct">{progress?.pct ?? 0}%</span>
+        </div>
+        <div className="fill-progress-track">
+          <div
+            className="fill-progress-bar"
+            style={{ width: `${progress?.pct ?? 0}%` }}
+          />
+        </div>
+        {progress?.detail ? (
+          <p className="fill-progress-detail">{progress.detail}</p>
+        ) : null}
+      </div>
+    ) : null;
+
+  if (variant === "inline") {
+    return (
+      <div className="gov-scan-inline">
+        <button
+          type="button"
+          className="chip chip-scan"
+          disabled={busy}
+          onClick={() => void run("pending")}
+          title="Fetch NSE DIN boards for tickers not yet in governance.db"
+        >
+          {busy ? "…" : "Scan"}
+          {pending != null ? (
+            <span className="chip-count">{pending.toLocaleString()}</span>
+          ) : null}
+        </button>
+        {progressBlock}
+      </div>
+    );
+  }
 
   return (
     <div className="scan-block gov-scan">
@@ -153,43 +200,22 @@ export function GovernanceScanBar({
           onClick={() => void run("page")}
           title="Re-fetch boards for tickers on this page (upsert, no wipe)"
         >
-          Refresh page
+          Scan page
         </button>
         <button
           type="button"
-          className="btn-scan-all"
+          className="btn-scan-all chip chip-scan"
           disabled={busy}
           onClick={() => void run("pending")}
           title="Fetch DIN boards for tickers not yet in governance.db"
         >
-          Scan pending
+          Scan
           {pending != null ? (
             <span className="chip-count">{pending.toLocaleString()}</span>
           ) : null}
         </button>
       </div>
-      {busy || progress ? (
-        <div
-          className={`fill-progress scan-progress ${progress?.error ? "is-error" : ""} ${progress?.done ? "is-done" : ""}`}
-          role="status"
-        >
-          <div className="fill-progress-meta">
-            <span className="fill-progress-label">
-              {progress?.label || "Working…"}
-            </span>
-            <span className="fill-progress-pct">{progress?.pct ?? 0}%</span>
-          </div>
-          <div className="fill-progress-track">
-            <div
-              className="fill-progress-bar"
-              style={{ width: `${progress?.pct ?? 0}%` }}
-            />
-          </div>
-          {progress?.detail ? (
-            <p className="fill-progress-detail">{progress.detail}</p>
-          ) : null}
-        </div>
-      ) : null}
+      {progressBlock}
     </div>
   );
 }

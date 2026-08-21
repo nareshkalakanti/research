@@ -1,6 +1,6 @@
 /**
  * Trendlyne superstar portfolio scrape (fast path).
- * Mirrors stocks-ai stocks/shared/superstars/investors.py stockrow parser.
+ * Trendlyne stockrow HTML parser.
  */
 
 import fs from "fs";

@@ -1,9 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
+import { MetricDots } from "@/components/MetricDots";
 import type { Company } from "@/lib/types";
+import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap } from "@/lib/types";
 
 export type SortKey =
@@ -13,7 +16,7 @@ export type SortKey =
   | "sub_sector"
   | "mcap_cr";
 
-type ExpandPanel = "about" | "notes";
+type ExpandPanel = "about" | "notes" | "qtr";
 
 type Props = {
   rows: Company[];
@@ -115,12 +118,27 @@ export function CompanyTable({
   const [more, setMore] = useState<Record<string, boolean>>({});
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
+  const [metricDots, setMetricDots] = useState<
+    Record<
+      string,
+      {
+        forward_pe?: number | null;
+        eps_yoy?: number | null;
+        sales_yoy?: number | null;
+      }
+    >
+  >({});
   const colSpan = 6;
+  const rowIdentity = useMemo(
+    () => rows.map((r) => `${r.market}:${r.ticker}`).join("|"),
+    [rows],
+  );
 
   useEffect(() => {
     setExpanded(null);
     setPanel("about");
-  }, [rows]);
+    setMetricDots({});
+  }, [rowIdentity]);
 
   useEffect(() => {
     const next: Record<string, boolean> = {};
@@ -128,7 +146,7 @@ export function CompanyTable({
       if (r.has_note) next[r.ticker] = true;
     }
     setNoteFlags(next);
-  }, [rows]);
+  }, [rowIdentity]);
 
   const headers = useMemo(
     () =>
@@ -147,6 +165,20 @@ export function CompanyTable({
         label: string;
         align: "left" | "right";
       }>,
+    [],
+  );
+
+  const onMetricsLoaded = useCallback(
+    (
+      ticker: string,
+      metrics: {
+        forward_pe: number | null;
+        eps_yoy: number | null;
+        sales_yoy: number | null;
+      },
+    ) => {
+      setMetricDots((prev) => ({ ...prev, [ticker]: metrics }));
+    },
     [],
   );
 
@@ -209,6 +241,8 @@ export function CompanyTable({
                   showMatched={showMatched}
                   showMissing={showMissing}
                   colSpan={colSpan}
+                  metrics={metricDots[r.ticker]}
+                  onMetricsLoaded={onMetricsLoaded}
                   onToggleAbout={() => {
                     setExpanded(open ? null : r.ticker);
                     setPanel("about");
@@ -243,6 +277,8 @@ function CompanyRows({
   showMatched,
   showMissing,
   colSpan,
+  metrics,
+  onMetricsLoaded,
   onToggleAbout,
   onToggleMore,
   onPanel,
@@ -255,6 +291,19 @@ function CompanyRows({
   showMatched?: boolean;
   showMissing?: boolean;
   colSpan: number;
+  metrics?: {
+    forward_pe?: number | null;
+    eps_yoy?: number | null;
+    sales_yoy?: number | null;
+  };
+  onMetricsLoaded?: (
+    ticker: string,
+    data: {
+      forward_pe: number | null;
+      eps_yoy: number | null;
+      sales_yoy: number | null;
+    },
+  ) => void;
   onToggleAbout: () => void;
   onToggleMore: () => void;
   onPanel: (p: ExpandPanel) => void;
@@ -267,6 +316,36 @@ function CompanyRows({
   const preview =
     about.length > 180 ? `${about.slice(0, 180).trim()}…` : about;
 
+  const quarterData = useExpandQuarters(
+    r.ticker,
+    r.market,
+    r.price,
+    open,
+  );
+
+  useEffect(() => {
+    if (!open || quarterData.loading || !onMetricsLoaded) return;
+    onMetricsLoaded(r.ticker, {
+      forward_pe: quarterData.forward_pe,
+      eps_yoy: quarterData.yoy?.eps_yoy ?? null,
+      sales_yoy: quarterData.yoy?.sales_yoy ?? null,
+    });
+  }, [
+    open,
+    quarterData.loading,
+    quarterData.forward_pe,
+    quarterData.yoy,
+    r.ticker,
+    onMetricsLoaded,
+  ]);
+
+  const dotMetrics = {
+    forward_pe: metrics?.forward_pe ?? r.forward_pe,
+    eps_yoy: metrics?.eps_yoy ?? r.eps_yoy,
+    sales_yoy: metrics?.sales_yoy ?? r.sales_yoy,
+  };
+  const dotsPending = !!r.missing?.dots_pending && metrics == null;
+
   const missingTags =
     showMissing && r.missing
       ? (
@@ -274,12 +353,13 @@ function CompanyRows({
             ["price", r.missing.price],
             ["mcap", r.missing.mcap],
             ["sector", r.missing.sector],
+            ["sub_sector", r.missing.sub_sector],
             ["about", r.missing.about],
             ["web", r.missing.web],
           ] as const
         )
           .filter(([, on]) => on)
-          .map(([label]) => label)
+          .map(([label]) => (label === "sub_sector" ? "sub-sector" : label))
       : [];
 
   return (
@@ -287,7 +367,15 @@ function CompanyRows({
       <tr className={open ? "row-open" : undefined}>
         <td className="col-name">
           <button type="button" className="company-cell" onClick={onToggleAbout}>
-            <span className="company-name">{r.name}</span>
+            <div className="company-title-row">
+              <span className="company-name">{r.name}</span>
+              <MetricDots
+                pending={dotsPending}
+                forwardPe={dotMetrics.forward_pe}
+                epsYoY={dotMetrics.eps_yoy}
+                salesYoY={dotMetrics.sales_yoy}
+              />
+            </div>
             <span className="company-meta">
               <span className="ticker">{r.ticker}</span>
               {r.headquarters ? (
@@ -386,6 +474,18 @@ function CompanyRows({
         <tr className="about-row">
           <td colSpan={colSpan}>
             <div className="about-box">
+              <ExpandMetricsStrip
+                forwardPe={quarterData.forward_pe}
+                epsYoY={quarterData.yoy?.eps_yoy}
+                loading={quarterData.loading}
+                empty={
+                  !quarterData.loading &&
+                  !quarterData.error &&
+                  !quarterData.panel &&
+                  quarterData.forward_pe == null &&
+                  quarterData.yoy?.eps_yoy == null
+                }
+              />
               <div className="about-tabs" role="tablist">
                 <button
                   type="button"
@@ -399,6 +499,15 @@ function CompanyRows({
                 <button
                   type="button"
                   role="tab"
+                  aria-selected={panel === "qtr"}
+                  className={`about-tab ${panel === "qtr" ? "on" : ""}`}
+                  onClick={() => onPanel("qtr")}
+                >
+                  Qtr
+                </button>
+                <button
+                  type="button"
+                  role="tab"
                   aria-selected={panel === "notes"}
                   className={`about-tab ${panel === "notes" ? "on" : ""}`}
                   onClick={() => onPanel("notes")}
@@ -408,7 +517,9 @@ function CompanyRows({
                 </button>
               </div>
 
-              {panel === "about" ? (
+              {panel === "qtr" ? (
+                <ExpandQuarters data={quarterData} />
+              ) : panel === "about" ? (
                 <>
                   {r.headquarters ? (
                     <div className="about-meta">
@@ -436,7 +547,6 @@ function CompanyRows({
                       {showMore ? "Show less" : "Show more"}
                     </button>
                   ) : null}
-                  <ExpandQuarters ticker={r.ticker} market={r.market} />
                 </>
               ) : (
                 <NotesPanel ticker={r.ticker} onSaved={onNoteSaved} />

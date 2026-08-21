@@ -182,7 +182,7 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
     const g = govMap.get(row.ticker);
     const m = metricsMap.get(row.ticker.toUpperCase());
 
-    // Prefer India listing taxonomy (stocks_ai), then Yahoo about, then governance, then YF quote sector.
+    // Prefer listing taxonomy (classifications.db), then Yahoo about, then governance, then YF quote sector.
     const sector =
       nonempty(cls?.sector) ||
       nonempty(row.company_sector) ||
@@ -200,10 +200,12 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
 
     const links = researchLinks(row.ticker, row.market, row.website);
     const about = pickAboutText(row);
+    const name = resolveCompanyName(row, about);
+    const searchRow = { ...row, name };
 
     return {
       ticker: row.ticker,
-      name: row.name || row.ticker,
+      name,
       market: row.market,
       website: row.website,
       about,
@@ -212,7 +214,7 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       sub_sector,
       price: m?.price ?? null,
       mcap_cr: m?.market_cap_cr ?? null,
-      search_text: buildSearchText(row, about, sector, sub_sector),
+      search_text: buildSearchText(searchRow, about, sector, sub_sector),
       web: links.web,
       sc: links.sc,
       tv: links.tv,
@@ -223,6 +225,32 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
 function nonempty(v: string | null | undefined): string | null {
   const s = (v ?? "").trim();
   return s || null;
+}
+
+/** BSE sometimes stores SCRIP_CD (e.g. 1201) instead of Issuer_Name in `name`. */
+function looksLikeScripCodeName(name: string | null | undefined): boolean {
+  const n = (name ?? "").trim();
+  return /^\d{1,6}$/.test(n);
+}
+
+/** Parse "Acme Widgets Limited designs…" from Yahoo/BSE about prose. */
+export function nameFromAboutText(
+  about: string | null | undefined,
+): string | null {
+  const text = (about ?? "").trim();
+  if (text.length < 20) return null;
+  const m = text.match(
+    /^(.{3,120}?)\s+(designs|engages|operates|provides|manufactures|develops|offers|is an|is a|specializes|focuses|distributes|produces|supplies|markets|trades in)\b/i,
+  );
+  return m?.[1]?.trim() || null;
+}
+
+function resolveCompanyName(row: RawAbout, about: string | null): string {
+  const stored = nonempty(row.name);
+  if (stored && !looksLikeScripCodeName(stored)) return stored;
+  const parsed = nameFromAboutText(about ?? row.about ?? row.yf_about);
+  if (parsed) return parsed;
+  return stored || row.ticker;
 }
 
 /** Nav-scrape / menu dump heuristic (e.g. "About Us Investor Relations Career…"). */

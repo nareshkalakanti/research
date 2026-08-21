@@ -1,4 +1,4 @@
-/** Director network score — ported from stocks-ai governance/score.py */
+/** Director network score. */
 
 /** Cap-bridge large side: MC + LC (matches capTier MC boundary). */
 export const BRIDGE_LARGE_MIN_CR = 5_000;

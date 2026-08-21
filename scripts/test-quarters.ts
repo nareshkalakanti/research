@@ -9,7 +9,15 @@ import {
   qCellClass,
   trimReportedQuarters,
   type QuarterPoint,
+  yoyFromPanel,
+  yoyPct,
+  fmtYoYPct,
 } from "../src/lib/quarter-panel";
+import { parseNonIndAsQuarterXbrl } from "../src/lib/nse-quarters";
+import {
+  computeForwardPe,
+  computeTrailingPe,
+} from "../src/lib/valuation";
 
 function growingSeries(): QuarterPoint[] {
   const base = [
@@ -64,6 +72,53 @@ function main() {
   assert.ok(p2!.rows.some((r) => r.label === "Other Income"));
 
   assert.equal(buildQuarterPanel([]), null);
+
+  const nonIndXml = `<?xml version="1.0"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance">
+<xbrli:context id="OneD"><xbrli:period><xbrli:endDate>2024-03-31</xbrli:endDate></xbrli:period></xbrli:context>
+<xbrli:context id="FourD"><xbrli:period><xbrli:endDate>2024-03-31</xbrli:endDate></xbrli:period></xbrli:context>
+<RevenueFromOperations contextRef="OneD">483620000</RevenueFromOperations>
+<ProfitLossForThePeriod contextRef="OneD">41703000</ProfitLossForThePeriod>
+<BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations contextRef="OneD">3.17</BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations>
+<RevenueFromOperations contextRef="FourD">1011029000</RevenueFromOperations>
+<ProfitLossForThePeriod contextRef="FourD">88518000</ProfitLossForThePeriod>
+</xbrli:xbrl>`;
+  const parsed = parseNonIndAsQuarterXbrl(nonIndXml, { fallbackEnd: "2024-03-31" });
+  assert.ok(parsed.oneD);
+  assert.equal(parsed.oneD!.revenue, 483620000);
+  assert.equal(parsed.oneD!.netIncome, 41703000);
+  assert.equal(parsed.oneD!.eps, 3.17);
+  assert.equal(parsed.fourD!.revenue, 1011029000);
+
+  const eps = [0.3, 0.36, 4.47, 13.38];
+  assert.equal(computeForwardPe(475, eps), 8.9);
+  assert.equal(computeTrailingPe(475, eps), 25.7);
+  assert.equal(computeForwardPe(100, [-1, -2]), 999);
+
+  const yoyPanel = buildQuarterPanel(growingSeries());
+  assert.ok(yoyPanel);
+  const yoy = yoyFromPanel(yoyPanel!);
+  assert.ok(yoy);
+  assert.equal(yoy!.sales_yoy, 25);
+  assert.equal(yoy!.eps_yoy, 40);
+  assert.equal(yoyPct(140, 100), 40);
+  assert.equal(yoyPct(4.48, -0.56), null);
+  assert.equal(fmtYoYPct(12.5), "+12.5%");
+  assert.equal(fmtYoYPct(null), "N/M");
+
+  const pnbLike: QuarterPoint[] = [
+    { date: "2024-12-31", revenue: 316e7, netIncome: -10e7, eps: -0.56, ebit: 302e7 },
+    { date: "2025-03-31", revenue: 299e7, netIncome: 75e7, eps: null, ebit: 366e7 },
+    { date: "2025-06-30", revenue: 563e7, netIncome: 160e7, eps: 8.89, ebit: 537e7 },
+    { date: "2025-12-31", revenue: 410e7, netIncome: 54e7, eps: 2.99, ebit: 394e7 },
+    { date: "2026-06-30", revenue: 455e7, netIncome: 81e7, eps: 4.48, ebit: 439e7 },
+  ];
+  const pnbPanel = buildQuarterPanel(pnbLike);
+  const pnbYoy = yoyFromPanel(pnbPanel!);
+  assert.ok(pnbYoy);
+  assert.equal(pnbYoy!.eps_yoy, -49.6);
+  assert.equal(pnbYoy!.sales_yoy, -19.2);
+
   console.log("test-quarters: all passed");
 }
 

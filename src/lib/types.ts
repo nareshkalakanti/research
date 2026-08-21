@@ -67,9 +67,18 @@ export type Company = {
     price: boolean;
     mcap: boolean;
     sector: boolean;
+    sub_sector: boolean;
     about: boolean;
     web: boolean;
+    /** Not scanned yet — hollow dots in list. */
+    dots_pending?: boolean;
   };
+  /** Cached from quarter panel — Fwd PE (run-rate). */
+  forward_pe?: number | null;
+  /** EPS YoY % vs same quarter last year. */
+  eps_yoy?: number | null;
+  /** Sales YoY % vs same quarter last year. */
+  sales_yoy?: number | null;
 };
 
 export type CapTier = "NC" | "TI" | "MIC" | "SC" | "MC" | "LC";
@@ -93,6 +102,7 @@ export type Theme = {
   blog_theme: string;
   display_pattern: string;
   keywords: string[];
+  keyword_definitions?: Record<string, string>;
 };
 
 export type ThemeGroup = {
