@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { MetricsFillButton } from "@/components/MetricsFillButton";
 import {
   CapMarketFilters,
   type CapFilter,
@@ -28,11 +27,6 @@ type Props = {
   bbDate?: string | null;
   tqDate?: string | null;
   emaDate?: string | null;
-  green?: boolean;
-  onGreen?: (on: boolean) => void;
-  greenCount?: number;
-  dotsPending?: number;
-  onDotsDone?: () => void | Promise<void>;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
 };
@@ -103,11 +97,6 @@ export function SignalScanBar({
   bbDate,
   tqDate,
   emaDate,
-  green = false,
-  onGreen,
-  greenCount,
-  dotsPending,
-  onDotsDone,
   onBatch,
   onDone,
 }: Props) {
@@ -268,31 +257,7 @@ export function SignalScanBar({
           </button>
         ) : null}
 
-        {onGreen ? (
-          <>
-            <span className="filter-sep" aria-hidden />
-            <button
-              type="button"
-              className={`chip tag-chip tag-green ${green ? "on" : ""}`}
-              onClick={() => onGreen(!green)}
-              title="Fwd PE ≤20 and EPS & Sales YoY both positive"
-            >
-              <span className="tag-green-dots" aria-hidden>
-                <span /> <span /> <span />
-              </span>
-              Green
-              <Count n={greenCount} />
-            </button>
-          </>
-        ) : null}
-
         <span className="filter-sep scan-actions-sep" aria-hidden />
-
-        <MetricsFillButton
-          market={market}
-          pendingCount={dotsPending}
-          onDone={onDotsDone}
-        />
 
         <div className="scan-actions">
           {(["bb", "tq", "ema", "all"] as const).map((kind) => (

@@ -465,7 +465,9 @@ async function listCorporatesFinancialFilings(
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
     const xbrl = safeStr(o.xbrl);
-    if (!xbrl.startsWith("http")) continue;
+    if (!xbrl.startsWith("http") || xbrl.endsWith("/-") || xbrl.includes("/xbrl/-")) {
+      continue;
+    }
     const to_date = quarterEndIso(o.toDate);
     if (!to_date) continue;
     const fromRaw = quarterEndIso(o.fromDate);
@@ -599,4 +601,128 @@ export async function fetchNseQuarterlyFundamentals(
   }
 
   return integrated;
+}
+
+const RD_TAGS = [
+  "ResearchAndDevelopmentExpense",
+  "ResearchAndDevelopmentExpenses",
+  "ResearchAndDevelopmentExpenditure",
+  "ExpenditureOnResearchAndDevelopment",
+  "ResearchDevelopmentExpense",
+  "ExpensesByNatureResearchAndDevelopmentExpense",
+] as const;
+
+const RD_CONTEXTS = ["OneD", "FourD", "OneI"] as const;
+
+export type RdXbrlResult = {
+  rd: number | null;
+  revenue: number | null;
+  rd_pct: number | null;
+  period_end: string | null;
+  source: "nse_xbrl" | "nse_corporates_xbrl";
+  xbrl_url: string | null;
+};
+
+function isUsableXbrlUrl(url: string): boolean {
+  const u = url.trim();
+  if (!u.startsWith("http")) return false;
+  if (u.endsWith("/-") || u.includes("/xbrl/-")) return false;
+  return true;
+}
+
+/** Parse R&D line item from integrated / corporates XBRL (any standard context). */
+export function parseRdFromXbrlXml(xmlText: string): {
+  rd: number | null;
+  context: string | null;
+} {
+  if (!xmlText?.trim()) return { rd: null, context: null };
+  for (const ctx of RD_CONTEXTS) {
+    for (const tag of RD_TAGS) {
+      const re = new RegExp(
+        `<(?:[\\w-]+:)?${tag}[^>]*contextRef=['"]${ctx}['"][^>]*>([^<]+)<`,
+        "i",
+      );
+      const m = xmlText.match(re);
+      if (!m?.[1]) continue;
+      const n = Number(m[1].replace(/,/g, "").trim());
+      if (Number.isFinite(n)) return { rd: n, context: ctx };
+    }
+  }
+  return { rd: null, context: null };
+}
+
+async function rdFromXbrlUrl(
+  xbrlUrl: string,
+  jar: CookieJar,
+  source: RdXbrlResult["source"],
+): Promise<RdXbrlResult | null> {
+  if (!isUsableXbrlUrl(xbrlUrl)) return null;
+  try {
+    const resp = await nseFetch(xbrlUrl, jar, { referer: NSE_HOME });
+    if (!resp.ok) return null;
+    const xml = await resp.text();
+    const indAs = parseIndAsQuarterXbrl(xml);
+    const nonInd = parseNonIndAsQuarterXbrl(xml);
+    const revenue =
+      indAs?.revenue ?? nonInd.oneD?.revenue ?? nonInd.fourD?.revenue ?? null;
+    const period_end =
+      indAs?.date ?? nonInd.oneD?.date ?? nonInd.fourD?.date ?? null;
+    const { rd } = parseRdFromXbrlXml(xml);
+    const rd_pct =
+      rd != null && revenue != null && revenue > 0 ? (rd / revenue) * 100 : null;
+    return {
+      rd,
+      revenue,
+      rd_pct,
+      period_end,
+      source,
+      xbrl_url: xbrlUrl,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Latest R&D from NSE Ind-AS integrated filing, then corporates (SME) XBRL. */
+export async function fetchNseLatestRdExpense(
+  ticker: string,
+): Promise<RdXbrlResult | null> {
+  const symbol = nseQuarterSymbol(ticker);
+  if (!symbol) return null;
+
+  const jar = await warmNseSession();
+
+  let filings: FilingMeta[] = [];
+  try {
+    filings = await listFinancialFilings(symbol, jar);
+  } catch {
+    filings = [];
+  }
+
+  if (filings.length) {
+    const latestPe = filings[0]!.period_end;
+    const filing = pickFiling(filings, latestPe);
+    if (filing?.xbrl) {
+      const hit = await rdFromXbrlUrl(filing.xbrl, jar, "nse_xbrl");
+      if (hit) return hit;
+    }
+  }
+
+  let corporates: CorporatesFilingMeta[] = [];
+  for (const index of ["sme", "equities"] as const) {
+    try {
+      const batch = await listCorporatesFinancialFilings(symbol, jar, index);
+      corporates = corporates.concat(batch);
+    } catch {
+      /* try next */
+    }
+  }
+  corporates.sort((a, b) => b.broadcast_ms - a.broadcast_ms);
+  for (const filing of corporates) {
+    if (!isUsableXbrlUrl(filing.xbrl)) continue;
+    const hit = await rdFromXbrlUrl(filing.xbrl, jar, "nse_corporates_xbrl");
+    if (hit) return hit;
+  }
+
+  return null;
 }

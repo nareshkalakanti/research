@@ -26,11 +26,11 @@ export function ExpandMetricsStrip({
     );
   }
 
-  if (empty || (forwardPe == null && epsYoY == null)) {
+  if (empty) {
     return (
       <div className="expand-metrics expand-metrics--empty">
         <span className="expand-metrics-muted">
-          Quarter metrics unavailable — no EPS / YoY data from source
+          Quarter metrics unavailable — no quarterly data from source
         </span>
       </div>
     );
@@ -43,7 +43,7 @@ export function ExpandMetricsStrip({
           <span className="expand-metrics-label">Fwd PE</span>
           <strong
             className={forwardPeClass(forwardPe)}
-            title="Price ÷ (latest quarter EPS × 4)"
+            title="Price ÷ annualized EPS (latest quarter, or last profitable quarter if latest is a loss)"
           >
             {formatPeDisplay(forwardPe)}
           </strong>

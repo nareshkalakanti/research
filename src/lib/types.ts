@@ -5,6 +5,10 @@ export type Company = {
   website: string | null;
   about: string | null;
   headquarters: string | null;
+  scraped_about?: string | null;
+  scrape_source_url?: string | null;
+  /** Theme/custom keywords that hit inside scraped website text. */
+  scrape_highlights?: string[];
   sector: string | null;
   sub_sector: string | null;
   price: number | null;
@@ -70,15 +74,7 @@ export type Company = {
     sub_sector: boolean;
     about: boolean;
     web: boolean;
-    /** Not scanned yet — hollow dots in list. */
-    dots_pending?: boolean;
   };
-  /** Cached from quarter panel — Fwd PE (run-rate). */
-  forward_pe?: number | null;
-  /** EPS YoY % vs same quarter last year. */
-  eps_yoy?: number | null;
-  /** Sales YoY % vs same quarter last year. */
-  sales_yoy?: number | null;
 };
 
 export type CapTier = "NC" | "TI" | "MIC" | "SC" | "MC" | "LC";

@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import fs from "fs";
 import path from "path";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
@@ -11,6 +12,8 @@ export type CompanyRow = {
   market: string;
   website: string | null;
   about: string | null;
+  scraped_about: string | null;
+  scrape_source_url: string | null;
   headquarters: string | null;
   sector: string | null;
   sub_sector: string | null;
@@ -27,6 +30,32 @@ let govDb: Database.Database | null = null;
 let classDb: Database.Database | null = null;
 let cache: { at: number; rows: CompanyRow[] } | null = null;
 const CACHE_MS = 30_000;
+let scrapeSourceCache: Map<string, string> | null = null;
+
+function loadScrapeSourceMap(): Map<string, string> {
+  if (scrapeSourceCache) return scrapeSourceCache;
+  scrapeSourceCache = new Map();
+  const scrapePath = path.join(DATA_DIR, "scraper.db");
+  if (!fs.existsSync(scrapePath)) return scrapeSourceCache;
+  const db = new Database(scrapePath, { readonly: true, fileMustExist: true });
+  try {
+    const cols = db.prepare(`PRAGMA table_info(company_scrape)`).all() as Array<{
+      name: string;
+    }>;
+    if (!cols.some((c) => c.name === "source_url")) return scrapeSourceCache;
+    for (const r of db
+      .prepare(
+        `SELECT ticker, source_url FROM company_scrape
+         WHERE TRIM(COALESCE(source_url, '')) != ''`,
+      )
+      .all() as Array<{ ticker: string; source_url: string }>) {
+      scrapeSourceCache.set(r.ticker.toUpperCase(), r.source_url.trim());
+    }
+  } finally {
+    db.close();
+  }
+  return scrapeSourceCache;
+}
 
 function openReadonly(name: string): Database.Database {
   const db = new Database(path.join(DATA_DIR, name), {
@@ -78,18 +107,50 @@ type RawAbout = {
   theme_tags: string | null;
 };
 
+function normalizeForDedupe(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Merge manual, Yahoo, and website-scrape prose for keyword/theme matching.
+ * Display still uses {@link pickAboutText}; this keeps all usable sources searchable.
+ */
+export function mergeAboutSourcesForSearch(row: {
+  about: string | null;
+  yf_about: string | null;
+  scraped_about: string | null;
+}): string {
+  const sources = [row.about, row.yf_about, row.scraped_about]
+    .map(nonempty)
+    .filter(
+      (t): t is string => !!t && t.length >= 40 && !looksLikeNavJunk(t),
+    );
+
+  const kept: string[] = [];
+  for (const text of sources) {
+    const norm = normalizeForDedupe(text);
+    const probe = norm.slice(0, Math.min(norm.length, 240));
+    const duplicate = kept.some((k) => {
+      const kn = normalizeForDedupe(k);
+      return kn.includes(probe) || norm.includes(kn.slice(0, Math.min(kn.length, 240)));
+    });
+    if (!duplicate) kept.push(text);
+  }
+  return kept.join("\n\n");
+}
+
 function buildSearchText(
   row: RawAbout,
-  about: string | null,
   sector?: string | null,
   sub?: string | null,
 ): string {
+  const aboutCorpus = mergeAboutSourcesForSearch(row);
   // HQ first so location themes (e.g. Mumbai) can AND with about terms.
   return [
     row.headquarters,
     row.name,
     row.ticker,
-    about,
+    aboutCorpus,
     row.products,
     row.end_markets,
     sector,
@@ -176,6 +237,7 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
   const govMap = loadGovMap();
   const classMaps = loadClassMaps();
   const metricsMap = loadMetricsMap();
+  const scrapeSources = loadScrapeSourceMap();
 
   return rows.map((row) => {
     const cls = pickClass(classMaps, row.ticker, row.market);
@@ -209,12 +271,14 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       market: row.market,
       website: row.website,
       about,
+      scraped_about: nonempty(row.scraped_about),
+      scrape_source_url: scrapeSources.get(row.ticker.toUpperCase()) ?? null,
       headquarters: nonempty(row.headquarters),
       sector,
       sub_sector,
       price: m?.price ?? null,
       mcap_cr: m?.market_cap_cr ?? null,
-      search_text: buildSearchText(searchRow, about, sector, sub_sector),
+      search_text: buildSearchText(searchRow, sector, sub_sector),
       web: links.web,
       sc: links.sc,
       tv: links.tv,
@@ -254,7 +318,7 @@ function resolveCompanyName(row: RawAbout, about: string | null): string {
 }
 
 /** Nav-scrape / menu dump heuristic (e.g. "About Us Investor Relations Career…"). */
-function looksLikeNavJunk(text: string): boolean {
+export function looksLikeNavJunk(text: string): boolean {
   const t = text.trim();
   if (t.length < 80) return false;
   const navHits = (
@@ -270,6 +334,21 @@ function looksLikeNavJunk(text: string): boolean {
   return false;
 }
 
+/** Prose usable as company about (Yahoo, manual, scraped, etc.). */
+export function hasUsableAboutText(text: string | null | undefined): boolean {
+  const t = nonempty(text);
+  if (!t || t.length < 40) return false;
+  if (looksLikeNavJunk(t)) return false;
+  return true;
+}
+
+/** Yahoo Finance longBusinessSummary is usable (website scrape not needed). */
+export function hasUsableYfAbout(row: {
+  yf_about: string | null;
+}): boolean {
+  return hasUsableAboutText(row.yf_about);
+}
+
 /**
  * Prefer a real company description over scraped website chrome.
  * Order: clean about → yf_about → scraped → raw about.
@@ -283,7 +362,7 @@ export function pickAboutText(row: {
   const yf = nonempty(row.yf_about);
   const scraped = nonempty(row.scraped_about);
 
-  const candidates = [about, scraped, yf].filter(Boolean) as string[];
+  const candidates = [about, yf, scraped].filter(Boolean) as string[];
   const clean = candidates.find((c) => !looksLikeNavJunk(c));
   if (clean) {
     // Prefer Yahoo prose when about/scraped are the same nav dump
@@ -295,9 +374,10 @@ export function pickAboutText(row: {
   return yf || about || scraped || null;
 }
 
-/** Drop in-memory company cache (call after Yahoo fill). */
+/** Drop in-memory company cache (call after Yahoo fill / website scrape). */
 export function invalidateCompanyCache(): void {
   cache = null;
+  scrapeSourceCache = null;
 }
 
 export function loadAllCompanies(): CompanyRow[] {

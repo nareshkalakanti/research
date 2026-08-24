@@ -27,24 +27,87 @@ export type ThemeMatchRow = {
   mcap_cr?: number | null;
 };
 
-/** Max mcap (₹ Cr) by newsletter group — tightens Nanocap / LVC to investable size. */
+/** Legacy blog-group caps (older theme files). Per-theme caps live in theme_keywords.json meta. */
 export const BLOG_THEME_MAX_MCAP_CR: Record<string, number> = {
   "Nanocap Champs": 500,
   "Listed Venture Capital": 6000,
 };
 
-function blogCapPasses(
-  blogTheme: string,
+const DATA_DIR = path.join(process.cwd(), "data");
+const THEME_KEYWORDS_PATH = path.join(DATA_DIR, "theme_keywords.json");
+
+let themeMaxMcapCache: Record<string, number> | null = null;
+
+/** Per-theme id and legacy blog_theme max mcap (₹ Cr) from theme_keywords.json meta. */
+export function loadThemeMaxMcapCr(): Record<string, number> {
+  if (themeMaxMcapCache) return themeMaxMcapCache;
+  const out: Record<string, number> = { ...BLOG_THEME_MAX_MCAP_CR };
+  if (fs.existsSync(THEME_KEYWORDS_PATH)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(THEME_KEYWORDS_PATH, "utf8")) as {
+        meta?: { theme_max_mcap_cr?: Record<string, number> };
+      };
+      const perTheme = raw.meta?.theme_max_mcap_cr;
+      if (perTheme && typeof perTheme === "object") {
+        for (const [id, cap] of Object.entries(perTheme)) {
+          if (typeof cap === "number" && cap > 0) out[id] = cap;
+        }
+      }
+    } catch {
+      /* keep defaults */
+    }
+  }
+  themeMaxMcapCache = out;
+  return out;
+}
+
+export function invalidateThemeMaxMcapCache(): void {
+  themeMaxMcapCache = null;
+}
+
+function themeCapPasses(
+  theme: Theme,
   mcap: number | null | undefined,
 ): boolean {
-  const max = BLOG_THEME_MAX_MCAP_CR[blogTheme];
+  const map = loadThemeMaxMcapCr();
+  const max = map[theme.id] ?? map[theme.blog_theme];
   if (max == null) return true;
   if (mcap == null) return true;
   return mcap <= max;
 }
 
-const DATA_DIR = path.join(process.cwd(), "data");
 const FILTER_PATH = path.join(DATA_DIR, "theme_sector_filters.json");
+const RESEARCH_PATTERN_PATH = path.join(DATA_DIR, "theme_research_patterns.json");
+
+let researchPatternCache: Record<string, string> | null = null;
+
+/** Site/news terms appended for matching (often absent from Screener About). */
+export function loadThemeResearchPatterns(): Record<string, string> {
+  if (researchPatternCache) return researchPatternCache;
+  researchPatternCache = {};
+  if (!fs.existsSync(RESEARCH_PATTERN_PATH)) return researchPatternCache;
+  try {
+    const raw = JSON.parse(fs.readFileSync(RESEARCH_PATTERN_PATH, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    for (const [id, pat] of Object.entries(raw)) {
+      if (id === "meta" || typeof pat !== "string") continue;
+      const s = pat.trim();
+      if (s) researchPatternCache[id] = s;
+    }
+  } catch {
+    researchPatternCache = {};
+  }
+  return researchPatternCache;
+}
+
+/** Theme OR-clauses + optional research/site keyword extensions. */
+export function themeMatchPattern(theme: Theme): string {
+  const extra = loadThemeResearchPatterns()[theme.id]?.trim();
+  if (!extra) return theme.display_pattern;
+  return `${theme.display_pattern} | ${extra}`;
+}
 
 let cache: { at: number; filters: Record<string, ThemeSectorFilter> } | null =
   null;
@@ -110,8 +173,8 @@ export function themeMatch(
   const text =
     row.search_text?.trim() ||
     [row.about, row.headquarters].filter(Boolean).join("\n");
-  if (!text || !patternMatches(text, theme.display_pattern)) return false;
-  if (!blogCapPasses(theme.blog_theme, row.mcap_cr)) return false;
+  if (!text || !patternMatches(text, themeMatchPattern(theme))) return false;
+  if (!themeCapPasses(theme, row.mcap_cr)) return false;
   const map = filters ?? loadThemeSectorFilters();
   return sectorGatePasses(row, map[theme.id]);
 }
@@ -135,18 +198,18 @@ export function matchThemesForRow(
   const search =
     row.search_text?.trim() ||
     [row.about, row.headquarters].filter(Boolean).join("\n");
-  const about = [row.about, row.headquarters].filter(Boolean).join("\n");
   const matchedThemeIds: string[] = [];
   const termSet = new Set<string>();
   const highlightSet = new Set<string>();
   const patterns: string[] = [];
 
   for (const theme of themes) {
-    patterns.push(theme.display_pattern);
+    const pattern = themeMatchPattern(theme);
+    patterns.push(pattern);
     if (!themeMatch(row, theme, filters)) continue;
     matchedThemeIds.push(theme.id);
-    for (const t of matchedTerms(search, theme.display_pattern)) termSet.add(t);
-    for (const h of matchedKeywords(about, theme.display_pattern, search)) {
+    for (const t of matchedTerms(search, pattern)) termSet.add(t);
+    for (const h of matchedKeywords(search, pattern, search)) {
       highlightSet.add(h);
     }
   }
@@ -157,7 +220,7 @@ export function matchThemesForRow(
     if (search && patternMatches(search, custom)) {
       matchedThemeIds.push("__custom__");
       for (const t of matchedTerms(search, custom)) termSet.add(t);
-      for (const h of matchedKeywords(about, custom, search)) highlightSet.add(h);
+      for (const h of matchedKeywords(search, custom, search)) highlightSet.add(h);
     }
   }
 

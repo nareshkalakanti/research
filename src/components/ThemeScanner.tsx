@@ -7,6 +7,7 @@ import {
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
+import { ThemeScrapeScanButton } from "@/components/ThemeScrapeScanButton";
 import { WatchlistFilterBar } from "@/components/WatchlistFilterBar";
 import { SavedSearchesBar } from "@/components/SavedSearchesBar";
 import { ThemeMultiselect } from "@/components/ThemeMultiselect";
@@ -38,11 +39,18 @@ type ScanApi = {
     negen?: number;
     sme?: number;
     note?: number;
-    green?: number;
-    dots_pending?: number;
   };
   session?: { bb: string | null; tq: string | null; ema?: string | null };
   breakoutsPreferred?: boolean;
+  scrape?: {
+    tried: number;
+    saved: number;
+    failed: number;
+    empty: number;
+    remaining: number;
+    sector_pool: number;
+    saved_tickers: string[];
+  };
 };
 
 export function ThemeScanner() {
@@ -61,12 +69,14 @@ export function ThemeScanner() {
   const [filterNegen, setFilterNegen] = useState(false);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
-  const [filterGreen, setFilterGreen] = useState(false);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("sector");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ScanApi | null>(null);
   const [loading, setLoading] = useState(false);
+  const [dynamicScrape, setDynamicScrape] = useState(true);
+  const [scrapeStatus, setScrapeStatus] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const hasDataRef = useRef(false);
   const loadSeqRef = useRef(0);
   hasDataRef.current = !!data;
@@ -78,7 +88,6 @@ export function ThemeScanner() {
     negen: number;
     sme: number;
     note: number;
-    green: number;
   }>({
     hold: 0,
     distress: 0,
@@ -87,7 +96,6 @@ export function ThemeScanner() {
     negen: 0,
     sme: 0,
     note: 0,
-    green: 0,
   });
 
   useEffect(() => {
@@ -118,7 +126,6 @@ export function ThemeScanner() {
               negen?: number;
               sme?: number;
               note?: number;
-              green?: number;
             };
           };
         } catch {
@@ -137,7 +144,6 @@ export function ThemeScanner() {
             negen: j.signals.negen ?? 0,
             sme: j.signals.sme ?? 0,
             note: j.signals.note ?? 0,
-            green: j.signals.green ?? 0,
           });
         }
       });
@@ -150,11 +156,11 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [selected, debouncedCustom, market, cap, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote, filterGreen]);
+  }, [selected, debouncedCustom, market, cap, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote]);
 
   const themeActive = selected.length > 0 || debouncedCustom.trim().length > 0;
   const watchlistActive =
-    filterHold || filterEdge || filterNiveshaay || filterNegen || filterSme || filterNote || filterGreen;
+    filterHold || filterEdge || filterNiveshaay || filterNegen || filterSme || filterNote;
   const capActive = cap !== "All";
   const active = themeActive || watchlistActive || capActive;
   const listMarket = market;
@@ -186,12 +192,16 @@ export function ThemeScanner() {
       if (filterNegen) params.set("negen", "1");
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
-      if (filterGreen) params.set("green", "1");
       if (opts?.refresh) params.set("refresh", "1");
+      setLoadError(null);
       try {
-        const res = await fetch(`/api/companies?${params}`);
+        let res: Response;
+        try {
+          res = await fetch(`/api/companies?${params}`);
+        } catch {
+          throw new Error("Network error — is the dev server running?");
+        }
         const raw = await res.text();
-        if (seq !== loadSeqRef.current) return;
         if (!raw.trim()) {
           throw new Error(`Empty response (${res.status})`);
         }
@@ -202,7 +212,11 @@ export function ThemeScanner() {
           throw new Error(`Invalid JSON (${res.status})`);
         }
         if (!res.ok) {
-          throw new Error(`Request failed (${res.status})`);
+          const msg =
+            typeof (json as { error?: unknown }).error === "string"
+              ? (json as { error: string }).error
+              : `Request failed (${res.status})`;
+          throw new Error(msg);
         }
         if (seq !== loadSeqRef.current) return;
         setData(json);
@@ -216,9 +230,11 @@ export function ThemeScanner() {
             negen: json.signals.negen ?? 0,
             sme: json.signals.sme ?? 0,
             note: json.signals.note ?? 0,
-            green: json.signals.green ?? 0,
           });
         }
+      } catch (e) {
+        if (seq !== loadSeqRef.current) return;
+        setLoadError(e instanceof Error ? e.message : "Load failed");
       } finally {
         if (seq === loadSeqRef.current) setLoading(false);
       }
@@ -236,12 +252,65 @@ export function ThemeScanner() {
       filterNegen,
       filterSme,
       filterNote,
-      filterGreen,
       page,
       sort,
       dir,
     ],
   );
+
+  const scanParams = useMemo(() => {
+    const params = new URLSearchParams({
+      market: listMarket,
+      cap,
+      page: String(page),
+      pageSize: "100",
+      sort,
+      dir,
+    });
+    if (themeActive) {
+      params.set("scan", "1");
+      params.set("themes", selected.join(","));
+      params.set("custom", debouncedCustom);
+    }
+    if (filterHold) params.set("hold", "1");
+    if (filterEdge) params.set("edge", "1");
+    if (filterNiveshaay) params.set("niveshaay", "1");
+    if (filterNegen) params.set("negen", "1");
+    if (filterSme) params.set("sme", "1");
+    if (filterNote) params.set("note", "1");
+    return params;
+  }, [
+    listMarket,
+    cap,
+    page,
+    sort,
+    dir,
+    themeActive,
+    selected,
+    debouncedCustom,
+    filterHold,
+    filterEdge,
+    filterNiveshaay,
+    filterNegen,
+    filterSme,
+    filterNote,
+  ]);
+
+  const applyScanBatch = useCallback((json: ScanApi) => {
+    setData(json);
+    if (json.markets) setMarkets(json.markets);
+    if (json.signals) {
+      setSignalCounts({
+        hold: json.signals.hold ?? 0,
+        distress: json.signals.distress ?? 0,
+        edge: json.signals.edge ?? 0,
+        niveshaay: json.signals.niveshaay ?? 0,
+        negen: json.signals.negen ?? 0,
+        sme: json.signals.sme ?? 0,
+        note: json.signals.note ?? 0,
+      });
+    }
+  }, []);
 
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -286,7 +355,16 @@ export function ThemeScanner() {
             {meta.syntax ? ` Syntax: ${meta.syntax}.` : null}
           </p>
         </div>
-        <div className="scanner-hero-right">
+        <div className="scanner-hero-right scanner-hero-actions">
+          {themeActive && dynamicScrape ? (
+            <ThemeScrapeScanButton
+              params={scanParams}
+              disabled={!themeActive}
+              onProgress={setScrapeStatus}
+              onBatch={(json) => applyScanBatch(json as ScanApi)}
+              onDone={softReload}
+            />
+          ) : null}
           <RefreshButton
             busy={loading}
             onRefresh={async () => {
@@ -331,6 +409,74 @@ export function ThemeScanner() {
           <p className="hint tight">
             Pipe-separated OR · use + for AND inside a clause
           </p>
+          <label className="theme-scrape-toggle">
+            <input
+              type="checkbox"
+              checked={dynamicScrape}
+              onChange={(e) => setDynamicScrape(e.target.checked)}
+            />
+            <span>
+              Website scrape on Scan
+              {scrapeStatus ? ` · ${scrapeStatus}` : ""}
+            </span>
+          </label>
+          {dynamicScrape ? (
+            <p className="hint tight">
+              Hit <strong>Scan</strong> to scrape theme-sector websites (stored
+              in DB) and refresh keyword matches. Already-scraped tickers are
+              skipped.
+            </p>
+          ) : (
+            <p className="hint tight">
+              Theme filter uses About + stored website text only. Enable scrape
+              on Scan to fetch new site text.
+            </p>
+          )}
+          {selectedThemes.some((t) =>
+            [
+              "solar_epc_bess",
+              "packaging_gravure",
+              "aseptic_food_processing",
+              "micro_irrigation",
+              "seismic_geophysical",
+              "progressive_cavity_pumps",
+              "pvc_pipes_fittings",
+            ].includes(t.id),
+          ) ? (
+            <p className="hint tight">
+              Nanocap-style themes: results capped at ₹500 Cr mcap. Portfolio
+              matches stay visible even with BB/TQ filters.
+            </p>
+          ) : null}
+          {selectedThemes.some((t) =>
+            [
+              "hospitals_healthcare",
+              "real_estate_redevelopment",
+              "foundry_consumables",
+              "gems_jewellery_lgd",
+              "tmt_royalty",
+              "coated_steel",
+              "auto_components_adas",
+              "pib_additives",
+              "merchant_banking",
+              "financials_infra",
+              "gilts_primary_dealer",
+            ].includes(t.id),
+          ) &&
+          !selectedThemes.some((t) =>
+            [
+              "solar_epc_bess",
+              "packaging_gravure",
+              "aseptic_food_processing",
+              "micro_irrigation",
+              "seismic_geophysical",
+            ].includes(t.id),
+          ) ? (
+            <p className="hint tight">
+              Listed-venture themes: results capped at ₹6,000 Cr mcap. Holdings
+              in these themes are pinned to the top.
+            </p>
+          ) : null}
           <SavedSearchesBar
             scope="theme"
             pattern={custom}
@@ -401,8 +547,6 @@ export function ThemeScanner() {
           onNegen={setFilterNegen}
           onSme={setFilterSme}
           onNote={setFilterNote}
-          green={filterGreen}
-          onGreen={setFilterGreen}
           holdCount={data?.signals?.hold ?? signalCounts.hold}
           distressCount={data?.signals?.distress ?? signalCounts.distress}
           edgeCount={data?.signals?.edge ?? signalCounts.edge}
@@ -410,7 +554,6 @@ export function ThemeScanner() {
           negenCount={data?.signals?.negen ?? signalCounts.negen}
           smeCount={data?.signals?.sme ?? signalCounts.sme}
           noteCount={data?.signals?.note ?? signalCounts.note}
-          greenCount={data?.signals?.green ?? signalCounts.green}
         />
       </div>
 
@@ -431,12 +574,26 @@ export function ThemeScanner() {
 
       {!active ? (
         <div className="empty-state">
-          Select themes, cap band, keywords, or a watch / weekly chip. Use{" "}
-          <strong>Scan</strong> to refresh BB/TQ.
+          Select themes, cap band, keywords, or a watch / weekly chip.{" "}
+          {dynamicScrape && themeActive ? (
+            <>
+              Use <strong>Scan</strong> to scrape websites and refresh matches.
+            </>
+          ) : (
+            <>
+              Use <strong>Scan</strong> on the Scan tab for BB/TQ signals.
+            </>
+          )}
         </div>
       ) : (
         <>
+          {loadError ? (
+            <div className="empty-state theme-load-error">{loadError}</div>
+          ) : null}
           {loading && !data ? <div className="loading">Loading…</div> : null}
+          {scrapeStatus ? (
+            <div className="loading theme-scrape-progress">{scrapeStatus}</div>
+          ) : null}
           <CompanyTable
             rows={data?.rows ?? []}
             sort={sort}
@@ -445,6 +602,7 @@ export function ThemeScanner() {
             showMatched={themeActive}
             capFilter={cap}
             onNoteChange={softReload}
+            onScrapeDone={softReload}
             toolbar={
               <div className="pager">
                 <span>

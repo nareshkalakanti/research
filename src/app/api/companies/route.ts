@@ -8,11 +8,13 @@ import {
 import {
   combinePatterns,
   matchedKeywords,
+  scrapeHighlightsForRow,
   textHasTerm,
   tickerMatchesSearch,
 } from "@/lib/pattern";
 import { themesByIds } from "@/lib/themes";
-import { matchThemesForRow, mergeThemePortfolioRows } from "@/lib/theme-match";
+import { matchThemesForRow, mergeThemePortfolioRows, themeMatchPattern } from "@/lib/theme-match";
+import { runThemeScrapeBatch, type ThemeScrapeStats } from "@/lib/theme-scrape";
 import {
   invalidateBreakoutCache,
   latestSignalDates,
@@ -38,11 +40,6 @@ import {
   companyGapFlags,
   matchesMissingGap,
 } from "@/lib/missing-data";
-import {
-  loadQuarterMetricsMap,
-  isAllGreenMetrics,
-  tickerNeedsQuarterScan,
-} from "@/lib/quarter-metrics-cache";
 import { capTier, type CapTier } from "@/lib/types";
 import {
   isScanWatchlist,
@@ -79,6 +76,8 @@ function fundStubRow(stub: {
     market: stub.market,
     website: null,
     about: null,
+    scraped_about: null,
+    scrape_source_url: null,
     headquarters: null,
     sector: null,
     sub_sector: null,
@@ -129,7 +128,6 @@ type CompanyRow = ReturnType<typeof loadAllCompanies>[number];
 function applyWatchlistFilters(
   input: CompanyRow[],
   opts: {
-    filterGreen: boolean;
     filterSme: boolean;
     filterHold: boolean;
     filterDistress: boolean;
@@ -137,7 +135,6 @@ function applyWatchlistFilters(
     filterNiveshaay: boolean;
     filterNegen: boolean;
     filterNote: boolean;
-    quarterMetricsMap: ReturnType<typeof loadQuarterMetricsMap>;
     holdings: Set<string>;
     distressSet: Set<string>;
     edge: Set<string>;
@@ -148,14 +145,6 @@ function applyWatchlistFilters(
   },
 ): CompanyRow[] {
   let companies = input;
-
-  if (opts.filterGreen) {
-    companies = companies.filter((c) =>
-      isAllGreenMetrics(
-        opts.quarterMetricsMap.get(c.ticker.toUpperCase()),
-      ),
-    );
-  }
 
   if (opts.filterSme) {
     companies = companies.filter((c) => /\bSME\b/i.test(c.market));
@@ -243,7 +232,6 @@ async function buildCompaniesResponse(req: NextRequest) {
   const filterNiveshaay = sp.get("niveshaay") === "1";
   const filterNegen = sp.get("negen") === "1";
   const filterNote = sp.get("note") === "1";
-  const filterGreen = sp.get("green") === "1";
   const fundListMode = filterNiveshaay || filterNegen;
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
   const preferBreakouts = sp.get("preferBreakouts") === "1";
@@ -253,13 +241,18 @@ async function buildCompaniesResponse(req: NextRequest) {
     .filter(Boolean);
   const custom = (sp.get("custom") || "").trim();
   const selectedThemes = themesByIds(themeIds);
-  const themePatterns = selectedThemes.map((t) => t.display_pattern);
+  const themePatterns = selectedThemes.map((t) => themeMatchPattern(t));
   const scanPattern = combinePatterns([...themePatterns, custom]);
   const page = Math.max(1, Number(sp.get("page") || 1));
   const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") || 100)));
   const sort = sp.get("sort") || "sector";
   const dir = sp.get("dir") === "desc" ? "desc" : "asc";
   const scan = sp.get("scan") === "1";
+  const dynamicScrape = sp.get("dynamicScrape") === "1";
+  const scrapeLimit = Math.min(
+    15,
+    Math.max(1, Number(sp.get("scrapeLimit") || 5)),
+  );
   const missing = (sp.get("missing") || "").trim().toLowerCase();
 
   const breakouts = loadBreakoutMap(bbTf);
@@ -270,10 +263,32 @@ async function buildCompaniesResponse(req: NextRequest) {
   const negen = negenTickerSet();
   const fundCounts = fundWatchlistCounts();
   const notes = notesTickerSet();
-  const quarterMetricsMap = loadQuarterMetricsMap();
 
   let companies = loadAllCompanies();
   const allCompanies = companies;
+
+  function applyMarketPoolFilters(pool: typeof companies): typeof companies {
+    let out = pool;
+    if (!watchlistMode && !scanListMode && market && market !== "All") {
+      if (market === "NSE" && (scan || q.trim())) {
+        out = out.filter(
+          (c) => c.market === "NSE" || c.market === "NSE SME",
+        );
+      } else {
+        out = out.filter((c) => c.market === market);
+      }
+    }
+    if (scanListMode) {
+      out = filterCompaniesByScanList(out, market, allCompanies, fundStubRow);
+    }
+    if (sector && sector !== "All") {
+      out = out.filter((c) => c.sector === sector);
+    }
+    if (cap && cap !== "All") {
+      out = out.filter((c) => capTier(c.mcap_cr) === cap);
+    }
+    return out;
+  }
 
   // Hold / Edge / Notes are cross-market lists — don't hide SME/BSE when those chips are on.
   const watchlistMode =
@@ -285,32 +300,26 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterSme ||
     filterNote;
   const scanListMode = isScanWatchlist(market);
-  if (!watchlistMode && !scanListMode && market && market !== "All") {
-    // Theme scan + Watching search on NSE also check NSE SME (Sunlite, Vilas, …).
-    if (market === "NSE" && (scan || q.trim())) {
-      companies = companies.filter(
-        (c) => c.market === "NSE" || c.market === "NSE SME",
-      );
-    } else {
-      companies = companies.filter((c) => c.market === market);
+  companies = applyMarketPoolFilters(companies);
+
+  let scrapeStats: ThemeScrapeStats | null = null;
+  if (
+    scan &&
+    dynamicScrape &&
+    selectedThemes.length > 0 &&
+    !missing
+  ) {
+    const pool = companies;
+    scrapeStats = await runThemeScrapeBatch({
+      companies: pool,
+      themes: selectedThemes,
+      limit: scrapeLimit,
+    });
+    if (scrapeStats.saved > 0) {
+      companies = applyMarketPoolFilters(loadAllCompanies());
     }
   }
-  if (scanListMode) {
-    companies = filterCompaniesByScanList(
-      companies,
-      market,
-      allCompanies,
-      fundStubRow,
-    );
-  }
-  if (sector && sector !== "All") {
-    companies = companies.filter((c) => c.sector === sector);
-  }
-  if (cap && cap !== "All") {
-    companies = companies.filter((c) => capTier(c.mcap_cr) === cap);
-  }
 
-  // Missing-data tab: always surface fund watchlist names (often BSE) even on NSE list.
   if (missing) {
     companies = mergeFundWatchlistUniverse(companies, allCompanies, {
       niveshaay,
@@ -319,11 +328,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   function gapFlags(c: (typeof companies)[number]) {
-    const t = c.ticker.toUpperCase();
-    return {
-      ...companyGapFlags(c),
-      dots_pending: tickerNeedsQuarterScan(t, quarterMetricsMap),
-    };
+    return companyGapFlags(c);
   }
 
   if (missing) {
@@ -374,7 +379,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     for (const c of companies) {
       // Highlight only in About text — not company name / ticker.
       highlightsByTicker[c.ticker] = matchedKeywords(
-        [c.about, c.headquarters].filter(Boolean).join("\n"),
+        c.search_text,
         qPattern,
         c.search_text,
       );
@@ -409,8 +414,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     let smeCount = 0;
     let note = 0;
     let distressCount = 0;
-    let green = 0;
-    let dotsPending = 0;
     const themeScanActive =
       scan && (selectedThemes.length > 0 || custom.trim());
     for (const c of pool) {
@@ -433,9 +436,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
-      const qmRow = quarterMetricsMap.get(t);
-      if (tickerNeedsQuarterScan(t, quarterMetricsMap)) dotsPending += 1;
-      if (isAllGreenMetrics(qmRow)) green += 1;
     }
     return {
       bb,
@@ -448,8 +448,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       sme: smeCount,
       note,
       distress: distressCount,
-      green,
-      dots_pending: dotsPending,
     };
   })();
 
@@ -503,7 +501,6 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   companies = applyWatchlistFilters(companies, {
-    filterGreen,
     filterSme,
     filterHold,
     filterDistress,
@@ -511,7 +508,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterNiveshaay,
     filterNegen,
     filterNote,
-    quarterMetricsMap,
     holdings,
     distressSet,
     edge,
@@ -569,9 +565,6 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const slice = pageItems.map((c) => {
     const m = metricsMap.get(c.ticker.toUpperCase());
-    const t = c.ticker.toUpperCase();
-    const qm = quarterMetricsMap.get(t);
-    const metricsPending = tickerNeedsQuarterScan(t, quarterMetricsMap);
     const row = {
       ...c,
       price: m?.price ?? c.price,
@@ -584,6 +577,12 @@ async function buildCompaniesResponse(req: NextRequest) {
       ...rest,
       matched: matchedByTheme[row.ticker] ?? [],
       highlights: highlightsByTicker[row.ticker] ?? [],
+      scrape_highlights: scrapeHighlightsForRow(
+        row.scraped_about,
+        highlightsByTicker[row.ticker]?.length
+          ? highlightsByTicker[row.ticker]!
+          : matchedByTheme[row.ticker] ?? [],
+      ),
       has_bb: !!flags?.has_bb,
       has_tq: !!flags?.has_tq,
       has_ema: !!flags?.has_ema,
@@ -596,9 +595,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       bb: flags?.bb,
       tq: flags?.tq,
       ema: flags?.ema,
-      forward_pe: metricsPending ? undefined : (qm?.forward_pe ?? null),
-      eps_yoy: metricsPending ? undefined : (qm?.eps_yoy ?? null),
-      sales_yoy: metricsPending ? undefined : (qm?.sales_yoy ?? null),
       missing: {
         price: g.price,
         mcap: g.mcap,
@@ -606,7 +602,6 @@ async function buildCompaniesResponse(req: NextRequest) {
         sub_sector: g.sub_sector,
         about: g.about,
         web: g.web,
-        dots_pending: g.dots_pending,
       },
     };
   });
@@ -667,5 +662,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     signals: signalCounts,
     session: latestSignalDates(breakouts),
     breakoutsPreferred: !!breakoutsPreferred,
+    scrape: scrapeStats ?? undefined,
   });
 }

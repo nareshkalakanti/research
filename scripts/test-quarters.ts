@@ -94,6 +94,10 @@ function main() {
   assert.equal(computeForwardPe(475, eps), 8.9);
   assert.equal(computeTrailingPe(475, eps), 25.7);
   assert.equal(computeForwardPe(100, [-1, -2]), 999);
+  assert.equal(
+    computeForwardPe(49.76, [-3.66, 0.56, -0.04, 0.04, -2.29]),
+    22.2,
+  );
 
   const yoyPanel = buildQuarterPanel(growingSeries());
   assert.ok(yoyPanel);

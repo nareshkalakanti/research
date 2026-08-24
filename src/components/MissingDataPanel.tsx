@@ -234,6 +234,7 @@ export function MissingDataPanel() {
           dir={dir}
           onSort={onSort}
           showMissing
+          onScrapeDone={() => load({ refresh: true })}
         />
       )}
     </div>

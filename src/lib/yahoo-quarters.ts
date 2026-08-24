@@ -53,6 +53,12 @@ const OTHER_INCOME_FIELDS = [
   "otherIncome",
 ] as const;
 
+const CFO_FIELDS = [
+  "operatingCashFlow",
+  "cashFlowFromContinuingOperatingActivities",
+  "cashFlowFromOperations",
+] as const;
+
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 /** Allow limited parallel Yahoo calls (global mutex was ~1 req / 200ms). */
@@ -100,6 +106,35 @@ function pickField(
   return null;
 }
 
+async function fetchLatestOperatingCashflow(symbol: string): Promise<number | null> {
+  if (!symbol) return null;
+  const period1 = new Date();
+  period1.setFullYear(period1.getFullYear() - 4);
+  try {
+    const series = await withYahooThrottle(async () => {
+      const ft = await yf.fundamentalsTimeSeries(symbol, {
+        period1: toDateStr(period1),
+        type: "quarterly",
+        module: "cash-flow",
+      });
+      return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
+    });
+    let best: { date: string; cfo: number } | null = null;
+    for (const row of series) {
+      const date = toDateStr(row.date as Date);
+      if (!date) continue;
+      const cfo = pickField(row, CFO_FIELDS);
+      if (cfo == null) continue;
+      if (!best || date.localeCompare(best.date) > 0) {
+        best = { date, cfo };
+      }
+    }
+    return best?.cfo ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchQuarterlyFundamentals(
   ticker: string,
   market?: string | null,
@@ -110,6 +145,8 @@ export async function fetchQuarterlyFundamentals(
   ret_3m_pct: number | null;
   symbol: string;
   source: "yahoo" | "nse" | "bse" | "none";
+  /** Latest-quarter operating cash flow (Yahoo cash-flow module). */
+  operating_cashflow: number | null;
 }> {
   const symbol = toYfinanceSymbol(ticker, market);
   if (!symbol) {
@@ -119,6 +156,7 @@ export async function fetchQuarterlyFundamentals(
       ret_3m_pct: null,
       symbol: "",
       source: "none",
+      operating_cashflow: null,
     };
   }
 
@@ -242,5 +280,10 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  return { quarters, price, ret_3m_pct, symbol: usedSymbol, source };
+  let operating_cashflow: number | null = null;
+  if (quarters.length >= 2 && usedSymbol && source === "yahoo") {
+    operating_cashflow = await fetchLatestOperatingCashflow(usedSymbol);
+  }
+
+  return { quarters, price, ret_3m_pct, symbol: usedSymbol, source, operating_cashflow };
 }

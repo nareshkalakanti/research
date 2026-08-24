@@ -11,8 +11,22 @@ export type QuarterMetricsRow = {
   eps_yoy: number | null;
   sales_yoy: number | null;
   np_yoy: number | null;
+  sales_qoq: number | null;
+  np_qoq: number | null;
+  eps_qoq: number | null;
+  ebidt_yoy: number | null;
+  cf_profit: number | null;
   computed_at: string;
 };
+
+export type QuarterMetricsExtras = Pick<
+  QuarterMetricsRow,
+  | "sales_qoq"
+  | "np_qoq"
+  | "eps_qoq"
+  | "ebidt_yoy"
+  | "cf_profit"
+>;
 
 let cacheDb: Database.Database | null = null;
 let mapCache: { at: number; map: Map<string, QuarterMetricsRow> } | null =
@@ -33,9 +47,29 @@ function ensureDb(): Database.Database {
       eps_yoy REAL,
       sales_yoy REAL,
       np_yoy REAL,
+      sales_qoq REAL,
+      np_qoq REAL,
+      eps_qoq REAL,
+      ebidt_yoy REAL,
+      cf_profit REAL,
       computed_at TEXT NOT NULL
     );
   `);
+  const cols = db
+    .prepare(`PRAGMA table_info(quarter_metrics)`)
+    .all() as Array<{ name: string }>;
+  const names = new Set(cols.map((c) => c.name));
+  for (const col of [
+    "sales_qoq",
+    "np_qoq",
+    "eps_qoq",
+    "ebidt_yoy",
+    "cf_profit",
+  ]) {
+    if (!names.has(col)) {
+      db.exec(`ALTER TABLE quarter_metrics ADD COLUMN ${col} REAL`);
+    }
+  }
   cacheDb = db;
   return db;
 }
@@ -58,7 +92,8 @@ export function loadQuarterMetricsMap(): Map<string, QuarterMetricsRow> {
     const db = ensureDb();
     const rows = db
       .prepare(
-        `SELECT ticker, forward_pe, eps_yoy, sales_yoy, np_yoy, computed_at
+        `SELECT ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
+                sales_qoq, np_qoq, eps_qoq, ebidt_yoy, cf_profit, computed_at
          FROM quarter_metrics`,
       )
       .all() as QuarterMetricsRow[];
@@ -70,31 +105,6 @@ export function loadQuarterMetricsMap(): Map<string, QuarterMetricsRow> {
   return map;
 }
 
-/** All three metric dots green: Fwd PE ≤20, EPS YoY >0, Sales YoY >0. */
-export function isAllGreenMetrics(
-  row: Pick<
-    QuarterMetricsRow,
-    "forward_pe" | "eps_yoy" | "sales_yoy"
-  > | null | undefined,
-): boolean {
-  if (!row) return false;
-  const pe = row.forward_pe;
-  if (pe == null || !Number.isFinite(pe) || pe <= 0 || pe >= 500 || pe > 20) {
-    return false;
-  }
-  if (row.eps_yoy == null || !Number.isFinite(row.eps_yoy) || row.eps_yoy <= 0) {
-    return false;
-  }
-  if (
-    row.sales_yoy == null ||
-    !Number.isFinite(row.sales_yoy) ||
-    row.sales_yoy <= 0
-  ) {
-    return false;
-  }
-  return true;
-}
-
 export function saveQuarterMetrics(
   ticker: string,
   data: {
@@ -102,18 +112,34 @@ export function saveQuarterMetrics(
     eps_yoy: number | null;
     sales_yoy: number | null;
     np_yoy: number | null;
+    sales_qoq?: number | null;
+    np_qoq?: number | null;
+    eps_qoq?: number | null;
+    ebidt_yoy?: number | null;
+    cf_profit?: number | null;
   },
 ): void {
   const key = ticker.toUpperCase();
   const db = ensureDb();
   db.prepare(
-    `INSERT INTO quarter_metrics (ticker, forward_pe, eps_yoy, sales_yoy, np_yoy, computed_at)
-     VALUES (@ticker, @forward_pe, @eps_yoy, @sales_yoy, @np_yoy, @computed_at)
+    `INSERT INTO quarter_metrics (
+       ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
+       sales_qoq, np_qoq, eps_qoq, ebidt_yoy, cf_profit, computed_at
+     )
+     VALUES (
+       @ticker, @forward_pe, @eps_yoy, @sales_yoy, @np_yoy,
+       @sales_qoq, @np_qoq, @eps_qoq, @ebidt_yoy, @cf_profit, @computed_at
+     )
      ON CONFLICT(ticker) DO UPDATE SET
        forward_pe = excluded.forward_pe,
        eps_yoy = excluded.eps_yoy,
        sales_yoy = excluded.sales_yoy,
        np_yoy = excluded.np_yoy,
+       sales_qoq = excluded.sales_qoq,
+       np_qoq = excluded.np_qoq,
+       eps_qoq = excluded.eps_qoq,
+       ebidt_yoy = excluded.ebidt_yoy,
+       cf_profit = excluded.cf_profit,
        computed_at = excluded.computed_at`,
   ).run({
     ticker: key,
@@ -121,9 +147,37 @@ export function saveQuarterMetrics(
     eps_yoy: data.eps_yoy,
     sales_yoy: data.sales_yoy,
     np_yoy: data.np_yoy,
+    sales_qoq: data.sales_qoq ?? null,
+    np_qoq: data.np_qoq ?? null,
+    eps_qoq: data.eps_qoq ?? null,
+    ebidt_yoy: data.ebidt_yoy ?? null,
+    cf_profit: data.cf_profit ?? null,
     computed_at: new Date().toISOString(),
   });
   invalidateQuarterMetricsCache();
+}
+
+export function extrasFromMetricsRow(
+  row: QuarterMetricsRow | null | undefined,
+): QuarterMetricsExtras | null {
+  if (!row) return null;
+  const extras: QuarterMetricsExtras = {
+    sales_qoq: row.sales_qoq,
+    np_qoq: row.np_qoq,
+    eps_qoq: row.eps_qoq,
+    ebidt_yoy: row.ebidt_yoy,
+    cf_profit: row.cf_profit,
+  };
+  if (
+    extras.sales_qoq == null &&
+    extras.np_qoq == null &&
+    extras.eps_qoq == null &&
+    extras.ebidt_yoy == null &&
+    extras.cf_profit == null
+  ) {
+    return null;
+  }
+  return extras;
 }
 
 export function isQuarterMetricsCached(
@@ -148,4 +202,30 @@ export function tickerNeedsQuarterScan(
   map = loadQuarterMetricsMap(),
 ): boolean {
   return !map.has(ticker.toUpperCase());
+}
+
+/** Scanned rows missing QoQ / EBIDT / CF columns (pre-migration cache). */
+export function tickerNeedsExtrasBackfill(
+  ticker: string,
+  map = loadQuarterMetricsMap(),
+): boolean {
+  const row = map.get(ticker.toUpperCase());
+  if (!row) return false;
+  return (
+    row.sales_qoq == null &&
+    row.np_qoq == null &&
+    row.eps_qoq == null &&
+    row.ebidt_yoy == null &&
+    row.cf_profit == null
+  );
+}
+
+export function tickerNeedsMetricsRefresh(
+  ticker: string,
+  map = loadQuarterMetricsMap(),
+): boolean {
+  return (
+    tickerNeedsQuarterScan(ticker, map) ||
+    tickerNeedsExtrasBackfill(ticker, map)
+  );
 }

@@ -6,7 +6,7 @@ import {
   type CapFilter,
 } from "@/components/CapMarketFilters";
 
-/** Quant / PEAD signal toolbar modes. */
+/** Quant signal toolbar modes. */
 export type SignalMode = "all" | "tq" | "bb" | "either" | "both";
 
 type Props = {
