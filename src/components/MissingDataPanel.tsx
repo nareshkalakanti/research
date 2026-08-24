@@ -190,6 +190,7 @@ export function MissingDataPanel() {
         CSV columns: <strong>company name</strong>, <strong>symbol</strong>,{" "}
         <strong>website</strong> — all rows for the selected list and gap filter
         {data ? ` (${data.total.toLocaleString()} stocks)` : null}.
+        Expand a row → <strong>Website</strong> tab to edit URL and scrape text.
       </p>
 
       <div className="filters">
