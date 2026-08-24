@@ -1,10 +1,57 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { invalidateCompanyCache } from "./db";
+import { invalidateCompanyCache, loadAllCompanies } from "./db";
+import { upsertScrapeResult } from "./scraper-store";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const ABOUT_PATH = path.join(DATA_DIR, "company_about.db");
+
+/** Insert a minimal row so manual edits work for fund-list / export-only tickers. */
+export function ensureCompanyAboutRow(
+  ticker: string,
+  opts?: { name?: string; market?: string },
+): boolean {
+  if (!fs.existsSync(ABOUT_PATH)) return false;
+  const key = ticker.toUpperCase();
+  const db = new Database(ABOUT_PATH);
+  try {
+    const exists = db
+      .prepare(`SELECT 1 AS ok FROM company_about WHERE ticker = ?`)
+      .get(key) as { ok: number } | undefined;
+    if (exists) return true;
+
+    const fromUniverse = loadAllCompanies().find(
+      (c) => c.ticker.toUpperCase() === key,
+    );
+    const name = opts?.name?.trim() || fromUniverse?.name?.trim() || key;
+    const market =
+      opts?.market?.trim() || fromUniverse?.market?.trim() || "NSE";
+
+    db.prepare(
+      `INSERT INTO company_about (
+         ticker, name, market, website, about, yf_about, scraped_about,
+         company_sector, company_industry, headquarters,
+         products, end_markets, theme_tags, source, fetched_at,
+         has_website, has_yf_about, has_scraped_about
+       ) VALUES (
+         @ticker, @name, @market, NULL, NULL, NULL, NULL,
+         NULL, NULL, NULL,
+         NULL, NULL, NULL, 'manual-edit', @fetched_at,
+         0, 0, 0
+       )`,
+    ).run({
+      ticker: key,
+      name,
+      market,
+      fetched_at: new Date().toISOString(),
+    });
+    return true;
+  } finally {
+    db.close();
+    invalidateCompanyCache();
+  }
+}
 
 export function saveScrapedAboutToCompanyAbout(
   ticker: string,
@@ -47,6 +94,7 @@ export function updateCompanyWebsite(
   opts?: { resetScrape?: boolean },
 ): boolean {
   if (!fs.existsSync(ABOUT_PATH)) return false;
+  if (!ensureCompanyAboutRow(ticker)) return false;
   const key = ticker.toUpperCase();
   let url = website.trim();
   if (!url) return false;
@@ -89,11 +137,34 @@ export function updateCompanyWebsite(
   return ok;
 }
 
+export function saveManualScrapedAbout(
+  ticker: string,
+  scraped_about: string,
+): boolean {
+  if (!ensureCompanyAboutRow(ticker)) return false;
+  const text = scraped_about.trim();
+  if (text.length < 40) return false;
+  const status = text.length >= 80 ? "ok" : "manual";
+  saveScrapedAboutToCompanyAbout(ticker, {
+    scraped_about: text,
+    website_status: "ok",
+    source: "manual-scrape",
+  });
+  upsertScrapeResult(ticker, {
+    scraped_about: text,
+    status,
+    error: null,
+    scrape_source: "website",
+  });
+  return true;
+}
+
 export function saveManualAboutToCompanyAbout(
   ticker: string,
   about: string,
 ): boolean {
   if (!fs.existsSync(ABOUT_PATH)) return false;
+  if (!ensureCompanyAboutRow(ticker)) return false;
   const key = ticker.toUpperCase();
   const text = about.trim();
   if (text.length < 40) return false;

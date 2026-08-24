@@ -258,6 +258,7 @@ function WebsiteScrapePanel({
   company,
   themeHighlights,
   showMore,
+  editable,
   onToggleMore,
   onScrapeDone,
   onUpdated,
@@ -265,6 +266,7 @@ function WebsiteScrapePanel({
   company: Company;
   themeHighlights: string[];
   showMore: boolean;
+  editable?: boolean;
   onToggleMore: () => void;
   onScrapeDone?: () => void;
   onUpdated: (patch: {
@@ -275,6 +277,21 @@ function WebsiteScrapePanel({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [webValue, setWebValue] = useState(company.website || "");
+  const [scrapeValue, setScrapeValue] = useState(company.scraped_about || "");
+  const [webSaving, setWebSaving] = useState(false);
+  const [scrapeSaving, setScrapeSaving] = useState(false);
+  const [webErr, setWebErr] = useState<string | null>(null);
+  const [scrapeErr, setScrapeErr] = useState<string | null>(null);
+  const [webSaved, setWebSaved] = useState<string | null>(null);
+  const [scrapeSaved, setScrapeSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWebValue(company.website || "");
+    setScrapeValue(company.scraped_about || "");
+    setWebErr(null);
+    setScrapeErr(null);
+  }, [company.ticker, company.website, company.scraped_about]);
 
   const scraped = company.scraped_about?.trim() || "";
   const scrapeHighlights = company.scrape_highlights ?? [];
@@ -331,8 +348,149 @@ function WebsiteScrapePanel({
     }
   }, [busy, canScrape, company, onScrapeDone, onUpdated, themeHighlights]);
 
+  const saveField = useCallback(
+    async (action: "website" | "scraped_about", value: string) => {
+      const res = await fetch("/api/scrapper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: company.ticker,
+          name: company.name,
+          market: company.market,
+          action,
+          website: action === "website" ? value : undefined,
+          scraped_about: action === "scraped_about" ? value : undefined,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Save failed");
+      }
+    },
+    [company.market, company.name, company.ticker],
+  );
+
+  const saveWebsite = useCallback(async () => {
+    setWebSaving(true);
+    setWebErr(null);
+    setWebSaved(null);
+    try {
+      await saveField("website", webValue);
+      setWebSaved("Website saved");
+      onScrapeDone?.();
+    } catch (e) {
+      setWebErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setWebSaving(false);
+    }
+  }, [onScrapeDone, saveField, webValue]);
+
+  const saveScrapeText = useCallback(async () => {
+    setScrapeSaving(true);
+    setScrapeErr(null);
+    setScrapeSaved(null);
+    try {
+      await saveField("scraped_about", scrapeValue);
+      const text = scrapeValue.trim();
+      const scrapeHits = scrapeHighlightsForRow(text, themeHighlights);
+      onUpdated({
+        scraped_about: text || null,
+        scrape_source_url: company.scrape_source_url || company.web || null,
+        scrape_highlights: scrapeHits,
+      });
+      setScrapeSaved("Scrape text saved");
+      onScrapeDone?.();
+    } catch (e) {
+      setScrapeErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setScrapeSaving(false);
+    }
+  }, [
+    company.scrape_source_url,
+    company.web,
+    onScrapeDone,
+    onUpdated,
+    saveField,
+    scrapeValue,
+    themeHighlights,
+  ]);
+
   return (
     <>
+      {editable ? (
+        <div className="missing-edit-block">
+          <form
+            className="scrapper-web-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveWebsite();
+            }}
+          >
+            <label
+              className="scrapper-web-form-label"
+              htmlFor={`missing-web-${company.ticker}`}
+            >
+              Website URL
+            </label>
+            <input
+              id={`missing-web-${company.ticker}`}
+              className="scrapper-web-input"
+              value={webValue}
+              onChange={(e) => setWebValue(e.target.value)}
+              placeholder="https://example.com"
+              spellCheck={false}
+            />
+            <div className="scrapper-web-form-actions">
+              <button type="submit" className="btn-fill" disabled={webSaving}>
+                {webSaving ? "Saving…" : "Save URL"}
+              </button>
+              {webSaved ? (
+                <span className="missing-edit-ok">{webSaved}</span>
+              ) : null}
+            </div>
+            {webErr ? <p className="scrapper-form-err">{webErr}</p> : null}
+          </form>
+
+          <form
+            className="scrapper-about-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void saveScrapeText();
+            }}
+          >
+            <label
+              className="scrapper-web-form-label"
+              htmlFor={`missing-scrape-${company.ticker}`}
+            >
+              Website scrape text
+            </label>
+            <textarea
+              id={`missing-scrape-${company.ticker}`}
+              className="scrapper-about-input"
+              value={scrapeValue}
+              onChange={(e) => setScrapeValue(e.target.value)}
+              placeholder="Paste company about text from the website…"
+              rows={6}
+            />
+            <div className="scrapper-web-form-actions scrapper-about-form-actions">
+              <button type="submit" className="btn-fill" disabled={scrapeSaving}>
+                {scrapeSaving ? "Saving…" : "Save scrape"}
+              </button>
+              <span className="scrapper-about-hint">
+                Min 40 characters
+              </span>
+              {scrapeSaved ? (
+                <span className="missing-edit-ok">{scrapeSaved}</span>
+              ) : null}
+            </div>
+            {scrapeErr ? (
+              <p className="scrapper-form-err scrapper-about-form-err">
+                {scrapeErr}
+              </p>
+            ) : null}
+          </form>
+        </div>
+      ) : null}
       {company.scrape_source_url || company.web ? (
         <div className="about-meta">
           <span className="about-meta-label">Source</span>
@@ -686,6 +844,7 @@ function CompanyRows({
                   company={websiteCompany}
                   themeHighlights={highlights}
                   showMore={showMore}
+                  editable={showMissing}
                   onToggleMore={onToggleMore}
                   onScrapeDone={onScrapeDone}
                   onUpdated={setScrapePatch}

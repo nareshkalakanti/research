@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  ensureCompanyAboutRow,
   saveManualAboutToCompanyAbout,
+  saveManualScrapedAbout,
   updateCompanyWebsite,
 } from "@/lib/company-about-write";
+import { ensureFundWatchlistInCompanyAbout } from "@/lib/fund-watchlists";
 import {
   listScrapeRows,
   getScrapeByTicker,
@@ -14,9 +17,12 @@ export const runtime = "nodejs";
 
 type ScrapperBody = {
   ticker?: string;
+  name?: string;
+  market?: string;
   website?: string;
   about?: string;
-  action?: "website" | "about";
+  scraped_about?: string;
+  action?: "website" | "about" | "scraped_about";
 };
 
 export async function GET(req: NextRequest) {
@@ -64,9 +70,40 @@ export async function POST(req: NextRequest) {
 
   const website = (body.website || "").trim();
   const about = (body.about || "").trim();
+  const scrapedAbout = (body.scraped_about || "").trim();
   const action = body.action;
 
-  if (action === "about" || (!action && about && !website)) {
+  ensureFundWatchlistInCompanyAbout();
+  if (
+    !ensureCompanyAboutRow(ticker, {
+      name: body.name,
+      market: body.market,
+    })
+  ) {
+    return NextResponse.json(
+      { ok: false, error: "company_about.db unavailable" },
+      { status: 500 },
+    );
+  }
+
+  if (action === "scraped_about" || (!action && scrapedAbout && !website && !about)) {
+    if (!scrapedAbout) {
+      return NextResponse.json(
+        { ok: false, error: "scraped text required" },
+        { status: 400 },
+      );
+    }
+    const saved = saveManualScrapedAbout(ticker, scrapedAbout);
+    if (!saved) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "scrape text too short (min 40 chars) or ticker not found",
+        },
+        { status: 400 },
+      );
+    }
+  } else if (action === "about" || (!action && about && !website)) {
     if (!about) {
       return NextResponse.json({ ok: false, error: "about required" }, { status: 400 });
     }
