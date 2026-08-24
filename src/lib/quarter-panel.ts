@@ -235,19 +235,98 @@ export type PanelYoY = {
   sales_yoy: number | null;
   np_yoy: number | null;
   eps_yoy: number | null;
+  ebidt_yoy: number | null;
 };
+
+export type PanelQoQ = {
+  sales_qoq: number | null;
+  np_qoq: number | null;
+  eps_qoq: number | null;
+  ebidt_qoq: number | null;
+};
+
+export type QuarterExtraMetrics = PanelQoQ &
+  Pick<PanelYoY, "ebidt_yoy"> & {
+    cf_profit: number | null;
+  };
+
+function rowValues(
+  panel: QuarterPanel,
+  label: string,
+): Array<number | null> {
+  return panel.rows.find((r) => r.label === label)?.values ?? [];
+}
+
+/** Latest quarter vs previous quarter (sequential). */
+export function qoqPairFromPanel(
+  values: Array<number | null>,
+): [number | null, number | null] {
+  if (values.length < 2) return [null, null];
+  return [values[values.length - 1] ?? null, values[values.length - 2] ?? null];
+}
+
+export function qoqFromPanel(panel: QuarterPanel): PanelQoQ | null {
+  if (panel.labels.length < 2) return null;
+  const sales = yoyPct(...qoqPairFromPanel(rowValues(panel, "Sales")));
+  const np = yoyPct(...qoqPairFromPanel(rowValues(panel, "Net Profit")));
+  const eps = yoyPct(...qoqPairFromPanel(rowValues(panel, "EPS in Rs")));
+  const ebidt = yoyPct(...qoqPairFromPanel(rowValues(panel, "Operating Profit")));
+  if (sales == null && np == null && eps == null && ebidt == null) return null;
+  return { sales_qoq: sales, np_qoq: np, eps_qoq: eps, ebidt_qoq: ebidt };
+}
+
+/** Operating cash flow ÷ latest net profit (Fisher-style quality). */
+export function computeCfProfit(
+  cfo: number | null | undefined,
+  netProfit: number | null | undefined,
+): number | null {
+  if (cfo == null || netProfit == null || !Number.isFinite(cfo)) return null;
+  if (!Number.isFinite(netProfit) || netProfit === 0) return null;
+  return Math.round((cfo / netProfit) * 100) / 100;
+}
+
+export function cfProfitClass(ratio: number | null | undefined): string {
+  if (ratio == null || !Number.isFinite(ratio)) return "cf-na";
+  if (ratio >= 1.2) return "cf-good";
+  if (ratio >= 0.5) return "cf-mid";
+  return "cf-bad";
+}
+
+export function extraMetricsFromPanel(
+  panel: QuarterPanel,
+  cfProfit?: number | null,
+): QuarterExtraMetrics | null {
+  const qoq = qoqFromPanel(panel);
+  const ebidtRow = rowValues(panel, "Operating Profit");
+  const ebidt_yoy = yoyPct(...yoyPairFromPanel(ebidtRow, panel.labels));
+  const cf_profit = cfProfit ?? null;
+  if (
+    !qoq &&
+    ebidt_yoy == null &&
+    cf_profit == null
+  ) {
+    return null;
+  }
+  return {
+    sales_qoq: qoq?.sales_qoq ?? null,
+    np_qoq: qoq?.np_qoq ?? null,
+    eps_qoq: qoq?.eps_qoq ?? null,
+    ebidt_qoq: qoq?.ebidt_qoq ?? null,
+    ebidt_yoy,
+    cf_profit,
+  };
+}
 
 export function yoyFromPanel(panel: QuarterPanel): PanelYoY | null {
   if (panel.labels.length < 2) return null;
-  const byLabel = new Map(panel.rows.map((r) => [r.label, r.values]));
-  const salesRow = byLabel.get("Sales") ?? [];
-  const npRow = byLabel.get("Net Profit") ?? [];
-  const epsRow = byLabel.get("EPS in Rs") ?? [];
-  const sales = yoyPct(...yoyPairFromPanel(salesRow, panel.labels));
-  const np = yoyPct(...yoyPairFromPanel(npRow, panel.labels));
-  const eps = yoyPct(...yoyPairFromPanel(epsRow, panel.labels));
-  if (sales == null && np == null && eps == null) return null;
-  return { sales_yoy: sales, np_yoy: np, eps_yoy: eps };
+  const sales = yoyPct(...yoyPairFromPanel(rowValues(panel, "Sales"), panel.labels));
+  const np = yoyPct(...yoyPairFromPanel(rowValues(panel, "Net Profit"), panel.labels));
+  const eps = yoyPct(...yoyPairFromPanel(rowValues(panel, "EPS in Rs"), panel.labels));
+  const ebidt = yoyPct(
+    ...yoyPairFromPanel(rowValues(panel, "Operating Profit"), panel.labels),
+  );
+  if (sales == null && np == null && eps == null && ebidt == null) return null;
+  return { sales_yoy: sales, np_yoy: np, eps_yoy: eps, ebidt_yoy: ebidt };
 }
 
 export function fmtYoYPct(v: number | null | undefined): string {

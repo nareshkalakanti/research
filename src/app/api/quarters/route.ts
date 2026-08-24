@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   computeAndCacheQuarterMetrics,
+  metricsSnapshotFromPanel,
   type QuarterMetricsSnapshot,
 } from "@/lib/quarter-metrics-compute";
-import { buildQuarterPanel } from "@/lib/quarter-panel";
+import { buildQuarterPanel, computeCfProfit } from "@/lib/quarter-panel";
 import { loadMetricsMap } from "@/lib/metrics";
 import {
   isQuarterMetricsFresh,
@@ -21,6 +22,13 @@ function snapshotFromCache(row: QuarterMetricsRow): QuarterMetricsSnapshot {
     eps_yoy: row.eps_yoy,
     sales_yoy: row.sales_yoy,
     np_yoy: row.np_yoy,
+    extras: {
+      sales_qoq: row.sales_qoq,
+      np_qoq: row.np_qoq,
+      eps_qoq: row.eps_qoq,
+      ebidt_yoy: row.ebidt_yoy,
+      cf_profit: row.cf_profit,
+    },
   };
 }
 
@@ -54,6 +62,16 @@ export async function GET(req: NextRequest) {
       panel = buildQuarterPanel(live.quarters);
       symbol = live.symbol;
       source = panel ? live.source : undefined;
+      if (panel) {
+        snapshot = metricsSnapshotFromPanel(
+          panel,
+          rowPrice,
+          computeCfProfit(
+            live.operating_cashflow,
+            live.quarters.at(-1)?.netIncome ?? null,
+          ),
+        );
+      }
     } else {
       const result = await computeAndCacheQuarterMetrics(
         ticker,
@@ -85,8 +103,10 @@ export async function GET(req: NextRequest) {
             sales_yoy: snapshot.sales_yoy,
             np_yoy: snapshot.np_yoy,
             eps_yoy: snapshot.eps_yoy,
+            ebidt_yoy: snapshot.extras?.ebidt_yoy ?? null,
           }
         : undefined,
+      extras: snapshot?.extras ?? undefined,
       quarters: panel,
     });
   } catch (e) {

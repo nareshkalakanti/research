@@ -1,0 +1,58 @@
+{
+  "meta": {
+    "title": "Rare Earth Permanent Magnets",
+    "description": "Single-theme corpus — REPM localization & motor assemblies",
+    "version": "2.0",
+    "updated": "2026-08-24",
+    "syntax": "+ means AND, | means OR (AND binds tighter inside a clause)",
+    "theme_count": 1,
+    "clusters": ["critical_minerals_ev_defense"]
+  },
+  "themes": [
+    {
+      "id": "india_repm_magnet_localization",
+      "cluster": "critical_minerals_ev_defense",
+      "name": "Rare Earth Permanent Magnets (REPM) & Motor Assemblies",
+      "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
+      "proxies": [
+        "IREL",
+        "NLC India",
+        "BHEL",
+        "Sona Comstar",
+        "Lucas TVS (unlisted)"
+      ],
+      "pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth",
+      "keywords": [
+        "hard ferrites",
+        "soft ferrites",
+        "ferrites",
+        "flywheel magneto",
+        "traction motors",
+        "traction + motor",
+        "BLDC motors",
+        "integrated motor",
+        "IGBT propulsion",
+        "heavy mineral sand",
+        "monazite",
+        "magnet winding wires",
+        "electronic ignition",
+        "e-mobility + motor",
+        "rare earth"
+      ],
+      "definitions": {
+        "REPM": "Rare Earth Permanent Magnet — NdFeB/SmCo magnets for EV traction motors, wind generators, and defense guidance systems.",
+        "NdFeB": "Neodymium-Iron-Boron; strongest commercial permanent magnet alloy.",
+        "SmCo": "Samarium-Cobalt; high-temperature rare earth magnet for aerospace and defense motors.",
+        "hard ferrites": "Sintered ferrite magnets for automotive magnetos and small motors.",
+        "flywheel magneto": "Magneto ignition with stator/rotor magnet stack.",
+        "traction motors": "EV/rail propulsion motor — primary REPM demand driver.",
+        "BLDC motors": "Brushless DC motors using permanent-magnet rotors.",
+        "heavy mineral sand": "Beach-sand feedstock for monazite/rutile rare earth corridor.",
+        "monazite": "Mineral sand with rare earth phosphates; IREL/NLC feedstock.",
+        "magnet winding wires": "Enamelled copper for motor windings — magnet/motor supply chain.",
+        "REPM scheme": "₹7,280 crore PLI for ~6,000 MTPA domestic REPM capacity."
+      },
+      "research_pattern": "REPM | rare earth permanent magnet | NdFeB | neodymium magnet | magnet localization | 7280 crore + magnet | monazite | heavy mineral sand | traction motor + India | magnet manufacturing + India | IREL + rare earth | dysprosium | terbium"
+    }
+  ]
+}

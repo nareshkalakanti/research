@@ -20,6 +20,8 @@ function fundStubRow(stub: {
     market: stub.market,
     website: null,
     about: null,
+    scraped_about: null,
+    scrape_source_url: null,
     headquarters: null,
     sector: null,
     sub_sector: null,

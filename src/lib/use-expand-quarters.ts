@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { PanelYoY, QuarterPanel } from "@/lib/quarter-panel";
+import type { PanelYoY, QuarterExtraMetrics, QuarterPanel } from "@/lib/quarter-panel";
 
 export type ExpandQuarterData = {
   panel: QuarterPanel | null;
   forward_pe: number | null;
   yoy: PanelYoY | null;
+  extras: QuarterExtraMetrics | null;
   loading: boolean;
   error: string | null;
 };
@@ -20,6 +21,7 @@ export function useExpandQuarters(
   const [panel, setPanel] = useState<QuarterPanel | null>(null);
   const [forwardPe, setForwardPe] = useState<number | null>(null);
   const [yoy, setYoy] = useState<PanelYoY | null>(null);
+  const [extras, setExtras] = useState<QuarterExtraMetrics | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,6 +30,7 @@ export function useExpandQuarters(
       setPanel(null);
       setForwardPe(null);
       setYoy(null);
+      setExtras(null);
       setLoading(false);
       setError(null);
       return;
@@ -50,6 +53,7 @@ export function useExpandQuarters(
           quarters?: QuarterPanel | null;
           forward_pe?: number;
           yoy?: PanelYoY | null;
+          extras?: QuarterExtraMetrics | null;
           error?: string;
         };
         if (cancelled) return;
@@ -57,18 +61,21 @@ export function useExpandQuarters(
           setPanel(null);
           setForwardPe(null);
           setYoy(null);
+          setExtras(null);
           setError(j.error || "Could not load quarters");
           return;
         }
         setPanel(j.quarters ?? null);
         setForwardPe(j.forward_pe ?? null);
         setYoy(j.yoy ?? null);
+        setExtras(j.extras ?? null);
       })
       .catch(() => {
         if (!cancelled) {
           setPanel(null);
           setForwardPe(null);
           setYoy(null);
+          setExtras(null);
           setError("Could not load quarters");
         }
       })
@@ -85,6 +92,7 @@ export function useExpandQuarters(
     panel,
     forward_pe: forwardPe,
     yoy,
+    extras,
     loading,
     error,
   };

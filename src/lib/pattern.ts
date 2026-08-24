@@ -189,6 +189,16 @@ export function matchedTerms(haystack: string, pattern: string): string[] {
   return [...found];
 }
 
+/** Keywords from a highlight list that appear in scraped website text. */
+export function scrapeHighlightsForRow(
+  scraped: string | null | undefined,
+  highlights: string[],
+): string[] {
+  const text = scraped?.trim() || "";
+  if (!text || !highlights.length) return [];
+  return matchedKeywords(text, highlights.join(" | "), text);
+}
+
 /** Individual keyword phrases found in text (for About highlighting). */
 export function matchedKeywords(
   haystack: string,

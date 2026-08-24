@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ExpandExtraMetrics } from "@/components/ExpandExtraMetrics";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
-import { MetricDots } from "@/components/MetricDots";
 import type { Company } from "@/lib/types";
+import { scrapeHighlightsForRow } from "@/lib/pattern";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap } from "@/lib/types";
 
@@ -16,7 +17,7 @@ export type SortKey =
   | "sub_sector"
   | "mcap_cr";
 
-type ExpandPanel = "about" | "notes" | "qtr";
+type ExpandPanel = "about" | "website" | "notes" | "qtr";
 
 type Props = {
   rows: Company[];
@@ -29,6 +30,8 @@ type Props = {
   capFilter?: string;
   /** Called after a note is saved/cleared so parent can refresh NOTE counts. */
   onNoteChange?: () => void;
+  /** Called after an inline website scrape saves new text. */
+  onScrapeDone?: () => void;
   /** Sector filter, pager, etc. — rendered above the table header row. */
   toolbar?: ReactNode;
 };
@@ -112,22 +115,13 @@ export function CompanyTable({
   showMatched,
   showMissing,
   onNoteChange,
+  onScrapeDone,
   toolbar,
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [more, setMore] = useState<Record<string, boolean>>({});
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
-  const [metricDots, setMetricDots] = useState<
-    Record<
-      string,
-      {
-        forward_pe?: number | null;
-        eps_yoy?: number | null;
-        sales_yoy?: number | null;
-      }
-    >
-  >({});
   const colSpan = 6;
   const rowIdentity = useMemo(
     () => rows.map((r) => `${r.market}:${r.ticker}`).join("|"),
@@ -137,7 +131,6 @@ export function CompanyTable({
   useEffect(() => {
     setExpanded(null);
     setPanel("about");
-    setMetricDots({});
   }, [rowIdentity]);
 
   useEffect(() => {
@@ -165,20 +158,6 @@ export function CompanyTable({
         label: string;
         align: "left" | "right";
       }>,
-    [],
-  );
-
-  const onMetricsLoaded = useCallback(
-    (
-      ticker: string,
-      metrics: {
-        forward_pe: number | null;
-        eps_yoy: number | null;
-        sales_yoy: number | null;
-      },
-    ) => {
-      setMetricDots((prev) => ({ ...prev, [ticker]: metrics }));
-    },
     [],
   );
 
@@ -237,18 +216,23 @@ export function CompanyTable({
                   company={{ ...r, has_note: hasNote }}
                   open={open}
                   panel={open ? panel : "about"}
-                  showMore={!!more[r.ticker]}
+                  showMore={!!more[`${r.ticker}:${open ? panel : "about"}`]}
                   showMatched={showMatched}
                   showMissing={showMissing}
                   colSpan={colSpan}
-                  metrics={metricDots[r.ticker]}
-                  onMetricsLoaded={onMetricsLoaded}
                   onToggleAbout={() => {
                     setExpanded(open ? null : r.ticker);
                     setPanel("about");
                   }}
+                  onOpenWebsite={() => {
+                    setExpanded(r.ticker);
+                    setPanel("website");
+                  }}
                   onToggleMore={() =>
-                    setMore((m) => ({ ...m, [r.ticker]: !m[r.ticker] }))
+                    setMore((m) => ({
+                      ...m,
+                      [`${r.ticker}:${panel}`]: !m[`${r.ticker}:${panel}`],
+                    }))
                   }
                   onPanel={(p) => setPanel(p)}
                   onNoteSaved={(body) => {
@@ -258,6 +242,7 @@ export function CompanyTable({
                     }));
                     onNoteChange?.();
                   }}
+                  onScrapeDone={onScrapeDone}
                 />
               );
             })
@@ -269,6 +254,168 @@ export function CompanyTable({
   );
 }
 
+function WebsiteScrapePanel({
+  company,
+  themeHighlights,
+  showMore,
+  onToggleMore,
+  onScrapeDone,
+  onUpdated,
+}: {
+  company: Company;
+  themeHighlights: string[];
+  showMore: boolean;
+  onToggleMore: () => void;
+  onScrapeDone?: () => void;
+  onUpdated: (patch: {
+    scraped_about: string | null;
+    scrape_source_url: string | null;
+    scrape_highlights: string[];
+  }) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const scraped = company.scraped_about?.trim() || "";
+  const scrapeHighlights = company.scrape_highlights ?? [];
+  const scrapedShort = scraped.length > 320 && !showMore;
+  const scrapedText = scrapedShort
+    ? `${scraped.slice(0, 320).trim()}…`
+    : scraped;
+  const canScrape = !!(company.web || company.website);
+
+  const runScrape = useCallback(async (rescan = false) => {
+    if (!canScrape || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/about-scrape", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tickers: [company.ticker],
+          limit: 1,
+          rescan,
+          missingOnly: false,
+        }),
+      });
+      const raw = await res.text();
+      let json: {
+        ok?: boolean;
+        error?: string;
+        message?: string;
+        scraped_about?: string | null;
+        source_url?: string | null;
+      } = {};
+      try {
+        json = JSON.parse(raw) as typeof json;
+      } catch {
+        throw new Error(`Scrape failed (${res.status})`);
+      }
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || json.message || `Scrape failed (${res.status})`);
+      }
+      const text = json.scraped_about?.trim() || "";
+      const source = json.source_url?.trim() || company.scrape_source_url || null;
+      const scrapeHits = scrapeHighlightsForRow(text, themeHighlights);
+      onUpdated({
+        scraped_about: text || null,
+        scrape_source_url: source,
+        scrape_highlights: scrapeHits,
+      });
+      onScrapeDone?.();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Scrape failed");
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, canScrape, company, onScrapeDone, onUpdated, themeHighlights]);
+
+  return (
+    <>
+      {company.scrape_source_url || company.web ? (
+        <div className="about-meta">
+          <span className="about-meta-label">Source</span>
+          {company.scrape_source_url ? (
+            <a
+              href={company.scrape_source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="about-source-link"
+            >
+              {company.scrape_source_url}
+            </a>
+          ) : company.web ? (
+            <a
+              href={company.web}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="about-source-link"
+            >
+              {company.web}
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+      {scrapeHighlights.length > 0 ? (
+        <div className="matched-tags scrape-match-tags">
+          {scrapeHighlights.map((t) => (
+            <span key={t} className="tag tag-scrape-hit">
+              {t}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="about-label">Website scrape</div>
+      {scraped ? (
+        <>
+          <p>
+            <HighlightedText text={scrapedText} keywords={scrapeHighlights} />
+          </p>
+          {scraped.length > 320 ? (
+            <button type="button" className="show-more" onClick={onToggleMore}>
+              {showMore ? "Show less" : "Show more"}
+            </button>
+          ) : null}
+          {canScrape ? (
+            <div className="website-scrape-actions">
+              <button
+                type="button"
+                className="show-more"
+                disabled={busy}
+                onClick={() => void runScrape(true)}
+              >
+                {busy ? "Scraping…" : "Re-scrape website"}
+              </button>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <p className="hint tight">
+            {canScrape
+              ? "No website text scraped yet."
+              : "No website on file for this company."}
+          </p>
+          {canScrape ? (
+            <div className="website-scrape-actions">
+              <button
+                type="button"
+                className="btn-scrape-website"
+                disabled={busy}
+                onClick={() => void runScrape()}
+              >
+                {busy ? "Scraping…" : "Scrape website"}
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+      {error ? <p className="hint tight website-scrape-error">{error}</p> : null}
+    </>
+  );
+}
+
 function CompanyRows({
   company: r,
   open,
@@ -277,12 +424,12 @@ function CompanyRows({
   showMatched,
   showMissing,
   colSpan,
-  metrics,
-  onMetricsLoaded,
   onToggleAbout,
+  onOpenWebsite,
   onToggleMore,
   onPanel,
   onNoteSaved,
+  onScrapeDone,
 }: {
   company: Company;
   open: boolean;
@@ -291,30 +438,46 @@ function CompanyRows({
   showMatched?: boolean;
   showMissing?: boolean;
   colSpan: number;
-  metrics?: {
-    forward_pe?: number | null;
-    eps_yoy?: number | null;
-    sales_yoy?: number | null;
-  };
-  onMetricsLoaded?: (
-    ticker: string,
-    data: {
-      forward_pe: number | null;
-      eps_yoy: number | null;
-      sales_yoy: number | null;
-    },
-  ) => void;
   onToggleAbout: () => void;
+  onOpenWebsite: () => void;
   onToggleMore: () => void;
   onPanel: (p: ExpandPanel) => void;
   onNoteSaved: (body: string | null) => void;
+  onScrapeDone?: () => void;
 }) {
+  const [scrapePatch, setScrapePatch] = useState<{
+    scraped_about: string | null;
+    scrape_source_url: string | null;
+    scrape_highlights: string[];
+  } | null>(null);
+
+  useEffect(() => {
+    setScrapePatch(null);
+  }, [r.ticker, r.scraped_about, r.scrape_source_url, r.scrape_highlights]);
+
+  const websiteCompany = useMemo(
+    () =>
+      scrapePatch
+        ? {
+            ...r,
+            scraped_about: scrapePatch.scraped_about,
+            scrape_source_url: scrapePatch.scrape_source_url,
+            scrape_highlights: scrapePatch.scrape_highlights,
+          }
+        : r,
+    [r, scrapePatch],
+  );
+
   const about = r.about?.trim() || "";
+  const scraped = websiteCompany.scraped_about?.trim() || "";
   const highlights = r.highlights ?? [];
+  const scrapeHighlights = websiteCompany.scrape_highlights ?? [];
   const short = about.length > 320 && !showMore;
   const text = short ? `${about.slice(0, 320).trim()}…` : about;
   const preview =
     about.length > 180 ? `${about.slice(0, 180).trim()}…` : about;
+  const scrapePreview =
+    scraped.length > 180 ? `${scraped.slice(0, 180).trim()}…` : scraped;
 
   const quarterData = useExpandQuarters(
     r.ticker,
@@ -322,29 +485,6 @@ function CompanyRows({
     r.price,
     open,
   );
-
-  useEffect(() => {
-    if (!open || quarterData.loading || !onMetricsLoaded) return;
-    onMetricsLoaded(r.ticker, {
-      forward_pe: quarterData.forward_pe,
-      eps_yoy: quarterData.yoy?.eps_yoy ?? null,
-      sales_yoy: quarterData.yoy?.sales_yoy ?? null,
-    });
-  }, [
-    open,
-    quarterData.loading,
-    quarterData.forward_pe,
-    quarterData.yoy,
-    r.ticker,
-    onMetricsLoaded,
-  ]);
-
-  const dotMetrics = {
-    forward_pe: metrics?.forward_pe ?? r.forward_pe,
-    eps_yoy: metrics?.eps_yoy ?? r.eps_yoy,
-    sales_yoy: metrics?.sales_yoy ?? r.sales_yoy,
-  };
-  const dotsPending = !!r.missing?.dots_pending && metrics == null;
 
   const missingTags =
     showMissing && r.missing
@@ -367,15 +507,7 @@ function CompanyRows({
       <tr className={open ? "row-open" : undefined}>
         <td className="col-name">
           <button type="button" className="company-cell" onClick={onToggleAbout}>
-            <div className="company-title-row">
-              <span className="company-name">{r.name}</span>
-              <MetricDots
-                pending={dotsPending}
-                forwardPe={dotMetrics.forward_pe}
-                epsYoY={dotMetrics.eps_yoy}
-                salesYoY={dotMetrics.sales_yoy}
-              />
-            </div>
+            <span className="company-name">{r.name}</span>
             <span className="company-meta">
               <span className="ticker">{r.ticker}</span>
               {r.headquarters ? (
@@ -417,6 +549,21 @@ function CompanyRows({
               title="Click to expand About"
             >
               <HighlightedText text={preview} keywords={highlights} />
+            </button>
+          ) : null}
+          {!open && scraped ? (
+            <button
+              type="button"
+              className="about-preview about-preview--scrape"
+              onClick={onOpenWebsite}
+              title="Click to expand Website scrape"
+            >
+              <HighlightedText
+                text={scrapePreview}
+                keywords={
+                  scrapeHighlights.length ? scrapeHighlights : highlights
+                }
+              />
             </button>
           ) : null}
         </td>
@@ -486,6 +633,7 @@ function CompanyRows({
                   quarterData.yoy?.eps_yoy == null
                 }
               />
+              <ExpandExtraMetrics extras={quarterData.extras} />
               <div className="about-tabs" role="tablist">
                 <button
                   type="button"
@@ -495,6 +643,20 @@ function CompanyRows({
                   onClick={() => onPanel("about")}
                 >
                   About
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={panel === "website"}
+                  className={`about-tab ${panel === "website" ? "on" : ""}`}
+                  onClick={() => onPanel("website")}
+                >
+                  Website
+                  {scraped && scrapeHighlights.length > 0 ? (
+                    <em className="about-tab-dot" title="Keyword match in scrape" />
+                  ) : scraped ? (
+                    <em className="about-tab-dot about-tab-dot--muted" title="Scraped" />
+                  ) : null}
                 </button>
                 <button
                   type="button"
@@ -519,6 +681,15 @@ function CompanyRows({
 
               {panel === "qtr" ? (
                 <ExpandQuarters data={quarterData} />
+              ) : panel === "website" ? (
+                <WebsiteScrapePanel
+                  company={websiteCompany}
+                  themeHighlights={highlights}
+                  showMore={showMore}
+                  onToggleMore={onToggleMore}
+                  onScrapeDone={onScrapeDone}
+                  onUpdated={setScrapePatch}
+                />
               ) : panel === "about" ? (
                 <>
                   {r.headquarters ? (

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type CapFilter } from "@/components/CapMarketFilters";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
-import { MetricsFillButton } from "@/components/MetricsFillButton";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import { WatchlistFilterBar } from "@/components/WatchlistFilterBar";
@@ -35,8 +34,6 @@ type ApiResponse = {
     negen?: number;
     sme?: number;
     note?: number;
-    green?: number;
-    dots_pending?: number;
   };
   session?: { bb: string | null; tq: string | null; ema?: string | null };
 };
@@ -54,7 +51,6 @@ export function WatchingPanel() {
   const [filterNegen, setFilterNegen] = useState(false);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
-  const [filterGreen, setFilterGreen] = useState(false);
   const [sector, setSector] = useState("All");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("sector");
@@ -72,7 +68,7 @@ export function WatchingPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [market, debouncedQ, mode, cap, sector, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote, filterGreen]);
+  }, [market, debouncedQ, mode, cap, sector, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -95,7 +91,6 @@ export function WatchingPanel() {
       if (filterNegen) params.set("negen", "1");
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
-      if (filterGreen) params.set("green", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
@@ -124,7 +119,6 @@ export function WatchingPanel() {
       filterNegen,
       filterSme,
       filterNote,
-      filterGreen,
       page,
       sort,
       dir,
@@ -190,11 +184,6 @@ export function WatchingPanel() {
           </select>
         </label>
         <div className="toolbar-actions">
-          <MetricsFillButton
-            market={market}
-            pendingCount={data?.signals?.dots_pending}
-            onDone={softReload}
-          />
           <RefreshButton busy={loading} onRefresh={hardReload} />
           <FillMissingButton
             variant="inline"
@@ -269,8 +258,6 @@ export function WatchingPanel() {
           onNegen={setFilterNegen}
           onSme={setFilterSme}
           onNote={setFilterNote}
-          green={filterGreen}
-          onGreen={setFilterGreen}
           holdCount={data?.signals?.hold}
           distressCount={data?.signals?.distress}
           edgeCount={data?.signals?.edge}
@@ -278,7 +265,6 @@ export function WatchingPanel() {
           negenCount={data?.signals?.negen}
           smeCount={data?.signals?.sme}
           noteCount={data?.signals?.note}
-          greenCount={data?.signals?.green}
         />
       </div>
 
@@ -290,6 +276,7 @@ export function WatchingPanel() {
         onSort={onSort}
         capFilter={cap}
         onNoteChange={softReload}
+        onScrapeDone={softReload}
         toolbar={
           <>
             <label className="field sector-field sector-field--table">

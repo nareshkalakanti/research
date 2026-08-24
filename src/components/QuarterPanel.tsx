@@ -24,6 +24,12 @@ export function QuarterPanel({ panel, yoy }: Props) {
   const allZeroSales =
     !!salesRow?.values.length &&
     salesRow.values.every((v) => v == null || Number(v) === 0);
+  const hasYoY =
+    !!yoy &&
+    (yoy.sales_yoy != null ||
+      yoy.np_yoy != null ||
+      yoy.eps_yoy != null ||
+      yoy.ebidt_yoy != null);
 
   return (
     <div className="q-expand">
@@ -65,47 +71,52 @@ export function QuarterPanel({ panel, yoy }: Props) {
             </tbody>
           </table>
         </div>
-        {panel && yoy ? (
+        {hasYoY ? (
           <p className="q-yoy-foot">
-            YoY vs same Q last year
-            {yoy.sales_yoy != null ||
-            yoy.np_yoy != null ||
-            yoy.eps_yoy != null ? (
+            YoY vs same Q last year:{" "}
+            {yoy!.sales_yoy != null ? (
               <>
-                :{" "}
-                {yoy.sales_yoy != null ? (
-                  <>
-                    Sales{" "}
-                    <strong className={yoyClass(yoy.sales_yoy)}>
-                      {fmtYoYPct(yoy.sales_yoy)}
-                    </strong>
-                  </>
-                ) : null}
-                {yoy.sales_yoy != null && yoy.np_yoy != null ? " · " : null}
-                {yoy.np_yoy != null ? (
-                  <>
-                    NP{" "}
-                    <strong className={yoyClass(yoy.np_yoy)}>
-                      {fmtYoYPct(yoy.np_yoy)}
-                    </strong>
-                  </>
-                ) : null}
-                {(yoy.sales_yoy != null || yoy.np_yoy != null) &&
-                yoy.eps_yoy != null
-                  ? " · "
-                  : null}
-                {yoy.eps_yoy != null ? (
-                  <>
-                    EPS{" "}
-                    <strong className={yoyClass(yoy.eps_yoy)}>
-                      {fmtYoYPct(yoy.eps_yoy)}
-                    </strong>
-                  </>
-                ) : null}
+                Sales{" "}
+                <strong className={yoyClass(yoy!.sales_yoy)}>
+                  {fmtYoYPct(yoy!.sales_yoy)}
+                </strong>
               </>
-            ) : (
-              <span className="q-yoy-na"> — need same quarter last year</span>
-            )}
+            ) : null}
+            {yoy!.sales_yoy != null && yoy!.np_yoy != null ? " · " : null}
+            {yoy!.np_yoy != null ? (
+              <>
+                NP{" "}
+                <strong className={yoyClass(yoy!.np_yoy)}>
+                  {fmtYoYPct(yoy!.np_yoy)}
+                </strong>
+              </>
+            ) : null}
+            {(yoy!.sales_yoy != null || yoy!.np_yoy != null) &&
+            yoy!.eps_yoy != null
+              ? " · "
+              : null}
+            {yoy!.eps_yoy != null ? (
+              <>
+                EPS{" "}
+                <strong className={yoyClass(yoy!.eps_yoy)}>
+                  {fmtYoYPct(yoy!.eps_yoy)}
+                </strong>
+              </>
+            ) : null}
+            {(yoy!.sales_yoy != null ||
+              yoy!.np_yoy != null ||
+              yoy!.eps_yoy != null) &&
+            yoy!.ebidt_yoy != null
+              ? " · "
+              : null}
+            {yoy!.ebidt_yoy != null ? (
+              <>
+                EBIDT{" "}
+                <strong className={yoyClass(yoy!.ebidt_yoy)}>
+                  {fmtYoYPct(yoy!.ebidt_yoy)}
+                </strong>
+              </>
+            ) : null}
           </p>
         ) : null}
       </div>

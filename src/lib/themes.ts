@@ -5,9 +5,11 @@ export type Theme = {
   id: string;
   name: string;
   blog_theme: string;
+  cluster?: string;
   display_pattern: string;
   keywords: string[];
   keyword_definitions?: Record<string, string>;
+  proxies?: string[];
 };
 
 export type ThemeFile = {
@@ -46,18 +48,26 @@ export function loadThemes(): ThemeFile {
           .split("|")
           .map((s) => s.trim())
           .filter(Boolean);
+    const defsRaw =
+      t.keyword_definitions ?? t.definitions ?? t.keywordDefinitions;
+    const keyword_definitions =
+      defsRaw &&
+      typeof defsRaw === "object" &&
+      !Array.isArray(defsRaw)
+        ? (defsRaw as Record<string, string>)
+        : undefined;
+
     return {
       id: String(t.id),
       name: String(t.name),
       blog_theme: String(t.blog_theme ?? "Other"),
+      cluster: t.cluster ? String(t.cluster) : undefined,
       display_pattern,
       keywords,
-      keyword_definitions:
-        t.keyword_definitions &&
-        typeof t.keyword_definitions === "object" &&
-        !Array.isArray(t.keyword_definitions)
-          ? (t.keyword_definitions as Record<string, string>)
-          : undefined,
+      keyword_definitions,
+      proxies: Array.isArray(t.proxies)
+        ? (t.proxies as string[])
+        : undefined,
     };
   });
 

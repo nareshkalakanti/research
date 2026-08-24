@@ -21,15 +21,12 @@ type Props = {
   onSme?: (on: boolean) => void;
   note?: boolean;
   onNote?: (on: boolean) => void;
-  green?: boolean;
-  onGreen?: (on: boolean) => void;
   holdCount?: number;
   edgeCount?: number;
   niveshaayCount?: number;
   negenCount?: number;
   smeCount?: number;
   noteCount?: number;
-  greenCount?: number;
 };
 
 function Count({ n }: { n?: number }) {
@@ -53,8 +50,6 @@ export function WatchlistFilterBar({
   onSme,
   note = false,
   onNote,
-  green = false,
-  onGreen,
   holdCount,
   distressCount,
   edgeCount,
@@ -62,7 +57,6 @@ export function WatchlistFilterBar({
   negenCount,
   smeCount,
   noteCount,
-  greenCount,
 }: Props) {
   const holdTitle =
     distressCount && distressCount > 0
@@ -76,8 +70,7 @@ export function WatchlistFilterBar({
     niveshaay ||
     negen ||
     sme ||
-    note ||
-    green;
+    note;
 
   const clearFilters = () => {
     onCap?.("All");
@@ -87,7 +80,6 @@ export function WatchlistFilterBar({
     onNegen?.(false);
     onSme?.(false);
     onNote?.(false);
-    onGreen?.(false);
   };
 
   return (
@@ -164,21 +156,6 @@ export function WatchlistFilterBar({
           >
             Hold
             <Count n={holdCount} />
-          </button>
-        ) : null}
-
-        {onGreen ? (
-          <button
-            type="button"
-            className={`chip tag-chip tag-green ${green ? "on" : ""}`}
-            onClick={() => onGreen(!green)}
-            title="Fwd PE ≤20 and EPS & Sales YoY both positive (cached metrics)"
-          >
-            <span className="tag-green-dots" aria-hidden>
-              <span /> <span /> <span />
-            </span>
-            Green
-            <Count n={greenCount} />
           </button>
         ) : null}
 

@@ -1,15 +1,39 @@
 import type { QuarterPanel } from "@/lib/quarter-panel";
 
-/** PEAD2 run-rate forward PE: price ÷ (latest quarter EPS × 4). */
+/** Ignore tiny EPS blips when falling back from a loss quarter. */
+const MATERIAL_EPS = 0.05;
+
+/**
+ * Annualized EPS for forward PE: latest quarter × 4, else TTM, else last
+ * material positive quarter (handles one-off loss quarters like BPL).
+ */
+export function forwardPeRunRate(epsValues: number[]): number | null {
+  const eps = epsValues.filter((v) => v != null && Number.isFinite(v));
+  if (!eps.length) return null;
+
+  const latestRate = eps[eps.length - 1]! * 4;
+  if (latestRate > 0) return latestRate;
+
+  if (eps.length >= 4) {
+    const ttm = eps.slice(-4).reduce((a, b) => a + b, 0);
+    if (ttm > 0) return ttm;
+  }
+
+  for (let i = eps.length - 1; i >= 0; i--) {
+    const e = eps[i]!;
+    if (e >= MATERIAL_EPS) return e * 4;
+  }
+  return null;
+}
+
+/** PEAD2 run-rate forward PE: price ÷ annualized EPS (see forwardPeRunRate). */
 export function computeForwardPe(
   price: number | null | undefined,
   epsValues: number[],
 ): number | null {
   if (price == null || price <= 0) return null;
-  const eps = epsValues.filter((v) => v != null && Number.isFinite(v));
-  if (!eps.length) return null;
-  const runRate = eps[eps.length - 1]! * 4;
-  if (runRate <= 0) return 999;
+  const runRate = forwardPeRunRate(epsValues);
+  if (runRate == null || runRate <= 0) return 999;
   const pe = price / runRate;
   if (pe > 500) return 999;
   return Math.round(pe * 10) / 10;

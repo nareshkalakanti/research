@@ -12,6 +12,7 @@ import {
   type BbTimeframe,
   type ViewFilter,
 } from "@/components/SignalScanBar";
+import { WebsiteScrapeBar } from "@/components/WebsiteScrapeBar";
 import { isScanWatchlist, scanListLabel, type ScanList } from "@/lib/scan-lists";
 import type { Company } from "@/lib/types";
 
@@ -25,8 +26,6 @@ type ApiResponse = {
     bb: number;
     tq: number;
     ema?: number;
-    green?: number;
-    dots_pending?: number;
     hold?: number;
     edge?: number;
     niveshaay?: number;
@@ -40,7 +39,6 @@ export function ScanPanel() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [bbTimeframe, setBbTimeframe] = useState<BbTimeframe>("weekly");
   const [view, setView] = useState<ViewFilter>("all");
-  const [filterGreen, setFilterGreen] = useState(false);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("sector");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
@@ -74,7 +72,7 @@ export function ScanPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [list, cap, view, bbTimeframe, filterGreen]);
+  }, [list, cap, view, bbTimeframe]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -92,7 +90,6 @@ export function ScanPanel() {
       if (view === "bb") params.set("bb", "1");
       if (view === "tq") params.set("tq", "1");
       if (view === "ema") params.set("ema", "1");
-      if (filterGreen) params.set("green", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
@@ -113,7 +110,7 @@ export function ScanPanel() {
         if (seq === loadSeqRef.current) setLoading(false);
       }
     },
-    [list, cap, bbTimeframe, view, filterGreen, page, sort, dir],
+    [list, cap, bbTimeframe, view, page, sort, dir],
   );
 
   const loadRef = useRef(load);
@@ -231,13 +228,15 @@ export function ScanPanel() {
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
           emaDate={data?.session?.ema ?? null}
-          green={filterGreen}
-          onGreen={setFilterGreen}
-          greenCount={data?.signals?.green}
-          dotsPending={data?.signals?.dots_pending}
           onBatch={softReload}
-          onDotsDone={softReload}
           onDone={hardReload}
+        />
+        <WebsiteScrapeBar
+          market={list}
+          tickers={pageTickers}
+          listLabel={selectedLabel}
+          onBatch={softReload}
+          onDone={softReload}
         />
       </div>
 
@@ -259,6 +258,7 @@ export function ScanPanel() {
         onSort={onSort}
         capFilter={cap}
         onNoteChange={softReload}
+        onScrapeDone={softReload}
         toolbar={
           <div className="pager">
             <span>
