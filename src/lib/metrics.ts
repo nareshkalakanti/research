@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fetchLivePrices, type YfQuote } from "./yfinance";
+import { isSqliteCorrupt } from "./sqlite-utils";
 import {
   BSE_SME_MARKET,
   fetchBseSmeMetrics,
@@ -38,15 +39,6 @@ const METRICS_SCHEMA = `
   );
   CREATE INDEX IF NOT EXISTS idx_metrics_fetched ON stock_metrics(fetched_at);
 `;
-
-function isSqliteCorrupt(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: string }).code === "SQLITE_CORRUPT"
-  );
-}
 
 function closeMetricsDb(): void {
   if (!metricsDb) return;

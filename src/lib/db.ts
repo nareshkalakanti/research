@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
+import { openSqliteNamed } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -58,12 +59,7 @@ function loadScrapeSourceMap(): Map<string, string> {
 }
 
 function openReadonly(name: string): Database.Database {
-  const db = new Database(path.join(DATA_DIR, name), {
-    readonly: true,
-    fileMustExist: true,
-  });
-  db.pragma("query_only = ON");
-  return db;
+  return openSqliteNamed(name, { readonly: true, fileMustExist: true });
 }
 
 function getAbout(): Database.Database {

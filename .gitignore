@@ -43,12 +43,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# SQLite sidecars only (commit *.db so clones work without rescrape)
-*.db-shm
+# SQLite — commit *.db only; never copy or commit WAL sidecars between machines
+**/*.db-wal
+**/*.db-shm
 *.db-wal
-/data/*.db-shm
-/data/*.db-wal
+*.db-shm
 
 # corrupt SQLite backups
+**/*.corrupt*
 *.corrupt*
-/data/*.corrupt*
