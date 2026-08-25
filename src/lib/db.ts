@@ -350,28 +350,23 @@ export function hasUsableYfAbout(row: {
 }
 
 /**
- * Prefer a real company description over scraped website chrome.
- * Order: clean about → yf_about → scraped → raw about.
+ * Display About only (Screener manual + Yahoo). Website scrape stays on the Website tab;
+ * keyword/theme search uses {@link mergeAboutSourcesForSearch} via search_text.
  */
 export function pickAboutText(row: {
   about: string | null;
   yf_about: string | null;
-  scraped_about: string | null;
+  scraped_about?: string | null;
 }): string | null {
   const about = nonempty(row.about);
   const yf = nonempty(row.yf_about);
-  const scraped = nonempty(row.scraped_about);
 
-  const candidates = [about, yf, scraped].filter(Boolean) as string[];
-  const clean = candidates.find((c) => !looksLikeNavJunk(c));
-  if (clean) {
-    // Prefer Yahoo prose when about/scraped are the same nav dump
-    if (yf && !looksLikeNavJunk(yf) && about && looksLikeNavJunk(about)) {
-      return yf;
-    }
-    return clean;
+  if (yf && !looksLikeNavJunk(yf) && about && looksLikeNavJunk(about)) {
+    return yf;
   }
-  return yf || about || scraped || null;
+  const candidates = [about, yf].filter(Boolean) as string[];
+  const clean = candidates.find((c) => !looksLikeNavJunk(c));
+  return clean || yf || about || null;
 }
 
 /** Drop in-memory company cache (call after Yahoo fill / website scrape). */

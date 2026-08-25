@@ -8,9 +8,9 @@ import {
 
 export type SignalMode = "all" | "tq" | "bb" | "either" | "both";
 export type BbTimeframe = "weekly" | "monthly";
-export type ViewFilter = "all" | "bb" | "tq" | "ema";
+export type ViewFilter = "all" | "bb" | "tq" | "ema" | "ath" | "high52";
 
-type ScanKind = "bb" | "tq" | "ema" | "all";
+type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "all";
 
 type Props = {
   listLabel: string;
@@ -24,9 +24,13 @@ type Props = {
   bbCount?: number;
   tqCount?: number;
   emaCount?: number;
+  athCount?: number;
+  high52Count?: number;
   bbDate?: string | null;
   tqDate?: string | null;
   emaDate?: string | null;
+  athDate?: string | null;
+  high52Date?: string | null;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
 };
@@ -52,8 +56,16 @@ async function scanOnce(body: Record<string, unknown>) {
     bbHits?: number;
     tqHits?: number;
     emaHits?: number;
+    athHits?: number;
+    high52Hits?: number;
     remaining?: number;
-    session?: { bb: string | null; tq: string | null; ema?: string | null };
+    session?: {
+      bb: string | null;
+      tq: string | null;
+      ema?: string | null;
+      ath?: string | null;
+      high52?: string | null;
+    };
     error?: string;
   } = {};
   if (raw) {
@@ -78,8 +90,23 @@ const SCAN_LABELS: Record<ScanKind, string> = {
   bb: "BB",
   tq: "TQ",
   ema: "EMA",
+  ath: "ATH",
+  high52: "52W",
   all: "All",
 };
+
+const VIEW_LABELS: Record<ViewFilter, string> = {
+  all: "All",
+  bb: "BB",
+  tq: "TQ",
+  ema: "EMA",
+  ath: "ATH",
+  high52: "52W",
+};
+
+export function viewFilterLabel(view: ViewFilter): string {
+  return VIEW_LABELS[view];
+}
 
 /** Compact scan + signal filters — same row style as watchlist chips. */
 export function SignalScanBar({
@@ -94,9 +121,13 @@ export function SignalScanBar({
   bbCount,
   tqCount,
   emaCount,
+  athCount,
+  high52Count,
   bbDate,
   tqDate,
   emaDate,
+  athDate,
+  high52Date,
   onBatch,
   onDone,
 }: Props) {
@@ -122,6 +153,8 @@ export function SignalScanBar({
       let gotBb = 0;
       let gotTq = 0;
       let gotEma = 0;
+      let gotAth = 0;
+      let gotHigh52 = 0;
 
       try {
         for (let round = 1; round <= 120; round += 1) {
@@ -135,13 +168,15 @@ export function SignalScanBar({
           gotBb += json.bbHits ?? 0;
           gotTq += json.tqHits ?? 0;
           gotEma += json.emaHits ?? 0;
+          gotAth += json.athHits ?? 0;
+          gotHigh52 += json.high52Hits ?? 0;
           remaining = json.remaining ?? 0;
           const pct =
             remaining <= 0 ? 100 : Math.min(97, 3 + round * 2);
           setProgress({
             pct,
             label: remaining <= 0 ? "Done" : `Scanning ${SCAN_LABELS[kind]}`,
-            detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${remaining.toLocaleString()} left`,
+            detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${remaining.toLocaleString()} left`,
             done: remaining <= 0,
           });
           if (
@@ -160,12 +195,14 @@ export function SignalScanBar({
         if (kind === "bb") onView("bb");
         else if (kind === "tq") onView("tq");
         else if (kind === "ema") onView("ema");
+        else if (kind === "ath") onView("ath");
+        else if (kind === "high52") onView("high52");
         else onView("all");
 
         setProgress({
           pct: 100,
           label: "Done",
-          detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${listLabel}`,
+          detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${listLabel}`,
           done: true,
         });
         await onDone?.();
@@ -245,6 +282,34 @@ export function SignalScanBar({
             <span className="chip-date">{emaDate.slice(5)}</span>
           ) : null}
         </button>
+        <button
+          type="button"
+          className={`chip tag-chip tag-scan-ath ${view === "ath" ? "on" : ""}`}
+          onClick={() => onView("ath")}
+          title={athDate ? `NEW ATH · ${athDate}` : "NEW all-time high hits"}
+        >
+          ATH
+          <Count n={athCount} />
+          {athDate ? (
+            <span className="chip-date">{athDate.slice(5)}</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          className={`chip tag-chip tag-scan-high52 ${view === "high52" ? "on" : ""}`}
+          onClick={() => onView("high52")}
+          title={
+            high52Date
+              ? `NEW 52W high · ${high52Date}`
+              : "NEW 52-week high hits"
+          }
+        >
+          52W
+          <Count n={high52Count} />
+          {high52Date ? (
+            <span className="chip-date">{high52Date.slice(5)}</span>
+          ) : null}
+        </button>
 
         {view !== "all" ? (
           <button
@@ -260,7 +325,7 @@ export function SignalScanBar({
         <span className="filter-sep scan-actions-sep" aria-hidden />
 
         <div className="scan-actions">
-          {(["bb", "tq", "ema", "all"] as const).map((kind) => (
+          {(["bb", "tq", "ema", "ath", "high52", "all"] as const).map((kind) => (
             <button
               key={kind}
               type="button"
@@ -271,15 +336,17 @@ export function SignalScanBar({
                 kind === "bb"
                   ? `Scan ${bbTfLabel} BB on ${listLabel}`
                   : kind === "all"
-                    ? `Scan BB, TQ, EMA on ${listLabel}`
-                    : `Scan ${kind.toUpperCase()} on ${listLabel}`
+                    ? `Scan BB, TQ, EMA, ATH, 52W on ${listLabel}`
+                    : kind === "high52"
+                      ? `Scan 52W highs on ${listLabel}`
+                      : `Scan ${SCAN_LABELS[kind]} on ${listLabel}`
               }
             >
               {busyKind === kind
                 ? "…"
                 : kind === "all"
                   ? "Scan all"
-                  : `Scan ${kind.toUpperCase()}`}
+                  : `Scan ${SCAN_LABELS[kind]}`}
             </button>
           ))}
         </div>

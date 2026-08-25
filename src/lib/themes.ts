@@ -4,6 +4,8 @@ import path from "path";
 export type Theme = {
   id: string;
   name: string;
+  /** Short chip label for company rows (e.g. "EV / green mobility"). */
+  tag?: string;
   blog_theme: string;
   cluster?: string;
   display_pattern: string;
@@ -60,6 +62,7 @@ export function loadThemes(): ThemeFile {
     return {
       id: String(t.id),
       name: String(t.name),
+      tag: t.tag ? String(t.tag) : undefined,
       blog_theme: String(t.blog_theme ?? "Other"),
       cluster: t.cluster ? String(t.cluster) : undefined,
       display_pattern,

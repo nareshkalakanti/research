@@ -94,6 +94,8 @@ type Props = {
   className?: string;
   /** Substring match (for tickers like TATAINVEST). Default: whole-word. */
   loose?: boolean;
+  /** Highlight color: About (blue) vs website scrape (orange). */
+  source?: "about" | "scrape";
 };
 
 export function HighlightedText({
@@ -101,6 +103,7 @@ export function HighlightedText({
   keywords = [],
   className,
   loose = false,
+  source = "about",
 }: Props) {
   const parts = useMemo(
     () => splitHighlighted(text, keywords, loose),
@@ -115,7 +118,7 @@ export function HighlightedText({
         p.hit ? (
           <mark
             key={i}
-            className={`kw-hit${p.tip ? " kw-hit--tip" : ""}`}
+            className={`kw-hit kw-hit--${source}${p.tip ? " kw-hit--tip" : ""}`}
             title={p.tip ?? undefined}
             data-tip={p.tip ?? undefined}
           >

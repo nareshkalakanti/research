@@ -1,6 +1,6 @@
 {
   "meta": {
-    "updated": "2026-08-24",
+    "updated": "2026-08-25",
     "syntax": "+ means AND, | means OR (AND binds tighter)",
     "note": "Fallback copy — primary source is theme_keywords.json"
   },
@@ -8,12 +8,79 @@
     {
       "id": "india_repm_magnet_localization",
       "name": "Rare Earth Permanent Magnets (REPM) & Motor Assemblies",
+      "tag": "REPM",
       "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
-      "pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth",
-      "definitions": {
-        "REPM": "Rare Earth Permanent Magnet — NdFeB/SmCo magnets for EV traction motors, wind generators, and defense guidance systems.",
-        "traction motors": "EV/rail propulsion motor — primary REPM demand driver."
-      }
+      "pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth"
+    },
+    {
+      "id": "gov_semicon_electronics_pli",
+      "name": "Electronics Components, SPECS & ISM 2.0",
+      "tag": "Semicon / ISM / SPECS",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "EMS | electronics manufacturing services | ESDM | printed circuit | PCB | PCB assembly | electronic components | OSAT | semiconductor packaging | chip design | electronics manufacturing | contract manufacturing + electronics | sensor + manufacturing | LED + manufacturing"
+    },
+    {
+      "id": "gov_ai_datacenter_cloud",
+      "name": "India AI Mission & Data Centre Tax Holiday (2047)",
+      "tag": "AI / data centers",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "data centre | data center | colocation | hyperscale | cloud infrastructure | cloud + data centre | cloud + data center | GPU + server | AI compute | power + data centre | power + data center"
+    },
+    {
+      "id": "gov_ev_green_mobility",
+      "name": "EV Fleets, Charging Infra & Green Mobility",
+      "tag": "EV / green mobility",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "electric vehicle | electric bus | e-bus | e-mobility | EV charging | charging infrastructure | charging station | battery pack | lithium-ion | battery swapping | green mobility | zero emission | two wheeler + electric | three wheeler + electric | EV + component"
+    },
+    {
+      "id": "gov_healthcare_medical_hubs",
+      "name": "Regional Medical Hubs & Senior Citizen Healthcare",
+      "tag": "Medical hubs",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "multispecialty hospital | multi-specialty hospital | tertiary care | quaternary care | medical tourism | hospital + chain | super specialty | critical care + hospital | regional medical hub | Ayushman Bharat | PM-JAY | senior citizen + health | health wellness center"
+    },
+    {
+      "id": "gov_msme_sme_capital",
+      "name": "MSME Credit, SME Growth Fund & Risk Capital",
+      "tag": "MSME capital",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "MSME | microfinance | small + medium + enterprise | SME lending | MSME + credit | credit guarantee | CGTMSE | TReDS | Udyam | SME Growth Fund | Self-Reliant India Fund | risk capital + micro | priority sector + MSME"
+    },
+    {
+      "id": "gov_solar_rooftop_renewable",
+      "name": "PM Surya Ghar & Residential Rooftop Solar",
+      "tag": "Rooftop solar",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "rooftop solar | solar rooftop | rooftop + solar | residential solar | solar EPC | photovoltaic | solar module | solar + module | solar + inverter | net metering | distributed solar | rooftop + EPC"
+    },
+    {
+      "id": "gov_india_food_processing_pli",
+      "name": "PLI for Food Processing & Aseptic Packaging",
+      "tag": "Food processing / PLI",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "food processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | fruit + processing | vegetable + processing"
+    },
+    {
+      "id": "gov_textiles_fibre",
+      "name": "National Fibre Scheme & Textile Modernization",
+      "tag": "Textiles / fibre",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "man made fibre | man-made fibre | polyester yarn | viscose | technical textiles | home textiles | home textile | spun yarn | woven fabric | apparel export | Mega Textile Park | MITRA park | National Fibre Scheme | jute | PLI + textile | PLI + textiles"
+    },
+    {
+      "id": "gov_logistics_infra_corridor",
+      "name": "National Logistics Policy, Gati Shakti & IMEEC",
+      "tag": "Logistics / Gati Shakti",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "multimodal logistics | logistics park | multimodal logistics park | freight corridor | container freight | rail + freight | third party logistics | 3PL | cold chain | warehousing + logistics | coastal shipping | multimodal | container + terminal | ICD + logistics | freight + forwarding"
+    },
+    {
+      "id": "gov_social_security_insurance",
+      "name": "Social Security, Pensions & Financial Inclusion",
+      "tag": "Social security / insurance",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "pattern": "life insurance | health insurance | general insurance | microinsurance | pension | annuity | Atal Pension Yojana | Atal Pension | APY | PMJJBY | PMSBY | financial inclusion | insurance premium | pension AUM | direct benefit transfer"
     }
   ]
 }

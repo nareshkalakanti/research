@@ -199,6 +199,32 @@ export function scrapeHighlightsForRow(
   return matchedKeywords(text, highlights.join(" | "), text);
 }
 
+/** Keywords from a highlight list that appear in display About text. */
+export function aboutHighlightsForRow(
+  about: string | null | undefined,
+  highlights: string[],
+): string[] {
+  const text = about?.trim() || "";
+  if (!text || !highlights.length) return [];
+  return matchedKeywords(text, highlights.join(" | "), text);
+}
+
+/** Whether a matched theme clause hit About, scrape, or both. */
+export function matchTagSource(
+  term: string,
+  about: string | null | undefined,
+  scraped: string | null | undefined,
+): "about" | "scrape" {
+  const t = term.trim();
+  if (!t) return "about";
+  const a = about?.trim() || "";
+  const s = scraped?.trim() || "";
+  const inAbout = a ? matchedKeywords(a, t, a).length > 0 : false;
+  const inScrape = s ? matchedKeywords(s, t, s).length > 0 : false;
+  if (inScrape && !inAbout) return "scrape";
+  return "about";
+}
+
 /** Individual keyword phrases found in text (for About highlighting). */
 export function matchedKeywords(
   haystack: string,

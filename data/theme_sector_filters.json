@@ -2,9 +2,9 @@
   "meta": {
     "source_db": "data/classifications.db",
     "rule": "match = keyword AND (sub_sector in allow_subsectors OR sector in allow_sectors) AND pair NOT in exclude_pairs",
-    "updated": "2026-08-24",
+    "updated": "2026-08-25",
     "aligned_to": "theme_keywords.json",
-    "theme_count": 1
+    "theme_count": 11
   },
   "filters": {
     "india_repm_magnet_localization": {
@@ -31,6 +31,247 @@
         "Building Materials",
         "Auto Components & Equipments",
         "Rail"
+      ]
+    },
+    "gov_semicon_electronics_pli": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Consumer Durables",
+        "IT & Technology",
+        "Information Technology",
+        "Industrials",
+        "Electronics & Electrical"
+      ],
+      "allow_subsectors": [
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Electrical Components & Equipments",
+        "Electrical Equipment & Parts",
+        "Consumer Electronics",
+        "Home Electronics & Appliances",
+        "Computers Hardware & Equipments",
+        "Technology Hardware",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Cables",
+        "Cables - Electricals",
+        "Telecom Equipments",
+        "Industrial Machinery"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Consulting & Software",
+        "IT & Technology > IT Services",
+        "IT & Technology > Software Products",
+        "Information Technology > IT Services & Consulting",
+        "Information Technology > Computers - Software & Consulting"
+      ]
+    },
+    "gov_ai_datacenter_cloud": {
+      "allow_sectors": [
+        "IT & Technology",
+        "Information Technology",
+        "Real Estate & Construction",
+        "Power & Utilities",
+        "Telecom",
+        "Telecommunication",
+        "Engineering & Capital Goods",
+        "Industrials"
+      ],
+      "allow_subsectors": [
+        "Real Estate",
+        "Real Estate - Development",
+        "Civil Construction",
+        "Construction & Engineering",
+        "Power Generation",
+        "Power Infrastructure",
+        "Power Transmission & Distribution",
+        "Renewable Energy",
+        "Computers Hardware & Equipments",
+        "Technology Hardware",
+        "Telecom Infrastructure",
+        "Telecom - Infrastructure",
+        "IT Services",
+        "IT Services & Consulting",
+        "Software & IT Services",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment"
+      ]
+    },
+    "gov_ev_green_mobility": {
+      "allow_sectors": [
+        "Automobile & Ancillaries",
+        "Engineering & Capital Goods",
+        "Consumer Durables",
+        "IT & Technology",
+        "Information Technology",
+        "Chemicals & Petrochemicals",
+        "Metals & Mining"
+      ],
+      "allow_subsectors": [
+        "Auto Parts",
+        "Auto Components & Equipments",
+        "Automobile & Components",
+        "2/3 Wheelers",
+        "Batteries",
+        "Electrical Components & Equipments",
+        "Heavy Electrical Equipments",
+        "Industrial Machinery",
+        "IT Consulting & Software",
+        "Software Products",
+        "Software - Application",
+        "Computers - Software & Consulting"
+      ]
+    },
+    "gov_healthcare_medical_hubs": {
+      "allow_sectors": [
+        "Pharmaceuticals & Healthcare",
+        "Healthcare"
+      ],
+      "allow_subsectors": [
+        "Hospitals & Diagnostic Centres",
+        "Hospital",
+        "Medical Care Facilities",
+        "Labs & Life Sciences Services",
+        "Pharmaceuticals",
+        "Drug Manufacturers - Specialty & Generic",
+        "Biotechnology"
+      ],
+      "exclude_pairs": [
+        "Pharmaceuticals & Healthcare > Pharmaceuticals",
+        "Pharmaceuticals & Healthcare > Drug Manufacturers - Specialty & Generic",
+        "Pharmaceuticals & Healthcare > Biotechnology"
+      ]
+    },
+    "gov_msme_sme_capital": {
+      "allow_sectors": [
+        "Banking & Finance",
+        "Financial Services"
+      ],
+      "allow_subsectors": [
+        "Non Banking Financial Company (NBFC)",
+        "Consumer Finance",
+        "Specialized Finance",
+        "Diversified Financials",
+        "Private Banks",
+        "Public Banks",
+        "Investment Banking & Brokerage",
+        "Asset Management"
+      ]
+    },
+    "gov_solar_rooftop_renewable": {
+      "allow_sectors": [
+        "Power & Utilities",
+        "Utilities",
+        "Energy",
+        "Oil & Gas & Energy",
+        "Engineering & Capital Goods",
+        "Real Estate & Construction",
+        "Industrials"
+      ],
+      "allow_subsectors": [
+        "Renewable Energy",
+        "Renewable Energy Equipment & Services",
+        "Power Generation",
+        "Power Infrastructure",
+        "Power Transmission & Distribution",
+        "Construction & Engineering",
+        "Civil Construction",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments",
+        "Industrial Machinery"
+      ]
+    },
+    "gov_textiles_fibre": {
+      "allow_sectors": [
+        "Textiles & Apparel",
+        "Consumer Discretionary",
+        "FMCG & Consumer Goods",
+        "Fast Moving Consumer Goods"
+      ],
+      "allow_subsectors": [
+        "Textile Manufacturing",
+        "Textiles",
+        "Other Textile Products",
+        "Trading - Textile Products",
+        "Garments & Apparels",
+        "Apparel & Accessories",
+        "Retail - Apparel",
+        "Furniture, Home Furnishing"
+      ]
+    },
+    "gov_logistics_infra_corridor": {
+      "allow_sectors": [
+        "Transportation & Logistics",
+        "Real Estate & Construction",
+        "Engineering & Capital Goods",
+        "IT & Technology",
+        "Information Technology",
+        "Industrials",
+        "Services"
+      ],
+      "allow_subsectors": [
+        "Logistics",
+        "Logistics Solution Provider",
+        "Rail",
+        "Ports",
+        "Road Transport",
+        "Transportation",
+        "Ship Building & Allied Services",
+        "Shipbuilding",
+        "Civil Construction",
+        "Construction & Engineering",
+        "Real Estate",
+        "Real Estate - Development",
+        "Software Products",
+        "IT Consulting & Software",
+        "Computers - Software & Consulting"
+      ]
+    },
+    "gov_social_security_insurance": {
+      "allow_sectors": [
+        "Banking & Finance",
+        "Financial Services"
+      ],
+      "allow_subsectors": [
+        "Insurance",
+        "Asset Management",
+        "Diversified Financials",
+        "Private Banks",
+        "Public Banks",
+        "Specialized Finance",
+        "Investment Banking & Brokerage",
+        "Payment Infrastructure"
+      ]
+    },
+    "gov_india_food_processing_pli": {
+      "allow_sectors": [
+        "FMCG & Consumer Goods",
+        "Fast Moving Consumer Goods",
+        "Agriculture & Agro",
+        "Engineering & Capital Goods",
+        "Industrials"
+      ],
+      "allow_subsectors": [
+        "Packaged Foods & Meats",
+        "Packaged Foods",
+        "FMCG - Foods",
+        "Other Food Products",
+        "Other Agricultural Products",
+        "Agro Products",
+        "Edible Oil",
+        "Dairy Products",
+        "Tea & Coffee",
+        "Sugar",
+        "Packaging",
+        "Industrial Machinery",
+        "Agricultural & Farm Machinery"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting",
+        "Information Technology > Computers Hardware & Equipments",
+        "Banking & Finance > Investment Banking & Brokerage",
+        "FMCG & Consumer Goods > FMCG - Personal Products"
       ]
     }
   }

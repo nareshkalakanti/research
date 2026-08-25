@@ -37,33 +37,51 @@ function periodStart(yearsBack: number): string {
  * Yahoo often appends an in-progress stub week (e.g. Fri 07/08 after Sun 02/08,
  * gap < 6 days, often volume 0 / same close). That stub turns last week's
  * BB NEW into ABOVE_BAND — drop it and keep the last completed weekly bar.
+ *
+ * Mid-week the last bar is also the current week (Sun→Fri stamp still in the
+ * future). Drop that too so TQ/BB use the last finished Friday session.
  */
 function normalizeWeeklyBars(bars: Bar[]): Bar[] {
   if (bars.length < 2) return bars;
-  const last = bars[bars.length - 1];
-  const prev = bars[bars.length - 2];
+  let out = bars;
+  const last = out[out.length - 1];
+  const prev = out[out.length - 2];
   if (last.date.slice(0, 10) === prev.date.slice(0, 10)) {
-    return bars.slice(0, -1);
+    out = out.slice(0, -1);
+  } else {
+    const lastTs = Date.parse(`${last.date}T00:00:00Z`);
+    const prevTs = Date.parse(`${prev.date}T00:00:00Z`);
+    if (Number.isFinite(lastTs) && Number.isFinite(prevTs)) {
+      const gapDays = (lastTs - prevTs) / 86_400_000;
+      if (gapDays < 6) out = out.slice(0, -1);
+    }
   }
-  const lastTs = Date.parse(`${last.date}T00:00:00Z`);
-  const prevTs = Date.parse(`${prev.date}T00:00:00Z`);
-  if (!Number.isFinite(lastTs) || !Number.isFinite(prevTs)) return bars;
-  const gapDays = (lastTs - prevTs) / 86_400_000;
-  if (gapDays < 6) return bars.slice(0, -1);
-  return bars;
+  if (out.length < 2) return out;
+  const tip = out[out.length - 1];
+  const tipFri = toTradingWeekFriday(tip.date);
+  const today = toDateStr(new Date());
+  if (tipFri > today) return out.slice(0, -1);
+  return out;
 }
 
-/** Drop in-progress monthly stub (gap < 25 days from prior bar). */
+/** Drop in-progress monthly stub (gap < 25 days from prior bar, or current month). */
 function normalizeMonthlyBars(bars: Bar[]): Bar[] {
   if (bars.length < 2) return bars;
-  const last = bars[bars.length - 1];
-  const prev = bars[bars.length - 2];
+  let out = bars;
+  const last = out[out.length - 1];
+  const prev = out[out.length - 2];
   const lastTs = Date.parse(`${last.date.slice(0, 10)}T00:00:00Z`);
   const prevTs = Date.parse(`${prev.date.slice(0, 10)}T00:00:00Z`);
-  if (!Number.isFinite(lastTs) || !Number.isFinite(prevTs)) return bars;
-  const gapDays = (lastTs - prevTs) / 86_400_000;
-  if (gapDays < 25) return bars.slice(0, -1);
-  return bars;
+  if (Number.isFinite(lastTs) && Number.isFinite(prevTs)) {
+    const gapDays = (lastTs - prevTs) / 86_400_000;
+    if (gapDays < 25) out = out.slice(0, -1);
+  }
+  if (out.length < 2) return out;
+  // Yahoo labels the open month with "today" (e.g. 2026-08-25). Drop until month closes.
+  const tipMonth = out[out.length - 1].date.slice(0, 7);
+  const todayMonth = toDateStr(new Date()).slice(0, 7);
+  if (tipMonth >= todayMonth) return out.slice(0, -1);
+  return out;
 }
 
 function mapChartBars(
@@ -168,7 +186,12 @@ const NIFTY_CACHE_MS = 60 * 60 * 1000;
 
 export async function fetchNiftyWeeklyBars(): Promise<Bar[]> {
   const now = Date.now();
-  if (niftyCache && now - niftyCache.at < NIFTY_CACHE_MS) {
+  // Only reuse a successful cache — never lock in an empty Yahoo failure.
+  if (
+    niftyCache &&
+    niftyCache.bars.length >= 65 &&
+    now - niftyCache.at < NIFTY_CACHE_MS
+  ) {
     return niftyCache.bars;
   }
   for (const symbol of NIFTY_SYMBOLS) {
@@ -204,13 +227,16 @@ export async function fetchNiftyWeeklyBars(): Promise<Bar[]> {
       /* try next */
     }
   }
-  niftyCache = { at: now, bars: [] };
   return [];
 }
 
 export async function fetchNiftyDailyBars(): Promise<Bar[]> {
   const now = Date.now();
-  if (niftyDailyCache && now - niftyDailyCache.at < NIFTY_CACHE_MS) {
+  if (
+    niftyDailyCache &&
+    niftyDailyCache.bars.length >= 65 &&
+    now - niftyDailyCache.at < NIFTY_CACHE_MS
+  ) {
     return niftyDailyCache.bars;
   }
   for (const symbol of NIFTY_SYMBOLS) {
@@ -245,7 +271,6 @@ export async function fetchNiftyDailyBars(): Promise<Bar[]> {
       /* try next */
     }
   }
-  niftyDailyCache = { at: now, bars: [] };
   return [];
 }
 
