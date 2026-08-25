@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillMissingButton } from "@/components/FillMissingButton";
+import { FillSectorButton } from "@/components/FillSectorButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import { WebsiteScrapeBar } from "@/components/WebsiteScrapeBar";
 import type { ScanList } from "@/lib/scan-lists";
@@ -123,6 +124,10 @@ export function MissingDataPanel() {
   const fillableGaps = data?.rows.filter(
     (r) => r.missing?.price || r.missing?.mcap,
   ).length;
+  const sectorGapRows =
+    data?.rows.filter((r) => r.missing?.sector || r.missing?.sub_sector)
+      .length ?? 0;
+  const totalSectorGaps = gaps?.missingSector ?? 0;
   const totalMetricsGaps = gaps?.metrics ?? 0;
   const gapLabel =
     GAP_OPTIONS.find((o) => o.id === gap)?.label.toLowerCase() ?? gap;
@@ -167,6 +172,16 @@ export function MissingDataPanel() {
         totalGaps={totalMetricsGaps}
         onDone={() => load({ refresh: true })}
       />
+
+      {gap === "sector" || gap === "sub_sector" ? (
+        <FillSectorButton
+          market={market}
+          tickers={pageTickers}
+          gapCount={sectorGapRows}
+          totalGaps={totalSectorGaps}
+          onDone={() => load({ refresh: true })}
+        />
+      ) : null}
 
       {gap === "scrape" ? (
         <WebsiteScrapeBar
