@@ -17,6 +17,8 @@ export type Company = {
   sc: string;
   tv: string;
   matched?: string[];
+  /** Themes this company matches (short tags for chips). */
+  matched_themes?: MatchedThemeTag[];
   /** Keyword phrases to highlight inside About text. */
   highlights?: string[];
   /** BB NEW weekly breakout (local Yahoo scan). */
@@ -25,6 +27,10 @@ export type Company = {
   has_tq?: boolean;
   /** Daily close above 10/20/50/200 EMA. */
   has_ema?: boolean;
+  /** NEW all-time high (daily). */
+  has_ath?: boolean;
+  /** NEW 52-week high (daily). */
+  has_high52?: boolean;
   /** Saved research note headline tags when present. */
   news?: {
     count: number;
@@ -98,10 +104,19 @@ export function capTier(mcap: number | null | undefined): CapTier {
 export type Theme = {
   id: string;
   name: string;
+  /** Short chip label on company rows. */
+  tag?: string;
   blog_theme: string;
   display_pattern: string;
   keywords: string[];
   keyword_definitions?: Record<string, string>;
+};
+
+/** Theme chip shown next to BB / 52W on company rows. */
+export type MatchedThemeTag = {
+  id: string;
+  tag: string;
+  name: string;
 };
 
 export type ThemeGroup = {

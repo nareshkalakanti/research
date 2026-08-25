@@ -6,7 +6,7 @@ import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
 import type { Company } from "@/lib/types";
-import { scrapeHighlightsForRow } from "@/lib/pattern";
+import { scrapeHighlightsForRow, matchTagSource } from "@/lib/pattern";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap } from "@/lib/types";
 
@@ -103,6 +103,25 @@ function SignalTags({ company }: { company: Company }) {
           EMA
         </span>
       ) : null}
+      {company.has_ath ? (
+        <span className="result-tag tag-scan-ath" title="NEW all-time high">
+          ATH
+        </span>
+      ) : null}
+      {company.has_high52 ? (
+        <span className="result-tag tag-scan-high52" title="NEW 52-week high">
+          52W
+        </span>
+      ) : null}
+      {(company.matched_themes ?? []).slice(0, 4).map((t) => (
+        <span
+          key={t.id}
+          className="result-tag tag-theme"
+          title={t.name}
+        >
+          {t.tag}
+        </span>
+      ))}
     </span>
   );
 }
@@ -223,10 +242,6 @@ export function CompanyTable({
                   onToggleAbout={() => {
                     setExpanded(open ? null : r.ticker);
                     setPanel("about");
-                  }}
-                  onOpenWebsite={() => {
-                    setExpanded(r.ticker);
-                    setPanel("website");
                   }}
                   onToggleMore={() =>
                     setMore((m) => ({
@@ -528,7 +543,11 @@ function WebsiteScrapePanel({
       {scraped ? (
         <>
           <p>
-            <HighlightedText text={scrapedText} keywords={scrapeHighlights} />
+            <HighlightedText
+              text={scrapedText}
+              keywords={scrapeHighlights}
+              source="scrape"
+            />
           </p>
           {scraped.length > 320 ? (
             <button type="button" className="show-more" onClick={onToggleMore}>
@@ -583,7 +602,6 @@ function CompanyRows({
   showMissing,
   colSpan,
   onToggleAbout,
-  onOpenWebsite,
   onToggleMore,
   onPanel,
   onNoteSaved,
@@ -597,7 +615,6 @@ function CompanyRows({
   showMissing?: boolean;
   colSpan: number;
   onToggleAbout: () => void;
-  onOpenWebsite: () => void;
   onToggleMore: () => void;
   onPanel: (p: ExpandPanel) => void;
   onNoteSaved: (body: string | null) => void;
@@ -634,8 +651,33 @@ function CompanyRows({
   const text = short ? `${about.slice(0, 320).trim()}…` : about;
   const preview =
     about.length > 180 ? `${about.slice(0, 180).trim()}…` : about;
-  const scrapePreview =
-    scraped.length > 180 ? `${scraped.slice(0, 180).trim()}…` : scraped;
+
+  const matchHighlights = useMemo(
+    () => [...new Set([...highlights, ...scrapeHighlights])],
+    [highlights, scrapeHighlights],
+  );
+
+  /** One chip per term: About (or both) → blue; scrape-only → orange. */
+  const displayMatchTags = useMemo(() => {
+    const aboutNorm = new Set(
+      highlights.map((t) => t.trim().toLowerCase()).filter(Boolean),
+    );
+    const tags: Array<{ term: string; source: "about" | "scrape" }> = [];
+    const seen = new Set<string>();
+    for (const t of highlights) {
+      const key = t.trim().toLowerCase();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      tags.push({ term: t, source: "about" });
+    }
+    for (const t of scrapeHighlights) {
+      const key = t.trim().toLowerCase();
+      if (!key || seen.has(key) || aboutNorm.has(key)) continue;
+      seen.add(key);
+      tags.push({ term: t, source: "scrape" });
+    }
+    return tags.slice(0, 6);
+  }, [highlights, scrapeHighlights]);
 
   const quarterData = useExpandQuarters(
     r.ticker,
@@ -697,37 +739,53 @@ function CompanyRows({
               ))}
             </div>
           ) : null}
-          {showMatched && r.matched && r.matched.length > 0 ? (
+          {displayMatchTags.length > 0 ? (
             <div className="matched-tags">
-              {r.matched.slice(0, 4).map((t) => (
-                <span key={t} className="tag">
-                  {t}
+              {displayMatchTags.map(({ term, source }) => (
+                <span
+                  key={term.toLowerCase()}
+                  className={`tag ${source === "scrape" ? "tag-scrape-hit" : "tag-about-hit"}`}
+                  title={
+                    source === "scrape"
+                      ? "Matched in website scrape only"
+                      : "Matched in About"
+                  }
+                >
+                  {term}
                 </span>
               ))}
             </div>
+          ) : showMatched && r.matched && r.matched.length > 0 ? (
+            <div className="matched-tags">
+              {r.matched.slice(0, 4).map((t) => {
+                const src = matchTagSource(t, about, scraped);
+                return (
+                  <span
+                    key={t}
+                    className={`tag ${src === "scrape" ? "tag-scrape-hit" : "tag-about-hit"}`}
+                    title={
+                      src === "scrape"
+                        ? "Matched in website scrape only"
+                        : "Matched in About"
+                    }
+                  >
+                    {t}
+                  </span>
+                );
+              })}
+            </div>
           ) : null}
-          {!open && about && highlights.length > 0 ? (
+          {!open && about ? (
             <button
               type="button"
               className="about-preview"
               onClick={onToggleAbout}
               title="Click to expand About"
             >
-              <HighlightedText text={preview} keywords={highlights} />
-            </button>
-          ) : null}
-          {!open && scraped ? (
-            <button
-              type="button"
-              className="about-preview about-preview--scrape"
-              onClick={onOpenWebsite}
-              title="Click to expand Website scrape"
-            >
               <HighlightedText
-                text={scrapePreview}
-                keywords={
-                  scrapeHighlights.length ? scrapeHighlights : highlights
-                }
+                text={preview}
+                keywords={highlights}
+                source="about"
               />
             </button>
           ) : null}
@@ -808,6 +866,12 @@ function CompanyRows({
                   onClick={() => onPanel("about")}
                 >
                   About
+                  {highlights.length > 0 ? (
+                    <em
+                      className="about-tab-dot about-tab-dot--about"
+                      title="Keyword match in About"
+                    />
+                  ) : null}
                 </button>
                 <button
                   type="button"
@@ -818,9 +882,15 @@ function CompanyRows({
                 >
                   Website
                   {scraped && scrapeHighlights.length > 0 ? (
-                    <em className="about-tab-dot" title="Keyword match in scrape" />
+                    <em
+                      className="about-tab-dot about-tab-dot--scrape"
+                      title="Keyword match in scrape"
+                    />
                   ) : scraped ? (
-                    <em className="about-tab-dot about-tab-dot--muted" title="Scraped" />
+                    <em
+                      className="about-tab-dot about-tab-dot--muted"
+                      title="Scraped"
+                    />
                   ) : null}
                 </button>
                 <button
@@ -849,7 +919,7 @@ function CompanyRows({
               ) : panel === "website" ? (
                 <WebsiteScrapePanel
                   company={websiteCompany}
-                  themeHighlights={highlights}
+                  themeHighlights={matchHighlights}
                   showMore={showMore}
                   editable={showMissing}
                   onToggleMore={onToggleMore}
@@ -864,13 +934,27 @@ function CompanyRows({
                       <HighlightedText
                         text={r.headquarters}
                         keywords={highlights}
+                        source="about"
                       />
                     </div>
                   ) : null}
                   <div className="about-label">About</div>
+                  {highlights.length > 0 ? (
+                    <div className="matched-tags about-match-tags">
+                      {highlights.map((t) => (
+                        <span key={t} className="tag tag-about-hit">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   {text ? (
                     <p>
-                      <HighlightedText text={text} keywords={highlights} />
+                      <HighlightedText
+                        text={text}
+                        keywords={highlights}
+                        source="about"
+                      />
                     </p>
                   ) : (
                     <p>No about text available.</p>

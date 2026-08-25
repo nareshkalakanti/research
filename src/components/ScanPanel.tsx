@@ -9,6 +9,7 @@ import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import {
   SignalScanBar,
+  viewFilterLabel,
   type BbTimeframe,
   type ViewFilter,
 } from "@/components/SignalScanBar";
@@ -26,12 +27,20 @@ type ApiResponse = {
     bb: number;
     tq: number;
     ema?: number;
+    ath?: number;
+    high52?: number;
     hold?: number;
     edge?: number;
     niveshaay?: number;
     negen?: number;
   };
-  session?: { bb: string | null; tq: string | null; ema?: string | null };
+  session?: {
+    bb: string | null;
+    tq: string | null;
+    ema?: string | null;
+    ath?: string | null;
+    high52?: string | null;
+  };
 };
 
 export function ScanPanel() {
@@ -90,6 +99,8 @@ export function ScanPanel() {
       if (view === "bb") params.set("bb", "1");
       if (view === "tq") params.set("tq", "1");
       if (view === "ema") params.set("ema", "1");
+      if (view === "ath") params.set("ath", "1");
+      if (view === "high52") params.set("high52", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
@@ -225,9 +236,13 @@ export function ScanPanel() {
           bbCount={data?.signals?.bb}
           tqCount={data?.signals?.tq}
           emaCount={data?.signals?.ema}
+          athCount={data?.signals?.ath}
+          high52Count={data?.signals?.high52}
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
           emaDate={data?.session?.ema ?? null}
+          athDate={data?.session?.ath ?? null}
+          high52Date={data?.session?.high52 ?? null}
           onBatch={softReload}
           onDone={hardReload}
         />
@@ -242,8 +257,8 @@ export function ScanPanel() {
 
       {emptyFiltered ? (
         <p className="scan-empty-hint">
-          No {view.toUpperCase()} hits in {selectedLabel}. Click{" "}
-          <strong>Scan {view.toUpperCase()}</strong> above to refresh signals,
+          No {viewFilterLabel(view)} hits in {selectedLabel}. Click{" "}
+          <strong>Scan {viewFilterLabel(view)}</strong> above to refresh signals,
           or <button type="button" className="link-btn" onClick={() => setView("all")}>All stocks</button> to
           see the full list.
         </p>
@@ -264,7 +279,7 @@ export function ScanPanel() {
             <span>
               {data
                 ? `${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()} · ${selectedLabel}${
-                    view !== "all" ? ` · ${view.toUpperCase()} hits` : ""
+                    view !== "all" ? ` · ${viewFilterLabel(view)} hits` : ""
                   }`
                 : "…"}
             </span>

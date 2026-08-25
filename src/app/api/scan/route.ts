@@ -47,6 +47,8 @@ export async function POST(req: NextRequest) {
     body.kind === "bb" ||
     body.kind === "tq" ||
     body.kind === "ema" ||
+    body.kind === "ath" ||
+    body.kind === "high52" ||
     body.kind === "both" ||
     body.kind === "all"
       ? body.kind
@@ -90,11 +92,15 @@ export async function POST(req: NextRequest) {
       bbHits: 0,
       tqHits: 0,
       emaHits: 0,
+      athHits: 0,
+      high52Hits: 0,
       failed: 0,
       remaining: 0,
       bbTickers: [],
       tqTickers: [],
       emaTickers: [],
+      athTickers: [],
+      high52Tickers: [],
       cleared: clearFirst,
       bbTimeframe,
       signals: breakoutCounts(loadBreakoutMap(bbTimeframe)),
@@ -106,6 +112,12 @@ export async function POST(req: NextRequest) {
     concurrency: 4,
     bbTimeframe,
   });
+  if (result.error) {
+    return NextResponse.json(
+      { ok: false, error: result.error, ...result, bbTimeframe },
+      { status: 503 },
+    );
+  }
   invalidateBreakoutCache();
 
   let remUniverse = filterScanUniverse(loadAllCompanies(), market, allCompanies);

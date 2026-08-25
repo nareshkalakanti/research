@@ -6,33 +6,50 @@ import assert from "node:assert/strict";
 import { loadThemes, groupThemesByBlog, themesByIds } from "../src/lib/themes";
 import { matchedKeywords } from "../src/lib/pattern";
 import {
+  invalidateThemeSectorFilterCache,
   loadThemeSectorFilters,
   themeMatch,
 } from "../src/lib/theme-match";
-import { auditAllThemes, loadAboutRows } from "../src/lib/theme-audit";
+import { auditTheme, loadAboutRows } from "../src/lib/theme-audit";
 import { mergeAboutSourcesForSearch } from "../src/lib/db";
 
 function main() {
+  invalidateThemeSectorFilterCache();
   const file = loadThemes();
-  assert.equal(file.themes.length, 1, `expected 1 theme, got ${file.themes.length}`);
-  assert.equal(
-    file.themes[0]!.id,
-    "india_repm_magnet_localization",
-    "expected REPM theme only",
+  assert.equal(file.themes.length, 11, `expected 11 themes, got ${file.themes.length}`);
+  assert.ok(
+    file.themes.some((t) => t.id === "india_repm_magnet_localization"),
+    "REPM theme missing",
+  );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_semicon_electronics_pli"),
+    "gov semicon theme missing",
+  );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_india_food_processing_pli"),
+    "food processing PLI theme missing",
   );
 
   const groups = groupThemesByBlog(file.themes);
-  assert.equal(groups.length, 1, `expected 1 blog group, got ${groups.length}`);
+  assert.equal(groups.length, 2, `expected 2 blog groups, got ${groups.length}`);
 
   const filters = loadThemeSectorFilters();
   assert.equal(
     Object.keys(filters).length,
-    1,
-    `expected 1 sector filter, got ${Object.keys(filters).length}`,
+    11,
+    `expected 11 sector filters, got ${Object.keys(filters).length}`,
   );
   assert.ok(
     filters.india_repm_magnet_localization,
     "sector filter missing india_repm_magnet_localization",
+  );
+  assert.ok(
+    filters.gov_solar_rooftop_renewable,
+    "sector filter missing gov_solar_rooftop_renewable",
+  );
+  assert.ok(
+    filters.gov_india_food_processing_pli,
+    "sector filter missing gov_india_food_processing_pli",
   );
 
   const repm = themesByIds(["india_repm_magnet_localization"])[0]!;
@@ -66,6 +83,21 @@ function main() {
     "hospital must not match REPM theme",
   );
 
+  const solar = themesByIds(["gov_solar_rooftop_renewable"])[0]!;
+  assert.ok(
+    themeMatch(
+      {
+        about: "provides rooftop solar EPC and photovoltaic modules",
+        search_text: "rooftop solar EPC photovoltaic modules renewable",
+        sector: "Power & Utilities",
+        sub_sector: "Renewable Energy",
+      },
+      solar,
+      filters,
+    ),
+    "rooftop solar EPC must match solar theme",
+  );
+
   const hits = matchedKeywords(
     "manufactures and sells hard ferrites and soft ferrites with rare earth processing",
     repm.display_pattern,
@@ -95,22 +127,32 @@ function main() {
   );
 
   const rows = loadAboutRows();
-  const audits = auditAllThemes(file.themes, rows);
-  assert.equal(audits.length, 1, "audit should cover REPM theme");
+  for (const theme of file.themes) {
+    const a = auditTheme(theme, rows);
+    assert.ok(
+      a.gatedMatches > 0,
+      `${theme.id} must have at least one gated match (got ${a.gatedMatches})`,
+    );
+  }
 
-  const a = audits[0]!;
-  assert.ok(a.gatedMatches > 0, "REPM must have at least one gated match");
-  assert.equal(a.zeroHit.length, 0, `zero-hit keywords: ${a.zeroHit.join(", ")}`);
+  const repmAudit = auditTheme(repm, rows);
+  assert.equal(
+    repmAudit.zeroHit.length,
+    0,
+    `REPM zero-hit keywords: ${repmAudit.zeroHit.join(", ")}`,
+  );
 
-  console.log("✓ themes loaded", file.themes.length, "in", groups.length, "group");
+  console.log("✓ themes loaded", file.themes.length, "in", groups.length, "groups");
   console.log("✓ sector filters", Object.keys(filters).length);
   console.log(
     "✓ corpus audit",
     rows.length,
     "companies ·",
-    a.gatedMatches,
-    "REPM matches · no zero-hit keywords",
+    file.themes
+      .map((t) => `${t.id.split("_").slice(-1)[0]}:${auditTheme(t, rows).gatedMatches}`)
+      .join(" · "),
   );
+
   console.log("\nAll theme checks passed.");
 }
 

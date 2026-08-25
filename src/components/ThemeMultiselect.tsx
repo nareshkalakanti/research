@@ -191,7 +191,12 @@ export function ThemeMultiselect({ groups, selected, onChange }: Props) {
                               onChange={() => toggle(t.id)}
                             />
                             <span className="theme-item-body">
-                              <span className="theme-item-name">{t.name}</span>
+                              <span className="theme-item-name">
+                                {t.tag || t.name}
+                              </span>
+                              {t.tag ? (
+                                <span className="theme-item-pattern">{t.name}</span>
+                              ) : null}
                               <span className="theme-item-pattern">
                                 {t.display_pattern}
                               </span>

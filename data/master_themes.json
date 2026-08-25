@@ -1,27 +1,24 @@
 {
   "meta": {
-    "title": "Rare Earth Permanent Magnets",
-    "description": "Single-theme corpus — REPM localization & motor assemblies",
-    "version": "2.0",
-    "updated": "2026-08-24",
+    "title": "Research themes",
+    "description": "REPM + India Government Schemes & Policy Tailwinds (2026) — About-friendly keywords; scheme names in theme_research_patterns.json",
+    "version": "3.1",
+    "updated": "2026-08-25",
     "syntax": "+ means AND, | means OR (AND binds tighter inside a clause)",
-    "theme_count": 1,
-    "clusters": ["critical_minerals_ev_defense"]
+    "theme_count": 11,
+    "clusters": [
+      "critical_minerals_ev_defense",
+      "india_govt_schemes_2026"
+    ]
   },
   "themes": [
     {
       "id": "india_repm_magnet_localization",
       "cluster": "critical_minerals_ev_defense",
       "name": "Rare Earth Permanent Magnets (REPM) & Motor Assemblies",
+      "tag": "REPM",
       "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
-      "proxies": [
-        "IREL",
-        "NLC India",
-        "BHEL",
-        "Sona Comstar",
-        "Lucas TVS (unlisted)"
-      ],
-      "pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth",
+      "display_pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth",
       "keywords": [
         "hard ferrites",
         "soft ferrites",
@@ -39,20 +36,415 @@
         "e-mobility + motor",
         "rare earth"
       ],
-      "definitions": {
+      "keyword_definitions": {
         "REPM": "Rare Earth Permanent Magnet — NdFeB/SmCo magnets for EV traction motors, wind generators, and defense guidance systems.",
-        "NdFeB": "Neodymium-Iron-Boron; strongest commercial permanent magnet alloy.",
+        "NdFeB": "Neodymium-Iron-Boron; strongest commercial permanent magnet alloy (often absent from Screener About — use ferrites/traction motor proxies).",
         "SmCo": "Samarium-Cobalt; high-temperature rare earth magnet for aerospace and defense motors.",
-        "hard ferrites": "Sintered ferrite magnets for automotive magnetos and small motors.",
-        "flywheel magneto": "Magneto ignition with stator/rotor magnet stack.",
-        "traction motors": "EV/rail propulsion motor — primary REPM demand driver.",
-        "BLDC motors": "Brushless DC motors using permanent-magnet rotors.",
-        "heavy mineral sand": "Beach-sand feedstock for monazite/rutile rare earth corridor.",
-        "monazite": "Mineral sand with rare earth phosphates; IREL/NLC feedstock.",
-        "magnet winding wires": "Enamelled copper for motor windings — magnet/motor supply chain.",
-        "REPM scheme": "₹7,280 crore PLI for ~6,000 MTPA domestic REPM capacity."
+        "hard ferrites": "Sintered ferrite magnets used in automotive magnetos, alternators, and small motors (Delta Manufacturing).",
+        "flywheel magneto": "Magneto-based ignition assembly — stator/rotor magnet stack (India Nippon).",
+        "traction motors": "EV/rail propulsion motor — primary downstream demand driver for REPM (Sona Comstar, Varroc, Hirect).",
+        "BLDC motors": "Brushless DC motors using permanent-magnet rotors (Ram Ratna Wires).",
+        "heavy mineral sand": "Beach-sand feedstock for monazite/rutile — upstream rare earth corridor (Midwest, NMDC).",
+        "monazite": "Mineral sand containing rare earth phosphates; IREL/NLC processing chain feedstock.",
+        "magnet winding wires": "Enamelled copper for motor windings — adjacent to magnet/motor supply chain.",
+        "REPM scheme": "₹7,280 crore PLI to build ~6,000 MTPA domestic REPM capacity (news/research terms)."
       },
-      "research_pattern": "REPM | rare earth permanent magnet | NdFeB | neodymium magnet | magnet localization | 7280 crore + magnet | monazite | heavy mineral sand | traction motor + India | magnet manufacturing + India | IREL + rare earth | dysprosium | terbium"
+      "proxies": [
+        "IREL",
+        "NLC India",
+        "BHEL",
+        "Sona Comstar",
+        "Lucas TVS (unlisted)"
+      ]
+    },
+    {
+      "id": "gov_semicon_electronics_pli",
+      "cluster": "india_govt_schemes_2026",
+      "name": "Electronics Components, SPECS & ISM 2.0",
+      "tag": "Semicon / ISM / SPECS",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "EMS | electronics manufacturing services | ESDM | printed circuit | PCB | PCB assembly | electronic components | OSAT | semiconductor packaging | chip design | electronics manufacturing | contract manufacturing + electronics | sensor + manufacturing | LED + manufacturing",
+      "keywords": [
+        "EMS",
+        "electronics manufacturing services",
+        "ESDM",
+        "printed circuit",
+        "PCB",
+        "PCB assembly",
+        "electronic components",
+        "OSAT",
+        "semiconductor packaging",
+        "chip design",
+        "electronics manufacturing",
+        "contract manufacturing + electronics",
+        "sensor + manufacturing",
+        "LED + manufacturing"
+      ],
+      "keyword_definitions": {
+        "Electronics Component Manufacturing Scheme": "₹40,000 crore outlay to localize the $40B electronics component import bill (PCBs, displays, sensors).",
+        "SPECS scheme": "Scheme for Promotion of Manufacturing of Electronic Components and Semiconductors; provides 25% capex subsidy.",
+        "SPECS": "Scheme for Promotion of Manufacturing of Electronic Components and Semiconductors; provides 25% capex subsidy.",
+        "component import substitution": "Policy goal of replacing imported sub-assemblies with domestic value addition (DVA).",
+        "ISM 2.0": "India Semiconductor Mission 2.0; ₹1.25 lakh crore commitment for fab, ATMP, and indigenous chip design.",
+        "EMS": "Electronics Manufacturing Services — contract design/build of PCBs and box-builds (Kaynes, Syrma, Dixon).",
+        "ESDM": "Electronics System Design & Manufacturing — India policy umbrella for local electronics value chain.",
+        "OSAT": "Outsourced Semiconductor Assembly and Test — chip packaging/test plants targeted under ISM.",
+        "ATMP": "Assembly, Testing, Marking and Packaging — semiconductor backend operations.",
+        "electronic components": "PCBs, connectors, passives, displays, sensors — SPECS localization focus.",
+        "PCB assembly": "PCBA / SMT line assembly for EMS and ODMs."
+      },
+      "proxies": [
+        "Kaynes Technology",
+        "CG Power (CG Semi)",
+        "Dixon Technologies",
+        "Syrma SGS",
+        "TVS Electronics"
+      ]
+    },
+    {
+      "id": "gov_ai_datacenter_cloud",
+      "cluster": "india_govt_schemes_2026",
+      "name": "India AI Mission & Data Centre Tax Holiday (2047)",
+      "tag": "AI / data centers",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "data centre | data center | colocation | hyperscale | cloud infrastructure | cloud + data centre | cloud + data center | GPU + server | AI compute | power + data centre | power + data center",
+      "keywords": [
+        "data centre",
+        "data center",
+        "colocation",
+        "hyperscale",
+        "cloud infrastructure",
+        "cloud + data centre",
+        "cloud + data center",
+        "GPU + server",
+        "AI compute",
+        "power + data centre",
+        "power + data center"
+      ],
+      "keyword_definitions": {
+        "India AI Mission": "₹10,372 crore allocation for domestic AI compute infrastructure, startup grants, and sovereign LLM development.",
+        "data centre tax holiday": "Income tax exemptions extended until 2047 for global cloud providers setting up Indian data centers.",
+        "sovereign AI": "Government-backed initiative to build indigenous large language models and secure domestic AI compute stacks.",
+        "data centre": "Hyperscale / colo / enterprise data center capacity (power + land + cooling).",
+        "cloud infrastructure": "Cloud / colo build-out — racks, networking, and facility power.",
+        "AI compute": "GPU/accelerator clusters for training and inference — India AI Mission demand driver.",
+        "colocation": "Wholesale / retail colo facilities hosting third-party IT load.",
+        "hyperscale": "Large-campus data centers for cloud / AI tenants."
+      },
+      "proxies": [
+        "Netweb Technologies",
+        "E2E Networks",
+        "Anant Raj",
+        "Techno Electric",
+        "Tata Communications"
+      ]
+    },
+    {
+      "id": "gov_ev_green_mobility",
+      "cluster": "india_govt_schemes_2026",
+      "name": "EV Fleets, Charging Infra & Green Mobility",
+      "tag": "EV / green mobility",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "electric vehicle | electric bus | e-bus | e-mobility | EV charging | charging infrastructure | charging station | battery pack | lithium-ion | battery swapping | green mobility | zero emission | two wheeler + electric | three wheeler + electric | EV + component",
+      "keywords": [
+        "electric vehicle",
+        "electric bus",
+        "e-bus",
+        "e-mobility",
+        "EV charging",
+        "charging infrastructure",
+        "charging station",
+        "battery pack",
+        "lithium-ion",
+        "battery swapping",
+        "green mobility",
+        "zero emission",
+        "two wheeler + electric",
+        "three wheeler + electric",
+        "EV + component"
+      ],
+      "keyword_definitions": {
+        "electric ambulance": "₹500 crore allocation to modernize emergency response fleets with EVs.",
+        "EV infrastructure fund": "₹2,000 crore outlay for highway charging networks, battery swapping grids, and depot charging.",
+        "EV fleet + electrification": "Policy push targeting commercial fleets (buses, ambulances, logistics) rather than just passenger cars.",
+        "FAME III": "Expected successor to FAME II, focusing on commercial EV fleets and localized battery cell manufacturing.",
+        "FAME": "Faster Adoption and Manufacturing of Electric Vehicles — demand/supply incentives for EVs.",
+        "e-mobility": "Electric mobility stack — vehicles, motors, batteries, and charging.",
+        "battery swapping": "Swap-station model for 2W/3W/commercial EVs.",
+        "charging station": "Public / depot EV chargers — infra fund demand driver."
+      },
+      "proxies": [
+        "Olectra Greentech",
+        "JBM Auto",
+        "Sona Comstar",
+        "KPIT Technologies",
+        "Exide Industries"
+      ]
+    },
+    {
+      "id": "gov_healthcare_medical_hubs",
+      "cluster": "india_govt_schemes_2026",
+      "name": "Regional Medical Hubs & Senior Citizen Healthcare",
+      "tag": "Medical hubs",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "multispecialty hospital | multi-specialty hospital | tertiary care | quaternary care | medical tourism | hospital + chain | super specialty | critical care + hospital | regional medical hub | Ayushman Bharat | PM-JAY | senior citizen + health | health wellness center",
+      "keywords": [
+        "multispecialty hospital",
+        "multi-specialty hospital",
+        "tertiary care",
+        "quaternary care",
+        "medical tourism",
+        "hospital + chain",
+        "super specialty",
+        "critical care + hospital",
+        "senior citizen + health"
+      ],
+      "keyword_definitions": {
+        "regional medical hub": "5 mega-hospitals built in PPP mode to decentralize quaternary care and reduce medical tourism leakage.",
+        "PM-JAY + 70+": "Extension of ₹5 lakh annual health cover to all senior citizens (70+), massively expanding the insured patient pool for private hospitals.",
+        "Ayushman Bharat": "National health protection / wellness-centre umbrella that expands insured inpatient volumes.",
+        "multispecialty hospital": "Private hospital chains offering multi-specialty tertiary/quaternary care — primary PM-JAY capacity.",
+        "medical tourism": "Inbound elective care — policy push to keep volumes in Indian hubs."
+      },
+      "proxies": [
+        "Apollo Hospitals",
+        "Max Healthcare",
+        "Global Health (Medanta)",
+        "Narayana Hrudayalaya",
+        "Artemis Medicare"
+      ]
+    },
+    {
+      "id": "gov_msme_sme_capital",
+      "cluster": "india_govt_schemes_2026",
+      "name": "MSME Credit, SME Growth Fund & Risk Capital",
+      "tag": "MSME capital",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "MSME | microfinance | small + medium + enterprise | SME lending | MSME + credit | credit guarantee | CGTMSE | TReDS | Udyam | SME Growth Fund | Self-Reliant India Fund | risk capital + micro | priority sector + MSME",
+      "keywords": [
+        "MSME",
+        "microfinance",
+        "small + medium + enterprise",
+        "Udyam",
+        "priority sector + MSME"
+      ],
+      "keyword_definitions": {
+        "SME Growth Fund": "₹10,000 crore corpus to provide equity and subordinate debt to job-creating MSMEs.",
+        "Self-Reliant India Fund": "₹2,000 crore top-up specifically for micro-enterprise risk capital and grassroots entrepreneurship.",
+        "CGTMSE": "Credit Guarantee Fund Trust for Micro and Small Enterprises; the backbone of collateral-free MSME lending in India.",
+        "MSME": "Micro, Small & Medium Enterprises — formalization and credit push via Udyam / CGTMSE / TReDS.",
+        "microfinance": "Unsecured micro-loans to micro-enterprises and households — listed NBFC-MFIs and SFBs.",
+        "TReDS": "Trade Receivables Discounting System — invoice discounting platform for MSME cash-flow."
+      },
+      "proxies": [
+        "IFCI",
+        "PFC",
+        "REC",
+        "Credit Access Gramin",
+        "Fusion Microfinance",
+        "SIDBI (unlisted)"
+      ]
+    },
+    {
+      "id": "gov_solar_rooftop_renewable",
+      "cluster": "india_govt_schemes_2026",
+      "name": "PM Surya Ghar & Residential Rooftop Solar",
+      "tag": "Rooftop solar",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "rooftop solar | solar rooftop | rooftop + solar | residential solar | solar EPC | photovoltaic | solar module | solar + module | solar + inverter | net metering | distributed solar | rooftop + EPC",
+      "keywords": [
+        "rooftop solar",
+        "solar rooftop",
+        "rooftop + solar",
+        "residential solar",
+        "solar EPC",
+        "photovoltaic",
+        "solar module",
+        "solar + module",
+        "solar + inverter",
+        "net metering",
+        "distributed solar",
+        "rooftop + EPC"
+      ],
+      "keyword_definitions": {
+        "PM Surya Ghar": "Flagship scheme providing up to ₹78,000 subsidy per household for rooftop solar, targeting 1 crore homes.",
+        "1 crore homes + solar": "Explicit volume target of PM Surya Ghar — drives residential EPC order books.",
+        "decentralized renewable": "Shift from utility-scale solar parks to distributed, behind-the-meter residential and commercial solar.",
+        "rooftop solar": "Behind-the-meter PV on homes/SMEs — core PM Surya Ghar demand.",
+        "solar module": "Crystalline / thin-film PV modules and cells — domestic manufacturing under ALMM/PLI.",
+        "solar EPC": "Engineering, procurement and construction for rooftop and distributed solar.",
+        "net metering": "Grid-export credit policy that improves rooftop solar payback."
+      },
+      "proxies": [
+        "Tata Power",
+        "Waaree Renewable",
+        "Premier Energies",
+        "Zodiac Energy",
+        "Jakson Group (unlisted)"
+      ]
+    },
+    {
+      "id": "gov_india_food_processing_pli",
+      "cluster": "india_govt_schemes_2026",
+      "name": "PLI for Food Processing & Aseptic Packaging",
+      "tag": "Food processing / PLI",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "keywords": [
+        "food processing",
+        "processed food",
+        "ready to eat",
+        "ready-to-eat",
+        "frozen food",
+        "fruit pulp",
+        "mango pulp",
+        "aseptic",
+        "aseptic + packaging",
+        "spray dried",
+        "spray-dried",
+        "packaged food",
+        "milk powder",
+        "dairy processing",
+        "edible oil",
+        "rice mill",
+        "flour mill",
+        "spice processing",
+        "snack food",
+        "cold storage",
+        "export + food",
+        "fruit + processing",
+        "vegetable + processing"
+      ],
+      "keyword_definitions": {
+        "PLI + food processing": "Production Linked Incentive for food processing — supports aseptic packaging, sprays, and value-added exports.",
+        "MoFPI + incentive": "Ministry of Food Processing Industries grants validating capex in aseptic lines and spray-dried powders.",
+        "aseptic + PLI": "Subsidies targeting shelf-stable packaging formats (e.g. Tetra Recart) vs traditional canning.",
+        "food processing": "Value-added processing of agri produce — core MoFPI / PLI beneficiary set.",
+        "aseptic": "Aseptic filling / packaging for pulp, puree, dairy — PLI-favoured format.",
+        "ready to eat": "RTE / convenience foods — packaged foods exporters and domestic brands.",
+        "fruit pulp": "Fruit pulp / concentrate for exports and beverage blenders.",
+        "cold storage": "Cold storage / controlled atmosphere — food value-chain infrastructure.",
+        "edible oil": "Edible oil refining / packing — large listed processors."
+      },
+      "proxies": [
+        "Foods & Inns",
+        "ADF Foods",
+        "LT Foods",
+        "CCL Products",
+        "Gokul Agro",
+        "Hatsun Agro"
+      ],
+      "display_pattern": "food processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | fruit + processing | vegetable + processing"
+    },
+    {
+      "id": "gov_textiles_fibre",
+      "cluster": "india_govt_schemes_2026",
+      "name": "National Fibre Scheme & Textile Modernization",
+      "tag": "Textiles / fibre",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "man made fibre | man-made fibre | polyester yarn | viscose | technical textiles | home textiles | home textile | spun yarn | woven fabric | apparel export | Mega Textile Park | MITRA park | National Fibre Scheme | jute | PLI + textile | PLI + textiles",
+      "keywords": [
+        "man made fibre",
+        "polyester yarn",
+        "viscose",
+        "technical textiles",
+        "home textiles",
+        "home textile",
+        "spun yarn",
+        "woven fabric",
+        "apparel export",
+        "jute"
+      ],
+      "keyword_definitions": {
+        "National Fibre Scheme": "Umbrella scheme integrating natural (jute, silk, wool) and man-made fibers (MMF) to achieve self-reliance.",
+        "man-made fibre": "MMF (polyester, viscose); the high-growth segment of global textiles where India is aggressively trying to capture Bangladesh/Vietnam market share.",
+        "MITRA park": "Mega Investment Textiles and Apparel parks; integrated plug-and-play infrastructure for global apparel brands.",
+        "technical textiles": "Non-apparel industrial textiles (auto, geotextile, medical) — PLI priority segment.",
+        "home textiles": "Bed/bath/kitchen textiles — large listed exporters (Welspun, Indo Count, Trident)."
+      },
+      "proxies": [
+        "KPR Mill",
+        "Trident",
+        "Welspun Living",
+        "Vardhman Textiles",
+        "Indo Count"
+      ]
+    },
+    {
+      "id": "gov_logistics_infra_corridor",
+      "cluster": "india_govt_schemes_2026",
+      "name": "National Logistics Policy, Gati Shakti & IMEEC",
+      "tag": "Logistics / Gati Shakti",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "multimodal logistics | logistics park | multimodal logistics park | freight corridor | container freight | rail + freight | third party logistics | 3PL | cold chain | warehousing + logistics | coastal shipping | multimodal | container + terminal | ICD + logistics | freight + forwarding",
+      "keywords": [
+        "multimodal logistics",
+        "logistics park",
+        "multimodal logistics park",
+        "freight corridor",
+        "container freight",
+        "rail + freight",
+        "third party logistics",
+        "3PL",
+        "cold chain",
+        "warehousing + logistics",
+        "coastal shipping",
+        "multimodal",
+        "container + terminal",
+        "ICD + logistics",
+        "freight + forwarding"
+      ],
+      "keyword_definitions": {
+        "IMEEC": "India-Middle East-Europe Economic Corridor — rail/shipping corridor to accelerate export logistics.",
+        "Gati Shakti": "National Master Plan for multi-modal connectivity across infrastructure ministries.",
+        "National Logistics Policy": "Framework to cut logistics cost toward ~8% of GDP via ULIP, MMLPs, and multimodal corridors.",
+        "ULIP": "Unified Logistics Interface Platform — digital API backbone of NLP.",
+        "multimodal logistics park": "MMLPs combining rail, road, and warehousing.",
+        "3PL": "Third-party logistics providers — warehousing, freight, last-mile.",
+        "cold chain": "Temperature-controlled logistics for food/pharma — NLP priority."
+      },
+      "proxies": [
+        "Container Corp (CONCOR)",
+        "IRCON",
+        "RVNL",
+        "Delhivery",
+        "CE Info Systems (MapmyIndia)",
+        "Allcargo"
+      ]
+    },
+    {
+      "id": "gov_social_security_insurance",
+      "cluster": "india_govt_schemes_2026",
+      "name": "Social Security, Pensions & Financial Inclusion",
+      "tag": "Social security / insurance",
+      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "display_pattern": "life insurance | health insurance | general insurance | microinsurance | pension | annuity | Atal Pension Yojana | Atal Pension | APY | PMJJBY | PMSBY | financial inclusion | insurance premium | pension AUM | direct benefit transfer",
+      "keywords": [
+        "life insurance",
+        "health insurance",
+        "general insurance",
+        "pension",
+        "annuity",
+        "Atal Pension Yojana",
+        "Atal Pension",
+        "APY",
+        "financial inclusion",
+        "insurance premium"
+      ],
+      "keyword_definitions": {
+        "Atal Pension Yojana": "APY; guaranteed old-age income security scheme targeting the massive unorganized sector workforce.",
+        "PMJJBY": "Pradhan Mantri Jeevan Jyoti Bima Yojana; government-backed micro-life insurance driving massive premium volume for private insurers.",
+        "financial inclusion + JAM": "Jan Dhan-Aadhaar-Mobile trinity; the digital rail enabling direct benefit transfers and mass-market financialization.",
+        "PMSBY": "Pradhan Mantri Suraksha Bima Yojana — government accident micro-insurance.",
+        "life insurance": "Life / ULIP / annuity books that distribute APY and PMJJBY-style products at scale."
+      },
+      "proxies": [
+        "SBI Life",
+        "HDFC Life",
+        "LIC",
+        "Star Health",
+        "CDSL",
+        "KFintech"
+      ]
     }
   ]
 }

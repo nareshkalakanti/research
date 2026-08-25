@@ -1,8 +1,18 @@
 {
   "meta": {
     "purpose": "News/research patterns (terms rarely in Screener About text)",
-    "updated": "2026-08-24",
-    "theme_count": 1
+    "updated": "2026-08-25",
+    "theme_count": 11
   },
-  "india_repm_magnet_localization": "REPM | rare earth permanent magnet | NdFeB | neodymium magnet | magnet localization | 7280 crore + magnet | monazite | heavy mineral sand | traction motor + India | magnet manufacturing + India | IREL + rare earth | dysprosium | terbium"
+  "india_repm_magnet_localization": "REPM | rare earth permanent magnet | NdFeB | neodymium magnet | magnet localization | 7280 crore + magnet | monazite | heavy mineral sand | traction motor + India | magnet manufacturing + India | IREL + rare earth | dysprosium | terbium",
+  "gov_semicon_electronics_pli": "Electronics Component Manufacturing Scheme | SPECS scheme | SPECS | ISM 2.0 | India Semiconductor Mission | 40000 crore + electronics | component import substitution | EMC 2.0 | semiconductor PLI | ATMP + subsidy | OSAT + India | indigenous IP + semiconductor | ESDM + PLI | fab + India | PLI + electronics | semiconductor fab | display module | ATMP | flex PCB",
+  "gov_ai_datacenter_cloud": "India AI Mission | sovereign AI | data centre tax holiday | cloud infrastructure incentive | 2047 tax holiday | AI compute + subsidy | GPU cluster + India | global cloud player + India | AI skilling + India | tax holiday + cloud | tax holiday + data | data centre park | GPU + cluster | server + rack",
+  "gov_ev_green_mobility": "electric ambulance | EV infrastructure fund | 500 crore + ambulance | 2000 crore + EV infra | FAME III | FAME | charging network + subsidy | EV fleet + electrification | battery swapping + policy | PLI + auto + EV | electric bus + tender | electric fleet | electric ambulance | depot charging",
+  "gov_healthcare_medical_hubs": "regional medical hub | Ayushman Bharat + senior | PM-JAY + 70 | PM-JAY | senior citizen + healthcare | health wellness center | brownfield hospital + expansion | AYUSH + hospital",
+  "gov_msme_sme_capital": "SME Growth Fund | Self-Reliant India Fund | CGTMSE | TReDS + platform | Udyam portal | MSME credit guarantee | risk capital + micro-enterprise | MSME + formalization | subsidiary + MSME lending",
+  "gov_solar_rooftop_renewable": "PM Surya Ghar | PM Surya Ghar Yojana | rooftop solar subsidy | 78000 subsidy | residential solar + scheme | 1 crore homes + solar | decentralized renewable | net metering + policy | rooftop EPC + India | household solar + capex | household solar",
+  "gov_textiles_fibre": "National Fibre Scheme | Mega Textile Park | MITRA park | MMF + policy | technical textiles + PLI | jute modernization | silk cocoon + scheme | apparel export + incentive | PLI + textiles",
+  "gov_logistics_infra_corridor": "National Logistics Policy | Gati Shakti | IMEEC | India Middle East Europe Economic Corridor | ULIP | unified logistics interface | multimodal logistics park | trade corridor + India | freight corridor + rail | warehousing + PLI | port-led development + India | port-led development",
+  "gov_social_security_insurance": "Atal Pension Yojana | APY + unorganized | PMJJBY | PMSBY | financial inclusion + JAM | direct benefit transfer | micro-insurance + India | pension AUM + India | social security + India",
+  "gov_india_food_processing_pli": "PLI + food processing | MoFPI + incentive | food processing PLI | aseptic + PLI | Tetra Recart + subsidy | mango pulp + export incentive | food processing + capex subsidy | MoFPI + sanction | PLI + MoFPI | tomato paste"
 }

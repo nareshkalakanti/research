@@ -28,7 +28,7 @@ export type ThemeMatchRow = {
   mcap_cr?: number | null;
 };
 
-/** Keyword corpus: About + stored website scrape (search_text already merges both when present). */
+/** Keyword corpus: About + Yahoo + website scrape (search_text merges all sources). */
 export function themeSearchCorpus(row: ThemeMatchRow): string {
   const merged = row.search_text?.trim();
   if (merged) return merged;
@@ -251,7 +251,9 @@ export function mergeThemePortfolioRows<
     customPattern?: string | null;
     holdings: Set<string>;
     matchedByTheme: Record<string, string[]>;
+    matchedThemeIdsByTicker?: Record<string, string[]>;
     highlightsByTicker: Record<string, string[]>;
+    fullHighlightsByTicker?: Record<string, string[]>;
   },
 ): T[] {
   if (!themes.length && !opts.customPattern?.trim()) return rows;
@@ -267,6 +269,12 @@ export function mergeThemePortfolioRows<
     out.push(c);
     opts.matchedByTheme[c.ticker] = result.matchedTerms;
     opts.highlightsByTicker[c.ticker] = result.highlights;
+    if (opts.matchedThemeIdsByTicker) {
+      opts.matchedThemeIdsByTicker[c.ticker] = result.matchedThemeIds;
+    }
+    if (opts.fullHighlightsByTicker) {
+      opts.fullHighlightsByTicker[c.ticker] = result.highlights;
+    }
     have.add(t);
   }
   return out;
