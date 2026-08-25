@@ -3,6 +3,14 @@ import { scrapeCompanyWebsite } from "./about-scrape-text";
 import { hasUsableAboutText, hasUsableYfAbout, loadAllCompanies } from "./db";
 import { websiteUrl } from "./links";
 import {
+  runConcurrent,
+  SCRAPE_BATCH_DEFAULT,
+  SCRAPE_BATCH_MAX,
+  SCRAPE_CONCURRENCY_DEFAULT,
+  SCRAPE_CONCURRENCY_MAX,
+  withScrapeWriteLock,
+} from "./scrape-pool";
+import {
   loadManualAboutMap,
   loadYfAboutMap,
   pendingScrapeCount,
@@ -158,16 +166,18 @@ async function scrapeOne(
 
   const result = await scrapeCompanyWebsite(job.website);
   if (result.text) {
-    maybeFixWebsiteUrl(job.ticker, job.website, result.url);
-    upsertScrapeResult(job.ticker, {
-      scraped_about: result.text,
-      status: "ok",
-      source_url: result.url,
-      scrape_source: "website",
-    });
-    saveScrapedAboutToCompanyAbout(job.ticker, {
-      scraped_about: result.text,
-      website_status: "ok",
+    await withScrapeWriteLock(() => {
+      maybeFixWebsiteUrl(job.ticker, job.website, result.url);
+      upsertScrapeResult(job.ticker, {
+        scraped_about: result.text,
+        status: "ok",
+        source_url: result.url,
+        scrape_source: "website",
+      });
+      saveScrapedAboutToCompanyAbout(job.ticker, {
+        scraped_about: result.text,
+        website_status: "ok",
+      });
     });
     return { ok: true, status: "ok", error: null, source_url: result.url };
   }
@@ -189,20 +199,22 @@ async function scrapeOne(
             ? "No website URL"
             : "Fetch failed";
 
-  upsertScrapeResult(job.ticker, {
-    scraped_about: null,
-    status,
-    error,
-    scrape_source: null,
-  });
-  saveScrapedAboutToCompanyAbout(job.ticker, {
-    scraped_about: null,
-    website_status:
-      result.reason === "unreachable"
-        ? "unreachable"
-        : status === "empty"
-          ? "not_found"
-          : "failed",
+  await withScrapeWriteLock(() => {
+    upsertScrapeResult(job.ticker, {
+      scraped_about: null,
+      status,
+      error,
+      scrape_source: null,
+    });
+    saveScrapedAboutToCompanyAbout(job.ticker, {
+      scraped_about: null,
+      website_status:
+        result.reason === "unreachable"
+          ? "unreachable"
+          : status === "empty"
+            ? "not_found"
+            : "failed",
+    });
   });
 
   return { ok: false, status, error, source_url: result.url };
@@ -300,8 +312,14 @@ export async function runAboutScrapeBatch(opts: {
   skipStored?: boolean;
   concurrency?: number;
 }): Promise<AboutScrapeBatchResult> {
-  const limit = Math.min(20, Math.max(1, opts.limit ?? 5));
-  const concurrency = Math.min(4, Math.max(1, opts.concurrency ?? 2));
+  const limit = Math.min(
+    SCRAPE_BATCH_MAX,
+    Math.max(1, opts.limit ?? SCRAPE_BATCH_DEFAULT),
+  );
+  const concurrency = Math.min(
+    SCRAPE_CONCURRENCY_MAX,
+    Math.max(1, opts.concurrency ?? SCRAPE_CONCURRENCY_DEFAULT),
+  );
   const missingOnly = opts.missingOnly !== false;
 
   const pending = pendingAboutScrapeJobs({
@@ -324,34 +342,28 @@ export async function runAboutScrapeBatch(opts: {
   };
   if (!batch.length) return empty;
 
+  const results = await runConcurrent(batch, concurrency, (job) =>
+    scrapeOne(job, { despiteYf: opts.despiteYf }),
+  );
+
   let saved = 0;
   let failed = 0;
   let emptyCount = 0;
   const savedTickers: string[] = [];
-  let idx = 0;
-
-  async function worker() {
-    while (idx < batch.length) {
-      const i = idx;
-      idx += 1;
-      const job = batch[i]!;
-      const result = await scrapeOne(job, { despiteYf: opts.despiteYf });
-      if (result.ok) {
-        saved += 1;
-        savedTickers.push(job.ticker);
-      } else if (result.status === "covered") {
-        /* Yahoo about covers this ticker */
-      } else if (result.status === "empty" || result.status === "blocked") {
-        emptyCount += 1;
-      } else {
-        failed += 1;
-      }
+  for (let i = 0; i < results.length; i += 1) {
+    const result = results[i]!;
+    const job = batch[i]!;
+    if (result.ok) {
+      saved += 1;
+      savedTickers.push(job.ticker);
+    } else if (result.status === "covered") {
+      /* Yahoo about covers this ticker */
+    } else if (result.status === "empty" || result.status === "blocked") {
+      emptyCount += 1;
+    } else {
+      failed += 1;
     }
   }
-
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, batch.length) }, () => worker()),
-  );
 
   const remaining = Math.max(0, pending.length - batch.length);
 
@@ -366,4 +378,4 @@ export async function runAboutScrapeBatch(opts: {
   };
 }
 
-export { pendingScrapeCount };
+export { pendingScrapeCount, websiteScrapeGapCount } from "./scraper-store";

@@ -16,6 +16,7 @@ export function ensureCompanyAboutRow(
   const key = ticker.toUpperCase();
   const db = new Database(ABOUT_PATH);
   try {
+    db.pragma("busy_timeout = 5000");
     const exists = db
       .prepare(`SELECT 1 AS ok FROM company_about WHERE ticker = ?`)
       .get(key) as { ok: number } | undefined;
@@ -66,6 +67,7 @@ export function saveScrapedAboutToCompanyAbout(
   const text = opts.scraped_about?.trim() || null;
   const db = new Database(ABOUT_PATH);
   try {
+    db.pragma("busy_timeout = 5000");
     db.prepare(
       `UPDATE company_about SET
          scraped_about = @scraped_about,
@@ -107,6 +109,7 @@ export function updateCompanyWebsite(
   const db = new Database(ABOUT_PATH);
   let ok = false;
   try {
+    db.pragma("busy_timeout = 5000");
     const res = db
       .prepare(
         `UPDATE company_about SET
@@ -171,6 +174,7 @@ export function saveManualAboutToCompanyAbout(
   const db = new Database(ABOUT_PATH);
   let ok = false;
   try {
+    db.pragma("busy_timeout = 5000");
     const res = db
       .prepare(
         `UPDATE company_about SET

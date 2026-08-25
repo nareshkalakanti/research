@@ -74,6 +74,9 @@ export type Company = {
     sub_sector: boolean;
     about: boolean;
     web: boolean;
+    scrape: boolean;
+    scrape_empty?: boolean;
+    scrape_failed?: boolean;
   };
 };
 

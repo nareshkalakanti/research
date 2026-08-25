@@ -92,6 +92,7 @@ export function SavedSearchesBar({
   }
 
   if (loading && !searches.length && !canSave && !saving) return null;
+  if (!loading && !searches.length && !canSave && !saving) return null;
 
   return (
     <div className="saved-kw-row" aria-label="Saved keywords">
@@ -162,10 +163,6 @@ export function SavedSearchesBar({
           >
             +
           </button>
-        ) : null}
-
-        {!loading && !searches.length && !canSave && !saving ? (
-          <span className="saved-kw-none">none</span>
         ) : null}
       </div>
       {error ? <span className="saved-kw-error">{error}</span> : null}

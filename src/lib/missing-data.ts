@@ -5,6 +5,10 @@ import {
   niveshaayTickerSet,
 } from "@/lib/fund-watchlists";
 import { researchLinks } from "@/lib/links";
+import {
+  companyNeedsWebsiteScrape,
+  scrapeOutcomeTickerSet,
+} from "@/lib/scraper-store";
 
 export type MissingGapKey =
   | "metrics"
@@ -14,6 +18,10 @@ export type MissingGapKey =
   | "sub_sector"
   | "about"
   | "web"
+  | "scrape"
+  | "scrape_empty"
+  | "scrape_failed"
+  | "scrape_bad"
   | "any";
 
 export type GapFlags = {
@@ -23,9 +31,15 @@ export type GapFlags = {
   sub_sector: boolean;
   about: boolean;
   web: boolean;
+  scrape: boolean;
+  scrape_empty: boolean;
+  scrape_failed: boolean;
 };
 
 type CompanyLike = {
+  ticker: string;
+  website?: string | null;
+  scraped_about?: string | null;
   price: number | null;
   mcap_cr: number | null;
   sector: string | null;
@@ -34,7 +48,25 @@ type CompanyLike = {
   web: string | null;
 };
 
-export function companyGapFlags(c: CompanyLike): GapFlags {
+/** Optional precomputed scrape outcome sets (avoids N DB lookups). */
+export type ScrapeOutcomeSets = {
+  empty: Set<string>;
+  failed: Set<string>;
+};
+
+export function loadScrapeOutcomeSets(market = "All"): ScrapeOutcomeSets {
+  return {
+    empty: scrapeOutcomeTickerSet(["empty"], market),
+    failed: scrapeOutcomeTickerSet(["failed", "blocked"], market),
+  };
+}
+
+export function companyGapFlags(
+  c: CompanyLike,
+  outcomes?: ScrapeOutcomeSets,
+): GapFlags {
+  const key = c.ticker.toUpperCase();
+  const sets = outcomes ?? loadScrapeOutcomeSets("All");
   return {
     price: c.price == null,
     mcap: c.mcap_cr == null,
@@ -42,6 +74,13 @@ export function companyGapFlags(c: CompanyLike): GapFlags {
     sub_sector: !c.sub_sector?.trim(),
     about: !c.about?.trim(),
     web: !c.web,
+    scrape: companyNeedsWebsiteScrape({
+      ticker: c.ticker,
+      website: c.website ?? null,
+      scraped_about: c.scraped_about,
+    }),
+    scrape_empty: sets.empty.has(key),
+    scrape_failed: sets.failed.has(key),
   };
 }
 
@@ -52,7 +91,13 @@ export function matchesMissingGap(
   const key = missing.trim().toLowerCase();
   if (key === "any") {
     return (
-      g.price || g.mcap || g.sector || g.sub_sector || g.about || g.web
+      g.price ||
+      g.mcap ||
+      g.sector ||
+      g.sub_sector ||
+      g.about ||
+      g.web ||
+      g.scrape
     );
   }
   if (key === "price") return g.price;
@@ -61,6 +106,10 @@ export function matchesMissingGap(
   if (key === "sub_sector") return g.sub_sector;
   if (key === "about") return g.about;
   if (key === "web") return g.web;
+  if (key === "scrape") return g.scrape;
+  if (key === "scrape_empty") return g.scrape_empty;
+  if (key === "scrape_failed") return g.scrape_failed;
+  if (key === "scrape_bad") return g.scrape_empty || g.scrape_failed;
   if (key === "metrics") return g.price || g.mcap;
   return g.price || g.mcap;
 }
@@ -143,8 +192,9 @@ export function loadMissingCompanies(
     negen: negenTickerSet(),
   });
 
+  const outcomes = loadScrapeOutcomeSets(market || "All");
   return companies
-    .filter((c) => matchesMissingGap(companyGapFlags(c), missing))
+    .filter((c) => matchesMissingGap(companyGapFlags(c, outcomes), missing))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

@@ -26,6 +26,61 @@ let metricsMapCache: { at: number; map: Map<string, MetricsRow> } | null =
   null;
 const MAP_CACHE_MS = 5_000;
 
+const METRICS_SCHEMA = `
+  CREATE TABLE IF NOT EXISTS stock_metrics (
+    ticker TEXT PRIMARY KEY,
+    market TEXT,
+    yf_symbol TEXT,
+    price REAL,
+    market_cap_cr REAL,
+    sector TEXT,
+    fetched_at TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_metrics_fetched ON stock_metrics(fetched_at);
+`;
+
+function isSqliteCorrupt(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: string }).code === "SQLITE_CORRUPT"
+  );
+}
+
+function closeMetricsDb(): void {
+  if (!metricsDb) return;
+  try {
+    metricsDb.close();
+  } catch {
+    /* already closed */
+  }
+  metricsDb = null;
+}
+
+/** Drop open handle + in-memory map (after Yahoo fill or corruption recovery). */
+export function invalidateMetricsDb(): void {
+  closeMetricsDb();
+  metricsMapCache = null;
+}
+
+export function invalidateMetricsCache(): void {
+  metricsMapCache = null;
+}
+
+/** Recreate metrics.db when the on-disk image is malformed. */
+function resetMetricsDb(): void {
+  invalidateMetricsDb();
+  for (const suffix of ["", "-wal", "-shm"]) {
+    const p = METRICS_PATH + suffix;
+    try {
+      if (fs.existsSync(p)) fs.unlinkSync(p);
+    } catch {
+      /* another process may still hold the inode */
+    }
+  }
+}
+
 function ensureMetricsDb(): Database.Database {
   if (metricsDb) return metricsDb;
 
@@ -33,24 +88,9 @@ function ensureMetricsDb(): Database.Database {
 
   const db = new Database(METRICS_PATH);
   db.pragma("journal_mode = WAL");
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS stock_metrics (
-      ticker TEXT PRIMARY KEY,
-      market TEXT,
-      yf_symbol TEXT,
-      price REAL,
-      market_cap_cr REAL,
-      sector TEXT,
-      fetched_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_metrics_fetched ON stock_metrics(fetched_at);
-  `);
+  db.exec(METRICS_SCHEMA);
   metricsDb = db;
   return db;
-}
-
-export function invalidateMetricsCache(): void {
-  metricsMapCache = null;
 }
 
 export function loadMetricsMap(): Map<string, MetricsRow> {
@@ -112,59 +152,75 @@ export async function refreshPagePrices(
   });
   if (!pending.length) return 0;
 
-  const quotes = await fetchLivePrices(pending, {
-    concurrency: opts?.concurrency ?? 8,
-  });
-  const marketBy: Record<string, string> = {};
-  for (const c of pending) {
-    marketBy[c.ticker.toUpperCase()] = c.market ?? "";
+  try {
+    const quotes = await fetchLivePrices(pending, {
+      concurrency: opts?.concurrency ?? 8,
+    });
+    const marketBy: Record<string, string> = {};
+    for (const c of pending) {
+      marketBy[c.ticker.toUpperCase()] = c.market ?? "";
+    }
+    return upsertMetrics(quotes, marketBy);
+  } catch (err) {
+    console.warn("[metrics] refreshPagePrices failed:", err);
+    return 0;
   }
-  return upsertMetrics(quotes, marketBy);
 }
 
 export function upsertMetrics(
   quotes: YfQuote[],
   marketByTicker?: Record<string, string | null | undefined>,
+  retry = true,
 ): number {
   if (!quotes.length) return 0;
-  const db = ensureMetricsDb();
   const now = new Date().toISOString();
-  const stmt = db.prepare(`
-    INSERT INTO stock_metrics (ticker, market, yf_symbol, price, market_cap_cr, sector, fetched_at)
-    VALUES (@ticker, @market, @yf_symbol, @price, @market_cap_cr, @sector, @fetched_at)
-    ON CONFLICT(ticker) DO UPDATE SET
-      market = COALESCE(excluded.market, stock_metrics.market),
-      yf_symbol = COALESCE(excluded.yf_symbol, stock_metrics.yf_symbol),
-      price = COALESCE(excluded.price, stock_metrics.price),
-      market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
-      sector = COALESCE(excluded.sector, stock_metrics.sector),
-      fetched_at = excluded.fetched_at
-  `);
 
-  const tx = db.transaction((rows: YfQuote[]) => {
-    let n = 0;
-    for (const q of rows) {
-      if (q.price == null && q.mcap_cr == null) continue;
-      stmt.run({
-        ticker: q.ticker.toUpperCase(),
-        market:
-          marketByTicker?.[q.ticker] ??
-          marketByTicker?.[q.ticker.toUpperCase()] ??
-          null,
-        yf_symbol: q.yf_symbol || null,
-        price: q.price,
-        market_cap_cr: q.mcap_cr,
-        sector: q.sector,
-        fetched_at: now,
-      });
-      n += 1;
+  try {
+    const db = ensureMetricsDb();
+    const stmt = db.prepare(`
+      INSERT INTO stock_metrics (ticker, market, yf_symbol, price, market_cap_cr, sector, fetched_at)
+      VALUES (@ticker, @market, @yf_symbol, @price, @market_cap_cr, @sector, @fetched_at)
+      ON CONFLICT(ticker) DO UPDATE SET
+        market = COALESCE(excluded.market, stock_metrics.market),
+        yf_symbol = COALESCE(excluded.yf_symbol, stock_metrics.yf_symbol),
+        price = COALESCE(excluded.price, stock_metrics.price),
+        market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
+        sector = COALESCE(excluded.sector, stock_metrics.sector),
+        fetched_at = excluded.fetched_at
+    `);
+
+    const tx = db.transaction((rows: YfQuote[]) => {
+      let n = 0;
+      for (const q of rows) {
+        if (q.price == null && q.mcap_cr == null) continue;
+        stmt.run({
+          ticker: q.ticker.toUpperCase(),
+          market:
+            marketByTicker?.[q.ticker] ??
+            marketByTicker?.[q.ticker.toUpperCase()] ??
+            null,
+          yf_symbol: q.yf_symbol || null,
+          price: q.price,
+          market_cap_cr: q.mcap_cr,
+          sector: q.sector,
+          fetched_at: now,
+        });
+        n += 1;
+      }
+      return n;
+    });
+
+    const saved = tx(quotes);
+    invalidateMetricsCache();
+    return saved;
+  } catch (err) {
+    if (retry && isSqliteCorrupt(err)) {
+      console.warn("[metrics] corrupt db — recreating metrics.db");
+      resetMetricsDb();
+      return upsertMetrics(quotes, marketByTicker, false);
     }
-    return n;
-  });
-
-  const saved = tx(quotes);
-  invalidateMetricsCache();
-  return saved;
+    throw err;
+  }
 }
 
 export function metricsGapCount(
