@@ -654,10 +654,17 @@ function CompanyRows({
             ["sub_sector", r.missing.sub_sector],
             ["about", r.missing.about],
             ["web", r.missing.web],
+            ["scrape", r.missing.scrape],
           ] as const
         )
           .filter(([, on]) => on)
-          .map(([label]) => (label === "sub_sector" ? "sub-sector" : label))
+          .map(([label]) =>
+            label === "sub_sector"
+              ? "sub-sector"
+              : label === "scrape"
+                ? "scrape"
+                : label,
+          )
       : [];
 
   return (

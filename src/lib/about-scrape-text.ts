@@ -1,6 +1,10 @@
 import * as cheerio from "cheerio";
 import { looksLikeNavJunk } from "./db";
 import { websiteUrl } from "./links";
+import {
+  SCRAPE_PAGE_FETCH_CONCURRENCY,
+  withWebsiteFetch,
+} from "./scrape-pool";
 
 type CheerioRoot = ReturnType<typeof cheerio.load>;
 
@@ -266,36 +270,38 @@ function discoverAboutUrls(html: string, origin: string): string[] {
 
 async function fetchHtml(
   url: string,
-  timeoutMs = 12_000,
+  timeoutMs = 10_000,
 ): Promise<string | null> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-IN,en;q=0.9",
-      },
-      signal: ctrl.signal,
-      redirect: "follow",
-    });
-    if (!res.ok) return null;
-    const ct = (res.headers.get("content-type") || "").toLowerCase();
-    if (
-      ct &&
-      !ct.includes("text/html") &&
-      !ct.includes("application/xhtml") &&
-      !ct.includes("text/plain")
-    ) {
+  return withWebsiteFetch(url, async () => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": USER_AGENT,
+          Accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-IN,en;q=0.9",
+        },
+        signal: ctrl.signal,
+        redirect: "follow",
+      });
+      if (!res.ok) return null;
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      if (
+        ct &&
+        !ct.includes("text/html") &&
+        !ct.includes("application/xhtml") &&
+        !ct.includes("text/plain")
+      ) {
+        return null;
+      }
+      return await res.text();
+    } catch {
       return null;
+    } finally {
+      clearTimeout(timer);
     }
-    return await res.text();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  });
 }
 
 function staticCandidateUrls(base: string): string[] {
@@ -395,18 +401,29 @@ export async function scrapeCompanyWebsite(
   let bestScore = 0;
   let pagesTried = 0;
 
-  for (const url of urls) {
-    const html = url === origin && homeHtml ? homeHtml : await fetchHtml(url);
-    if (!html) continue;
-    pagesTried += 1;
-    const { text } = extractFromHtml(html);
-    const score = scoreText(text);
-    if (score > bestScore) {
-      bestScore = score;
-      bestText = text;
-      bestUrl = url;
+  for (let i = 0; i < urls.length; i += SCRAPE_PAGE_FETCH_CONCURRENCY) {
+    if (bestScore >= 1600 && bestText && !looksLikeNavJunk(bestText)) break;
+
+    const chunk = urls.slice(i, i + SCRAPE_PAGE_FETCH_CONCURRENCY);
+    const fetched = await Promise.all(
+      chunk.map(async (url) => {
+        const html =
+          url === origin && homeHtml ? homeHtml : await fetchHtml(url);
+        return { url, html };
+      }),
+    );
+
+    for (const { url, html } of fetched) {
+      if (!html) continue;
+      pagesTried += 1;
+      const { text } = extractFromHtml(html);
+      const score = scoreText(text);
+      if (score > bestScore) {
+        bestScore = score;
+        bestText = text;
+        bestUrl = url;
+      }
     }
-    if (score >= 1600 && !looksLikeNavJunk(text)) break;
   }
 
   if (!bestText || bestText.length < 80) {

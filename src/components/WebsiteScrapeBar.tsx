@@ -35,11 +35,14 @@ type Props = {
   market: ScanList;
   tickers: string[];
   listLabel: string;
+  /** Pending count + batch scrape use website-gap queue (has URL, no stored scrape). */
+  websiteGap?: boolean;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
 };
 
-const BATCH = 5;
+const BATCH = 12;
+const BATCH_PAUSE_MS = 120;
 
 function formatDetail(opts: {
   saved: number;
@@ -95,10 +98,12 @@ export function WebsiteScrapeBar({
   market,
   tickers,
   listLabel,
+  websiteGap = false,
   onBatch,
   onDone,
 }: Props) {
   const universeMarket = isScanWatchlist(market) ? "All" : market;
+  const pendingMode = websiteGap ? "website" : "yahoo";
   const [pending, setPending] = useState<number | null>(null);
   const [busyMode, setBusyMode] = useState<ScanMode | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
@@ -106,14 +111,14 @@ export function WebsiteScrapeBar({
   const refreshPending = useCallback(async () => {
     try {
       const res = await fetch(
-        `/api/about-scrape?market=${encodeURIComponent(universeMarket)}`,
+        `/api/about-scrape?market=${encodeURIComponent(universeMarket)}&mode=${pendingMode}`,
       );
       const json = (await res.json()) as { pending?: number };
       setPending(json.pending ?? null);
     } catch {
       /* ignore */
     }
-  }, [universeMarket]);
+  }, [universeMarket, pendingMode]);
 
   useEffect(() => {
     void refreshPending();
@@ -201,6 +206,7 @@ export function WebsiteScrapeBar({
             limit: BATCH,
             pageScan: mode === "page",
             missingOnly: mode === "pending",
+            websiteGap: mode === "pending" && websiteGap,
           });
 
           gotSaved += json.saved;
@@ -238,7 +244,7 @@ export function WebsiteScrapeBar({
           }
 
           if (json.done || remaining <= 0) break;
-          await new Promise((r) => setTimeout(r, 250));
+          await new Promise((r) => setTimeout(r, BATCH_PAUSE_MS));
         }
 
         if (gotTried > 0) {
@@ -280,6 +286,7 @@ export function WebsiteScrapeBar({
       refreshPending,
       tickers,
       universeMarket,
+      websiteGap,
     ],
   );
 
@@ -312,7 +319,9 @@ export function WebsiteScrapeBar({
           title={
             isScanWatchlist(market)
               ? "Switch to an exchange list for universe-wide pending scrape"
-              : `Scrape Yahoo gaps from company websites (${universeMarket})`
+              : websiteGap
+                ? `Scrape company websites missing stored text (${universeMarket})`
+                : `Scrape Yahoo gaps from company websites (${universeMarket})`
           }
         >
           {busyMode === "pending" ? "Scanning…" : "Scan pending"}

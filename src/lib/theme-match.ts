@@ -20,12 +20,23 @@ export type ThemeFilterFile = {
 
 export type ThemeMatchRow = {
   about?: string | null;
+  scraped_about?: string | null;
   headquarters?: string | null;
   search_text?: string | null;
   sector?: string | null;
   sub_sector?: string | null;
   mcap_cr?: number | null;
 };
+
+/** Keyword corpus: About + stored website scrape (search_text already merges both when present). */
+export function themeSearchCorpus(row: ThemeMatchRow): string {
+  const merged = row.search_text?.trim();
+  if (merged) return merged;
+  return [row.about, row.scraped_about, row.headquarters]
+    .map((s) => (s ?? "").trim())
+    .filter(Boolean)
+    .join("\n");
+}
 
 /** Legacy blog-group caps (older theme files). Per-theme caps live in theme_keywords.json meta. */
 export const BLOG_THEME_MAX_MCAP_CR: Record<string, number> = {
@@ -170,9 +181,7 @@ export function themeMatch(
   theme: Theme,
   filters?: Record<string, ThemeSectorFilter>,
 ): boolean {
-  const text =
-    row.search_text?.trim() ||
-    [row.about, row.headquarters].filter(Boolean).join("\n");
+  const text = themeSearchCorpus(row);
   if (!text || !patternMatches(text, themeMatchPattern(theme))) return false;
   if (!themeCapPasses(theme, row.mcap_cr)) return false;
   const map = filters ?? loadThemeSectorFilters();
@@ -195,9 +204,7 @@ export function matchThemesForRow(
   scanPattern: string;
 } {
   const filters = opts?.filters ?? loadThemeSectorFilters();
-  const search =
-    row.search_text?.trim() ||
-    [row.about, row.headquarters].filter(Boolean).join("\n");
+  const search = themeSearchCorpus(row);
   const matchedThemeIds: string[] = [];
   const termSet = new Set<string>();
   const highlightSet = new Set<string>();

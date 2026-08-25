@@ -38,6 +38,7 @@ import { researchLinks } from "@/lib/links";
 import { loadMetricsMap, refreshPagePrices } from "@/lib/metrics";
 import {
   companyGapFlags,
+  loadScrapeOutcomeSets,
   matchesMissingGap,
 } from "@/lib/missing-data";
 import { capTier, type CapTier } from "@/lib/types";
@@ -254,6 +255,9 @@ async function buildCompaniesResponse(req: NextRequest) {
     Math.max(1, Number(sp.get("scrapeLimit") || 5)),
   );
   const missing = (sp.get("missing") || "").trim().toLowerCase();
+  const scrapeOutcomes = loadScrapeOutcomeSets(
+    market && market !== "All" ? market : "All",
+  );
 
   const breakouts = loadBreakoutMap(bbTf);
   const holdings = holdingsTickerSet();
@@ -328,12 +332,12 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   function gapFlags(c: (typeof companies)[number]) {
-    return companyGapFlags(c);
+    return companyGapFlags(c, scrapeOutcomes);
   }
 
   if (missing) {
     companies = companies.filter((c) =>
-      matchesMissingGap(companyGapFlags(c), missing),
+      matchesMissingGap(gapFlags(c), missing),
     );
   }
 
@@ -556,10 +560,14 @@ async function buildCompaniesResponse(req: NextRequest) {
   const forcePriceRefresh = sp.get("refresh") === "1";
   // Background price/mcap refresh for list tabs (skip Missing data — no live quotes needed).
   if (pageItems.length && !missing) {
-    await refreshPagePrices(
-      pageItems.map((c) => ({ ticker: c.ticker, market: c.market })),
-      { force: forcePriceRefresh },
-    );
+    try {
+      await refreshPagePrices(
+        pageItems.map((c) => ({ ticker: c.ticker, market: c.market })),
+        { force: forcePriceRefresh },
+      );
+    } catch (err) {
+      console.warn("[api/companies] price refresh skipped:", err);
+    }
   }
   const metricsMap = loadMetricsMap();
 
@@ -602,6 +610,9 @@ async function buildCompaniesResponse(req: NextRequest) {
         sub_sector: g.sub_sector,
         about: g.about,
         web: g.web,
+        scrape: g.scrape,
+        scrape_empty: g.scrape_empty,
+        scrape_failed: g.scrape_failed,
       },
     };
   });
@@ -617,6 +628,13 @@ async function buildCompaniesResponse(req: NextRequest) {
       missingSubSector: pool.filter((c) => !c.sub_sector?.trim()).length,
       missingAbout: pool.filter((c) => !c.about?.trim()).length,
       missingWeb: pool.filter((c) => !c.web).length,
+      missingScrape: pool.filter((c) => gapFlags(c).scrape).length,
+      scrapeEmpty: pool.filter((c) => gapFlags(c).scrape_empty).length,
+      scrapeFailed: pool.filter((c) => gapFlags(c).scrape_failed).length,
+      scrapeBad: pool.filter((c) => {
+        const g = gapFlags(c);
+        return g.scrape_empty || g.scrape_failed;
+      }).length,
       any: pool.filter((c) => {
         const g = gapFlags(c);
         return (
@@ -625,7 +643,8 @@ async function buildCompaniesResponse(req: NextRequest) {
           g.sector ||
           g.sub_sector ||
           g.about ||
-          g.web
+          g.web ||
+          g.scrape
         );
       }).length,
       metrics: pool.filter((c) => c.price == null || c.mcap_cr == null).length,

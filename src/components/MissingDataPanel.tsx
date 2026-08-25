@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
+import { WebsiteScrapeBar } from "@/components/WebsiteScrapeBar";
+import type { ScanList } from "@/lib/scan-lists";
 import type { Company } from "@/lib/types";
 
 type GapKey =
@@ -14,6 +16,10 @@ type GapKey =
   | "sub_sector"
   | "about"
   | "web"
+  | "scrape"
+  | "scrape_empty"
+  | "scrape_failed"
+  | "scrape_bad"
   | "any";
 
 type Gaps = {
@@ -23,6 +29,10 @@ type Gaps = {
   missingSubSector: number;
   missingAbout: number;
   missingWeb: number;
+  missingScrape: number;
+  scrapeEmpty: number;
+  scrapeFailed: number;
+  scrapeBad: number;
   any: number;
   metrics: number;
 };
@@ -44,6 +54,10 @@ const GAP_OPTIONS: { id: GapKey; label: string; countKey: keyof Gaps }[] = [
   { id: "sub_sector", label: "Sub-sector", countKey: "missingSubSector" },
   { id: "about", label: "About", countKey: "missingAbout" },
   { id: "web", label: "Web", countKey: "missingWeb" },
+  { id: "scrape", label: "Website scrape pending", countKey: "missingScrape" },
+  { id: "scrape_empty", label: "Scrape empty", countKey: "scrapeEmpty" },
+  { id: "scrape_failed", label: "Scrape failed", countKey: "scrapeFailed" },
+  { id: "scrape_bad", label: "Scrape empty + failed", countKey: "scrapeBad" },
   { id: "any", label: "Any gap", countKey: "any" },
 ];
 
@@ -125,6 +139,13 @@ export function MissingDataPanel() {
                 {" "}
                 · <strong>{(gaps.metrics ?? 0).toLocaleString()}</strong> need
                 price/mcap
+                {(gaps.missingScrape ?? 0) > 0 ? (
+                  <>
+                    {" "}
+                    · <strong>{gaps.missingScrape.toLocaleString()}</strong> need
+                    website scrape
+                  </>
+                ) : null}
               </>
             ) : null}
             {" "}
@@ -146,6 +167,17 @@ export function MissingDataPanel() {
         totalGaps={totalMetricsGaps}
         onDone={() => load({ refresh: true })}
       />
+
+      {gap === "scrape" ? (
+        <WebsiteScrapeBar
+          market={market as ScanList}
+          tickers={pageTickers}
+          listLabel={market}
+          websiteGap
+          onBatch={() => load()}
+          onDone={() => load({ refresh: true })}
+        />
+      ) : null}
 
       <div className="toolbar">
         <label className="field">
@@ -188,7 +220,11 @@ export function MissingDataPanel() {
       </div>
       <p className="hint tight missing-export-hint">
         CSV columns: <strong>company name</strong>, <strong>symbol</strong>,{" "}
-        <strong>website</strong> — all rows for the selected list and gap filter
+        <strong>website</strong>
+        {gap.startsWith("scrape_")
+          ? " · plus scrape_status and error"
+          : null}{" "}
+        — all rows for the selected list and gap filter
         {data ? ` (${data.total.toLocaleString()} stocks)` : null}.
         Expand a row → <strong>Website</strong> tab to edit URL and scrape text.
       </p>

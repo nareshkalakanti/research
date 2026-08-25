@@ -7,7 +7,6 @@ import {
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
-import { ThemeScrapeScanButton } from "@/components/ThemeScrapeScanButton";
 import { WatchlistFilterBar } from "@/components/WatchlistFilterBar";
 import { SavedSearchesBar } from "@/components/SavedSearchesBar";
 import { ThemeMultiselect } from "@/components/ThemeMultiselect";
@@ -42,15 +41,6 @@ type ScanApi = {
   };
   session?: { bb: string | null; tq: string | null; ema?: string | null };
   breakoutsPreferred?: boolean;
-  scrape?: {
-    tried: number;
-    saved: number;
-    failed: number;
-    empty: number;
-    remaining: number;
-    sector_pool: number;
-    saved_tickers: string[];
-  };
 };
 
 export function ThemeScanner() {
@@ -74,8 +64,6 @@ export function ThemeScanner() {
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ScanApi | null>(null);
   const [loading, setLoading] = useState(false);
-  const [dynamicScrape, setDynamicScrape] = useState(true);
-  const [scrapeStatus, setScrapeStatus] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const hasDataRef = useRef(false);
   const loadSeqRef = useRef(0);
@@ -258,60 +246,6 @@ export function ThemeScanner() {
     ],
   );
 
-  const scanParams = useMemo(() => {
-    const params = new URLSearchParams({
-      market: listMarket,
-      cap,
-      page: String(page),
-      pageSize: "100",
-      sort,
-      dir,
-    });
-    if (themeActive) {
-      params.set("scan", "1");
-      params.set("themes", selected.join(","));
-      params.set("custom", debouncedCustom);
-    }
-    if (filterHold) params.set("hold", "1");
-    if (filterEdge) params.set("edge", "1");
-    if (filterNiveshaay) params.set("niveshaay", "1");
-    if (filterNegen) params.set("negen", "1");
-    if (filterSme) params.set("sme", "1");
-    if (filterNote) params.set("note", "1");
-    return params;
-  }, [
-    listMarket,
-    cap,
-    page,
-    sort,
-    dir,
-    themeActive,
-    selected,
-    debouncedCustom,
-    filterHold,
-    filterEdge,
-    filterNiveshaay,
-    filterNegen,
-    filterSme,
-    filterNote,
-  ]);
-
-  const applyScanBatch = useCallback((json: ScanApi) => {
-    setData(json);
-    if (json.markets) setMarkets(json.markets);
-    if (json.signals) {
-      setSignalCounts({
-        hold: json.signals.hold ?? 0,
-        distress: json.signals.distress ?? 0,
-        edge: json.signals.edge ?? 0,
-        niveshaay: json.signals.niveshaay ?? 0,
-        negen: json.signals.negen ?? 0,
-        sme: json.signals.sme ?? 0,
-        note: json.signals.note ?? 0,
-      });
-    }
-  }, []);
-
   const loadRef = useRef(load);
   loadRef.current = load;
   const softReload = useCallback(() => {
@@ -351,20 +285,11 @@ export function ThemeScanner() {
         <div>
           <h2>Theme Scanner</h2>
           <p>
-            Match company about-text against investment themes.
+            Match keywords against About and stored website scrape text.
             {meta.syntax ? ` Syntax: ${meta.syntax}.` : null}
           </p>
         </div>
         <div className="scanner-hero-right scanner-hero-actions">
-          {themeActive && dynamicScrape ? (
-            <ThemeScrapeScanButton
-              params={scanParams}
-              disabled={!themeActive}
-              onProgress={setScrapeStatus}
-              onBatch={(json) => applyScanBatch(json as ScanApi)}
-              onDone={softReload}
-            />
-          ) : null}
           <RefreshButton
             busy={loading}
             onRefresh={async () => {
@@ -407,31 +332,9 @@ export function ThemeScanner() {
             />
           </div>
           <p className="hint tight">
-            Pipe-separated OR · use + for AND inside a clause
+            Pipe-separated OR · use + for AND inside a clause · matches About +
+            website scrape
           </p>
-          <label className="theme-scrape-toggle">
-            <input
-              type="checkbox"
-              checked={dynamicScrape}
-              onChange={(e) => setDynamicScrape(e.target.checked)}
-            />
-            <span>
-              Website scrape on Scan
-              {scrapeStatus ? ` · ${scrapeStatus}` : ""}
-            </span>
-          </label>
-          {dynamicScrape ? (
-            <p className="hint tight">
-              Hit <strong>Scan</strong> to scrape theme-sector websites (stored
-              in DB) and refresh keyword matches. Already-scraped tickers are
-              skipped.
-            </p>
-          ) : (
-            <p className="hint tight">
-              Theme filter uses About + stored website text only. Enable scrape
-              on Scan to fetch new site text.
-            </p>
-          )}
           {selectedThemes.some((t) =>
             [
               "solar_epc_bess",
@@ -574,16 +477,8 @@ export function ThemeScanner() {
 
       {!active ? (
         <div className="empty-state">
-          Select themes, cap band, keywords, or a watch / weekly chip.{" "}
-          {dynamicScrape && themeActive ? (
-            <>
-              Use <strong>Scan</strong> to scrape websites and refresh matches.
-            </>
-          ) : (
-            <>
-              Use <strong>Scan</strong> on the Scan tab for BB/TQ signals.
-            </>
-          )}
+          Select themes, cap band, keywords, or a watch / weekly chip. Keywords
+          search About and stored website scrape text.
         </div>
       ) : (
         <>
@@ -591,9 +486,6 @@ export function ThemeScanner() {
             <div className="empty-state theme-load-error">{loadError}</div>
           ) : null}
           {loading && !data ? <div className="loading">Loading…</div> : null}
-          {scrapeStatus ? (
-            <div className="loading theme-scrape-progress">{scrapeStatus}</div>
-          ) : null}
           <CompanyTable
             rows={data?.rows ?? []}
             sort={sort}

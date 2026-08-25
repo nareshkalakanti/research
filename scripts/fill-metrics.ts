@@ -1,7 +1,8 @@
 /**
  * Solid metrics bootstrap:
- * 1) Seed BSE SME mcap from local BSE cache
- * 2) Yahoo-fill remaining gaps (.NS → .BO)
+ * 1) Seed price/mcap from stocks-ai stock_metrics (local, fast)
+ * 2) Seed BSE SME mcap from local BSE cache
+ * 3) Yahoo-fill remaining gaps (.NS → .BO)
  *
  * Usage: npx tsx scripts/fill-metrics.ts
  */
@@ -9,12 +10,27 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { BSE_SME_MARKET } from "../src/lib/bse-sme";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 const DATA = path.join(ROOT, "data");
 const METRICS_PATH = path.join(DATA, "metrics.db");
 const ABOUT_PATH = path.join(DATA, "company_about.db");
+const STOCKS_AI_CANDIDATES = [
+  path.join(ROOT, "..", "stocks-ai", "data", "stocks_ai.db"),
+  path.join(
+    process.env.HOME || "",
+    "Development/ai.com/stocks-ai/data/stocks_ai.db",
+  ),
+];
+
+function resolveStocksAiDb(): string | null {
+  for (const p of STOCKS_AI_CANDIDATES) {
+    if (fs.existsSync(p)) return p;
+  }
+  return null;
+}
 
 function ensureMetrics() {
   const db = new Database(METRICS_PATH);
@@ -64,6 +80,76 @@ function gapList(metrics: Database.Database) {
     if (np || nm) missing.push({ ticker: c.ticker, market: c.market });
   }
   return { missing, missP, missM, total: companies.length };
+}
+
+function seedFromStocksAi(metrics: Database.Database): number {
+  const srcPath = resolveStocksAiDb();
+  if (!srcPath) {
+    console.log("stocks-ai db not found — skip seed");
+    return 0;
+  }
+
+  const about = new Database(ABOUT_PATH, { readonly: true });
+  const aboutRows = about
+    .prepare("SELECT ticker, market FROM company_about")
+    .all() as Array<{ ticker: string; market: string | null }>;
+  about.close();
+
+  const tickers = new Set(aboutRows.map((r) => r.ticker.toUpperCase()));
+  const skipBseSme = new Set(
+    aboutRows
+      .filter((r) => (r.market || "").toUpperCase() === BSE_SME_MARKET)
+      .map((r) => r.ticker.toUpperCase()),
+  );
+
+  const src = new Database(srcPath, { readonly: true });
+  const rows = src
+    .prepare(
+      `SELECT ticker, market, price, market_cap_cr, sector
+       FROM stock_metrics
+       WHERE price IS NOT NULL OR market_cap_cr IS NOT NULL`,
+    )
+    .all() as Array<{
+    ticker: string;
+    market: string | null;
+    price: number | null;
+    market_cap_cr: number | null;
+    sector: string | null;
+  }>;
+  src.close();
+
+  const now = new Date().toISOString();
+  const upsert = metrics.prepare(`
+    INSERT INTO stock_metrics (ticker, market, yf_symbol, price, market_cap_cr, sector, fetched_at)
+    VALUES (@ticker, @market, NULL, @price, @market_cap_cr, @sector, @fetched_at)
+    ON CONFLICT(ticker) DO UPDATE SET
+      market = COALESCE(excluded.market, stock_metrics.market),
+      price = COALESCE(excluded.price, stock_metrics.price),
+      market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
+      sector = COALESCE(excluded.sector, stock_metrics.sector),
+      fetched_at = CASE
+        WHEN excluded.price IS NOT NULL OR excluded.market_cap_cr IS NOT NULL
+        THEN excluded.fetched_at ELSE stock_metrics.fetched_at END
+  `);
+
+  let seeded = 0;
+  const tx = metrics.transaction(() => {
+    for (const r of rows) {
+      const ticker = r.ticker.toUpperCase();
+      if (!tickers.has(ticker) || skipBseSme.has(ticker)) continue;
+      upsert.run({
+        ticker,
+        market: r.market,
+        price: r.price,
+        market_cap_cr: r.market_cap_cr,
+        sector: r.sector,
+        fetched_at: now,
+      });
+      seeded += 1;
+    }
+  });
+  tx();
+  return seeded;
 }
 
 async function yahooFill(
@@ -140,14 +226,18 @@ async function main() {
 
   const metrics = ensureMetrics();
 
+  console.log("1) Seed from stocks-ai…");
+  const seeded = seedFromStocksAi(metrics);
+  console.log("   seeded rows:", seeded);
+
   const { seedBseSmeMcapFromCache, fillBseSmeMetricsGaps } = await import(
     "../src/lib/metrics"
   );
   const bseSeed = seedBseSmeMcapFromCache();
-  console.log("1) Seed BSE SME mcap from BSE cache…", bseSeed);
+  console.log("2) Seed BSE SME mcap from BSE cache…", bseSeed);
 
   let gaps = gapList(metrics);
-  console.log("2) Gaps:", {
+  console.log("3) Gaps after seed:", {
     total: gaps.total,
     missPrice: gaps.missP,
     missMcap: gaps.missM,
@@ -156,7 +246,7 @@ async function main() {
 
   const csvTickers = new Set(readCsvTickers(csvArg));
   if (csvTickers.size) {
-    console.log("3) CSV priority tickers:", [...csvTickers].join(", "));
+    console.log("4) CSV priority tickers:", [...csvTickers].join(", "));
   }
 
   // Prioritize CSV tickers still missing, then the rest
@@ -166,24 +256,24 @@ async function main() {
   ];
 
   if (prioritized.length) {
-    console.log(`4) Yahoo-fill ${prioritized.length} remaining…`);
+    console.log(`5) Yahoo-fill ${prioritized.length} remaining…`);
     const yf = await yahooFill(metrics, prioritized);
     console.log("   yahoo filled:", yf);
   } else {
-    console.log("4) Nothing left for Yahoo");
+    console.log("5) Nothing left for Yahoo");
   }
 
   const bsePending = gapList(metrics).missing.filter(
     (m) => m.market === "BSE SME",
   );
   if (bsePending.length) {
-    console.log(`4b) BSE API fill ${bsePending.length} BSE SME gaps…`);
+    console.log(`5b) BSE API fill ${bsePending.length} BSE SME gaps…`);
     const bse = await fillBseSmeMetricsGaps(bsePending);
     console.log("   bse filled:", bse);
   }
 
   gaps = gapList(metrics);
-  console.log("5) Final coverage:", {
+  console.log("6) Final coverage:", {
     total: gaps.total,
     withPrice: gaps.total - gaps.missP,
     withMcap: gaps.total - gaps.missM,
@@ -196,7 +286,7 @@ async function main() {
     const get = metrics.prepare(
       "SELECT ticker, price, market_cap_cr FROM stock_metrics WHERE ticker = ?",
     );
-    console.log("6) CSV tickers:");
+    console.log("7) CSV tickers:");
     for (const t of csvTickers) {
       console.log("  ", get.get(t));
     }

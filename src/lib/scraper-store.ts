@@ -61,6 +61,7 @@ function ensureScraperDb(): Database.Database {
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
   const db = new Database(SCRAPER_PATH);
   db.pragma("journal_mode = WAL");
+  db.pragma("busy_timeout = 5000");
   db.exec(`
     CREATE TABLE IF NOT EXISTS company_scrape (
       ticker TEXT PRIMARY KEY,
@@ -184,6 +185,7 @@ export function upsertScrapeResult(
     scrape_source?: "website" | null;
   },
 ): void {
+  scrapeStatusMapCache = null;
   const db = ensureScraperDb();
   const key = ticker.toUpperCase();
   const text = opts.scraped_about?.trim() || null;
@@ -228,7 +230,13 @@ export function scrapeStatusForTicker(ticker: string): ScrapeStatus | null {
   return row?.status ?? null;
 }
 
-const SETTLED_SCRAPE: ScrapeStatus[] = ["ok", "empty", "failed", "blocked"];
+const SETTLED_SCRAPE: ScrapeStatus[] = [
+  "ok",
+  "empty",
+  "failed",
+  "blocked",
+  "manual",
+];
 
 /** True when website scrape result is persisted — do not fetch again unless rescan. */
 export function isWebsiteScrapeStored(
@@ -236,9 +244,176 @@ export function isWebsiteScrapeStored(
   scrapedAbout?: string | null,
 ): boolean {
   const text = (scrapedAbout ?? "").trim();
-  if (text.length >= 80) return true;
+  if (text.length >= 40) return true;
   const status = scrapeStatusForTicker(ticker);
   return status != null && SETTLED_SCRAPE.includes(status);
+}
+
+/** Same gate as Scan / theme scrape — website URL present, no stored scrape yet. */
+export function companyNeedsWebsiteScrape(c: {
+  ticker: string;
+  website: string | null;
+  scraped_about?: string | null;
+}): boolean {
+  if (!websiteUrl(c.website)) return false;
+  return !isWebsiteScrapeStored(c.ticker, c.scraped_about);
+}
+
+export function websiteScrapeGapTickerSet(market = "All"): Set<string> {
+  const about = aboutDb();
+  if (!about) return new Set();
+  try {
+    const pending = new Set<string>();
+    const rows = about
+      .prepare(
+        `SELECT ticker, market, website, TRIM(COALESCE(scraped_about, '')) AS scraped
+         FROM company_about`,
+      )
+      .all() as Array<{
+      ticker: string;
+      market: string;
+      website: string | null;
+      scraped: string;
+    }>;
+    for (const r of rows) {
+      if (market !== "All" && r.market !== market) continue;
+      if (
+        companyNeedsWebsiteScrape({
+          ticker: r.ticker,
+          website: r.website,
+          scraped_about: r.scraped || null,
+        })
+      ) {
+        pending.add(r.ticker.toUpperCase());
+      }
+    }
+    return pending;
+  } finally {
+    about.close();
+  }
+}
+
+export function websiteScrapeGapCount(market = "All"): number {
+  return websiteScrapeGapTickerSet(market).size;
+}
+
+export type ScrapeOutcomeRow = {
+  ticker: string;
+  status: ScrapeStatus;
+  error: string | null;
+  website: string | null;
+  website_status: string | null;
+};
+
+let scrapeStatusMapCache: Map<
+  string,
+  { status: ScrapeStatus; error: string | null }
+> | null = null;
+
+/** ticker → last scrape status / error (from scraper.db). */
+export function loadScrapeStatusMap(): Map<
+  string,
+  { status: ScrapeStatus; error: string | null }
+> {
+  if (scrapeStatusMapCache) return scrapeStatusMapCache;
+  const db = ensureScraperDb();
+  const map = new Map<string, { status: ScrapeStatus; error: string | null }>();
+  for (const r of db
+    .prepare(`SELECT ticker, status, error FROM company_scrape`)
+    .all() as Array<{
+    ticker: string;
+    status: ScrapeStatus;
+    error: string | null;
+  }>) {
+    map.set(r.ticker.toUpperCase(), {
+      status: r.status,
+      error: r.error,
+    });
+  }
+  scrapeStatusMapCache = map;
+  return map;
+}
+
+/** Tickers whose website scrape settled as empty / failed / blocked. */
+export function scrapeOutcomeTickerSet(
+  outcomes: Array<"empty" | "failed" | "blocked">,
+  market = "All",
+): Set<string> {
+  const want = new Set(outcomes);
+  const statusMap = loadScrapeStatusMap();
+  const about = aboutDb();
+  if (!about) {
+    const out = new Set<string>();
+    for (const [t, row] of statusMap) {
+      if (want.has(row.status as "empty" | "failed" | "blocked")) out.add(t);
+    }
+    return out;
+  }
+  try {
+    const out = new Set<string>();
+    const rows = about
+      .prepare(`SELECT ticker, market FROM company_about`)
+      .all() as Array<{ ticker: string; market: string }>;
+    for (const r of rows) {
+      if (market !== "All" && r.market !== market) continue;
+      const key = r.ticker.toUpperCase();
+      const st = statusMap.get(key)?.status;
+      if (st && want.has(st as "empty" | "failed" | "blocked")) out.add(key);
+    }
+    return out;
+  } finally {
+    about.close();
+  }
+}
+
+export function scrapeOutcomeCount(
+  outcomes: Array<"empty" | "failed" | "blocked">,
+  market = "All",
+): number {
+  return scrapeOutcomeTickerSet(outcomes, market).size;
+}
+
+/** Rows for CSV export of empty / failed website scrapes. */
+export function listScrapeOutcomeRows(
+  outcomes: Array<"empty" | "failed" | "blocked">,
+  market = "All",
+): ScrapeOutcomeRow[] {
+  const want = new Set(outcomes);
+  const statusMap = loadScrapeStatusMap();
+  const about = aboutDb();
+  const out: ScrapeOutcomeRow[] = [];
+  if (!about) return out;
+  try {
+    const rows = about
+      .prepare(
+        `SELECT ticker, market, website, website_status FROM company_about`,
+      )
+      .all() as Array<{
+      ticker: string;
+      market: string;
+      website: string | null;
+      website_status: string | null;
+    }>;
+    for (const r of rows) {
+      if (market !== "All" && r.market !== market) continue;
+      const key = r.ticker.toUpperCase();
+      const saved = statusMap.get(key);
+      if (!saved || !want.has(saved.status as "empty" | "failed" | "blocked")) {
+        continue;
+      }
+      out.push({
+        ticker: key,
+        status: saved.status,
+        error: saved.error,
+        website: r.website,
+        website_status: r.website_status,
+      });
+    }
+    out.sort((a, b) => a.ticker.localeCompare(b.ticker));
+    return out;
+  } finally {
+    about.close();
+  }
 }
 
 export function storedWebsiteScrapeMeta(ticker: string): {

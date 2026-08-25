@@ -5,6 +5,7 @@ import { scrapeAboutForTicker } from "./about-scrape";
 import type { CompanyRow } from "./db";
 import { loadAllCompanies } from "./db";
 import { websiteUrl } from "./links";
+import { runConcurrent, SCRAPE_CONCURRENCY_DEFAULT } from "./scrape-pool";
 import { isWebsiteScrapeStored } from "./scraper-store";
 import { loadThemeSectorFilters, sectorGatePasses } from "./theme-match";
 import type { Theme } from "./themes";
@@ -76,11 +77,17 @@ export async function runThemeScrapeBatch(opts: {
   let empty = 0;
   const savedTickers: string[] = [];
 
-  for (const c of batch) {
-    const result = await scrapeAboutForTicker(c.ticker, {
-      despiteYf: true,
-      rescan: false,
-    });
+  const results = await runConcurrent(
+    batch,
+    Math.min(4, SCRAPE_CONCURRENCY_DEFAULT),
+    (c) =>
+      scrapeAboutForTicker(c.ticker, {
+        despiteYf: true,
+        rescan: false,
+      }),
+  );
+
+  for (const result of results) {
     if (result.ok) {
       saved += 1;
       savedTickers.push(result.ticker);
