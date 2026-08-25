@@ -21,6 +21,7 @@ import {
   isSkippableSymbol,
   toTradingWeekFriday,
 } from "./ohlc";
+import { isSqliteCorrupt } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const SIGNALS_PATH = path.join(DATA_DIR, "signals.db");
@@ -161,14 +162,6 @@ const SIGNALS_SCHEMA = `
       PRIMARY KEY (ticker, timeframe)
     );
 `;
-
-function isSqliteCorrupt(err: unknown): boolean {
-  if (typeof err !== "object" || err === null) return false;
-  const code = (err as { code?: string }).code;
-  if (code === "SQLITE_CORRUPT" || code === "SQLITE_NOTADB") return true;
-  const msg = String((err as { message?: string }).message || err);
-  return /malformed|corrupt/i.test(msg);
-}
 
 function closeSignalsDb(): void {
   if (!signalsDb) return;
