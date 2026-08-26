@@ -2,7 +2,9 @@
   "meta": {
     "updated": "2026-08-25",
     "syntax": "+ means AND, | means OR (AND binds tighter)",
-    "note": "Fallback copy — primary source is theme_keywords.json"
+    "note": "Fallback copy — primary source is theme_keywords.json",
+    "theme_count": 24,
+    "clusters": []
   },
   "themes": [
     {
@@ -13,73 +15,165 @@
       "pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth"
     },
     {
+      "id": "gov_defence_aerospace_indigenisation",
+      "name": "Defence & Aerospace Indigenisation (Atmanirbhar / DAP)",
+      "tag": "Defence / aerospace",
+      "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
+      "pattern": "defence | defense | aerospace | missile | missiles | drone | drones | UAV | avionics | defence + manufacturing | defense + manufacturing | naval + ship | armoured | artillery | ordnance | defence + electronics | defense + electronics | aerospace + component"
+    },
+    {
       "id": "gov_semicon_electronics_pli",
-      "name": "Electronics Components, SPECS & ISM 2.0",
+      "name": "Semicon 2.0, SPECS & Electronics Components",
       "tag": "Semicon / ISM / SPECS",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "EMS | electronics manufacturing services | ESDM | printed circuit | PCB | PCB assembly | electronic components | OSAT | semiconductor packaging | chip design | electronics manufacturing | contract manufacturing + electronics | sensor + manufacturing | LED + manufacturing"
     },
     {
       "id": "gov_ai_datacenter_cloud",
       "name": "India AI Mission & Data Centre Tax Holiday (2047)",
       "tag": "AI / data centers",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "data centre | data center | colocation | hyperscale | cloud infrastructure | cloud + data centre | cloud + data center | GPU + server | AI compute | power + data centre | power + data center"
     },
     {
       "id": "gov_ev_green_mobility",
       "name": "EV Fleets, Charging Infra & Green Mobility",
       "tag": "EV / green mobility",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "electric vehicle | electric bus | e-bus | e-mobility | EV charging | charging infrastructure | charging station | battery pack | lithium-ion | battery swapping | green mobility | zero emission | two wheeler + electric | three wheeler + electric | EV + component"
     },
     {
       "id": "gov_healthcare_medical_hubs",
       "name": "Regional Medical Hubs & Senior Citizen Healthcare",
       "tag": "Medical hubs",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "multispecialty hospital | multi-specialty hospital | tertiary care | quaternary care | medical tourism | hospital + chain | super specialty | critical care + hospital | regional medical hub | Ayushman Bharat | PM-JAY | senior citizen + health | health wellness center"
     },
     {
       "id": "gov_msme_sme_capital",
       "name": "MSME Credit, SME Growth Fund & Risk Capital",
       "tag": "MSME capital",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "MSME | microfinance | small + medium + enterprise | SME lending | MSME + credit | credit guarantee | CGTMSE | TReDS | Udyam | SME Growth Fund | Self-Reliant India Fund | risk capital + micro | priority sector + MSME"
     },
     {
       "id": "gov_solar_rooftop_renewable",
       "name": "PM Surya Ghar & Residential Rooftop Solar",
       "tag": "Rooftop solar",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "rooftop solar | solar rooftop | rooftop + solar | residential solar | solar EPC | photovoltaic | solar module | solar + module | solar + inverter | net metering | distributed solar | rooftop + EPC"
     },
     {
       "id": "gov_india_food_processing_pli",
       "name": "PLI for Food Processing & Aseptic Packaging",
       "tag": "Food processing / PLI",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
-      "pattern": "food processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | fruit + processing | vegetable + processing"
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "food processing | agro-processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | maize starch | liquid glucose | modified starch | starch + derivatives"
     },
     {
       "id": "gov_textiles_fibre",
       "name": "National Fibre Scheme & Textile Modernization",
       "tag": "Textiles / fibre",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "man made fibre | man-made fibre | polyester yarn | viscose | technical textiles | home textiles | home textile | spun yarn | woven fabric | apparel export | Mega Textile Park | MITRA park | National Fibre Scheme | jute | PLI + textile | PLI + textiles"
     },
     {
       "id": "gov_logistics_infra_corridor",
       "name": "National Logistics Policy, Gati Shakti & IMEEC",
       "tag": "Logistics / Gati Shakti",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "multimodal logistics | logistics park | multimodal logistics park | freight corridor | container freight | rail + freight | third party logistics | 3PL | cold chain | warehousing + logistics | coastal shipping | multimodal | container + terminal | ICD + logistics | freight + forwarding"
+    },
+    {
+      "id": "gov_mumbai_redevelopment_realty",
+      "name": "Mumbai / MMR Redevelopment & Realty (SRA / MHADA)",
+      "tag": "Mumbai redevelopment",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "Mumbai + redevelopment | Thane + redevelopment | Mumbai + housing + redevelopment | Worli + redevelopment | Bandra + redevelopment | Lower Parel + redevelopment | slum rehabilitation + Mumbai | slum + Mumbai | society + redevelopment + Mumbai | SRA + Mumbai | Mumbai + SRA | MHADA + Mumbai | Mumbai + realty | Thane + realty | Mumbai + developer | Navi Mumbai + developer | Mumbai + residential projects | MMR + real estate | Mumbai Metropolitan + real estate"
+    },
+    {
+      "id": "gov_rail_metro_vande_bharat",
+      "name": "Rail, Metro & Vande Bharat Rolling Stock",
+      "tag": "Rail / Vande Bharat",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "Vande Bharat | rolling stock | metro rail | railway + coach | rail + coach | metro + coach | locomotive | wagon | Kavach | dedicated freight | DFC | rail + signalling | EMU | rail + component | railway + equipment"
+    },
+    {
+      "id": "gov_power_td_smart_meter_grid",
+      "name": "Power T&D, Smart Meters & Grid Modernisation",
+      "tag": "Power T&D / smart meters",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "smart meter | power transformer | distribution transformer | transmission + line | power grid | substation | switchgear | T&D | conductor + power | RDSS | GIS + substation | cable + power | transmission + equipment | distribution + utility"
+    },
+    {
+      "id": "gov_pharma_api_cdmo_pli",
+      "name": "Pharma API, Formulations & CDMO (PLI)",
+      "tag": "Pharma / API / CDMO",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "active pharmaceutical | bulk drug | bulk drugs | formulation | formulations | CDMO | contract manufacturing + pharma | injectable | injectables | generic + pharma | API + manufacturing | API + pharmaceutical | fermentation + pharma | pharma + intermediate"
+    },
+    {
+      "id": "gov_ethanol_biofuel_blending",
+      "name": "Ethanol Blending & Biofuels (E20 / E100)",
+      "tag": "Ethanol / biofuel",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "ethanol | biofuel | distillery | sugar + ethanol | molasses + ethanol | ethanol + blending | bio-ethanol | fuel ethanol | E20 | grain + ethanol | ethanol + plant"
+    },
+    {
+      "id": "gov_green_hydrogen_electrolyser",
+      "name": "Green Hydrogen & Electrolysers (NGHM)",
+      "tag": "Green hydrogen",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "green hydrogen | electrolyser | electrolyzer | green ammonia | hydrogen + energy | hydrogen + plant | fuel cell + hydrogen | hydrogen + electrolyser | renewable + hydrogen"
+    },
+    {
+      "id": "gov_samudra_manthan_offshore_ep",
+      "name": "Samudra Manthan — Offshore Oil & Gas Exploration",
+      "tag": "Samudra Manthan / O&G",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "oil + exploration | gas + exploration | oil + gas + exploration | petroleum + exploration | hydrocarbon | exploration + production | offshore + oil | offshore + gas | offshore + drilling | exploration + well | oilfield | oil field | oilfield + services | upstream + oil | upstream + gas | seismic | block + exploration | CBM | coal bed methane | discovery + oil | discovery + gas | subsea | natural gas + production"
+    },
+    {
+      "id": "gov_mpms_mobile_manufacturing",
+      "name": "Mobile Phone Manufacturing Scheme (MPMS)",
+      "tag": "Mobile / MPMS",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "mobile + manufacturing | smartphone | handset | mobile phone | EMS + mobile | mobile + assembly | smartphone + manufacturing | electronics + mobile | PCB + mobile | display + mobile"
+    },
+    {
+      "id": "gov_nipu_urea_fertiliser_2026",
+      "name": "NIPU-2026 — Gas-based Urea & Fertiliser Plants",
+      "tag": "Urea / NIPU",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "urea | fertiliser | fertilizer | ammonia + plant | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
+      "badge": "2026"
+    },
+    {
+      "id": "gov_shipbuilding_sbfas_sbds",
+      "name": "Shipbuilding Financial Assistance (SBFAS / SbDS)",
+      "tag": "Shipbuilding",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "shipbuilding | shipyard | dry dock | vessel + construction | naval + ship | merchant + vessel | ship + repair | ship + building | offshore + vessel | LNG + carrier | green + vessel"
+    },
+    {
+      "id": "gov_coal_lignite_gasification",
+      "name": "Coal / Lignite Gasification (Syngas & Chemicals)",
+      "tag": "Coal gasification",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "coal gasification | syngas | coal to | coal + chemical | ammonium nitrate | coal + methanol | synthetic + natural + gas | coal + ammonia"
+    },
+    {
+      "id": "gov_nuclear_power_shanti",
+      "name": "Nuclear Power Expansion (SHANTI / NPCIL Ecosystem)",
+      "tag": "Nuclear power",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "nuclear | nuclear + power | atomic + power | NPCIL | SMR | nuclear + component | nuclear + equipment | heavy water | atomic + energy"
     },
     {
       "id": "gov_social_security_insurance",
       "name": "Social Security, Pensions & Financial Inclusion",
       "tag": "Social security / insurance",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "pattern": "life insurance | health insurance | general insurance | microinsurance | pension | annuity | Atal Pension Yojana | Atal Pension | APY | PMJJBY | PMSBY | financial inclusion | insurance premium | pension AUM | direct benefit transfer"
     }
   ]

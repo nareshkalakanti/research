@@ -34,7 +34,7 @@ export function ThemeMultiselect({ groups, selected, onChange }: Props) {
       .map((g) => ({
         ...g,
         themes: g.themes.filter((t) => {
-          const hay = `${t.name} ${t.display_pattern} ${g.blog_theme}`.toLowerCase();
+          const hay = `${t.name} ${t.tag ?? ""} ${t.badge ?? ""} ${t.display_pattern} ${g.blog_theme}`.toLowerCase();
           return hay.includes(query);
         }),
       }))
@@ -193,6 +193,11 @@ export function ThemeMultiselect({ groups, selected, onChange }: Props) {
                             <span className="theme-item-body">
                               <span className="theme-item-name">
                                 {t.tag || t.name}
+                                {t.badge ? (
+                                  <span className="theme-item-badge">
+                                    {t.badge}
+                                  </span>
+                                ) : null}
                               </span>
                               {t.tag ? (
                                 <span className="theme-item-pattern">{t.name}</span>

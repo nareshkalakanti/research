@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
   const minValue = sp.get("minValue") ? Number(sp.get("minValue")) : null;
   const minPrice = sp.get("minPrice") ? Number(sp.get("minPrice")) : null;
   const maxPrice = sp.get("maxPrice") ? Number(sp.get("maxPrice")) : null;
+  const cap = sp.get("cap");
+  const smeOnly = sp.get("sme") === "1";
 
   if (view === "scan-status") {
     return NextResponse.json({
@@ -38,6 +40,8 @@ export async function GET(req: NextRequest) {
         minValue: Number.isFinite(minValue) ? minValue : null,
         minPrice: Number.isFinite(minPrice) ? minPrice : null,
         maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
+        cap,
+        smeOnly,
         limit,
       });
       return NextResponse.json({ ok: true, view: "consensus", ...data });
@@ -53,6 +57,8 @@ export async function GET(req: NextRequest) {
       minValue: Number.isFinite(minValue) ? minValue : null,
       minPrice: Number.isFinite(minPrice) ? minPrice : null,
       maxPrice: Number.isFinite(maxPrice) ? maxPrice : null,
+      cap,
+      smeOnly,
       limit,
     });
     return NextResponse.json({ ok: true, view: "portfolio", ...data });

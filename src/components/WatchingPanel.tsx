@@ -235,7 +235,7 @@ export function WatchingPanel() {
           scope="watching"
           pattern={q}
           activeId={activeSavedId}
-          onLoad={(s: SavedSearchRow) => {
+          onApply={(s: SavedSearchRow) => {
             setActiveSavedId(s.id);
             setQ(s.pattern);
           }}

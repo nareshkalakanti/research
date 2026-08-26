@@ -2,10 +2,14 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { researchLinks } from "@/lib/links";
+import { loadMetricsMap } from "@/lib/metrics";
+import { capTier, type CapTier } from "@/lib/types";
 import {
   CURATED_NAMES,
   SUPERSTAR_INVESTORS,
+  investorTags,
   shortName,
+  type InvestorTagId,
 } from "./catalog";
 import { mergeAllDisclosedRaw } from "./disclosed";
 
@@ -30,6 +34,10 @@ export type HoldingRow = {
   industry: string | null;
   holding_entity: string | null;
   fetched_at: string | null;
+  market: string;
+  mcap_cr: number | null;
+  cap_code: CapTier;
+  is_sme: boolean;
   web: string | null;
   sc: string;
   tv: string;
@@ -39,6 +47,7 @@ export type InvestorSummary = {
   name: string;
   short: string;
   curated: boolean;
+  tags: InvestorTagId[];
   holdings: number;
   new_picks: number;
   increased: number;
@@ -61,6 +70,10 @@ export type ConsensusRow = {
   price: number | null;
   /** Max holding % among consensus investors (for display/filter). */
   holding_percent: number | null;
+  market: string;
+  mcap_cr: number | null;
+  cap_code: CapTier;
+  is_sme: boolean;
   investor_count: number;
   new_count: number;
   increased_count: number;
@@ -83,6 +96,8 @@ export type SuperstarsStats = {
   increased: number;
   decreased: number;
   consensus: number;
+  sme_symbols: number;
+  cap_counts: Record<CapTier, number>;
   fetched_at: string | null;
 };
 
@@ -156,6 +171,133 @@ function marketFromExchange(exchange: string | null): string {
   return "NSE";
 }
 
+function companyMetaLookup(): Map<
+  string,
+  { mcap_cr: number | null; market: string }
+> {
+  const map = new Map<string, { mcap_cr: number | null; market: string }>();
+  for (const [ticker, m] of loadMetricsMap()) {
+    const key = ticker.toUpperCase();
+    if (!key) continue;
+    map.set(key, {
+      mcap_cr: m.market_cap_cr,
+      market: (m.market ?? "").trim(),
+    });
+  }
+  if (fs.existsSync(CLASS_PATH)) {
+    const db = new Database(CLASS_PATH, { readonly: true, fileMustExist: true });
+    try {
+      const rows = db
+        .prepare(`SELECT ticker, market FROM classifications`)
+        .all() as Array<{ ticker: string; market: string | null }>;
+      for (const r of rows) {
+        const key = (r.ticker ?? "").toUpperCase();
+        if (!key) continue;
+        const market = (r.market ?? "").trim();
+        const hit = map.get(key);
+        if (hit) {
+          if (!hit.market && market) hit.market = market;
+        } else {
+          map.set(key, { mcap_cr: null, market });
+        }
+      }
+    } finally {
+      db.close();
+    }
+  }
+  if (fs.existsSync(ABOUT_PATH)) {
+    const db = new Database(ABOUT_PATH, { readonly: true, fileMustExist: true });
+    try {
+      const rows = db
+        .prepare(`SELECT ticker, market FROM company_about`)
+        .all() as Array<{ ticker: string; market: string | null }>;
+      for (const r of rows) {
+        const key = (r.ticker ?? "").toUpperCase();
+        if (!key) continue;
+        const market = (r.market ?? "").trim();
+        const hit = map.get(key);
+        if (hit) {
+          if (!hit.market && market) hit.market = market;
+        } else {
+          map.set(key, { mcap_cr: null, market });
+        }
+      }
+    } finally {
+      db.close();
+    }
+  }
+  return map;
+}
+
+function stockMeta(
+  symbol: string,
+  exchange: string,
+  meta: Map<string, { mcap_cr: number | null; market: string }>,
+): {
+  market: string;
+  mcap_cr: number | null;
+  cap_code: CapTier;
+  is_sme: boolean;
+} {
+  const hit = meta.get(symbol.toUpperCase());
+  const market = hit?.market?.trim() || marketFromExchange(exchange);
+  const mcap_cr = hit?.mcap_cr ?? null;
+  return {
+    market,
+    mcap_cr,
+    cap_code: capTier(mcap_cr),
+    is_sme: /\bSME\b/i.test(market),
+  };
+}
+
+function passesCapFilter(
+  capCode: CapTier,
+  cap: string | null | undefined,
+): boolean {
+  const c = (cap ?? "All").trim();
+  if (!c || c.toLowerCase() === "all") return true;
+  return capCode.toUpperCase() === c.toUpperCase();
+}
+
+function passesSmeFilter(isSme: boolean, smeOnly?: boolean): boolean {
+  if (!smeOnly) return true;
+  return isSme;
+}
+
+function symbolBreakdown(
+  raw: RawRow[],
+  meta: Map<string, { mcap_cr: number | null; market: string }>,
+  curatedOnly = true,
+): {
+  cap_counts: Record<CapTier, number>;
+  sme_symbols: number;
+  unique_symbols: number;
+} {
+  const scoped = curatedOnly
+    ? raw.filter((r) => CURATED_NAMES.has(r.investor))
+    : raw;
+  const bySym = new Map<string, ReturnType<typeof stockMeta>>();
+  for (const r of scoped) {
+    const key = r.symbol.toUpperCase();
+    if (!key || bySym.has(key)) continue;
+    bySym.set(key, stockMeta(r.symbol, r.exchange, meta));
+  }
+  const cap_counts: Record<CapTier, number> = {
+    NC: 0,
+    TI: 0,
+    MIC: 0,
+    SC: 0,
+    MC: 0,
+    LC: 0,
+  };
+  let sme_symbols = 0;
+  for (const sm of bySym.values()) {
+    cap_counts[sm.cap_code] += 1;
+    if (sm.is_sme) sme_symbols += 1;
+  }
+  return { cap_counts, sme_symbols, unique_symbols: bySym.size };
+}
+
 function websiteLookup(): Map<string, string | null> {
   const map = new Map<string, string | null>();
   if (!fs.existsSync(ABOUT_PATH)) return map;
@@ -197,10 +339,12 @@ function changeBadge(changeType: string | null, changeQtr: number | null): strin
 function mapHolding(
   r: RawRow,
   websites: Map<string, string | null>,
+  meta: Map<string, { mcap_cr: number | null; market: string }>,
 ): HoldingRow {
+  const sm = stockMeta(r.symbol, r.exchange, meta);
   const links = researchLinks(
     r.symbol,
-    marketFromExchange(r.exchange),
+    sm.market || marketFromExchange(r.exchange),
     websites.get(r.symbol.toUpperCase()) ?? null,
   );
   return {
@@ -219,6 +363,10 @@ function mapHolding(
     industry: r.industry,
     holding_entity: r.holding_entity,
     fetched_at: r.fetched_at,
+    market: sm.market,
+    mcap_cr: sm.mcap_cr,
+    cap_code: sm.cap_code,
+    is_sme: sm.is_sme,
     web: links.web,
     sc: links.sc,
     tv: links.tv,
@@ -246,6 +394,23 @@ function loadRaw(): RawRow[] {
   }
 }
 
+function seedInvestorSummaries(): Map<string, InvestorSummary> {
+  const map = new Map<string, InvestorSummary>();
+  for (const inv of SUPERSTAR_INVESTORS) {
+    map.set(inv.name, {
+      name: inv.name,
+      short: inv.short,
+      curated: true,
+      tags: inv.tags,
+      holdings: 0,
+      new_picks: 0,
+      increased: 0,
+      decreased: 0,
+    });
+  }
+  return map;
+}
+
 export function loadAllHoldings(opts?: {
   investor?: string | null;
   curatedOnly?: boolean;
@@ -256,6 +421,8 @@ export function loadAllHoldings(opts?: {
   minValue?: number | null;
   minPrice?: number | null;
   maxPrice?: number | null;
+  cap?: string | null;
+  smeOnly?: boolean;
   limit?: number;
 }): {
   holdings: HoldingRow[];
@@ -265,10 +432,20 @@ export function loadAllHoldings(opts?: {
 } {
   const raw = loadRaw();
   if (!raw.length) {
-    return { holdings: [], stats: emptyStats(), investors: [], sectors: [] };
+    const investors = SUPERSTAR_INVESTORS.map((inv) => ({
+      name: inv.name,
+      short: inv.short,
+      curated: true,
+      tags: inv.tags,
+      holdings: 0,
+      new_picks: 0,
+      increased: 0,
+      decreased: 0,
+    }));
+    return { holdings: [], stats: emptyStats(), investors, sectors: [] };
   }
 
-  const investorMap = new Map<string, InvestorSummary>();
+  const investorMap = seedInvestorSummaries();
   for (const r of raw) {
     let s = investorMap.get(r.investor);
     if (!s) {
@@ -276,6 +453,7 @@ export function loadAllHoldings(opts?: {
         name: r.investor,
         short: shortName(r.investor),
         curated: CURATED_NAMES.has(r.investor),
+        tags: investorTags(r.investor),
         holdings: 0,
         new_picks: 0,
         increased: 0,
@@ -361,10 +539,19 @@ export function loadAllHoldings(opts?: {
 
   const limit = opts?.limit ?? 500;
   const websites = websiteLookup();
-  const holdings = filtered.slice(0, limit).map((r) => mapHolding(r, websites));
+  const meta = companyMetaLookup();
+  let holdings = filtered
+    .map((r) => mapHolding(r, websites, meta))
+    .filter(
+      (r) =>
+        passesCapFilter(r.cap_code, opts?.cap) &&
+        passesSmeFilter(r.is_sme, opts?.smeOnly),
+    );
+  holdings = holdings.slice(0, limit);
 
   const curatedRaw = raw.filter((r) => CURATED_NAMES.has(r.investor));
-  const consensus = buildConsensus(curatedRaw, 2, websites);
+  const breakdown = symbolBreakdown(raw, meta, true);
+  const consensus = buildConsensus(curatedRaw, 2, websites, meta);
   const fetchedAt = raw.reduce<string | null>((best, r) => {
     if (!r.fetched_at) return best;
     if (!best || r.fetched_at > best) return r.fetched_at;
@@ -373,7 +560,7 @@ export function loadAllHoldings(opts?: {
 
   const stats: SuperstarsStats = {
     total_holdings: curatedRaw.length,
-    unique_symbols: new Set(curatedRaw.map((r) => r.symbol.toUpperCase())).size,
+    unique_symbols: breakdown.unique_symbols,
     investors: investors.filter((i) => i.curated).length,
     curated_investors: SUPERSTAR_INVESTORS.length,
     new_picks: curatedRaw.filter((r) => {
@@ -387,13 +574,15 @@ export function loadAllHoldings(opts?: {
       (r) => (r.change_type ?? "").toLowerCase() === "decreased",
     ).length,
     consensus: consensus.length,
+    sme_symbols: breakdown.sme_symbols,
+    cap_counts: breakdown.cap_counts,
     fetched_at: fetchedAt,
   };
 
   return {
     holdings,
     stats,
-    investors: investors.filter((i) => i.curated || i.holdings > 0),
+    investors: investors.filter((i) => i.curated),
     sectors,
   };
 }
@@ -407,6 +596,8 @@ export function loadConsensus(opts?: {
   minValue?: number | null;
   minPrice?: number | null;
   maxPrice?: number | null;
+  cap?: string | null;
+  smeOnly?: boolean;
   limit?: number;
 }): {
   consensus: ConsensusRow[];
@@ -414,13 +605,24 @@ export function loadConsensus(opts?: {
   investors: InvestorSummary[];
   sectors: string[];
 } {
-  const base = loadAllHoldings({ curatedOnly: opts?.curatedOnly ?? true, limit: 50_000 });
+  const base = loadAllHoldings({
+    curatedOnly: opts?.curatedOnly ?? true,
+    cap: opts?.cap,
+    smeOnly: opts?.smeOnly,
+    limit: 50_000,
+  });
   const raw = loadRaw();
   const websites = websiteLookup();
+  const meta = companyMetaLookup();
   const scoped = (opts?.curatedOnly ?? true)
     ? raw.filter((r) => CURATED_NAMES.has(r.investor))
     : raw;
-  let consensus = buildConsensus(scoped, opts?.minInvestors ?? 2, websites);
+  let consensus = buildConsensus(
+    scoped,
+    opts?.minInvestors ?? 2,
+    websites,
+    meta,
+  );
 
   const sectors = [
     ...new Set(
@@ -475,6 +677,11 @@ export function loadConsensus(opts?: {
       (r) => r.price != null && r.price <= opts.maxPrice!,
     );
   }
+  consensus = consensus.filter(
+    (r) =>
+      passesCapFilter(r.cap_code, opts?.cap) &&
+      passesSmeFilter(r.is_sme, opts?.smeOnly),
+  );
 
   const limit = opts?.limit ?? 200;
   return {
@@ -489,6 +696,7 @@ function buildConsensus(
   raw: RawRow[],
   minInvestors: number,
   websites: Map<string, string | null> = new Map(),
+  meta: Map<string, { mcap_cr: number | null; market: string }> = new Map(),
 ): ConsensusRow[] {
   const bySym = new Map<string, RawRow[]>();
   for (const r of raw) {
@@ -522,9 +730,10 @@ function buildConsensus(
     const pcts = grp
       .map((r) => r.holding_percent)
       .filter((v): v is number => v != null && Number.isFinite(v));
+    const sm = stockMeta(symbol, first.exchange, meta);
     const links = researchLinks(
       symbol,
-      marketFromExchange(first.exchange),
+      sm.market || marketFromExchange(first.exchange),
       websites.get(symbol) ?? null,
     );
     rows.push({
@@ -534,6 +743,10 @@ function buildConsensus(
       sector: first.sector,
       price: first.price,
       holding_percent: pcts.length ? Math.max(...pcts) : null,
+      market: sm.market,
+      mcap_cr: sm.mcap_cr,
+      cap_code: sm.cap_code,
+      is_sme: sm.is_sme,
       investor_count: invSet.length,
       new_count: grp.filter((r) => (r.change_type ?? "").toLowerCase() === "new")
         .length,
@@ -567,6 +780,14 @@ function buildConsensus(
 }
 
 function emptyStats(): SuperstarsStats {
+  const cap_counts: Record<CapTier, number> = {
+    NC: 0,
+    TI: 0,
+    MIC: 0,
+    SC: 0,
+    MC: 0,
+    LC: 0,
+  };
   return {
     total_holdings: 0,
     unique_symbols: 0,
@@ -576,6 +797,8 @@ function emptyStats(): SuperstarsStats {
     increased: 0,
     decreased: 0,
     consensus: 0,
+    sme_symbols: 0,
+    cap_counts,
     fetched_at: null,
   };
 }

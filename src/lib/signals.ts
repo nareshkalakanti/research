@@ -34,6 +34,19 @@ const ATH_TF = "daily";
 const HIGH52_TF = "daily";
 /** Trading days in a 52-week lookback (~1 calendar year). */
 const HIGH52_LOOKBACK = 252;
+/** Dragonfly Doji — latest weekly bar. */
+const DD_TF = "weekly";
+/** Body ≤ 10% of range. */
+const DD_MAX_BODY_RATIO = 0.1;
+/** Upper shadow ≤ 10% of range. */
+const DD_MAX_UPPER_RATIO = 0.1;
+/** Lower shadow ≥ 60% of range. */
+const DD_MIN_LOWER_RATIO = 0.6;
+/** 12−1 momentum — daily closes (~1y lookback, skip latest ~1m). */
+const MOM_TF = "daily";
+const MOM_LOOKBACK_1Y = 395;
+const MOM_LOOKBACK_1M = 30;
+const MOM_MIN_HISTORY = 400;
 
 export type BbTimeframe = "weekly" | "monthly";
 export const BB_TIMEFRAMES: BbTimeframe[] = ["weekly", "monthly"];
@@ -77,18 +90,52 @@ export type High52Signal = {
   signal_date: string | null;
 };
 
+export type DdSignal = {
+  timeframe: string;
+  price: number | null;
+  open: number | null;
+  high: number | null;
+  low: number | null;
+  signal_date: string | null;
+};
+
+export type MomSignal = {
+  timeframe: string;
+  price: number | null;
+  price_1y: number | null;
+  price_1m: number | null;
+  momentum_pct: number | null;
+  signal_date: string | null;
+};
+
 export type BreakoutFlags = {
   has_bb: boolean;
   has_tq: boolean;
   has_ema: boolean;
   has_ath: boolean;
   has_high52: boolean;
+  has_dd: boolean;
+  has_mom: boolean;
   bb?: BbSignal;
   tq?: TqSignal;
   ema?: EmaSignal;
   ath?: AthSignal;
   high52?: High52Signal;
+  dd?: DdSignal;
+  mom?: MomSignal;
 };
+
+function emptyFlags(): BreakoutFlags {
+  return {
+    has_bb: false,
+    has_tq: false,
+    has_ema: false,
+    has_ath: false,
+    has_high52: false,
+    has_dd: false,
+    has_mom: false,
+  };
+}
 
 let signalsDb: Database.Database | null = null;
 let cache: {
@@ -161,6 +208,30 @@ const SIGNALS_SCHEMA = `
       fetched_at TEXT NOT NULL,
       PRIMARY KEY (ticker, timeframe)
     );
+    CREATE TABLE IF NOT EXISTS dd_signals (
+      ticker TEXT NOT NULL,
+      timeframe TEXT NOT NULL DEFAULT 'weekly',
+      market TEXT,
+      price REAL,
+      open REAL,
+      high REAL,
+      low REAL,
+      signal_date TEXT,
+      fetched_at TEXT NOT NULL,
+      PRIMARY KEY (ticker, timeframe)
+    );
+    CREATE TABLE IF NOT EXISTS mom_signals (
+      ticker TEXT NOT NULL,
+      timeframe TEXT NOT NULL DEFAULT 'daily',
+      market TEXT,
+      price REAL,
+      price_1y REAL,
+      price_1m REAL,
+      momentum_pct REAL,
+      signal_date TEXT,
+      fetched_at TEXT NOT NULL,
+      PRIMARY KEY (ticker, timeframe)
+    );
 `;
 
 function closeSignalsDb(): void {
@@ -228,7 +299,7 @@ export function invalidateBreakoutCache(): void {
   cache = null;
 }
 
-/** Wipe BB/TQ/EMA/ATH/52W hits + scan progress (full rescan from scratch). */
+/** Wipe BB/TQ/EMA/ATH/52W/DD/MOM hits + scan progress (full rescan from scratch). */
 export function clearAllWeeklySignals(): void {
   withSignalsWrite((db) => {
     db.exec(`
@@ -237,6 +308,8 @@ export function clearAllWeeklySignals(): void {
       DELETE FROM ema_signals;
       DELETE FROM ath_signals;
       DELETE FROM high52_signals;
+      DELETE FROM dd_signals;
+      DELETE FROM mom_signals;
       DELETE FROM scan_checked;
     `);
   });
@@ -258,12 +331,16 @@ export function latestSignalDates(map = loadBreakoutMap()): {
   ema: string | null;
   ath: string | null;
   high52: string | null;
+  dd: string | null;
+  mom: string | null;
 } {
   let bb: string | null = null;
   let tq: string | null = null;
   let ema: string | null = null;
   let ath: string | null = null;
   let high52: string | null = null;
+  let dd: string | null = null;
+  let mom: string | null = null;
   for (const v of map.values()) {
     if (v.has_bb && v.bb?.signal_date) {
       const d = v.bb.signal_date.slice(0, 10);
@@ -285,8 +362,16 @@ export function latestSignalDates(map = loadBreakoutMap()): {
       const d = v.high52.signal_date.slice(0, 10);
       if (!high52 || d > high52) high52 = d;
     }
+    if (v.has_dd && v.dd?.signal_date) {
+      const d = v.dd.signal_date.slice(0, 10);
+      if (!dd || d > dd) dd = d;
+    }
+    if (v.mom?.signal_date) {
+      const d = v.mom.signal_date.slice(0, 10);
+      if (!mom || d > mom) mom = d;
+    }
   }
-  return { bb, tq, ema, ath, high52 };
+  return { bb, tq, ema, ath, high52, dd, mom };
 }
 
 export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string, BreakoutFlags> {
@@ -354,13 +439,7 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
     for (const r of bbRows) {
       if (!isLatestSession(r.signal_date, latestBb ?? null)) continue;
       const t = r.ticker.toUpperCase();
-      const cur = map.get(t) ?? {
-        has_bb: false,
-        has_tq: false,
-        has_ema: false,
-        has_ath: false,
-        has_high52: false,
-      };
+      const cur = map.get(t) ?? emptyFlags();
       cur.has_bb = true;
       cur.bb = {
         timeframe: r.timeframe,
@@ -390,13 +469,7 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
     for (const r of tqRows) {
       if (!isLatestSession(r.signal_date, latestTq ?? null)) continue;
       const t = r.ticker.toUpperCase();
-      const cur = map.get(t) ?? {
-        has_bb: false,
-        has_tq: false,
-        has_ema: false,
-        has_ath: false,
-        has_high52: false,
-      };
+      const cur = map.get(t) ?? emptyFlags();
       cur.has_tq = true;
       cur.tq = {
         timeframe: r.timeframe,
@@ -439,13 +512,7 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
     for (const r of emaRows) {
       if (!isLatestSession(r.signal_date, latestEma ?? null)) continue;
       const t = r.ticker.toUpperCase();
-      const cur = map.get(t) ?? {
-        has_bb: false,
-        has_tq: false,
-        has_ema: false,
-        has_ath: false,
-        has_high52: false,
-      };
+      const cur = map.get(t) ?? emptyFlags();
       cur.has_ema = true;
       cur.ema = {
         timeframe: r.timeframe,
@@ -487,13 +554,7 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
     for (const r of athRows) {
       if (!isLatestSession(r.signal_date, latestAth ?? null)) continue;
       const t = r.ticker.toUpperCase();
-      const cur = map.get(t) ?? {
-        has_bb: false,
-        has_tq: false,
-        has_ema: false,
-        has_ath: false,
-        has_high52: false,
-      };
+      const cur = map.get(t) ?? emptyFlags();
       cur.has_ath = true;
       cur.ath = {
         timeframe: r.timeframe,
@@ -532,13 +593,7 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
     for (const r of high52Rows) {
       if (!isLatestSession(r.signal_date, latestHigh52 ?? null)) continue;
       const t = r.ticker.toUpperCase();
-      const cur = map.get(t) ?? {
-        has_bb: false,
-        has_tq: false,
-        has_ema: false,
-        has_ath: false,
-        has_high52: false,
-      };
+      const cur = map.get(t) ?? emptyFlags();
       cur.has_high52 = true;
       cur.high52 = {
         timeframe: r.timeframe,
@@ -546,6 +601,89 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
         high_52w: r.high_52w,
         signal_date: r.signal_date,
       };
+      map.set(t, cur);
+    }
+
+    const latestDd = (
+      db
+        .prepare(
+          `SELECT MAX(signal_date) AS d FROM dd_signals WHERE lower(timeframe) = ?`,
+        )
+        .get(DD_TF) as { d: string | null } | undefined
+    )?.d;
+    if (latestDd) {
+      db.prepare(
+        `DELETE FROM dd_signals
+         WHERE lower(timeframe) = ? AND (signal_date IS NULL OR signal_date < ?)`,
+      ).run(DD_TF, latestDd.slice(0, 10));
+    }
+    const ddRows = db
+      .prepare(
+        `SELECT ticker, timeframe, price, open, high, low, signal_date
+         FROM dd_signals WHERE lower(timeframe) = ?`,
+      )
+      .all(DD_TF) as Array<{
+      ticker: string;
+      timeframe: string;
+      price: number | null;
+      open: number | null;
+      high: number | null;
+      low: number | null;
+      signal_date: string | null;
+    }>;
+    for (const r of ddRows) {
+      if (!isLatestSession(r.signal_date, latestDd ?? null)) continue;
+      const t = r.ticker.toUpperCase();
+      const cur = map.get(t) ?? emptyFlags();
+      cur.has_dd = true;
+      cur.dd = {
+        timeframe: r.timeframe,
+        price: r.price,
+        open: r.open,
+        high: r.high,
+        low: r.low,
+        signal_date: r.signal_date,
+      };
+      map.set(t, cur);
+    }
+
+    const latestMom = (
+      db
+        .prepare(
+          `SELECT MAX(signal_date) AS d FROM mom_signals WHERE lower(timeframe) = ?`,
+        )
+        .get(MOM_TF) as { d: string | null } | undefined
+    )?.d;
+    // Momentum is a trailing 12−1 snapshot — keep all tickers even if their
+    // last bar is a session or two behind the freshest name in the table.
+    const momRows = db
+      .prepare(
+        `SELECT ticker, timeframe, price, price_1y, price_1m, momentum_pct, signal_date
+         FROM mom_signals WHERE lower(timeframe) = ?`,
+      )
+      .all(MOM_TF) as Array<{
+      ticker: string;
+      timeframe: string;
+      price: number | null;
+      price_1y: number | null;
+      price_1m: number | null;
+      momentum_pct: number | null;
+      signal_date: string | null;
+    }>;
+    for (const r of momRows) {
+      if (r.momentum_pct == null) continue;
+      const t = r.ticker.toUpperCase();
+      const cur = map.get(t) ?? emptyFlags();
+      cur.mom = {
+        timeframe: r.timeframe,
+        price: r.price,
+        price_1y: r.price_1y,
+        price_1m: r.price_1m,
+        momentum_pct: r.momentum_pct,
+        signal_date: r.signal_date,
+      };
+      // Filter / count = positive 12−1 only
+      cur.has_mom = r.momentum_pct > 0;
       map.set(t, cur);
     }
   } catch (err) {
@@ -566,20 +704,26 @@ export function breakoutCounts(map = loadBreakoutMap()): {
   ema: number;
   ath: number;
   high52: number;
+  dd: number;
+  mom: number;
 } {
   let bb = 0;
   let tq = 0;
   let ema = 0;
   let ath = 0;
   let high52 = 0;
+  let dd = 0;
+  let mom = 0;
   for (const v of map.values()) {
     if (v.has_bb) bb += 1;
     if (v.has_tq) tq += 1;
     if (v.has_ema) ema += 1;
     if (v.has_ath) ath += 1;
     if (v.has_high52) high52 += 1;
+    if (v.has_dd) dd += 1;
+    if (v.has_mom) mom += 1;
   }
-  return { bb, tq, ema, ath, high52 };
+  return { bb, tq, ema, ath, high52, dd, mom };
 }
 
 export function analyzeBbNewBreakout(
@@ -803,6 +947,72 @@ export function analyzeHigh52New(bars: Bar[]): {
   };
 }
 
+/**
+ * Weekly Dragonfly Doji: tiny body near the high, long lower wick, little/no
+ * upper wick on the latest completed weekly bar.
+ */
+export function analyzeDragonflyWeekly(bars: Bar[]): {
+  price: number;
+  open: number;
+  high: number;
+  low: number;
+  signal_date: string;
+} | null {
+  if (bars.length < 2) return null;
+  const bar = bars[bars.length - 1]!;
+  const { open, high, low, close } = bar;
+  if (
+    ![open, high, low, close].every((n) => Number.isFinite(n)) ||
+    high < low
+  ) {
+    return null;
+  }
+  const range = high - low;
+  if (range <= 0) return null;
+  const body = Math.abs(close - open);
+  const upper = high - Math.max(open, close);
+  const lower = Math.min(open, close) - low;
+  if (body / range > DD_MAX_BODY_RATIO) return null;
+  if (upper / range > DD_MAX_UPPER_RATIO) return null;
+  if (lower / range < DD_MIN_LOWER_RATIO) return null;
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    price: round(close),
+    open: round(open),
+    high: round(high),
+    low: round(low),
+    signal_date: toTradingWeekFriday(bar.date),
+  };
+}
+
+/**
+ * 12−1 price momentum (stocks-ai / Google Finance style):
+ * (Price ~1M ago / Price ~1Y ago − 1) × 100 — skips the most recent month.
+ */
+export function analyzeMomentumDaily(bars: Bar[]): {
+  price: number;
+  price_1y: number;
+  price_1m: number;
+  momentum_pct: number;
+  signal_date: string;
+} | null {
+  if (bars.length < MOM_MIN_HISTORY) return null;
+  const closes = bars.map((b) => b.close).filter((n) => Number.isFinite(n));
+  if (closes.length < MOM_MIN_HISTORY) return null;
+  const price = closes[closes.length - 1]!;
+  const price_1y = closes[closes.length - MOM_LOOKBACK_1Y]!;
+  const price_1m = closes[closes.length - MOM_LOOKBACK_1M]!;
+  if (!(price_1y > 0) || !Number.isFinite(price_1m)) return null;
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    price: round(price),
+    price_1y: round(price_1y),
+    price_1m: round(price_1m),
+    momentum_pct: round((price_1m / price_1y - 1) * 100),
+    signal_date: bars[bars.length - 1]!.date.slice(0, 10),
+  };
+}
+
 function upsertBb(
   rows: Array<{
     ticker: string;
@@ -1018,12 +1228,113 @@ function clearHigh52ForTickers(tickers: string[]): void {
   });
 }
 
-export type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "both" | "all";
+function upsertDd(
+  rows: Array<{
+    ticker: string;
+    market: string | null;
+    price: number;
+    open: number;
+    high: number;
+    low: number;
+    signal_date: string;
+  }>,
+): number {
+  if (!rows.length) return 0;
+  return withSignalsWrite((db) => {
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO dd_signals (ticker, timeframe, market, price, open, high, low, signal_date, fetched_at)
+      VALUES (@ticker, '${DD_TF}', @market, @price, @open, @high, @low, @signal_date, @fetched_at)
+      ON CONFLICT(ticker, timeframe) DO UPDATE SET
+        market = excluded.market,
+        price = excluded.price,
+        open = excluded.open,
+        high = excluded.high,
+        low = excluded.low,
+        signal_date = excluded.signal_date,
+        fetched_at = excluded.fetched_at
+    `);
+    const tx = db.transaction((batch: typeof rows) => {
+      for (const r of batch) stmt.run({ ...r, fetched_at: now });
+    });
+    tx(rows);
+    return rows.length;
+  });
+}
 
-type SignalKind = "bb" | "tq" | "ema" | "ath" | "high52";
+function clearDdForTickers(tickers: string[]): void {
+  if (!tickers.length) return;
+  withSignalsWrite((db) => {
+    const placeholders = tickers.map(() => "?").join(",");
+    db.prepare(
+      `DELETE FROM dd_signals WHERE timeframe = ? AND ticker IN (${placeholders})`,
+    ).run(DD_TF, ...tickers.map((t) => t.toUpperCase()));
+  });
+}
+
+function upsertMom(
+  rows: Array<{
+    ticker: string;
+    market: string | null;
+    price: number;
+    price_1y: number;
+    price_1m: number;
+    momentum_pct: number;
+    signal_date: string;
+  }>,
+): number {
+  if (!rows.length) return 0;
+  return withSignalsWrite((db) => {
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO mom_signals (
+        ticker, timeframe, market, price, price_1y, price_1m, momentum_pct, signal_date, fetched_at
+      )
+      VALUES (
+        @ticker, '${MOM_TF}', @market, @price, @price_1y, @price_1m, @momentum_pct, @signal_date, @fetched_at
+      )
+      ON CONFLICT(ticker, timeframe) DO UPDATE SET
+        market = excluded.market,
+        price = excluded.price,
+        price_1y = excluded.price_1y,
+        price_1m = excluded.price_1m,
+        momentum_pct = excluded.momentum_pct,
+        signal_date = excluded.signal_date,
+        fetched_at = excluded.fetched_at
+    `);
+    const tx = db.transaction((batch: typeof rows) => {
+      for (const r of batch) stmt.run({ ...r, fetched_at: now });
+    });
+    tx(rows);
+    return rows.length;
+  });
+}
+
+function clearMomForTickers(tickers: string[]): void {
+  if (!tickers.length) return;
+  withSignalsWrite((db) => {
+    const placeholders = tickers.map(() => "?").join(",");
+    db.prepare(
+      `DELETE FROM mom_signals WHERE timeframe = ? AND ticker IN (${placeholders})`,
+    ).run(MOM_TF, ...tickers.map((t) => t.toUpperCase()));
+  });
+}
+
+export type ScanKind =
+  | "bb"
+  | "tq"
+  | "ema"
+  | "ath"
+  | "high52"
+  | "dd"
+  | "mom"
+  | "both"
+  | "all";
+
+type SignalKind = "bb" | "tq" | "ema" | "ath" | "high52" | "dd" | "mom";
 
 function scanKinds(kind: ScanKind): SignalKind[] {
-  if (kind === "all") return ["bb", "tq", "ema", "ath", "high52"];
+  if (kind === "all") return ["bb", "tq", "ema", "ath", "high52", "dd", "mom"];
   if (kind === "both") return ["bb", "tq"];
   return [kind];
 }
@@ -1032,13 +1343,14 @@ function kindTimeframe(
   k: SignalKind,
   bbTimeframe: BbTimeframe = "weekly",
 ): string {
-  if (k === "ema" || k === "ath" || k === "high52") return EMA_TF;
+  if (k === "ema" || k === "ath" || k === "high52" || k === "mom") return EMA_TF;
   if (k === "bb") return bbTimeframe;
+  if (k === "dd") return DD_TF;
   return TQ_TF;
 }
 
 function kindMaxAgeMs(k: SignalKind): number {
-  return k === "ema" || k === "ath" || k === "high52"
+  return k === "ema" || k === "ath" || k === "high52" || k === "mom"
     ? 24 * 60 * 60 * 1000
     : 6 * 24 * 60 * 60 * 1000;
 }
@@ -1080,6 +1392,22 @@ export function uncheckedTickers(
     for (const k of kinds) {
       const maxAgeMs = opts?.maxAgeMs ?? kindMaxAgeMs(k);
       const tf = kindTimeframe(k, bbTf);
+      // MOM: only treat as done if we actually stored a 12−1 row (not just
+      // scan_checked — earlier session-gated runs marked many with no data).
+      if (k === "mom") {
+        const rows = db
+          .prepare(
+            `SELECT ticker, fetched_at FROM mom_signals WHERE lower(timeframe) = ?`,
+          )
+          .all(tf) as { ticker: string; fetched_at: string }[];
+        for (const r of rows) {
+          const at = Date.parse(r.fetched_at);
+          if (Number.isFinite(at) && now - at < maxAgeMs) {
+            checked.add(`${r.ticker.toUpperCase()}:${k}`);
+          }
+        }
+        continue;
+      }
       const rows = db
         .prepare(
           `SELECT ticker, fetched_at FROM scan_checked WHERE kind = ? AND timeframe = ?`,
@@ -1110,6 +1438,8 @@ export type ScanBatchResult = {
   emaHits: number;
   athHits: number;
   high52Hits: number;
+  ddHits: number;
+  momHits: number;
   failed: number;
   remaining: number;
   bbTickers: string[];
@@ -1117,12 +1447,14 @@ export type ScanBatchResult = {
   emaTickers: string[];
   athTickers: string[];
   high52Tickers: string[];
+  ddTickers: string[];
+  momTickers: string[];
   /** Set when TQ cannot run because Nifty weekly OHLC failed to load. */
   error?: string;
 };
 
 /**
- * Scan a batch of tickers for BB/TQ/EMA/ATH/52W (latest session only).
+ * Scan a batch of tickers for BB/TQ/EMA/ATH/52W/DD/MOM (latest session only).
  */
 export async function runSignalBatch(
   items: Array<{ ticker: string; market?: string | null }>,
@@ -1143,7 +1475,11 @@ export async function runSignalBatch(
   const doEma = kind === "ema" || kind === "all";
   const doAth = kind === "ath" || kind === "all";
   const doHigh52 = kind === "high52" || kind === "all";
-  const needDaily = doEma || doAth || doHigh52;
+  const doDd = kind === "dd" || kind === "all";
+  const doMom = kind === "mom" || kind === "all";
+  const needDaily = doEma || doAth || doHigh52 || doMom;
+  const needDailySession = doEma || doAth || doHigh52;
+  const needWeekly = doTq || doDd || (doBb && bbTf === "weekly");
 
   const emptyResult = (error?: string): ScanBatchResult => ({
     tried: 0,
@@ -1152,6 +1488,8 @@ export async function runSignalBatch(
     emaHits: 0,
     athHits: 0,
     high52Hits: 0,
+    ddHits: 0,
+    momHits: 0,
     failed: tickers.length,
     remaining: 0,
     bbTickers: [],
@@ -1159,15 +1497,17 @@ export async function runSignalBatch(
     emaTickers: [],
     athTickers: [],
     high52Tickers: [],
+    ddTickers: [],
+    momTickers: [],
     ...(error ? { error } : {}),
   });
 
-  const nifty = doTq ? await fetchNiftyWeeklyBars() : [];
+  const nifty = needWeekly ? await fetchNiftyWeeklyBars() : [];
   const sessionDate = nifty.length
     ? toTradingWeekFriday(nifty[nifty.length - 1]!.date)
     : null;
 
-  const niftyDaily = needDaily ? await fetchNiftyDailyBars() : [];
+  const niftyDaily = needDailySession ? await fetchNiftyDailyBars() : [];
   const dailySession = niftyDaily.length
     ? niftyDaily[niftyDaily.length - 1]!.date.slice(0, 10)
     : null;
@@ -1176,7 +1516,7 @@ export async function runSignalBatch(
     return emptyResult("Nifty weekly data unavailable — retry TQ scan");
   }
 
-  if (needDaily && !dailySession) {
+  if (needDailySession && !dailySession) {
     return emptyResult("Nifty daily data unavailable — retry daily scan");
   }
 
@@ -1185,6 +1525,8 @@ export async function runSignalBatch(
   if (doEma) clearEmaForTickers(tickers.map((t) => t.ticker));
   if (doAth) clearAthForTickers(tickers.map((t) => t.ticker));
   if (doHigh52) clearHigh52ForTickers(tickers.map((t) => t.ticker));
+  if (doDd) clearDdForTickers(tickers.map((t) => t.ticker));
+  if (doMom) clearMomForTickers(tickers.map((t) => t.ticker));
 
   const bbRows: Array<{
     ticker: string;
@@ -1226,6 +1568,24 @@ export async function runSignalBatch(
     high_52w: number;
     signal_date: string;
   }> = [];
+  const ddRows: Array<{
+    ticker: string;
+    market: string | null;
+    price: number;
+    open: number;
+    high: number;
+    low: number;
+    signal_date: string;
+  }> = [];
+  const momRows: Array<{
+    ticker: string;
+    market: string | null;
+    price: number;
+    price_1y: number;
+    price_1m: number;
+    momentum_pct: number;
+    signal_date: string;
+  }> = [];
   let failed = 0;
 
   for (let i = 0; i < tickers.length; i += concurrency) {
@@ -1234,16 +1594,23 @@ export async function runSignalBatch(
       chunk.map(async ({ ticker, market }) => {
         try {
           let any = false;
+          let weeklyBars: Bar[] | null = null;
+
+          const loadWeekly = async () => {
+            if (weeklyBars) return weeklyBars;
+            weeklyBars = await fetchWeeklyBars(ticker, market, 2);
+            return weeklyBars;
+          };
 
           if (doTq) {
-            const weeklyBars = await fetchWeeklyBars(ticker, market, 2);
-            if (weeklyBars.length >= 50) {
+            const bars = await loadWeekly();
+            if (bars.length >= 50) {
               const lastDate = toTradingWeekFriday(
-                weeklyBars[weeklyBars.length - 1]!.date,
+                bars[bars.length - 1]!.date,
               );
               if (!sessionDate || lastDate === sessionDate) {
                 any = true;
-                const hit = analyzeTqWeekly(weeklyBars, nifty);
+                const hit = analyzeTqWeekly(bars, nifty);
                 if (
                   hit &&
                   hit.signal_date?.slice(0, 10) === (sessionDate || lastDate)
@@ -1261,11 +1628,38 @@ export async function runSignalBatch(
             }
           }
 
+          if (doDd) {
+            const bars = await loadWeekly();
+            if (bars.length >= 2) {
+              const lastDate = toTradingWeekFriday(
+                bars[bars.length - 1]!.date,
+              );
+              if (!sessionDate || lastDate === sessionDate) {
+                any = true;
+                const hit = analyzeDragonflyWeekly(bars);
+                if (
+                  hit &&
+                  hit.signal_date.slice(0, 10) === (sessionDate || lastDate)
+                ) {
+                  ddRows.push({
+                    ticker,
+                    market,
+                    price: hit.price,
+                    open: hit.open,
+                    high: hit.high,
+                    low: hit.low,
+                    signal_date: hit.signal_date,
+                  });
+                }
+              }
+            }
+          }
+
           if (doBb) {
             const bars =
               bbTf === "monthly"
                 ? await fetchMonthlyBars(ticker, market, 5)
-                : await fetchWeeklyBars(ticker, market, 2);
+                : await loadWeekly();
             if (bars.length >= 50) {
               const lastDate =
                 bbTf === "monthly"
@@ -1293,11 +1687,28 @@ export async function runSignalBatch(
           }
 
           if (needDaily) {
-            // ATH needs long history; 52W/EMA need ~2y — one fetch covers all.
+            // ATH needs long history; MOM/52W/EMA need ~2y — one fetch covers all.
             const yearsBack = doAth ? 25 : 2;
             const dailyBars = await fetchDailyBars(ticker, market, yearsBack);
             if (dailyBars.length >= 60) {
               const lastDay = dailyBars[dailyBars.length - 1]!.date.slice(0, 10);
+              // MOM is a trailing 12−1 calc — run even if this name's last bar
+              // lags the Nifty session (illiquid / holiday mismatches).
+              if (doMom) {
+                const hit = analyzeMomentumDaily(dailyBars);
+                if (hit) {
+                  any = true;
+                  momRows.push({
+                    ticker,
+                    market,
+                    price: hit.price,
+                    price_1y: hit.price_1y,
+                    price_1m: hit.price_1m,
+                    momentum_pct: hit.momentum_pct,
+                    signal_date: hit.signal_date,
+                  });
+                }
+              }
               if (!dailySession || lastDay === dailySession) {
                 any = true;
                 if (doEma && dailyBars.length >= 200) {
@@ -1365,6 +1776,8 @@ export async function runSignalBatch(
   if (doEma) upsertEma(emaRows);
   if (doAth) upsertAth(athRows);
   if (doHigh52) upsertHigh52(high52Rows);
+  if (doDd) upsertDd(ddRows);
+  if (doMom) upsertMom(momRows);
   const checks = scanKinds(kind).map((k) => ({
     kind: k,
     timeframe: kindTimeframe(k, bbTf),
@@ -1382,6 +1795,8 @@ export async function runSignalBatch(
     emaHits: emaRows.length,
     athHits: athRows.length,
     high52Hits: high52Rows.length,
+    ddHits: ddRows.length,
+    momHits: momRows.filter((r) => r.momentum_pct > 0).length,
     failed,
     remaining: 0,
     bbTickers: bbRows.map((r) => r.ticker),
@@ -1389,5 +1804,7 @@ export async function runSignalBatch(
     emaTickers: emaRows.map((r) => r.ticker),
     athTickers: athRows.map((r) => r.ticker),
     high52Tickers: high52Rows.map((r) => r.ticker),
+    ddTickers: ddRows.map((r) => r.ticker),
+    momTickers: momRows.filter((r) => r.momentum_pct > 0).map((r) => r.ticker),
   };
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SavedSearchRow, SavedSearchScope } from "@/lib/saved-searches";
 
 type Props = {
   scope: SavedSearchScope;
   pattern: string;
   themeIds?: string[];
-  onLoad: (search: SavedSearchRow) => void;
+  onApply: (search: SavedSearchRow) => void;
   activeId?: number | null;
 };
 
@@ -23,7 +23,7 @@ export function SavedSearchesBar({
   scope,
   pattern,
   themeIds = [],
-  onLoad,
+  onApply,
   activeId = null,
 }: Props) {
   const [searches, setSearches] = useState<SavedSearchRow[]>([]);
@@ -31,6 +31,8 @@ export function SavedSearchesBar({
   const [saving, setSaving] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const onApplyRef = useRef(onApply);
+  onApplyRef.current = onApply;
 
   const canSave =
     pattern.trim().length > 0 || (scope === "theme" && themeIds.length > 0);
@@ -53,38 +55,47 @@ export function SavedSearchesBar({
     void reload();
   }, [reload]);
 
-  async function onSave(e: React.FormEvent) {
-    e.preventDefault();
+  const cancelSave = useCallback(() => {
+    setSaving(false);
+    setSaveName("");
+    setError(null);
+  }, []);
+
+  const submitSave = useCallback(async () => {
     setError(null);
     const name = saveName.trim();
     if (!name) {
       setError("Name required");
       return;
     }
-    const res = await fetch("/api/saved-searches", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        pattern: pattern.trim(),
-        theme_ids: scope === "theme" ? themeIds : [],
-        scope,
-      }),
-    });
-    const j = (await res.json()) as {
-      ok?: boolean;
-      error?: string;
-      search?: SavedSearchRow;
-    };
-    if (!res.ok || !j.ok || !j.search) {
-      setError(j.error || "Could not save");
-      return;
+    try {
+      const res = await fetch("/api/saved-searches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          pattern: pattern.trim(),
+          theme_ids: scope === "theme" ? themeIds : [],
+          scope,
+        }),
+      });
+      const j = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        search?: SavedSearchRow;
+      };
+      if (!res.ok || !j.ok || !j.search) {
+        setError(j.error || "Could not save");
+        return;
+      }
+      setSaveName("");
+      setSaving(false);
+      await reload();
+      onApplyRef.current(j.search);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save");
     }
-    setSaveName("");
-    setSaving(false);
-    await reload();
-    onLoad(j.search);
-  }
+  }, [pattern, reload, saveName, scope, themeIds]);
 
   async function onDelete(id: number) {
     await fetch(`/api/saved-searches?id=${id}`, { method: "DELETE" });
@@ -107,7 +118,7 @@ export function SavedSearchesBar({
             <button
               type="button"
               className="saved-kw-pill-label"
-              onClick={() => onLoad(s)}
+              onClick={() => onApplyRef.current(s)}
             >
               {s.name}
               {s.theme_ids.length ? (
@@ -126,29 +137,36 @@ export function SavedSearchesBar({
         ))}
 
         {saving ? (
-          <form className="saved-kw-inline" onSubmit={(e) => void onSave(e)}>
+          <div className="saved-kw-inline">
             <input
               value={saveName}
               onChange={(e) => setSaveName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void submitSave();
+                }
+                if (e.key === "Escape") cancelSave();
+              }}
               placeholder="Name"
               autoFocus
               aria-label="Saved search name"
             />
-            <button type="submit" className="saved-kw-inline-ok">
+            <button
+              type="button"
+              className="saved-kw-inline-ok"
+              onClick={() => void submitSave()}
+            >
               Save
             </button>
             <button
               type="button"
               className="saved-kw-inline-cancel"
-              onClick={() => {
-                setSaving(false);
-                setSaveName("");
-                setError(null);
-              }}
+              onClick={cancelSave}
             >
               ×
             </button>
-          </form>
+          </div>
         ) : canSave ? (
           <button
             type="button"

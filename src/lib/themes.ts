@@ -6,6 +6,8 @@ export type Theme = {
   name: string;
   /** Short chip label for company rows (e.g. "EV / green mobility"). */
   tag?: string;
+  /** Optional highlight chip in the theme picker (e.g. "2026"). */
+  badge?: string;
   blog_theme: string;
   cluster?: string;
   display_pattern: string;
@@ -63,6 +65,7 @@ export function loadThemes(): ThemeFile {
       id: String(t.id),
       name: String(t.name),
       tag: t.tag ? String(t.tag) : undefined,
+      badge: t.badge ? String(t.badge) : undefined,
       blog_theme: String(t.blog_theme ?? "Other"),
       cluster: t.cluster ? String(t.cluster) : undefined,
       display_pattern,
@@ -86,7 +89,13 @@ export function groupThemesByBlog(themes: Theme[]): ThemeGroup[] {
   }
   return [...map.entries()].map(([blog_theme, group]) => ({
     blog_theme,
-    themes: group,
+    // Highlighted / badge themes first within each group
+    themes: [...group].sort((a, b) => {
+      const ab = a.badge ? 0 : 1;
+      const bb = b.badge ? 0 : 1;
+      if (ab !== bb) return ab - bb;
+      return (a.tag || a.name).localeCompare(b.tag || b.name);
+    }),
   }));
 }
 

@@ -15,6 +15,7 @@
   },
   {
     "name": "Rakesh Jhunjhunwala and Associates",
+    "tags": ["legacy"],
     "portfolio_id": "53781",
     "portfolio_slug": "rakesh-jhunjhunwala-and-associates-portfolio",
     "query": "RAKESH JHUNJHUNWALA AND ASSOCIATES",
@@ -160,48 +161,6 @@
     "funds": []
   },
   {
-    "name": "Ashish Dhawan",
-    "portfolio_id": "53745",
-    "portfolio_slug": "ashish-dhawan-portfolio",
-    "query": "ASHISH DHAWAN",
-    "funds": []
-  },
-  {
-    "name": "Porinju V Veliyath",
-    "portfolio_id": "53777",
-    "portfolio_slug": "porinju-v-veliyath-portfolio",
-    "query": "PORINJU V VELIYATH",
-    "funds": [
-      {
-        "label": "Equity Intelligence India Pvt Ltd",
-        "portfolio_id": null,
-        "portfolio_slug": null,
-        "query": "EQUITY INTELLIGENCE INDIA PRIVATE LIMITED"
-      },
-      {
-        "label": "Litty Thomas",
-        "portfolio_id": null,
-        "portfolio_slug": null,
-        "query": "LITTY THOMAS"
-      },
-      {
-        "label": "Sunny Porinju",
-        "portfolio_id": null,
-        "portfolio_slug": null,
-        "query": "SUNNY PORINJU"
-      }
-    ],
-    "disclosed_picks": [
-      {
-        "symbol": "THOMASCOOK",
-        "company_name": "Thomas Cook (India) Limited",
-        "holding_entity": "Equity Intelligence · Personal",
-        "change_type": "disclosed",
-        "source": "ET Now interview, Jun 2026"
-      }
-    ]
-  },
-  {
     "name": "Vijay Kishanlal Kedia",
     "portfolio_id": "53805",
     "portfolio_slug": "vijay-kishanlal-kedia-portfolio",
@@ -220,13 +179,6 @@
     "portfolio_id": "62728",
     "portfolio_slug": "ramesh-damani-portfolio",
     "query": "RAMESH DAMANI",
-    "funds": []
-  },
-  {
-    "name": "Sunil Kumar",
-    "portfolio_id": "53800",
-    "portfolio_slug": "sunil-kumar-portfolio",
-    "query": "SUNIL KUMAR",
     "funds": []
   },
   {
@@ -251,78 +203,10 @@
     "funds": []
   },
   {
-    "name": "Sanjay Gupta",
-    "portfolio_id": "53787",
-    "portfolio_slug": "sanjay-gupta-portfolio",
-    "query": "SANJAY GUPTA",
-    "funds": []
-  },
-  {
-    "name": "Nikhil Vora",
-    "portfolio_id": "584329",
-    "portfolio_slug": "nikhil-vora-portfolio",
-    "query": "NIKHIL VORA",
-    "funds": []
-  },
-  {
-    "name": "Shankar Sharma",
-    "portfolio_id": "584326",
-    "portfolio_slug": "shankar-sharma-portfolio",
-    "query": "SHANKAR SHARMA",
-    "funds": []
-  },
-  {
     "name": "Manohar Devabhaktuni",
     "portfolio_id": null,
     "portfolio_slug": null,
     "query": "MANOHAR DEVABHAKTUNI",
     "funds": []
-  },
-  {
-    "name": "Basava Sankara Rao Kolli",
-    "portfolio_id": null,
-    "portfolio_slug": null,
-    "query": "BASAVA SANKARA RAO KOLLI",
-    "funds": []
-  },
-  {
-    "name": "Negen Capital / Negen Undiscovered Value Fund",
-    "portfolio_id": null,
-    "portfolio_slug": null,
-    "query": "NEGEN",
-    "funds": [
-      {
-        "label": "Negen Undiscovered Value Fund",
-        "portfolio_id": null,
-        "portfolio_slug": null,
-        "query": "NEGEN UNDISCOVERED VALUE FUND"
-      },
-      {
-        "label": "Negen Negen Undiscovered Value Fund",
-        "portfolio_id": null,
-        "portfolio_slug": null,
-        "query": "NEGEN NEGEN UNDISCOVERED VALUE FUND"
-      }
-    ]
-  },
-  {
-    "name": "Niveshaay",
-    "portfolio_id": null,
-    "portfolio_slug": null,
-    "query": "niveshaay",
-    "funds": [
-      {
-        "label": "Niveshaay Hedgehogs Fund",
-        "portfolio_id": null,
-        "portfolio_slug": null,
-        "query": "niveshaay hedgehogs fund"
-      },
-      {
-        "label": "Niveshaay Sambhav Fund",
-        "portfolio_id": null,
-        "portfolio_slug": null,
-        "query": "niveshaay sambhav fund"
-      }
-    ]
   }
 ]

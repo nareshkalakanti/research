@@ -22,7 +22,16 @@ type Props = {
   showSme?: boolean;
   /** Single-row inline mode — no label row wrapper */
   inline?: boolean;
+  /** Unique-symbol counts per cap tier (excludes "All"). */
+  capCounts?: Partial<Record<CapFilter, number>>;
+  smeCount?: number;
+  allCount?: number;
 };
+
+function ChipCount({ n }: { n?: number }) {
+  if (n == null) return null;
+  return <span className="chip-count">{n.toLocaleString("en-IN")}</span>;
+}
 
 export function CapMarketFilters({
   cap,
@@ -31,6 +40,9 @@ export function CapMarketFilters({
   onSme,
   showSme = false,
   inline = false,
+  capCounts,
+  smeCount,
+  allCount,
 }: Props) {
   const chips = (
     <>
@@ -46,6 +58,13 @@ export function CapMarketFilters({
           }}
         >
           {c}
+          <ChipCount
+            n={
+              c === "All"
+                ? allCount
+                : capCounts?.[c as Exclude<CapFilter, "All">]
+            }
+          />
         </button>
       ))}
       {cap !== "All" ? (
@@ -63,9 +82,10 @@ export function CapMarketFilters({
           type="button"
           className={`chip tag-chip tag-mkt-sme ${sme ? "on" : ""}`}
           onClick={() => onSme(!sme)}
-          title="NSE SME listings only"
+          title="NSE / BSE SME listings only"
         >
           SME
+          <ChipCount n={smeCount} />
         </button>
       ) : null}
     </>

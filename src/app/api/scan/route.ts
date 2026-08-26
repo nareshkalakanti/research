@@ -49,6 +49,8 @@ export async function POST(req: NextRequest) {
     body.kind === "ema" ||
     body.kind === "ath" ||
     body.kind === "high52" ||
+    body.kind === "dd" ||
+    body.kind === "mom" ||
     body.kind === "both" ||
     body.kind === "all"
       ? body.kind
@@ -94,6 +96,8 @@ export async function POST(req: NextRequest) {
       emaHits: 0,
       athHits: 0,
       high52Hits: 0,
+      ddHits: 0,
+      momHits: 0,
       failed: 0,
       remaining: 0,
       bbTickers: [],
@@ -101,6 +105,8 @@ export async function POST(req: NextRequest) {
       emaTickers: [],
       athTickers: [],
       high52Tickers: [],
+      ddTickers: [],
+      momTickers: [],
       cleared: clearFirst,
       bbTimeframe,
       signals: breakoutCounts(loadBreakoutMap(bbTimeframe)),

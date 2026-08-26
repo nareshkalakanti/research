@@ -1113,6 +1113,37 @@ a {
   color: #fff;
 }
 
+/* DD — rose (distinct from SME pink / distress red) */
+.tag-scan-dd {
+  background: #ffe4e6;
+  border-color: #fda4af;
+  color: #9f1239;
+}
+.tag-scan-dd.on,
+.result-tag.tag-scan-dd {
+  background: #e11d48;
+  border-color: #be123c;
+  color: #fff;
+}
+
+/* MOM — teal (12−1 momentum) */
+.tag-scan-mom {
+  background: #ccfbf1;
+  border-color: #5eead4;
+  color: #0f766e;
+}
+.tag-scan-mom.on,
+.result-tag.tag-scan-mom {
+  background: #0d9488;
+  border-color: #0f766e;
+  color: #fff;
+}
+.result-tag.tag-scan-mom.neg {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #64748b;
+}
+
 .tag-scan-news {
   background: #ecfeff;
   border-color: #a5f3fc;
@@ -1215,6 +1246,37 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Ace investor tags — soft idle chips (same family as Scan filter bar) */
+.tag-inv-funds {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.tag-inv-legacy {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+  color: #6b7280;
+}
+
+.tag-inv-query {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #a16207;
+}
+
+.tag-inv-disclosed {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.tag-inv-name {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
 }
 
 .q-expand {
@@ -2789,6 +2851,23 @@ a {
 .theme-item-name {
   font-weight: 600;
   font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.theme-item-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #047857;
 }
 
 .theme-item-pattern {
@@ -4855,6 +4934,258 @@ tr.sm-row-sme-hit td {
   max-width: none;
 }
 
+.ss-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.ss-top-copy h2 {
+  margin: 0 0 4px;
+  font-size: 1.45rem;
+  letter-spacing: -0.04em;
+}
+
+.ss-top-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.ss-kpis {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.ss-kpi {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.ss-kpi-btn {
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.ss-kpi-btn.sme.on {
+  border-color: #f9a8d4;
+  box-shadow: 0 0 0 3px #fce7f3;
+}
+
+.ss-kpi-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.ss-kpi strong {
+  font-size: 1.05rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-kpi.accent strong {
+  color: var(--accent-ink);
+}
+
+.ss-kpi.ok strong {
+  color: var(--ok);
+}
+
+.ss-kpi.up strong {
+  color: #15803d;
+}
+
+.ss-kpi.down strong {
+  color: var(--danger);
+}
+
+.ss-layout {
+  display: grid;
+  grid-template-columns: 248px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.ss-sidebar {
+  position: sticky;
+  top: 10px;
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
+.ss-sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ss-sidebar-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-sidebar-search {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.84rem;
+  background: #f8fafc;
+}
+
+.ss-sidebar-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+}
+
+.ss-inv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.ss-inv-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.ss-inv-item:hover {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+}
+
+.ss-inv-item.on {
+  background: var(--accent-soft);
+  border-color: #c7d7f8;
+}
+
+.ss-inv-item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ss-inv-item-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 0.62rem;
+  font-weight: 750;
+  color: var(--accent-ink);
+  background: #eef2ff;
+  border: 1px solid #dbeafe;
+}
+
+.ss-inv-item-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ss-inv-item-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.ss-inv-item-meta em.new {
+  font-style: normal;
+  color: var(--ok);
+  font-weight: 650;
+}
+
+.ss-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ss-filter-bar {
+  margin: 0;
+}
+
+.ss-filter-bar .filter-bar-main {
+  align-items: center;
+}
+
+.ss-filter-bar .ss-search.grow {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.ss-filter-bar .ss-search input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.86rem;
+  background: #fff;
+}
+
+.ss-result-meta {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.ss-row-co {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ss-row-co .result-tags {
+  margin-top: 2px;
+}
+
 .ss-hero {
   display: flex;
   flex-wrap: wrap;
@@ -5156,7 +5487,7 @@ tr.sm-row-sme-hit td {
   gap: 10px;
   flex: 0 0 auto;
   min-width: 168px;
-  max-width: 220px;
+  max-width: 260px;
   padding: 10px 12px;
   text-align: left;
   border-radius: 14px;
@@ -5217,6 +5548,49 @@ tr.sm-row-sme-hit td {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.ss-cap-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0 12px;
+}
+
+.ss-co .result-tags.ss-stock-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.ss-inv-tags {
+  margin-top: 4px;
+  gap: 4px;
+}
+
+.ss-inv-tags .chip.tag-chip {
+  height: auto;
+  min-height: 0;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  cursor: default;
+  pointer-events: none;
+}
+
+.ss-table-tags {
+  gap: 4px;
+}
+
+.ss-table-tags .chip.tag-chip,
+.ss-col-investor .chip.tag-chip {
+  height: auto;
+  min-height: 0;
+  padding: 2px 8px;
+  font-size: 0.68rem;
+  cursor: default;
+  pointer-events: none;
 }
 
 .ss-inv-sub {
@@ -5485,6 +5859,23 @@ tr.sm-row-sme-hit td {
 }
 
 @media (max-width: 1100px) {
+  .ss-kpis {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .ss-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .ss-sidebar {
+    position: static;
+    max-height: none;
+  }
+
+  .ss-inv-list {
+    max-height: 220px;
+  }
+
   .ss-stats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
