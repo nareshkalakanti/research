@@ -385,7 +385,7 @@ export function ThemeScanner() {
             pattern={custom}
             themeIds={selected}
             activeId={activeSavedId}
-            onLoad={(s: SavedSearchRow) => {
+            onApply={(s: SavedSearchRow) => {
               setActiveSavedId(s.id);
               setSelected(s.theme_ids);
               setCustom(s.pattern);

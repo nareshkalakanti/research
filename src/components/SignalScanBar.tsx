@@ -8,9 +8,17 @@ import {
 
 export type SignalMode = "all" | "tq" | "bb" | "either" | "both";
 export type BbTimeframe = "weekly" | "monthly";
-export type ViewFilter = "all" | "bb" | "tq" | "ema" | "ath" | "high52";
+export type ViewFilter =
+  | "all"
+  | "bb"
+  | "tq"
+  | "ema"
+  | "ath"
+  | "high52"
+  | "dd"
+  | "mom";
 
-type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "all";
+type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "dd" | "mom" | "all";
 
 type Props = {
   listLabel: string;
@@ -26,11 +34,15 @@ type Props = {
   emaCount?: number;
   athCount?: number;
   high52Count?: number;
+  ddCount?: number;
+  momCount?: number;
   bbDate?: string | null;
   tqDate?: string | null;
   emaDate?: string | null;
   athDate?: string | null;
   high52Date?: string | null;
+  ddDate?: string | null;
+  momDate?: string | null;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
 };
@@ -58,6 +70,8 @@ async function scanOnce(body: Record<string, unknown>) {
     emaHits?: number;
     athHits?: number;
     high52Hits?: number;
+    ddHits?: number;
+    momHits?: number;
     remaining?: number;
     session?: {
       bb: string | null;
@@ -65,6 +79,8 @@ async function scanOnce(body: Record<string, unknown>) {
       ema?: string | null;
       ath?: string | null;
       high52?: string | null;
+      dd?: string | null;
+      mom?: string | null;
     };
     error?: string;
   } = {};
@@ -92,6 +108,8 @@ const SCAN_LABELS: Record<ScanKind, string> = {
   ema: "EMA",
   ath: "ATH",
   high52: "52W",
+  dd: "DD",
+  mom: "MOM",
   all: "All",
 };
 
@@ -102,6 +120,8 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   ema: "EMA",
   ath: "ATH",
   high52: "52W",
+  dd: "DD",
+  mom: "MOM",
 };
 
 export function viewFilterLabel(view: ViewFilter): string {
@@ -123,11 +143,15 @@ export function SignalScanBar({
   emaCount,
   athCount,
   high52Count,
+  ddCount,
+  momCount,
   bbDate,
   tqDate,
   emaDate,
   athDate,
   high52Date,
+  ddDate,
+  momDate,
   onBatch,
   onDone,
 }: Props) {
@@ -155,6 +179,8 @@ export function SignalScanBar({
       let gotEma = 0;
       let gotAth = 0;
       let gotHigh52 = 0;
+      let gotDd = 0;
+      let gotMom = 0;
 
       try {
         for (let round = 1; round <= 120; round += 1) {
@@ -170,13 +196,15 @@ export function SignalScanBar({
           gotEma += json.emaHits ?? 0;
           gotAth += json.athHits ?? 0;
           gotHigh52 += json.high52Hits ?? 0;
+          gotDd += json.ddHits ?? 0;
+          gotMom += json.momHits ?? 0;
           remaining = json.remaining ?? 0;
           const pct =
             remaining <= 0 ? 100 : Math.min(97, 3 + round * 2);
           setProgress({
             pct,
             label: remaining <= 0 ? "Done" : `Scanning ${SCAN_LABELS[kind]}`,
-            detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${remaining.toLocaleString()} left`,
+            detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${gotDd} DD · ${gotMom} MOM · ${remaining.toLocaleString()} left`,
             done: remaining <= 0,
           });
           if (
@@ -197,12 +225,14 @@ export function SignalScanBar({
         else if (kind === "ema") onView("ema");
         else if (kind === "ath") onView("ath");
         else if (kind === "high52") onView("high52");
+        else if (kind === "dd") onView("dd");
+        else if (kind === "mom") onView("mom");
         else onView("all");
 
         setProgress({
           pct: 100,
           label: "Done",
-          detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${listLabel}`,
+          detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${gotDd} DD · ${gotMom} MOM · ${listLabel}`,
           done: true,
         });
         await onDone?.();
@@ -311,6 +341,40 @@ export function SignalScanBar({
           ) : null}
         </button>
 
+        <button
+          type="button"
+          className={`chip tag-chip tag-scan-dd ${view === "dd" ? "on" : ""}`}
+          onClick={() => onView("dd")}
+          title={
+            ddDate
+              ? `Weekly Dragonfly Doji · ${ddDate}`
+              : "Weekly Dragonfly Doji hits"
+          }
+        >
+          DD
+          <Count n={ddCount} />
+          {ddDate ? (
+            <span className="chip-date">{ddDate.slice(5)}</span>
+          ) : null}
+        </button>
+
+        <button
+          type="button"
+          className={`chip tag-chip tag-scan-mom ${view === "mom" ? "on" : ""}`}
+          onClick={() => onView("mom")}
+          title={
+            momDate
+              ? `12−1 momentum (positive) · ${momDate}`
+              : "Positive 12−1 price momentum"
+          }
+        >
+          MOM
+          <Count n={momCount} />
+          {momDate ? (
+            <span className="chip-date">{momDate.slice(5)}</span>
+          ) : null}
+        </button>
+
         {view !== "all" ? (
           <button
             type="button"
@@ -325,7 +389,7 @@ export function SignalScanBar({
         <span className="filter-sep scan-actions-sep" aria-hidden />
 
         <div className="scan-actions">
-          {(["bb", "tq", "ema", "ath", "high52", "all"] as const).map((kind) => (
+          {(["bb", "tq", "ema", "ath", "high52", "dd", "mom", "all"] as const).map((kind) => (
             <button
               key={kind}
               type="button"
@@ -336,10 +400,14 @@ export function SignalScanBar({
                 kind === "bb"
                   ? `Scan ${bbTfLabel} BB on ${listLabel}`
                   : kind === "all"
-                    ? `Scan BB, TQ, EMA, ATH, 52W on ${listLabel}`
+                    ? `Scan BB, TQ, EMA, ATH, 52W, DD, MOM on ${listLabel}`
                     : kind === "high52"
                       ? `Scan 52W highs on ${listLabel}`
-                      : `Scan ${SCAN_LABELS[kind]} on ${listLabel}`
+                      : kind === "dd"
+                        ? `Scan weekly Dragonfly Doji on ${listLabel}`
+                        : kind === "mom"
+                          ? `Scan 12−1 momentum on ${listLabel}`
+                          : `Scan ${SCAN_LABELS[kind]} on ${listLabel}`
               }
             >
               {busyKind === kind

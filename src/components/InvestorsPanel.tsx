@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { initials } from "@/lib/superstars/catalog";
+import {
+  CapMarketFilters,
+  CAP_TITLE,
+  type CapFilter,
+} from "@/components/CapMarketFilters";
+import {
+  initials,
+  INVESTOR_TAG_LABELS,
+  INVESTOR_TAG_TITLES,
+  shortName,
+  type InvestorTagId,
+} from "@/lib/superstars/catalog";
+import type { CapTier } from "@/lib/types";
 
 type View = "consensus" | "portfolio";
 
@@ -9,6 +21,7 @@ type InvestorSummary = {
   name: string;
   short: string;
   curated: boolean;
+  tags: InvestorTagId[];
   holdings: number;
   new_picks: number;
   increased: number;
@@ -27,6 +40,9 @@ type HoldingRow = {
   holding_value_cr: number | null;
   price: number | null;
   sector: string | null;
+  market: string;
+  cap_code: CapTier;
+  is_sme: boolean;
   web: string | null;
   sc: string;
   tv: string;
@@ -47,6 +63,9 @@ type ConsensusRow = {
   sector: string | null;
   price: number | null;
   holding_percent: number | null;
+  market: string;
+  cap_code: CapTier;
+  is_sme: boolean;
   investor_count: number;
   new_count: number;
   increased_count: number;
@@ -69,6 +88,8 @@ type Stats = {
   increased: number;
   decreased: number;
   consensus: number;
+  sme_symbols: number;
+  cap_counts: Record<CapTier, number>;
   fetched_at: string | null;
 };
 
@@ -298,6 +319,73 @@ function ActivityCell({
   );
 }
 
+function StockTags({
+  cap_code,
+  is_sme,
+  market,
+}: {
+  cap_code: CapTier;
+  is_sme: boolean;
+  market: string;
+}) {
+  return (
+    <span className="result-tags ss-stock-tags">
+      {is_sme ? (
+        <span className="result-tag tag-mkt-sme" title={`${market} listing`}>
+          SME
+        </span>
+      ) : null}
+      <span
+        className={`result-tag tag-cap-${cap_code.toLowerCase()}`}
+        title={CAP_TITLE[cap_code as CapFilter] ?? cap_code}
+      >
+        {cap_code}
+      </span>
+    </span>
+  );
+}
+
+function CompanyCell({
+  symbol,
+  name,
+  cap_code,
+  is_sme,
+  market,
+}: {
+  symbol: string;
+  name: string | null;
+  cap_code: CapTier;
+  is_sme: boolean;
+  market: string;
+}) {
+  return (
+    <div className="ss-row-co">
+      <span className="company-name">{name || symbol}</span>
+      <span className="company-meta">
+        <span className="ticker">{symbol}</span>
+      </span>
+      <StockTags cap_code={cap_code} is_sme={is_sme} market={market} />
+    </div>
+  );
+}
+
+function InvestorTags({ tags }: { tags: InvestorTagId[] }) {
+  if (!tags.length) return null;
+  return (
+    <span className="chip-row ss-inv-tags">
+      {tags.map((tag) => (
+        <span
+          key={tag}
+          className={`chip tag-chip tag-inv-${tag}`}
+          title={INVESTOR_TAG_TITLES[tag]}
+        >
+          {INVESTOR_TAG_LABELS[tag]}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function InvestorsPanel() {
   const [view, setView] = useState<View>("consensus");
   const [investor, setInvestor] = useState<string | null>(null);
@@ -306,6 +394,9 @@ export function InvestorsPanel() {
   const [qDebounced, setQDebounced] = useState("");
   const [sort, setSort] = useState<SortKey>("value");
   const [dir, setDir] = useState<SortDir>("desc");
+  const [cap, setCap] = useState<CapFilter>("All");
+  const [sme, setSme] = useState(false);
+  const [invQ, setInvQ] = useState("");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
@@ -340,6 +431,8 @@ export function InvestorsPanel() {
         params.set("change", change);
       }
       if (qDebounced) params.set("q", qDebounced);
+      if (cap !== "All") params.set("cap", cap);
+      if (sme) params.set("sme", "1");
       const res = await fetch(`/api/superstars?${params}`);
       const json = (await res.json()) as ApiResponse;
       setData(json);
@@ -351,7 +444,7 @@ export function InvestorsPanel() {
     } finally {
       setLoading(false);
     }
-  }, [view, investor, change, qDebounced]);
+  }, [view, investor, change, qDebounced, cap, sme]);
 
   useEffect(() => {
     void load();
@@ -367,7 +460,7 @@ export function InvestorsPanel() {
 
     let offset = 0;
     let totalSaved = 0;
-    let total = 25;
+    let total = 16;
     const batchSize = 5;
 
     try {
@@ -436,10 +529,16 @@ export function InvestorsPanel() {
     }
   }, [load]);
 
-  const curatedInvestors = useMemo(
-    () => (data?.investors ?? []).filter((i) => i.curated),
-    [data],
-  );
+  const curatedInvestors = useMemo(() => {
+    const list = (data?.investors ?? []).filter((i) => i.curated);
+    const needle = invQ.trim().toLowerCase();
+    if (!needle) return list;
+    return list.filter(
+      (i) =>
+        i.name.toLowerCase().includes(needle) ||
+        i.short.toLowerCase().includes(needle),
+    );
+  }, [data, invQ]);
 
   const sortedHoldings = useMemo(() => {
     const rows = [...(data?.holdings ?? [])];
@@ -474,38 +573,49 @@ export function InvestorsPanel() {
   const stats = data?.stats;
   const activeView: View = investor ? "portfolio" : view;
 
+  const capCounts = useMemo(() => {
+    const cc = stats?.cap_counts;
+    if (!cc) return undefined;
+    return {
+      NC: cc.NC,
+      TI: cc.TI,
+      MIC: cc.MIC,
+      SC: cc.SC,
+      MC: cc.MC,
+      LC: cc.LC,
+    };
+  }, [stats?.cap_counts]);
+
+  const filtersActive = cap !== "All" || sme;
+  const rowCount =
+    activeView === "consensus" && !investor
+      ? sortedConsensus.length
+      : sortedHoldings.length;
+
+  const clearFilters = useCallback(() => {
+    setCap("All");
+    setSme(false);
+  }, []);
+
   return (
     <div className="panel ss-panel">
-      <div className="ss-hero">
-        <div className="ss-hero-copy">
-          <p className="ss-eyebrow">Ace portfolios · Trendlyne</p>
-          <h2>Investors</h2>
-          <p>
-            Superstar holdings and consensus picks — scan refreshes all aces in
-            parallel from Trendlyne.
+      <header className="ss-top">
+        <div className="ss-top-copy">
+          <p className="ss-eyebrow">Trendlyne · superstar portfolios</p>
+          <h2>Ace investors</h2>
+          <p className="ss-top-sub">
+            {stats?.investors ?? "—"} aces · as of {formatFetched(stats?.fetched_at)}
           </p>
         </div>
-        <div className="ss-hero-right">
-          <div className="ss-hero-meta">
-            <div className="ss-meta-pill">
-              <span>As of</span>
-              <strong>{formatFetched(stats?.fetched_at)}</strong>
-            </div>
-            <div className="ss-meta-pill">
-              <span>Curated</span>
-              <strong>{stats?.investors ?? "—"}</strong>
-            </div>
-          </div>
-          <button
-            type="button"
-            className="btn-fill ss-scan-btn"
-            disabled={scanning}
-            onClick={() => void runScan()}
-          >
-            {scanning ? "Scanning…" : "Scan"}
-          </button>
-        </div>
-      </div>
+        <button
+          type="button"
+          className="btn-fill ss-scan-btn"
+          disabled={scanning}
+          onClick={() => void runScan()}
+        >
+          {scanning ? "Scanning…" : "Scan all"}
+        </button>
+      </header>
 
       {progress && (
         <div
@@ -530,154 +640,218 @@ export function InvestorsPanel() {
         </div>
       )}
 
-      <div className="ss-stats">
-        <div className="ss-stat">
-          <span className="ss-stat-label">Holdings</span>
+      <div className="ss-kpis">
+        <div className="ss-kpi">
+          <span className="ss-kpi-label">Holdings</span>
           <strong>{stats?.total_holdings ?? "—"}</strong>
         </div>
-        <div className="ss-stat">
-          <span className="ss-stat-label">Symbols</span>
+        <div className="ss-kpi">
+          <span className="ss-kpi-label">Symbols</span>
           <strong>{stats?.unique_symbols ?? "—"}</strong>
         </div>
-        <div className="ss-stat accent">
-          <span className="ss-stat-label">Consensus 2+</span>
+        <div className="ss-kpi accent">
+          <span className="ss-kpi-label">Consensus 2+</span>
           <strong>{stats?.consensus ?? "—"}</strong>
         </div>
-        <div className="ss-stat ok">
-          <span className="ss-stat-label">New</span>
+        <button
+          type="button"
+          className={`ss-kpi ss-kpi-btn sme ${sme ? "on" : ""}`}
+          onClick={() => setSme((v) => !v)}
+          title="Filter SME listings"
+        >
+          <span className="ss-kpi-label">SME</span>
+          <strong>{stats?.sme_symbols ?? "—"}</strong>
+        </button>
+        <div className="ss-kpi ok">
+          <span className="ss-kpi-label">New</span>
           <strong>{stats?.new_picks ?? "—"}</strong>
         </div>
-        <div className="ss-stat up">
-          <span className="ss-stat-label">Increased</span>
+        <div className="ss-kpi up">
+          <span className="ss-kpi-label">Increased</span>
           <strong>{stats?.increased ?? "—"}</strong>
         </div>
-        <div className="ss-stat down">
-          <span className="ss-stat-label">Decreased</span>
+        <div className="ss-kpi down">
+          <span className="ss-kpi-label">Decreased</span>
           <strong>{stats?.decreased ?? "—"}</strong>
         </div>
       </div>
 
-      <div className="ss-toolbar">
-        <div className="ss-view-toggle" role="tablist" aria-label="View">
-          <button
-            type="button"
-            role="tab"
-            className={!investor && view === "consensus" ? "on" : ""}
-            aria-selected={!investor && view === "consensus"}
-            onClick={() => {
-              setInvestor(null);
-              setView("consensus");
-            }}
-          >
-            Consensus
-          </button>
-          <button
-            type="button"
-            role="tab"
-            className={investor || view === "portfolio" ? "on" : ""}
-            aria-selected={Boolean(investor) || view === "portfolio"}
-            onClick={() => setView("portfolio")}
-          >
-            Portfolios
-          </button>
-        </div>
-
-        <div className="ss-search">
+      <div className="ss-layout">
+        <aside className="ss-sidebar">
+          <div className="ss-sidebar-head">
+            <span className="chip-label">Aces</span>
+            <span className="ss-sidebar-count">{curatedInvestors.length}</span>
+          </div>
           <input
             type="search"
-            placeholder="Search ticker, company, investor…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            aria-label="Search holdings"
+            className="ss-sidebar-search"
+            placeholder="Filter aces…"
+            value={invQ}
+            onChange={(e) => setInvQ(e.target.value)}
+            aria-label="Filter investors"
           />
-        </div>
-
-        {(investor || view === "portfolio") && (
-          <div className="ss-change-filters">
-            {(["all", "new", "increased", "decreased"] as const).map((c) => (
+          <nav className="ss-inv-list" aria-label="Investors">
+            <button
+              type="button"
+              className={`ss-inv-item ${!investor ? "on" : ""}`}
+              onClick={() => {
+                setInvestor(null);
+                setView("consensus");
+              }}
+            >
+              <span className="ss-inv-item-name">All aces</span>
+              <span className="ss-inv-item-meta">
+                {stats?.consensus ?? 0} consensus · {stats?.total_holdings ?? 0}{" "}
+                rows
+              </span>
+            </button>
+            {curatedInvestors.map((inv) => (
               <button
-                key={c}
+                key={inv.name}
                 type="button"
-                className={change === c ? "on" : ""}
-                onClick={() => setChange(c)}
+                className={`ss-inv-item ${investor === inv.name ? "on" : ""}`}
+                onClick={() => {
+                  setInvestor(inv.name);
+                  setView("portfolio");
+                }}
+                title={inv.name}
               >
-                {c === "all" ? "All" : c[0].toUpperCase() + c.slice(1)}
+                <span className="ss-inv-item-row">
+                  <span className="ss-inv-item-avatar">{initials(inv.name)}</span>
+                  <span className="ss-inv-item-name">{inv.short}</span>
+                </span>
+                <InvestorTags tags={inv.tags} />
+                <span className="ss-inv-item-meta">
+                  {inv.holdings} holdings
+                  {inv.new_picks > 0 ? (
+                    <>
+                      {" · "}
+                      <em className="new">{inv.new_picks} new</em>
+                    </>
+                  ) : null}
+                </span>
               </button>
             ))}
+          </nav>
+        </aside>
+
+        <div className="ss-main">
+          <div className="filter-bar ss-filter-bar">
+            <div className="filter-bar-main">
+              <div className="ss-view-toggle" role="tablist" aria-label="View">
+                <button
+                  type="button"
+                  role="tab"
+                  className={!investor && view === "consensus" ? "on" : ""}
+                  aria-selected={!investor && view === "consensus"}
+                  onClick={() => {
+                    setInvestor(null);
+                    setView("consensus");
+                  }}
+                >
+                  Consensus
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  className={investor || view === "portfolio" ? "on" : ""}
+                  aria-selected={Boolean(investor) || view === "portfolio"}
+                  onClick={() => setView("portfolio")}
+                >
+                  Holdings
+                </button>
+              </div>
+
+              <span className="filter-sep" aria-hidden />
+
+              <CapMarketFilters
+                cap={cap}
+                onCap={setCap}
+                sme={sme}
+                onSme={setSme}
+                showSme
+                inline
+                capCounts={capCounts}
+                smeCount={stats?.sme_symbols}
+                allCount={stats?.unique_symbols}
+              />
+
+              {filtersActive ? (
+                <button
+                  type="button"
+                  className="clear-filter"
+                  onClick={clearFilters}
+                  title="Clear cap and SME filters"
+                >
+                  Clear
+                </button>
+              ) : null}
+
+              {(investor || view === "portfolio") && (
+                <>
+                  <span className="filter-sep" aria-hidden />
+                  <div className="ss-change-filters">
+                    {(["all", "new", "increased", "decreased"] as const).map(
+                      (c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          className={`chip signal-chip ${change === c ? "on" : ""}`}
+                          onClick={() => setChange(c)}
+                        >
+                          {c === "all" ? "All" : c[0].toUpperCase() + c.slice(1)}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                </>
+              )}
+
+              <div className="ss-search grow">
+                <input
+                  type="search"
+                  placeholder="Search ticker, company, sector…"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  aria-label="Search holdings"
+                />
+              </div>
+            </div>
           </div>
-        )}
-      </div>
 
-      <div className="ss-investor-rail" aria-label="Investors">
-        <button
-          type="button"
-          className={`ss-inv-chip all ${!investor ? "on" : ""}`}
-          onClick={() => setInvestor(null)}
-        >
-          <span className="ss-inv-avatar all">★</span>
-          <span className="ss-inv-text">
-            <span className="ss-inv-name">All aces</span>
-            <span className="ss-inv-sub">
-              {stats?.consensus ?? 0} consensus · {stats?.total_holdings ?? 0}{" "}
-              holdings
-            </span>
-          </span>
-        </button>
-        {curatedInvestors.map((inv) => (
-          <button
-            key={inv.name}
-            type="button"
-            className={`ss-inv-chip ${investor === inv.name ? "on" : ""}`}
-            onClick={() => {
-              setInvestor(inv.name);
-              setView("portfolio");
-            }}
-            title={inv.name}
-          >
-            <span className="ss-inv-avatar">{initials(inv.name)}</span>
-            <span className="ss-inv-text">
-              <span className="ss-inv-name">{inv.short}</span>
-              <span className="ss-inv-sub">
-                {inv.holdings}
-                {inv.new_picks > 0 ? (
-                  <>
-                    {" · "}
-                    <em className="new">{inv.new_picks} new</em>
-                  </>
-                ) : null}
-                {inv.increased > 0 ? <> · {inv.increased}↑</> : null}
-                {inv.decreased > 0 ? <> · {inv.decreased}↓</> : null}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
+          <p className="ss-result-meta">
+            Showing {rowCount.toLocaleString("en-IN")} rows
+            {investor ? ` · ${shortName(investor)}` : ""}
+            {filtersActive ? " · filtered" : ""}
+          </p>
 
-      {data && !data.ok && (
-        <div className="ss-banner err">{data.error || "Failed to load"}</div>
-      )}
+          {data && !data.ok && (
+            <div className="ss-banner err">{data.error || "Failed to load"}</div>
+          )}
 
-      <div className="ss-table-wrap table-card">
-        {loading && !data ? (
-          <div className="ss-empty">Loading investors…</div>
-        ) : activeView === "consensus" && !investor ? (
-          <ConsensusTable
-            rows={sortedConsensus}
-            loading={loading}
-            sort={sort}
-            dir={dir}
-            onSort={onSort}
-          />
-        ) : (
-          <PortfolioTable
-            rows={sortedHoldings}
-            loading={loading}
-            showInvestor={!investor}
-            sort={sort}
-            dir={dir}
-            onSort={onSort}
-          />
-        )}
+          <div className="ss-table-wrap table-card">
+            {loading && !data ? (
+              <div className="ss-empty">Loading investors…</div>
+            ) : activeView === "consensus" && !investor ? (
+              <ConsensusTable
+                rows={sortedConsensus}
+                loading={loading}
+                sort={sort}
+                dir={dir}
+                onSort={onSort}
+              />
+            ) : (
+              <PortfolioTable
+                rows={sortedHoldings}
+                loading={loading}
+                showInvestor={!investor}
+                sort={sort}
+                dir={dir}
+                onSort={onSort}
+              />
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -762,18 +936,21 @@ function ConsensusTable({
           <tr key={r.symbol}>
             <td className="num muted ss-col-rank">{i + 1}</td>
             <td className="ss-col-company">
-              <div className="ss-co">
-                <span className="ss-ticker">{r.symbol}</span>
-                <span className="ss-name">{r.company_name || r.symbol}</span>
-              </div>
+              <CompanyCell
+                symbol={r.symbol}
+                name={r.company_name}
+                cap_code={r.cap_code}
+                is_sme={r.is_sme}
+                market={r.market}
+              />
             </td>
             <td className="num ss-col-n">
               <span className="ss-n-badge">{r.investor_count}</span>
             </td>
             <td className="ss-col-investors">
-              <div className="ss-tags">
+              <div className="chip-row ss-table-tags">
                 {r.investor_shorts.map((s) => (
-                  <span key={s} className="ss-tag">
+                  <span key={s} className="chip tag-chip tag-inv-name">
                     {s}
                   </span>
                 ))}
@@ -874,14 +1051,17 @@ function PortfolioTable({
         {rows.map((r) => (
           <tr key={`${r.investor}-${r.symbol}-${r.exchange}`}>
             <td className="ss-col-company">
-              <div className="ss-co">
-                <span className="ss-ticker">{r.symbol}</span>
-                <span className="ss-name">{r.company_name || r.symbol}</span>
-              </div>
+              <CompanyCell
+                symbol={r.symbol}
+                name={r.company_name}
+                cap_code={r.cap_code}
+                is_sme={r.is_sme}
+                market={r.market}
+              />
             </td>
             {showInvestor && (
               <td className="ss-col-investor">
-                <span className="ss-tag">{r.investor_short}</span>
+                <span className="chip tag-chip tag-inv-name">{r.investor_short}</span>
               </td>
             )}
             <td className="ss-col-change">

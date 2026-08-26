@@ -31,6 +31,12 @@ export type Company = {
   has_ath?: boolean;
   /** NEW 52-week high (daily). */
   has_high52?: boolean;
+  /** Weekly Dragonfly Doji (tiny body, long lower wick). */
+  has_dd?: boolean;
+  /** Positive 12−1 price momentum (stocks-ai formula). */
+  has_mom?: boolean;
+  /** 12−1 momentum % (Price 1M / Price 1Y − 1) × 100. */
+  momentum_pct?: number | null;
   /** Saved research note headline tags when present. */
   news?: {
     count: number;
@@ -73,6 +79,34 @@ export type Company = {
     ema200: number | null;
     signal_date: string | null;
   };
+  ath?: {
+    timeframe: string;
+    price: number | null;
+    ath: number | null;
+    signal_date: string | null;
+  };
+  high52?: {
+    timeframe: string;
+    price: number | null;
+    high_52w: number | null;
+    signal_date: string | null;
+  };
+  dd?: {
+    timeframe: string;
+    price: number | null;
+    open: number | null;
+    high: number | null;
+    low: number | null;
+    signal_date: string | null;
+  };
+  mom?: {
+    timeframe: string;
+    price: number | null;
+    price_1y: number | null;
+    price_1m: number | null;
+    momentum_pct: number | null;
+    signal_date: string | null;
+  };
   missing?: {
     price: boolean;
     mcap: boolean;
@@ -106,6 +140,8 @@ export type Theme = {
   name: string;
   /** Short chip label on company rows. */
   tag?: string;
+  /** Optional highlight chip in the theme picker (e.g. "2026"). */
+  badge?: string;
   blog_theme: string;
   display_pattern: string;
   keywords: string[];

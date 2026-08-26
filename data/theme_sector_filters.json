@@ -4,7 +4,7 @@
     "rule": "match = keyword AND (sub_sector in allow_subsectors OR sector in allow_sectors) AND pair NOT in exclude_pairs",
     "updated": "2026-08-25",
     "aligned_to": "theme_keywords.json",
-    "theme_count": 11
+    "theme_count": 24
   },
   "filters": {
     "india_repm_magnet_localization": {
@@ -248,9 +248,7 @@
       "allow_sectors": [
         "FMCG & Consumer Goods",
         "Fast Moving Consumer Goods",
-        "Agriculture & Agro",
-        "Engineering & Capital Goods",
-        "Industrials"
+        "Agriculture & Agro"
       ],
       "allow_subsectors": [
         "Packaged Foods & Meats",
@@ -263,15 +261,336 @@
         "Dairy Products",
         "Tea & Coffee",
         "Sugar",
-        "Packaging",
-        "Industrial Machinery",
-        "Agricultural & Farm Machinery"
+        "Packaging"
       ],
       "exclude_pairs": [
         "IT & Technology > IT Services & Consulting",
         "Information Technology > Computers Hardware & Equipments",
         "Banking & Finance > Investment Banking & Brokerage",
         "FMCG & Consumer Goods > FMCG - Personal Products"
+      ]
+    },
+    "gov_mumbai_redevelopment_realty": {
+      "allow_sectors": [
+        "Real Estate & Construction",
+        "Consumer Discretionary",
+        "Industrials"
+      ],
+      "allow_subsectors": [
+        "Real Estate",
+        "Real Estate - Development",
+        "Construction & Engineering",
+        "Civil Construction",
+        "Residential, Commercial Projects",
+        "Engineering & Construction"
+      ],
+      "exclude_pairs": [
+        "Real Estate & Construction > Cement",
+        "Real Estate & Construction > Building Products - Pipes",
+        "Real Estate & Construction > Building Products - Prefab Structures",
+        "Real Estate & Construction > Textiles"
+      ]
+    },
+    "gov_defence_aerospace_indigenisation": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Automobile & Ancillaries",
+        "Electronics & Electrical",
+        "Industrials",
+        "IT & Technology",
+        "Information Technology",
+        "Metals & Mining",
+        "Consumer Discretionary"
+      ],
+      "allow_subsectors": [
+        "Aerospace & Defence",
+        "Aerospace & Defense",
+        "Defence",
+        "Industrial Machinery",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments",
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Auto Parts",
+        "Auto Components & Equipments",
+        "Ship Building & Allied Services",
+        "Shipbuilding",
+        "Technology Hardware",
+        "Computers Hardware & Equipments"
+      ]
+    },
+    "gov_rail_metro_vande_bharat": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Transportation & Logistics",
+        "Industrials",
+        "Electronics & Electrical",
+        "Automobile & Ancillaries",
+        "Metals & Mining"
+      ],
+      "allow_subsectors": [
+        "Rail",
+        "Industrial Machinery",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments",
+        "Auto Parts",
+        "Auto Components & Equipments",
+        "Ship Building & Allied Services",
+        "Logistics",
+        "Iron & Steel",
+        "Castings & Forgings"
+      ]
+    },
+    "gov_power_td_smart_meter_grid": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Power & Utilities",
+        "Electronics & Electrical",
+        "Industrials",
+        "Utilities",
+        "Energy",
+        "Oil & Gas & Energy"
+      ],
+      "allow_subsectors": [
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments",
+        "Electrical Equipment & Parts",
+        "Cables",
+        "Cables - Electricals",
+        "Power Transmission & Distribution",
+        "Power Infrastructure",
+        "Power Generation",
+        "Industrial Machinery",
+        "Electronic Equipments"
+      ]
+    },
+    "gov_pharma_api_cdmo_pli": {
+      "allow_sectors": [
+        "Pharmaceuticals & Healthcare",
+        "Healthcare",
+        "Chemicals & Petrochemicals"
+      ],
+      "allow_subsectors": [
+        "Pharmaceuticals",
+        "Biotechnology",
+        "Specialty Chemicals",
+        "Commodity Chemicals",
+        "Manufacturing & Processing"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting",
+        "Information Technology > IT Services & Consulting",
+        "Banking & Finance > Investment Banking & Brokerage"
+      ]
+    },
+    "gov_ethanol_biofuel_blending": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Agriculture & Agro",
+        "FMCG & Consumer Goods",
+        "Fast Moving Consumer Goods",
+        "Chemicals & Petrochemicals",
+        "Oil & Gas & Energy",
+        "Energy",
+        "Power & Utilities"
+      ],
+      "allow_subsectors": [
+        "Sugar",
+        "Other Agricultural Products",
+        "Agro Products",
+        "Specialty Chemicals",
+        "Commodity Chemicals",
+        "Industrial Machinery",
+        "Oil & Gas - Refining & Marketing",
+        "Renewable Energy"
+      ]
+    },
+    "gov_green_hydrogen_electrolyser": {
+      "allow_sectors": [
+        "Power & Utilities",
+        "Utilities",
+        "Energy",
+        "Oil & Gas & Energy",
+        "Engineering & Capital Goods",
+        "Chemicals & Petrochemicals",
+        "Industrials",
+        "Metals & Mining"
+      ],
+      "allow_subsectors": [
+        "Renewable Energy",
+        "Renewable Energy Equipment & Services",
+        "Power Generation",
+        "Industrial Machinery",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Specialty Chemicals",
+        "Commodity Chemicals",
+        "Oil & Gas - Equipment & Services",
+        "Fertilizers & Agro Chemicals"
+      ]
+    },
+    "gov_samudra_manthan_offshore_ep": {
+      "allow_sectors": [
+        "Oil & Gas & Energy",
+        "Energy"
+      ],
+      "allow_subsectors": [
+        "Oil Exploration and Production",
+        "Oil Exploration & Production",
+        "Oil & Gas - Exploration & Production",
+        "Oil & Gas E&P",
+        "Oil & Gas - Equipment & Services",
+        "Oil Equipment & Services",
+        "Oil & Gas - Refining & Marketing",
+        "Industrial Machinery",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Ship Building & Allied Services",
+        "Shipbuilding",
+        "Logistics",
+        "Mining - Diversified",
+        "Renewable Energy Equipment & Services"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting",
+        "Information Technology > IT Services & Consulting",
+        "Real Estate & Construction > Construction & Engineering",
+        "Real Estate & Construction > Building Products - Pipes",
+        "Metals & Mining > Iron & Steel",
+        "FMCG & Consumer Goods > FMCG - Foods",
+        "Chemicals & Petrochemicals > Specialty Chemicals",
+        "Chemicals & Petrochemicals > Commodity Chemicals"
+      ]
+    },
+    "gov_mpms_mobile_manufacturing": {
+      "allow_sectors": [
+        "Consumer Durables",
+        "Electronics & Electrical",
+        "Engineering & Capital Goods",
+        "IT & Technology",
+        "Information Technology",
+        "Industrials"
+      ],
+      "allow_subsectors": [
+        "Consumer Electronics",
+        "Home Electronics & Appliances",
+        "Electronic Equipments",
+        "Electronics & Technology",
+        "Electrical Components & Equipments",
+        "Computers Hardware & Equipments",
+        "Technology Hardware",
+        "Telecom Equipments",
+        "Industrial Machinery"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting",
+        "IT & Technology > IT Services",
+        "IT & Technology > Software Products",
+        "Information Technology > IT Services & Consulting",
+        "Information Technology > Computers - Software & Consulting"
+      ]
+    },
+    "gov_nipu_urea_fertiliser_2026": {
+      "allow_sectors": [
+        "Chemicals & Petrochemicals",
+        "Agriculture & Agro",
+        "Oil & Gas & Energy",
+        "Energy",
+        "Basic Materials"
+      ],
+      "allow_subsectors": [
+        "Fertilizers & Agro Chemicals",
+        "Fertilizers",
+        "Specialty Chemicals",
+        "Commodity Chemicals",
+        "Agro Products",
+        "Other Agricultural Products",
+        "Oil & Gas - Refining & Marketing"
+      ],
+      "exclude_pairs": [
+        "Pharmaceuticals & Healthcare > Pharmaceuticals",
+        "Healthcare > Pharmaceuticals",
+        "IT & Technology > IT Services & Consulting"
+      ]
+    },
+    "gov_shipbuilding_sbfas_sbds": {
+      "allow_sectors": [
+        "Transportation & Logistics",
+        "Engineering & Capital Goods",
+        "Industrials",
+        "Metals & Mining",
+        "Automobile & Ancillaries"
+      ],
+      "allow_subsectors": [
+        "Ship Building & Allied Services",
+        "Shipbuilding",
+        "Ports",
+        "Logistics",
+        "Industrial Machinery",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Iron & Steel",
+        "Castings & Forgings",
+        "Aerospace & Defence",
+        "Aerospace & Defense",
+        "Defence"
+      ]
+    },
+    "gov_coal_lignite_gasification": {
+      "allow_sectors": [
+        "Metals & Mining",
+        "Oil & Gas & Energy",
+        "Energy",
+        "Chemicals & Petrochemicals",
+        "Power & Utilities",
+        "Engineering & Capital Goods",
+        "Basic Materials"
+      ],
+      "allow_subsectors": [
+        "Mining - Diversified",
+        "Mining - Coal",
+        "Coal",
+        "Specialty Chemicals",
+        "Commodity Chemicals",
+        "Fertilizers & Agro Chemicals",
+        "Industrial Machinery",
+        "Oil & Gas - Equipment & Services",
+        "Power Generation",
+        "Iron & Steel",
+        "Metals - Diversified"
+      ]
+    },
+    "gov_nuclear_power_shanti": {
+      "allow_sectors": [
+        "Power & Utilities",
+        "Utilities",
+        "Energy",
+        "Oil & Gas & Energy",
+        "Engineering & Capital Goods",
+        "Industrials",
+        "Metals & Mining",
+        "Electronics & Electrical"
+      ],
+      "allow_subsectors": [
+        "Power Generation",
+        "Power Infrastructure",
+        "Heavy Electrical Equipments",
+        "Heavy Electrical Equipment",
+        "Electrical Components & Equipments",
+        "Industrial Machinery",
+        "Engineering & Construction",
+        "Construction & Engineering",
+        "Iron & Steel",
+        "Castings & Forgings",
+        "Mining - Diversified"
+      ],
+      "exclude_pairs": [
+        "IT & Technology > IT Services & Consulting",
+        "Pharmaceuticals & Healthcare > Pharmaceuticals",
+        "Healthcare > Pharmaceuticals"
       ]
     }
   }

@@ -16,7 +16,7 @@ import { mergeAboutSourcesForSearch } from "../src/lib/db";
 function main() {
   invalidateThemeSectorFilterCache();
   const file = loadThemes();
-  assert.equal(file.themes.length, 11, `expected 11 themes, got ${file.themes.length}`);
+  assert.equal(file.themes.length, 24, `expected 24 themes, got ${file.themes.length}`);
   assert.ok(
     file.themes.some((t) => t.id === "india_repm_magnet_localization"),
     "REPM theme missing",
@@ -29,6 +29,30 @@ function main() {
     file.themes.some((t) => t.id === "gov_india_food_processing_pli"),
     "food processing PLI theme missing",
   );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_mumbai_redevelopment_realty"),
+    "Mumbai redevelopment theme missing",
+  );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_defence_aerospace_indigenisation"),
+    "defence theme missing",
+  );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_green_hydrogen_electrolyser"),
+    "green hydrogen theme missing",
+  );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_samudra_manthan_offshore_ep"),
+    "Samudra Manthan theme missing",
+  );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_mpms_mobile_manufacturing"),
+    "MPMS mobile theme missing",
+  );
+  assert.ok(
+    file.themes.some((t) => t.id === "gov_nuclear_power_shanti"),
+    "nuclear theme missing",
+  );
 
   const groups = groupThemesByBlog(file.themes);
   assert.equal(groups.length, 2, `expected 2 blog groups, got ${groups.length}`);
@@ -36,8 +60,8 @@ function main() {
   const filters = loadThemeSectorFilters();
   assert.equal(
     Object.keys(filters).length,
-    11,
-    `expected 11 sector filters, got ${Object.keys(filters).length}`,
+    24,
+    `expected 24 sector filters, got ${Object.keys(filters).length}`,
   );
   assert.ok(
     filters.india_repm_magnet_localization,
@@ -50,6 +74,26 @@ function main() {
   assert.ok(
     filters.gov_india_food_processing_pli,
     "sector filter missing gov_india_food_processing_pli",
+  );
+  assert.ok(
+    filters.gov_mumbai_redevelopment_realty,
+    "sector filter missing gov_mumbai_redevelopment_realty",
+  );
+  assert.ok(
+    filters.gov_defence_aerospace_indigenisation,
+    "sector filter missing defence",
+  );
+  assert.ok(
+    filters.gov_samudra_manthan_offshore_ep,
+    "sector filter missing Samudra Manthan",
+  );
+  assert.ok(
+    filters.gov_mpms_mobile_manufacturing,
+    "sector filter missing MPMS",
+  );
+  assert.ok(
+    filters.gov_nuclear_power_shanti,
+    "sector filter missing nuclear",
   );
 
   const repm = themesByIds(["india_repm_magnet_localization"])[0]!;
@@ -96,6 +140,34 @@ function main() {
       filters,
     ),
     "rooftop solar EPC must match solar theme",
+  );
+
+  const mumbai = themesByIds(["gov_mumbai_redevelopment_realty"])[0]!;
+  assert.ok(
+    themeMatch(
+      {
+        about: "engaged in society redevelopment projects in Mumbai",
+        search_text: "Mumbai society redevelopment projects realty developer",
+        sector: "Real Estate & Construction",
+        sub_sector: "Real Estate",
+      },
+      mumbai,
+      filters,
+    ),
+    "Mumbai redevelopment must match",
+  );
+  assert.ok(
+    !themeMatch(
+      {
+        about: "engaged in redevelopment projects across India",
+        search_text: "redevelopment projects across India residential",
+        sector: "Real Estate & Construction",
+        sub_sector: "Real Estate",
+      },
+      mumbai,
+      filters,
+    ),
+    "generic redevelopment without Mumbai must not match",
   );
 
   const hits = matchedKeywords(

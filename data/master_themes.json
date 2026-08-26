@@ -1,14 +1,14 @@
 {
   "meta": {
     "title": "Research themes",
-    "description": "REPM + India Government Schemes & Policy Tailwinds (2026) — About-friendly keywords; scheme names in theme_research_patterns.json",
-    "version": "3.1",
+    "description": "REPM + India Government Schemes & Policy Tailwinds — About-friendly keywords; scheme names in theme_research_patterns.json",
+    "version": "3.5",
     "updated": "2026-08-25",
     "syntax": "+ means AND, | means OR (AND binds tighter inside a clause)",
-    "theme_count": 11,
+    "theme_count": 24,
     "clusters": [
       "critical_minerals_ev_defense",
-      "india_govt_schemes_2026"
+      "india_govt_schemes"
     ]
   },
   "themes": [
@@ -58,11 +58,58 @@
       ]
     },
     {
+      "id": "gov_defence_aerospace_indigenisation",
+      "cluster": "critical_minerals_ev_defense",
+      "name": "Defence & Aerospace Indigenisation (Atmanirbhar / DAP)",
+      "tag": "Defence / aerospace",
+      "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
+      "keywords": [
+        "defence",
+        "defense",
+        "aerospace",
+        "missile",
+        "missiles",
+        "drone",
+        "drones",
+        "UAV",
+        "avionics",
+        "defence + manufacturing",
+        "defense + manufacturing",
+        "naval + ship",
+        "armoured",
+        "artillery",
+        "ordnance",
+        "defence + electronics",
+        "defense + electronics",
+        "aerospace + component"
+      ],
+      "keyword_definitions": {
+        "defence": "Indian spelling — defence manufacturing / platforms / electronics.",
+        "defense": "US spelling — same as defence for About matching.",
+        "aerospace": "Aircraft, aerostructures, avionics, space-adjacent platforms.",
+        "missile": "Missile systems / subsystems / propulsion.",
+        "drone": "UAV / UAS platforms and payloads.",
+        "UAV": "Unmanned aerial vehicles.",
+        "avionics": "Aircraft electronics — navigation, communication, mission systems.",
+        "defence + manufacturing": "Domestic defence production under Atmanirbhar / DAP."
+      },
+      "proxies": [
+        "HAL",
+        "BEL",
+        "Bharat Dynamics",
+        "Mazagon Dock",
+        "GRSE",
+        "Data Patterns",
+        "Paras Defence"
+      ],
+      "display_pattern": "defence | defense | aerospace | missile | missiles | drone | drones | UAV | avionics | defence + manufacturing | defense + manufacturing | naval + ship | armoured | artillery | ordnance | defence + electronics | defense + electronics | aerospace + component"
+    },
+    {
       "id": "gov_semicon_electronics_pli",
-      "cluster": "india_govt_schemes_2026",
-      "name": "Electronics Components, SPECS & ISM 2.0",
+      "cluster": "india_govt_schemes",
+      "name": "Semicon 2.0, SPECS & Electronics Components",
       "tag": "Semicon / ISM / SPECS",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "EMS | electronics manufacturing services | ESDM | printed circuit | PCB | PCB assembly | electronic components | OSAT | semiconductor packaging | chip design | electronics manufacturing | contract manufacturing + electronics | sensor + manufacturing | LED + manufacturing",
       "keywords": [
         "EMS",
@@ -103,10 +150,10 @@
     },
     {
       "id": "gov_ai_datacenter_cloud",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "India AI Mission & Data Centre Tax Holiday (2047)",
       "tag": "AI / data centers",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "data centre | data center | colocation | hyperscale | cloud infrastructure | cloud + data centre | cloud + data center | GPU + server | AI compute | power + data centre | power + data center",
       "keywords": [
         "data centre",
@@ -141,10 +188,10 @@
     },
     {
       "id": "gov_ev_green_mobility",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "EV Fleets, Charging Infra & Green Mobility",
       "tag": "EV / green mobility",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "electric vehicle | electric bus | e-bus | e-mobility | EV charging | charging infrastructure | charging station | battery pack | lithium-ion | battery swapping | green mobility | zero emission | two wheeler + electric | three wheeler + electric | EV + component",
       "keywords": [
         "electric vehicle",
@@ -183,10 +230,10 @@
     },
     {
       "id": "gov_healthcare_medical_hubs",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "Regional Medical Hubs & Senior Citizen Healthcare",
       "tag": "Medical hubs",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "multispecialty hospital | multi-specialty hospital | tertiary care | quaternary care | medical tourism | hospital + chain | super specialty | critical care + hospital | regional medical hub | Ayushman Bharat | PM-JAY | senior citizen + health | health wellness center",
       "keywords": [
         "multispecialty hospital",
@@ -216,10 +263,10 @@
     },
     {
       "id": "gov_msme_sme_capital",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "MSME Credit, SME Growth Fund & Risk Capital",
       "tag": "MSME capital",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "MSME | microfinance | small + medium + enterprise | SME lending | MSME + credit | credit guarantee | CGTMSE | TReDS | Udyam | SME Growth Fund | Self-Reliant India Fund | risk capital + micro | priority sector + MSME",
       "keywords": [
         "MSME",
@@ -247,10 +294,10 @@
     },
     {
       "id": "gov_solar_rooftop_renewable",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "PM Surya Ghar & Residential Rooftop Solar",
       "tag": "Rooftop solar",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "rooftop solar | solar rooftop | rooftop + solar | residential solar | solar EPC | photovoltaic | solar module | solar + module | solar + inverter | net metering | distributed solar | rooftop + EPC",
       "keywords": [
         "rooftop solar",
@@ -285,12 +332,13 @@
     },
     {
       "id": "gov_india_food_processing_pli",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "PLI for Food Processing & Aseptic Packaging",
       "tag": "Food processing / PLI",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "keywords": [
         "food processing",
+        "agro-processing",
         "processed food",
         "ready to eat",
         "ready-to-eat",
@@ -311,14 +359,21 @@
         "snack food",
         "cold storage",
         "export + food",
-        "fruit + processing",
-        "vegetable + processing"
+        "maize starch",
+        "liquid glucose",
+        "modified starch",
+        "starch + derivatives"
       ],
       "keyword_definitions": {
         "PLI + food processing": "Production Linked Incentive for food processing — supports aseptic packaging, sprays, and value-added exports.",
         "MoFPI + incentive": "Ministry of Food Processing Industries grants validating capex in aseptic lines and spray-dried powders.",
         "aseptic + PLI": "Subsidies targeting shelf-stable packaging formats (e.g. Tetra Recart) vs traditional canning.",
         "food processing": "Value-added processing of agri produce — core MoFPI / PLI beneficiary set.",
+        "agro-processing": "Agro-processing of grains, starch, and farm output — matches Screener phrasing (e.g. starch mills).",
+        "maize starch": "Maize / corn starch and derivatives — food & industrial starch processors.",
+        "liquid glucose": "Liquid glucose from starch — sweetener / food ingredient chain.",
+        "modified starch": "Modified food / industrial starches.",
+        "starch + derivatives": "Starch milling and downstream derivatives.",
         "aseptic": "Aseptic filling / packaging for pulp, puree, dairy — PLI-favoured format.",
         "ready to eat": "RTE / convenience foods — packaged foods exporters and domestic brands.",
         "fruit pulp": "Fruit pulp / concentrate for exports and beverage blenders.",
@@ -333,14 +388,14 @@
         "Gokul Agro",
         "Hatsun Agro"
       ],
-      "display_pattern": "food processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | fruit + processing | vegetable + processing"
+      "display_pattern": "food processing | agro-processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | maize starch | liquid glucose | modified starch | starch + derivatives"
     },
     {
       "id": "gov_textiles_fibre",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "National Fibre Scheme & Textile Modernization",
       "tag": "Textiles / fibre",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "man made fibre | man-made fibre | polyester yarn | viscose | technical textiles | home textiles | home textile | spun yarn | woven fabric | apparel export | Mega Textile Park | MITRA park | National Fibre Scheme | jute | PLI + textile | PLI + textiles",
       "keywords": [
         "man made fibre",
@@ -371,10 +426,10 @@
     },
     {
       "id": "gov_logistics_infra_corridor",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "National Logistics Policy, Gati Shakti & IMEEC",
       "tag": "Logistics / Gati Shakti",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "multimodal logistics | logistics park | multimodal logistics park | freight corridor | container freight | rail + freight | third party logistics | 3PL | cold chain | warehousing + logistics | coastal shipping | multimodal | container + terminal | ICD + logistics | freight + forwarding",
       "keywords": [
         "multimodal logistics",
@@ -412,11 +467,491 @@
       ]
     },
     {
+      "id": "gov_mumbai_redevelopment_realty",
+      "cluster": "india_govt_schemes",
+      "name": "Mumbai / MMR Redevelopment & Realty (SRA / MHADA)",
+      "tag": "Mumbai redevelopment",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "Mumbai + redevelopment",
+        "Thane + redevelopment",
+        "Mumbai + housing + redevelopment",
+        "Worli + redevelopment",
+        "Bandra + redevelopment",
+        "Lower Parel + redevelopment",
+        "slum rehabilitation + Mumbai",
+        "slum + Mumbai",
+        "society + redevelopment + Mumbai",
+        "SRA + Mumbai",
+        "Mumbai + SRA",
+        "MHADA + Mumbai",
+        "Mumbai + realty",
+        "Thane + realty",
+        "Mumbai + developer",
+        "Navi Mumbai + developer",
+        "Mumbai + residential projects",
+        "MMR + real estate",
+        "Mumbai Metropolitan + real estate"
+      ],
+      "display_pattern": "Mumbai + redevelopment | Thane + redevelopment | Mumbai + housing + redevelopment | Worli + redevelopment | Bandra + redevelopment | Lower Parel + redevelopment | slum rehabilitation + Mumbai | slum + Mumbai | society + redevelopment + Mumbai | SRA + Mumbai | Mumbai + SRA | MHADA + Mumbai | Mumbai + realty | Thane + realty | Mumbai + developer | Navi Mumbai + developer | Mumbai + residential projects | MMR + real estate | Mumbai Metropolitan + real estate",
+      "keyword_definitions": {
+        "Mumbai + redevelopment": "Redevelopment projects anchored to Mumbai / island-city / western suburbs — not pan-India redevelopment.",
+        "Thane + redevelopment": "Thane / MMR fringe society and cluster redevelopment.",
+        "slum rehabilitation + Mumbai": "SRA-style slum rehab unlocking free-sale FSI in Mumbai.",
+        "SRA + Mumbai": "Slum Rehabilitation Authority projects in Mumbai.",
+        "MHADA + Mumbai": "MHADA housing / redevelopment schemes in MMR.",
+        "Mumbai + realty": "Mumbai / MMR-focused realty developers (redevelopment-heavy land banks).",
+        "Mumbai + developer": "Developers with explicit Mumbai project exposure.",
+        "MMR + real estate": "Mumbai Metropolitan Region real estate exposure."
+      },
+      "proxies": [
+        "Macrotech (Lodha)",
+        "Oberoi Realty",
+        "Sunteck Realty",
+        "Keystone (Rustomjee)",
+        "Marathon Nextgen",
+        "Sumit Woods",
+        "Arkade Developers",
+        "DB Realty"
+      ]
+    },
+    {
+      "id": "gov_rail_metro_vande_bharat",
+      "cluster": "india_govt_schemes",
+      "name": "Rail, Metro & Vande Bharat Rolling Stock",
+      "tag": "Rail / Vande Bharat",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "Vande Bharat",
+        "rolling stock",
+        "metro rail",
+        "railway + coach",
+        "rail + coach",
+        "metro + coach",
+        "locomotive",
+        "wagon",
+        "Kavach",
+        "dedicated freight",
+        "DFC",
+        "rail + signalling",
+        "EMU",
+        "rail + component",
+        "railway + equipment"
+      ],
+      "keyword_definitions": {
+        "Vande Bharat": "Semi-high-speed trainsets — large domestic rolling-stock order book.",
+        "rolling stock": "Coaches, EMUs, locomotives, metro cars.",
+        "metro rail": "Urban metro systems and coach / systems suppliers.",
+        "Kavach": "Indigenous train collision-avoidance system rollout.",
+        "dedicated freight": "Dedicated Freight Corridor (DFC) — freight capacity expansion.",
+        "locomotive": "Electric / diesel locos and propulsion subsystems.",
+        "wagon": "Freight wagons and wagon components."
+      },
+      "proxies": [
+        "Titagarh",
+        "Texmaco",
+        "Jupiter Wagons",
+        "BEML",
+        "Kernex",
+        "HBL Power"
+      ],
+      "display_pattern": "Vande Bharat | rolling stock | metro rail | railway + coach | rail + coach | metro + coach | locomotive | wagon | Kavach | dedicated freight | DFC | rail + signalling | EMU | rail + component | railway + equipment"
+    },
+    {
+      "id": "gov_power_td_smart_meter_grid",
+      "cluster": "india_govt_schemes",
+      "name": "Power T&D, Smart Meters & Grid Modernisation",
+      "tag": "Power T&D / smart meters",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "smart meter",
+        "power transformer",
+        "distribution transformer",
+        "transmission + line",
+        "power grid",
+        "substation",
+        "switchgear",
+        "T&D",
+        "conductor + power",
+        "RDSS",
+        "GIS + substation",
+        "cable + power",
+        "transmission + equipment",
+        "distribution + utility"
+      ],
+      "keyword_definitions": {
+        "smart meter": "AMI / prepaid smart meters under RDSS and state utility rollouts.",
+        "power transformer": "Grid / power transformers for T&D and generation interconnect.",
+        "substation": "AIS/GIS substations and associated equipment.",
+        "switchgear": "MV/HV switchgear for distribution and industrial loads.",
+        "T&D": "Transmission & distribution equipment and EPC.",
+        "RDSS": "Revamped Distribution Sector Scheme — utility reform + smart metering.",
+        "power grid": "Transmission network / Power Grid-adjacent supply chain."
+      },
+      "proxies": [
+        "ABB India",
+        "Siemens",
+        "Hitachi Energy",
+        "CG Power",
+        "KEI",
+        "Apar",
+        "Genus Power"
+      ],
+      "display_pattern": "smart meter | power transformer | distribution transformer | transmission + line | power grid | substation | switchgear | T&D | conductor + power | RDSS | GIS + substation | cable + power | transmission + equipment | distribution + utility"
+    },
+    {
+      "id": "gov_pharma_api_cdmo_pli",
+      "cluster": "india_govt_schemes",
+      "name": "Pharma API, Formulations & CDMO (PLI)",
+      "tag": "Pharma / API / CDMO",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "active pharmaceutical",
+        "bulk drug",
+        "bulk drugs",
+        "formulation",
+        "formulations",
+        "CDMO",
+        "contract manufacturing + pharma",
+        "injectable",
+        "injectables",
+        "generic + pharma",
+        "API + manufacturing",
+        "API + pharmaceutical",
+        "fermentation + pharma",
+        "pharma + intermediate"
+      ],
+      "keyword_definitions": {
+        "active pharmaceutical": "API / active pharmaceutical ingredient manufacturing.",
+        "bulk drug": "Bulk drug / API manufacturing.",
+        "formulations": "Finished dosage forms — tablets, capsules, injectables.",
+        "CDMO": "Contract Development & Manufacturing Organisation.",
+        "injectable": "Sterile injectable dosage forms.",
+        "API + pharmaceutical": "API phrasing that avoids IT 'API' false positives.",
+        "PLI + pharma": "Production Linked Incentive for bulk drugs / fermentation."
+      },
+      "proxies": [
+        "Divis",
+        "Laurus",
+        "Suven",
+        "Piramal Pharma",
+        "Gland",
+        "Aarti Drugs",
+        "Neuland"
+      ],
+      "display_pattern": "active pharmaceutical | bulk drug | bulk drugs | formulation | formulations | CDMO | contract manufacturing + pharma | injectable | injectables | generic + pharma | API + manufacturing | API + pharmaceutical | fermentation + pharma | pharma + intermediate"
+    },
+    {
+      "id": "gov_ethanol_biofuel_blending",
+      "cluster": "india_govt_schemes",
+      "name": "Ethanol Blending & Biofuels (E20 / E100)",
+      "tag": "Ethanol / biofuel",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "ethanol",
+        "biofuel",
+        "distillery",
+        "sugar + ethanol",
+        "molasses + ethanol",
+        "ethanol + blending",
+        "bio-ethanol",
+        "fuel ethanol",
+        "E20",
+        "grain + ethanol",
+        "ethanol + plant"
+      ],
+      "keyword_definitions": {
+        "ethanol": "Fuel / industrial ethanol — E20/E100 blending demand.",
+        "biofuel": "Biofuels including ethanol and biodiesel adjacency.",
+        "distillery": "Distillery capacity for molasses / grain ethanol.",
+        "sugar + ethanol": "Sugar mills with ethanol diversion / dual stream.",
+        "ethanol + blending": "OMCs / policy blending targets (E20+).",
+        "E20": "20% ethanol blending in petrol — national target."
+      },
+      "proxies": [
+        "Balrampur Chini",
+        "Triveni",
+        "Dhampur",
+        "Godavari Biorefineries",
+        "EID Parry"
+      ],
+      "display_pattern": "ethanol | biofuel | distillery | sugar + ethanol | molasses + ethanol | ethanol + blending | bio-ethanol | fuel ethanol | E20 | grain + ethanol | ethanol + plant"
+    },
+    {
+      "id": "gov_green_hydrogen_electrolyser",
+      "cluster": "india_govt_schemes",
+      "name": "Green Hydrogen & Electrolysers (NGHM)",
+      "tag": "Green hydrogen",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "green hydrogen",
+        "electrolyser",
+        "electrolyzer",
+        "green ammonia",
+        "hydrogen + energy",
+        "hydrogen + plant",
+        "fuel cell + hydrogen",
+        "hydrogen + electrolyser",
+        "renewable + hydrogen"
+      ],
+      "keyword_definitions": {
+        "green hydrogen": "Hydrogen from renewable-powered electrolysis — NGHM focus.",
+        "electrolyser": "Electrolyser manufacturing / EPC (alkaline, PEM, SOEC).",
+        "green ammonia": "Ammonia produced from green hydrogen — export / fertiliser use-case.",
+        "hydrogen + energy": "Hydrogen as energy vector / storage / industrial feedstock.",
+        "National Green Hydrogen Mission": "₹19,744 crore mission for GH2 capacity and electrolyser PLI."
+      },
+      "proxies": [
+        "Reliance",
+        "Adani New Industries",
+        "L&T",
+        "BHEL",
+        "Thermax",
+        "Waaree"
+      ],
+      "display_pattern": "green hydrogen | electrolyser | electrolyzer | green ammonia | hydrogen + energy | hydrogen + plant | fuel cell + hydrogen | hydrogen + electrolyser | renewable + hydrogen"
+    },
+    {
+      "id": "gov_samudra_manthan_offshore_ep",
+      "cluster": "india_govt_schemes",
+      "name": "Samudra Manthan — Offshore Oil & Gas Exploration",
+      "tag": "Samudra Manthan / O&G",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "oil + exploration",
+        "gas + exploration",
+        "oil + gas + exploration",
+        "petroleum + exploration",
+        "hydrocarbon",
+        "exploration + production",
+        "offshore + oil",
+        "offshore + gas",
+        "offshore + drilling",
+        "exploration + well",
+        "oilfield",
+        "oil field",
+        "oilfield + services",
+        "upstream + oil",
+        "upstream + gas",
+        "seismic",
+        "block + exploration",
+        "CBM",
+        "coal bed methane",
+        "discovery + oil",
+        "discovery + gas",
+        "subsea",
+        "natural gas + production"
+      ],
+      "display_pattern": "oil + exploration | gas + exploration | oil + gas + exploration | petroleum + exploration | hydrocarbon | exploration + production | offshore + oil | offshore + gas | offshore + drilling | exploration + well | oilfield | oil field | oilfield + services | upstream + oil | upstream + gas | seismic | block + exploration | CBM | coal bed methane | discovery + oil | discovery + gas | subsea | natural gas + production",
+      "keyword_definitions": {
+        "Samudra Manthan": "National Offshore Exploration Scheme (~₹84,084 Cr) — govt funds up to ~50% / ₹650 Cr per deepwater exploratory well.",
+        "OALP": "Open Acreage Licensing Policy — companies bid for / nominate exploration blocks year-round under HELP.",
+        "oil + exploration": "Upstream oil exploration — E&P operators and oilfield service chain.",
+        "offshore + oil": "Offshore oil exploration / production and marine support.",
+        "offshore + drilling": "Deepwater / offshore drilling — core Samudra Manthan well activity.",
+        "hydrocarbon": "Oil and gas hydrocarbons — exploration and production.",
+        "exploration + production": "E&P companies and integrated upstream businesses.",
+        "oilfield": "Oilfield operations / services adjacent to exploration drilling.",
+        "seismic": "Seismic / geophysical surveys — funded under Samudra Manthan data component.",
+        "CBM": "Coal-bed methane — related upstream gas under HELP/OALP adjacency.",
+        "subsea": "Subsea equipment and infrastructure for offshore discoveries."
+      },
+      "proxies": [
+        "ONGC",
+        "Oil India",
+        "Vedanta (Cairn)",
+        "Reliance Industries",
+        "Hindustan Oil Exploration",
+        "Aban Offshore",
+        "Asian Energy",
+        "Jindal Drilling"
+      ]
+    },
+    {
+      "id": "gov_mpms_mobile_manufacturing",
+      "cluster": "india_govt_schemes",
+      "name": "Mobile Phone Manufacturing Scheme (MPMS)",
+      "tag": "Mobile / MPMS",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "mobile + manufacturing",
+        "smartphone",
+        "handset",
+        "mobile phone",
+        "EMS + mobile",
+        "mobile + assembly",
+        "smartphone + manufacturing",
+        "electronics + mobile",
+        "PCB + mobile",
+        "display + mobile"
+      ],
+      "keyword_definitions": {
+        "MPMS": "Mobile Phone Manufacturing Scheme (₹62,500 Cr, FY27–31) — replaces PLI-LSEM; incentives tied to sales, domestic sourcing, and Indian brand design/R&D.",
+        "mobile + manufacturing": "Domestic mobile / smartphone manufacturing and EMS for handsets.",
+        "smartphone": "Smartphone ODM/EMS and brand manufacturing in India.",
+        "handset": "Mobile handset assembly / manufacturing.",
+        "EMS + mobile": "Electronics manufacturing services focused on mobiles."
+      },
+      "proxies": [
+        "Dixon Technologies",
+        "Kaynes",
+        "Syrma SGS",
+        "Optiemus",
+        "PG Electroplast",
+        "Amber"
+      ],
+      "display_pattern": "mobile + manufacturing | smartphone | handset | mobile phone | EMS + mobile | mobile + assembly | smartphone + manufacturing | electronics + mobile | PCB + mobile | display + mobile"
+    },
+    {
+      "id": "gov_nipu_urea_fertiliser_2026",
+      "cluster": "india_govt_schemes",
+      "name": "NIPU-2026 — Gas-based Urea & Fertiliser Plants",
+      "tag": "Urea / NIPU",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "urea",
+        "fertiliser",
+        "fertilizer",
+        "ammonia + plant",
+        "gas + based + urea",
+        "complex fertiliser",
+        "NPK",
+        "DAP + fertilizer",
+        "nitrogenous + fertilizer",
+        "phosphatic + fertilizer"
+      ],
+      "keyword_definitions": {
+        "NIPU-2026": "National Investment Policy for Urea (2026) — framework to attract private investment in new gas-based urea plants (~8–9 plants / 10 MT capacity).",
+        "urea": "Urea fertiliser manufacturing — core NIPU-2026 capacity push.",
+        "fertiliser": "Indian spelling — fertiliser manufacturers and distributors.",
+        "fertilizer": "US spelling — same as fertiliser for About matching.",
+        "ammonia + plant": "Ammonia plants feeding urea / complex fertiliser units.",
+        "NPK": "Complex NPK fertilisers."
+      },
+      "proxies": [
+        "Chambal Fertilisers",
+        "Coromandel",
+        "GSFC",
+        "GNFC",
+        "RCF",
+        "FACT",
+        "Deepak Fertilisers"
+      ],
+      "display_pattern": "urea | fertiliser | fertilizer | ammonia + plant | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
+      "badge": "2026"
+    },
+    {
+      "id": "gov_shipbuilding_sbfas_sbds",
+      "cluster": "india_govt_schemes",
+      "name": "Shipbuilding Financial Assistance (SBFAS / SbDS)",
+      "tag": "Shipbuilding",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "shipbuilding",
+        "shipyard",
+        "dry dock",
+        "vessel + construction",
+        "naval + ship",
+        "merchant + vessel",
+        "ship + repair",
+        "ship + building",
+        "offshore + vessel",
+        "LNG + carrier",
+        "green + vessel"
+      ],
+      "keyword_definitions": {
+        "SBFAS": "Shipbuilding Financial Assistance Scheme — 15–25% fiscal support on eligible vessels (contracts from Sep 2025; approvals to Mar 2036).",
+        "SbDS": "Shipbuilding Development Scheme — capacity / cluster / greenfield shipyard development (~₹19,989 Cr package component).",
+        "shipbuilding": "Domestic commercial and specialised vessel construction.",
+        "shipyard": "Shipyard operators and capacity expansion beneficiaries.",
+        "dry dock": "Dry-dock infrastructure for build / repair.",
+        "naval + ship": "Naval / defence shipbuilding (Mazagon, GRSE, CSL adjacency)."
+      },
+      "proxies": [
+        "Cochin Shipyard",
+        "Mazagon Dock",
+        "GRSE",
+        "Garden Reach",
+        "Swan Defence",
+        "Titagarh"
+      ],
+      "display_pattern": "shipbuilding | shipyard | dry dock | vessel + construction | naval + ship | merchant + vessel | ship + repair | ship + building | offshore + vessel | LNG + carrier | green + vessel"
+    },
+    {
+      "id": "gov_coal_lignite_gasification",
+      "cluster": "india_govt_schemes",
+      "name": "Coal / Lignite Gasification (Syngas & Chemicals)",
+      "tag": "Coal gasification",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "coal gasification",
+        "syngas",
+        "coal to",
+        "coal + chemical",
+        "ammonium nitrate",
+        "coal + methanol",
+        "synthetic + natural + gas",
+        "coal + ammonia"
+      ],
+      "keyword_definitions": {
+        "coal gasification": "Surface coal/lignite gasification to syngas for chemicals, SNG, fertilisers — National Coal Gasification Mission.",
+        "syngas": "Synthesis gas from coal/lignite gasification.",
+        "ammonium nitrate": "Coal-to-ammonium nitrate / fertiliser chemicals — Odisha commercial projects.",
+        "coal + chemical": "Coal-to-chemicals value chain (methanol, ammonia, SNG).",
+        "SNG": "Synthetic natural gas from coal gasification."
+      },
+      "proxies": [
+        "Coal India",
+        "Jindal Steel & Power",
+        "Talcher Fertilisers",
+        "Deepak Fertilisers",
+        "GAIL",
+        "Thermax"
+      ],
+      "display_pattern": "coal gasification | syngas | coal to | coal + chemical | ammonium nitrate | coal + methanol | synthetic + natural + gas | coal + ammonia"
+    },
+    {
+      "id": "gov_nuclear_power_shanti",
+      "cluster": "india_govt_schemes",
+      "name": "Nuclear Power Expansion (SHANTI / NPCIL Ecosystem)",
+      "tag": "Nuclear power",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "keywords": [
+        "nuclear",
+        "nuclear + power",
+        "atomic + power",
+        "NPCIL",
+        "SMR",
+        "nuclear + component",
+        "nuclear + equipment",
+        "heavy water",
+        "atomic + energy"
+      ],
+      "keyword_definitions": {
+        "SHANTI": "SHANTI Act (2025) — opens pathway for broader private participation / liability framework in civil nuclear.",
+        "nuclear": "Nuclear power plants, components, and fuel-cycle adjacency.",
+        "nuclear + power": "Nuclear power generation and supplier ecosystem.",
+        "NPCIL": "Nuclear Power Corporation of India — utility / project counterparty.",
+        "SMR": "Small modular reactors — next-gen nuclear capacity pathway.",
+        "uranium": "Nuclear fuel / uranium value chain."
+      },
+      "proxies": [
+        "NPCIL",
+        "NTPC",
+        "L&T",
+        "BHEL",
+        "Walchandnagar",
+        "Ratnamani",
+        "KSB"
+      ],
+      "display_pattern": "nuclear | nuclear + power | atomic + power | NPCIL | SMR | nuclear + component | nuclear + equipment | heavy water | atomic + energy"
+    },
+    {
       "id": "gov_social_security_insurance",
-      "cluster": "india_govt_schemes_2026",
+      "cluster": "india_govt_schemes",
       "name": "Social Security, Pensions & Financial Inclusion",
       "tag": "Social security / insurance",
-      "blog_theme": "India Government Schemes & Policy Tailwinds (2026)",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
       "display_pattern": "life insurance | health insurance | general insurance | microinsurance | pension | annuity | Atal Pension Yojana | Atal Pension | APY | PMJJBY | PMSBY | financial inclusion | insurance premium | pension AUM | direct benefit transfer",
       "keywords": [
         "life insurance",

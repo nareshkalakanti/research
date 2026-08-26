@@ -15,7 +15,8 @@ export type SortKey =
   | "price"
   | "sector"
   | "sub_sector"
-  | "mcap_cr";
+  | "mcap_cr"
+  | "momentum_pct";
 
 type ExpandPanel = "about" | "website" | "notes" | "qtr";
 
@@ -111,6 +112,22 @@ function SignalTags({ company }: { company: Company }) {
       {company.has_high52 ? (
         <span className="result-tag tag-scan-high52" title="NEW 52-week high">
           52W
+        </span>
+      ) : null}
+      {company.has_dd ? (
+        <span
+          className="result-tag tag-scan-dd"
+          title="Weekly Dragonfly Doji"
+        >
+          DD
+        </span>
+      ) : null}
+      {company.has_mom && company.momentum_pct != null ? (
+        <span
+          className="result-tag tag-scan-mom"
+          title={`12−1 momentum: +${company.momentum_pct}% (Price 1M / Price 1Y − 1)`}
+        >
+          +{Math.round(company.momentum_pct)}%
         </span>
       ) : null}
       {(company.matched_themes ?? []).slice(0, 4).map((t) => (

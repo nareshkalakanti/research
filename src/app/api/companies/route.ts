@@ -230,6 +230,8 @@ async function buildCompaniesResponse(req: NextRequest) {
   const filterEma = sp.get("ema") === "1";
   const filterAth = sp.get("ath") === "1";
   const filterHigh52 = sp.get("high52") === "1";
+  const filterDd = sp.get("dd") === "1";
+  const filterMom = sp.get("mom") === "1";
   const bbAnd = sp.get("bbAnd") === "1";
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
@@ -423,6 +425,8 @@ async function buildCompaniesResponse(req: NextRequest) {
     let ema = 0;
     let ath = 0;
     let high52 = 0;
+    let dd = 0;
+    let mom = 0;
     let hold = 0;
     let edgeCount = 0;
     let smeCount = 0;
@@ -447,6 +451,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (flags?.has_ema) ema += 1;
       if (flags?.has_ath) ath += 1;
       if (flags?.has_high52) high52 += 1;
+      if (flags?.has_dd) dd += 1;
+      if (flags?.has_mom) mom += 1;
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
@@ -459,6 +465,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       ema,
       ath,
       high52,
+      dd,
+      mom,
       hold,
       edge: edgeCount,
       niveshaay: fundCounts.niveshaay,
@@ -469,9 +477,15 @@ async function buildCompaniesResponse(req: NextRequest) {
     };
   })();
 
-  // BB/TQ/EMA/ATH/52W narrows scan results — skip when viewing a fund watchlist.
+  // BB/TQ/EMA/ATH/52W/DD/MOM narrows scan results — skip when viewing a fund watchlist.
   if (
-    (filterBb || filterTq || filterEma || filterAth || filterHigh52) &&
+    (filterBb ||
+      filterTq ||
+      filterEma ||
+      filterAth ||
+      filterHigh52 ||
+      filterDd ||
+      filterMom) &&
     !fundListMode
   ) {
     companies = companies.filter((c) => {
@@ -481,11 +495,15 @@ async function buildCompaniesResponse(req: NextRequest) {
       const hasEma = !!flags?.has_ema;
       const hasAth = !!flags?.has_ath;
       const hasHigh52 = !!flags?.has_high52;
+      const hasDd = !!flags?.has_dd;
+      const hasMom = !!flags?.has_mom;
       if (filterBb) return hasBb;
       if (filterTq) return hasTq;
       if (filterEma) return hasEma;
       if (filterAth) return hasAth;
       if (filterHigh52) return hasHigh52;
+      if (filterDd) return hasDd;
+      if (filterMom) return hasMom;
       return false;
     });
   } else if (preferBreakouts && scan) {
@@ -497,7 +515,9 @@ async function buildCompaniesResponse(req: NextRequest) {
         !!flags?.has_tq ||
         !!flags?.has_ema ||
         !!flags?.has_ath ||
-        !!flags?.has_high52
+        !!flags?.has_high52 ||
+        !!flags?.has_dd ||
+        !!flags?.has_mom
       );
     });
     if (withSignal.length > 0) {
@@ -552,6 +572,15 @@ async function buildCompaniesResponse(req: NextRequest) {
       const bh = holdings.has(b.ticker.toUpperCase()) ? 0 : 1;
       if (ah !== bh) return ah - bh;
     }
+    if (sort === "momentum_pct") {
+      const am =
+        breakouts.get(a.ticker.toUpperCase())?.mom?.momentum_pct ?? null;
+      const bm =
+        breakouts.get(b.ticker.toUpperCase())?.mom?.momentum_pct ?? null;
+      const an = am == null ? Number.NEGATIVE_INFINITY : am;
+      const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
+      return (an - bn) * mul;
+    }
     const sortKey = sort as keyof (typeof companies)[number];
     const av = a[sortKey];
     const bv = b[sortKey];
@@ -569,6 +598,8 @@ async function buildCompaniesResponse(req: NextRequest) {
     !filterEma &&
     !filterAth &&
     !filterHigh52 &&
+    !filterDd &&
+    !filterMom &&
     companies.length > 0 &&
     companies.every((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
@@ -577,7 +608,9 @@ async function buildCompaniesResponse(req: NextRequest) {
         !!flags?.has_tq ||
         !!flags?.has_ema ||
         !!flags?.has_ath ||
-        !!flags?.has_high52
+        !!flags?.has_high52 ||
+        !!flags?.has_dd ||
+        !!flags?.has_mom
       );
     });
 
@@ -664,6 +697,9 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_ema: !!flags?.has_ema,
       has_ath: !!flags?.has_ath,
       has_high52: !!flags?.has_high52,
+      has_dd: !!flags?.has_dd,
+      has_mom: !!flags?.has_mom,
+      momentum_pct: flags?.mom?.momentum_pct ?? null,
       has_hold: holdings.has(row.ticker.toUpperCase()),
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
@@ -675,6 +711,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       ema: flags?.ema,
       ath: flags?.ath,
       high52: flags?.high52,
+      dd: flags?.dd,
+      mom: flags?.mom,
       missing: {
         price: g.price,
         mcap: g.mcap,
