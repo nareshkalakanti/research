@@ -30,9 +30,11 @@ export async function POST(req: NextRequest) {
     ...result,
     message:
       result.saved > 0
-        ? `Classified ${result.saved} · ${result.remaining.toLocaleString()} left`
+        ? `Classified ${result.saved}${result.fetched_about ? ` · Yahoo about ${result.fetched_about}` : ""} · ${result.remaining.toLocaleString()} left`
         : result.tried === 0
           ? "No sector gaps for this filter"
-          : "Could not classify this batch — add about text or API keys",
+          : result.fetched_about > 0
+            ? `Fetched Yahoo about for ${result.fetched_about} — could not classify (add API keys or edit manually)`
+            : "Could not classify — Yahoo had no about text",
   });
 }

@@ -8,7 +8,7 @@ import path from "path";
 import { pickAboutText } from "./db";
 import { holdingsTickerSet } from "./holdings";
 import { edgeTickerSet } from "./edge";
-import { negenTickerSet, niveshaayTickerSet } from "./fund-watchlists";
+import { fundTagsForTicker, fundChangesForTicker, fundWatchlistAllTickers } from "./fund-watchlists";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
 import { loadBreakoutMap } from "./signals";
@@ -18,6 +18,7 @@ import {
   scoreDirectorSeats,
   type DirectorScore,
 } from "./gov-score";
+import type { FundChangeInfo, FundWatchlistKey } from "./fund-watchlist-meta";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -44,8 +45,8 @@ export type GovCompanySeat = {
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
-  has_niveshaay: boolean;
-  has_negen: boolean;
+  fund_tags: FundWatchlistKey[];
+  fund_changes?: Partial<Record<FundWatchlistKey, FundChangeInfo>>;
   web: string | null;
   sc: string;
   tv: string;
@@ -266,8 +267,6 @@ function buildRowsFromSeats(
   const breakouts = loadBreakoutMap();
   const holdings = holdingsTickerSet();
   const edge = edgeTickerSet();
-  const niveshaay = niveshaayTickerSet();
-  const negen = negenTickerSet();
   const abouts = loadAboutMap(allTickers);
 
   const rows: GovernanceMapRow[] = [];
@@ -317,8 +316,8 @@ function buildRowsFromSeats(
         has_tq: Boolean(bo?.has_tq),
         has_hold: holdings.has(ticker),
         has_edge: edge.has(ticker),
-        has_niveshaay: niveshaay.has(ticker),
-        has_negen: negen.has(ticker),
+        fund_tags: fundTagsForTicker(ticker),
+        fund_changes: fundChangesForTicker(ticker),
         web: links.web,
         sc: links.sc,
         tv: links.tv,

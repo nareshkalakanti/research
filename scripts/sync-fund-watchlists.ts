@@ -1,6 +1,6 @@
 /**
- * Ensure Niveshaay & Negen rows in fund_watchlists.db exist in company_about.db.
- * Uses local data only — edit lists via add:fund-watchlist or direct DB upserts.
+ * Ensure fund watchlist rows in fund_watchlists.db exist in company_about.db.
+ * Pull latest from Trendlyne first: npm run pull:fund-watchlists
  *
  *   npm run sync:fund-watchlists
  */
@@ -10,6 +10,9 @@ import path from "path";
 import { invalidateCompanyCache } from "../src/lib/db";
 import {
   ensureFundWatchlistInCompanyAbout,
+  FUND_WATCHLIST_KEYS,
+  FUND_WATCHLIST_LABELS,
+  fundWatchlistCounts,
   loadAllFundWatchlistRows,
 } from "../src/lib/fund-watchlists";
 import { resolveTickerMeta } from "./lib/local-ticker-meta";
@@ -67,10 +70,12 @@ function touchAboutFromLocal(): number {
 
 function main() {
   const rows = loadAllFundWatchlistRows();
-  const niveshaay = rows.filter((r) => r.list_key === "niveshaay").length;
-  const negen = rows.filter((r) => r.list_key === "negen").length;
+  const counts = fundWatchlistCounts();
+  const parts = FUND_WATCHLIST_KEYS.map(
+    (k) => `${counts[k]} ${FUND_WATCHLIST_LABELS[k].toLowerCase()}`,
+  );
   console.log(
-    `Local fund watchlists: ${niveshaay} niveshaay · ${negen} negen · ${rows.length} unique tickers`,
+    `Local fund watchlists: ${parts.join(" · ")} · ${rows.length} unique tickers`,
   );
 
   const added = ensureFundWatchlistInCompanyAbout(rows);

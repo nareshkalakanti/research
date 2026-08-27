@@ -1224,6 +1224,105 @@ a {
   color: #fff;
 }
 
+.tag-kacholia {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+  color: #4338ca;
+}
+.result-tag.tag-kacholia {
+  background: #4f46e5;
+  border-color: #4338ca;
+  color: #fff;
+}
+
+.tag-mukul {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+  color: #0f766e;
+}
+.tag-mukul.on,
+.result-tag.tag-mukul {
+  background: #0d9488;
+  border-color: #0f766e;
+  color: #fff;
+}
+
+.tag-kedia {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+.tag-kedia.on,
+.result-tag.tag-kedia {
+  background: #e11d48;
+  border-color: #be123c;
+  color: #fff;
+}
+
+.tag-singhania {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  color: #0369a1;
+}
+.tag-singhania.on,
+.result-tag.tag-singhania {
+  background: #0284c7;
+  border-color: #0369a1;
+  color: #fff;
+}
+
+.tag-kela {
+  background: #faf5ff;
+  border-color: #e9d5ff;
+  color: #7e22ce;
+}
+.tag-kela.on,
+.result-tag.tag-kela {
+  background: #9333ea;
+  border-color: #7e22ce;
+  color: #fff;
+}
+
+.fund-tag-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+.fund-chg {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.fund-chg.new {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.fund-chg.up {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.fund-chg.down {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.fund-chg.flat {
+  background: #f1f5f9;
+  color: var(--muted);
+}
+
 /* Note — lime (distinct from Negen gold) */
 .tag-note {
   background: #ecfccb;
@@ -3213,6 +3312,31 @@ a {
   color: #92400e;
 }
 
+.gov-focus-seg button.kacholia.on {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.gov-focus-seg button.mukul.on {
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.gov-focus-seg button.kedia.on {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.gov-focus-seg button.singhania.on {
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.gov-focus-seg button.kela.on {
+  background: #faf5ff;
+  color: #7e22ce;
+}
+
 .gov-focus-hint {
   flex: 1 1 100%;
   margin: 0;
@@ -3772,6 +3896,31 @@ a {
 .gov-tag-negen {
   color: #92400e;
   background: #fef3c7;
+}
+
+.gov-tag-kacholia {
+  color: #4338ca;
+  background: #eef2ff;
+}
+
+.gov-tag-mukul {
+  color: #0f766e;
+  background: #f0fdfa;
+}
+
+.gov-tag-kedia {
+  color: #be123c;
+  background: #fff1f2;
+}
+
+.gov-tag-singhania {
+  color: #0369a1;
+  background: #f0f9ff;
+}
+
+.gov-tag-kela {
+  color: #7e22ce;
+  background: #faf5ff;
 }
 
 .gov-cos {
@@ -6392,6 +6541,31 @@ tr.sm-row-sme-hit td {
 .ag-tag-negen {
   background: #fef3c7;
   color: #92400e;
+}
+
+.ag-tag-kacholia {
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.ag-tag-mukul {
+  background: #f0fdfa;
+  color: #0f766e;
+}
+
+.ag-tag-kedia {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.ag-tag-singhania {
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.ag-tag-kela {
+  background: #faf5ff;
+  color: #7e22ce;
 }
 
 .ag-fired {

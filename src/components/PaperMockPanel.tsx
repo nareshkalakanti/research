@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  FundWatchlistTags,
+} from "@/components/FundWatchlistTags";
+import type { FundWatchlistKey } from "@/lib/fund-watchlist-meta";
 
 export type PaperPosition = {
   id: number;
@@ -24,8 +28,7 @@ export type PaperPosition = {
   held_days: number;
   has_hold?: boolean;
   has_edge?: boolean;
-  has_niveshaay?: boolean;
-  has_negen?: boolean;
+  fund_tags?: FundWatchlistKey[];
 };
 
 type PaperSummary = {
@@ -94,21 +97,22 @@ function PaperTags({
   market,
   hasHold,
   hasEdge,
-  hasNiveshaay,
-  hasNegen,
+  fundTags,
+  fundChanges,
 }: {
   market?: string | null;
   hasHold?: boolean;
   hasEdge?: boolean;
-  hasNiveshaay?: boolean;
-  hasNegen?: boolean;
+  fundTags?: FundWatchlistKey[];
+  fundChanges?: Partial<
+    Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
+  >;
 }) {
   if (
     !/\bSME\b/i.test(market || "") &&
     !hasHold &&
     !hasEdge &&
-    !hasNiveshaay &&
-    !hasNegen
+    !fundTags?.length
   ) {
     return null;
   }
@@ -124,16 +128,11 @@ function PaperTags({
           Edge
         </span>
       ) : null}
-      {hasNiveshaay ? (
-        <span className="ag-tag ag-tag-niveshaay" title="Niveshaay">
-          Niveshaay
-        </span>
-      ) : null}
-      {hasNegen ? (
-        <span className="ag-tag ag-tag-negen" title="Negen">
-          Negen
-        </span>
-      ) : null}
+      <FundWatchlistTags
+        tags={fundTags}
+        changes={fundChanges}
+        tagClass="ag-tag"
+      />
       {hasHold ? (
         <span className="ag-tag ag-tag-hold" title="Holdings">
           Hold
@@ -151,8 +150,10 @@ type TopPick = {
   price?: number | null;
   has_hold?: boolean;
   has_edge?: boolean;
-  has_niveshaay?: boolean;
-  has_negen?: boolean;
+  fund_tags?: FundWatchlistKey[];
+  fund_changes?: Partial<
+    Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
+  >;
 };
 
 type Props = {
@@ -315,8 +316,8 @@ export function PaperMockPanel({
                 market={topPick.market}
                 hasHold={topPick.has_hold}
                 hasEdge={topPick.has_edge}
-                hasNiveshaay={topPick.has_niveshaay}
-                hasNegen={topPick.has_negen}
+                fundTags={topPick.fund_tags}
+                fundChanges={topPick.fund_changes}
               />
               <span className="ag-paper-conf">{topPick.confidence}/10</span>
               {topPick.price != null ? (
@@ -413,8 +414,8 @@ export function PaperMockPanel({
                       market={p.market}
                       hasHold={p.has_hold}
                       hasEdge={p.has_edge}
-                      hasNiveshaay={p.has_niveshaay}
-                      hasNegen={p.has_negen}
+                      fundTags={p.fund_tags}
+                      fundChanges={p.fund_changes}
                     />
                   </div>
                   <span className="ag-paper-row-meta">

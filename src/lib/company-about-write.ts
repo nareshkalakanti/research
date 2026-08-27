@@ -196,3 +196,62 @@ export function saveManualAboutToCompanyAbout(
   invalidateCompanyCache();
   return ok;
 }
+
+/** Persist Yahoo about / website / HQ; fills empty about from yf_about. */
+export function saveYfAboutProfile(
+  ticker: string,
+  profile: {
+    about?: string | null;
+    website?: string | null;
+    headquarters?: string | null;
+    name?: string | null;
+  },
+): boolean {
+  if (!fs.existsSync(ABOUT_PATH)) return false;
+  if (!ensureCompanyAboutRow(ticker)) return false;
+  const key = ticker.toUpperCase();
+  const about = profile.about?.trim() || null;
+  const website = profile.website?.trim() || null;
+  const headquarters = profile.headquarters?.trim() || null;
+  const name = profile.name?.trim() || null;
+  if (!about && !website && !headquarters) return false;
+
+  const db = new Database(ABOUT_PATH);
+  let ok = false;
+  try {
+    db.pragma("busy_timeout = 5000");
+    const row = db
+      .prepare(`SELECT name FROM company_about WHERE ticker = ?`)
+      .get(key) as { name: string | null } | undefined;
+    const patchName =
+      name && row?.name && row.name.trim().toUpperCase() === key ? name : null;
+
+    const res = db
+      .prepare(
+        `UPDATE company_about SET
+           yf_about = COALESCE(@yf_about, yf_about),
+           about = COALESCE(NULLIF(TRIM(about), ''), @yf_about, about),
+           website = COALESCE(NULLIF(TRIM(website), ''), @website, website),
+           headquarters = COALESCE(NULLIF(TRIM(headquarters), ''), @headquarters, headquarters),
+           name = COALESCE(@name, name),
+           has_yf_about = CASE WHEN @yf_about IS NOT NULL THEN 1 ELSE has_yf_about END,
+           has_website = CASE WHEN @website IS NOT NULL THEN 1 ELSE has_website END,
+           source = 'yf-about-fetch',
+           fetched_at = @fetched_at
+         WHERE ticker = @ticker`,
+      )
+      .run({
+        ticker: key,
+        yf_about: about,
+        website,
+        headquarters,
+        name: patchName,
+        fetched_at: new Date().toISOString(),
+      });
+    ok = res.changes > 0;
+  } finally {
+    db.close();
+  }
+  invalidateCompanyCache();
+  return ok;
+}

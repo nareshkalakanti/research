@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  companyFundTags,
+  FundWatchlistTags,
+} from "@/components/FundWatchlistTags";
 import { ExpandExtraMetrics } from "@/components/ExpandExtraMetrics";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
@@ -19,7 +23,7 @@ export type SortKey =
   | "momentum_pct"
   | "momentum_rank";
 
-type ExpandPanel = "about" | "website" | "notes" | "qtr";
+type ExpandPanel = "about" | "sector" | "website" | "notes" | "qtr";
 
 type Props = {
   rows: Company[];
@@ -69,16 +73,10 @@ function SignalTags({ company }: { company: Company }) {
           Edge
         </span>
       ) : null}
-      {company.has_niveshaay ? (
-        <span className="result-tag tag-niveshaay" title="Niveshaay fund watchlist">
-          Niveshaay
-        </span>
-      ) : null}
-      {company.has_negen ? (
-        <span className="result-tag tag-negen" title="Negen fund watchlist">
-          Negen
-        </span>
-      ) : null}
+      <FundWatchlistTags
+        tags={companyFundTags(company)}
+        changes={company.fund_changes}
+      />
       {company.has_hold || company.has_distress ? (
         <span className="result-tag-group" title="Holdings">
           {company.has_hold ? (
@@ -612,6 +610,151 @@ function WebsiteScrapePanel({
   );
 }
 
+function SectorEditPanel({
+  company,
+  onSaved,
+}: {
+  company: Company;
+  onSaved: (patch: { sector: string; sub_sector: string }) => void;
+}) {
+  const [sector, setSector] = useState(company.sector || "");
+  const [subSector, setSubSector] = useState(company.sub_sector || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [sectors, setSectors] = useState<string[]>([]);
+  const [subSectors, setSubSectors] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSector(company.sector || "");
+    setSubSector(company.sub_sector || "");
+    setSaved(null);
+    setErr(null);
+  }, [company.ticker, company.sector, company.sub_sector]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/classification?taxonomy=1")
+      .then((r) => r.json())
+      .then((json: { ok?: boolean; pairs?: Array<{ sector: string; sub_sector: string }>; sectors?: string[] }) => {
+        if (cancelled || !json.ok) return;
+        setSectors(json.sectors ?? []);
+        setSubSectors(
+          (json.pairs ?? [])
+            .map((p) => p.sub_sector)
+            .filter((s, i, a) => a.indexOf(s) === i)
+            .slice(0, 120),
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredSubSectors = useMemo(() => {
+    const s = sector.trim().toLowerCase();
+    if (!s) return subSectors;
+    return subSectors.filter((sub) => sub.toLowerCase().includes(s) || s.includes(sub.toLowerCase().slice(0, 4)));
+  }, [sector, subSectors]);
+
+  const save = useCallback(async () => {
+    const sec = sector.trim();
+    const sub = subSector.trim();
+    if (!sec || !sub) {
+      setErr("Sector and sub-sector are both required");
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    setSaved(null);
+    try {
+      const res = await fetch("/api/classification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: company.ticker,
+          market: company.market,
+          name: company.name,
+          sector: sec,
+          sub_sector: sub,
+        }),
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Save failed");
+      }
+      onSaved({ sector: sec, sub_sector: sub });
+      setSaved("Saved to classifications.db — commit data/ to sync other machines");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }, [company, onSaved, sector, subSector]);
+
+  return (
+    <div className="missing-edit-block">
+      <p className="hint tight">
+        Saved in <strong>data/classifications.db</strong>. Run{" "}
+        <code>git add data/classifications.db &amp;&amp; git commit &amp;&amp; git push</code>{" "}
+        so another machine gets it on pull.
+      </p>
+      <form
+        className="scrapper-web-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <label className="scrapper-web-form-label" htmlFor={`missing-sector-${company.ticker}`}>
+          Sector
+        </label>
+        <input
+          id={`missing-sector-${company.ticker}`}
+          className="scrapper-web-input"
+          value={sector}
+          onChange={(e) => setSector(e.target.value)}
+          placeholder="e.g. Healthcare"
+          list={`sector-list-${company.ticker}`}
+          spellCheck={false}
+        />
+        <datalist id={`sector-list-${company.ticker}`}>
+          {sectors.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+
+        <label className="scrapper-web-form-label" htmlFor={`missing-sub-${company.ticker}`}>
+          Sub-sector
+        </label>
+        <input
+          id={`missing-sub-${company.ticker}`}
+          className="scrapper-web-input"
+          value={subSector}
+          onChange={(e) => setSubSector(e.target.value)}
+          placeholder="e.g. Pharmaceuticals"
+          list={`sub-sector-list-${company.ticker}`}
+          spellCheck={false}
+        />
+        <datalist id={`sub-sector-list-${company.ticker}`}>
+          {filteredSubSectors.map((s) => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+
+        <div className="scrapper-web-form-actions">
+          <button type="submit" className="btn-fill" disabled={saving}>
+            {saving ? "Saving…" : "Save sector"}
+          </button>
+          {saved ? <span className="missing-edit-ok">{saved}</span> : null}
+          {err ? <span className="hint tight website-scrape-error">{err}</span> : null}
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function CompanyRows({
   company: r,
   open,
@@ -644,10 +787,15 @@ function CompanyRows({
     scrape_source_url: string | null;
     scrape_highlights: string[];
   } | null>(null);
+  const [sectorPatch, setSectorPatch] = useState<{
+    sector: string;
+    sub_sector: string;
+  } | null>(null);
 
   useEffect(() => {
     setScrapePatch(null);
-  }, [r.ticker, r.scraped_about, r.scrape_source_url, r.scrape_highlights]);
+    setSectorPatch(null);
+  }, [r.ticker, r.scraped_about, r.scrape_source_url, r.scrape_highlights, r.sector, r.sub_sector]);
 
   const websiteCompany = useMemo(
     () =>
@@ -661,6 +809,9 @@ function CompanyRows({
         : r,
     [r, scrapePatch],
   );
+
+  const displaySector = sectorPatch?.sector ?? r.sector;
+  const displaySubSector = sectorPatch?.sub_sector ?? r.sub_sector;
 
   const about = r.about?.trim() || "";
   const scraped = websiteCompany.scraped_about?.trim() || "";
@@ -819,11 +970,11 @@ function CompanyRows({
             {formatInr(r.price)}
           </button>
         </td>
-        <td className="col-sector" title={r.sector || undefined}>
-          {r.sector || "—"}
+        <td className="col-sector" title={displaySector || undefined}>
+          {displaySector || "—"}
         </td>
-        <td className="col-sub_sector" title={r.sub_sector || undefined}>
-          {r.sub_sector || "—"}
+        <td className="col-sub_sector" title={displaySubSector || undefined}>
+          {displaySubSector || "—"}
         </td>
         <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
         <td className="col-links">
@@ -892,6 +1043,23 @@ function CompanyRows({
                     />
                   ) : null}
                 </button>
+                {showMissing ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={panel === "sector"}
+                    className={`about-tab ${panel === "sector" ? "on" : ""}`}
+                    onClick={() => onPanel("sector")}
+                  >
+                    Sector
+                    {r.missing?.sector || r.missing?.sub_sector ? (
+                      <em
+                        className="about-tab-dot about-tab-dot--scrape"
+                        title="Sector gap"
+                      />
+                    ) : null}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   role="tab"
@@ -935,6 +1103,18 @@ function CompanyRows({
 
               {panel === "qtr" ? (
                 <ExpandQuarters data={quarterData} />
+              ) : panel === "sector" ? (
+                <SectorEditPanel
+                  company={{
+                    ...r,
+                    sector: displaySector,
+                    sub_sector: displaySubSector,
+                  }}
+                  onSaved={(patch) => {
+                    setSectorPatch(patch);
+                    onScrapeDone?.();
+                  }}
+                />
               ) : panel === "website" ? (
                 <WebsiteScrapePanel
                   company={websiteCompany}

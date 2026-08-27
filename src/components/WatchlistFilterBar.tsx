@@ -4,6 +4,15 @@ import {
   CapMarketFilters,
   type CapFilter,
 } from "@/components/CapMarketFilters";
+import {
+  anyFundFilterActive,
+  clearFundFilters,
+  FUND_WATCHLIST_KEYS,
+  FUND_WATCHLIST_LABELS,
+  type FundCountState,
+  type FundFilterState,
+  type FundWatchlistKey,
+} from "@/lib/fund-watchlist-meta";
 
 type Props = {
   cap?: CapFilter;
@@ -13,18 +22,16 @@ type Props = {
   distressCount?: number;
   edge?: boolean;
   onEdge?: (on: boolean) => void;
-  niveshaay?: boolean;
-  onNiveshaay?: (on: boolean) => void;
-  negen?: boolean;
-  onNegen?: (on: boolean) => void;
+  /** Per-investor fund watchlist filters (Trendlyne books). */
+  funds?: FundFilterState;
+  onFund?: (key: FundWatchlistKey, on: boolean) => void;
   sme?: boolean;
   onSme?: (on: boolean) => void;
   note?: boolean;
   onNote?: (on: boolean) => void;
   holdCount?: number;
   edgeCount?: number;
-  niveshaayCount?: number;
-  negenCount?: number;
+  fundCounts?: FundCountState;
   smeCount?: number;
   noteCount?: number;
 };
@@ -42,10 +49,8 @@ export function WatchlistFilterBar({
   onHold,
   edge = false,
   onEdge,
-  niveshaay = false,
-  onNiveshaay,
-  negen = false,
-  onNegen,
+  funds = {},
+  onFund,
   sme = false,
   onSme,
   note = false,
@@ -53,8 +58,7 @@ export function WatchlistFilterBar({
   holdCount,
   distressCount,
   edgeCount,
-  niveshaayCount,
-  negenCount,
+  fundCounts = {},
   smeCount,
   noteCount,
 }: Props) {
@@ -67,8 +71,7 @@ export function WatchlistFilterBar({
     (cap != null && cap !== "All") ||
     hold ||
     edge ||
-    niveshaay ||
-    negen ||
+    anyFundFilterActive(funds) ||
     sme ||
     note;
 
@@ -76,8 +79,9 @@ export function WatchlistFilterBar({
     onCap?.("All");
     onHold?.(false);
     onEdge?.(false);
-    onNiveshaay?.(false);
-    onNegen?.(false);
+    if (onFund) {
+      for (const key of FUND_WATCHLIST_KEYS) onFund(key, false);
+    }
     onSme?.(false);
     onNote?.(false);
   };
@@ -114,28 +118,20 @@ export function WatchlistFilterBar({
             <Count n={edgeCount} />
           </button>
         ) : null}
-        {onNiveshaay ? (
-          <button
-            type="button"
-            className={`chip tag-chip tag-niveshaay ${niveshaay ? "on" : ""}`}
-            onClick={() => onNiveshaay(!niveshaay)}
-            title="Niveshaay fund watchlist"
-          >
-            Niveshaay
-            <Count n={niveshaayCount} />
-          </button>
-        ) : null}
-        {onNegen ? (
-          <button
-            type="button"
-            className={`chip tag-chip tag-negen ${negen ? "on" : ""}`}
-            onClick={() => onNegen(!negen)}
-            title="Negen fund watchlist"
-          >
-            Negen
-            <Count n={negenCount} />
-          </button>
-        ) : null}
+        {onFund
+          ? FUND_WATCHLIST_KEYS.map((key) => (
+              <button
+                key={key}
+                type="button"
+                className={`chip tag-chip tag-${key} ${funds[key] ? "on" : ""}`}
+                onClick={() => onFund(key, !funds[key])}
+                title={`${FUND_WATCHLIST_LABELS[key]} fund watchlist`}
+              >
+                {FUND_WATCHLIST_LABELS[key]}
+                <Count n={fundCounts[key]} />
+              </button>
+            ))
+          : null}
         {onSme ? (
           <button
             type="button"
@@ -173,3 +169,5 @@ export function WatchlistFilterBar({
     </div>
   );
 }
+
+export { clearFundFilters };

@@ -19,8 +19,8 @@ function parseArgs(): { listKey: FundWatchlistKey; tickers: string[] } {
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--list" && args[i + 1]) {
       const v = args[++i].toLowerCase();
-      if (v !== "niveshaay" && v !== "negen") {
-        throw new Error(`Invalid --list ${v} (use niveshaay or negen)`);
+      if (!FUND_WATCHLIST_KEYS.includes(v as FundWatchlistKey)) {
+        throw new Error(`Invalid --list ${v} (use ${FUND_WATCHLIST_KEYS.join(", ")})`);
       }
       listKey = v;
     } else if (args[i] === "--tickers" && args[i + 1]) {

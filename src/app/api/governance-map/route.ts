@@ -11,6 +11,11 @@ import {
   patternMatches,
 } from "@/lib/pattern";
 import { themesByIds } from "@/lib/themes";
+import { FUND_WATCHLIST_KEYS } from "@/lib/fund-watchlist-meta";
+import {
+  anyFundFilterActive,
+  parseFundFiltersFromSearchParams,
+} from "@/lib/fund-watchlists";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,8 +64,7 @@ function filterRows(
     tq: boolean;
     hold: boolean;
     edge: boolean;
-    niveshaay: boolean;
-    negen: boolean;
+    funds: Partial<Record<(typeof FUND_WATCHLIST_KEYS)[number], boolean>>;
     hideCollision: boolean;
     minScore: number;
     minBoards: number;
@@ -123,13 +127,12 @@ function filterRows(
       if (!hit) continue;
     }
 
-    if (opts.hold || opts.edge || opts.niveshaay || opts.negen) {
+    if (opts.hold || opts.edge || anyFundFilterActive(opts.funds)) {
       const hit = companies.some(
         (c) =>
           (opts.hold && c.has_hold) ||
           (opts.edge && c.has_edge) ||
-          (opts.niveshaay && c.has_niveshaay) ||
-          (opts.negen && c.has_negen),
+          FUND_WATCHLIST_KEYS.some((k) => opts.funds[k] && c.fund_tags?.includes(k)),
       );
       if (!hit) continue;
     }
@@ -259,8 +262,7 @@ type CompanyAgg = {
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
-  has_niveshaay: boolean;
-  has_negen: boolean;
+  fund_tags: import("@/lib/fund-watchlist-meta").FundWatchlistKey[];
   about: string | null;
   headquarters: string | null;
   highlights: string[];
@@ -327,8 +329,7 @@ export async function GET(req: NextRequest) {
     tq: sp.get("tq") === "1",
     hold: sp.get("hold") === "1",
     edge: sp.get("edge") === "1",
-    niveshaay: sp.get("niveshaay") === "1",
-    negen: sp.get("negen") === "1",
+    funds: parseFundFiltersFromSearchParams(sp),
     hideCollision: sp.get("hideCollision") !== "0",
     minScore: Number.isFinite(minScore) ? minScore : 0,
     minBoards,
@@ -369,8 +370,7 @@ export async function GET(req: NextRequest) {
             has_tq: c.has_tq,
             has_hold: c.has_hold,
             has_edge: c.has_edge,
-            has_niveshaay: c.has_niveshaay,
-            has_negen: c.has_negen,
+            fund_tags: c.fund_tags,
             about: c.about,
             headquarters: c.headquarters,
             highlights: highlighted.highlights,

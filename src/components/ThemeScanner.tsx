@@ -12,6 +12,17 @@ import { SavedSearchesBar } from "@/components/SavedSearchesBar";
 import { ThemeMultiselect } from "@/components/ThemeMultiselect";
 import type { Company, Theme, ThemeGroup } from "@/lib/types";
 import type { SavedSearchRow } from "@/lib/saved-searches";
+import {
+  appendFundParams,
+  FUND_WATCHLIST_KEYS,
+  type FundCountState,
+  type FundFilterState,
+  type FundWatchlistKey,
+} from "@/lib/fund-watchlist-meta";
+
+const EMPTY_FUNDS = Object.fromEntries(
+  FUND_WATCHLIST_KEYS.map((k) => [k, false]),
+) as FundFilterState;
 
 type ThemesApi = {
   meta: { syntax?: string; source_blog?: string; updated?: string };
@@ -27,18 +38,7 @@ type ScanApi = {
   scanPattern: string | null;
   markets: Record<string, number>;
   gaps?: Record<string, number>;
-  signals?: {
-    bb: number;
-    tq: number;
-    ema?: number;
-    hold?: number;
-    distress?: number;
-    edge?: number;
-    niveshaay?: number;
-    negen?: number;
-    sme?: number;
-    note?: number;
-  };
+  signals?: Record<string, number>;
   session?: { bb: string | null; tq: string | null; ema?: string | null };
   breakoutsPreferred?: boolean;
 };
@@ -55,8 +55,10 @@ export function ThemeScanner() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
-  const [filterNiveshaay, setFilterNiveshaay] = useState(false);
-  const [filterNegen, setFilterNegen] = useState(false);
+  const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
+  const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
+    setFundFilters((prev) => ({ ...prev, [key]: on }));
+  }, []);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [page, setPage] = useState(1);
@@ -68,22 +70,13 @@ export function ThemeScanner() {
   const hasDataRef = useRef(false);
   const loadSeqRef = useRef(0);
   hasDataRef.current = !!data;
-  const [signalCounts, setSignalCounts] = useState<{
-    hold: number;
-    distress: number;
-    edge: number;
-    niveshaay: number;
-    negen: number;
-    sme: number;
-    note: number;
-  }>({
+  const [signalCounts, setSignalCounts] = useState<Record<string, number>>({
     hold: 0,
     distress: 0,
     edge: 0,
-    niveshaay: 0,
-    negen: 0,
     sme: 0,
     note: 0,
+    ...Object.fromEntries(FUND_WATCHLIST_KEYS.map((k) => [k, 0])),
   });
 
   useEffect(() => {
@@ -112,6 +105,7 @@ export function ThemeScanner() {
               edge?: number;
               niveshaay?: number;
               negen?: number;
+    kacholia?: number;
               sme?: number;
               note?: number;
             };
@@ -128,10 +122,11 @@ export function ThemeScanner() {
             hold: j.signals.hold ?? 0,
             distress: j.signals.distress ?? 0,
             edge: j.signals.edge ?? 0,
-            niveshaay: j.signals.niveshaay ?? 0,
-            negen: j.signals.negen ?? 0,
             sme: j.signals.sme ?? 0,
             note: j.signals.note ?? 0,
+            ...Object.fromEntries(
+              FUND_WATCHLIST_KEYS.map((k) => [k, j.signals?.[k] ?? 0]),
+            ),
           });
         }
       });
@@ -144,11 +139,11 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [selected, debouncedCustom, market, cap, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote]);
+  }, [selected, debouncedCustom, market, cap, filterHold, filterEdge, fundFilters, filterSme, filterNote]);
 
   const themeActive = selected.length > 0 || debouncedCustom.trim().length > 0;
   const watchlistActive =
-    filterHold || filterEdge || filterNiveshaay || filterNegen || filterSme || filterNote;
+    filterHold || filterEdge || FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) || filterSme || filterNote;
   const capActive = cap !== "All";
   const active = themeActive || watchlistActive || capActive;
   const listMarket = market;
@@ -176,8 +171,7 @@ export function ThemeScanner() {
       }
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
-      if (filterNiveshaay) params.set("niveshaay", "1");
-      if (filterNegen) params.set("negen", "1");
+      appendFundParams(params, fundFilters);
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
@@ -214,10 +208,11 @@ export function ThemeScanner() {
             hold: json.signals.hold ?? 0,
             distress: json.signals.distress ?? 0,
             edge: json.signals.edge ?? 0,
-            niveshaay: json.signals.niveshaay ?? 0,
-            negen: json.signals.negen ?? 0,
             sme: json.signals.sme ?? 0,
             note: json.signals.note ?? 0,
+            ...Object.fromEntries(
+              FUND_WATCHLIST_KEYS.map((k) => [k, json.signals?.[k] ?? 0]),
+            ),
           });
         }
       } catch (e) {
@@ -236,8 +231,7 @@ export function ThemeScanner() {
       cap,
       filterHold,
       filterEdge,
-      filterNiveshaay,
-      filterNegen,
+      fundFilters,
       filterSme,
       filterNote,
       page,
@@ -440,21 +434,23 @@ export function ThemeScanner() {
           onCap={setCap}
           hold={filterHold}
           edge={filterEdge}
-          niveshaay={filterNiveshaay}
-          negen={filterNegen}
+          funds={fundFilters}
+          onFund={setFund}
           sme={filterSme}
           note={filterNote}
           onHold={setFilterHold}
           onEdge={setFilterEdge}
-          onNiveshaay={setFilterNiveshaay}
-          onNegen={setFilterNegen}
           onSme={setFilterSme}
           onNote={setFilterNote}
           holdCount={data?.signals?.hold ?? signalCounts.hold}
           distressCount={data?.signals?.distress ?? signalCounts.distress}
           edgeCount={data?.signals?.edge ?? signalCounts.edge}
-          niveshaayCount={data?.signals?.niveshaay ?? signalCounts.niveshaay}
-          negenCount={data?.signals?.negen ?? signalCounts.negen}
+          fundCounts={Object.fromEntries(
+            FUND_WATCHLIST_KEYS.map((k) => [
+              k,
+              data?.signals?.[k] ?? signalCounts[k] ?? 0,
+            ]),
+          ) as FundCountState}
           smeCount={data?.signals?.sme ?? signalCounts.sme}
           noteCount={data?.signals?.note ?? signalCounts.note}
         />

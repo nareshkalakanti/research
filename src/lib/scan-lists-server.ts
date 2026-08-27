@@ -1,8 +1,11 @@
 import { edgeTickerSet } from "@/lib/edge";
 import {
+  FUND_WATCHLIST_KEYS,
+  fundKeyFromScanList,
+} from "@/lib/fund-watchlist-meta";
+import {
+  fundTickerSet,
   loadFundWatchlistStubs,
-  negenTickerSet,
-  niveshaayTickerSet,
 } from "@/lib/fund-watchlists";
 import { holdingsTickerSet } from "@/lib/holdings";
 import { researchLinks } from "@/lib/links";
@@ -44,7 +47,7 @@ function appendFundStubs<T extends { ticker: string }>(
   const byTicker = new Map(allCompanies.map((c) => [c.ticker.toUpperCase(), c]));
   const have = new Set(companies.map((c) => c.ticker.toUpperCase()));
   const out = [...companies];
-  for (const listKey of ["niveshaay", "negen"] as const) {
+  for (const listKey of FUND_WATCHLIST_KEYS) {
     for (const stub of loadFundWatchlistStubs(listKey, have)) {
       if (!tickers.has(stub.ticker.toUpperCase())) continue;
       out.push(byTicker.get(stub.ticker.toUpperCase()) ?? fundStubFactory(stub));
@@ -74,8 +77,6 @@ export function filterCompaniesByScanList<T extends { ticker: string; market: st
   const universe = allCompanies ?? companies;
   const holdings = holdingsTickerSet();
   const edge = edgeTickerSet();
-  const niveshaay = niveshaayTickerSet();
-  const negen = negenTickerSet();
 
   if (list === "Hold") {
     return companies.filter((c) => holdings.has(c.ticker.toUpperCase()));
@@ -83,17 +84,13 @@ export function filterCompaniesByScanList<T extends { ticker: string; market: st
   if (list === "Edge") {
     return companies.filter((c) => edge.has(c.ticker.toUpperCase()));
   }
-  if (list === "Niveshaay") {
-    let rows = companies.filter((c) => niveshaay.has(c.ticker.toUpperCase()));
+
+  const fundKey = fundKeyFromScanList(list);
+  if (fundKey) {
+    const tickers = fundTickerSet(fundKey);
+    let rows = companies.filter((c) => tickers.has(c.ticker.toUpperCase()));
     if (fundStubFactory) {
-      rows = appendFundStubs(rows, niveshaay, universe, fundStubFactory);
-    }
-    return rows;
-  }
-  if (list === "Negen") {
-    let rows = companies.filter((c) => negen.has(c.ticker.toUpperCase()));
-    if (fundStubFactory) {
-      rows = appendFundStubs(rows, negen, universe, fundStubFactory);
+      rows = appendFundStubs(rows, tickers, universe, fundStubFactory);
     }
     return rows;
   }

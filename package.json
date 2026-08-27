@@ -29,6 +29,7 @@
     "sync:smart-money": "tsx scripts/sync-smart-money.ts",
     "sync:holdings": "tsx scripts/sync-holdings.ts",
     "sync:edge": "tsx scripts/sync-edge.ts",
+    "pull:fund-watchlists": "tsx scripts/pull-fund-watchlists.ts",
     "sync:fund-watchlists": "tsx scripts/sync-fund-watchlists.ts",
     "add:fund-watchlist": "tsx scripts/add-fund-watchlist-tickers.ts",
     "sync:bse-sme": "tsx scripts/sync-bse-sme.ts",

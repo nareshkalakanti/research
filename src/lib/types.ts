@@ -1,5 +1,6 @@
+import type { FundWatchlistKey } from "@/lib/fund-watchlist-meta";
+
 export type Company = {
-  ticker: string;
   name: string;
   market: string;
   website: string | null;
@@ -51,10 +52,12 @@ export type Company = {
   has_distress?: boolean;
   /** In Early Edge watchlist (data/edge.db). */
   has_edge?: boolean;
-  /** Niveshaay fund watchlist. */
-  has_niveshaay?: boolean;
-  /** Negen fund watchlist. */
-  has_negen?: boolean;
+  /** Trendlyne fund watchlist tags (Niveshaay, Negen, Kacholia, …). */
+  fund_tags?: FundWatchlistKey[];
+  /** QoQ change per fund tag (new / inc / dec from Trendlyne). */
+  fund_changes?: Partial<
+    Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
+  >;
   /** Has a saved research note (data/notes.db). */
   has_note?: boolean;
   /** Saved note body when requested / expanded. */

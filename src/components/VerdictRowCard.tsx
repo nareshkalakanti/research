@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { FundWatchlistTags } from "@/components/FundWatchlistTags";
 import type { VerdictLabel, VerdictRow } from "@/lib/agents/types";
 import { researchLinks } from "@/lib/links";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
@@ -142,16 +143,11 @@ export function VerdictRowCard({
                     Edge
                   </span>
                 ) : null}
-                {row.has_niveshaay ? (
-                  <span className="ag-tag ag-tag-niveshaay" title="Niveshaay">
-                    Niveshaay
-                  </span>
-                ) : null}
-                {row.has_negen ? (
-                  <span className="ag-tag ag-tag-negen" title="Negen">
-                    Negen
-                  </span>
-                ) : null}
+                <FundWatchlistTags
+                  tags={row.fund_tags}
+                  changes={row.fund_changes}
+                  tagClass="ag-tag"
+                />
                 {row.has_hold ? (
                   <span className="ag-tag ag-tag-hold" title="Holdings">
                     Hold
