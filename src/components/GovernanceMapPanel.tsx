@@ -200,6 +200,7 @@ export function GovernanceMapPanel() {
   const [sme, setSme] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [changesRefreshKey, setChangesRefreshKey] = useState(0);
 
@@ -238,8 +239,31 @@ export function GovernanceMapPanel() {
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/governance-map?${params}`);
-        const json = (await res.json()) as ApiResponse;
+        const text = await res.text();
+        let json: ApiResponse & { error?: string };
+        try {
+          json = JSON.parse(text) as ApiResponse & { error?: string };
+        } catch {
+          setLoadError(
+            res.ok
+              ? "Invalid response from governance map"
+              : `Governance map failed (${res.status})`,
+          );
+          setData(null);
+          return;
+        }
+        if (!res.ok || json.error) {
+          setLoadError(json.error || `Governance map failed (${res.status})`);
+          setData(null);
+          return;
+        }
+        setLoadError(null);
         setData(json);
+      } catch (err) {
+        setLoadError(
+          err instanceof Error ? err.message : "Governance map request failed",
+        );
+        setData(null);
       } finally {
         setLoading(false);
       }
@@ -536,6 +560,10 @@ export function GovernanceMapPanel() {
       <div className="table-meta">
         {loading && !data ? (
           <span>Loading governance map…</span>
+        ) : loadError ? (
+          <span className="gov-load-error" role="alert">
+            {loadError}
+          </span>
         ) : data ? (
           <span>
             Showing {start.toLocaleString()}–{end.toLocaleString()} of{" "}

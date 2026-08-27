@@ -125,8 +125,16 @@ function getAbout(): Database.Database | null {
   if (aboutDb) return aboutDb;
   try {
     aboutDb = openReadonly("company_about.db");
+    // Probe so a corrupt WAL fails here, not mid-request.
+    aboutDb.prepare("SELECT 1 FROM company_about LIMIT 1").get();
     return aboutDb;
   } catch {
+    try {
+      aboutDb?.close();
+    } catch {
+      /* ignore */
+    }
+    aboutDb = null;
     return null;
   }
 }
@@ -208,17 +216,7 @@ function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
   for (let i = 0; i < tickers.length; i += chunk) {
     const slice = tickers.slice(i, i + chunk);
     const placeholders = slice.map(() => "?").join(",");
-    const rows = db
-      .prepare(
-        `
-        SELECT ticker, name, website, about, yf_about, scraped_about,
-               products, end_markets, headquarters,
-               company_sector, company_industry
-        FROM company_about
-        WHERE UPPER(ticker) IN (${placeholders})
-        `,
-      )
-      .all(...slice.map((t) => t.toUpperCase())) as Array<{
+    let rows: Array<{
       ticker: string;
       name: string | null;
       website: string | null;
@@ -231,6 +229,28 @@ function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
       company_sector: string | null;
       company_industry: string | null;
     }>;
+    try {
+      rows = db
+        .prepare(
+          `
+        SELECT ticker, name, website, about, yf_about, scraped_about,
+               products, end_markets, headquarters,
+               company_sector, company_industry
+        FROM company_about
+        WHERE UPPER(ticker) IN (${placeholders})
+        `,
+        )
+        .all(...slice.map((t) => t.toUpperCase())) as typeof rows;
+    } catch (err) {
+      console.error("[governance-map] company_about read failed:", err);
+      try {
+        aboutDb?.close();
+      } catch {
+        /* ignore */
+      }
+      aboutDb = null;
+      return map;
+    }
     for (const r of rows) {
       const about = pickAboutText(r);
       map.set(r.ticker.toUpperCase(), {

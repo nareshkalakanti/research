@@ -38,8 +38,9 @@ function loadScrapeSourceMap(): Map<string, string> {
   scrapeSourceCache = new Map();
   const scrapePath = path.join(DATA_DIR, "scraper.db");
   if (!fs.existsSync(scrapePath)) return scrapeSourceCache;
-  const db = new Database(scrapePath, { readonly: true, fileMustExist: true });
+  let db: Database.Database | null = null;
   try {
+    db = openSqliteNamed("scraper.db", { readonly: true, fileMustExist: true });
     const cols = db.prepare(`PRAGMA table_info(company_scrape)`).all() as Array<{
       name: string;
     }>;
@@ -52,8 +53,18 @@ function loadScrapeSourceMap(): Map<string, string> {
       .all() as Array<{ ticker: string; source_url: string }>) {
       scrapeSourceCache.set(r.ticker.toUpperCase(), r.source_url.trim());
     }
+  } catch (err) {
+    console.error(
+      "[db] scraper.db unavailable — continuing without scrape URLs:",
+      err instanceof Error ? err.message : err,
+    );
+    scrapeSourceCache = new Map();
   } finally {
-    db.close();
+    try {
+      db?.close();
+    } catch {
+      /* ignore */
+    }
   }
   return scrapeSourceCache;
 }
@@ -63,7 +74,8 @@ function openReadonly(name: string): Database.Database {
 }
 
 function getAbout(): Database.Database {
-  if (!aboutDb) aboutDb = openReadonly("company_about.db");
+  if (aboutDb) return aboutDb;
+  aboutDb = openReadonly("company_about.db");
   return aboutDb;
 }
 
@@ -369,6 +381,24 @@ export function pickAboutText(row: {
 export function invalidateCompanyCache(): void {
   cache = null;
   scrapeSourceCache = null;
+  try {
+    aboutDb?.close();
+  } catch {
+    /* ignore */
+  }
+  aboutDb = null;
+  try {
+    govDb?.close();
+  } catch {
+    /* ignore */
+  }
+  govDb = null;
+  try {
+    classDb?.close();
+  } catch {
+    /* ignore */
+  }
+  classDb = null;
 }
 
 export function loadAllCompanies(): CompanyRow[] {
