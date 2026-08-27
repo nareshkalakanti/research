@@ -37,6 +37,8 @@ export type Company = {
   has_mom?: boolean;
   /** 12−1 momentum % (Price 1M / Price 1Y − 1) × 100. */
   momentum_pct?: number | null;
+  /** Cross-sectional rank: 1 = highest momentum in scanned universe. */
+  momentum_rank?: number | null;
   /** Saved research note headline tags when present. */
   news?: {
     count: number;
@@ -105,6 +107,7 @@ export type Company = {
     price_1y: number | null;
     price_1m: number | null;
     momentum_pct: number | null;
+    momentum_rank: number | null;
     signal_date: string | null;
   };
   missing?: {

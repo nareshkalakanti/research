@@ -56,11 +56,18 @@ type Progress = {
 };
 
 async function scanOnce(body: Record<string, unknown>) {
-  const res = await fetch("/api/scan", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch("/api/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error(
+      "Network dropped mid-scan (common on NSE SME + MOM). Retry — progress is saved.",
+    );
+  }
   const raw = await res.text();
   let json: {
     ok?: boolean;
@@ -183,14 +190,43 @@ export function SignalScanBar({
       let gotMom = 0;
 
       try {
-        for (let round = 1; round <= 120; round += 1) {
-          const json = await scanOnce({
-            kind,
-            market,
-            bbTimeframe,
-            limit: 40,
-            missingOnly: true,
-          });
+        for (let round = 1; round <= 200; round += 1) {
+          const batchLimit = kind === "mom" ? 12 : 40;
+          let json: Awaited<ReturnType<typeof scanOnce>> | null = null;
+          let attemptError: Error | null = null;
+          for (let attempt = 1; attempt <= 3; attempt += 1) {
+            try {
+              json = await scanOnce({
+                kind,
+                market,
+                bbTimeframe,
+                limit: batchLimit,
+                missingOnly: true,
+              });
+              attemptError = null;
+              break;
+            } catch (e) {
+              attemptError =
+                e instanceof Error ? e : new Error("Scan failed");
+              // Soft retry on network drops — MOM on SME often trips this.
+              if (
+                attempt < 3 &&
+                /network dropped|failed to fetch|fetch failed/i.test(
+                  attemptError.message,
+                )
+              ) {
+                setProgress({
+                  pct: Math.min(97, 3 + round * 2),
+                  label: `Scanning ${SCAN_LABELS[kind]}`,
+                  detail: `Retry ${attempt}/3 after network drop…`,
+                });
+                await new Promise((r) => setTimeout(r, 800 * attempt));
+                continue;
+              }
+              throw attemptError;
+            }
+          }
+          if (!json) throw attemptError ?? new Error("Scan failed");
           gotBb += json.bbHits ?? 0;
           gotTq += json.tqHits ?? 0;
           gotEma += json.emaHits ?? 0;
@@ -217,7 +253,9 @@ export function SignalScanBar({
             await (onBatch ?? onDone)?.();
           }
           if (json.tried === 0 || remaining <= 0) break;
-          await new Promise((r) => setTimeout(r, 200));
+          await new Promise((r) =>
+            setTimeout(r, kind === "mom" ? 350 : 200),
+          );
         }
 
         if (kind === "bb") onView("bb");

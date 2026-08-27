@@ -86,8 +86,8 @@ export function ScanPanel() {
   useEffect(() => {
     setPage(1);
     if (view === "mom") {
-      setSort("momentum_pct");
-      setDir("desc");
+      setSort("momentum_rank");
+      setDir("asc");
     }
   }, [list, cap, view, bbTimeframe]);
 
@@ -151,7 +151,11 @@ export function ScanPanel() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(key === "price" || key === "mcap_cr" || key === "momentum_pct" ? "desc" : "asc");
+      setDir(
+        key === "price" || key === "mcap_cr" || key === "momentum_pct"
+          ? "desc"
+          : "asc",
+      );
     }
   }
 

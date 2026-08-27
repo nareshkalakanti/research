@@ -105,6 +105,8 @@ export type MomSignal = {
   price_1y: number | null;
   price_1m: number | null;
   momentum_pct: number | null;
+  /** 1 = highest 12−1 momentum in the scanned universe. */
+  momentum_rank: number | null;
   signal_date: string | null;
 };
 
@@ -647,13 +649,6 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
       map.set(t, cur);
     }
 
-    const latestMom = (
-      db
-        .prepare(
-          `SELECT MAX(signal_date) AS d FROM mom_signals WHERE lower(timeframe) = ?`,
-        )
-        .get(MOM_TF) as { d: string | null } | undefined
-    )?.d;
     // Momentum is a trailing 12−1 snapshot — keep all tickers even if their
     // last bar is a session or two behind the freshest name in the table.
     const momRows = db
@@ -670,6 +665,18 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
       momentum_pct: number | null;
       signal_date: string | null;
     }>;
+    // Rank 1 = highest momentum across the full scanned universe
+    const ranked = [...momRows]
+      .filter((r) => r.momentum_pct != null)
+      .sort(
+        (a, b) =>
+          (b.momentum_pct as number) - (a.momentum_pct as number) ||
+          a.ticker.localeCompare(b.ticker),
+      );
+    const rankByTicker = new Map<string, number>();
+    ranked.forEach((r, i) => {
+      rankByTicker.set(r.ticker.toUpperCase(), i + 1);
+    });
     for (const r of momRows) {
       if (r.momentum_pct == null) continue;
       const t = r.ticker.toUpperCase();
@@ -680,6 +687,7 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
         price_1y: r.price_1y,
         price_1m: r.price_1m,
         momentum_pct: r.momentum_pct,
+        momentum_rank: rankByTicker.get(t) ?? null,
         signal_date: r.signal_date,
       };
       // Filter / count = positive 12−1 only

@@ -58,7 +58,10 @@ export async function POST(req: NextRequest) {
   const market = body.market || "All";
   const bbTimeframe: BbTimeframe =
     body.bbTimeframe === "monthly" ? "monthly" : "weekly";
-  const limit = Math.min(80, Math.max(1, Number(body.limit) || 40));
+  const limit = Math.min(
+    kind === "mom" ? 20 : 80,
+    Math.max(1, Number(body.limit) || (kind === "mom" ? 12 : 40)),
+  );
   const clearFirst = body.clearFirst === true;
   const missingOnly = clearFirst ? false : body.missingOnly !== false;
 
@@ -115,7 +118,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await runSignalBatch(batch, kind, {
-    concurrency: 4,
+    concurrency: kind === "mom" ? 2 : 4,
     bbTimeframe,
   });
   if (result.error) {

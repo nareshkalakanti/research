@@ -145,7 +145,7 @@
       "name": "NIPU-2026 — Gas-based Urea & Fertiliser Plants",
       "tag": "Urea / NIPU",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "pattern": "urea | fertiliser | fertilizer | ammonia + plant | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
+      "pattern": "urea | fertiliser | fertilizer | ammonia + urea | ammonia + fertiliser | ammonia + fertilizer | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
       "badge": "2026"
     },
     {

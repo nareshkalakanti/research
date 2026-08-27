@@ -132,7 +132,14 @@ async function fetchBarsWithCandidates(
   let best: Bar[] = [];
   let primaryBars: Bar[] = [];
 
-  for (const symbol of symbols) {
+  // Prefer primary board first; stop once it has usable history so SME scans
+  // don't wait on every ghost .NS / .BO alias (timeouts → "Failed to fetch").
+  const ordered = [
+    primary,
+    ...symbols.filter((s) => s !== primary),
+  ].filter(Boolean);
+
+  for (const symbol of ordered) {
     try {
       const chart = await yf.chart(symbol, { period1, interval });
       const bars = mapChartBars(chart.quotes ?? []);
@@ -142,7 +149,17 @@ async function fetchBarsWithCandidates(
           : interval === "1mo"
             ? normalizeMonthlyBars(bars)
             : bars;
-      if (symbol === primary) primaryBars = cleaned;
+      if (symbol === primary) {
+        primaryBars = cleaned;
+        // Daily MOM needs ~400 bars; weekly/monthly need far fewer.
+        const enough =
+          interval === "1d"
+            ? cleaned.length >= 250
+            : interval === "1wk"
+              ? cleaned.length >= 50
+              : cleaned.length >= 24;
+        if (enough) return primaryBars;
+      }
       if (cleaned.length > best.length) best = cleaned;
     } catch {
       /* try next alias */
