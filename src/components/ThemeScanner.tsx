@@ -328,12 +328,12 @@ export function ThemeScanner() {
                 setCustom(e.target.value);
                 setActiveSavedId(null);
               }}
-              placeholder="acsr | copper | transformer oil"
+              placeholder="optional: narrow with extra terms"
             />
           </div>
           <p className="hint tight">
-            Pipe-separated OR · use + for AND inside a clause · matches About +
-            website scrape
+            Pipe = OR, + = AND inside a clause. With a theme selected, custom
+            keywords narrow results (AND) — they do not bypass the theme.
           </p>
           {selectedThemes.some((t) =>
             [

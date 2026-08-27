@@ -188,7 +188,13 @@ export function themeMatch(
   return sectorGatePasses(row, map[theme.id]);
 }
 
-/** OR across selected themes (+ optional custom keyword pattern). */
+/**
+ * Match selected themes and optional custom keywords.
+ * Themes are OR'd with each other (each still has its sector gate).
+ * When both themes and custom are set, custom **narrows** (AND) — it does not
+ * bypass theme/sector filters (avoids e.g. "transformer oil" pulling chemicals
+ * into an offshore E&P theme).
+ */
 export function matchThemesForRow(
   row: ThemeMatchRow,
   themes: Theme[],
@@ -222,20 +228,30 @@ export function matchThemesForRow(
   }
 
   const custom = opts?.customPattern?.trim() || "";
+  let customHit = false;
   if (custom) {
     patterns.push(custom);
     if (search && patternMatches(search, custom)) {
-      matchedThemeIds.push("__custom__");
+      customHit = true;
       for (const t of matchedTerms(search, custom)) termSet.add(t);
-      for (const h of matchedKeywords(search, custom, search)) highlightSet.add(h);
+      for (const h of matchedKeywords(search, custom, search)) {
+        highlightSet.add(h);
+      }
     }
   }
 
+  const hasThemes = themes.length > 0;
+  const matched = hasThemes
+    ? matchedThemeIds.length > 0 && (!custom || customHit)
+    : customHit;
+
   return {
-    matched: matchedThemeIds.length > 0,
-    matchedThemeIds: matchedThemeIds.filter((id) => id !== "__custom__"),
-    matchedTerms: [...termSet],
-    highlights: [...highlightSet].sort((a, b) => b.length - a.length),
+    matched,
+    matchedThemeIds,
+    matchedTerms: matched ? [...termSet] : [],
+    highlights: matched
+      ? [...highlightSet].sort((a, b) => b.length - a.length)
+      : [],
     scanPattern: patterns.filter(Boolean).join(" | "),
   };
 }

@@ -812,7 +812,9 @@
         "urea",
         "fertiliser",
         "fertilizer",
-        "ammonia + plant",
+        "ammonia + urea",
+        "ammonia + fertiliser",
+        "ammonia + fertilizer",
         "gas + based + urea",
         "complex fertiliser",
         "NPK",
@@ -825,7 +827,7 @@
         "urea": "Urea fertiliser manufacturing — core NIPU-2026 capacity push.",
         "fertiliser": "Indian spelling — fertiliser manufacturers and distributors.",
         "fertilizer": "US spelling — same as fertiliser for About matching.",
-        "ammonia + plant": "Ammonia plants feeding urea / complex fertiliser units.",
+        "ammonia + urea": "Ammonia feedstock tied to urea — not refrigeration ammonia.",
         "NPK": "Complex NPK fertilisers."
       },
       "proxies": [
@@ -837,7 +839,7 @@
         "FACT",
         "Deepak Fertilisers"
       ],
-      "display_pattern": "urea | fertiliser | fertilizer | ammonia + plant | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
+      "display_pattern": "urea | fertiliser | fertilizer | ammonia + urea | ammonia + fertiliser | ammonia + fertilizer | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
       "badge": "2026"
     },
     {

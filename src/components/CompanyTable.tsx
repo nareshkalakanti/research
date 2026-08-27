@@ -16,7 +16,8 @@ export type SortKey =
   | "sector"
   | "sub_sector"
   | "mcap_cr"
-  | "momentum_pct";
+  | "momentum_pct"
+  | "momentum_rank";
 
 type ExpandPanel = "about" | "website" | "notes" | "qtr";
 
@@ -125,8 +126,9 @@ function SignalTags({ company }: { company: Company }) {
       {company.has_mom && company.momentum_pct != null ? (
         <span
           className="result-tag tag-scan-mom"
-          title={`12−1 momentum: +${company.momentum_pct}% (Price 1M / Price 1Y − 1)`}
+          title={`12−1 momentum · list rank #${company.momentum_rank ?? "—"} · +${company.momentum_pct}% (Price 1M / Price 1Y − 1)`}
         >
+          {company.momentum_rank != null ? `#${company.momentum_rank} ` : null}
           +{Math.round(company.momentum_pct)}%
         </span>
       ) : null}

@@ -8,6 +8,7 @@ import { matchedKeywords } from "../src/lib/pattern";
 import {
   invalidateThemeSectorFilterCache,
   loadThemeSectorFilters,
+  matchThemesForRow,
   themeMatch,
 } from "../src/lib/theme-match";
 import { auditTheme, loadAboutRows } from "../src/lib/theme-audit";
@@ -87,6 +88,45 @@ function main() {
     filters.gov_samudra_manthan_offshore_ep,
     "sector filter missing Samudra Manthan",
   );
+
+  const samudra = themesByIds(["gov_samudra_manthan_offshore_ep"]);
+  const chemicalRow = {
+    about:
+      "manufactures chemicals and transformer oil for industrial markets",
+    search_text:
+      "manufactures chemicals transformer oil industrial copper acsr",
+    sector: "Chemicals & Petrochemicals",
+    sub_sector: "Commodity Chemicals",
+  };
+  assert.ok(
+    !matchThemesForRow(chemicalRow, samudra, {
+      customPattern: "acsr | copper | transformer oil",
+    }).matched,
+    "custom keywords must not bypass Samudra Manthan sector gate",
+  );
+  assert.ok(
+    matchThemesForRow(chemicalRow, [], {
+      customPattern: "acsr | copper | transformer oil",
+    }).matched,
+    "custom-only scan should still match chemicals",
+  );
+  const offshoreRow = {
+    about: "offshore oil exploration and production of hydrocarbons",
+    search_text: "offshore oil exploration production hydrocarbons",
+    sector: "Oil & Gas & Energy",
+    sub_sector: "Oil Exploration and Production",
+  };
+  assert.ok(
+    matchThemesForRow(offshoreRow, samudra).matched,
+    "true offshore E&P must match Samudra Manthan",
+  );
+  assert.ok(
+    !matchThemesForRow(offshoreRow, samudra, {
+      customPattern: "acsr | copper | transformer oil",
+    }).matched,
+    "theme + unrelated custom AND should exclude when custom misses",
+  );
+
   assert.ok(
     filters.gov_mpms_mobile_manufacturing,
     "sector filter missing MPMS",

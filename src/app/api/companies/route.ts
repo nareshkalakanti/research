@@ -145,6 +145,8 @@ function applyWatchlistFilters(
     negen: Set<string>;
     notes: Set<string>;
     allCompanies: CompanyRow[];
+    /** When theme/custom scan is on, do not re-inject full fund lists. */
+    themeScanActive?: boolean;
   },
 ): CompanyRow[] {
   let companies = input;
@@ -177,11 +179,15 @@ function applyWatchlistFilters(
     companies = companies.filter((c) =>
       fundFilter.has(c.ticker.toUpperCase()),
     );
-    companies = appendFundWatchlistStubs(
-      companies,
-      fundFilter,
-      opts.allCompanies,
-    );
+    // Theme/custom scan: keep intersection only. Re-injecting stubs would
+    // wipe the theme filter and show the entire Niveshaay/Negen book.
+    if (!opts.themeScanActive) {
+      companies = appendFundWatchlistStubs(
+        companies,
+        fundFilter,
+        opts.allCompanies,
+      );
+    }
   }
 
   if (opts.filterNote) {
@@ -432,6 +438,8 @@ async function buildCompaniesResponse(req: NextRequest) {
     let smeCount = 0;
     let note = 0;
     let distressCount = 0;
+    let niveshaayCount = 0;
+    let negenCount = 0;
     const themeScanActive =
       scan && (selectedThemes.length > 0 || custom.trim());
     for (const c of pool) {
@@ -458,6 +466,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
+      if (niveshaay.has(t)) niveshaayCount += 1;
+      if (negen.has(t)) negenCount += 1;
     }
     return {
       bb,
@@ -469,8 +479,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       mom,
       hold,
       edge: edgeCount,
-      niveshaay: fundCounts.niveshaay,
-      negen: fundCounts.negen,
+      niveshaay: themeScanActive ? niveshaayCount : fundCounts.niveshaay,
+      negen: themeScanActive ? negenCount : fundCounts.negen,
       sme: smeCount,
       note,
       distress: distressCount,
@@ -546,6 +556,9 @@ async function buildCompaniesResponse(req: NextRequest) {
     });
   }
 
+  const themeScanActive =
+    scan && (selectedThemes.length > 0 || custom.trim());
+
   companies = applyWatchlistFilters(companies, {
     filterSme,
     filterHold,
@@ -561,16 +574,38 @@ async function buildCompaniesResponse(req: NextRequest) {
     negen,
     notes,
     allCompanies,
+    themeScanActive,
   });
 
+  // List-relative MOM rank (1 = highest 12−1 within the current filtered set).
+  // Holdings + MOM → #1 is best momentum *in holdings*, not the full universe.
+  const listMomRank = new Map<string, number>();
+  {
+    const scored = companies
+      .map((c) => {
+        const t = c.ticker.toUpperCase();
+        const pct = breakouts.get(t)?.mom?.momentum_pct;
+        return pct == null ? null : { t, pct };
+      })
+      .filter((x): x is { t: string; pct: number } => !!x)
+      .sort((a, b) => b.pct - a.pct || a.t.localeCompare(b.t));
+    scored.forEach((x, i) => listMomRank.set(x.t, i + 1));
+  }
+
   const mul = dir === "desc" ? -1 : 1;
-  const themeScanActive =
-    scan && (selectedThemes.length > 0 || custom.trim());
+  // themeScanActive declared once above (before applyWatchlistFilters)
   companies = [...companies].sort((a, b) => {
     if (themeScanActive) {
       const ah = holdings.has(a.ticker.toUpperCase()) ? 0 : 1;
       const bh = holdings.has(b.ticker.toUpperCase()) ? 0 : 1;
       if (ah !== bh) return ah - bh;
+    }
+    if (sort === "momentum_rank") {
+      const am = listMomRank.get(a.ticker.toUpperCase()) ?? null;
+      const bm = listMomRank.get(b.ticker.toUpperCase()) ?? null;
+      const an = am == null ? Number.POSITIVE_INFINITY : am;
+      const bn = bm == null ? Number.POSITIVE_INFINITY : bm;
+      return (an - bn) * mul;
     }
     if (sort === "momentum_pct") {
       const am =
@@ -700,6 +735,10 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_dd: !!flags?.has_dd,
       has_mom: !!flags?.has_mom,
       momentum_pct: flags?.mom?.momentum_pct ?? null,
+      momentum_rank:
+        listMomRank.get(row.ticker.toUpperCase()) ??
+        flags?.mom?.momentum_rank ??
+        null,
       has_hold: holdings.has(row.ticker.toUpperCase()),
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
