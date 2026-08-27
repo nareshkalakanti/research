@@ -8,6 +8,14 @@ import {
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
 import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
 import { HighlightedText } from "@/components/HighlightedText";
+import { FundWatchlistTags } from "@/components/FundWatchlistTags";
+import {
+  appendFundParams,
+  FUND_WATCHLIST_KEYS,
+  FUND_WATCHLIST_LABELS,
+  type FundFilterState,
+  type FundWatchlistKey,
+} from "@/lib/fund-watchlist-meta";
 import {
   BRIDGE_TI_MAX_CR,
   BRIDGE_TINY_MAX_CR,
@@ -54,8 +62,10 @@ type Seat = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
-  has_niveshaay?: boolean;
-  has_negen?: boolean;
+  fund_tags?: FundWatchlistKey[];
+  fund_changes?: Partial<
+    Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
+  >;
   web: string | null;
   sc: string;
   tv: string;
@@ -103,8 +113,10 @@ type CompanyRow = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
-  has_niveshaay?: boolean;
-  has_negen?: boolean;
+  fund_tags?: FundWatchlistKey[];
+  fund_changes?: Partial<
+    Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
+  >;
   about?: string | null;
   headquarters?: string | null;
   sc: string;
@@ -169,6 +181,10 @@ function GovAbout({
   );
 }
 
+const EMPTY_FUNDS = Object.fromEntries(
+  FUND_WATCHLIST_KEYS.map((k) => [k, false]),
+) as FundFilterState;
+
 export function GovernanceMapPanel() {
   const [view, setView] = useState<View>("director");
   const [q, setQ] = useState("");
@@ -179,8 +195,7 @@ export function GovernanceMapPanel() {
   const [filterMultiLc, setFilterMultiLc] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
-  const [filterNiveshaay, setFilterNiveshaay] = useState(false);
-  const [filterNegen, setFilterNegen] = useState(false);
+  const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const [cap, setCap] = useState<CapFilter>("All");
   const [sme, setSme] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -196,7 +211,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, filterNiveshaay, filterNegen, cap, sme]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, fundFilters, cap, sme]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -217,8 +232,7 @@ export function GovernanceMapPanel() {
       if (filterMultiLc) params.set("multiLc", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
-      if (filterNiveshaay) params.set("niveshaay", "1");
-      if (filterNegen) params.set("negen", "1");
+      appendFundParams(params, fundFilters);
       if (cap !== "All") params.set("cap", cap);
       if (sme) params.set("sme", "1");
       if (opts?.refresh) params.set("refresh", "1");
@@ -230,7 +244,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, filterNiveshaay, filterNegen, cap, sme],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, fundFilters, cap, sme],
   );
 
   useEffect(() => {
@@ -307,8 +321,7 @@ export function GovernanceMapPanel() {
     filterMultiLc ||
     filterHold ||
     filterEdge ||
-    filterNiveshaay ||
-    filterNegen ||
+    FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) ||
     cap !== "All" ||
     sme;
 
@@ -320,8 +333,7 @@ export function GovernanceMapPanel() {
     setFilterMultiLc(false);
     setFilterHold(false);
     setFilterEdge(false);
-    setFilterNiveshaay(false);
-    setFilterNegen(false);
+    setFundFilters(EMPTY_FUNDS);
     setCap("All");
     setSme(false);
     setOpenId(null);
@@ -452,22 +464,19 @@ export function GovernanceMapPanel() {
           >
             Edge
           </button>
-          <button
-            type="button"
-            className={`niveshaay ${filterNiveshaay ? "on" : ""}`}
-            onClick={() => setFilterNiveshaay((v) => !v)}
-            title="Any board seat is on Niveshaay"
-          >
-            Niveshaay
-          </button>
-          <button
-            type="button"
-            className={`negen ${filterNegen ? "on" : ""}`}
-            onClick={() => setFilterNegen((v) => !v)}
-            title="Any board seat is on Negen"
-          >
-            Negen
-          </button>
+          {FUND_WATCHLIST_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              className={`${key} ${fundFilters[key] ? "on" : ""}`}
+              onClick={() =>
+                setFundFilters((prev) => ({ ...prev, [key]: !prev[key] }))
+              }
+              title={`Any board seat is on ${FUND_WATCHLIST_LABELS[key]}`}
+            >
+              {FUND_WATCHLIST_LABELS[key]}
+            </button>
+          ))}
         </div>
         <p className="gov-focus-hint">{bridgeHint}</p>
       </div>
@@ -713,14 +722,11 @@ export function GovernanceMapPanel() {
                               {c.has_edge ? (
                                 <span className="gov-tag gov-tag-edge">Edge</span>
                               ) : null}
-                              {c.has_niveshaay ? (
-                                <span className="gov-tag gov-tag-niveshaay">
-                                  Niveshaay
-                                </span>
-                              ) : null}
-                              {c.has_negen ? (
-                                <span className="gov-tag gov-tag-negen">Negen</span>
-                              ) : null}
+                              <FundWatchlistTags
+                                tags={c.fund_tags}
+                                changes={c.fund_changes}
+                                tagClass="gov-tag"
+                              />
                               {c.has_hold ? (
                                 <span className="gov-tag gov-tag-hold">
                                   Hold
@@ -796,12 +802,11 @@ export function GovernanceMapPanel() {
                       {c.has_edge ? (
                         <span className="gov-tag gov-tag-edge">Edge</span>
                       ) : null}
-                      {c.has_niveshaay ? (
-                        <span className="gov-tag gov-tag-niveshaay">Niveshaay</span>
-                      ) : null}
-                      {c.has_negen ? (
-                        <span className="gov-tag gov-tag-negen">Negen</span>
-                      ) : null}
+                      <FundWatchlistTags
+                        tags={c.fund_tags}
+                        changes={c.fund_changes}
+                        tagClass="gov-tag"
+                      />
                       {c.has_hold ? (
                         <span className="gov-tag gov-tag-hold">Hold</span>
                       ) : null}

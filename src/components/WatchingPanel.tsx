@@ -7,6 +7,13 @@ import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import { WatchlistFilterBar } from "@/components/WatchlistFilterBar";
 import { SavedSearchesBar } from "@/components/SavedSearchesBar";
+import {
+  appendFundParams,
+  FUND_WATCHLIST_KEYS,
+  type FundCountState,
+  type FundFilterState,
+  type FundWatchlistKey,
+} from "@/lib/fund-watchlist-meta";
 import type { Company } from "@/lib/types";
 import type { SavedSearchRow } from "@/lib/saved-searches";
 
@@ -23,20 +30,13 @@ type ApiResponse = {
     any: number;
     metrics: number;
   };
-  signals?: {
-    bb: number;
-    tq: number;
-    ema?: number;
-    hold?: number;
-    distress?: number;
-    edge?: number;
-    niveshaay?: number;
-    negen?: number;
-    sme?: number;
-    note?: number;
-  };
+  signals?: Record<string, number>;
   session?: { bb: string | null; tq: string | null; ema?: string | null };
 };
+
+const EMPTY_FUNDS = Object.fromEntries(
+  FUND_WATCHLIST_KEYS.map((k) => [k, false]),
+) as FundFilterState;
 
 export function WatchingPanel() {
   const [market, setMarket] = useState("All");
@@ -47,8 +47,7 @@ export function WatchingPanel() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
-  const [filterNiveshaay, setFilterNiveshaay] = useState(false);
-  const [filterNegen, setFilterNegen] = useState(false);
+  const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
@@ -61,6 +60,10 @@ export function WatchingPanel() {
   const loadSeqRef = useRef(0);
   hasDataRef.current = !!data;
 
+  const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
+    setFundFilters((prev) => ({ ...prev, [key]: on }));
+  }, []);
+
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 250);
     return () => clearTimeout(t);
@@ -68,7 +71,7 @@ export function WatchingPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [market, debouncedQ, mode, cap, sector, filterHold, filterEdge, filterNiveshaay, filterNegen, filterSme, filterNote]);
+  }, [market, debouncedQ, mode, cap, sector, filterHold, filterEdge, fundFilters, filterSme, filterNote]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -87,8 +90,7 @@ export function WatchingPanel() {
       });
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
-      if (filterNiveshaay) params.set("niveshaay", "1");
-      if (filterNegen) params.set("negen", "1");
+      appendFundParams(params, fundFilters);
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
@@ -115,8 +117,7 @@ export function WatchingPanel() {
       sector,
       filterHold,
       filterEdge,
-      filterNiveshaay,
-      filterNegen,
+      fundFilters,
       filterSme,
       filterNote,
       page,
@@ -145,6 +146,13 @@ export function WatchingPanel() {
       setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
     }
   }
+
+  const fundCounts = useMemo((): FundCountState => {
+    const sig = data?.signals ?? {};
+    return Object.fromEntries(
+      FUND_WATCHLIST_KEYS.map((k) => [k, sig[k]]),
+    ) as FundCountState;
+  }, [data?.signals]);
 
   const listMarket = market;
   const markets = data?.markets ?? {};
@@ -248,21 +256,18 @@ export function WatchingPanel() {
           onCap={setCap}
           hold={filterHold}
           edge={filterEdge}
-          niveshaay={filterNiveshaay}
-          negen={filterNegen}
+          funds={fundFilters}
+          onFund={setFund}
           sme={filterSme}
           note={filterNote}
           onHold={setFilterHold}
           onEdge={setFilterEdge}
-          onNiveshaay={setFilterNiveshaay}
-          onNegen={setFilterNegen}
           onSme={setFilterSme}
           onNote={setFilterNote}
           holdCount={data?.signals?.hold}
           distressCount={data?.signals?.distress}
           edgeCount={data?.signals?.edge}
-          niveshaayCount={data?.signals?.niveshaay}
-          negenCount={data?.signals?.negen}
+          fundCounts={fundCounts}
           smeCount={data?.signals?.sme}
           noteCount={data?.signals?.note}
         />

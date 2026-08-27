@@ -15,6 +15,10 @@ import {
 } from "@/components/SignalScanBar";
 import { WebsiteScrapeBar } from "@/components/WebsiteScrapeBar";
 import { isScanWatchlist, scanListLabel, type ScanList } from "@/lib/scan-lists";
+import {
+  FUND_WATCHLIST_KEYS,
+  FUND_WATCHLIST_LABELS,
+} from "@/lib/fund-watchlist-meta";
 import type { Company } from "@/lib/types";
 
 type ApiResponse = {
@@ -23,19 +27,7 @@ type ApiResponse = {
   page: number;
   pages: number;
   markets: Record<string, number>;
-  signals?: {
-    bb: number;
-    tq: number;
-    ema?: number;
-    ath?: number;
-    high52?: number;
-    dd?: number;
-    mom?: number;
-    hold?: number;
-    edge?: number;
-    niveshaay?: number;
-    negen?: number;
-  };
+  signals?: Record<string, number>;
   session?: {
     bb: string | null;
     tq: string | null;
@@ -60,11 +52,10 @@ export function ScanPanel() {
   const hasDataRef = useRef(false);
   const loadSeqRef = useRef(0);
   hasDataRef.current = !!data;
-  const [listCounts, setListCounts] = useState({
+  const [listCounts, setListCounts] = useState<Record<string, number>>({
     hold: 0,
     edge: 0,
-    niveshaay: 0,
-    negen: 0,
+    ...Object.fromEntries(FUND_WATCHLIST_KEYS.map((k) => [k, 0])),
   });
 
   useEffect(() => {
@@ -75,8 +66,9 @@ export function ScanPanel() {
           setListCounts({
             hold: j.signals.hold ?? 0,
             edge: j.signals.edge ?? 0,
-            niveshaay: j.signals.niveshaay ?? 0,
-            negen: j.signals.negen ?? 0,
+            ...Object.fromEntries(
+              FUND_WATCHLIST_KEYS.map((k) => [k, j.signals?.[k] ?? 0]),
+            ),
           });
         }
       })
@@ -120,12 +112,13 @@ export function ScanPanel() {
         if (seq !== loadSeqRef.current) return;
         setData(json);
         if (json.signals) {
-          setListCounts((c) => ({
-            hold: json.signals?.hold ?? c.hold,
-            edge: json.signals?.edge ?? c.edge,
-            niveshaay: json.signals?.niveshaay ?? c.niveshaay,
-            negen: json.signals?.negen ?? c.negen,
-          }));
+          setListCounts({
+            hold: json.signals.hold ?? 0,
+            edge: json.signals.edge ?? 0,
+            ...Object.fromEntries(
+              FUND_WATCHLIST_KEYS.map((k) => [k, json.signals?.[k] ?? 0]),
+            ),
+          });
         }
       } finally {
         if (seq === loadSeqRef.current) setLoading(false);
@@ -199,12 +192,12 @@ export function ScanPanel() {
               <option value="Edge">
                 Edge ({listCounts.edge.toLocaleString()})
               </option>
-              <option value="Niveshaay">
-                Niveshaay ({listCounts.niveshaay.toLocaleString()})
-              </option>
-              <option value="Negen">
-                Negen ({listCounts.negen.toLocaleString()})
-              </option>
+              {FUND_WATCHLIST_KEYS.map((key) => (
+                <option key={key} value={FUND_WATCHLIST_LABELS[key]}>
+                  {FUND_WATCHLIST_LABELS[key]} (
+                  {(listCounts[key] ?? 0).toLocaleString()})
+                </option>
+              ))}
             </optgroup>
           </select>
         </label>

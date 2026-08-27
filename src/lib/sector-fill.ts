@@ -4,13 +4,23 @@ import {
   type SectorClassifyInput,
 } from "./sector-classify";
 import { upsertClassification } from "./classifications-write";
-import { loadAllCompanies } from "./db";
+import {
+  ensureCompanyAboutRow,
+  saveYfAboutProfile,
+} from "./company-about-write";
+import { loadAllCompanies, hasUsableAboutText } from "./db";
+import {
+  ensureFundWatchlistInCompanyAbout,
+  loadAllFundWatchlistRows,
+} from "./fund-watchlists";
 import { runConcurrent } from "./scrape-pool";
+import { fetchYfAboutProfile } from "./yfinance";
 
 export type SectorFillResult = {
   tried: number;
   saved: number;
   failed: number;
+  fetched_about: number;
   remaining: number;
   saved_tickers: string[];
   rows: Array<{
@@ -22,6 +32,78 @@ export type SectorFillResult = {
   }>;
 };
 
+function fundWatchlistNameMap(): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const r of loadAllFundWatchlistRows()) {
+    const ticker = r.ticker.toUpperCase();
+    const name = r.name?.trim();
+    if (!name || name.toUpperCase() === ticker) continue;
+    if (!out.has(ticker)) out.set(ticker, name);
+  }
+  return out;
+}
+
+function resolveDisplayName(
+  ticker: string,
+  name: string,
+  fundNames: Map<string, string>,
+): string {
+  const key = ticker.toUpperCase();
+  if (name.trim().toUpperCase() !== key) return name;
+  return fundNames.get(key) ?? name;
+}
+
+function hasClassifyCorpus(input: SectorClassifyInput): boolean {
+  return hasUsableAboutText(classificationCorpus(input));
+}
+
+type ClassifyCompanyRow = {
+  ticker: string;
+  name: string;
+  market: string;
+  about: string | null;
+  scraped_about: string | null;
+};
+
+async function buildClassifyInput(
+  c: ClassifyCompanyRow,
+  fundNames: Map<string, string>,
+): Promise<{ input: SectorClassifyInput; fetchedAbout: boolean }> {
+  const name = resolveDisplayName(c.ticker, c.name, fundNames);
+  let input: SectorClassifyInput = {
+    ticker: c.ticker,
+    name,
+    market: c.market,
+    about: c.about,
+    scraped_about: c.scraped_about,
+    yf_about: c.about,
+  };
+
+  if (hasClassifyCorpus(input)) {
+    return { input, fetchedAbout: false };
+  }
+
+  ensureCompanyAboutRow(c.ticker, { name, market: c.market });
+  const profile = await fetchYfAboutProfile(c.ticker, c.market);
+  if (!profile) {
+    return { input, fetchedAbout: false };
+  }
+
+  saveYfAboutProfile(c.ticker, {
+    about: profile.about,
+    website: profile.website,
+    headquarters: profile.headquarters,
+    name,
+  });
+
+  input = {
+    ...input,
+    about: profile.about ?? input.about,
+    yf_about: profile.about ?? input.yf_about,
+  };
+  return { input, fetchedAbout: Boolean(profile.about?.trim()) };
+}
+
 export async function fillSectorBatch(opts: {
   market?: string;
   tickers?: string[];
@@ -31,6 +113,9 @@ export async function fillSectorBatch(opts: {
   const limit = Math.min(50, Math.max(1, opts.limit ?? 20));
   const concurrency = Math.min(4, Math.max(1, opts.concurrency ?? 2));
   const market = opts.market ?? "All";
+
+  ensureFundWatchlistInCompanyAbout();
+  const fundNames = fundWatchlistNameMap();
 
   let companies = loadAllCompanies().filter(
     (c) => !c.sector?.trim() || !c.sub_sector?.trim(),
@@ -49,6 +134,7 @@ export async function fillSectorBatch(opts: {
     tried: 0,
     saved: 0,
     failed: 0,
+    fetched_about: 0,
     remaining: companies.length,
     saved_tickers: [],
     rows: [],
@@ -58,19 +144,20 @@ export async function fillSectorBatch(opts: {
   const savedRows: SectorFillResult["rows"] = [];
   const savedTickers: string[] = [];
   let failed = 0;
+  let fetchedAbout = 0;
 
   await runConcurrent(batch, concurrency, async (c) => {
-    const input: SectorClassifyInput = {
-      ticker: c.ticker,
-      name: c.name,
-      market: c.market,
-      about: c.about,
-      scraped_about: c.scraped_about,
-    };
-    if (!classificationCorpus(input).trim()) {
+    const { input, fetchedAbout: gotAbout } = await buildClassifyInput(
+      c,
+      fundNames,
+    );
+    if (gotAbout) fetchedAbout += 1;
+
+    if (!hasClassifyCorpus(input)) {
       failed += 1;
       return;
     }
+
     const result = await classifySectorAI(input);
     if (!result) {
       failed += 1;
@@ -94,6 +181,7 @@ export async function fillSectorBatch(opts: {
     tried: batch.length,
     saved: savedTickers.length,
     failed,
+    fetched_about: fetchedAbout,
     remaining: Math.max(0, companies.length - batch.length),
     saved_tickers: savedTickers,
     rows: savedRows,

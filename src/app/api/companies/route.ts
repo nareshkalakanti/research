@@ -28,11 +28,17 @@ import {
 } from "@/lib/holdings";
 import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
 import {
+  activeFundFilterSet,
+  anyFundFilterActive,
+  fundTagsForTicker,
+  fundChangesForTicker,
+  fundWatchlistAllTickers,
   fundWatchlistCounts,
+  fundWatchlistSets,
+  FUND_WATCHLIST_KEYS,
   invalidateFundWatchlistCache,
   loadFundWatchlistStubs,
-  negenTickerSet,
-  niveshaayTickerSet,
+  parseFundFiltersFromSearchParams,
 } from "@/lib/fund-watchlists";
 import { invalidateNotesCache, notesTickerSet } from "@/lib/notes";
 import { distressSeedSet } from "@/lib/distress/tickers";
@@ -102,7 +108,7 @@ function appendFundWatchlistStubs(
   const byTicker = new Map(all.map((c) => [c.ticker.toUpperCase(), c]));
   const have = new Set(companies.map((c) => c.ticker.toUpperCase()));
   const out = [...companies];
-  for (const listKey of ["niveshaay", "negen"] as const) {
+  for (const listKey of FUND_WATCHLIST_KEYS) {
     for (const stub of loadFundWatchlistStubs(listKey, have)) {
       if (!tickers.has(stub.ticker.toUpperCase())) continue;
       out.push(byTicker.get(stub.ticker.toUpperCase()) ?? fundStubRow(stub));
@@ -110,19 +116,6 @@ function appendFundWatchlistStubs(
     }
   }
   return out;
-}
-
-function activeFundFilterSet(
-  niveshaay: Set<string>,
-  negen: Set<string>,
-  opts: { niveshaay: boolean; negen: boolean },
-): Set<string> | null {
-  if (!opts.niveshaay && !opts.negen) return null;
-  if (opts.niveshaay && opts.negen) {
-    return new Set([...niveshaay].filter((t) => negen.has(t)));
-  }
-  if (opts.niveshaay) return niveshaay;
-  return negen;
 }
 
 type CompanyRow = ReturnType<typeof loadAllCompanies>[number];
@@ -135,17 +128,13 @@ function applyWatchlistFilters(
     filterHold: boolean;
     filterDistress: boolean;
     filterEdge: boolean;
-    filterNiveshaay: boolean;
-    filterNegen: boolean;
+    fundActive: Partial<Record<(typeof FUND_WATCHLIST_KEYS)[number], boolean>>;
     filterNote: boolean;
     holdings: Set<string>;
     distressSet: Set<string>;
     edge: Set<string>;
-    niveshaay: Set<string>;
-    negen: Set<string>;
     notes: Set<string>;
     allCompanies: CompanyRow[];
-    /** When theme/custom scan is on, do not re-inject full fund lists. */
     themeScanActive?: boolean;
   },
 ): CompanyRow[] {
@@ -171,16 +160,11 @@ function applyWatchlistFilters(
     companies = companies.filter((c) => opts.edge.has(c.ticker.toUpperCase()));
   }
 
-  const fundFilter = activeFundFilterSet(opts.niveshaay, opts.negen, {
-    niveshaay: opts.filterNiveshaay,
-    negen: opts.filterNegen,
-  });
+  const fundFilter = activeFundFilterSet(opts.fundActive);
   if (fundFilter) {
     companies = companies.filter((c) =>
       fundFilter.has(c.ticker.toUpperCase()),
     );
-    // Theme/custom scan: keep intersection only. Re-injecting stubs would
-    // wipe the theme filter and show the entire Niveshaay/Negen book.
     if (!opts.themeScanActive) {
       companies = appendFundWatchlistStubs(
         companies,
@@ -202,9 +186,8 @@ function applyWatchlistFilters(
 function mergeFundWatchlistUniverse(
   companies: ReturnType<typeof loadAllCompanies>,
   all: ReturnType<typeof loadAllCompanies>,
-  fund: { niveshaay: Set<string>; negen: Set<string> },
 ) {
-  const fundAll = new Set([...fund.niveshaay, ...fund.negen]);
+  const fundAll = fundWatchlistAllTickers();
   if (!fundAll.size) return companies;
   const byTicker = new Map(companies.map((c) => [c.ticker.toUpperCase(), c]));
   for (const c of all) {
@@ -242,10 +225,9 @@ async function buildCompaniesResponse(req: NextRequest) {
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
   const filterEdge = sp.get("edge") === "1";
-  const filterNiveshaay = sp.get("niveshaay") === "1";
-  const filterNegen = sp.get("negen") === "1";
+  const fundActive = parseFundFiltersFromSearchParams(sp);
   const filterNote = sp.get("note") === "1";
-  const fundListMode = filterNiveshaay || filterNegen;
+  const fundListMode = anyFundFilterActive(fundActive);
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
   const preferBreakouts = sp.get("preferBreakouts") === "1";
   const themeIds = (sp.get("themes") || "")
@@ -275,8 +257,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const holdings = holdingsTickerSet();
   const distressSet = distressSeedSet();
   const edge = edgeTickerSet();
-  const niveshaay = niveshaayTickerSet();
-  const negen = negenTickerSet();
+  const fundSets = fundWatchlistSets();
   const fundCounts = fundWatchlistCounts();
   const notes = notesTickerSet();
 
@@ -311,8 +292,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterHold ||
     filterDistress ||
     filterEdge ||
-    filterNiveshaay ||
-    filterNegen ||
+    anyFundFilterActive(fundActive) ||
     filterSme ||
     filterNote;
   const scanListMode = isScanWatchlist(market);
@@ -337,10 +317,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   if (missing) {
-    companies = mergeFundWatchlistUniverse(companies, allCompanies, {
-      niveshaay,
-      negen,
-    });
+    companies = mergeFundWatchlistUniverse(companies, allCompanies);
   }
 
   function gapFlags(c: (typeof companies)[number]) {
@@ -438,8 +415,9 @@ async function buildCompaniesResponse(req: NextRequest) {
     let smeCount = 0;
     let note = 0;
     let distressCount = 0;
-    let niveshaayCount = 0;
-    let negenCount = 0;
+    const fundPoolCounts = Object.fromEntries(
+      FUND_WATCHLIST_KEYS.map((k) => [k, 0]),
+    ) as Record<(typeof FUND_WATCHLIST_KEYS)[number], number>;
     const themeScanActive =
       scan && (selectedThemes.length > 0 || custom.trim());
     for (const c of pool) {
@@ -466,9 +444,16 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
-      if (niveshaay.has(t)) niveshaayCount += 1;
-      if (negen.has(t)) negenCount += 1;
+      for (const key of FUND_WATCHLIST_KEYS) {
+        if (fundSets[key].has(t)) fundPoolCounts[key] += 1;
+      }
     }
+    const fundSignals = Object.fromEntries(
+      FUND_WATCHLIST_KEYS.map((k) => [
+        k,
+        themeScanActive ? fundPoolCounts[k] : fundCounts[k],
+      ]),
+    );
     return {
       bb,
       tq,
@@ -479,8 +464,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       mom,
       hold,
       edge: edgeCount,
-      niveshaay: themeScanActive ? niveshaayCount : fundCounts.niveshaay,
-      negen: themeScanActive ? negenCount : fundCounts.negen,
+      ...fundSignals,
       sme: smeCount,
       note,
       distress: distressCount,
@@ -564,14 +548,11 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterHold,
     filterDistress,
     filterEdge,
-    filterNiveshaay,
-    filterNegen,
+    fundActive,
     filterNote,
     holdings,
     distressSet,
     edge,
-    niveshaay,
-    negen,
     notes,
     allCompanies,
     themeScanActive,
@@ -742,8 +723,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_hold: holdings.has(row.ticker.toUpperCase()),
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
-      has_niveshaay: niveshaay.has(row.ticker.toUpperCase()),
-      has_negen: negen.has(row.ticker.toUpperCase()),
+      fund_tags: fundTagsForTicker(row.ticker),
+      fund_changes: fundChangesForTicker(row.ticker),
       has_note: notes.has(row.ticker.toUpperCase()),
       bb: flags?.bb,
       tq: flags?.tq,
@@ -804,10 +785,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     (c) => !market || market === "All" || c.market === market,
   );
   if (missing) {
-    gapUniverse = mergeFundWatchlistUniverse(gapUniverse, loadAllCompanies(), {
-      niveshaay,
-      negen,
-    });
+    gapUniverse = mergeFundWatchlistUniverse(gapUniverse, loadAllCompanies());
   } else if (market === "NSE") {
     gapUniverse = loadAllCompanies().filter(
       (c) => c.market === "NSE" || c.market === "NSE SME",

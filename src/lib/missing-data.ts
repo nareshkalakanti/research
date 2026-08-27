@@ -1,8 +1,8 @@
 import { loadAllCompanies } from "@/lib/db";
 import {
+  FUND_WATCHLIST_KEYS,
+  fundWatchlistAllTickers,
   loadFundWatchlistStubs,
-  negenTickerSet,
-  niveshaayTickerSet,
 } from "@/lib/fund-watchlists";
 import { researchLinks } from "@/lib/links";
 import {
@@ -150,7 +150,7 @@ function appendFundWatchlistStubs(
   const byTicker = new Map(all.map((c) => [c.ticker.toUpperCase(), c]));
   const have = new Set(companies.map((c) => c.ticker.toUpperCase()));
   const out = [...companies];
-  for (const listKey of ["niveshaay", "negen"] as const) {
+  for (const listKey of FUND_WATCHLIST_KEYS) {
     for (const stub of loadFundWatchlistStubs(listKey, have)) {
       if (!tickers.has(stub.ticker.toUpperCase())) continue;
       out.push(byTicker.get(stub.ticker.toUpperCase()) ?? fundStubRow(stub));
@@ -163,9 +163,8 @@ function appendFundWatchlistStubs(
 function mergeFundWatchlistUniverse(
   companies: ReturnType<typeof loadAllCompanies>,
   all: ReturnType<typeof loadAllCompanies>,
-  fund: { niveshaay: Set<string>; negen: Set<string> },
 ) {
-  const fundAll = new Set([...fund.niveshaay, ...fund.negen]);
+  const fundAll = fundWatchlistAllTickers();
   if (!fundAll.size) return companies;
   const byTicker = new Map(companies.map((c) => [c.ticker.toUpperCase(), c]));
   for (const c of all) {
@@ -187,10 +186,7 @@ export function loadMissingCompanies(
     companies = companies.filter((c) => c.market === market);
   }
 
-  companies = mergeFundWatchlistUniverse(companies, allCompanies, {
-    niveshaay: niveshaayTickerSet(),
-    negen: negenTickerSet(),
-  });
+  companies = mergeFundWatchlistUniverse(companies, allCompanies);
 
   const outcomes = loadScrapeOutcomeSets(market || "All");
   return companies

@@ -8,7 +8,8 @@ import path from "path";
 import YahooFinance from "yahoo-finance2";
 import { loadAllCompanies } from "@/lib/db";
 import { isEdge } from "@/lib/edge";
-import { isNegen, isNiveshaay } from "@/lib/fund-watchlists";
+import { fundTagsForTicker, fundChangesForTicker } from "@/lib/fund-watchlists";
+import type { FundChangeInfo, FundWatchlistKey } from "@/lib/fund-watchlist-meta";
 import { isHolding } from "@/lib/holdings";
 import { yfSymbolCandidates } from "@/lib/yfinance";
 
@@ -43,8 +44,8 @@ export type PaperPosition = PaperTrade & {
   held_days: number;
   has_hold: boolean;
   has_edge: boolean;
-  has_niveshaay: boolean;
-  has_negen: boolean;
+  fund_tags: FundWatchlistKey[];
+  fund_changes: Partial<Record<FundWatchlistKey, FundChangeInfo>>;
 };
 
 function istDayKey(iso: string | Date): string {
@@ -99,8 +100,8 @@ function enrich(
     held_days: heldCalendarDays(t.opened_at, t.closed_at),
     has_hold: isHolding(t.symbol),
     has_edge: isEdge(t.symbol),
-    has_niveshaay: isNiveshaay(t.symbol),
-    has_negen: isNegen(t.symbol),
+    fund_tags: fundTagsForTicker(t.symbol),
+    fund_changes: fundChangesForTicker(t.symbol),
   };
 }
 

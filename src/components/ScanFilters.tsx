@@ -30,6 +30,8 @@ type Props = {
   onNiveshaay?: (on: boolean) => void;
   negen?: boolean;
   onNegen?: (on: boolean) => void;
+  kacholia?: boolean;
+  onKacholia?: (on: boolean) => void;
   sme?: boolean;
   onSme?: (on: boolean) => void;
   note?: boolean;
@@ -41,6 +43,7 @@ type Props = {
   edgeCount?: number;
   niveshaayCount?: number;
   negenCount?: number;
+  kacholiaCount?: number;
   smeCount?: number;
   noteCount?: number;
   bbDate?: string | null;
@@ -123,6 +126,8 @@ export function ScanFilters({
   onNiveshaay,
   negen = false,
   onNegen,
+  kacholia = false,
+  onKacholia,
   sme = false,
   onSme,
   note = false,
@@ -135,6 +140,7 @@ export function ScanFilters({
   edgeCount,
   niveshaayCount,
   negenCount,
+  kacholiaCount,
   smeCount,
   noteCount,
   bbDate,
@@ -228,6 +234,7 @@ export function ScanFilters({
     edge ||
     niveshaay ||
     negen ||
+    kacholia ||
     sme ||
     note ||
     bb ||
@@ -241,6 +248,7 @@ export function ScanFilters({
     onEdge?.(false);
     onNiveshaay?.(false);
     onNegen?.(false);
+    onKacholia?.(false);
     onSme?.(false);
     onNote?.(false);
     onBb(false);
@@ -303,6 +311,17 @@ export function ScanFilters({
             <Count n={negenCount} />
           </button>
         ) : null}
+        {onKacholia ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-kacholia ${kacholia ? "on" : ""}`}
+            onClick={() => onKacholia(!kacholia)}
+            title="Kacholia fund watchlist"
+          >
+            Kacholia
+            <Count n={kacholiaCount} />
+          </button>
+        ) : null}
         {onSme ? (
           <button
             type="button"
@@ -337,7 +356,7 @@ export function ScanFilters({
           </button>
         ) : null}
 
-        {(onNote || onEdge || onNiveshaay || onNegen || onSme || onHold) &&
+        {(onNote || onEdge || onNiveshaay || onNegen || onKacholia || onSme || onHold) &&
         onSignal ? (
           <span className="filter-sep" aria-hidden />
         ) : null}

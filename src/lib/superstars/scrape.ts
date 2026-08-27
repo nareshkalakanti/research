@@ -585,6 +585,17 @@ export function resolveHoldings(rows: ParsedHolding[]): ResolvedHolding[] {
     ) {
       prev.holding_percent = r.holding_percent;
     }
+    const rank: Record<string, number> = {
+      new: 4,
+      disclosed: 3,
+      increased: 2,
+      decreased: 1,
+      unchanged: 0,
+    };
+    if ((rank[r.change_type] ?? 0) > (rank[prev.change_type] ?? 0)) {
+      prev.change_type = r.change_type;
+      prev.change_qtr = r.change_qtr;
+    }
     prev.holding_value_cr = Math.max(
       prev.holding_value_cr || 0,
       r.holding_value_cr || 0,

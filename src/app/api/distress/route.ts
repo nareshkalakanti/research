@@ -14,7 +14,7 @@ import {
   type DistressListId,
 } from "@/lib/distress/tickers";
 import { loadTurnaroundHoldings } from "@/lib/turnaround-holdings";
-import { isNegen, isNiveshaay } from "@/lib/fund-watchlists";
+import { fundTagsForTicker, fundChangesForTicker } from "@/lib/fund-watchlists";
 import {
   countFreshDistressCache,
   listCachedDistress,
@@ -59,8 +59,8 @@ function buildRow(
     sc: links.sc,
     tv: links.tv,
     has_hold: !!h,
-    has_niveshaay: isNiveshaay(t),
-    has_negen: isNegen(t),
+    fund_tags: fundTagsForTicker(t),
+    fund_changes: fundChangesForTicker(t),
     has_distress: ctx.seeds.has(t),
     distress_score: s.distress_score,
     distress_flags: s.distress_flags,

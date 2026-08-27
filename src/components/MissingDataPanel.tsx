@@ -154,7 +154,7 @@ export function MissingDataPanel() {
               </>
             ) : null}
             {" "}
-            · includes Niveshaay &amp; Negen watchlists
+            · includes Niveshaay, Negen &amp; Kacholia watchlists
           </p>
         </div>
         <div className="missing-head-actions">
@@ -241,7 +241,8 @@ export function MissingDataPanel() {
           : null}{" "}
         — all rows for the selected list and gap filter
         {data ? ` (${data.total.toLocaleString()} stocks)` : null}.
-        Expand a row → <strong>Website</strong> tab to edit URL and scrape text.
+        Expand a row → <strong>Sector</strong> tab to set sector/sub-sector, or{" "}
+        <strong>Website</strong> tab to edit URL and scrape text.
       </p>
 
       <div className="filters">

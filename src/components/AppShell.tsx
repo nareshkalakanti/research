@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AgentsPanel } from "@/components/AgentsPanel";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
-import { InvestorsPanel } from "@/components/InvestorsPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
 import { ScanPanel } from "@/components/ScanPanel";
 import { ThemeScanner } from "@/components/ThemeScanner";
@@ -16,7 +15,6 @@ type Tab =
   | "scan"
   | "theme-scanner"
   | "governance"
-  | "investors"
   | "agents"
   | "missing";
 
@@ -25,7 +23,6 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "scan", label: "Scan" },
   { id: "theme-scanner", label: "Theme Scanner" },
   { id: "governance", label: "Governance" },
-  { id: "investors", label: "Investors" },
   { id: "agents", label: "Agents" },
   { id: "missing", label: "Missing data" },
 ];
@@ -75,7 +72,7 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className={tab === "investors" ? "main main-wide" : "main"}>
+      <main className="main">
         {tab === "watching" ? (
           <WatchingPanel />
         ) : tab === "scan" ? (
@@ -84,8 +81,6 @@ export function AppShell() {
           <MissingDataPanel />
         ) : tab === "governance" ? (
           <GovernanceMapPanel />
-        ) : tab === "investors" ? (
-          <InvestorsPanel />
         ) : tab === "agents" ? (
           <AgentsPanel />
         ) : (

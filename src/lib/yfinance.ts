@@ -318,3 +318,68 @@ export async function fetchQuotes(
 
   return out;
 }
+
+export type YfAboutProfile = {
+  ticker: string;
+  yf_symbol: string;
+  about: string | null;
+  website: string | null;
+  headquarters: string | null;
+  sector: string | null;
+  industry: string | null;
+};
+
+function trimOrNull(v: string | null | undefined): string | null {
+  const s = (v ?? "").trim();
+  return s || null;
+}
+
+function headquartersFromProfile(p: {
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+}): string | null {
+  return (
+    [p.city, p.state, p.country]
+      .map((x) => trimOrNull(x))
+      .filter(Boolean)
+      .join(", ") || null
+  );
+}
+
+/** Yahoo quoteSummary — about, website, HQ (tries .NS / -SM.NS / .BO candidates). */
+export async function fetchYfAboutProfile(
+  ticker: string,
+  market?: string | null,
+): Promise<YfAboutProfile | null> {
+  const symbols = yfSymbolCandidates(ticker, market);
+  if (!symbols.length) return null;
+
+  for (const sym of symbols) {
+    try {
+      const qs = await yf.quoteSummary(sym, {
+        modules: ["summaryProfile", "assetProfile"],
+      });
+      const p = qs.summaryProfile ?? qs.assetProfile;
+      if (!p) continue;
+      const about = trimOrNull(p.longBusinessSummary as string | undefined);
+      const website = trimOrNull(p.website as string | undefined);
+      const headquarters = headquartersFromProfile(p);
+      const sector = trimOrNull(p.sector as string | undefined);
+      const industry = trimOrNull(p.industry as string | undefined);
+      if (!about && !website && !headquarters) continue;
+      return {
+        ticker: ticker.toUpperCase(),
+        yf_symbol: sym,
+        about,
+        website,
+        headquarters,
+        sector,
+        industry,
+      };
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
