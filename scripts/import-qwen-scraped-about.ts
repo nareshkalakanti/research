@@ -9,7 +9,9 @@
 import fs from "fs";
 import path from "path";
 import {
+  saveManualAboutToCompanyAbout,
   saveScrapedAboutToCompanyAbout,
+  updateCompanyWebsite,
 } from "../src/lib/company-about-write";
 import { invalidateCompanyCache, loadAllCompanies } from "../src/lib/db";
 import { upsertScrapeResult } from "../src/lib/scraper-store";
@@ -101,7 +103,12 @@ function buildScrapedAbout(name: string, desc: string): string {
   return text.slice(0, 24_000);
 }
 
-type ImportRow = { ticker: string; name: string; desc: string };
+type ImportRow = {
+  ticker: string;
+  name: string;
+  desc: string;
+  website: string | null;
+};
 
 function loadImportRows(files: string[]): ImportRow[] {
   const bySym = new Map<string, ImportRow>();
@@ -115,19 +122,35 @@ function loadImportRows(files: string[]): ImportRow[] {
     const header = rows[0]!.map((h) => h.trim().toLowerCase());
     const si = header.indexOf("symbol");
     const ni = header.indexOf("company name");
-    const di = header.indexOf("company_description");
-    if (si < 0 || di < 0) {
+    const di =
+      header.indexOf("company_description") >= 0
+        ? header.indexOf("company_description")
+        : header.indexOf("about_us") >= 0
+          ? header.indexOf("about_us")
+          : header.indexOf("about");
+    const wi = header.indexOf("website");
+    if (si < 0 || (di < 0 && wi < 0)) {
       console.warn(`skip bad header: ${file}`);
       continue;
     }
     for (const r of rows.slice(1)) {
       const ticker = (r[si] || "").trim().toUpperCase();
-      const name = (r[ni] || "").trim();
-      const desc = (r[di] || "").trim();
-      if (!ticker || !desc) continue;
+      const name = ni >= 0 ? (r[ni] || "").trim() : "";
+      const desc = di >= 0 ? (r[di] || "").trim() : "";
+      const website = wi >= 0 ? (r[wi] || "").trim() || null : null;
+      if (!ticker || (!desc && !website)) continue;
       const prev = bySym.get(ticker);
-      if (!prev || desc.length > prev.desc.length) {
-        bySym.set(ticker, { ticker, name, desc });
+      if (
+        !prev ||
+        desc.length > prev.desc.length ||
+        (!prev.website && website)
+      ) {
+        bySym.set(ticker, {
+          ticker,
+          name,
+          desc: desc || prev?.desc || "",
+          website: website || prev?.website || null,
+        });
       }
     }
   }
@@ -145,6 +168,7 @@ function main() {
   );
 
   let saved = 0;
+  let websites = 0;
   let skippedShort = 0;
   let skippedUnknown = 0;
   let skippedExisting = 0;
@@ -158,12 +182,11 @@ function main() {
       continue;
     }
 
-    const existing = (company.scraped_about || "").trim();
-    // Keep longer real website scrapes; overwrite empty/failed fillers only.
-    if (existing.length >= 80 && existing.length >= buildScrapedAbout(row.name || company.name, row.desc).length) {
-      skippedExisting += 1;
-      continue;
+    if (row.website) {
+      if (updateCompanyWebsite(row.ticker, row.website)) websites += 1;
     }
+
+    if (!row.desc.trim()) continue;
 
     const text = buildScrapedAbout(row.name || company.name, row.desc);
     if (text.length < 40) {
@@ -171,17 +194,34 @@ function main() {
       continue;
     }
 
-    saveScrapedAboutToCompanyAbout(row.ticker, {
-      scraped_about: text,
-      website_status: "ok",
-      source: "qwen-import",
-    });
-    upsertScrapeResult(row.ticker, {
-      scraped_about: text,
-      status: text.length >= 80 ? "ok" : "manual",
-      error: null,
-      scrape_source: "website",
-    });
+    const existingScraped = (company.scraped_about || "").trim();
+    const existingAbout = (company.about || "").trim();
+    // Keep longer real website scrapes; overwrite empty/failed fillers only.
+    if (
+      existingScraped.length >= 80 &&
+      existingScraped.length >= text.length &&
+      existingAbout.length >= 40
+    ) {
+      skippedExisting += 1;
+      continue;
+    }
+
+    if (existingAbout.length < 40) {
+      saveManualAboutToCompanyAbout(row.ticker, text);
+    }
+    if (existingScraped.length < 80 || existingScraped.length < text.length) {
+      saveScrapedAboutToCompanyAbout(row.ticker, {
+        scraped_about: text,
+        website_status: "ok",
+        source: "qwen-import",
+      });
+      upsertScrapeResult(row.ticker, {
+        scraped_about: text,
+        status: text.length >= 80 ? "ok" : "manual",
+        error: null,
+        scrape_source: "website",
+      });
+    }
     saved += 1;
   }
 
@@ -192,7 +232,8 @@ function main() {
       {
         files: files.filter((f) => fs.existsSync(f)).length,
         unique_in_csv: imports.length,
-        saved,
+        about_saved: saved,
+        websites_set: websites,
         skipped_existing_longer: skippedExisting,
         skipped_unknown_ticker: skippedUnknown,
         skipped_short: skippedShort,

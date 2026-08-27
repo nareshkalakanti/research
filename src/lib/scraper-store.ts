@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { hasUsableAboutText, hasUsableYfAbout } from "./db";
 import { websiteUrl, screenerUrl } from "./links";
+import { openSqlite } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const SCRAPER_PATH = path.join(DATA_DIR, "scraper.db");
@@ -59,9 +60,7 @@ let writeDb: Database.Database | null = null;
 function ensureScraperDb(): Database.Database {
   if (writeDb) return writeDb;
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  const db = new Database(SCRAPER_PATH);
-  db.pragma("journal_mode = WAL");
-  db.pragma("busy_timeout = 5000");
+  const db = openSqlite(SCRAPER_PATH, { readonly: false, wal: true });
   db.exec(`
     CREATE TABLE IF NOT EXISTS company_scrape (
       ticker TEXT PRIMARY KEY,
@@ -89,7 +88,15 @@ function ensureScraperDb(): Database.Database {
 
 function aboutDb(): Database.Database | null {
   if (!fs.existsSync(ABOUT_PATH)) return null;
-  return new Database(ABOUT_PATH, { readonly: true, fileMustExist: true });
+  try {
+    return openSqlite(ABOUT_PATH, { readonly: true, fileMustExist: true });
+  } catch (err) {
+    console.error(
+      "[scraper-store] company_about.db unavailable:",
+      err instanceof Error ? err.message : err,
+    );
+    return null;
+  }
 }
 
 /** ticker → manual about text. */

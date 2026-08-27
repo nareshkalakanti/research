@@ -15,10 +15,10 @@ import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import {
-  backupCorruptDb,
   checkDb,
   checkpointAllDbs,
   DATA_DIR,
+  recoverCorruptDb,
   removeWalSidecars,
   verifyAllDbs,
   warnIfCloudSyncedDataDir,
@@ -63,18 +63,6 @@ function restoreFromGit(dbPath: string): boolean {
   }
 }
 
-function recoverWithSqliteCli(dbPath: string, outPath: string): boolean {
-  try {
-    execSync(
-      `sqlite3 ${JSON.stringify(dbPath)} ".recover" | sqlite3 ${JSON.stringify(outPath)}`,
-      { cwd: process.cwd(), shell: "/bin/bash", stdio: "ignore" },
-    );
-    return checkDb(outPath).ok;
-  } catch {
-    return false;
-  }
-}
-
 function fixDb(name: string, quiet = false): boolean {
   const dbPath = path.join(DATA_DIR, name.endsWith(".db") ? name : `${name}.db`);
   if (!fs.existsSync(dbPath)) {
@@ -82,26 +70,22 @@ function fixDb(name: string, quiet = false): boolean {
     return false;
   }
 
+  // Drop corrupt WAL first — often the only problem.
+  removeWalSidecars(dbPath);
   const before = checkDb(dbPath);
   if (before.ok) {
-    if (!quiet) console.log(`${basename(dbPath)} — already ok`);
+    if (!quiet) console.log(`${basename(dbPath)} — ok (after WAL strip)`);
     return true;
   }
 
   if (!quiet) {
     console.warn(`${basename(dbPath)} — corrupt (${before.detail.slice(0, 120)})`);
   }
-  const backup = backupCorruptDb(dbPath);
-  if (!quiet) console.log(`backed up → ${basename(backup)}`);
 
-  const recovered = path.join(DATA_DIR, `.recovered-${basename(dbPath)}`);
-  if (recoverWithSqliteCli(backup, recovered)) {
-    fs.renameSync(recovered, dbPath);
-    removeWalSidecars(dbPath);
+  if (recoverCorruptDb(dbPath)) {
     if (!quiet) console.log(`recovered via sqlite3 .recover → ${basename(dbPath)}`);
     return true;
   }
-  if (fs.existsSync(recovered)) fs.unlinkSync(recovered);
 
   if (restoreFromGit(dbPath)) {
     if (!quiet) console.log(`restored from git HEAD → ${basename(dbPath)}`);
@@ -110,7 +94,7 @@ function fixDb(name: string, quiet = false): boolean {
 
   if (!quiet) {
     console.error(
-      `could not fix ${basename(dbPath)} — manual recovery needed (backup kept)`,
+      `could not fix ${basename(dbPath)} — manual recovery needed (see data/.corrupt-bak/)`,
     );
   }
   return false;

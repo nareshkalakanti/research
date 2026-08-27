@@ -293,6 +293,19 @@ type RoleAgg = {
 };
 
 export async function GET(req: NextRequest) {
+  try {
+    return await buildGovernanceMapResponse(req);
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message.slice(0, 240)
+        : "Governance map load failed";
+    console.error("[api/governance-map]", err);
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
+}
+
+async function buildGovernanceMapResponse(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const view = (sp.get("view") || "director") as View;
   const q = sp.get("q") || "";
