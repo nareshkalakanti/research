@@ -5,6 +5,7 @@ import {
   loadAllCompanies,
   marketCounts,
 } from "@/lib/db";
+import { bootstrapCompanyTicker, looksLikeTickerSearch } from "@/lib/company-ticker-bootstrap";
 import {
   aboutHighlightsForRow,
   combinePatterns,
@@ -86,6 +87,7 @@ function fundStubRow(stub: {
     website: null,
     about: null,
     scraped_about: null,
+    scraped_about_clean: null,
     scrape_source_url: null,
     headquarters: null,
     sector: null,
@@ -93,6 +95,8 @@ function fundStubRow(stub: {
     price: null,
     mcap_cr: null,
     search_text: `${stub.ticker} ${name}`.toLowerCase(),
+    theme_search_text: `${stub.ticker} ${name}`.toLowerCase(),
+    dossier_text: `${name} (${stub.ticker}) · ${stub.market}`,
     web: links.web,
     sc: links.sc,
     tv: links.tv,
@@ -260,6 +264,14 @@ async function buildCompaniesResponse(req: NextRequest) {
   const fundSets = fundWatchlistSets();
   const fundCounts = fundWatchlistCounts();
   const notes = notesTickerSet();
+
+  const qTrim = q.trim();
+  if (qTrim && !qTrim.includes("|")) {
+    const tickerTerm = (qTrim.split(/\s+/)[0] ?? qTrim).toUpperCase();
+    if (looksLikeTickerSearch(tickerTerm)) {
+      await bootstrapCompanyTicker(tickerTerm);
+    }
+  }
 
   let companies = loadAllCompanies();
   const allCompanies = companies;
@@ -541,7 +553,8 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   const themeScanActive =
-    scan && (selectedThemes.length > 0 || custom.trim());
+    scan &&
+    (selectedThemes.length > 0 || custom.trim().length > 0);
 
   companies = applyWatchlistFilters(companies, {
     filterSme,
@@ -574,7 +587,6 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   const mul = dir === "desc" ? -1 : 1;
-  // themeScanActive declared once above (before applyWatchlistFilters)
   companies = [...companies].sort((a, b) => {
     if (themeScanActive) {
       const ah = holdings.has(a.ticker.toUpperCase()) ? 0 : 1;
@@ -699,7 +711,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       })
       .filter((x): x is MatchedThemeTag => !!x);
 
-    const { search_text: _, ...rest } = row;
+    const { search_text: _, theme_search_text: __, ...rest } = row;
     const g = gapFlags(row);
     const flags = breakouts.get(row.ticker.toUpperCase());
     return {
@@ -759,6 +771,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       missingAbout: pool.filter((c) => !c.about?.trim()).length,
       missingWeb: pool.filter((c) => !c.web).length,
       missingScrape: pool.filter((c) => gapFlags(c).scrape).length,
+      missingScrapeClean: pool.filter((c) => gapFlags(c).scrape_clean).length,
       scrapeEmpty: pool.filter((c) => gapFlags(c).scrape_empty).length,
       scrapeFailed: pool.filter((c) => gapFlags(c).scrape_failed).length,
       scrapeBad: pool.filter((c) => {

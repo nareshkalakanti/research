@@ -1,6 +1,11 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { AgentConfig } from "./config";
+import {
+  checkLlmStatus,
+  completeJson as completeJsonShared,
+  resolveLlmEngine as resolveLlmEngineShared,
+} from "@/lib/llm-client";
 import type { EvidenceBundle, EvaluationResult } from "./types";
 import { evaluateDeterministic } from "./scoring";
 import { verifyEvaluation } from "./verify";
@@ -28,13 +33,10 @@ WATCH if promising but unconfirmed. AVOID if poor.
 Every number you cite MUST exist in the evidence JSON. If missing, say "data unavailable".
 Never invent figures.`;
 
-async function claudeCodeAvailable(): Promise<boolean> {
-  try {
-    await execFileAsync("which", ["claude"]);
-    return true;
-  } catch {
-    return false;
-  }
+export async function resolveLlmEngine(
+  cfg: AgentConfig,
+): Promise<"deterministic" | "llm"> {
+  return resolveLlmEngineShared(cfg);
 }
 
 async function callClaudeCode(
@@ -158,22 +160,6 @@ function llmToEvaluation(
   };
 }
 
-export async function resolveLlmEngine(
-  cfg: AgentConfig,
-): Promise<"deterministic" | "llm"> {
-  if (cfg.llmProvider === "none") return "deterministic";
-  if (cfg.llmProvider === "anthropic" && cfg.anthropicApiKey) return "llm";
-  if (cfg.llmProvider === "openai" && cfg.openaiApiKey) return "llm";
-  if (cfg.llmProvider === "claude_code" && (await claudeCodeAvailable())) {
-    return "llm";
-  }
-  if (cfg.llmProvider === "auto") {
-    if (cfg.anthropicApiKey || cfg.openaiApiKey) return "llm";
-    if (await claudeCodeAvailable()) return "llm";
-  }
-  return "deterministic";
-}
-
 export async function evaluateWithEngine(
   evidence: EvidenceBundle,
   cfg: AgentConfig,
@@ -185,19 +171,27 @@ export async function evaluateWithEngine(
     return r;
   }
 
-  const prompt = `${DEBATE_PROMPT}\n\nEvidence JSON:\n${JSON.stringify(evidence)}`;
+  const user = `Evidence JSON:\n${JSON.stringify(evidence)}`;
 
   try {
-    let raw: string;
-    if (cfg.llmProvider === "openai" || (cfg.llmProvider === "auto" && cfg.openaiApiKey && !cfg.anthropicApiKey)) {
-      raw = await callOpenAI(prompt, cfg);
-    } else if (cfg.llmProvider === "anthropic" || cfg.anthropicApiKey) {
-      raw = await callAnthropic(prompt, cfg);
+    let parsed: Record<string, unknown>;
+    if (cfg.llmProvider === "ollama") {
+      parsed = await completeJsonShared(cfg, DEBATE_PROMPT, user);
     } else {
-      raw = await callClaudeCode(prompt, cfg.llmModel);
+      let raw: string;
+      if (
+        cfg.llmProvider === "openai" ||
+        (cfg.llmProvider === "auto" && cfg.openaiApiKey && !cfg.anthropicApiKey)
+      ) {
+        raw = await callOpenAI(`${DEBATE_PROMPT}\n\n${user}`, cfg);
+      } else if (cfg.llmProvider === "anthropic" || cfg.anthropicApiKey) {
+        raw = await callAnthropic(`${DEBATE_PROMPT}\n\n${user}`, cfg);
+      } else {
+        raw = await callClaudeCode(`${DEBATE_PROMPT}\n\n${user}`, cfg.llmModel);
+      }
+      parsed = parseLlmJson(raw);
     }
 
-    const parsed = parseLlmJson(raw);
     const bull = agentScore(parsed.bull);
     const bear = agentScore(parsed.bear);
     const result: EvaluationResult = {
@@ -221,10 +215,11 @@ export async function evaluateWithEngine(
 }
 
 export async function llmEngineLabel(cfg: AgentConfig): Promise<string> {
-  const engine = await resolveLlmEngine(cfg);
-  if (engine === "deterministic") return "deterministic";
+  const status = await checkLlmStatus(cfg);
+  if (status.engine === "offline") return "deterministic";
   if (cfg.llmProvider === "claude_code") return "claude CLI";
+  if (cfg.llmProvider === "ollama") return "ollama";
   if (cfg.openaiApiKey && cfg.llmProvider !== "anthropic") return "openai";
   if (cfg.anthropicApiKey) return "anthropic";
-  return "llm";
+  return status.detail || "llm";
 }

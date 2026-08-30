@@ -244,8 +244,8 @@ export function AgentsPanel() {
                   price: row?.price ?? null,
                   has_hold: row?.has_hold,
                   has_edge: row?.has_edge,
-                  fund_tags: row?.fund_tags,
-                  fund_changes: row?.fund_changes,
+                  has_niveshaay: row?.has_niveshaay,
+                  has_negen: row?.has_negen,
                 };
               })()
             : null

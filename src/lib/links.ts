@@ -24,6 +24,12 @@ export function screenerUrl(ticker: string): string {
   return `https://www.screener.in/company/${sym}/`;
 }
 
+export function screenerConcallsUrl(ticker: string): string {
+  const sym = clean(ticker).toUpperCase();
+  if (!sym) return "https://www.screener.in/";
+  return `https://www.screener.in/company/${sym}/#documents`;
+}
+
 export function websiteUrl(website: string | null | undefined): string | null {
   const w = clean(website);
   if (!w) return null;

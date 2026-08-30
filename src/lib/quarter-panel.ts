@@ -341,3 +341,79 @@ export function yoyClass(v: number | null | undefined): string {
   if (v < 0) return "yoy-down";
   return "yoy-flat";
 }
+
+export type QuarterBriefInput = {
+  forward_pe?: number | null;
+  yoy?: PanelYoY | null;
+  extras?: QuarterExtraMetrics | null;
+  price?: number | null;
+};
+
+/** Text block for LLM — matches what the QTR tab shows. */
+export function formatQuarterBriefBlock(
+  panel: QuarterPanel,
+  input: QuarterBriefInput = {},
+): string {
+  const latest = panel.labels.at(-1) ?? null;
+  const lines: string[] = [];
+  if (latest) lines.push(`Latest quarter: ${latest}`);
+  lines.push("Quarterly financials (Rs Cr except EPS in Rs):");
+  lines.push(`Quarters (oldest → newest): ${panel.labels.join(" | ")}`);
+  for (const row of panel.rows) {
+    const vals = row.values
+      .map((v) => fmtQVal(v, row.decimals))
+      .join(" | ");
+    lines.push(`${row.label}: ${vals}`);
+  }
+
+  const metrics: string[] = [];
+  const yoy = input.yoy;
+  if (yoy?.sales_yoy != null) {
+    metrics.push(`Sales YoY ${fmtYoYPct(yoy.sales_yoy)}`);
+  }
+  if (yoy?.np_yoy != null) {
+    metrics.push(`NP YoY ${fmtYoYPct(yoy.np_yoy)}`);
+  }
+  if (yoy?.eps_yoy != null) {
+    metrics.push(`EPS YoY ${fmtYoYPct(yoy.eps_yoy)}`);
+  }
+  const ex = input.extras;
+  if (ex?.ebidt_yoy != null) {
+    metrics.push(`Op profit YoY ${fmtYoYPct(ex.ebidt_yoy)}`);
+  }
+  if (ex?.sales_qoq != null) {
+    metrics.push(`Sales QoQ ${fmtYoYPct(ex.sales_qoq)}`);
+  }
+  if (ex?.np_qoq != null) {
+    metrics.push(`NP QoQ ${fmtYoYPct(ex.np_qoq)}`);
+  }
+  if (ex?.eps_qoq != null) {
+    metrics.push(`EPS QoQ ${fmtYoYPct(ex.eps_qoq)}`);
+  }
+  if (input.forward_pe != null && Number.isFinite(input.forward_pe)) {
+    metrics.push(`Fwd PE ${input.forward_pe.toFixed(1)}x`);
+  }
+  if (ex?.cf_profit != null) {
+    metrics.push(`CF/Profit ${ex.cf_profit.toFixed(2)}x`);
+  }
+
+  if (metrics.length) {
+    lines.push(`Key metrics: ${metrics.join(", ")}`);
+  } else {
+    lines.push("Key metrics: none computed");
+  }
+
+  const hasYoY =
+    yoy?.sales_yoy != null ||
+    yoy?.np_yoy != null ||
+    yoy?.eps_yoy != null ||
+    ex?.ebidt_yoy != null;
+  if (!hasYoY) lines.push("YoY: not available (insufficient prior-year quarter)");
+
+  const price = input.price;
+  if (price != null && Number.isFinite(price) && price > 0) {
+    lines.push(`Share price: ₹${price.toLocaleString("en-IN")}`);
+  }
+
+  return lines.join("\n");
+}

@@ -5,12 +5,15 @@ import {
   companyFundTags,
   FundWatchlistTags,
 } from "@/components/FundWatchlistTags";
+import { ExpandBusiness } from "@/components/ExpandBusiness";
+import { ExpandInvestorMaterials } from "@/components/ExpandInvestorMaterials";
 import { ExpandExtraMetrics } from "@/components/ExpandExtraMetrics";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
 import type { Company } from "@/lib/types";
 import { scrapeHighlightsForRow, matchTagSource } from "@/lib/pattern";
+import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap } from "@/lib/types";
 
@@ -23,7 +26,14 @@ export type SortKey =
   | "momentum_pct"
   | "momentum_rank";
 
-type ExpandPanel = "about" | "sector" | "website" | "notes" | "qtr";
+type ExpandPanel =
+  | "about"
+  | "sector"
+  | "website"
+  | "notes"
+  | "qtr"
+  | "calls"
+  | "business";
 
 type Props = {
   rows: Company[];
@@ -130,15 +140,6 @@ function SignalTags({ company }: { company: Company }) {
           +{Math.round(company.momentum_pct)}%
         </span>
       ) : null}
-      {(company.matched_themes ?? []).slice(0, 4).map((t) => (
-        <span
-          key={t.id}
-          className="result-tag tag-theme"
-          title={t.name}
-        >
-          {t.tag}
-        </span>
-      ))}
     </span>
   );
 }
@@ -791,10 +792,12 @@ function CompanyRows({
     sector: string;
     sub_sector: string;
   } | null>(null);
+  const [materialsRev, setMaterialsRev] = useState(0);
 
   useEffect(() => {
     setScrapePatch(null);
     setSectorPatch(null);
+    setMaterialsRev(0);
   }, [r.ticker, r.scraped_about, r.scrape_source_url, r.scrape_highlights, r.sector, r.sub_sector]);
 
   const websiteCompany = useMemo(
@@ -854,6 +857,14 @@ function CompanyRows({
     r.market,
     r.price,
     open,
+  );
+  const briefData = useExpandBrief(
+    r.ticker,
+    r.market,
+    r.price,
+    quarterData,
+    open && panel === "business",
+    materialsRev,
   );
 
   const missingTags =
@@ -1092,6 +1103,24 @@ function CompanyRows({
                 <button
                   type="button"
                   role="tab"
+                  aria-selected={panel === "calls"}
+                  className={`about-tab ${panel === "calls" ? "on" : ""}`}
+                  onClick={() => onPanel("calls")}
+                >
+                  Calls
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={panel === "business"}
+                  className={`about-tab ${panel === "business" ? "on" : ""}`}
+                  onClick={() => onPanel("business")}
+                >
+                  Business
+                </button>
+                <button
+                  type="button"
+                  role="tab"
                   aria-selected={panel === "notes"}
                   className={`about-tab ${panel === "notes" ? "on" : ""}`}
                   onClick={() => onPanel("notes")}
@@ -1102,7 +1131,15 @@ function CompanyRows({
               </div>
 
               {panel === "qtr" ? (
-                <ExpandQuarters data={quarterData} />
+                <ExpandQuarters data={quarterData} price={r.price} />
+              ) : panel === "calls" ? (
+                <ExpandInvestorMaterials
+                  ticker={r.ticker}
+                  market={r.market}
+                  onMaterialsChange={() => setMaterialsRev((n) => n + 1)}
+                />
+              ) : panel === "business" ? (
+                <ExpandBusiness data={briefData} />
               ) : panel === "sector" ? (
                 <SectorEditPanel
                   company={{

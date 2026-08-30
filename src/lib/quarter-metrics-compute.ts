@@ -7,10 +7,10 @@ import {
 } from "@/lib/quarter-panel";
 import {
   isQuarterMetricsFresh,
+  isQuarterMetricsTombstone,
   loadQuarterMetricsMap,
   saveQuarterMetrics,
   tickerNeedsExtrasBackfill,
-  tickerNeedsMetricsRefresh,
   type QuarterMetricsRow,
 } from "@/lib/quarter-metrics-cache";
 import { computeForwardPe, epsFromQuarterPanel } from "@/lib/valuation";
@@ -88,6 +88,90 @@ function persistSnapshot(ticker: string, snapshot: QuarterMetricsSnapshot): void
   });
 }
 
+function resolveRowPrice(
+  ticker: string,
+  priceOverride?: number | null,
+): number | null {
+  if (
+    priceOverride != null &&
+    Number.isFinite(priceOverride) &&
+    priceOverride > 0
+  ) {
+    return priceOverride;
+  }
+  return loadMetricsMap().get(ticker.toUpperCase())?.price ?? null;
+}
+
+function needsQuarterRefetch(
+  ticker: string,
+  map = loadQuarterMetricsMap(),
+  force?: boolean,
+): boolean {
+  if (force) return true;
+  const row = map.get(ticker.toUpperCase());
+  if (!row) return true;
+  if (isQuarterMetricsTombstone(row)) return true;
+  if (!isQuarterMetricsFresh(row)) return true;
+  if (tickerNeedsExtrasBackfill(ticker, map)) return true;
+  return false;
+}
+
+/** Load QTR panel + metrics; refetch and heal cache when stale or empty. */
+export async function resolveQuarterPanelData(
+  ticker: string,
+  market: string | null,
+  priceOverride?: number | null,
+  opts?: { force?: boolean },
+): Promise<{
+  ok: boolean;
+  snapshot: QuarterMetricsSnapshot | null;
+  panel: ReturnType<typeof buildQuarterPanel>;
+  price: number | null;
+  symbol?: string;
+  source?: string;
+  fromCache?: boolean;
+}> {
+  const key = ticker.toUpperCase();
+  if (needsQuarterRefetch(key, loadQuarterMetricsMap(), opts?.force)) {
+    return computeAndCacheQuarterMetrics(ticker, market, priceOverride, opts);
+  }
+
+  const rowPrice = resolveRowPrice(key, priceOverride);
+
+  try {
+    const live = await fetchQuarterlyFundamentals(key, market);
+    const panel = buildQuarterPanel(live.quarters);
+    if (!panel) {
+      return computeAndCacheQuarterMetrics(ticker, market, priceOverride, {
+        force: true,
+      });
+    }
+
+    const snapshot = metricsSnapshotFromPanel(
+      panel,
+      rowPrice,
+      computeCfProfit(
+        live.operating_cashflow,
+        live.quarters.at(-1)?.netIncome ?? null,
+      ),
+    );
+    persistSnapshot(key, snapshot);
+    return {
+      ok: true,
+      snapshot,
+      panel,
+      price: rowPrice,
+      symbol: live.symbol,
+      source: live.source,
+      fromCache: true,
+    };
+  } catch {
+    return computeAndCacheQuarterMetrics(ticker, market, priceOverride, {
+      force: true,
+    });
+  }
+}
+
 export async function computeAndCacheQuarterMetrics(
   ticker: string,
   market: string | null,
@@ -109,6 +193,7 @@ export async function computeAndCacheQuarterMetrics(
     !opts?.force &&
     cached &&
     isQuarterMetricsFresh(cached) &&
+    !isQuarterMetricsTombstone(cached) &&
     !tickerNeedsExtrasBackfill(key, metricsMap)
   ) {
     return {
@@ -151,7 +236,7 @@ export async function computeAndCacheQuarterMetrics(
     persistSnapshot(key, snapshot);
     return { ok: true, snapshot, panel, price, symbol, source };
   } catch {
-    saveTombstone(key);
+    // Transient network/Yahoo errors — do not tombstone; allow immediate retry.
     return { ok: false, snapshot: null, panel: null, price: null };
   }
 }

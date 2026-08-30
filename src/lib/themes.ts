@@ -43,15 +43,15 @@ export function loadThemes(): ThemeFile {
   };
 
   const themes: Theme[] = raw.themes.map((t) => {
-    const display_pattern = String(
-      t.display_pattern ?? t.pattern ?? "",
-    ).trim();
     const keywords = Array.isArray(t.keywords)
       ? (t.keywords as string[])
-      : display_pattern
+      : String(t.display_pattern ?? t.pattern ?? "")
           .split("|")
           .map((s) => s.trim())
           .filter(Boolean);
+    const display_pattern =
+      String(t.display_pattern ?? t.pattern ?? "").trim() ||
+      keywords.join(" | ");
     const defsRaw =
       t.keyword_definitions ?? t.definitions ?? t.keywordDefinitions;
     const keyword_definitions =

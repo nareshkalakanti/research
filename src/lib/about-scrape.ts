@@ -1,6 +1,7 @@
 import { saveScrapedAboutToCompanyAbout, updateCompanyWebsite } from "./company-about-write";
 import { scrapeCompanyWebsite } from "./about-scrape-text";
 import { hasUsableAboutText, hasUsableYfAbout, loadAllCompanies } from "./db";
+import { distillAndSaveScrapedAbout } from "./scrape-clean";
 import { websiteUrl } from "./links";
 import {
   runConcurrent,
@@ -179,6 +180,24 @@ async function scrapeOne(
         website_status: "ok",
       });
     });
+    if (process.env.AUTO_CLEAN_SCRAPE?.trim() === "1") {
+      try {
+        const company = loadAllCompanies().find(
+          (c) => c.ticker.toUpperCase() === job.ticker.toUpperCase(),
+        );
+        await distillAndSaveScrapedAbout({
+          ticker: job.ticker,
+          name: job.name,
+          sector: company?.sector,
+          sub_sector: company?.sub_sector,
+          raw_scrape: result.text,
+          yf_about: job.yf_about,
+          manual_about: company?.about,
+        });
+      } catch {
+        /* LLM clean is best-effort — raw scrape still saved */
+      }
+    }
     return { ok: true, status: "ok", error: null, source_url: result.url };
   }
 

@@ -184,6 +184,91 @@ const FILTER_OVERRIDES: Record<
       "Labs & Life Sciences Services",
     ],
   },
+  lotusdew_pharma_structural: {
+    allow_sectors: [
+      "Pharmaceuticals & Healthcare",
+      "Healthcare",
+      "Chemicals & Petrochemicals",
+    ],
+    allow_subsectors: [
+      "Pharmaceuticals",
+      "Biotechnology",
+      "Labs & Life Sciences Services",
+      "Specialty Chemicals",
+      "Commodity Chemicals",
+      "Manufacturing & Processing",
+    ],
+    exclude_pairs: [
+      "IT & Technology > IT Services & Consulting",
+      "Information Technology > IT Services & Consulting",
+      "Banking & Finance > Investment Banking & Brokerage",
+    ],
+  },
+  lotusdew_it_ai_evolution: {
+    allow_sectors: ["IT & Technology", "Information Technology"],
+    allow_subsectors: [
+      "IT Services & Consulting",
+      "Software Services",
+      "IT Enabled Services",
+      "Computers - Software & Consulting",
+      "IT Services",
+    ],
+    exclude_pairs: [
+      "Engineering & Capital Goods > Industrial Machinery",
+      "Pharmaceuticals & Healthcare > Pharmaceuticals",
+      "Chemicals & Petrochemicals > Specialty Chemicals",
+    ],
+  },
+  gov_pharma_api_cdmo_pli: {
+    allow_sectors: [
+      "Pharmaceuticals & Healthcare",
+      "Healthcare",
+      "Chemicals & Petrochemicals",
+    ],
+    allow_subsectors: [
+      "Pharmaceuticals",
+      "Biotechnology",
+      "Labs & Life Sciences Services",
+      "Specialty Chemicals",
+      "Commodity Chemicals",
+      "Manufacturing & Processing",
+    ],
+    exclude_pairs: [
+      "IT & Technology > IT Services & Consulting",
+      "Information Technology > IT Services & Consulting",
+      "Banking & Finance > Investment Banking & Brokerage",
+    ],
+  },
+  gov_samudra_manthan_offshore_ep: {
+    allow_sectors: ["Oil & Gas & Energy", "Energy"],
+    allow_subsectors: [
+      "Oil Exploration and Production",
+      "Oil Exploration & Production",
+      "Oil & Gas - Exploration & Production",
+      "Oil & Gas E&P",
+      "Oil & Gas - Equipment & Services",
+      "Oil Equipment & Services",
+      "Oil & Gas - Refining & Marketing",
+      "Industrial Machinery",
+      "Heavy Electrical Equipments",
+      "Heavy Electrical Equipment",
+      "Ship Building & Allied Services",
+      "Shipbuilding",
+      "Logistics",
+      "Mining - Diversified",
+      "Renewable Energy Equipment & Services",
+    ],
+    exclude_pairs: [
+      "IT & Technology > IT Services & Consulting",
+      "Information Technology > IT Services & Consulting",
+      "Real Estate & Construction > Construction & Engineering",
+      "Real Estate & Construction > Building Products - Pipes",
+      "Metals & Mining > Iron & Steel",
+      "FMCG & Consumer Goods > FMCG - Foods",
+      "Chemicals & Petrochemicals > Specialty Chemicals",
+      "Chemicals & Petrochemicals > Commodity Chemicals",
+    ],
+  },
   offshore_diving: {
     allow_sectors: ["Oil & Gas & Energy", "Engineering & Capital Goods"],
     allow_subsectors: [
@@ -384,6 +469,262 @@ const FILTER_OVERRIDES: Record<
     allow_sectors: ["Financial Services"],
     allow_subsectors: ["Capital Markets", "Finance & Investments"],
   },
+  india_repm_magnet_localization: {
+    allow_sectors: [
+      "Automobile & Ancillaries",
+      "Engineering & Capital Goods",
+      "Metals & Mining",
+      "Power & Utilities",
+    ],
+    allow_subsectors: [
+      "Auto Parts",
+      "Industrial Machinery",
+      "Electrical Components & Equipments",
+      "Metals - Diversified",
+      "Mining - Diversified",
+      "Mining - Coal",
+      "Heavy Electrical Equipments",
+    ],
+  },
+  gov_green_hydrogen_electrolyser: {
+    allow_sectors: [
+      "Engineering & Capital Goods",
+      "Real Estate & Construction",
+      "Power & Utilities",
+      "Chemicals & Petrochemicals",
+    ],
+    allow_subsectors: [
+      "Industrial Machinery",
+      "Construction & Engineering",
+      "Gas Distribution",
+      "Renewable Energy Equipment & Services",
+      "Renewable Energy",
+      "Power Generation",
+      "Specialty Chemicals",
+    ],
+  },
+  gov_coal_lignite_gasification: {
+    allow_sectors: [
+      "Chemicals & Petrochemicals",
+      "Metals & Mining",
+      "Oil & Gas & Energy",
+    ],
+    allow_subsectors: [
+      "Fertilizers & Agro Chemicals",
+      "Commodity Chemicals",
+      "Mining - Coal",
+      "Gas Distribution",
+      "Iron & Steel",
+      "Mining - Diversified",
+    ],
+  },
+  gov_nuclear_power_shanti: {
+    allow_sectors: [
+      "Engineering & Capital Goods",
+      "Real Estate & Construction",
+      "Power & Utilities",
+    ],
+    allow_subsectors: [
+      "Industrial Machinery",
+      "Construction & Engineering",
+      "Heavy Electrical Equipments",
+      "Power Generation",
+      "Renewable Energy",
+    ],
+  },
+  gov_mpms_mobile_manufacturing: {
+    allow_sectors: [
+      "IT & Technology",
+      "Consumer Durables",
+      "Engineering & Capital Goods",
+    ],
+    allow_subsectors: [
+      "IT Services & Consulting",
+      "Home Electronics & Appliances",
+      "Technology Hardware",
+      "Electrical Components & Equipments",
+      "Electronic Equipments",
+    ],
+  },
+  themes2026_gold_lenders: {
+    allow_sectors: ["Banking & Finance", "Financial Services"],
+    allow_subsectors: [
+      "Finance & Investments",
+      "Other Financial Services",
+      "Non Banking Financial Company (NBFC)",
+      "Housing Finance",
+    ],
+    exclude_pairs: [
+      "Financial Services > Capital Markets",
+    ],
+  },
+  themes2026_commodity_flex_basket: {
+    allow_sectors: [
+      "Metals & Mining",
+      "Chemicals & Petrochemicals",
+      "Financial Services",
+      "Banking & Finance",
+    ],
+    allow_subsectors: [
+      "Metals - Ferro Alloys",
+      "Mining - Iron Ore",
+      "Mining - Coal",
+      "Specialty Chemicals",
+      "Commodity Chemicals",
+      "Capital Markets",
+      "Finance & Investments",
+    ],
+  },
+  themes2026_internet_jcurve: {
+    allow_sectors: [
+      "IT & Technology",
+      "Information Technology",
+      "Retail",
+      "Consumer Discretionary",
+      "Consumer Services",
+    ],
+    allow_subsectors: [
+      "IT Services & Consulting",
+      "Software Services",
+      "E-Commerce",
+      "Internet & Direct Marketing Retail",
+      "Online Services",
+      "Food Delivery",
+    ],
+    exclude_pairs: [
+      "IT & Technology > IT Enabled Services",
+      "Engineering & Capital Goods > Industrial Machinery",
+    ],
+  },
+  themes2026_auto_precision_mix: {
+    allow_sectors: ["Automobile & Ancillaries", "Engineering & Capital Goods"],
+    allow_subsectors: [
+      "Auto Parts",
+      "Auto Ancillaries",
+      "Auto Components",
+      "Industrial Machinery",
+      "Castings & Forgings",
+      "Metal Fabrication",
+    ],
+  },
+  themes2026_shipbuilding: {
+    allow_sectors: [
+      "Engineering & Capital Goods",
+      "Transportation & Logistics",
+    ],
+    allow_subsectors: [
+      "Ship Building",
+      "Industrial Machinery",
+      "Heavy Electrical Equipments",
+      "Defence",
+    ],
+  },
+  themes2026_pharma_healthcare_select: {
+    allow_sectors: ["Pharmaceuticals & Healthcare", "Healthcare"],
+    allow_subsectors: [
+      "Pharmaceuticals",
+      "Biotechnology",
+      "Labs & Life Sciences Services",
+      "Hospitals & Medical Services",
+      "Healthcare Services",
+      "Specialty Chemicals",
+    ],
+    exclude_pairs: [
+      "IT & Technology > IT Services & Consulting",
+      "Banking & Finance > Investment Banking & Brokerage",
+    ],
+  },
+  themes2026_capex_rail_peb: {
+    allow_sectors: ["Engineering & Capital Goods", "Transportation & Logistics"],
+    allow_subsectors: [
+      "Heavy Electrical Equipments",
+      "Industrial Machinery",
+      "Railway Equipment",
+      "Construction & Engineering",
+      "Metal Fabrication",
+      "Steel Products",
+    ],
+  },
+  themes2026_ports_miners: {
+    allow_sectors: [
+      "Transportation & Logistics",
+      "Metals & Mining",
+      "Infrastructure",
+    ],
+    allow_subsectors: [
+      "Ports & Port Services",
+      "Shipping",
+      "Mining - Iron Ore",
+      "Mining - Coal",
+      "Mining - Other Minerals",
+      "Metals - Iron & Steel",
+    ],
+  },
+  themes2026_premiumisation: {
+    allow_sectors: [
+      "Retail",
+      "Hotels, Tourism & Leisure",
+      "FMCG & Consumer Goods",
+      "Fast Moving Consumer Goods",
+      "Automobile & Ancillaries",
+    ],
+    allow_subsectors: [
+      "Hotels & Resorts",
+      "Alcoholic Beverages",
+      "Dairy Products",
+      "Personal Care",
+      "Apparel",
+      "Auto Parts",
+      "Precious Metals, Jewellery & Watches",
+    ],
+  },
+  themes2026_lenders_cv_psu_nbfc: {
+    allow_sectors: ["Banking & Finance", "Financial Services"],
+    allow_subsectors: [
+      "Public Sector Bank",
+      "Private Sector Bank",
+      "Finance & Investments",
+      "Other Financial Services",
+      "Non Banking Financial Company (NBFC)",
+      "Microfinance",
+      "Housing Finance",
+    ],
+    exclude_pairs: [
+      "Banking & Finance > Investment Banking & Brokerage",
+      "Financial Services > Asset Management",
+    ],
+  },
+  themes2026_waste_to_wealth: {
+    allow_sectors: [
+      "Chemicals & Petrochemicals",
+      "Engineering & Capital Goods",
+      "FMCG & Consumer Goods",
+      "Fast Moving Consumer Goods",
+      "Metals & Mining",
+    ],
+    allow_subsectors: [
+      "Specialty Chemicals",
+      "Commodity Chemicals",
+      "Metal Recycling",
+      "Food Processing",
+      "Tea & Coffee",
+      "Industrial Machinery",
+    ],
+  },
+  themes2026_ai_eda_global: {
+    allow_sectors: ["IT & Technology", "Information Technology"],
+    allow_subsectors: [
+      "IT Services & Consulting",
+      "Software Services",
+      "Software Products",
+      "Computers - Software & Consulting",
+      "IT Enabled Services",
+    ],
+    exclude_pairs: [
+      "Pharmaceuticals & Healthcare > Pharmaceuticals",
+      "Engineering & Capital Goods > Castings & Forgings",
+    ],
+  },
 };
 
 type PairCount = { pair: string; sector: string; sub: string; n: number };
@@ -391,8 +732,9 @@ type PairCount = { pair: string; sector: string; sub: string; n: number };
 function main() {
   const minShare = 0.5;
   const file = loadThemes();
+  const themeIds = new Set(file.themes.map((t) => t.id));
   const rows = loadAllCompanies().filter(
-    (c) => (c.search_text || c.about || "").trim().length >= 30,
+    (c) => (c.theme_search_text || c.about || "").trim().length >= 30,
   );
 
   const filters: Record<
@@ -405,7 +747,7 @@ function main() {
 
     const pairMap = new Map<string, PairCount>();
     for (const r of rows) {
-      const text = r.search_text?.trim() || r.about?.trim() || "";
+      const text = r.theme_search_text?.trim() || r.about?.trim() || "";
       if (!text || !patternMatches(text, theme.display_pattern)) continue;
       const sector = r.sector?.trim() || "";
       const sub = r.sub_sector?.trim() || "";
@@ -436,7 +778,19 @@ function main() {
   }
 
   for (const [id, override] of Object.entries(FILTER_OVERRIDES)) {
-    filters[id] = override;
+    if (themeIds.has(id)) filters[id] = override;
+  }
+
+  const pruned: typeof filters = {};
+  for (const id of themeIds) {
+    if (filters[id]) pruned[id] = filters[id];
+  }
+
+  const missing = [...themeIds].filter((id) => !pruned[id]);
+  if (missing.length) {
+    console.warn(
+      `Warning: ${missing.length} themes without sector gate: ${missing.join(", ")}`,
+    );
   }
 
   const out = {
@@ -449,12 +803,12 @@ function main() {
       min_share: minShare,
       mode: "tight",
     },
-    filters,
+    filters: pruned,
   };
 
   fs.writeFileSync(OUT, `${JSON.stringify(out, null, 2)}\n`);
   console.log(
-    `Wrote ${OUT} — ${Object.keys(filters).length}/${file.themes.length} themes with sector gates`,
+    `Wrote ${OUT} — ${Object.keys(pruned).length}/${file.themes.length} themes with sector gates`,
   );
 }
 

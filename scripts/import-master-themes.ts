@@ -41,6 +41,7 @@ type RawTheme = {
   cluster?: string;
   name: string;
   blog_theme: string;
+  display_pattern?: string;
   pattern?: string;
   keywords?: string[];
   definitions?: Record<string, string>;
@@ -64,13 +65,14 @@ function main() {
   for (const id of LVC_THEME_IDS) themeMaxMcap[id] = 6000;
 
   const themes = raw.themes.map((t) => {
-    const display_pattern = String(t.pattern ?? "").trim();
     const keywords = Array.isArray(t.keywords)
       ? t.keywords
-      : display_pattern
+      : String(t.display_pattern ?? t.pattern ?? "")
           .split("|")
           .map((s) => s.trim())
           .filter(Boolean);
+    // keywords[] is source of truth — stale display_pattern fields must not drop new terms
+    const display_pattern = keywords.join(" | ");
     const defs = t.keyword_definitions ?? t.definitions;
     return {
       id: t.id,
@@ -101,6 +103,24 @@ function main() {
 
   fs.writeFileSync(OUT, `${JSON.stringify(out, null, 2)}\n`);
   console.log(`Wrote ${OUT} — ${themes.length} themes`);
+
+  let drift = 0;
+  for (const t of themes) {
+    const fromPattern = t.display_pattern
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (fromPattern.length !== t.keywords.length) {
+      drift += 1;
+      console.warn(
+        `WARN ${t.id}: keywords (${t.keywords.length}) ≠ display_pattern clauses (${fromPattern.length})`,
+      );
+    }
+  }
+  if (drift === 0) {
+    console.log("✓ all theme keywords synced to display_pattern");
+  }
+
   console.log(
     `Mcap caps: ${NANOCAP_THEME_IDS.size} nanocap (≤500 Cr), ${LVC_THEME_IDS.size} LVC (≤6000 Cr)`,
   );

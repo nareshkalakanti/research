@@ -13,7 +13,6 @@ import {
   type BbTimeframe,
   type ViewFilter,
 } from "@/components/SignalScanBar";
-import { WebsiteScrapeBar } from "@/components/WebsiteScrapeBar";
 import { isScanWatchlist, scanListLabel, type ScanList } from "@/lib/scan-lists";
 import {
   FUND_WATCHLIST_KEYS,
@@ -256,13 +255,6 @@ export function ScanPanel() {
           momDate={data?.session?.mom ?? null}
           onBatch={softReload}
           onDone={hardReload}
-        />
-        <WebsiteScrapeBar
-          market={list}
-          tickers={pageTickers}
-          listLabel={selectedLabel}
-          onBatch={softReload}
-          onDone={softReload}
         />
       </div>
 

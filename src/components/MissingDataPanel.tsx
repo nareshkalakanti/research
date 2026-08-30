@@ -18,6 +18,7 @@ type GapKey =
   | "about"
   | "web"
   | "scrape"
+  | "scrape_clean"
   | "scrape_empty"
   | "scrape_failed"
   | "scrape_bad"
@@ -34,6 +35,7 @@ type Gaps = {
   scrapeEmpty: number;
   scrapeFailed: number;
   scrapeBad: number;
+  missingScrapeClean: number;
   any: number;
   metrics: number;
 };
@@ -56,6 +58,7 @@ const GAP_OPTIONS: { id: GapKey; label: string; countKey: keyof Gaps }[] = [
   { id: "about", label: "About", countKey: "missingAbout" },
   { id: "web", label: "Web", countKey: "missingWeb" },
   { id: "scrape", label: "Website scrape pending", countKey: "missingScrape" },
+  { id: "scrape_clean", label: "LLM clean pending", countKey: "missingScrapeClean" },
   { id: "scrape_empty", label: "Scrape empty", countKey: "scrapeEmpty" },
   { id: "scrape_failed", label: "Scrape failed", countKey: "scrapeFailed" },
   { id: "scrape_bad", label: "Scrape empty + failed", countKey: "scrapeBad" },
@@ -192,6 +195,17 @@ export function MissingDataPanel() {
           onBatch={() => load()}
           onDone={() => load({ refresh: true })}
         />
+      ) : null}
+
+      {gap === "scrape_clean" ? (
+        <p className="hint tight missing-export-hint">
+          Run in terminal (Ollama must be up):{" "}
+          <code>npx tsx scripts/clean-scraped-about.ts</code>
+          {" · "}
+          test: <code>--limit 20</code>
+          {" · "}
+          one ticker: <code>--ticker GLAND</code>
+        </p>
       ) : null}
 
       <div className="toolbar">

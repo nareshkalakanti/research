@@ -5,8 +5,6 @@ import {
   type CapFilter,
 } from "@/components/CapMarketFilters";
 import {
-  anyFundFilterActive,
-  clearFundFilters,
   FUND_WATCHLIST_KEYS,
   FUND_WATCHLIST_LABELS,
   type FundCountState,
@@ -25,6 +23,8 @@ type Props = {
   /** Per-investor fund watchlist filters (Trendlyne books). */
   funds?: FundFilterState;
   onFund?: (key: FundWatchlistKey, on: boolean) => void;
+  /** Subset of fund chips to show (default: all). */
+  fundKeys?: FundWatchlistKey[];
   sme?: boolean;
   onSme?: (on: boolean) => void;
   note?: boolean;
@@ -34,6 +34,21 @@ type Props = {
   fundCounts?: FundCountState;
   smeCount?: number;
   noteCount?: number;
+  capCounts?: Partial<Record<CapFilter, number>>;
+  allCount?: number;
+  /** Buyback window currently open (Strategy tab). */
+  openOnly?: boolean;
+  onOpenOnly?: (on: boolean) => void;
+  openCount?: number;
+  tenderOnly?: boolean;
+  onTenderOnly?: (on: boolean) => void;
+  tenderCount?: number;
+  spread8Only?: boolean;
+  onSpread8Only?: (on: boolean) => void;
+  spread8Count?: number;
+  buyableOnly?: boolean;
+  onBuyableOnly?: (on: boolean) => void;
+  buyCount?: number;
 };
 
 function Count({ n }: { n?: number }) {
@@ -51,6 +66,7 @@ export function WatchlistFilterBar({
   onEdge,
   funds = {},
   onFund,
+  fundKeys,
   sme = false,
   onSme,
   note = false,
@@ -61,29 +77,53 @@ export function WatchlistFilterBar({
   fundCounts = {},
   smeCount,
   noteCount,
+  capCounts,
+  allCount,
+  openOnly = false,
+  onOpenOnly,
+  openCount,
+  tenderOnly = false,
+  onTenderOnly,
+  tenderCount,
+  spread8Only = false,
+  onSpread8Only,
+  spread8Count,
+  buyableOnly = false,
+  onBuyableOnly,
+  buyCount,
 }: Props) {
   const holdTitle =
     distressCount && distressCount > 0
       ? `Holdings (${holdCount ?? 0}) · ${distressCount} distress monitors`
       : "Your holdings";
 
+  const visibleFundKeys = fundKeys ?? FUND_WATCHLIST_KEYS;
+
   const filtersActive =
     (cap != null && cap !== "All") ||
     hold ||
     edge ||
-    anyFundFilterActive(funds) ||
+    visibleFundKeys.some((k) => funds[k]) ||
     sme ||
-    note;
+    note ||
+    openOnly ||
+    tenderOnly ||
+    spread8Only ||
+    buyableOnly;
 
   const clearFilters = () => {
     onCap?.("All");
     onHold?.(false);
     onEdge?.(false);
     if (onFund) {
-      for (const key of FUND_WATCHLIST_KEYS) onFund(key, false);
+      for (const key of visibleFundKeys) onFund(key, false);
     }
     onSme?.(false);
     onNote?.(false);
+    onOpenOnly?.(false);
+    onTenderOnly?.(false);
+    onSpread8Only?.(false);
+    onBuyableOnly?.(false);
   };
 
   return (
@@ -91,7 +131,13 @@ export function WatchlistFilterBar({
       <div className="filter-bar-main">
         {onCap && cap != null ? (
           <>
-            <CapMarketFilters cap={cap} onCap={onCap} inline />
+            <CapMarketFilters
+              cap={cap}
+              onCap={onCap}
+              inline
+              capCounts={capCounts}
+              allCount={allCount}
+            />
             <span className="filter-sep" aria-hidden />
           </>
         ) : null}
@@ -119,7 +165,7 @@ export function WatchlistFilterBar({
           </button>
         ) : null}
         {onFund
-          ? FUND_WATCHLIST_KEYS.map((key) => (
+          ? visibleFundKeys.map((key) => (
               <button
                 key={key}
                 type="button"
@@ -154,6 +200,50 @@ export function WatchlistFilterBar({
             <Count n={holdCount} />
           </button>
         ) : null}
+        {onBuyableOnly ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-buy ${buyableOnly ? "on" : ""}`}
+            onClick={() => onBuyableOnly(!buyableOnly)}
+            title="Tender buyback with max price — status announced (buy before record date) or open (tender live)"
+          >
+            Can buy
+            <Count n={buyCount} />
+          </button>
+        ) : null}
+        {onOpenOnly ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-open ${openOnly ? "on" : ""}`}
+            onClick={() => onOpenOnly(!openOnly)}
+            title="Buyback window currently open"
+          >
+            Open
+            <Count n={openCount} />
+          </button>
+        ) : null}
+        {onTenderOnly ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-tender ${tenderOnly ? "on" : ""}`}
+            onClick={() => onTenderOnly(!tenderOnly)}
+            title="Tender offer buybacks (excludes open-market route)"
+          >
+            Tender
+            <Count n={tenderCount} />
+          </button>
+        ) : null}
+        {onSpread8Only ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-spread8 ${spread8Only ? "on" : ""}`}
+            onClick={() => onSpread8Only(!spread8Only)}
+            title="Max buyback price at least 8% above CMP"
+          >
+            ≥8%
+            <Count n={spread8Count} />
+          </button>
+        ) : null}
 
         {filtersActive ? (
           <button
@@ -170,4 +260,4 @@ export function WatchlistFilterBar({
   );
 }
 
-export { clearFundFilters };
+export { clearFundFilters } from "@/lib/fund-watchlist-meta";

@@ -5,9 +5,10 @@ import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 
 type Props = {
   data: ExpandQuarterData;
+  price?: number | null;
 };
 
-export function ExpandQuarters({ data }: Props) {
+export function ExpandQuarters({ data, price }: Props) {
   const { panel, yoy, loading, error } = data;
 
   if (loading) {
@@ -22,7 +23,7 @@ export function ExpandQuarters({ data }: Props) {
 
   return (
     <div className="about-quarters">
-      <QuarterPanel panel={panel} yoy={yoy} />
+      <QuarterPanel panel={panel} yoy={yoy} price={price} />
     </div>
   );
 }
