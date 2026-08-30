@@ -4,6 +4,7 @@
  */
 import fs from "fs";
 import path from "path";
+import { mergeAboutSourcesForThemeSearch } from "./db";
 import { matchedKeywords, matchedTerms, patternMatches } from "./pattern";
 import type { Theme } from "./themes";
 
@@ -20,22 +21,30 @@ export type ThemeFilterFile = {
 
 export type ThemeMatchRow = {
   about?: string | null;
+  yf_about?: string | null;
   scraped_about?: string | null;
   headquarters?: string | null;
   search_text?: string | null;
+  theme_search_text?: string | null;
   sector?: string | null;
   sub_sector?: string | null;
   mcap_cr?: number | null;
 };
 
-/** Keyword corpus: About + Yahoo + website scrape (search_text merges all sources). */
+/** Keyword corpus: About + Yahoo + optional LLM-cleaned website summary. */
 export function themeSearchCorpus(row: ThemeMatchRow): string {
-  const merged = row.search_text?.trim();
-  if (merged) return merged;
-  return [row.about, row.scraped_about, row.headquarters]
+  const themeText = row.theme_search_text?.trim();
+  if (themeText) return themeText;
+
+  const merged = mergeAboutSourcesForThemeSearch({
+    about: row.about ?? null,
+    yf_about: row.yf_about ?? null,
+  });
+  const fallback = [row.headquarters, merged, row.about]
     .map((s) => (s ?? "").trim())
     .filter(Boolean)
     .join("\n");
+  return fallback;
 }
 
 /** Legacy blog-group caps (older theme files). Per-theme caps live in theme_keywords.json meta. */

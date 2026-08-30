@@ -8,6 +8,7 @@ import {
 import { loadAllCompanies } from "@/lib/db";
 import { loadEdge } from "@/lib/edge";
 import { loadHoldings } from "@/lib/holdings";
+import { checkLlmStatus } from "@/lib/llm-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +22,12 @@ export async function GET() {
   const smeDb = companies.filter((c) => c.market === "NSE SME").length;
   const holdCount = loadHoldings().length;
   const edgeCount = loadEdge().length;
+  const llm = await checkLlmStatus(cfg);
 
   return NextResponse.json({
     ok: true,
     ...publicAgentConfig(cfg),
+    llm,
     demoSymbols: demo,
     markets: {
       NSE: nseDb,

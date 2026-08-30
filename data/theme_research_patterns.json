@@ -1,8 +1,8 @@
 {
   "meta": {
     "purpose": "News/research patterns (terms rarely in Screener About text)",
-    "updated": "2026-08-25",
-    "theme_count": 24
+    "updated": "2026-08-30",
+    "theme_count": 38
   },
   "india_repm_magnet_localization": "REPM | rare earth permanent magnet | NdFeB | neodymium magnet | magnet localization | 7280 crore + magnet | monazite | heavy mineral sand | traction motor + India | magnet manufacturing + India | IREL + rare earth | dysprosium | terbium",
   "gov_semicon_electronics_pli": "Semicon 2.0 | India Semiconductor Mission 2.0 | ISM 2.0 | Semicon Mission | Electronics Component Manufacturing Scheme | SPECS scheme | SPECS | EMC 2.0 | ATMP + India | OSAT + India | semiconductor PLI | chip design + incentive | indigenous IP + semiconductor | ESDM + PLI | fab + India | PLI + electronics | semiconductor + materials | semiconductor + equipment | advanced packaging + India",
@@ -27,5 +27,17 @@
   "gov_nipu_urea_fertiliser_2026": "NIPU-2026 | National Investment Policy for Urea | gas based urea | urea + plant + India | fertiliser + self reliance | urea + subsidy | nutrient based subsidy | ammonia + urea + India | DAP + fertiliser | nitrogenous + fertiliser | phosphatic + fertiliser | ammonia + urea | ammonia + fertiliser | ammonia + fertilizer",
   "gov_shipbuilding_sbfas_sbds": "Shipbuilding Financial Assistance Scheme | SBFAS | Shipbuilding Development Scheme | SbDS | National Shipbuilding Mission | Maritime India Vision | shipbuilding + incentive | green vessel + India | LNG carrier + India | domestic content + shipbuilding | ship yard",
   "gov_coal_lignite_gasification": "Scheme for Promotion of Surface Coal Lignite Gasification | coal gasification + incentive | 37500 crore + gasification | National Coal Gasification Mission | 100 MT + coal + gasification | lignite + gasification | coal to methanol | coal to ammonium nitrate | syngas + plant + India | lignite + gasification | SNG | surface + gasification",
-  "gov_nuclear_power_shanti": "SHANTI Act | SHANTI + nuclear | 100 GW + nuclear | nuclear + private + India | SMR + India | nuclear + Bharat | atomic energy + India | PHWR | Bharat Small Reactor | nuclear + capacity + 2047 | nuclear + reactor | uranium | thorium"
+  "gov_nuclear_power_shanti": "SHANTI Act | SHANTI + nuclear | 100 GW + nuclear | nuclear + private + India | SMR + India | nuclear + Bharat | atomic energy + India | PHWR | Bharat Small Reactor | nuclear + capacity + 2047 | nuclear + reactor | uranium | thorium",
+  "themes2026_gold_lenders": "gold loan NBFC | gold loan company | Muthoot | Manappuram | pledged gold | gold finance India",
+  "themes2026_commodity_flex_basket": "ferrochrome producer | commodity exchange India | MCX | IEX | integrated ammonia | iron ore expansion | pellet plant India",
+  "themes2026_internet_jcurve": "profit inflection | J-curve | internet platform India | quick commerce | food delivery platform | online marketplace India",
+  "themes2026_auto_precision_mix": "automotive + OEM | die + casting | precision + engineering + automotive | EV + component | product + mix | auto + parts | forging + auto",
+  "themes2026_shipbuilding": "National Shipbuilding Mission | SBFAS | shipbuilding India | commercial vessel India | green vessel",
+  "themes2026_pharma_healthcare_select": "select CDMO | aroma chemical India | pharma distributor India | hospital chain India | API manufacturer India",
+  "themes2026_capex_rail_peb": "Kavach rollout | train collision avoidance | railway signalling India | PEB structure | pre-engineered building India",
+  "themes2026_ports_miners": "port operator India | container terminal | iron ore miner India | hard asset | mining expansion approval",
+  "themes2026_premiumisation": "premiumisation India | luxury hotel India | branded spirits | value added dairy | premium auto ancillary",
+  "themes2026_lenders_cv_psu_nbfc": "CV finance India | commercial vehicle finance | PSU bank credit growth | NBFC asset quality | microfinance India",
+  "themes2026_waste_to_wealth": "waste to wealth | lead recycler India | coffee processing India | cotton biomass | circular economy India | Continental Coffee | CCL Products | Tata Coffee | Tata Consumer | instant coffee India",
+  "themes2026_ai_eda_global": "EDA software India | semiconductor design services | AI boom proxy | chip design India | global engineering services | VLSI design"
 }

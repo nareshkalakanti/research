@@ -3,6 +3,8 @@ import fs from "fs";
 import path from "path";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
+import { ensureScrapeCleanSchema } from "./scrape-clean-schema";
+import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
 import { openSqliteNamed } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -14,6 +16,7 @@ export type CompanyRow = {
   website: string | null;
   about: string | null;
   scraped_about: string | null;
+  scraped_about_clean: string | null;
   scrape_source_url: string | null;
   headquarters: string | null;
   sector: string | null;
@@ -21,6 +24,10 @@ export type CompanyRow = {
   price: number | null;
   mcap_cr: number | null;
   search_text: string;
+  /** About + Yahoo only — used by Theme Scanner (no website scrape). */
+  theme_search_text: string;
+  /** Same sources as theme_search_text + optional cleaned website summary for LLM briefs. */
+  dossier_text: string;
   web: string | null;
   sc: string;
   tv: string;
@@ -107,6 +114,7 @@ type RawAbout = {
   about: string | null;
   yf_about: string | null;
   scraped_about: string | null;
+  scraped_about_clean: string | null;
   company_sector: string | null;
   company_industry: string | null;
   headquarters: string | null;
@@ -120,8 +128,50 @@ function normalizeForDedupe(s: string): string {
 }
 
 /**
- * Merge manual, Yahoo, and website-scrape prose for keyword/theme matching.
- * Display still uses {@link pickAboutText}; this keeps all usable sources searchable.
+ * When true, LLM-cleaned website prose joins Theme Scanner keyword corpus.
+ * Default on when scraped_about_clean exists; set USE_CLEAN_SCRAPE_IN_THEMES=0 to disable.
+ */
+export function useCleanScrapeInThemes(): boolean {
+  const v = process.env.USE_CLEAN_SCRAPE_IN_THEMES?.trim().toLowerCase();
+  if (v === "0" || v === "false" || v === "no") return false;
+  return true;
+}
+
+/**
+ * Merge manual, Yahoo, and (optionally) LLM-cleaned website prose for theme matching.
+ * Raw website scrape is never used — only scraped_about_clean when USE_CLEAN_SCRAPE_IN_THEMES=1.
+ */
+export function mergeAboutSourcesForThemeSearch(row: {
+  about: string | null;
+  yf_about: string | null;
+  scraped_about_clean?: string | null;
+}): string {
+  const sources: Array<string | null> = [row.about, row.yf_about];
+  if (useCleanScrapeInThemes()) {
+    sources.push(row.scraped_about_clean ?? null);
+  }
+  const filtered = sources
+    .map(nonempty)
+    .filter(
+      (t): t is string => !!t && t.length >= 40 && !looksLikeNavJunk(t),
+    );
+
+  const kept: string[] = [];
+  for (const text of filtered) {
+    const norm = normalizeForDedupe(text);
+    const probe = norm.slice(0, Math.min(norm.length, 240));
+    const duplicate = kept.some((k) => {
+      const kn = normalizeForDedupe(k);
+      return kn.includes(probe) || norm.includes(kn.slice(0, Math.min(kn.length, 240)));
+    });
+    if (!duplicate) kept.push(text);
+  }
+  return kept.join("\n\n");
+}
+
+/**
+ * Merge manual, Yahoo, and website-scrape prose for general keyword search.
+ * Display still uses {@link pickAboutText}; theme matching uses {@link mergeAboutSourcesForThemeSearch}.
  */
 export function mergeAboutSourcesForSearch(row: {
   about: string | null;
@@ -147,6 +197,27 @@ export function mergeAboutSourcesForSearch(row: {
   return kept.join("\n\n");
 }
 
+function buildThemeSearchText(
+  row: RawAbout,
+  sector?: string | null,
+  sub?: string | null,
+): string {
+  const aboutCorpus = mergeAboutSourcesForThemeSearch(row);
+  return [
+    row.headquarters,
+    row.name,
+    row.ticker,
+    aboutCorpus,
+    row.products,
+    row.end_markets,
+    sector,
+    sub,
+    row.headquarters,
+  ]
+    .filter(Boolean)
+    .join(" \n ");
+}
+
 function buildSearchText(
   row: RawAbout,
   sector?: string | null,
@@ -167,6 +238,45 @@ function buildSearchText(
   ]
     .filter(Boolean)
     .join(" \n ");
+}
+
+/** Rich text for LLM business briefs — Theme Scanner corpus plus cleaned website summary. */
+export function buildCompanyDossierText(row: {
+  name: string;
+  ticker: string;
+  market: string;
+  sector: string | null;
+  sub_sector: string | null;
+  headquarters: string | null;
+  mcap_cr: number | null;
+  theme_search_text: string;
+  scraped_about_clean: string | null;
+}): string {
+  const header = [
+    `${row.name} (${row.ticker}) · ${row.market}`,
+    row.sector || row.sub_sector
+      ? `Sector: ${[row.sector, row.sub_sector].filter(Boolean).join(" / ")}`
+      : null,
+    row.headquarters ? `HQ: ${row.headquarters}` : null,
+    row.mcap_cr != null ? `Mcap: ₹${Math.round(row.mcap_cr)} Cr` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const blocks = [header];
+  const themeText = row.theme_search_text?.trim();
+  if (themeText) blocks.push(`Company profile:\n${themeText.slice(0, 4500)}`);
+
+  const clean = row.scraped_about_clean?.trim();
+  if (clean && clean.length >= 80 && !looksLikeNavJunk(clean)) {
+    const normTheme = normalizeForDedupe(themeText ?? "");
+    const probe = normalizeForDedupe(clean).slice(0, Math.min(220, clean.length));
+    if (!probe || !normTheme.includes(probe)) {
+      blocks.push(`Website summary (cleaned):\n${clean.slice(0, 2200)}`);
+    }
+  }
+
+  return blocks.join("\n\n");
 }
 
 function loadGovMap() {
@@ -273,13 +383,16 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
     const name = resolveCompanyName(row, about);
     const searchRow = { ...row, name };
 
-    return {
+    const theme_search_text = buildThemeSearchText(searchRow, sector, sub_sector);
+
+    const enriched = {
       ticker: row.ticker,
       name,
       market: row.market,
       website: row.website,
       about,
       scraped_about: nonempty(row.scraped_about),
+      scraped_about_clean: nonempty(row.scraped_about_clean),
       scrape_source_url: scrapeSources.get(row.ticker.toUpperCase()) ?? null,
       headquarters: nonempty(row.headquarters),
       sector,
@@ -287,9 +400,15 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       price: m?.price ?? null,
       mcap_cr: m?.market_cap_cr ?? null,
       search_text: buildSearchText(searchRow, sector, sub_sector),
+      theme_search_text,
       web: links.web,
       sc: links.sc,
       tv: links.tv,
+    };
+
+    return {
+      ...enriched,
+      dossier_text: buildCompanyDossierText(enriched),
     };
   });
 }
@@ -359,7 +478,7 @@ export function hasUsableYfAbout(row: {
 
 /**
  * Display About only (Screener manual + Yahoo). Website scrape stays on the Website tab;
- * keyword/theme search uses {@link mergeAboutSourcesForSearch} via search_text.
+ * general search uses {@link mergeAboutSourcesForSearch}; Theme Scanner uses {@link mergeAboutSourcesForThemeSearch}.
  */
 export function pickAboutText(row: {
   about: string | null;
@@ -405,12 +524,22 @@ export function loadAllCompanies(): CompanyRow[] {
   const now = Date.now();
   if (cache && now - cache.at < CACHE_MS) return cache.rows;
 
+  if (ensureScrapeCleanSchema() && aboutDb) {
+    try {
+      aboutDb.close();
+    } catch {
+      /* ignore */
+    }
+    aboutDb = null;
+  }
+
+  ensureInvestorMaterialsSchema();
+
   const db = getAbout();
-  // Walk the ticker PK index (not the table heap). A corrupt heap can emit
-  // the same row twice under ORDER BY name, which React then flags as duplicate keys.
   const rows = db
     .prepare(
       `SELECT ticker, name, market, website, about, yf_about, scraped_about,
+              scraped_about_clean,
               company_sector, company_industry, headquarters,
               products, end_markets, theme_tags
        FROM company_about ORDER BY ticker`,

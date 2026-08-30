@@ -80,16 +80,26 @@ export function ThemeScanner() {
   });
 
   useEffect(() => {
-    void fetch("/api/themes")
+    const ac = new AbortController();
+    void fetch("/api/themes", { signal: ac.signal })
       .then((r) => r.json())
       .then((j: ThemesApi) => {
         setGroups(j.groups);
         setMeta(j.meta ?? {});
+      })
+      .catch((err) => {
+        if (ac.signal.aborted) return;
+        console.warn("[ThemeScanner] themes load failed:", err);
       });
+    return () => ac.abort();
   }, []);
 
   useEffect(() => {
-    void fetch(`/api/companies?market=${encodeURIComponent(market)}&pageSize=1`)
+    const ac = new AbortController();
+    void fetch(
+      `/api/companies?market=${encodeURIComponent(market)}&pageSize=1`,
+      { signal: ac.signal },
+    )
       .then(async (r) => {
         const raw = await r.text();
         if (!raw.trim() || !r.ok) return null;
@@ -105,7 +115,7 @@ export function ThemeScanner() {
               edge?: number;
               niveshaay?: number;
               negen?: number;
-    kacholia?: number;
+              kacholia?: number;
               sme?: number;
               note?: number;
             };
@@ -129,7 +139,12 @@ export function ThemeScanner() {
             ),
           });
         }
+      })
+      .catch((err) => {
+        if (ac.signal.aborted) return;
+        console.warn("[ThemeScanner] market counts load failed:", err);
       });
+    return () => ac.abort();
   }, [market]);
 
   useEffect(() => {
@@ -279,8 +294,8 @@ export function ThemeScanner() {
         <div>
           <h2>Theme Scanner</h2>
           <p>
-            Match keywords against About and stored website scrape text.
-            {meta.syntax ? ` Syntax: ${meta.syntax}.` : null}
+            Match keywords against About, Yahoo, and cleaned website summaries
+            when available.
           </p>
         </div>
         <div className="scanner-hero-right scanner-hero-actions">
@@ -298,7 +313,7 @@ export function ThemeScanner() {
         </div>
       </div>
 
-      <div className="scanner-controls">
+      <div className="scanner-controls scanner-controls--compact">
         <div className="scanner-col">
           <label className="field-label">Themes</label>
           <ThemeMultiselect
@@ -328,6 +343,7 @@ export function ThemeScanner() {
           <p className="hint tight">
             Pipe = OR, + = AND inside a clause. With a theme selected, custom
             keywords narrow results (AND) — they do not bypass the theme.
+            {meta.syntax ? ` Syntax: ${meta.syntax}.` : null}
           </p>
           {selectedThemes.some((t) =>
             [
@@ -473,8 +489,7 @@ export function ThemeScanner() {
 
       {!active ? (
         <div className="empty-state">
-          Select themes, cap band, keywords, or a watch / weekly chip. Keywords
-          search About and stored website scrape text.
+          Select themes, cap band, keywords, or a watch / weekly chip.
         </div>
       ) : (
         <>

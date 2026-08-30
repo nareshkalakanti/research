@@ -2,14 +2,19 @@
   "meta": {
     "title": "Research themes",
     "description": "REPM + India Government Schemes & Policy Tailwinds — About-friendly keywords; scheme names in theme_research_patterns.json",
-    "version": "3.5",
-    "updated": "2026-08-25",
+    "version": "4.0",
+    "updated": "2026-08-30",
     "syntax": "+ means AND, | means OR (AND binds tighter inside a clause)",
-    "theme_count": 24,
+    "theme_count": 38,
+    "source_blog": "https://www.lotusdew.in/blogs/pharma-and-it-two-structural-opportunities-in-an-uncertain-global-economy",
+    "source_2026": "SOIC — Themes for 2026",
     "clusters": [
       "critical_minerals_ev_defense",
-      "india_govt_schemes"
-    ]
+      "india_govt_schemes",
+      "lotusdew_structural",
+      "themes_2026"
+    ],
+    "deduped_uniques": "2026-08-30"
   },
   "themes": [
     {
@@ -18,7 +23,6 @@
       "name": "Rare Earth Permanent Magnets (REPM) & Motor Assemblies",
       "tag": "REPM",
       "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
-      "display_pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth",
       "keywords": [
         "hard ferrites",
         "soft ferrites",
@@ -34,20 +38,17 @@
         "magnet winding wires",
         "electronic ignition",
         "e-mobility + motor",
-        "rare earth"
+        "rare earth",
+        "lignite"
       ],
       "keyword_definitions": {
-        "REPM": "Rare Earth Permanent Magnet — NdFeB/SmCo magnets for EV traction motors, wind generators, and defense guidance systems.",
-        "NdFeB": "Neodymium-Iron-Boron; strongest commercial permanent magnet alloy (often absent from Screener About — use ferrites/traction motor proxies).",
-        "SmCo": "Samarium-Cobalt; high-temperature rare earth magnet for aerospace and defense motors.",
         "hard ferrites": "Sintered ferrite magnets used in automotive magnetos, alternators, and small motors (Delta Manufacturing).",
         "flywheel magneto": "Magneto-based ignition assembly — stator/rotor magnet stack (India Nippon).",
         "traction motors": "EV/rail propulsion motor — primary downstream demand driver for REPM (Sona Comstar, Varroc, Hirect).",
         "BLDC motors": "Brushless DC motors using permanent-magnet rotors (Ram Ratna Wires).",
         "heavy mineral sand": "Beach-sand feedstock for monazite/rutile — upstream rare earth corridor (Midwest, NMDC).",
         "monazite": "Mineral sand containing rare earth phosphates; IREL/NLC processing chain feedstock.",
-        "magnet winding wires": "Enamelled copper for motor windings — adjacent to magnet/motor supply chain.",
-        "REPM scheme": "₹7,280 crore PLI to build ~6,000 MTPA domestic REPM capacity (news/research terms)."
+        "magnet winding wires": "Enamelled copper for motor windings — adjacent to magnet/motor supply chain."
       },
       "proxies": [
         "IREL",
@@ -101,8 +102,7 @@
         "GRSE",
         "Data Patterns",
         "Paras Defence"
-      ],
-      "display_pattern": "defence | defense | aerospace | missile | missiles | drone | drones | UAV | avionics | defence + manufacturing | defense + manufacturing | naval + ship | armoured | artillery | ordnance | defence + electronics | defense + electronics | aerospace + component"
+      ]
     },
     {
       "id": "gov_semicon_electronics_pli",
@@ -110,7 +110,6 @@
       "name": "Semicon 2.0, SPECS & Electronics Components",
       "tag": "Semicon / ISM / SPECS",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "EMS | electronics manufacturing services | ESDM | printed circuit | PCB | PCB assembly | electronic components | OSAT | semiconductor packaging | chip design | electronics manufacturing | contract manufacturing + electronics | sensor + manufacturing | LED + manufacturing",
       "keywords": [
         "EMS",
         "electronics manufacturing services",
@@ -128,15 +127,9 @@
         "LED + manufacturing"
       ],
       "keyword_definitions": {
-        "Electronics Component Manufacturing Scheme": "₹40,000 crore outlay to localize the $40B electronics component import bill (PCBs, displays, sensors).",
-        "SPECS scheme": "Scheme for Promotion of Manufacturing of Electronic Components and Semiconductors; provides 25% capex subsidy.",
-        "SPECS": "Scheme for Promotion of Manufacturing of Electronic Components and Semiconductors; provides 25% capex subsidy.",
-        "component import substitution": "Policy goal of replacing imported sub-assemblies with domestic value addition (DVA).",
-        "ISM 2.0": "India Semiconductor Mission 2.0; ₹1.25 lakh crore commitment for fab, ATMP, and indigenous chip design.",
         "EMS": "Electronics Manufacturing Services — contract design/build of PCBs and box-builds (Kaynes, Syrma, Dixon).",
         "ESDM": "Electronics System Design & Manufacturing — India policy umbrella for local electronics value chain.",
         "OSAT": "Outsourced Semiconductor Assembly and Test — chip packaging/test plants targeted under ISM.",
-        "ATMP": "Assembly, Testing, Marking and Packaging — semiconductor backend operations.",
         "electronic components": "PCBs, connectors, passives, displays, sensors — SPECS localization focus.",
         "PCB assembly": "PCBA / SMT line assembly for EMS and ODMs."
       },
@@ -154,7 +147,6 @@
       "name": "India AI Mission & Data Centre Tax Holiday (2047)",
       "tag": "AI / data centers",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "data centre | data center | colocation | hyperscale | cloud infrastructure | cloud + data centre | cloud + data center | GPU + server | AI compute | power + data centre | power + data center",
       "keywords": [
         "data centre",
         "data center",
@@ -169,9 +161,6 @@
         "power + data center"
       ],
       "keyword_definitions": {
-        "India AI Mission": "₹10,372 crore allocation for domestic AI compute infrastructure, startup grants, and sovereign LLM development.",
-        "data centre tax holiday": "Income tax exemptions extended until 2047 for global cloud providers setting up Indian data centers.",
-        "sovereign AI": "Government-backed initiative to build indigenous large language models and secure domestic AI compute stacks.",
         "data centre": "Hyperscale / colo / enterprise data center capacity (power + land + cooling).",
         "cloud infrastructure": "Cloud / colo build-out — racks, networking, and facility power.",
         "AI compute": "GPU/accelerator clusters for training and inference — India AI Mission demand driver.",
@@ -192,7 +181,6 @@
       "name": "EV Fleets, Charging Infra & Green Mobility",
       "tag": "EV / green mobility",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "electric vehicle | electric bus | e-bus | e-mobility | EV charging | charging infrastructure | charging station | battery pack | lithium-ion | battery swapping | green mobility | zero emission | two wheeler + electric | three wheeler + electric | EV + component",
       "keywords": [
         "electric vehicle",
         "electric bus",
@@ -211,11 +199,6 @@
         "EV + component"
       ],
       "keyword_definitions": {
-        "electric ambulance": "₹500 crore allocation to modernize emergency response fleets with EVs.",
-        "EV infrastructure fund": "₹2,000 crore outlay for highway charging networks, battery swapping grids, and depot charging.",
-        "EV fleet + electrification": "Policy push targeting commercial fleets (buses, ambulances, logistics) rather than just passenger cars.",
-        "FAME III": "Expected successor to FAME II, focusing on commercial EV fleets and localized battery cell manufacturing.",
-        "FAME": "Faster Adoption and Manufacturing of Electric Vehicles — demand/supply incentives for EVs.",
         "e-mobility": "Electric mobility stack — vehicles, motors, batteries, and charging.",
         "battery swapping": "Swap-station model for 2W/3W/commercial EVs.",
         "charging station": "Public / depot EV chargers — infra fund demand driver."
@@ -223,7 +206,6 @@
       "proxies": [
         "Olectra Greentech",
         "JBM Auto",
-        "Sona Comstar",
         "KPIT Technologies",
         "Exide Industries"
       ]
@@ -234,7 +216,6 @@
       "name": "Regional Medical Hubs & Senior Citizen Healthcare",
       "tag": "Medical hubs",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "multispecialty hospital | multi-specialty hospital | tertiary care | quaternary care | medical tourism | hospital + chain | super specialty | critical care + hospital | regional medical hub | Ayushman Bharat | PM-JAY | senior citizen + health | health wellness center",
       "keywords": [
         "multispecialty hospital",
         "multi-specialty hospital",
@@ -247,9 +228,6 @@
         "senior citizen + health"
       ],
       "keyword_definitions": {
-        "regional medical hub": "5 mega-hospitals built in PPP mode to decentralize quaternary care and reduce medical tourism leakage.",
-        "PM-JAY + 70+": "Extension of ₹5 lakh annual health cover to all senior citizens (70+), massively expanding the insured patient pool for private hospitals.",
-        "Ayushman Bharat": "National health protection / wellness-centre umbrella that expands insured inpatient volumes.",
         "multispecialty hospital": "Private hospital chains offering multi-specialty tertiary/quaternary care — primary PM-JAY capacity.",
         "medical tourism": "Inbound elective care — policy push to keep volumes in Indian hubs."
       },
@@ -267,7 +245,6 @@
       "name": "MSME Credit, SME Growth Fund & Risk Capital",
       "tag": "MSME capital",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "MSME | microfinance | small + medium + enterprise | SME lending | MSME + credit | credit guarantee | CGTMSE | TReDS | Udyam | SME Growth Fund | Self-Reliant India Fund | risk capital + micro | priority sector + MSME",
       "keywords": [
         "MSME",
         "microfinance",
@@ -276,12 +253,8 @@
         "priority sector + MSME"
       ],
       "keyword_definitions": {
-        "SME Growth Fund": "₹10,000 crore corpus to provide equity and subordinate debt to job-creating MSMEs.",
-        "Self-Reliant India Fund": "₹2,000 crore top-up specifically for micro-enterprise risk capital and grassroots entrepreneurship.",
-        "CGTMSE": "Credit Guarantee Fund Trust for Micro and Small Enterprises; the backbone of collateral-free MSME lending in India.",
         "MSME": "Micro, Small & Medium Enterprises — formalization and credit push via Udyam / CGTMSE / TReDS.",
-        "microfinance": "Unsecured micro-loans to micro-enterprises and households — listed NBFC-MFIs and SFBs.",
-        "TReDS": "Trade Receivables Discounting System — invoice discounting platform for MSME cash-flow."
+        "microfinance": "Unsecured micro-loans to micro-enterprises and households — listed NBFC-MFIs and SFBs."
       },
       "proxies": [
         "IFCI",
@@ -298,7 +271,6 @@
       "name": "PM Surya Ghar & Residential Rooftop Solar",
       "tag": "Rooftop solar",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "rooftop solar | solar rooftop | rooftop + solar | residential solar | solar EPC | photovoltaic | solar module | solar + module | solar + inverter | net metering | distributed solar | rooftop + EPC",
       "keywords": [
         "rooftop solar",
         "solar rooftop",
@@ -314,9 +286,6 @@
         "rooftop + EPC"
       ],
       "keyword_definitions": {
-        "PM Surya Ghar": "Flagship scheme providing up to ₹78,000 subsidy per household for rooftop solar, targeting 1 crore homes.",
-        "1 crore homes + solar": "Explicit volume target of PM Surya Ghar — drives residential EPC order books.",
-        "decentralized renewable": "Shift from utility-scale solar parks to distributed, behind-the-meter residential and commercial solar.",
         "rooftop solar": "Behind-the-meter PV on homes/SMEs — core PM Surya Ghar demand.",
         "solar module": "Crystalline / thin-film PV modules and cells — domestic manufacturing under ALMM/PLI.",
         "solar EPC": "Engineering, procurement and construction for rooftop and distributed solar.",
@@ -365,9 +334,6 @@
         "starch + derivatives"
       ],
       "keyword_definitions": {
-        "PLI + food processing": "Production Linked Incentive for food processing — supports aseptic packaging, sprays, and value-added exports.",
-        "MoFPI + incentive": "Ministry of Food Processing Industries grants validating capex in aseptic lines and spray-dried powders.",
-        "aseptic + PLI": "Subsidies targeting shelf-stable packaging formats (e.g. Tetra Recart) vs traditional canning.",
         "food processing": "Value-added processing of agri produce — core MoFPI / PLI beneficiary set.",
         "agro-processing": "Agro-processing of grains, starch, and farm output — matches Screener phrasing (e.g. starch mills).",
         "maize starch": "Maize / corn starch and derivatives — food & industrial starch processors.",
@@ -387,8 +353,7 @@
         "CCL Products",
         "Gokul Agro",
         "Hatsun Agro"
-      ],
-      "display_pattern": "food processing | agro-processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | maize starch | liquid glucose | modified starch | starch + derivatives"
+      ]
     },
     {
       "id": "gov_textiles_fibre",
@@ -396,7 +361,6 @@
       "name": "National Fibre Scheme & Textile Modernization",
       "tag": "Textiles / fibre",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "man made fibre | man-made fibre | polyester yarn | viscose | technical textiles | home textiles | home textile | spun yarn | woven fabric | apparel export | Mega Textile Park | MITRA park | National Fibre Scheme | jute | PLI + textile | PLI + textiles",
       "keywords": [
         "man made fibre",
         "polyester yarn",
@@ -410,9 +374,6 @@
         "jute"
       ],
       "keyword_definitions": {
-        "National Fibre Scheme": "Umbrella scheme integrating natural (jute, silk, wool) and man-made fibers (MMF) to achieve self-reliance.",
-        "man-made fibre": "MMF (polyester, viscose); the high-growth segment of global textiles where India is aggressively trying to capture Bangladesh/Vietnam market share.",
-        "MITRA park": "Mega Investment Textiles and Apparel parks; integrated plug-and-play infrastructure for global apparel brands.",
         "technical textiles": "Non-apparel industrial textiles (auto, geotextile, medical) — PLI priority segment.",
         "home textiles": "Bed/bath/kitchen textiles — large listed exporters (Welspun, Indo Count, Trident)."
       },
@@ -430,7 +391,6 @@
       "name": "National Logistics Policy, Gati Shakti & IMEEC",
       "tag": "Logistics / Gati Shakti",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "multimodal logistics | logistics park | multimodal logistics park | freight corridor | container freight | rail + freight | third party logistics | 3PL | cold chain | warehousing + logistics | coastal shipping | multimodal | container + terminal | ICD + logistics | freight + forwarding",
       "keywords": [
         "multimodal logistics",
         "logistics park",
@@ -449,10 +409,6 @@
         "freight + forwarding"
       ],
       "keyword_definitions": {
-        "IMEEC": "India-Middle East-Europe Economic Corridor — rail/shipping corridor to accelerate export logistics.",
-        "Gati Shakti": "National Master Plan for multi-modal connectivity across infrastructure ministries.",
-        "National Logistics Policy": "Framework to cut logistics cost toward ~8% of GDP via ULIP, MMLPs, and multimodal corridors.",
-        "ULIP": "Unified Logistics Interface Platform — digital API backbone of NLP.",
         "multimodal logistics park": "MMLPs combining rail, road, and warehousing.",
         "3PL": "Third-party logistics providers — warehousing, freight, last-mile.",
         "cold chain": "Temperature-controlled logistics for food/pharma — NLP priority."
@@ -493,7 +449,6 @@
         "MMR + real estate",
         "Mumbai Metropolitan + real estate"
       ],
-      "display_pattern": "Mumbai + redevelopment | Thane + redevelopment | Mumbai + housing + redevelopment | Worli + redevelopment | Bandra + redevelopment | Lower Parel + redevelopment | slum rehabilitation + Mumbai | slum + Mumbai | society + redevelopment + Mumbai | SRA + Mumbai | Mumbai + SRA | MHADA + Mumbai | Mumbai + realty | Thane + realty | Mumbai + developer | Navi Mumbai + developer | Mumbai + residential projects | MMR + real estate | Mumbai Metropolitan + real estate",
       "keyword_definitions": {
         "Mumbai + redevelopment": "Redevelopment projects anchored to Mumbai / island-city / western suburbs — not pan-India redevelopment.",
         "Thane + redevelopment": "Thane / MMR fringe society and cluster redevelopment.",
@@ -554,8 +509,7 @@
         "BEML",
         "Kernex",
         "HBL Power"
-      ],
-      "display_pattern": "Vande Bharat | rolling stock | metro rail | railway + coach | rail + coach | metro + coach | locomotive | wagon | Kavach | dedicated freight | DFC | rail + signalling | EMU | rail + component | railway + equipment"
+      ]
     },
     {
       "id": "gov_power_td_smart_meter_grid",
@@ -592,12 +546,10 @@
         "ABB India",
         "Siemens",
         "Hitachi Energy",
-        "CG Power",
         "KEI",
         "Apar",
         "Genus Power"
-      ],
-      "display_pattern": "smart meter | power transformer | distribution transformer | transmission + line | power grid | substation | switchgear | T&D | conductor + power | RDSS | GIS + substation | cable + power | transmission + equipment | distribution + utility"
+      ]
     },
     {
       "id": "gov_pharma_api_cdmo_pli",
@@ -612,6 +564,14 @@
         "formulation",
         "formulations",
         "CDMO",
+        "CRDMO",
+        "CRAMS",
+        "contract development + manufacturing",
+        "contract research + manufacturing",
+        "contract research + development + manufacturing",
+        "contract development + manufacturing organization",
+        "contract manufacturing + development + discovery",
+        "custom synthesis + contract",
         "contract manufacturing + pharma",
         "injectable",
         "injectables",
@@ -619,6 +579,18 @@
         "API + manufacturing",
         "API + pharmaceutical",
         "fermentation + pharma",
+        "medicinal chemistry",
+        "drug discovery + services",
+        "peptide",
+        "fermentation + pharmaceutical",
+        "precision fermentation",
+        "flow chemistry",
+        "innovator + manufacturing",
+        "commercial scale + manufacturing",
+        "custom synthesis",
+        "custom synthesis + manufacturing",
+        "medicinal chemical",
+        "pharma + segment",
         "pharma + intermediate"
       ],
       "keyword_definitions": {
@@ -626,20 +598,28 @@
         "bulk drug": "Bulk drug / API manufacturing.",
         "formulations": "Finished dosage forms — tablets, capsules, injectables.",
         "CDMO": "Contract Development & Manufacturing Organisation.",
+        "CRDMO": "Contract Research, Development & Manufacturing — Sai Life, Anthem phrasing.",
+        "contract development + manufacturing": "CDMO/CRDMO services — innovator-facing outsourcing.",
+        "contract research + development + manufacturing": "Full CRDMO phrase in NSE About text.",
+        "custom synthesis + contract": "Custom synthesis / contract manufacturing — Divi's.",
+        "custom synthesis + manufacturing": "Custom synthesis and manufacturing services — PI Industries pharma segment.",
+        "medicinal chemical": "Medicinal / botanical products — pharma-adjacent manufacturing.",
+        "pharma + segment": "Dual agro+pharma businesses with a disclosed pharma segment.",
         "injectable": "Sterile injectable dosage forms.",
-        "API + pharmaceutical": "API phrasing that avoids IT 'API' false positives.",
-        "PLI + pharma": "Production Linked Incentive for bulk drugs / fermentation."
+        "API + pharmaceutical": "API phrasing that avoids IT 'API' false positives."
       },
       "proxies": [
-        "Divis",
-        "Laurus",
+        "Divi's Laboratories",
+        "Laurus Labs",
+        "Anthem Biosciences",
+        "Sai Life Sciences",
+        "Syngene",
         "Suven",
         "Piramal Pharma",
         "Gland",
         "Aarti Drugs",
         "Neuland"
-      ],
-      "display_pattern": "active pharmaceutical | bulk drug | bulk drugs | formulation | formulations | CDMO | contract manufacturing + pharma | injectable | injectables | generic + pharma | API + manufacturing | API + pharmaceutical | fermentation + pharma | pharma + intermediate"
+      ]
     },
     {
       "id": "gov_ethanol_biofuel_blending",
@@ -674,8 +654,7 @@
         "Dhampur",
         "Godavari Biorefineries",
         "EID Parry"
-      ],
-      "display_pattern": "ethanol | biofuel | distillery | sugar + ethanol | molasses + ethanol | ethanol + blending | bio-ethanol | fuel ethanol | E20 | grain + ethanol | ethanol + plant"
+      ]
     },
     {
       "id": "gov_green_hydrogen_electrolyser",
@@ -692,24 +671,22 @@
         "hydrogen + plant",
         "fuel cell + hydrogen",
         "hydrogen + electrolyser",
-        "renewable + hydrogen"
+        "renewable + hydrogen",
+        "photovoltaic + module"
       ],
       "keyword_definitions": {
         "green hydrogen": "Hydrogen from renewable-powered electrolysis — NGHM focus.",
         "electrolyser": "Electrolyser manufacturing / EPC (alkaline, PEM, SOEC).",
         "green ammonia": "Ammonia produced from green hydrogen — export / fertiliser use-case.",
-        "hydrogen + energy": "Hydrogen as energy vector / storage / industrial feedstock.",
-        "National Green Hydrogen Mission": "₹19,744 crore mission for GH2 capacity and electrolyser PLI."
+        "hydrogen + energy": "Hydrogen as energy vector / storage / industrial feedstock."
       },
       "proxies": [
         "Reliance",
         "Adani New Industries",
         "L&T",
-        "BHEL",
         "Thermax",
         "Waaree"
-      ],
-      "display_pattern": "green hydrogen | electrolyser | electrolyzer | green ammonia | hydrogen + energy | hydrogen + plant | fuel cell + hydrogen | hydrogen + electrolyser | renewable + hydrogen"
+      ]
     },
     {
       "id": "gov_samudra_manthan_offshore_ep",
@@ -742,10 +719,7 @@
         "subsea",
         "natural gas + production"
       ],
-      "display_pattern": "oil + exploration | gas + exploration | oil + gas + exploration | petroleum + exploration | hydrocarbon | exploration + production | offshore + oil | offshore + gas | offshore + drilling | exploration + well | oilfield | oil field | oilfield + services | upstream + oil | upstream + gas | seismic | block + exploration | CBM | coal bed methane | discovery + oil | discovery + gas | subsea | natural gas + production",
       "keyword_definitions": {
-        "Samudra Manthan": "National Offshore Exploration Scheme (~₹84,084 Cr) — govt funds up to ~50% / ₹650 Cr per deepwater exploratory well.",
-        "OALP": "Open Acreage Licensing Policy — companies bid for / nominate exploration blocks year-round under HELP.",
         "oil + exploration": "Upstream oil exploration — E&P operators and oilfield service chain.",
         "offshore + oil": "Offshore oil exploration / production and marine support.",
         "offshore + drilling": "Deepwater / offshore drilling — core Samudra Manthan well activity.",
@@ -783,24 +757,21 @@
         "smartphone + manufacturing",
         "electronics + mobile",
         "PCB + mobile",
-        "display + mobile"
+        "display + mobile",
+        "integrated + electronics"
       ],
       "keyword_definitions": {
-        "MPMS": "Mobile Phone Manufacturing Scheme (₹62,500 Cr, FY27–31) — replaces PLI-LSEM; incentives tied to sales, domestic sourcing, and Indian brand design/R&D.",
         "mobile + manufacturing": "Domestic mobile / smartphone manufacturing and EMS for handsets.",
         "smartphone": "Smartphone ODM/EMS and brand manufacturing in India.",
         "handset": "Mobile handset assembly / manufacturing.",
         "EMS + mobile": "Electronics manufacturing services focused on mobiles."
       },
       "proxies": [
-        "Dixon Technologies",
         "Kaynes",
-        "Syrma SGS",
         "Optiemus",
         "PG Electroplast",
         "Amber"
-      ],
-      "display_pattern": "mobile + manufacturing | smartphone | handset | mobile phone | EMS + mobile | mobile + assembly | smartphone + manufacturing | electronics + mobile | PCB + mobile | display + mobile"
+      ]
     },
     {
       "id": "gov_nipu_urea_fertiliser_2026",
@@ -823,7 +794,6 @@
         "phosphatic + fertilizer"
       ],
       "keyword_definitions": {
-        "NIPU-2026": "National Investment Policy for Urea (2026) — framework to attract private investment in new gas-based urea plants (~8–9 plants / 10 MT capacity).",
         "urea": "Urea fertiliser manufacturing — core NIPU-2026 capacity push.",
         "fertiliser": "Indian spelling — fertiliser manufacturers and distributors.",
         "fertilizer": "US spelling — same as fertiliser for About matching.",
@@ -839,7 +809,6 @@
         "FACT",
         "Deepak Fertilisers"
       ],
-      "display_pattern": "urea | fertiliser | fertilizer | ammonia + urea | ammonia + fertiliser | ammonia + fertilizer | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
       "badge": "2026"
     },
     {
@@ -853,7 +822,6 @@
         "shipyard",
         "dry dock",
         "vessel + construction",
-        "naval + ship",
         "merchant + vessel",
         "ship + repair",
         "ship + building",
@@ -862,22 +830,15 @@
         "green + vessel"
       ],
       "keyword_definitions": {
-        "SBFAS": "Shipbuilding Financial Assistance Scheme — 15–25% fiscal support on eligible vessels (contracts from Sep 2025; approvals to Mar 2036).",
-        "SbDS": "Shipbuilding Development Scheme — capacity / cluster / greenfield shipyard development (~₹19,989 Cr package component).",
         "shipbuilding": "Domestic commercial and specialised vessel construction.",
         "shipyard": "Shipyard operators and capacity expansion beneficiaries.",
-        "dry dock": "Dry-dock infrastructure for build / repair.",
-        "naval + ship": "Naval / defence shipbuilding (Mazagon, GRSE, CSL adjacency)."
+        "dry dock": "Dry-dock infrastructure for build / repair."
       },
       "proxies": [
         "Cochin Shipyard",
-        "Mazagon Dock",
-        "GRSE",
         "Garden Reach",
-        "Swan Defence",
-        "Titagarh"
-      ],
-      "display_pattern": "shipbuilding | shipyard | dry dock | vessel + construction | naval + ship | merchant + vessel | ship + repair | ship + building | offshore + vessel | LNG + carrier | green + vessel"
+        "Swan Defence"
+      ]
     },
     {
       "id": "gov_coal_lignite_gasification",
@@ -893,24 +854,22 @@
         "ammonium nitrate",
         "coal + methanol",
         "synthetic + natural + gas",
-        "coal + ammonia"
+        "coal + ammonia",
+        "lignite",
+        "natural gas + distribution"
       ],
       "keyword_definitions": {
         "coal gasification": "Surface coal/lignite gasification to syngas for chemicals, SNG, fertilisers — National Coal Gasification Mission.",
         "syngas": "Synthesis gas from coal/lignite gasification.",
         "ammonium nitrate": "Coal-to-ammonium nitrate / fertiliser chemicals — Odisha commercial projects.",
-        "coal + chemical": "Coal-to-chemicals value chain (methanol, ammonia, SNG).",
-        "SNG": "Synthetic natural gas from coal gasification."
+        "coal + chemical": "Coal-to-chemicals value chain (methanol, ammonia, SNG)."
       },
       "proxies": [
         "Coal India",
         "Jindal Steel & Power",
         "Talcher Fertilisers",
-        "Deepak Fertilisers",
-        "GAIL",
-        "Thermax"
-      ],
-      "display_pattern": "coal gasification | syngas | coal to | coal + chemical | ammonium nitrate | coal + methanol | synthetic + natural + gas | coal + ammonia"
+        "GAIL"
+      ]
     },
     {
       "id": "gov_nuclear_power_shanti",
@@ -927,26 +886,22 @@
         "nuclear + component",
         "nuclear + equipment",
         "heavy water",
-        "atomic + energy"
+        "atomic + energy",
+        "nuclear + renewable"
       ],
       "keyword_definitions": {
-        "SHANTI": "SHANTI Act (2025) — opens pathway for broader private participation / liability framework in civil nuclear.",
         "nuclear": "Nuclear power plants, components, and fuel-cycle adjacency.",
         "nuclear + power": "Nuclear power generation and supplier ecosystem.",
         "NPCIL": "Nuclear Power Corporation of India — utility / project counterparty.",
-        "SMR": "Small modular reactors — next-gen nuclear capacity pathway.",
-        "uranium": "Nuclear fuel / uranium value chain."
+        "SMR": "Small modular reactors — next-gen nuclear capacity pathway."
       },
       "proxies": [
         "NPCIL",
         "NTPC",
-        "L&T",
-        "BHEL",
         "Walchandnagar",
         "Ratnamani",
         "KSB"
-      ],
-      "display_pattern": "nuclear | nuclear + power | atomic + power | NPCIL | SMR | nuclear + component | nuclear + equipment | heavy water | atomic + energy"
+      ]
     },
     {
       "id": "gov_social_security_insurance",
@@ -954,7 +909,6 @@
       "name": "Social Security, Pensions & Financial Inclusion",
       "tag": "Social security / insurance",
       "blog_theme": "India Government Schemes & Policy Tailwinds",
-      "display_pattern": "life insurance | health insurance | general insurance | microinsurance | pension | annuity | Atal Pension Yojana | Atal Pension | APY | PMJJBY | PMSBY | financial inclusion | insurance premium | pension AUM | direct benefit transfer",
       "keywords": [
         "life insurance",
         "health insurance",
@@ -969,9 +923,6 @@
       ],
       "keyword_definitions": {
         "Atal Pension Yojana": "APY; guaranteed old-age income security scheme targeting the massive unorganized sector workforce.",
-        "PMJJBY": "Pradhan Mantri Jeevan Jyoti Bima Yojana; government-backed micro-life insurance driving massive premium volume for private insurers.",
-        "financial inclusion + JAM": "Jan Dhan-Aadhaar-Mobile trinity; the digital rail enabling direct benefit transfers and mass-market financialization.",
-        "PMSBY": "Pradhan Mantri Suraksha Bima Yojana — government accident micro-insurance.",
         "life insurance": "Life / ULIP / annuity books that distribute APY and PMJJBY-style products at scale."
       },
       "proxies": [
@@ -981,6 +932,494 @@
         "Star Health",
         "CDSL",
         "KFintech"
+      ]
+    },
+    {
+      "id": "lotusdew_pharma_structural",
+      "cluster": "lotusdew_structural",
+      "name": "Pharma Structural Opportunity (Specialty / Biosimilars / CRAMS)",
+      "tag": "LotusDew · Pharma",
+      "badge": "2026",
+      "blog_theme": "LotusDew — Pharma & IT Structural Opportunities",
+      "keywords": [
+        "generic + drug",
+        "generic + drugs",
+        "generic + formulation",
+        "generic + pharmaceutical",
+        "formulation + pharmaceutical",
+        "pharmaceutical + formulation",
+        "active pharmaceutical + ingredient",
+        "biosimilar",
+        "biosimilars",
+        "biologic",
+        "biologics",
+        "specialty + pharmaceutical",
+        "specialty + formulation",
+        "oncology + pharmaceutical",
+        "chronic + therapy",
+        "chronic + care",
+        "injectable + formulation",
+        "pharmaceutical + export",
+        "formulation + export"
+      ],
+      "keyword_definitions": {
+        "generic + drug": "Generic drugs — volume-led base shifting toward complex / specialty mix (LotusDew blog).",
+        "generic + formulation": "Generic formulations — domestic and export formulation portfolios.",
+        "formulation + pharmaceutical": "Pharmaceutical formulations — finished dosage forms (tablets, capsules, injectables).",
+        "active pharmaceutical + ingredient": "APIs — Active Pharmaceutical Ingredients; India scaling API capabilities per LotusDew.",
+        "biosimilar": "Biosimilar manufacturing — high-complexity export and domestic chronic-care demand.",
+        "biologics": "Biologics — large-molecule therapies; biosimilars and biologics growth bucket.",
+        "specialty + pharmaceutical": "Specialty / complex dosage portfolios — LotusDew pharma structural tailwind (margin + visibility).",
+        "oncology + pharmaceutical": "Oncology therapy area — largest global therapy bucket per LotusDew pharma outlook.",
+        "chronic + therapy": "Chronic-care formulations dominating India domestic mix — better margins vs acute.",
+        "pharmaceutical + export": "Export-oriented formulations / APIs — US generics stabilization + weak-rupee tailwind.",
+        "injectable + formulation": "Injectables growing faster than oral solids — sterile dosage exposure."
+      },
+      "proxies": [
+        "Biocon",
+        "Gland Pharma",
+        "Alkem",
+        "Strides Pharma"
+      ]
+    },
+    {
+      "id": "lotusdew_it_ai_evolution",
+      "cluster": "lotusdew_structural",
+      "name": "IT Evolution (AI-Led Services & Digital Transformation)",
+      "tag": "LotusDew · IT",
+      "badge": "2026",
+      "blog_theme": "LotusDew — Pharma & IT Structural Opportunities",
+      "keywords": [
+        "IT services",
+        "software services",
+        "digital transformation",
+        "artificial intelligence",
+        "generative AI",
+        "GenAI",
+        "cloud + services",
+        "managed services",
+        "technology + consulting",
+        "software + export",
+        "application + development",
+        "enterprise + software",
+        "data + analytics",
+        "AI + platform"
+      ],
+      "keyword_definitions": {
+        "IT services": "Indian IT services — structural shift from headcount arbitrage to AI-led delivery (LotusDew blog).",
+        "digital transformation": "Enterprise digital transformation programs — core demand pool for evolving IT vendors.",
+        "generative AI": "GenAI services / copilots — monetization pivot away from routine billing hours.",
+        "cloud + services": "Cloud migration and managed services — adjacency to AI infrastructure build-out.",
+        "managed services": "Long-term managed IT ops contracts — recurring revenue vs pure staff augmentation.",
+        "software + export": "Software / IT export revenue — weak-rupee operating leverage for USD-denominated contracts.",
+        "AI + platform": "AI platforms, products, and intelligence-driven offerings vs legacy body-shopping."
+      },
+      "proxies": [
+        "Persistent Systems",
+        "Tanla",
+        "Zensar",
+        "Cyient",
+        "Intellect Design"
+      ]
+    },
+    {
+      "id": "themes2026_gold_lenders",
+      "cluster": "themes_2026",
+      "name": "Gold Lenders",
+      "tag": "2026 · Gold finance",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "gold loan",
+        "gold + finance",
+        "gold + NBFC",
+        "gold + lending",
+        "gold + loan",
+        "pledged + gold",
+        "jewellery + loan",
+        "gold + collateral",
+        "non-banking + gold"
+      ],
+      "keyword_definitions": {
+        "gold loan": "Gold loan NBFCs — primary 2026 lender bucket (Muthoot, Manappuram).",
+        "gold + finance": "Gold-backed lending and finance companies.",
+        "pledged + gold": "Gold pledged as collateral for short-term credit.",
+        "jewellery + loan": "Jewellery-backed / gold ornament loan books."
+      },
+      "proxies": [
+        "Muthoot Finance",
+        "Manappuram Finance",
+        "Muthoot Microfin",
+        "IIFL Finance"
+      ]
+    },
+    {
+      "id": "themes2026_commodity_flex_basket",
+      "cluster": "themes_2026",
+      "name": "Commodity Basket (Ferrochrome, Exchanges, Ammonia, Iron Ore)",
+      "tag": "2026 · Commodities",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "ferrochrome",
+        "ferro + chrome",
+        "ferro + alloy",
+        "commodity + exchange",
+        "multi + commodity + exchange",
+        "ammonia + plant",
+        "ammonia + manufacturing",
+        "integrated + ammonia",
+        "iron ore + mining",
+        "iron ore + miner",
+        "sponge iron",
+        "pellet + plant",
+        "mineral + trading",
+        "commodity + trading"
+      ],
+      "keyword_definitions": {
+        "ferrochrome": "Ferrochrome producers — flexible commodity exposure bucket.",
+        "commodity + exchange": "Commodity exchanges (MCX, IEX, NCDEX adjacency).",
+        "integrated + ammonia": "Integrated ammonia / urea / complex fertiliser chains.",
+        "iron ore + mining": "Iron ore miners with expansion optionality."
+      },
+      "proxies": [
+        "Indian Energy Exchange",
+        "Multi Commodity Exchange",
+        "NMDC",
+        "MOIL"
+      ]
+    },
+    {
+      "id": "themes2026_internet_jcurve",
+      "cluster": "themes_2026",
+      "name": "Internet Businesses (J-Curve Profits)",
+      "tag": "2026 · Internet",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "internet + platform",
+        "online + marketplace",
+        "digital + platform",
+        "e-commerce",
+        "ecommerce",
+        "food + delivery",
+        "online + classified",
+        "B2B + marketplace",
+        "digital + commerce",
+        "internet + business",
+        "online + travel",
+        "OTT + platform",
+        "fintech + platform"
+      ],
+      "keyword_definitions": {
+        "internet + platform": "Consumer internet / platform businesses approaching profit inflection.",
+        "online + marketplace": "Marketplace models with operating leverage (J-curve).",
+        "food + delivery": "Food delivery / quick commerce platforms.",
+        "B2B + marketplace": "B2B internet marketplaces (IndiaMART-style)."
+      },
+      "proxies": [
+        "Zomato",
+        "Nykaa",
+        "Info Edge",
+        "PB Fintech",
+        "IndiaMART",
+        "MakeMyTrip"
+      ]
+    },
+    {
+      "id": "themes2026_auto_precision_mix",
+      "cluster": "themes_2026",
+      "name": "Auto & Precision Engineering (Product-Mix Shift)",
+      "tag": "2026 · Auto / precision",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "auto + ancillary",
+        "automotive + ancillary",
+        "automotive + component",
+        "automotive + parts",
+        "automotive + OEM",
+        "precision + engineering",
+        "precision + machining",
+        "precision + component",
+        "die casting",
+        "die + cast",
+        "forging + automotive",
+        "forging + auto",
+        "transmission + component",
+        "suspension + component",
+        "electric vehicle + component",
+        "CNC + machining",
+        "machined + component",
+        "product mix",
+        "auto + parts"
+      ],
+      "keyword_definitions": {
+        "auto + ancillary": "Auto ancillary suppliers benefiting from mix shift (EV, exports, premium).",
+        "precision + engineering": "Precision engineering / machining for auto and industrial OEMs.",
+        "die casting": "Die-cast auto / industrial components."
+      },
+      "proxies": [
+        "Bharat Forge",
+        "Endurance Technologies",
+        "Motherson Sumi",
+        "Sansera Engineering",
+        "Uno Minda"
+      ]
+    },
+    {
+      "id": "themes2026_shipbuilding",
+      "cluster": "themes_2026",
+      "name": "Shipbuilding & Related Proxies",
+      "tag": "2026 · Shipbuilding",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "marine + engineering"
+      ],
+      "keyword_definitions": {
+        "marine + engineering": "Marine / offshore engineering adjacency to shipbuilding."
+      }
+    },
+    {
+      "id": "themes2026_pharma_healthcare_select",
+      "cluster": "themes_2026",
+      "name": "Select CDMOs, Aroma, APIs, Distributors & Hospitals",
+      "tag": "2026 · Pharma / hospitals",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "aroma + chemical",
+        "fragrance + ingredient",
+        "flavour + ingredient",
+        "pharma + distribution",
+        "pharmaceutical + distribution",
+        "drug + distribution",
+        "multi + specialty + hospital",
+        "healthcare + hospital",
+        "tertiary + care"
+      ],
+      "keyword_definitions": {
+        "aroma + chemical": "Aroma / fragrance / flavour chemicals.",
+        "pharma + distribution": "Pharmaceutical distributors and wholesale."
+      },
+      "proxies": [
+        "Medplus"
+      ]
+    },
+    {
+      "id": "themes2026_capex_rail_peb",
+      "cluster": "themes_2026",
+      "name": "Capital Goods (Rail Protection, PEB)",
+      "tag": "2026 · Rail / PEB",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "railway + signalling",
+        "railway + signal",
+        "train + collision",
+        "collision + avoidance",
+        "ETCS",
+        "train + control",
+        "PEB",
+        "pre-engineered + building",
+        "pre-engineered + steel",
+        "metal + building",
+        "steel + building",
+        "track + circuit"
+      ],
+      "keyword_definitions": {
+        "PEB": "Pre-engineered steel buildings — industrial / warehouse capex.",
+        "pre-engineered + building": "PEB fabricators and EPC.",
+        "railway + signalling": "Railway signalling and train protection systems."
+      },
+      "proxies": [
+        "Kernex International",
+        "Texmaco Rail",
+        "Medha Servo Drives",
+        "Kirby Building",
+        "Interarch Building"
+      ]
+    },
+    {
+      "id": "themes2026_ports_miners",
+      "cluster": "themes_2026",
+      "name": "Hard Assets (Ports & Miners)",
+      "tag": "2026 · Ports / miners",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "port + operator",
+        "port + terminal",
+        "cargo + terminal",
+        "bulk + cargo",
+        "coal + mining",
+        "mineral + mining",
+        "mining + company",
+        "bauxite + mining",
+        "limestone + mining",
+        "metallurgical + coal"
+      ],
+      "keyword_definitions": {
+        "port + operator": "Port operators and terminal concessions.",
+        "coal + mining": "Coal / met coal mining assets."
+      },
+      "proxies": [
+        "Adani Ports",
+        "JSW Infrastructure",
+        "GMDC"
+      ]
+    },
+    {
+      "id": "themes2026_premiumisation",
+      "cluster": "themes_2026",
+      "name": "Premiumisation (Auto, Hotels, Alcohol, Dairy)",
+      "tag": "2026 · Premiumisation",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "premium + brand",
+        "luxury + hotel",
+        "hotel + chain",
+        "hospitality + hotel",
+        "alcoholic + beverage",
+        "spirits + brand",
+        "whisky + brand",
+        "beer + brand",
+        "dairy + products",
+        "premium + dairy",
+        "value added + dairy",
+        "premium + automotive",
+        "aftermarket + premium",
+        "branded + apparel"
+      ],
+      "keyword_definitions": {
+        "premium + brand": "Premium branded consumer / auto exposure.",
+        "luxury + hotel": "Upscale / luxury hotel operators.",
+        "spirits + brand": "Branded spirits and premium alcohol.",
+        "premium + dairy": "Value-added and premium dairy products."
+      },
+      "proxies": [
+        "Titan Company",
+        "Indian Hotels",
+        "United Spirits",
+        "Radico Khaitan",
+        "Page Industries"
+      ]
+    },
+    {
+      "id": "themes2026_lenders_cv_psu_nbfc",
+      "cluster": "themes_2026",
+      "name": "Lenders (CV Finance, PSU Banks, NBFCs)",
+      "tag": "2026 · Lenders",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "commercial vehicle + finance",
+        "CV + finance",
+        "vehicle + finance",
+        "tractor + finance",
+        "NBFC",
+        "non-banking + financial",
+        "public sector + bank",
+        "PSU + bank",
+        "housing + finance",
+        "asset + finance",
+        "loan + against + property"
+      ],
+      "keyword_definitions": {
+        "commercial vehicle + finance": "CV / truck / bus financiers.",
+        "public sector + bank": "PSU banks — credit growth / asset quality recovery.",
+        "NBFC": "Non-bank lenders with improving asset quality."
+      },
+      "proxies": [
+        "Cholamandalam Investment",
+        "Shriram Finance",
+        "State Bank of India",
+        "Bank of Baroda",
+        "Bajaj Finance",
+        "CreditAccess Grameen"
+      ]
+    },
+    {
+      "id": "themes2026_waste_to_wealth",
+      "cluster": "themes_2026",
+      "name": "Waste-to-Wealth (Aroma, Coffee, Lead, CBE)",
+      "tag": "2026 · Waste-to-wealth",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "waste + recycling",
+        "lead + recycling",
+        "lead + smelter",
+        "recycled + lead",
+        "coffee + processing",
+        "instant + coffee",
+        "coffee + extract",
+        "coffee + products",
+        "coffee + beverage",
+        "manufacture + coffee",
+        "continental + coffee",
+        "continental + brand",
+        "tata + coffee",
+        "tea + coffee",
+        "fragrance + chemical",
+        "cotton + biomass",
+        "biomass + energy",
+        "circular + economy",
+        "battery + recycling",
+        "metal + recycling",
+        "CBE + processing"
+      ],
+      "keyword_definitions": {
+        "lead + recycling": "Lead recyclers and secondary smelting.",
+        "coffee + processing": "Coffee processing and instant coffee.",
+        "coffee + products": "Coffee manufacturers / instant coffee — CCL, Tata Consumer, Vintage Coffee.",
+        "continental + coffee": "Continental Coffee brand — listed via CCL Products (India).",
+        "continental + brand": "Continental brand in CCL About text.",
+        "tata + coffee": "Tata Coffee / Tata Consumer coffee brands (Grand, Gold, etc.).",
+        "cotton + biomass": "Cotton biomass / CBE processing chains."
+      },
+      "proxies": [
+        "Gravita India",
+        "Tata Consumer Products",
+        "Grauer & Weil",
+        "Privi Speciality",
+        "Vintage Coffee",
+        "Aarti Industries"
+      ]
+    },
+    {
+      "id": "themes2026_ai_eda_global",
+      "cluster": "themes_2026",
+      "name": "Global AI Proxies & EDA Software",
+      "tag": "2026 · AI / EDA",
+      "badge": "2026",
+      "blog_theme": "Themes for 2026",
+      "keywords": [
+        "EDA + software",
+        "electronic + design + automation",
+        "semiconductor + design",
+        "chip + design",
+        "VLSI + design",
+        "design + IP",
+        "semiconductor + IP",
+        "embedded + software",
+        "IT + export",
+        "global + delivery",
+        "AI + services",
+        "digital + engineering",
+        "product + engineering"
+      ],
+      "keyword_definitions": {
+        "EDA + software": "Electronic design automation — global AI / chip design proxy.",
+        "semiconductor + design": "Chip / SoC design services for global OEMs.",
+        "AI + services": "AI-led IT / engineering services with global exposure."
+      },
+      "proxies": [
+        "Tata Elxsi",
+        "Sonata Software",
+        "LTIMindtree"
       ]
     }
   ]

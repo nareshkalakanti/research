@@ -65,6 +65,25 @@ export function useExpandQuarters(
           setError(j.error || "Could not load quarters");
           return;
         }
+        if (!j.quarters?.labels?.length) {
+          params.set("refresh", "1");
+          const retry = await fetch(`/api/quarters?${params}`);
+          const j2 = (await retry.json()) as typeof j;
+          if (cancelled) return;
+          if (!retry.ok || j2.ok === false || !j2.quarters?.labels?.length) {
+            setPanel(null);
+            setForwardPe(j2.forward_pe ?? null);
+            setYoy(j2.yoy ?? null);
+            setExtras(j2.extras ?? null);
+            setError(j2.error || "No quarterly data available");
+            return;
+          }
+          setPanel(j2.quarters ?? null);
+          setForwardPe(j2.forward_pe ?? null);
+          setYoy(j2.yoy ?? null);
+          setExtras(j2.extras ?? null);
+          return;
+        }
         setPanel(j.quarters ?? null);
         setForwardPe(j.forward_pe ?? null);
         setYoy(j.yoy ?? null);

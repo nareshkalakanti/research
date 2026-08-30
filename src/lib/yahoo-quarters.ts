@@ -10,6 +10,7 @@ import {
 } from "./quarter-panel";
 import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
 import { fetchBseQuarterlyByTicker } from "./bse-quarters";
+import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
 export type { QuarterPoint };
@@ -144,7 +145,7 @@ export async function fetchQuarterlyFundamentals(
   price: number | null;
   ret_3m_pct: number | null;
   symbol: string;
-  source: "yahoo" | "nse" | "bse" | "none";
+  source: "yahoo" | "nse" | "bse" | "screener" | "none";
   /** Latest-quarter operating cash flow (Yahoo cash-flow module). */
   operating_cashflow: number | null;
 }> {
@@ -165,7 +166,7 @@ export async function fetchQuarterlyFundamentals(
 
   let usedSymbol = symbol;
   let quarters: QuarterPoint[] = [];
-  let source: "yahoo" | "nse" | "bse" | "none" = "none";
+  let source: "yahoo" | "nse" | "bse" | "screener" | "none" = "none";
 
   for (const sym of symbolCandidates) {
     const period1 = new Date();
@@ -243,6 +244,19 @@ export async function fetchQuarterlyFundamentals(
       if (bse.length >= 2) {
         quarters = bse;
         source = "bse";
+      }
+    } catch {
+      /* keep prior source */
+    }
+  }
+
+  // Screener.in table fallback (NSE SME / thin Yahoo coverage).
+  if (quarters.length < 2) {
+    try {
+      const screener = await fetchScreenerQuarterlyFundamentals(ticker);
+      if (screener.length >= 2) {
+        quarters = screener;
+        source = "screener";
       }
     } catch {
       /* keep prior source */

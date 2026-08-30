@@ -19,6 +19,27 @@ const FINANCE_LOOKAHEAD = 120;
 const FINANCE_NOISE =
   /\b(loan|loans|lending|financing|finance|credit|emi|mortgage|nbfc)\b/i;
 
+/**
+ * Only these search terms are suppressed when they appear inside financing
+ * product copy (e.g. "rooftop solar loan"). Finance-sector terms (gold loan,
+ * NBFC, vehicle finance) are never filtered — they are the signal.
+ */
+const FINANCE_PRODUCT_NOISE_TERMS = new Set([
+  "rooftop",
+  "solar",
+  "residential",
+  "photovoltaic",
+  "pv",
+  "renewable",
+  "green",
+  "hydrogen",
+  "electrolyser",
+  "electrolyzer",
+  "ammonia",
+  "charging",
+  "battery",
+]);
+
 /** Terms that often false-positive on hospitals / diagnostics. */
 const MEDICAL_NOISE_TERMS = new Set([
   "nuclear",
@@ -37,7 +58,21 @@ function isAcronymTerm(term: string): boolean {
   return /^[A-Z0-9][A-Z0-9.&/-]{1,7}$/.test(term.trim());
 }
 
-function financeContext(text: string, start: number, end: number): boolean {
+function termTriggersFinanceFilter(term: string): boolean {
+  return term
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .some((w) => FINANCE_PRODUCT_NOISE_TERMS.has(w));
+}
+
+function financeContext(
+  text: string,
+  start: number,
+  end: number,
+  term: string,
+): boolean {
+  if (!termTriggersFinanceFilter(term)) return false;
   const span = text.slice(
     Math.max(0, start - 16),
     Math.min(text.length, end + FINANCE_LOOKAHEAD),
@@ -97,6 +132,21 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Optional plural on the last word of a phrase (component → components, casting → castings). */
+function termRegexBody(term: string): string {
+  const parts = term.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  if (parts.length === 1) {
+    return `${escapeRegExp(parts[0]!)}(?:s|es)?`;
+  }
+  const prefix = parts
+    .slice(0, -1)
+    .map((p) => escapeRegExp(p))
+    .join("\\s+");
+  const last = escapeRegExp(parts[parts.length - 1]!);
+  return `${prefix}\\s+${last}(?:s|es)?`;
+}
+
 /**
  * Whole-phrase positions in haystack.
  * Acronym terms (LED, BESS) use case-sensitive search on the original text.
@@ -108,7 +158,7 @@ function termPositions(haystack: string, term: string): number[] {
   const needle = acronym ? raw : raw.toLowerCase();
   const source = acronym ? haystack : haystack.toLowerCase();
   const re = new RegExp(
-    `\\b${escapeRegExp(needle).replace(/\s+/g, "\\s+")}\\b`,
+    `\\b${termRegexBody(needle)}\\b`,
     acronym ? "g" : "gi",
   );
   const out: number[] = [];
@@ -140,7 +190,7 @@ export function clauseMatches(haystack: string, clause: OrClause): boolean {
     let ok = false;
     for (const i of positions) {
       const tLow = term.toLowerCase();
-      if (financeContext(lower, i, i + term.length)) continue;
+      if (financeContext(lower, i, i + term.length, term)) continue;
       if (medicalNuclearContext(lower, i, i + term.length, tLow)) continue;
       ok = true;
       break;

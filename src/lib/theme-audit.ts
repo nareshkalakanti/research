@@ -76,11 +76,11 @@ export function looseAndMatch(haystack: string, keyword: string): boolean {
 
 export function loadAboutRows(): AboutRow[] {
   return loadAllCompanies()
-    .filter((c) => (c.search_text || c.about || "").trim().length >= 30)
+    .filter((c) => (c.theme_search_text || c.about || "").trim().length >= 30)
     .map((c) => ({
       ticker: c.ticker,
       name: c.name,
-      text: c.search_text,
+      text: c.theme_search_text,
       sector: c.sector,
       sub_sector: c.sub_sector,
       about: c.about,
@@ -112,7 +112,7 @@ export function auditTheme(theme: Theme, rows: AboutRow[]): ThemeAudit {
           {
             about: r.about,
             headquarters: r.headquarters,
-            search_text: r.text,
+            theme_search_text: r.text,
             sector: r.sector,
             sub_sector: r.sub_sector,
           },
@@ -132,7 +132,7 @@ export function auditTheme(theme: Theme, rows: AboutRow[]): ThemeAudit {
       {
         about: r.about,
         headquarters: r.headquarters,
-        search_text: r.text,
+        theme_search_text: r.text,
         sector: r.sector,
         sub_sector: r.sub_sector,
       },

@@ -19,6 +19,7 @@ export type MissingGapKey =
   | "about"
   | "web"
   | "scrape"
+  | "scrape_clean"
   | "scrape_empty"
   | "scrape_failed"
   | "scrape_bad"
@@ -32,6 +33,7 @@ export type GapFlags = {
   about: boolean;
   web: boolean;
   scrape: boolean;
+  scrape_clean: boolean;
   scrape_empty: boolean;
   scrape_failed: boolean;
 };
@@ -40,6 +42,7 @@ type CompanyLike = {
   ticker: string;
   website?: string | null;
   scraped_about?: string | null;
+  scraped_about_clean?: string | null;
   price: number | null;
   mcap_cr: number | null;
   sector: string | null;
@@ -61,6 +64,16 @@ export function loadScrapeOutcomeSets(market = "All"): ScrapeOutcomeSets {
   };
 }
 
+export function companyNeedsScrapeClean(c: {
+  scraped_about?: string | null;
+  scraped_about_clean?: string | null;
+}): boolean {
+  return (
+    (c.scraped_about ?? "").trim().length >= 80 &&
+    !(c.scraped_about_clean ?? "").trim()
+  );
+}
+
 export function companyGapFlags(
   c: CompanyLike,
   outcomes?: ScrapeOutcomeSets,
@@ -79,6 +92,7 @@ export function companyGapFlags(
       website: c.website ?? null,
       scraped_about: c.scraped_about,
     }),
+    scrape_clean: companyNeedsScrapeClean(c),
     scrape_empty: sets.empty.has(key),
     scrape_failed: sets.failed.has(key),
   };
@@ -107,6 +121,7 @@ export function matchesMissingGap(
   if (key === "about") return g.about;
   if (key === "web") return g.web;
   if (key === "scrape") return g.scrape;
+  if (key === "scrape_clean") return g.scrape_clean;
   if (key === "scrape_empty") return g.scrape_empty;
   if (key === "scrape_failed") return g.scrape_failed;
   if (key === "scrape_bad") return g.scrape_empty || g.scrape_failed;
@@ -128,6 +143,7 @@ function fundStubRow(stub: {
     website: null,
     about: null,
     scraped_about: null,
+    scraped_about_clean: null,
     scrape_source_url: null,
     headquarters: null,
     sector: null,
@@ -135,6 +151,8 @@ function fundStubRow(stub: {
     price: null,
     mcap_cr: null,
     search_text: `${stub.ticker} ${name}`.toLowerCase(),
+    theme_search_text: `${stub.ticker} ${name}`.toLowerCase(),
+    dossier_text: `${name} (${stub.ticker}) · ${stub.market}`,
     web: links.web,
     sc: links.sc,
     tv: links.tv,

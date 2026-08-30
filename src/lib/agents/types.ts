@@ -149,13 +149,8 @@ export type VerdictRow = {
   headquarters: string | null;
   has_hold?: boolean;
   has_edge?: boolean;
-  fund_tags?: import("@/lib/fund-watchlist-meta").FundWatchlistKey[];
-  fund_changes?: Partial<
-    Record<
-      import("@/lib/fund-watchlist-meta").FundWatchlistKey,
-      import("@/lib/fund-watchlist-meta").FundChangeInfo
-    >
-  >;
+  has_niveshaay?: boolean;
+  has_negen?: boolean;
   has_tq?: boolean;
   has_bb?: boolean;
 };

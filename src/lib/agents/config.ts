@@ -5,10 +5,11 @@ export type AgentConfig = {
   confidenceThreshold: number;
   agentDelayMs: number;
   shortlistPerBucket: number;
-  llmProvider: "auto" | "claude_code" | "anthropic" | "openai" | "none";
+  llmProvider: "auto" | "claude_code" | "anthropic" | "openai" | "ollama" | "none";
   anthropicApiKey: string | null;
   openaiApiKey: string | null;
   llmModel: string;
+  ollamaBaseUrl: string;
   port: number;
 };
 
@@ -26,7 +27,14 @@ function envStr(key: string): string | null {
 
 export function loadAgentConfig(): AgentConfig {
   const provider = (envStr("LLM_PROVIDER") || "auto").toLowerCase();
-  const valid = ["auto", "claude_code", "anthropic", "openai", "none"] as const;
+  const valid = [
+    "auto",
+    "claude_code",
+    "anthropic",
+    "openai",
+    "ollama",
+    "none",
+  ] as const;
   const llmProvider = valid.includes(provider as (typeof valid)[number])
     ? (provider as AgentConfig["llmProvider"])
     : "auto";
@@ -40,6 +48,7 @@ export function loadAgentConfig(): AgentConfig {
     anthropicApiKey: envStr("ANTHROPIC_API_KEY"),
     openaiApiKey: envStr("OPENAI_API_KEY"),
     llmModel: envStr("LLM_MODEL") || "claude-haiku-4-5",
+    ollamaBaseUrl: envStr("OLLAMA_BASE_URL") || "http://127.0.0.1:11434",
     port: envInt("PORT", 3000),
   };
 }
@@ -54,6 +63,7 @@ export function publicAgentConfig(cfg: AgentConfig) {
     hasAnthropicKey: Boolean(cfg.anthropicApiKey),
     hasOpenaiKey: Boolean(cfg.openaiApiKey),
     llmModel: cfg.llmModel,
+    ollamaBaseUrl: cfg.ollamaBaseUrl,
   };
 }
 
