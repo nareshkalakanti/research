@@ -8,7 +8,7 @@ import path from "path";
 import { pickAboutText } from "./db";
 import { holdingsTickerSet } from "./holdings";
 import { edgeTickerSet } from "./edge";
-import { fundTagsForTicker, fundChangesForTicker, fundWatchlistAllTickers } from "./fund-watchlists";
+import { fundTagsForTicker, fundChangesForTicker } from "./fund-watchlists";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
 import { loadBreakoutMap } from "./signals";
@@ -18,7 +18,11 @@ import {
   scoreDirectorSeats,
   type DirectorScore,
 } from "./gov-score";
-import type { FundChangeInfo, FundWatchlistKey } from "./fund-watchlist-meta";
+import {
+  FUND_WATCHLIST_KEYS,
+  type FundChangeInfo,
+  type FundWatchlistKey,
+} from "./fund-watchlist-meta";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -449,12 +453,20 @@ export type GovernanceMapStats = {
   multi_lc: number;
   sme_cross: number;
   companies: number;
+  hold: number;
+  edge: number;
+  funds: Partial<Record<FundWatchlistKey, number>>;
 };
 
 export function governanceMapStats(
   rows: GovernanceMapRow[],
 ): GovernanceMapStats {
   const tickers = new Set<string>();
+  const holdTickers = new Set<string>();
+  const edgeTickers = new Set<string>();
+  const fundTickers = Object.fromEntries(
+    FUND_WATCHLIST_KEYS.map((k) => [k, new Set<string>()]),
+  ) as Record<FundWatchlistKey, Set<string>>;
   let dinBacked = 0;
   let bridges = 0;
   let tinyBridges = 0;
@@ -468,8 +480,16 @@ export function governanceMapStats(
     if (r.ti_bridge) tiBridges += 1;
     if (r.multi_lc) multiLc += 1;
     if (r.sme_cross) smeCross += 1;
-    for (const c of r.companies) tickers.add(c.ticker);
+    for (const c of r.companies) {
+      tickers.add(c.ticker);
+      if (c.has_hold) holdTickers.add(c.ticker);
+      if (c.has_edge) edgeTickers.add(c.ticker);
+      for (const k of c.fund_tags ?? []) fundTickers[k]?.add(c.ticker);
+    }
   }
+  const funds = Object.fromEntries(
+    FUND_WATCHLIST_KEYS.map((k) => [k, fundTickers[k].size]),
+  ) as Partial<Record<FundWatchlistKey, number>>;
   return {
     directors: rows.length,
     din_backed: dinBacked,
@@ -480,5 +500,8 @@ export function governanceMapStats(
     multi_lc: multiLc,
     sme_cross: smeCross,
     companies: tickers.size,
+    hold: holdTickers.size,
+    edge: edgeTickers.size,
+    funds,
   };
 }

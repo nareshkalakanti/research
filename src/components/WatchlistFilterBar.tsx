@@ -49,6 +49,9 @@ type Props = {
   buyableOnly?: boolean;
   onBuyableOnly?: (on: boolean) => void;
   buyCount?: number;
+  liveTender8Only?: boolean;
+  onLiveTender8Only?: (on: boolean) => void;
+  liveTender8Count?: number;
 };
 
 function Count({ n }: { n?: number }) {
@@ -91,6 +94,9 @@ export function WatchlistFilterBar({
   buyableOnly = false,
   onBuyableOnly,
   buyCount,
+  liveTender8Only = false,
+  onLiveTender8Only,
+  liveTender8Count,
 }: Props) {
   const holdTitle =
     distressCount && distressCount > 0
@@ -109,7 +115,8 @@ export function WatchlistFilterBar({
     openOnly ||
     tenderOnly ||
     spread8Only ||
-    buyableOnly;
+    buyableOnly ||
+    liveTender8Only;
 
   const clearFilters = () => {
     onCap?.("All");
@@ -124,6 +131,7 @@ export function WatchlistFilterBar({
     onTenderOnly?.(false);
     onSpread8Only?.(false);
     onBuyableOnly?.(false);
+    onLiveTender8Only?.(false);
   };
 
   return (
@@ -198,6 +206,17 @@ export function WatchlistFilterBar({
           >
             Hold
             <Count n={holdCount} />
+          </button>
+        ) : null}
+        {onLiveTender8Only ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-live8 ${liveTender8Only ? "on" : ""}`}
+            onClick={() => onLiveTender8Only(!liveTender8Only)}
+            title="Live tender buyback — announced or open, max ₹ ≥8% above CMP, filing within last 120 days"
+          >
+            Live ≥8%
+            <Count n={liveTender8Count} />
           </button>
         ) : null}
         {onBuyableOnly ? (

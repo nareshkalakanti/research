@@ -144,16 +144,58 @@ export function computeSpreadPct(
   return Math.round(((maxPrice - cmp) / cmp) * 1000) / 10;
 }
 
+/** Max age of latest filing for a buyback to count as live (not stale history). */
+export const LIVE_BUYBACK_MAX_AGE_DAYS = 120;
+
+export function isRecentBuyback(
+  latestDate: string | null | undefined,
+  maxAgeDays = LIVE_BUYBACK_MAX_AGE_DAYS,
+): boolean {
+  if (!latestDate) return false;
+  const ts = Date.parse(latestDate.slice(0, 10));
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts <= maxAgeDays * 86_400_000;
+}
+
+/** Stale announced/open filings are treated as closed — not actionable. */
+export function effectiveBuybackStatus(
+  status: string | null | undefined,
+  latestDate: string | null | undefined,
+): BuybackStatus | null {
+  if (!status) return null;
+  if (
+    (status === "announced" || status === "open") &&
+    !isRecentBuyback(latestDate)
+  ) {
+    return "closed";
+  }
+  return status as BuybackStatus;
+}
+
 /** Tender buyback where you can still buy on market (announced or open window). */
 export function isBuyableBuyback(input: {
   buyback_method: string;
   latest_status: string | null;
   max_price: number | null;
+  latest_date?: string | null;
 }): boolean {
   if (input.buyback_method !== "tender") return false;
   if (input.max_price == null) return false;
-  const st = input.latest_status;
+  const st = effectiveBuybackStatus(input.latest_status, input.latest_date);
   return st === "announced" || st === "open";
+}
+
+/** Actionable tender: announced/open, max ₹ ≥8% above CMP, filing within last ~4 months. */
+export function isLiveTenderSpread8(input: {
+  buyback_method: string;
+  latest_status: string | null;
+  max_price: number | null;
+  spread_pct: number | null;
+  latest_date: string | null;
+}): boolean {
+  if (!isBuyableBuyback(input)) return false;
+  if (input.spread_pct == null || input.spread_pct < 8) return false;
+  return isRecentBuyback(input.latest_date);
 }
 
 export function classifyBuybackStatus(
@@ -166,7 +208,8 @@ export function classifyBuybackStatus(
     blob.includes("closure of buyback") ||
     blob.includes("completion of") ||
     blob.includes("extinguishment") ||
-    blob.includes("closed the buyback")
+    blob.includes("closed the buyback") ||
+    blob.includes("post buyback")
   ) {
     return "closed";
   }
@@ -178,7 +221,6 @@ export function classifyBuybackStatus(
     return "cancelled";
   }
   if (
-    blob.includes("post buyback") ||
     blob.includes("buyback window") ||
     blob.includes("commencement") ||
     blob.includes("opening of buyback")

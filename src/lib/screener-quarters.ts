@@ -1,14 +1,15 @@
 /**
- * Screener.in quarterly / half-yearly results table → QuarterPoint[].
- * Fallback when Yahoo and NSE XBRL are empty (common on NSE SME).
+ * Screener.in quarterly results — consolidated table, throttled + cached.
+ * Never bulk-search; one company page per request, 7d cache, 6h block backoff.
  */
 import * as cheerio from "cheerio";
-import { screenerUrl } from "./links";
+import { openSqliteNamed } from "./sqlite-utils";
+import { fetchScreenerCompanyHtml } from "./screener-fetch";
 import type { QuarterPoint } from "./quarter-panel";
 import { trimReportedQuarters } from "./quarter-panel";
 
-const USER_AGENT =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+const BLOCK_MS = 6 * 60 * 60 * 1000;
 
 const MONTH_NUM: Record<string, string> = {
   JAN: "01",
@@ -39,6 +40,76 @@ const MONTH_END: Record<string, number> = {
   NOV: 30,
   DEC: 31,
 };
+
+function ensureCacheSchema(): void {
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS screener_quarters_cache (
+        ticker TEXT PRIMARY KEY,
+        quarters_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        blocked_until TEXT
+      );
+    `);
+  } finally {
+    db.close();
+  }
+}
+
+type CacheRow = {
+  quarters_json: string;
+  fetched_at: string;
+  blocked_until: string | null;
+};
+
+function readCache(ticker: string): QuarterPoint[] | "blocked" | null {
+  ensureCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const row = db
+      .prepare(
+        `SELECT quarters_json, fetched_at, blocked_until FROM screener_quarters_cache WHERE ticker = ?`,
+      )
+      .get(ticker.toUpperCase()) as CacheRow | undefined;
+    if (!row) return null;
+    if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
+      return "blocked";
+    }
+    if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
+      return JSON.parse(row.quarters_json) as QuarterPoint[];
+    }
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
+function writeCache(
+  ticker: string,
+  quarters: QuarterPoint[],
+  blockedUntil?: string | null,
+): void {
+  ensureCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.prepare(
+      `INSERT INTO screener_quarters_cache (ticker, quarters_json, fetched_at, blocked_until)
+       VALUES (@ticker, @quarters_json, @fetched_at, @blocked_until)
+       ON CONFLICT(ticker) DO UPDATE SET
+         quarters_json = excluded.quarters_json,
+         fetched_at = excluded.fetched_at,
+         blocked_until = excluded.blocked_until`,
+    ).run({
+      ticker: ticker.toUpperCase(),
+      quarters_json: JSON.stringify(quarters),
+      fetched_at: new Date().toISOString(),
+      blocked_until: blockedUntil ?? null,
+    });
+  } finally {
+    db.close();
+  }
+}
 
 function parsePeriodLabel(label: string): string | null {
   const m = label.trim().match(/^([A-Za-z]{3})\s+(\d{4})$/);
@@ -88,20 +159,8 @@ function pickResultsTable($: cheerio.CheerioAPI): cheerio.Cheerio | null {
   return picked?.length ? picked : null;
 }
 
-/** Parse Screener quarterly or half-yearly results (values in ₹ Cr). */
-export async function fetchScreenerQuarterlyFundamentals(
-  ticker: string,
-): Promise<QuarterPoint[]> {
-  const key = ticker.trim().toUpperCase();
-  if (!key) return [];
-
-  const res = await fetch(screenerUrl(key), {
-    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-    signal: AbortSignal.timeout(30_000),
-  });
-  if (!res.ok) return [];
-
-  const html = await res.text();
+/** Parse Screener quarterly table (values already in ₹ Cr). */
+export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
   if (/captcha|access denied|rate limit/i.test(html)) return [];
 
   const $ = cheerio.load(html);
@@ -113,11 +172,11 @@ export async function fetchScreenerQuarterlyFundamentals(
     .map((_, th) => $(th).text().trim())
     .get();
 
-  const periods: Array<{ idx: number; date: string; label: string }> = [];
+  const periods: Array<{ idx: number; date: string }> = [];
   headers.forEach((h, idx) => {
     if (idx === 0) return;
     const date = parsePeriodLabel(h);
-    if (date) periods.push({ idx, date, label: h });
+    if (date) periods.push({ idx, date });
   });
   if (periods.length < 2) return [];
 
@@ -140,9 +199,13 @@ export async function fetchScreenerQuarterlyFundamentals(
       .get();
     if (cells.length < 2) return;
 
-    const label = cells[0]?.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase() || "";
-    let field: keyof Pick<QuarterPoint, "revenue" | "netIncome" | "eps" | "ebit" | "otherIncome"> | null =
-      null;
+    const label =
+      cells[0]?.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase() ||
+      "";
+    let field: keyof Pick<
+      QuarterPoint,
+      "revenue" | "netIncome" | "eps" | "ebit" | "otherIncome"
+    > | null = null;
     if (label.startsWith("sales")) field = "revenue";
     else if (label.startsWith("net profit")) field = "netIncome";
     else if (label.startsWith("eps")) field = "eps";
@@ -163,4 +226,67 @@ export async function fetchScreenerQuarterlyFundamentals(
       (q) => q.revenue != null || q.netIncome != null || q.eps != null,
     ),
   );
+}
+
+/** Overlay Screener consolidated P&L onto Yahoo quarters (same dates). */
+export function mergeScreenerQuarterOverlay(
+  base: QuarterPoint[],
+  screener: QuarterPoint[],
+): QuarterPoint[] {
+  if (!screener.length) return base;
+  const byDate = new Map(screener.map((q) => [q.date.slice(0, 10), q]));
+  return base.map((q) => {
+    const sc = byDate.get(q.date.slice(0, 10));
+    if (!sc) return q;
+    return {
+      ...q,
+      ebit: sc.ebit ?? q.ebit,
+      otherIncome: sc.otherIncome ?? q.otherIncome,
+      revenue: sc.revenue ?? q.revenue,
+      netIncome: sc.netIncome ?? q.netIncome,
+      eps: sc.eps ?? q.eps,
+    };
+  });
+}
+
+export type ScreenerQuarterOpts = {
+  force?: boolean;
+  /** Skip network — return cache only (for throttling). */
+  cacheOnly?: boolean;
+  consolidated?: boolean;
+};
+
+/**
+ * Fetch consolidated quarterly table from Screener company page.
+ * Cached 7d; backs off 6h on block. Never uses global search.
+ */
+export async function fetchScreenerQuarterlyFundamentals(
+  ticker: string,
+  opts?: ScreenerQuarterOpts,
+): Promise<QuarterPoint[]> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return [];
+
+  if (!opts?.force) {
+    const cached = readCache(key);
+    if (cached === "blocked") return [];
+    if (cached) return cached;
+    if (opts?.cacheOnly) return [];
+  }
+
+  try {
+    const html = await fetchScreenerCompanyHtml(key, {
+      consolidated: opts?.consolidated !== false,
+    });
+    const quarters = parseScreenerQuarterlyHtml(html);
+    writeCache(key, quarters);
+    return quarters;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/blocked|429|403|captcha/i.test(msg)) {
+      const until = new Date(Date.now() + BLOCK_MS).toISOString();
+      writeCache(key, [], until);
+    }
+    return [];
+  }
 }

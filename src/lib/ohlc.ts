@@ -129,6 +129,23 @@ async function fetchBarsWithCandidates(
   if (!symbols.length) return [];
   const primary = toYfinanceSymbol(ticker, market);
   const period1 = periodStart(yearsBack);
+  const mk = (market || "").trim().toUpperCase();
+  const isNseSme = mk === "NSE SME" || mk === "SME" || mk === "EMERGE";
+
+  if (isNseSme && primary) {
+    try {
+      const chart = await yf.chart(primary, { period1, interval });
+      const bars = mapChartBars(chart.quotes ?? []);
+      return interval === "1wk"
+        ? normalizeWeeklyBars(bars)
+        : interval === "1mo"
+          ? normalizeMonthlyBars(bars)
+          : bars;
+    } catch {
+      return [];
+    }
+  }
+
   let best: Bar[] = [];
   let primaryBars: Bar[] = [];
 

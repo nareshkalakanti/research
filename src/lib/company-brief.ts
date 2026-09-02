@@ -1,18 +1,25 @@
-import { loadAgentConfig } from "./agents/config";
+import { loadAgentConfig, type AgentConfig } from "./agents/config";
 import {
   computePeerUniqueness,
   peerContextBlock,
   type PeerUniqueness,
 } from "./company-uniqueness";
-import { buildGovernanceBrief, type GovBriefSignal } from "./governance-brief";
 import { buildCompanyDossierText, loadAllCompanies } from "./db";
-import { formatInvestorMaterialsBriefBlock } from "./investor-materials";
-import { generateInvestorCallReview } from "./investor-call-review";
+import { formatInvestorMaterialsBriefBlock } from "./investor-material-corpus";
 import { checkLlmStatus, completeJson, type LlmStatus } from "./llm-client";
+import { loadPrompt } from "./prompts";
 import { loadQuarterDossier } from "./quarter-dossier";
 import { classifyQuarterTrend, type QtrTrendSignal } from "./quarter-trend";
+import { matchThemesForRow } from "./theme-match";
+import { loadThemes } from "./themes";
 import { capTier, formatMcap, type CapTier } from "./types";
 import type { QuarterPanel } from "./quarter-panel";
+
+export type MatchedThemeTag = {
+  id: string;
+  tag: string;
+  name: string;
+};
 
 export type CompanyBriefContext = {
   ticker: string;
@@ -20,6 +27,7 @@ export type CompanyBriefContext = {
   market: string;
   sector: string | null;
   sub_sector: string | null;
+  themes: MatchedThemeTag[];
   headquarters: string | null;
   mcap_cr: number | null;
   mcap_label: string | null;
@@ -29,18 +37,16 @@ export type CompanyBriefContext = {
 };
 
 export type QtrSignal = QtrTrendSignal;
-export type GovSignal = GovBriefSignal;
 
-export type CallReviewDirection = "positive" | "negative" | "neutral";
-
-export type CallReviewRow = {
-  category: string;
-  what_said: string;
-  direction: CallReviewDirection;
-  thesis_impact: string;
+export type OfferingItem = {
+  name: string;
+  line: string;
 };
 
 export type CompanyBrief = {
+  sector: string;
+  sub_sector: string;
+  themes: string[];
   headline: string;
   capabilities: string;
   growth_triggers: string;
@@ -49,16 +55,13 @@ export type CompanyBrief = {
   model: string;
   angle: string;
   uniqueness: string;
+  /** @deprecated Use offerings — kept for cached briefs */
   products: string[];
+  offerings: OfferingItem[];
   customers: string;
   qtr_signal: QtrSignal | null;
   qtr_reason: string;
-  gov_signal: GovSignal | null;
-  gov_reason: string;
   watch: string;
-  call_review_headline?: string;
-  call_review_sources?: string;
-  call_review_rows?: CallReviewRow[];
 };
 
 const CAP_NAMES: Record<CapTier, string> = {
@@ -70,31 +73,88 @@ const CAP_NAMES: Record<CapTier, string> = {
   LC: "Large cap",
 };
 
-const BRIEF_SYSTEM = `You explain Indian listed companies for equity researchers.
+const BRIEF_FALLBACK = `You explain Indian listed companies for equity researchers.
 Return ONLY valid JSON (no markdown):
 {
+  "sector": "listing sector from dossier or best fit",
+  "sub_sector": "sub-sector or industry",
+  "theme": "one short investment theme (2-5 words)",
   "headline": "≤12 words — core business in plain English",
-  "capabilities": "ONE sentence — the single most differentiating technical asset for THIS company (platform, integration, scale, IP, route-to-market). Examples: backward-integrated API/peptide SPPS, sole-source contrast intermediates, REPM magnet stack, offshore E&P block, EMS SMT capacity, sterile injectables at ANDA scale — pick what fits the dossier.",
-  "growth_triggers": "2-4 short catalyst clauses separated by · — from dossier only: plant/block commissioning, PLI/policy tailwind, export mix, order book, segment mix, tariff/China+1, tender wins, capacity utilization. Do not invent dates or ₹.",
-  "capex": "One line. Prefer verbatim 'CAPEX: …' from Investor materials when present. If concall/PPT were reviewed but no ₹ capex/guidance is stated, say so with period (e.g. 'No capex guidance in Aug 2022 concall/PPT'). Say 'concall transcript unavailable' only when dossier explicitly notes transcript/PDF not fetched. Use 'FY26/FY27 CAPEX: ₹X cr (project)' when amount is in dossier. Do not invent ₹. Say 'unclear from sources' only when no investor materials and no capacity/capex mention anywhere.",
+  "capabilities": "ONE sentence — the single most differentiating technical asset for THIS company",
+  "growth_triggers": "2-4 short catalyst clauses separated by · — from dossier and investor materials",
+  "capex": "One line from investor materials or unclear from sources",
   "niche": "1-2 sentences on niche, specialization, or edge",
-  "model": "business model in ≤12 words (e.g. asset-light B2B services, integrated manufacturer)",
-  "products": ["3-5 short items — one product per array element, no commas inside"],
+  "model": "business model in ≤12 words",
+  "offerings": [
+    "Product name — one line what it is and who uses it",
+    "Another line — one line explanation"
+  ],
   "customers": "who buys / end markets in one sentence",
-  "qtr_signal": "exactly one of: Growing, Inconsistent, Declining — use Computed QTR trend if provided; else infer from quarterly data",
-  "qtr_reason": "One short sentence explaining the 5-quarter sales/NP pattern; cite sequential up-counts or QoQ % from Key metrics",
-  "gov_signal": "exactly one of: Stable, Churn, Red flag — use Governance block if provided",
-  "gov_reason": "One short sentence on board changes in last 12 months",
-  "watch": "one risk, dependency, or thing to verify"
+  "qtr_signal": "exactly one of: Growing, Inconsistent, Declining",
+  "qtr_reason": "One short sentence on 5-quarter pattern",
+  "watch": "one risk or thing to verify"
 }
-Use only facts from company dossier, peer context, quarterly data, and governance block. If unknown, say "unclear from sources". Be specific to this company, not generic sector boilerplate.`;
+Use only facts from dossier, peer context, quarterly data, and investor materials. Read Investor materials before capex and growth_triggers. Return valid JSON only — no markdown fences.`;
+
+function briefSystemPrompt(): string {
+  return loadPrompt("business-brief", BRIEF_FALLBACK);
+}
 
 type CacheEntry = { at: number; brief: CompanyBrief; corpusHash: string };
 const cache = new Map<string, CacheEntry>();
 const CACHE_MS = 60 * 60 * 1000;
 
 function corpusHash(text: string): string {
-  return `v13:${text.length}:${text.slice(0, 120)}`;
+  return `v18:${text.length}:${text.slice(0, 120)}`;
+}
+
+const BRIEF_USER_CHAR_LIMIT = 30_000;
+const BRIEF_JSON_OPTS = { numPredict: 1800, temperature: 0.12 } as const;
+
+async function completeBriefJson(
+  cfg: AgentConfig,
+  corpus: string,
+): Promise<Record<string, unknown>> {
+  const user = `Company dossier:\n${corpus.slice(0, BRIEF_USER_CHAR_LIMIT)}`;
+  const system = briefSystemPrompt();
+  try {
+    return await completeJson(cfg, system, user, BRIEF_JSON_OPTS);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "";
+    if (!/json|incomplete/i.test(msg)) throw err;
+    return completeJson(cfg, system, user, {
+      ...BRIEF_JSON_OPTS,
+      numPredict: 2400,
+      skipStatusCheck: true,
+    });
+  }
+}
+
+function matchedThemesForRow(row: {
+  about: string | null;
+  scraped_about: string | null;
+  headquarters: string | null;
+  search_text: string;
+  theme_search_text: string;
+  sector: string | null;
+  sub_sector: string | null;
+  mcap_cr: number | null;
+}): MatchedThemeTag[] {
+  const { themes } = loadThemes();
+  if (!themes.length) return [];
+  const result = matchThemesForRow(row, themes);
+  const byId = new Map(themes.map((t) => [t.id, t]));
+  return result.matchedThemeIds
+    .map((id) => {
+      const t = byId.get(id);
+      if (!t) return null;
+      return {
+        id: t.id,
+        tag: t.tag?.trim() || t.name,
+        name: t.name,
+      };
+    })
+    .filter((x): x is MatchedThemeTag => !!x);
 }
 
 function normalizeQtrSignal(raw: unknown): QtrSignal | null {
@@ -112,17 +172,6 @@ function normalizeQtrSignal(raw: unknown): QtrSignal | null {
   return null;
 }
 
-function normalizeGovSignal(raw: unknown): GovSignal | null {
-  const s = String(raw || "")
-    .trim()
-    .toLowerCase();
-  if (!s) return null;
-  if (s.startsWith("stable")) return "Stable";
-  if (s.startsWith("churn")) return "Churn";
-  if (s.startsWith("red")) return "Red flag";
-  return null;
-}
-
 function buildContext(
   row: {
     ticker: string;
@@ -135,8 +184,10 @@ function buildContext(
     about: string | null;
     scraped_about: string | null;
     search_text: string;
+    theme_search_text: string;
   },
   peers: PeerUniqueness,
+  matchedThemes: MatchedThemeTag[],
 ): CompanyBriefContext {
   const band = capTier(row.mcap_cr);
   return {
@@ -145,6 +196,7 @@ function buildContext(
     market: row.market,
     sector: row.sector,
     sub_sector: row.sub_sector,
+    themes: matchedThemes,
     headquarters: row.headquarters,
     mcap_cr: row.mcap_cr,
     mcap_label: row.mcap_cr != null ? formatMcap(row.mcap_cr) : null,
@@ -167,6 +219,63 @@ function buildCorpus(row: {
   dossier_text?: string;
 }): string {
   return row.dossier_text?.trim() || buildCompanyDossierText(row);
+}
+
+function splitOfferingLabel(text: string): { name: string; line: string } {
+  const t = text.trim();
+  if (!t) return { name: "", line: "" };
+  const dash = t.match(/^(.+?)\s*[—–-]\s+(.+)$/);
+  if (dash) {
+    return { name: dash[1]!.trim(), line: dash[2]!.trim() };
+  }
+  const colon = t.match(/^([^:]{2,48}):\s+(.+)$/);
+  if (colon) {
+    return { name: colon[1]!.trim(), line: colon[2]!.trim() };
+  }
+  return { name: t, line: "" };
+}
+
+function normalizeOfferings(
+  offeringsRaw: unknown,
+  productsRaw: unknown,
+): OfferingItem[] {
+  const out: OfferingItem[] = [];
+  const seen = new Set<string>();
+
+  const add = (name: string, line: string) => {
+    const n = name.trim().slice(0, 80);
+    const l = line.trim().slice(0, 160);
+    if (!n) return;
+    const key = n.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    out.push({ name: n, line: l });
+  };
+
+  if (Array.isArray(offeringsRaw)) {
+    for (const item of offeringsRaw) {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const o = item as Record<string, unknown>;
+        const name = String(o.name || o.product || o.label || "").trim();
+        const line = String(o.line || o.description || o.detail || "").trim();
+        if (name) add(name, line);
+        continue;
+      }
+      if (typeof item === "string") {
+        const { name, line } = splitOfferingLabel(item);
+        if (name) add(name, line);
+      }
+    }
+  }
+
+  if (!out.length) {
+    for (const name of normalizeProducts(productsRaw)) {
+      const { name: n, line } = splitOfferingLabel(name);
+      add(n, line);
+    }
+  }
+
+  return out.slice(0, 6);
 }
 
 function normalizeProducts(raw: unknown): string[] {
@@ -194,9 +303,31 @@ function normalizeProducts(raw: unknown): string[] {
   return out.slice(0, 8);
 }
 
-function normalizeBrief(raw: Record<string, unknown>): CompanyBrief {
-  const products = normalizeProducts(raw.products);
+function normalizeBrief(
+  raw: Record<string, unknown>,
+  row: {
+    sector: string | null;
+    sub_sector: string | null;
+  },
+  matchedThemes: MatchedThemeTag[],
+): CompanyBrief {
+  const offerings = normalizeOfferings(raw.offerings, raw.products);
+  const products = offerings.length
+    ? offerings.map((o) => o.name)
+    : normalizeProducts(raw.products);
+  const llmTheme = String(raw.theme || "").trim().slice(0, 80);
+  const themeTags = matchedThemes.length
+    ? matchedThemes.map((t) => t.tag)
+    : llmTheme
+      ? [llmTheme]
+      : [];
   return {
+    sector: (row.sector?.trim() || String(raw.sector || "").trim()).slice(0, 80),
+    sub_sector: (row.sub_sector?.trim() || String(raw.sub_sector || "").trim()).slice(
+      0,
+      80,
+    ),
+    themes: themeTags,
     headline: String(raw.headline || "Business summary unavailable").slice(0, 120),
     capabilities: String(raw.capabilities || "").slice(0, 420),
     growth_triggers: String(raw.growth_triggers || "").slice(0, 420),
@@ -206,11 +337,10 @@ function normalizeBrief(raw: Record<string, unknown>): CompanyBrief {
     angle: String(raw.angle || "").slice(0, 280),
     uniqueness: String(raw.uniqueness || "").slice(0, 320),
     products,
+    offerings,
     customers: String(raw.customers || "").slice(0, 240),
     qtr_signal: normalizeQtrSignal(raw.qtr_signal),
     qtr_reason: String(raw.qtr_reason || raw.quarters || "").slice(0, 320),
-    gov_signal: normalizeGovSignal(raw.gov_signal),
-    gov_reason: String(raw.gov_reason || "").slice(0, 320),
     watch: String(raw.watch || "").slice(0, 240),
   };
 }
@@ -249,10 +379,21 @@ export async function generateCompanyBrief(
     };
   }
 
-  const context = buildContext(row, computePeerUniqueness(row, loadAllCompanies()));
-  const govBrief = buildGovernanceBrief(row.ticker);
+  const matchedThemes = matchedThemesForRow(row);
+  const context = buildContext(
+    row,
+    computePeerUniqueness(row, loadAllCompanies()),
+    matchedThemes,
+  );
   const investorBlock = formatInvestorMaterialsBriefBlock(row.ticker);
   const qtrTrend = quarterPanel ? classifyQuarterTrend(quarterPanel) : null;
+  const themeBlock = matchedThemes.length
+    ? [
+        "",
+        "Matched investment themes (keyword + sector gate):",
+        matchedThemes.map((t) => `${t.tag} (${t.name})`).join(" · "),
+      ].join("\n")
+    : null;
   const qtrText =
     quarterBlock !== undefined
       ? quarterBlock
@@ -270,12 +411,8 @@ export async function generateCompanyBrief(
           `${qtrTrend.signal} — ${qtrTrend.reason}`,
         ].join("\n")
       : null,
-    [
-      "",
-      "Governance (board_seat_events, last 12 months):",
-      `${govBrief.signal ?? "Stable"} — ${govBrief.reason}`,
-    ].join("\n"),
     investorBlock ? ["", investorBlock].join("\n") : null,
+    themeBlock,
   ]
     .filter(Boolean)
     .join("\n");
@@ -307,33 +444,11 @@ export async function generateCompanyBrief(
   }
 
   try {
-    const [parsed, callReview] = await Promise.all([
-      completeJson(cfg, BRIEF_SYSTEM, `Company dossier:\n${corpus}`),
-      generateInvestorCallReview(row.ticker).catch(() => null),
-    ]);
-    const brief = normalizeBrief(parsed);
+    const parsed = await completeBriefJson(cfg, corpus);
+    const brief = normalizeBrief(parsed, row, matchedThemes);
     if (qtrTrend) {
       brief.qtr_signal = qtrTrend.signal;
       if (!brief.qtr_reason.trim()) brief.qtr_reason = qtrTrend.reason;
-    }
-    if (govBrief.signal) {
-      brief.gov_signal = govBrief.signal;
-      if (!brief.gov_reason.trim()) brief.gov_reason = govBrief.reason;
-    }
-    if (callReview) {
-      brief.call_review_headline = callReview.headline;
-      brief.call_review_sources = callReview.sources;
-      brief.call_review_rows = callReview.rows;
-      const capexRow = callReview.rows.find((r) =>
-        /capex & balance sheet/i.test(r.category),
-      );
-      if (
-        capexRow &&
-        capexRow.what_said !== "Not disclosed" &&
-        (!brief.capex.trim() || /unclear from sources/i.test(brief.capex))
-      ) {
-        brief.capex = capexRow.what_said.slice(0, 280);
-      }
     }
     cache.set(cacheKey, { at: Date.now(), brief, corpusHash: hash });
     return { llm, context, brief, cached: false };

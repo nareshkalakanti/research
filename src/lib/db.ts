@@ -5,6 +5,7 @@ import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
 import { ensureScrapeCleanSchema } from "./scrape-clean-schema";
 import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
+import { ensureLlmAboutSchema } from "./llm-about-schema";
 import { openSqliteNamed } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -17,6 +18,7 @@ export type CompanyRow = {
   about: string | null;
   scraped_about: string | null;
   scraped_about_clean: string | null;
+  llm_about: string | null;
   scrape_source_url: string | null;
   headquarters: string | null;
   sector: string | null;
@@ -113,6 +115,7 @@ type RawAbout = {
   website: string | null;
   about: string | null;
   yf_about: string | null;
+  llm_about: string | null;
   scraped_about: string | null;
   scraped_about_clean: string | null;
   company_sector: string | null;
@@ -138,23 +141,27 @@ export function useCleanScrapeInThemes(): boolean {
 }
 
 /**
- * Merge manual, Yahoo, and (optionally) LLM-cleaned website prose for theme matching.
- * Raw website scrape is never used — only scraped_about_clean when USE_CLEAN_SCRAPE_IN_THEMES=1.
+ * Merge manual, Yahoo, LLM about, and cleaned website summary.
+ * Raw website scrapes stay out — nav junk (e.g. a footer “aerospace”) poisoned Theme Scanner.
  */
 export function mergeAboutSourcesForThemeSearch(row: {
   about: string | null;
   yf_about: string | null;
+  llm_about?: string | null;
+  scraped_about?: string | null;
   scraped_about_clean?: string | null;
 }): string {
-  const sources: Array<string | null> = [row.about, row.yf_about];
+  const sources: Array<string | null> = [
+    row.about,
+    row.yf_about,
+    row.llm_about ?? null,
+  ];
   if (useCleanScrapeInThemes()) {
     sources.push(row.scraped_about_clean ?? null);
   }
   const filtered = sources
     .map(nonempty)
-    .filter(
-      (t): t is string => !!t && t.length >= 40 && !looksLikeNavJunk(t),
-    );
+    .filter((t): t is string => !!t && t.length >= 40);
 
   const kept: string[] = [];
   for (const text of filtered) {
@@ -178,10 +185,13 @@ export function mergeAboutSourcesForSearch(row: {
   yf_about: string | null;
   scraped_about: string | null;
 }): string {
-  const sources = [row.about, row.yf_about, row.scraped_about]
+  const scrape = looksLikeNavJunk(row.scraped_about ?? "")
+    ? extractWebsiteSignal(row.scraped_about)
+    : row.scraped_about;
+  const sources = [row.about, row.yf_about, scrape]
     .map(nonempty)
     .filter(
-      (t): t is string => !!t && t.length >= 40 && !looksLikeNavJunk(t),
+      (t): t is string => !!t && t.length >= 40,
     );
 
   const kept: string[] = [];
@@ -210,6 +220,7 @@ function buildThemeSearchText(
     aboutCorpus,
     row.products,
     row.end_markets,
+    row.theme_tags,
     sector,
     sub,
     row.headquarters,
@@ -232,6 +243,7 @@ function buildSearchText(
     aboutCorpus,
     row.products,
     row.end_markets,
+    row.theme_tags,
     sector,
     sub,
     row.headquarters,
@@ -393,6 +405,7 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       about,
       scraped_about: nonempty(row.scraped_about),
       scraped_about_clean: nonempty(row.scraped_about_clean),
+      llm_about: nonempty(row.llm_about),
       scrape_source_url: scrapeSources.get(row.ticker.toUpperCase()) ?? null,
       headquarters: nonempty(row.headquarters),
       sector,
@@ -461,6 +474,55 @@ export function looksLikeNavJunk(text: string): boolean {
   return false;
 }
 
+function isNavLine(line: string): boolean {
+  const t = line.trim();
+  if (t.length < 20) return true;
+  if (
+    /^(home|about(\s+us)?|contact|careers?|investors?|login|menu|search|privacy|cookies?)$/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  const navHits = (
+    t.match(
+      /\b(About Us|Investor Relations|Board of Directors|Corporate Governance|Press and Media|Leadership Team|Careers?|CSR|Cookie)\b/gi,
+    ) || []
+  ).length;
+  return navHits >= 2 && t.length < 140;
+}
+
+/**
+ * Pull usable business prose out of a raw website scrape (menus, IR chrome).
+ * Used when cleaned scrape is missing so search can still hit CDMO/CRAMS etc.
+ */
+export function extractWebsiteSignal(
+  raw: string | null | undefined,
+  maxLen = 2800,
+): string {
+  const t = (raw ?? "").trim();
+  if (t.length < 40) return "";
+
+  const lines = t
+    .split(/\n+/)
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter((l) => l.length >= 24 && !isNavLine(l));
+
+  let out = lines.join(" ").replace(/\s+/g, " ").trim();
+  if (out.length < 80) {
+    const sentences = t
+      .split(/(?<=[.!?])\s+/)
+      .map((s) => s.replace(/\s+/g, " ").trim())
+      .filter((s) => s.length > 48 && !isNavLine(s));
+    out = sentences.join(" ").replace(/\s+/g, " ").trim();
+  }
+  if (out.length < 80 && !looksLikeNavJunk(t)) {
+    out = t.replace(/\s+/g, " ").trim();
+  }
+  if (out.length <= maxLen) return out;
+  return `${out.slice(0, maxLen).trim()}…`;
+}
+
 /** Prose usable as company about (Yahoo, manual, scraped, etc.). */
 export function hasUsableAboutText(text: string | null | undefined): boolean {
   const t = nonempty(text);
@@ -482,18 +544,20 @@ export function hasUsableYfAbout(row: {
  */
 export function pickAboutText(row: {
   about: string | null;
-  yf_about: string | null;
+  yf_about?: string | null;
+  llm_about?: string | null;
   scraped_about?: string | null;
 }): string | null {
   const about = nonempty(row.about);
   const yf = nonempty(row.yf_about);
+  const llm = nonempty(row.llm_about);
 
   if (yf && !looksLikeNavJunk(yf) && about && looksLikeNavJunk(about)) {
     return yf;
   }
-  const candidates = [about, yf].filter(Boolean) as string[];
+  const candidates = [about, yf, llm].filter(Boolean) as string[];
   const clean = candidates.find((c) => !looksLikeNavJunk(c));
-  return clean || yf || about || null;
+  return clean || yf || about || llm || null;
 }
 
 /** Drop in-memory company cache (call after Yahoo fill / website scrape). */
@@ -532,6 +596,14 @@ export function loadAllCompanies(): CompanyRow[] {
     }
     aboutDb = null;
   }
+  if (ensureLlmAboutSchema() && aboutDb) {
+    try {
+      aboutDb.close();
+    } catch {
+      /* ignore */
+    }
+    aboutDb = null;
+  }
 
   ensureInvestorMaterialsSchema();
 
@@ -539,7 +611,7 @@ export function loadAllCompanies(): CompanyRow[] {
   const rows = db
     .prepare(
       `SELECT ticker, name, market, website, about, yf_about, scraped_about,
-              scraped_about_clean,
+              scraped_about_clean, llm_about,
               company_sector, company_industry, headquarters,
               products, end_markets, theme_tags
        FROM company_about ORDER BY ticker`,

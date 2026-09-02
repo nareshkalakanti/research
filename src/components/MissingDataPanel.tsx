@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
+import { FillLlmAboutButton } from "@/components/FillLlmAboutButton";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { FillSectorButton } from "@/components/FillSectorButton";
 import { RefreshButton } from "@/components/RefreshButton";
@@ -184,6 +185,25 @@ export function MissingDataPanel() {
           totalGaps={totalSectorGaps}
           onDone={() => load({ refresh: true })}
         />
+      ) : null}
+
+      {gap === "about" ? (
+        <>
+          <FillLlmAboutButton
+            market={market}
+            tickers={pageTickers}
+            gapCount={
+              data?.rows.filter((r) => r.missing?.about).length ?? 0
+            }
+            totalGaps={gaps?.missingAbout ?? 0}
+            onDone={() => load({ refresh: true })}
+          />
+          <p className="hint tight missing-export-hint">
+            Writes a short About from name, listed sector, and Yahoo — no website
+            scrape. Theme Scanner uses this instead of raw site dumps. Terminal:{" "}
+            <code>npx tsx scripts/fill-llm-about.ts --market &quot;NSE SME&quot;</code>
+          </p>
+        </>
       ) : null}
 
       {gap === "scrape" ? (

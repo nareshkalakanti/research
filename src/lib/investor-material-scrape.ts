@@ -15,7 +15,6 @@ import type {
   MaterialSourceProvider,
 } from "./investor-material-types";
 import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
-import { withWebsiteFetch } from "./scrape-pool";
 import { openSqliteNamed } from "./sqlite-utils";
 
 export type { DiscoveredMaterialSource, InvestorMaterialKind, MaterialSourceProvider };
@@ -72,6 +71,18 @@ function periodSortKey(period: string | null): number {
   return Number(m[2]) * 12 + (months[m[1]!.toLowerCase()] ?? 0);
 }
 
+function sourceRecency(s: DiscoveredMaterialSource): number {
+  if (s.announced_at) {
+    const t = Date.parse(s.announced_at);
+    if (Number.isFinite(t)) return t;
+  }
+  const key = periodSortKey(s.period);
+  if (!key) return 0;
+  const year = Math.floor((key - 1) / 12);
+  const month = (key - 1) % 12;
+  return Date.UTC(year, month, 15);
+}
+
 function importedUrlSet(ticker: string): Set<string> {
   ensureInvestorMaterialsSchema();
   const conn = openSqliteNamed("company_about.db", { readonly: true, wal: true });
@@ -91,37 +102,7 @@ function skipMediaUrl(url: string): boolean {
   return /\.(webm|mp3|mp4|wav|m4a)(\?|$)/i.test(url) || /youtu\.?be|youtube\.com/i.test(url);
 }
 
-function screenerBlocked(html: string, status: number): boolean {
-  if (status === 403 || status === 429) return true;
-  if (/captcha|access denied|rate limit|too many requests/i.test(html)) return true;
-  if (/Error 404: Page Not Found/i.test(html)) return true;
-  return false;
-}
-
-async function fetchScreenerCompanyHtml(ticker: string): Promise<string> {
-  const url = screenerUrl(ticker);
-  return withWebsiteFetch(url, async () => {
-    const res = await fetch(url, {
-      headers: {
-        "user-agent": USER_AGENT,
-        accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
-        "accept-language": "en-IN,en;q=0.9",
-      },
-      signal: AbortSignal.timeout(45_000),
-      redirect: "follow",
-    });
-    const html = await res.text();
-    if (screenerBlocked(html, res.status)) {
-      throw new Error(
-        `Screener blocked or unavailable (${res.status}) — using BSE announcements when scrip code is known`,
-      );
-    }
-    if (!res.ok) {
-      throw new Error(`Screener fetch failed (${res.status}) for ${ticker}`);
-    }
-    return html;
-  });
-}
+import { fetchScreenerCompanyHtml, screenerBlocked } from "./screener-fetch";
 
 function parseScreenerConcalls(
   $: cheerio.CheerioAPI,
@@ -226,7 +207,11 @@ function mergeSources(lists: DiscoveredMaterialSource[][]): DiscoveredMaterialSo
       merged.push(s);
     }
   }
-  merged.sort((a, b) => periodSortKey(b.period) - periodSortKey(a.period));
+  merged.sort((a, b) => {
+    const recency = sourceRecency(b) - sourceRecency(a);
+    if (recency !== 0) return recency;
+    return periodSortKey(b.period) - periodSortKey(a.period);
+  });
   return merged;
 }
 
@@ -372,8 +357,8 @@ export function pickLatestSources(
       return true;
     })
     .sort((a, b) => {
-      const period = periodSortKey(b.period) - periodSortKey(a.period);
-      if (period !== 0) return period;
+      const recency = sourceRecency(b) - sourceRecency(a);
+      if (recency !== 0) return recency;
       return sourceScore(a) - sourceScore(b);
     });
 
@@ -381,8 +366,8 @@ export function pickLatestSources(
     [...eligible]
       .filter((s) => s.kind === kind)
       .sort((a, b) => {
-        const period = periodSortKey(b.period) - periodSortKey(a.period);
-        if (period !== 0) return period;
+        const recency = sourceRecency(b) - sourceRecency(a);
+        if (recency !== 0) return recency;
         return sourceScore(a) - sourceScore(b);
       })[0];
 
@@ -403,7 +388,7 @@ export function pickLatestSources(
             const aFin = /^financial results/i.test(a.title) ? 0 : 1;
             const bFin = /^financial results/i.test(b.title) ? 0 : 1;
             if (aFin !== bFin) return aFin - bFin;
-            return periodSortKey(b.period) - periodSortKey(a.period);
+            return sourceRecency(b) - sourceRecency(a);
           })[0] ?? byKind("other");
       if (results && !out.some((x) => x.id === results.id)) out.push(results);
     }

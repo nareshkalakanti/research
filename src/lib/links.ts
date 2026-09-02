@@ -24,6 +24,13 @@ export function screenerUrl(ticker: string): string {
   return `https://www.screener.in/company/${sym}/`;
 }
 
+/** Consolidated P&L — matches most screeners' default research view. */
+export function screenerConsolidatedUrl(ticker: string): string {
+  const sym = clean(ticker).toUpperCase();
+  if (!sym) return "https://www.screener.in/";
+  return `https://www.screener.in/company/${sym}/consolidated/`;
+}
+
 export function screenerConcallsUrl(ticker: string): string {
   const sym = clean(ticker).toUpperCase();
   if (!sym) return "https://www.screener.in/";

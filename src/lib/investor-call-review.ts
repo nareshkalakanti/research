@@ -1,10 +1,7 @@
 import { loadAgentConfig } from "./agents/config";
-import {
-  isPendingInvestorMaterial,
-  listInvestorMaterials,
-  type InvestorMaterial,
-} from "./investor-materials";
+import { buildCallReviewCorpus } from "./investor-material-corpus";
 import { checkLlmStatus, completeJson } from "./llm-client";
+import { loadPrompt } from "./prompts";
 
 export type CallReviewDirection = "positive" | "negative" | "neutral";
 
@@ -34,39 +31,11 @@ const CATEGORIES = [
   "Quarter-over-quarter consistency",
 ] as const;
 
-const CALL_REVIEW_SYSTEM = `You are an equity analyst reviewing an Indian listed company's earnings call transcript and/or investor presentation.
-Extract facts in structured JSON only. Use "Not disclosed" where the document does not cover a point — do not infer numbers or guidance.
+const CALL_REVIEW_FALLBACK = `You are an equity analyst reviewing concall/PPT materials. Return ONLY valid JSON with headline and 10 rows (Guidance, Segment mix, Margins, Capex, Capital allocation, Tone, Red flags, Growth catalysts, Q&A signal, QoQ consistency). Use "Not disclosed" when absent.`;
 
-Return ONLY valid JSON:
-{
-  "headline": "≤14 words — the single most important takeaway from these materials for an investor",
-  "rows": [
-    {
-      "category": "Guidance & outlook",
-      "what_said": "Factual bullets from source only; use Not disclosed if absent",
-      "direction": "positive | negative | neutral",
-      "thesis_impact": "One sentence — why this matters for the investment thesis"
-    }
-  ]
+function callReviewSystemPrompt(): string {
+  return loadPrompt("investor-call-review", CALL_REVIEW_FALLBACK);
 }
-
-You MUST return exactly 10 rows in this order:
-1. Guidance & outlook — revenue/volume growth guidance (next quarter + FY) vs prior guidance; margin guidance; order book/pipeline
-2. Segment / geography mix — revenue/margin by segment; fastest/weakest; new capacity tied to segment
-3. Margin & cost drivers — raw material % of sales; operating leverage; one-offs this quarter
-4. Capex & balance sheet — capex spent vs planned and funding; net debt/EBITDA; working capital days
-5. Capital allocation — dividend/buyback/bonus; M&A/JV/stake-sale intent
-6. Management tone — hedged vs committed language; tone shift vs prior quarter; deflected questions
-7. Red flags — auditor change, RPT, promoter pledge; client concentration; regulatory/legal; silent guidance restatement
-8. Growth catalysts & competitive position — new capacity/product/export with timeline; market share; industry tailwind/headwind
-9. Q&A-only signal — repeated analyst concerns; numbers disclosed only in Q&A
-10. Quarter-over-quarter consistency — compare to prior concall guidance; flag walked-back or upgraded statements
-
-Rules:
-- direction must be exactly positive, negative, or neutral
-- what_said: concise factual bullets separated by · ; no invented ₹ or dates
-- If prior concall is provided, use it only for row 10 and tone comparisons
-- Do not repeat these instructions in output`;
 
 type CacheEntry = { at: number; hash: string; review: InvestorCallReview | null };
 const cache = new Map<string, CacheEntry>();
@@ -88,60 +57,6 @@ function normalizeRow(raw: Record<string, unknown>, fallbackCategory: string): C
     direction: normalizeDirection(raw.direction),
     thesis_impact: String(raw.thesis_impact || "").slice(0, 320) || "Limited impact on thesis from disclosed materials.",
   };
-}
-
-function sourceLabel(m: InvestorMaterial): string {
-  const kind = m.kind === "ppt" ? "PPT" : m.kind === "concall" ? "concall" : m.kind;
-  return m.period ? `${m.period} ${kind}` : kind;
-}
-
-function buildCallReviewCorpus(ticker: string): {
-  corpus: string;
-  hash: string;
-  sources: string;
-} | null {
-  const items = listInvestorMaterials(ticker).filter((m) => !isPendingInvestorMaterial(m));
-  const concalls = items.filter((m) => m.kind === "concall" && m.raw_text.replace(/\s/g, "").length >= 80);
-  const ppts = items.filter((m) => m.kind === "ppt" && m.raw_text.replace(/\s/g, "").length >= 80);
-
-  const latestConcall = concalls[0];
-  const priorConcall = concalls[1];
-  const latestPpt = ppts[0];
-
-  if (!latestConcall && !latestPpt) return null;
-
-  const parts: string[] = [];
-  const sourceParts: string[] = [];
-
-  if (latestConcall) {
-    parts.push(
-      `=== LATEST CONCALL (${latestConcall.period || "undated"}) ===\n${latestConcall.raw_text.slice(0, 20_000)}`,
-    );
-    sourceParts.push(sourceLabel(latestConcall));
-  }
-  if (latestPpt) {
-    parts.push(
-      `=== LATEST INVESTOR PPT (${latestPpt.period || "undated"}) ===\n${latestPpt.raw_text.slice(0, 20_000)}`,
-    );
-    sourceParts.push(sourceLabel(latestPpt));
-  }
-  if (priorConcall) {
-    parts.push(
-      `=== PRIOR CONCALL (${priorConcall.period || "undated"}) — for QoQ comparison ===\n${priorConcall.raw_text.slice(0, 10_000)}`,
-    );
-  }
-
-  const corpus = parts.join("\n\n");
-  if (corpus.replace(/\s/g, "").length < 80) return null;
-
-  const hash = [
-    latestConcall?.updated_at,
-    latestPpt?.updated_at,
-    priorConcall?.updated_at,
-    corpus.length,
-  ].join("|");
-
-  return { corpus, hash, sources: sourceParts.join(" · ") };
 }
 
 function normalizeReview(raw: Record<string, unknown>, sources: string): InvestorCallReview {
@@ -184,12 +99,12 @@ export async function generateInvestorCallReview(
     const parsed = await Promise.race([
       completeJson(
         cfg,
-        CALL_REVIEW_SYSTEM,
+        callReviewSystemPrompt(),
         `Company: ${key}\nSources: ${built.sources}\n\n${built.corpus.slice(0, 45_000)}`,
         { numPredict: 2200, temperature: 0.1 },
       ),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("call review timeout")), 75_000),
+        setTimeout(() => reject(new Error("call review timeout")), 45_000),
       ),
     ]);
     const review = normalizeReview(parsed, built.sources);

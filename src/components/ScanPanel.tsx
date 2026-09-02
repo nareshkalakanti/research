@@ -34,7 +34,6 @@ type ApiResponse = {
     ath?: string | null;
     high52?: string | null;
     dd?: string | null;
-    mom?: string | null;
   };
 };
 
@@ -76,10 +75,6 @@ export function ScanPanel() {
 
   useEffect(() => {
     setPage(1);
-    if (view === "mom") {
-      setSort("momentum_rank");
-      setDir("asc");
-    }
   }, [list, cap, view, bbTimeframe]);
 
   const load = useCallback(
@@ -101,7 +96,6 @@ export function ScanPanel() {
       if (view === "ath") params.set("ath", "1");
       if (view === "high52") params.set("high52", "1");
       if (view === "dd") params.set("dd", "1");
-      if (view === "mom") params.set("mom", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
@@ -245,14 +239,12 @@ export function ScanPanel() {
           athCount={data?.signals?.ath}
           high52Count={data?.signals?.high52}
           ddCount={data?.signals?.dd}
-          momCount={data?.signals?.mom}
           bbDate={data?.session?.bb ?? null}
           tqDate={data?.session?.tq ?? null}
           emaDate={data?.session?.ema ?? null}
           athDate={data?.session?.ath ?? null}
           high52Date={data?.session?.high52 ?? null}
           ddDate={data?.session?.dd ?? null}
-          momDate={data?.session?.mom ?? null}
           onBatch={softReload}
           onDone={hardReload}
         />

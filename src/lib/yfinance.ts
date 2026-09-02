@@ -70,6 +70,13 @@ export function yfSymbolCandidates(
   };
 
   add(primary);
+  const mk = (market || "").trim().toUpperCase();
+  const isNseSme = mk === "NSE SME" || mk === "SME" || mk === "EMERGE";
+  if (isNseSme) {
+    // SME board quotes live on -SM.NS; bare .NS is often a ghost fund stub (wrong LTP).
+    add(`${bare}.BO`);
+    return out;
+  }
   add(`${bare}-SM.NS`);
   add(`${bare}.NS`);
   add(`${bare}.BO`);
@@ -111,9 +118,23 @@ type QuoteBits = {
   sector: string | null;
 };
 
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<T>((_, reject) => {
+        t = setTimeout(() => reject(new Error("timeout")), ms);
+      }),
+    ]);
+  } finally {
+    if (t) clearTimeout(t);
+  }
+}
+
 async function quoteBits(symbol: string): Promise<QuoteBits | null> {
   try {
-    const q = await yf.quote(symbol);
+    const q = await withTimeout(yf.quote(symbol), 7000);
     if (!q) return null;
     const price = num(q.regularMarketPrice);
     const mcap = num(q.marketCap);
@@ -133,9 +154,12 @@ async function quoteBits(symbol: string): Promise<QuoteBits | null> {
 
 async function summaryBits(symbol: string): Promise<QuoteBits | null> {
   try {
-    const qs = await yf.quoteSummary(symbol, {
-      modules: ["price", "summaryDetail", "defaultKeyStatistics"],
-    });
+    const qs = await withTimeout(
+      yf.quoteSummary(symbol, {
+        modules: ["price", "summaryDetail", "defaultKeyStatistics"],
+      }),
+      8000,
+    );
     const price =
       num(qs.price?.regularMarketPrice) ??
       num(qs.price?.postMarketPrice) ??
@@ -177,6 +201,7 @@ function mergeBits(
 export async function fetchQuoteDetailed(
   ticker: string,
   market?: string | null,
+  opts?: { skipSummary?: boolean },
 ): Promise<YfQuote> {
   const symbols = yfSymbolCandidates(ticker, market);
   const base = symbols[0] ?? "";
@@ -198,24 +223,55 @@ export async function fetchQuoteDetailed(
     sector: null,
   };
   let used = base;
+  let priceSym: string | null = null;
 
   for (const sym of symbols) {
     const q = await quoteBits(sym);
-    bits = mergeBits(bits, q);
-    if (q?.price != null || q?.mcap != null) used = sym;
+    if (q?.price != null && bits.price == null) {
+      bits = { ...bits, price: q.price };
+      priceSym = sym;
+      used = sym;
+    }
+    if (q?.mcap != null && bits.mcap == null) {
+      const ghostNs =
+        sym.endsWith(".NS") && !sym.includes("-SM") && priceSym?.includes("-SM");
+      if (!ghostNs) {
+        bits = { ...bits, mcap: q.mcap };
+        if (bits.price == null) used = sym;
+      }
+    }
+    if (q?.shares != null && bits.shares == null) bits.shares = q.shares;
+    if (q?.sector != null && bits.sector == null) bits.sector = q.sector;
     if (bits.price != null && bits.mcap != null) break;
   }
 
   // quoteSummary fallback when still missing mcap
-  if (bits.mcap == null || bits.price == null) {
+  if (
+    !opts?.skipSummary &&
+    (bits.mcap == null || bits.price == null)
+  ) {
     for (const sym of symbols) {
+      const ghostNs =
+        sym.endsWith(".NS") && !sym.includes("-SM") && priceSym?.includes("-SM");
+      if (ghostNs) continue;
       const s = await summaryBits(sym);
-      bits = mergeBits(bits, s);
-      if (s?.mcap != null || s?.price != null) used = sym;
+      if (s?.price != null && bits.price == null) {
+        bits = { ...bits, price: s.price };
+        priceSym = sym;
+        used = sym;
+      }
+      if (s?.mcap != null && bits.mcap == null) {
+        bits = { ...bits, mcap: s.mcap };
+      }
+      if (s?.shares != null && bits.shares == null) bits.shares = s.shares;
+      if (s?.sector != null && bits.sector == null) bits.sector = s.sector;
       if (bits.price != null && bits.mcap != null) break;
     }
   }
 
+  if (bits.mcap == null && bits.price != null && bits.shares != null && bits.shares > 0) {
+    bits.mcap = bits.price * bits.shares;
+  }
   if (bits.mcap == null && bits.price != null) {
     const derived = deriveMcapFromKnownShares(ticker, bits.price);
     if (derived != null) bits.mcap = derived;
@@ -303,7 +359,7 @@ export async function fetchLivePrices(
  */
 export async function fetchQuotes(
   items: Array<{ ticker: string; market?: string | null }>,
-  opts?: { concurrency?: number },
+  opts?: { concurrency?: number; skipSummary?: boolean },
 ): Promise<YfQuote[]> {
   const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 4, 8));
   const out: YfQuote[] = [];
@@ -311,7 +367,9 @@ export async function fetchQuotes(
   for (let i = 0; i < items.length; i += concurrency) {
     const chunk = items.slice(i, i + concurrency);
     const results = await Promise.all(
-      chunk.map(({ ticker, market }) => fetchQuoteDetailed(ticker, market)),
+      chunk.map(({ ticker, market }) =>
+        fetchQuoteDetailed(ticker, market, { skipSummary: opts?.skipSummary }),
+      ),
     );
     out.push(...results);
   }

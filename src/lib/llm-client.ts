@@ -223,18 +223,83 @@ export async function resolveLlmEngine(
   return status.engine;
 }
 
+function closeTruncatedJson(text: string): string {
+  let s = text.trim().replace(/,\s*$/, "");
+  const stack: string[] = [];
+  let inString = false;
+  let escape = false;
+  for (const ch of s) {
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{") stack.push("}");
+    else if (ch === "[") stack.push("]");
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  if (inString) s += '"';
+  while (stack.length) s += stack.pop();
+  return s;
+}
+
+function repairJsonText(s: string): string {
+  return s
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/,\s*([}\]])/g, "$1");
+}
+
 function parseJsonBlock(raw: string): Record<string, unknown> {
   const trimmed = raw.trim();
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("no JSON in LLM output");
-  return JSON.parse(trimmed.slice(start, end + 1)) as Record<string, unknown>;
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = fenced?.[1]?.trim() || trimmed;
+  const start = body.indexOf("{");
+  if (start < 0) throw new Error("no JSON in LLM output");
+
+  const end = body.lastIndexOf("}");
+  const candidates: string[] = [];
+  if (end > start) {
+    const slice = body.slice(start, end + 1);
+    candidates.push(slice, repairJsonText(slice));
+  }
+  const truncated = closeTruncatedJson(body.slice(start));
+  candidates.push(truncated, repairJsonText(truncated));
+
+  let lastErr: Error | null = null;
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const key = candidate.slice(0, 120);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      const parsed = JSON.parse(candidate) as Record<string, unknown>;
+      if (candidate.replace(/\s/g, "").length > 2) return parsed;
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+
+  const msg = lastErr?.message || "invalid JSON in LLM output";
+  if (/unexpected end|no json/i.test(msg)) {
+    throw new Error("LLM returned incomplete JSON — try again");
+  }
+  throw new Error(msg);
 }
 
 export type LlmJsonOpts = {
   numPredict?: number;
   temperature?: number;
   skipStatusCheck?: boolean;
+  maxTokens?: number;
 };
 
 async function callOllama(
@@ -256,11 +321,13 @@ async function callOllama(
       stream: false,
       format: "json",
       options: {
-        num_predict: opts?.numPredict ?? 720,
+        num_predict: opts?.maxTokens ?? opts?.numPredict ?? 720,
         temperature: opts?.temperature ?? 0.15,
       },
     }),
-    signal: AbortSignal.timeout(90_000),
+    signal: AbortSignal.timeout(
+      (opts?.maxTokens ?? opts?.numPredict ?? 720) >= 1200 ? 150_000 : 90_000,
+    ),
   });
   if (!res.ok) throw new Error(`ollama ${res.status}`);
   const body = (await res.json()) as { message?: { content?: string } };
@@ -273,6 +340,7 @@ async function callOpenAI(
   system: string,
   user: string,
   cfg: AgentConfig,
+  opts?: LlmJsonOpts,
 ): Promise<string> {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -283,6 +351,7 @@ async function callOpenAI(
     body: JSON.stringify({
       model: cfg.llmModel.includes("gpt") ? cfg.llmModel : "gpt-4o-mini",
       temperature: 0.2,
+      max_tokens: opts?.maxTokens ?? opts?.numPredict ?? 1600,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: system },
@@ -304,6 +373,7 @@ async function callAnthropic(
   system: string,
   user: string,
   cfg: AgentConfig,
+  opts?: LlmJsonOpts,
 ): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -314,7 +384,7 @@ async function callAnthropic(
     },
     body: JSON.stringify({
       model: cfg.llmModel.includes("claude") ? cfg.llmModel : "claude-haiku-4-5",
-      max_tokens: 900,
+      max_tokens: opts?.maxTokens ?? opts?.numPredict ?? 900,
       system,
       messages: [{ role: "user", content: user }],
     }),
@@ -373,9 +443,9 @@ export async function completeJson(
     cfg.llmProvider === "openai" ||
     (cfg.llmProvider === "auto" && cfg.openaiApiKey && !cfg.anthropicApiKey)
   ) {
-    raw = await callOpenAI(system, user, cfg);
+    raw = await callOpenAI(system, user, cfg, opts);
   } else if (cfg.llmProvider === "anthropic" || cfg.anthropicApiKey) {
-    raw = await callAnthropic(system, user, cfg);
+    raw = await callAnthropic(system, user, cfg, opts);
   } else if (cfg.llmProvider === "claude_code") {
     raw = await callClaudeCode(system, user, cfg);
   } else if (cfg.llmProvider === "auto") {

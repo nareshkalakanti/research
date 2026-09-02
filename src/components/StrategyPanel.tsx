@@ -1,48 +1,38 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  type CapFilter,
-} from "@/components/CapMarketFilters";
 import { RefreshButton } from "@/components/RefreshButton";
 import {
-  StrategyBuybackRow,
-  type StrategyBuybackRowData,
-} from "@/components/StrategyBuybackRow";
-import {
-  StrategyLiquidityRow,
-  type StrategyLiquidityRowData,
-} from "@/components/StrategyLiquidityRow";
+  StrategyConcallDriftRow,
+  type StrategyConcallDriftRowData,
+} from "@/components/StrategyConcallDriftRow";
 import type { StrategyExpandPanel } from "@/components/StrategyExpandDetail";
-import { WatchlistFilterBar } from "@/components/WatchlistFilterBar";
 import {
-  appendFundParams,
-  type FundCountState,
-  type FundFilterState,
-  type FundWatchlistKey,
-} from "@/lib/fund-watchlist-meta";
+  ConcallDriftFilterBar,
+  defaultCustomDates,
+  type ConcallDriftDatePreset,
+  type ConcallDriftSort,
+} from "@/components/ConcallDriftFilterBar";
+import { recentFyQuarterOptions, currentEarnSeasonQuarter } from "@/lib/strategy/concall-drift-quarters";
+import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
+import { parseFetchJson } from "@/lib/fetch-json";
 
-const STRATEGY_FUND_KEYS: FundWatchlistKey[] = ["niveshaay", "negen"];
-
-const EMPTY_STRATEGY_FUNDS = Object.fromEntries(
-  STRATEGY_FUND_KEYS.map((k) => [k, false]),
-) as FundFilterState;
-
-type StrategyKind = "buyback" | "liquidity";
+const DEFAULT_CUSTOM = defaultCustomDates();
+const KIND = "concall_drift" as const;
 
 type ApiResponse = {
-  kind: StrategyKind;
+  kind: typeof KIND;
   stats: Record<string, number>;
   pending: number;
-  cap_counts?: Partial<Record<CapFilter, number>>;
-  tag_counts?: Partial<Record<string, number>>;
-  open_count?: number;
-  tender_count?: number;
-  spread8_count?: number;
-  buy_count?: number;
-  history_count?: number;
-  all_count?: number;
-  rows: StrategyBuybackRowData[] | StrategyLiquidityRowData[];
+  quarters?: string[];
+  sectors?: string[];
+  mcap_bounds?: { min: number; max: number };
+  total_events?: number;
+  with_baseline?: number;
+  scan_progress?: { pending: number; scanned: number; universe: number };
+  nse_feed?: NseFeedStatus;
+  rows: StrategyConcallDriftRowData[];
 };
 
 type ScanJson = {
@@ -50,144 +40,248 @@ type ScanJson = {
   saved?: number;
   failed?: number;
   remaining?: number;
+  scanned?: number;
+  universe?: number;
   done?: boolean;
+  announced?: number;
+  remaining_tickers?: string[];
   message?: string;
   error?: string;
 };
 
+const SCAN_TIMEOUT_MS = 240_000;
+
 async function scanOnce(body: Record<string, unknown>): Promise<ScanJson> {
-  const res = await fetch("/api/strategy", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const json = (await res.json()) as ScanJson;
-  if (!res.ok) throw new Error(json.error || "Scan failed");
-  return json;
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const res = await fetch("/api/strategy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(SCAN_TIMEOUT_MS),
+      });
+      const json = await parseFetchJson<ScanJson>(res);
+      if (!res.ok) throw new Error(json.error || "Scan failed");
+      return json;
+    } catch (e) {
+      lastErr = e;
+      if (
+        attempt === 0 &&
+        e instanceof Error &&
+        /fetch|network|abort|timeout/i.test(`${e.name} ${e.message}`)
+      ) {
+        await new Promise((r) => setTimeout(r, 1500));
+        continue;
+      }
+      break;
+    }
+  }
+  const err = lastErr instanceof Error ? lastErr : new Error("Scan failed");
+  if (err.message === "Failed to fetch" || err.name === "TimeoutError") {
+    throw new Error(
+      "Scan request lost — server may be busy. Click Scan again to continue.",
+    );
+  }
+  throw err;
 }
 
+function friendlyScanError(e: unknown): string {
+  if (!(e instanceof Error)) return "Scan failed";
+  if (e.message === "Failed to fetch" || e.name === "TimeoutError") {
+    return "Scan request lost — server may be busy. Click Scan again to continue.";
+  }
+  return e.message;
+}
+
+type ScanProgress = {
+  pct: number;
+  label: string;
+  detail: string;
+  done?: boolean;
+  error?: boolean;
+};
+
 function StrategyScanBar({
-  kind,
   market,
-  pending,
   busy,
+  ready,
   onRefresh,
 }: {
-  kind: StrategyKind;
   market: string;
-  pending: number;
   busy: boolean;
-  onRefresh: () => void | Promise<void>;
+  ready: boolean;
+  onRefresh: (opts?: { silent?: boolean; refresh?: boolean }) => void | Promise<void>;
 }) {
   const [scanBusy, setScanBusy] = useState(false);
-  const [progress, setProgress] = useState<string | null>(null);
-  const scanDone = pending <= 0;
+  const [progress, setProgress] = useState<ScanProgress | null>(null);
 
   const run = useCallback(async () => {
-    if (scanBusy || busy || scanDone) return;
+    if (scanBusy || busy) return;
+
     setScanBusy(true);
-    setProgress("Starting…");
+    if (progress?.error) {
+      setProgress({
+        pct: Math.max(progress.pct, 2),
+        label: "Retrying",
+        detail: "Fetching NSE announcements…",
+      });
+    } else {
+      setProgress({
+        pct: 4,
+        label: "Announcements",
+        detail: "Reading NSE filings from the last 7 days…",
+      });
+    }
+
+    const softRefresh = async () => {
+      try {
+        await onRefresh({ silent: true });
+      } catch {
+        /* keep going */
+      }
+    };
+
     try {
       let round = 0;
       let totalSaved = 0;
       let totalFailed = 0;
+      let leftover: string[] | null = null;
+      let universe = 0;
+
       for (;;) {
         round += 1;
-        setProgress(
-          kind === "buyback"
-            ? `Fetching buyback details · batch ${round}…`
-            : `Scoring liquidity · batch ${round}…`,
-        );
-        const json = await scanOnce({
-          kind,
-          market,
-          limit: kind === "buyback" ? 8 : 10,
-          syncActions: round === 1 && kind === "buyback",
+        setProgress({
+          pct: leftover
+            ? Math.min(96, 12 + round * 18)
+            : 8,
+          label: leftover ? "Fetching" : "Announcements",
+          detail: leftover
+            ? `Batch ${round} · ${leftover.length.toLocaleString()} announced left…`
+            : "Pulling today’s earn / concall filings…",
         });
 
-        const tried = json.tried ?? 0;
-        const remaining = json.remaining ?? 0;
+        const json = await scanOnce({
+          kind: KIND,
+          market,
+          limit: 24,
+          concurrency: 4,
+          announced: leftover == null,
+          announcedDays: 7,
+          tickers: leftover ?? undefined,
+        });
+
+        leftover = json.remaining_tickers?.length ? json.remaining_tickers : [];
+        if (json.universe) universe = json.universe;
         totalSaved += json.saved ?? 0;
         totalFailed += json.failed ?? 0;
 
-        if (tried === 0 || json.done || remaining <= 0) {
-          setProgress(
-            remaining <= 0
-              ? `Complete · ${totalSaved} checked${totalFailed ? ` · ${totalFailed} errors` : ""}`
-              : json.message || "Nothing left to scan",
-          );
+        const scanned = json.scanned ?? totalSaved;
+        const uni = json.universe || universe;
+        const pct =
+          uni > 0 ? Math.min(99, Math.round((100 * scanned) / uni)) : json.tried ? 70 : 100;
+
+        setProgress({
+          pct,
+          label: "Announcements",
+          detail: `${scanned.toLocaleString()} / ${uni.toLocaleString()} announced${
+            json.remaining ? ` · ${json.remaining} left` : ""
+          }${totalFailed ? ` · ${totalFailed} failed` : ""}`,
+        });
+
+        await softRefresh();
+
+        if ((json.tried ?? 0) === 0 || json.done || leftover.length === 0) {
+          setProgress({
+            pct: 100,
+            label: json.tried ? "Updated" : "Up to date",
+            detail:
+              json.message ||
+              (uni
+                ? `${uni.toLocaleString()} announced names`
+                : "No earn/concall filings in the last 7 days"),
+            done: true,
+          });
           break;
         }
-
-        setProgress(
-          kind === "buyback"
-            ? `Buybacks · ${remaining.toLocaleString()} left · batch ${round}`
-            : `Liquidity · ${remaining.toLocaleString()} left · batch ${round}`,
-        );
-        await onRefresh();
       }
-      await onRefresh();
+
+      try {
+        await onRefresh({ refresh: true });
+      } catch {
+        /* rows already saved */
+      }
     } catch (e) {
-      setProgress(e instanceof Error ? e.message : "Scan failed");
+      setProgress({
+        pct: progress?.pct ?? 0,
+        label: "Failed",
+        detail: friendlyScanError(e),
+        error: true,
+      });
     } finally {
       setScanBusy(false);
-      setTimeout(() => setProgress(null), 5000);
     }
-  }, [busy, kind, market, onRefresh, scanBusy, scanDone]);
+  }, [busy, market, onRefresh, progress?.error, progress?.pct, scanBusy]);
 
-  const label =
-    kind === "buyback"
-      ? scanDone
-        ? "All enriched"
-        : scanBusy
-          ? "Scanning…"
-          : "Enrich buybacks"
-      : scanDone
-        ? "All scanned"
-        : scanBusy
-          ? "Scanning…"
-          : "Scan liquidity";
+  const label = scanBusy
+    ? "Fetching…"
+    : progress?.error
+      ? "Retry"
+      : "Get announced";
+
+  const showProgress = scanBusy || progress?.error;
 
   return (
     <div className="filter-bar strategy-scan-bar">
-      <div className="filter-bar-main">
+      <div className="filter-bar-main strategy-scan-actions">
         <button
           type="button"
           className={`chip chip-scan ${scanBusy ? "busy" : ""}`}
-          disabled={scanBusy || busy || scanDone}
-          title={
-            scanDone
-              ? "All tickers checked for this list — use Refresh for new NSE actions"
-              : `${pending.toLocaleString()} pending`
-          }
+          disabled={scanBusy || busy || !ready}
+          title="Pull companies that filed results or a concall on NSE (last 7 days)"
           onClick={() => void run()}
         >
           {label}
-          {!scanDone && pending > 0 ? (
-            <span className="chip-count">{pending.toLocaleString()}</span>
-          ) : null}
         </button>
       </div>
-      {progress ? <span className="filter-progress-text">{progress}</span> : null}
+
+      {showProgress ? (
+        <div
+          className={`filter-progress ${progress?.error ? "is-error" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="filter-progress-track">
+            <div
+              className="filter-progress-fill"
+              style={{
+                width: `${progress?.pct ?? 8}%`,
+              }}
+            />
+          </div>
+          <span className="filter-progress-text">
+            <strong>{progress?.label ?? "Fetching"}</strong>
+            {progress?.detail ? ` · ${progress.detail}` : null}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export function StrategyPanel() {
-  const [kind, setKind] = useState<StrategyKind>("buyback");
   const [market, setMarket] = useState("All");
-  const [cap, setCap] = useState<CapFilter>("All");
-  const [onlyMatches, setOnlyMatches] = useState(true);
-  const [filterHold, setFilterHold] = useState(false);
-  const [filterEdge, setFilterEdge] = useState(false);
-  const [filterSme, setFilterSme] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [filterTender, setFilterTender] = useState(false);
-  const [filterSpread8, setFilterSpread8] = useState(false);
-  const [filterBuy, setFilterBuy] = useState(false);
-  const [fundFilters, setFundFilters] =
-    useState<FundFilterState>(EMPTY_STRATEGY_FUNDS);
+  const [driftSort, setDriftSort] = useState<ConcallDriftSort>("all");
+  const [datePreset, setDatePreset] = useState<ConcallDriftDatePreset>("");
+  const [quarter, setQuarter] = useState(currentEarnSeasonQuarter);
+  const [customFrom, setCustomFrom] = useState(DEFAULT_CUSTOM.from);
+  const [customTo, setCustomTo] = useState(DEFAULT_CUSTOM.to);
+  const [sector, setSector] = useState("");
+  const [mcapMin, setMcapMin] = useState<number | null>(null);
+  const [mcapMax, setMcapMax] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
   const [data, setData] = useState<ApiResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [expandPanel, setExpandPanel] = useState<StrategyExpandPanel>("qtr");
@@ -200,107 +294,98 @@ export function StrategyPanel() {
   useEffect(() => {
     setExpanded(null);
     setExpandPanel("qtr");
-  }, [kind, rowIdentity]);
+  }, [rowIdentity]);
 
-  const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
-    setFundFilters((prev) => ({ ...prev, [key]: on }));
-  }, []);
-
-  const load = useCallback(async (opts?: { refresh?: boolean }) => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { refresh?: boolean; silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams({
-        kind,
+        kind: KIND,
         market,
-        cap,
+        cap: "All",
       });
-      if (kind === "liquidity" && onlyMatches) params.set("onlyMatches", "1");
-      if (filterHold) params.set("hold", "1");
-      if (filterEdge) params.set("edge", "1");
-      if (filterSme) params.set("sme", "1");
-      if (kind === "buyback" && filterOpen) params.set("open", "1");
-      if (kind === "buyback" && filterTender) params.set("tender", "1");
-      if (kind === "buyback" && filterSpread8) params.set("spread8", "1");
-      if (kind === "buyback" && filterBuy) params.set("buy", "1");
-      appendFundParams(params, fundFilters);
+      if (quarter) params.set("quarter", quarter);
+      if (datePreset) params.set("window", datePreset);
+      params.set("sort", driftSort);
+      if (search.trim()) params.set("q", search.trim());
+      if (sector) params.set("sector", sector);
+      if (datePreset === "custom") {
+        if (customFrom) params.set("from", customFrom);
+        if (customTo) params.set("to", customTo);
+      }
+      if (mcapMin != null) params.set("mcapMin", String(mcapMin));
+      if (mcapMax != null) params.set("mcapMax", String(mcapMax));
       if (opts?.refresh) params.set("refresh", "1");
-      const res = await fetch(`/api/strategy?${params}`);
-      const json = (await res.json()) as ApiResponse;
+      const res = await fetch(`/api/strategy?${params}`, {
+        signal: AbortSignal.timeout(120_000),
+      });
+      const json = await parseFetchJson<ApiResponse & { error?: string }>(res);
+      if (!res.ok || json.error) throw new Error(json.error || `Load failed (${res.status})`);
       setData(json);
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? /abort|timeout/i.test(`${err.name} ${err.message}`)
+            ? "Request timed out — try again or narrow filters"
+            : err.message
+          : "Failed to load";
+      setLoadError(msg);
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [
-    kind,
     market,
-    cap,
-    onlyMatches,
-    filterHold,
-    filterEdge,
-    filterSme,
-    filterOpen,
-    filterTender,
-    filterSpread8,
-    filterBuy,
-    fundFilters,
+    quarter,
+    datePreset,
+    driftSort,
+    search,
+    sector,
+    customFrom,
+    customTo,
+    mcapMin,
+    mcapMax,
   ]);
+
+  useEffect(() => {
+    if (!data?.mcap_bounds) return;
+    setMcapMin((cur) => (cur == null ? data.mcap_bounds!.min : cur));
+    setMcapMax((cur) => (cur == null ? data.mcap_bounds!.max : cur));
+  }, [data?.mcap_bounds]);
+
+  useEffect(() => {
+    setMcapMin(null);
+    setMcapMax(null);
+  }, [quarter, market]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const stats = data?.stats ?? {};
   const rows = data?.rows ?? [];
-  const pending = data?.pending ?? 0;
-  const tagCounts = data?.tag_counts ?? {};
-  const fundCounts = Object.fromEntries(
-    STRATEGY_FUND_KEYS.map((k) => [k, tagCounts[k] ?? 0]),
-  ) as FundCountState;
+  const dataReady = data?.kind === KIND && !loading;
 
   return (
     <div className="panel strategy-panel">
       <div className="missing-head">
         <div>
-          <h2>Strategy</h2>
+          <div className="missing-head-title-row">
+            <h2>Concall drift</h2>
+            <LiveNseFeedBadge status={data?.nse_feed} />
+          </div>
           <p className="missing-sub">
-            Micro-monopoly signals — buyback history and low-liquidity ramps
-            {data && kind === "buyback" && typeof data.history_count === "number" ? (
-              <>
-                {" "}
-                · <strong>{data.history_count.toLocaleString()}</strong> with buyback
-                history
-              </>
-            ) : null}
+            NSE-filed results and concalls — drift from prior close to CMP
             {data ? (
-              <>
-                {" "}
-                · <strong>{rows.length.toLocaleString()}</strong> shown
-                {typeof pending === "number" ? (
-                  <>
-                    {" "}
-                    · <strong>{pending.toLocaleString()}</strong> pending scan
-                  </>
-                ) : null}
-              </>
+              <> · <strong>{rows.length.toLocaleString()}</strong> shown</>
             ) : null}
           </p>
         </div>
         <div className="missing-head-actions">
-          <RefreshButton busy={loading} onRefresh={() => load({ refresh: true })} />
+          <RefreshButton busy={loading} onRefresh={() => void load({ refresh: true })} />
         </div>
       </div>
 
       <div className="toolbar strategy-toolbar">
-        <label className="field">
-          <span>Signal</span>
-          <select
-            value={kind}
-            onChange={(e) => setKind(e.target.value as StrategyKind)}
-          >
-            <option value="buyback">Buybacks</option>
-            <option value="liquidity">Liquidity ramp</option>
-          </select>
-        </label>
         <label className="field">
           <span>List</span>
           <select value={market} onChange={(e) => setMarket(e.target.value)}>
@@ -310,156 +395,106 @@ export function StrategyPanel() {
             <option value="BSE SME">BSE SME</option>
           </select>
         </label>
-        {kind === "liquidity" ? (
-          <label className="field strategy-check">
-            <input
-              type="checkbox"
-              checked={onlyMatches}
-              onChange={(e) => setOnlyMatches(e.target.checked)}
-            />
-            <span>Low + ramping only</span>
-          </label>
-        ) : null}
       </div>
 
-      <WatchlistFilterBar
-        cap={cap}
-        onCap={setCap}
-        capCounts={data?.cap_counts}
-        allCount={data?.all_count}
-        hold={filterHold}
-        onHold={setFilterHold}
-        holdCount={tagCounts.hold}
-        edge={filterEdge}
-        onEdge={setFilterEdge}
-        edgeCount={tagCounts.edge}
-        funds={fundFilters}
-        onFund={setFund}
-        fundKeys={STRATEGY_FUND_KEYS}
-        fundCounts={fundCounts}
-        sme={filterSme}
-        onSme={setFilterSme}
-        smeCount={tagCounts.sme}
-        buyableOnly={filterBuy}
-        onBuyableOnly={kind === "buyback" ? setFilterBuy : undefined}
-        buyCount={data?.buy_count}
-        openOnly={filterOpen}
-        onOpenOnly={kind === "buyback" ? setFilterOpen : undefined}
-        openCount={data?.open_count}
-        tenderOnly={filterTender}
-        onTenderOnly={kind === "buyback" ? setFilterTender : undefined}
-        tenderCount={data?.tender_count}
-        spread8Only={filterSpread8}
-        onSpread8Only={kind === "buyback" ? setFilterSpread8 : undefined}
-        spread8Count={data?.spread8_count}
+      <ConcallDriftFilterBar
+        sort={driftSort}
+        onSort={setDriftSort}
+        datePreset={datePreset}
+        onDatePreset={setDatePreset}
+        quarter={quarter}
+        onQuarter={setQuarter}
+        quarterOptions={data?.quarters ?? recentFyQuarterOptions()}
+        customFrom={customFrom}
+        customTo={customTo}
+        onCustomFrom={setCustomFrom}
+        onCustomTo={setCustomTo}
+        sector={sector}
+        onSector={setSector}
+        sectors={data?.sectors ?? []}
+        mcapMin={mcapMin}
+        mcapMax={mcapMax}
+        onMcapMin={setMcapMin}
+        onMcapMax={setMcapMax}
+        mcapBounds={data?.mcap_bounds ?? null}
+        search={search}
+        onSearch={setSearch}
+        withBaseline={data?.with_baseline}
+        totalEvents={data?.total_events}
+        nseFeed={data?.nse_feed}
       />
 
       <StrategyScanBar
-        kind={kind}
         market={market}
-        pending={pending}
         busy={loading}
+        ready={dataReady}
         onRefresh={load}
       />
 
-      {kind === "buyback" ? (
-        <p className="hint tight">
-          Use <strong>Can buy</strong> for tender offers you can still purchase (
-          announced or open, with max ₹ from filings). Add <strong>≥8%</strong>{" "}
-          for spread. Expand a row for Qtr / Business.
-        </p>
-      ) : (
-        <p className="hint tight">
-          Low avg daily value (₹ lakh) with 20d/60d turnover ramp — thin float
-          where attention may be building.
-        </p>
-      )}
+      <p className="hint tight">
+        <strong>Get announced</strong> pulls companies that just filed results or a concall
+        on NSE (last 7 days) — not the whole universe. Expand a row for Qtr, Documents, and Highlights.
+      </p>
 
       {loading && !data ? <div className="loading">Loading…</div> : null}
 
-      {!loading && rows.length === 0 ? (
+      {loadError ? (
+        <div className="empty-state empty-state-error">{loadError}</div>
+      ) : null}
+
+      {!loading && !loadError && rows.length === 0 ? (
         <div className="empty-state">
-          No cached rows — run sync/scan above.
-          {kind === "buyback" && typeof stats.events === "number" ? (
-            <> ({stats.events} action events in DB)</>
-          ) : null}
+          {datePreset ? (
+            <>
+              No earn events for this date filter — clear the date preset or
+              widen the quarter.
+            </>
+          ) : (
+            <>
+              No rows yet — click <strong>Get announced</strong> to pull today’s
+              NSE result / concall filings.
+            </>
+          )}
         </div>
       ) : null}
 
-      {kind === "buyback" && rows.length > 0 ? (
+      {rows.length > 0 ? (
         <div className="table-card strategy-table-card">
           <div className="table-wrap">
-            <table className="data-table strategy-data-table">
+            <table className="data-table strategy-data-table cd-board">
               <thead>
                 <tr>
-                  <th className="col-name">Ticker</th>
-                  <th className="num col-mcap_cr">Mcap</th>
-                  <th className="num">Score</th>
-                  <th>Type</th>
-                  <th>Latest</th>
-                  <th className="num col-price">CMP</th>
-                  <th className="num">Max ₹</th>
-                  <th className="num">Spread</th>
-                  <th className="num">% eq</th>
-                  <th>Status</th>
-                  <th>Why</th>
+                  <th className="cd-idx-h">#</th>
+                  <th>Company</th>
+                  <th className="cd-date-h">Date</th>
+                  <th className="num">LTP</th>
+                  <th className="num">Drift</th>
+                  <th className="col-links">Links</th>
                 </tr>
               </thead>
               <tbody>
-              {(rows as StrategyBuybackRowData[]).map((r) => {
-                const key = `${r.market}:${r.ticker}`;
-                const open = expanded === key;
-                return (
-                  <StrategyBuybackRow
-                    key={key}
-                    row={r}
-                    open={open}
-                    panel={expandPanel}
-                    onToggle={() =>
-                      setExpanded((cur) => (cur === key ? null : key))
-                    }
-                    onPanel={setExpandPanel}
-                  />
-                );
-              })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
-      {kind === "liquidity" && rows.length > 0 ? (
-        <div className="table-card strategy-table-card">
-          <div className="table-wrap">
-            <table className="data-table strategy-data-table">
-              <thead>
-                <tr>
-                  <th className="col-name">Ticker</th>
-                  <th className="num col-mcap_cr">Mcap</th>
-                  <th className="num">Score</th>
-                  <th className="num col-price">Price</th>
-                  <th className="num">20d ₹L</th>
-                  <th className="num">60d ₹L</th>
-                  <th>Why</th>
-                </tr>
-              </thead>
-              <tbody>
-              {(rows as StrategyLiquidityRowData[]).map((r) => {
-                const key = `${r.market}:${r.ticker}`;
-                const open = expanded === key;
-                return (
-                  <StrategyLiquidityRow
-                    key={key}
-                    row={r}
-                    open={open}
-                    panel={expandPanel}
-                    onToggle={() =>
-                      setExpanded((cur) => (cur === key ? null : key))
-                    }
-                    onPanel={setExpandPanel}
-                  />
-                );
-              })}
+                {rows.map((r, i) => {
+                  const key = `${r.market}:${r.ticker}`;
+                  const open = expanded === key;
+                  return (
+                    <StrategyConcallDriftRow
+                      key={key}
+                      index={i + 1}
+                      row={r}
+                      open={open}
+                      panel={expandPanel}
+                      onToggle={() =>
+                        setExpanded((cur) => {
+                          if (cur === key) return null;
+                          setExpandPanel("qtr");
+                          return key;
+                        })
+                      }
+                      onPanel={setExpandPanel}
+                      onDocsChange={() => void load({ silent: true })}
+                    />
+                  );
+                })}
               </tbody>
             </table>
           </div>

@@ -9,13 +9,14 @@ import {
   type QuarterPanel as QuarterPanelData,
   type QuarterRow,
 } from "@/lib/quarter-panel";
-import { classifyQuarterTrend, trendLabelForRow } from "@/lib/quarter-trend";
+import { classifyQuarterTrend, trendLabelForRow, trendShortLabel } from "@/lib/quarter-trend";
 import { peRowsFromPanel } from "@/lib/valuation";
 
 type Props = {
   panel: QuarterPanelData | null | undefined;
   yoy?: PanelYoY | null;
   price?: number | null;
+  sourceNote?: string | null;
 };
 
 function TrendCell({ row }: { row: QuarterRow }) {
@@ -23,13 +24,12 @@ function TrendCell({ row }: { row: QuarterRow }) {
   if (!trend) return <td className="q-trend q-trend-na">—</td>;
   return (
     <td className={`q-trend q-trend-${trend.tone}`} title={trend.text}>
-      <span className="q-trend-dot" aria-hidden />
-      {trend.text}
+      <span className="q-trend-pill">{trendShortLabel(trend.text)}</span>
     </td>
   );
 }
 
-export function QuarterPanel({ panel, yoy, price }: Props) {
+export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
   if (!panel?.labels?.length || !panel.rows?.length) {
     return <div className="q-empty">No quarterly data.</div>;
   }
@@ -37,7 +37,7 @@ export function QuarterPanel({ panel, yoy, price }: Props) {
   const n = panel.labels.length;
   const peRows = peRowsFromPanel(panel, price);
   const displayRows = [...panel.rows, ...peRows];
-  const overall = classifyQuarterTrend(panel);
+  const overall = classifyQuarterTrend(panel, yoy);
 
   const salesRow = panel.rows.find((r) => r.label === "Sales");
   const allZeroSales =
@@ -53,31 +53,41 @@ export function QuarterPanel({ panel, yoy, price }: Props) {
   return (
     <div className="q-expand">
       <div className="q-block">
+        {sourceNote ? (
+          <p className="q-source-note">{sourceNote}</p>
+        ) : null}
         <div className="q-block-head">
           <div className="q-block-title">Quarterly · Rs Cr</div>
-          {overall ? (
-            <span
-              className={`q-overall-trend q-overall-trend--${overall.signal.toLowerCase()}`}
-              title={overall.reason}
-            >
-              {overall.signal}
-            </span>
-          ) : null}
+          <div className="q-block-meta">
+            {price != null && price > 0 ? (
+              <span className="q-ltp" title="Last traded price">
+                LTP ₹{price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              </span>
+            ) : null}
+            {overall ? (
+              <span
+                className={`q-overall-trend q-overall-trend--${overall.signal.toLowerCase()}`}
+                title={overall.reason}
+              >
+                {overall.signal}
+              </span>
+            ) : null}
+          </div>
         </div>
         {allZeroSales ? (
           <div className="q-note">
             No operating sales — profit may be other income / one-offs
           </div>
         ) : null}
-        {price != null && price > 0 && peRows.length ? (
-          <div className="q-note q-note-muted">
-            Current / Forward PE use today&apos;s price (₹
-            {price.toLocaleString("en-IN")}) at each quarter&apos;s EPS — not
-            historical share prices.
-          </div>
-        ) : null}
         <div className="q-panel">
           <table className="q-table">
+            <colgroup>
+              <col className="q-col-metric" />
+              {panel.labels.map((lb) => (
+                <col key={lb} className="q-col-qtr" />
+              ))}
+              <col className="q-col-trend" />
+            </colgroup>
             <thead>
               <tr>
                 <th>Metric</th>
@@ -109,10 +119,6 @@ export function QuarterPanel({ panel, yoy, price }: Props) {
             </tbody>
           </table>
         </div>
-        <p className="q-missing-note">
-          Not in this panel (no data source yet):{" "}
-          <strong>Share price history</strong>, <strong>Order book</strong>.
-        </p>
         {hasYoY ? (
           <p className="q-yoy-foot">
             YoY vs same Q last year:{" "}

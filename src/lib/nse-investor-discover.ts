@@ -3,6 +3,7 @@
  * Official exchange source (no Screener).
  */
 import { createNseBuybackSession } from "./nse-buybacks";
+import { parseNseDateTime } from "./nse-corp-events";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
 
 const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
@@ -11,7 +12,7 @@ const NSE_ANN_REF =
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title: string }> = [
   {
-    re: /transcript|con\.?\s*call|concall|earning\s+call|investor\s+meet/i,
+    re: /transcript|con\.?\s*call|concall|conference\s+call|earnings?\s+call|investor\s+meet|analyst\s+meet/i,
     kind: "concall",
     title: "Concall transcript",
   },
@@ -44,10 +45,9 @@ function safeStr(v: unknown): string {
 }
 
 function formatPeriod(raw: unknown): string | null {
-  const text = safeStr(raw);
-  if (!text) return null;
-  const d = new Date(text.replace(/(\d{2})-([A-Za-z]{3})-(\d{4})/, "$2 $1, $3"));
-  if (Number.isNaN(d.getTime())) return null;
+  const iso = parseNseDateTime(raw);
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return null;
   return d.toLocaleString("en-IN", { month: "short", year: "numeric" });
 }
 
@@ -83,7 +83,7 @@ function isNoise(desc: string, attachmentText: string): boolean {
   return (
     /newspaper publication|postal ballot|agm notice|dividend|record date|clarification.*delay|reasons for delayed|non-submission of financial/i.test(
       blob,
-    ) && !/financial result|outcome of board|investor presentation|transcript/i.test(blob)
+    ) && !/financial result|outcome of board|investor presentation|transcript|conference call|concall/i.test(blob)
   );
 }
 
@@ -97,7 +97,7 @@ function classifyRow(row: NseAnnRow): {
   const blob = `${desc} ${attachmentText} ${file}`;
   if (isNoise(desc, attachmentText)) return null;
 
-  if (/transcript|earning_call|earnings_call|concall/i.test(file)) {
+  if (/transcript|earning_call|earnings_call|concall|conference.?call|earnings.?call/i.test(file)) {
     return { kind: "concall", title: "Concall transcript" };
   }
   if (/presentation|_ip_|investor_presentation/i.test(file)) {
@@ -112,12 +112,10 @@ function classifyRow(row: NseAnnRow): {
 async function fetchNseAnnouncements(
   symbol: string,
   index: "sme" | "equities",
+  from: Date,
+  to: Date,
+  jar: { cookie: string },
 ): Promise<NseAnnRow[]> {
-  const jar = await createNseBuybackSession();
-  const to = new Date();
-  const from = new Date(to);
-  from.setFullYear(from.getFullYear() - 3);
-
   const dd = (d: Date) =>
     `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
 
@@ -142,6 +140,22 @@ async function fetchNseAnnouncements(
   return Array.isArray(rows) ? (rows as NseAnnRow[]) : [];
 }
 
+async function fetchNseAnnouncementWindows(
+  symbol: string,
+  index: "sme" | "equities",
+  jar: { cookie: string },
+): Promise<NseAnnRow[]> {
+  const now = new Date();
+  const recentFrom = new Date(now);
+  recentFrom.setDate(recentFrom.getDate() - 180);
+  const oldFrom = new Date(now);
+  oldFrom.setFullYear(oldFrom.getFullYear() - 3);
+
+  const recent = await fetchNseAnnouncements(symbol, index, recentFrom, now, jar);
+  const older = await fetchNseAnnouncements(symbol, index, oldFrom, recentFrom, jar);
+  return [...recent, ...older];
+}
+
 /** NSE corporate announcements for concall / PPT / results PDFs. */
 export async function discoverNseInvestorMaterialSources(
   ticker: string,
@@ -151,11 +165,12 @@ export async function discoverNseInvestorMaterialSources(
   const symbol = ticker.trim().toUpperCase();
   if (!symbol) return [];
 
+  const jar = await createNseBuybackSession();
   const rows: NseAnnRow[] = [];
   const seenSeq = new Set<string>();
   for (const index of nseAnnIndex(market)) {
     try {
-      for (const row of await fetchNseAnnouncements(symbol, index)) {
+      for (const row of await fetchNseAnnouncementWindows(symbol, index, jar)) {
         const seq = safeStr(row.seq_id);
         if (seq && seenSeq.has(seq)) continue;
         if (seq) seenSeq.add(seq);
@@ -180,20 +195,35 @@ export async function discoverNseInvestorMaterialSources(
     if (seenUrl.has(id)) continue;
     seenUrl.add(id);
 
-    const period = formatPeriod(row.an_dt || row.sort_date || row.dt);
+    const rawDt = row.an_dt || row.sort_date || row.dt;
+    const announced_at = parseNseDateTime(rawDt);
+    const period = formatPeriod(rawDt);
     out.push({
       id,
       kind: classified.kind,
       title: classified.title,
       period,
+      announced_at,
       url,
       provider: "nse_announcements",
       imported: importedUrls.has(id),
     });
   }
 
-  out.sort((a, b) => periodSortKey(b.period) - periodSortKey(a.period));
+  out.sort((a, b) => sourceRecency(b) - sourceRecency(a));
   return out;
+}
+
+function sourceRecency(s: DiscoveredMaterialSource): number {
+  if (s.announced_at) {
+    const t = Date.parse(s.announced_at);
+    if (Number.isFinite(t)) return t;
+  }
+  const key = periodSortKey(s.period);
+  if (!key) return 0;
+  const year = Math.floor((key - 1) / 12);
+  const month = (key - 1) % 12;
+  return Date.UTC(year, month, 15);
 }
 
 export { formatPeriod as nseInvestorFormatPeriod };

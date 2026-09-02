@@ -131,15 +131,6 @@ function SignalTags({ company }: { company: Company }) {
           DD
         </span>
       ) : null}
-      {company.has_mom && company.momentum_pct != null ? (
-        <span
-          className="result-tag tag-scan-mom"
-          title={`12−1 momentum · list rank #${company.momentum_rank ?? "—"} · +${company.momentum_pct}% (Price 1M / Price 1Y − 1)`}
-        >
-          {company.momentum_rank != null ? `#${company.momentum_rank} ` : null}
-          +{Math.round(company.momentum_pct)}%
-        </span>
-      ) : null}
     </span>
   );
 }
@@ -867,6 +858,15 @@ function CompanyRows({
     materialsRev,
   );
 
+  const matchWhy =
+    showMatched && r.matched?.length
+      ? r.matched.find((t) => t.trim().length > 28)?.trim() ?? null
+      : null;
+  const matchChips =
+    showMatched && r.matched?.length && !matchWhy
+      ? r.matched.filter((t) => t.trim().length > 0)
+      : [];
+
   const missingTags =
     showMissing && r.missing
       ? (
@@ -920,6 +920,7 @@ function CompanyRows({
               ))}
             </div>
           ) : null}
+          {matchWhy ? <p className="match-why">{matchWhy}</p> : null}
           {displayMatchTags.length > 0 ? (
             <div className="matched-tags">
               {displayMatchTags.map(({ term, source }) => (
@@ -936,9 +937,9 @@ function CompanyRows({
                 </span>
               ))}
             </div>
-          ) : showMatched && r.matched && r.matched.length > 0 ? (
+          ) : matchChips.length > 0 ? (
             <div className="matched-tags">
-              {r.matched.slice(0, 4).map((t) => {
+              {matchChips.slice(0, 4).map((t) => {
                 const src = matchTagSource(t, about, scraped);
                 return (
                   <span

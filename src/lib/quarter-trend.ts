@@ -1,6 +1,7 @@
 import {
   fmtYoYPct,
   qoqFromPanel,
+  type PanelYoY,
   type QuarterPanel,
 } from "./quarter-panel";
 
@@ -28,6 +29,24 @@ function sequentialMoves(values: Array<number | null>): {
     else if (cur < prev) down += 1;
   }
   return { up, down, pairs: up + down };
+}
+
+function firstLast(values: Array<number | null>): [number | null, number | null] {
+  const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
+  if (!nums.length) return [null, null];
+  return [nums[0]!, nums[nums.length - 1]!];
+}
+
+/** Latest NP vs prior quarter — works when both are losses (QoQ % is undefined). */
+function npImprovingLatest(
+  np: Array<number | null>,
+  npQ: number | null,
+): boolean {
+  if (npQ != null && npQ >= 0) return true;
+  if (np.length < 2) return false;
+  const latest = np[np.length - 1];
+  const prior = np[np.length - 2];
+  return latest != null && prior != null && latest > prior;
 }
 
 /** Classify sequential pattern for one panel row (Trend column). */
@@ -68,8 +87,19 @@ export function trendLabelForRow(row: {
   return { text: "Flat", tone: "neutral" };
 }
 
+/** Compact trend chip for the table column. */
+export function trendShortLabel(text: string): string {
+  if (text.startsWith("Decreasing")) return "Cheaper";
+  if (text === "Increasing") return "Rising";
+  if (text === "Inconsistent") return "Mixed";
+  return text;
+}
+
 /** Classify 5-quarter sales/NP pattern. */
-export function classifyQuarterTrend(panel: QuarterPanel): {
+export function classifyQuarterTrend(
+  panel: QuarterPanel,
+  yoy?: PanelYoY | null,
+): {
   signal: QtrTrendSignal;
   reason: string;
 } | null {
@@ -100,8 +130,29 @@ export function classifyQuarterTrend(panel: QuarterPanel): {
     Math.abs(salesQ - npQ) >= 35 &&
     Math.sign(salesQ) !== Math.sign(npQ);
 
+  const [firstSales, lastSales] = firstLast(sales);
+  const op = rowValues(panel, "Operating Profit");
+  const opMoves = sequentialMoves(op);
+  const opUp = opMoves.up > opMoves.down;
+  const salesSpike = salesQ != null && salesQ >= 25;
+  const salesRecovering =
+    firstSales != null &&
+    lastSales != null &&
+    lastSales > firstSales &&
+    salesSpike;
+  const strongSalesYoy = yoy?.sales_yoy != null && yoy.sales_yoy >= 20;
+  const npLatestUp = npImprovingLatest(np, npQ);
+
   let signal: QtrTrendSignal;
-  if (latestOpp || trendSplit || bigGap) {
+  if (salesRecovering || strongSalesYoy) {
+    if (npLatestUp && (opUp || salesRecovering || strongSalesYoy)) {
+      signal = "Growing";
+    } else if (opUp || strongSalesYoy) {
+      signal = "Growing";
+    } else {
+      signal = "Inconsistent";
+    }
+  } else if (latestOpp || trendSplit || bigGap) {
     signal = "Inconsistent";
   } else if (salesUp && npUp) {
     signal = "Growing";
@@ -124,6 +175,7 @@ export function classifyQuarterTrend(panel: QuarterPanel): {
   }
   if (salesQ != null) parts.push(`Sales QoQ ${fmtYoYPct(salesQ)}`);
   if (npQ != null) parts.push(`NP QoQ ${fmtYoYPct(npQ)}`);
+  if (yoy?.sales_yoy != null) parts.push(`Sales YoY ${fmtYoYPct(yoy.sales_yoy)}`);
 
   return {
     signal,

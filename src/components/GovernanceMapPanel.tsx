@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CapMarketFilters,
   type CapFilter,
@@ -34,6 +34,21 @@ import { formatMcap } from "@/lib/types";
 type View = "director" | "company";
 type BridgeMode = "off" | "ti" | "mic" | "cap";
 
+type DrillFrame =
+  | {
+      kind: "director";
+      personId: string;
+      name: string;
+      fromLabel: string;
+      restoreY: number;
+    }
+  | {
+      kind: "company";
+      ticker: string;
+      fromLabel: string;
+      restoreY: number;
+    };
+
 type Stats = {
   directors: number;
   din_backed: number;
@@ -44,6 +59,9 @@ type Stats = {
   multi_lc: number;
   sme_cross: number;
   companies: number;
+  hold?: number;
+  edge?: number;
+  funds?: Partial<Record<FundWatchlistKey, number>>;
 };
 
 type Seat = {
@@ -186,7 +204,7 @@ const EMPTY_FUNDS = Object.fromEntries(
 ) as FundFilterState;
 
 export function GovernanceMapPanel() {
-  const [view, setView] = useState<View>("director");
+  const [view, setView] = useState<View>("company");
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
@@ -202,6 +220,12 @@ export function GovernanceMapPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const pendingOpenRef = useRef<string | null>(null);
+  const pendingScrollRef = useRef<number | null>(null);
+  const [stack, setStack] = useState<DrillFrame[]>([]);
+  const [drillData, setDrillData] = useState<ApiResponse | null>(null);
+  const [drillLoading, setDrillLoading] = useState(false);
+  const [drillError, setDrillError] = useState<string | null>(null);
   const [changesRefreshKey, setChangesRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -259,6 +283,10 @@ export function GovernanceMapPanel() {
         }
         setLoadError(null);
         setData(json);
+        if (pendingOpenRef.current) {
+          setOpenId(pendingOpenRef.current);
+          pendingOpenRef.current = null;
+        }
       } catch (err) {
         setLoadError(
           err instanceof Error ? err.message : "Governance map request failed",
@@ -275,14 +303,95 @@ export function GovernanceMapPanel() {
     void load();
   }, [load]);
 
+  const top = stack[stack.length - 1] ?? null;
+  const inDrill = Boolean(top);
+
+  useEffect(() => {
+    if (!top) {
+      setDrillData(null);
+      setDrillError(null);
+      setDrillLoading(false);
+      return;
+    }
+    let cancelled = false;
+    const q = top.kind === "director" ? top.name : top.ticker;
+    const params = new URLSearchParams({
+      view: top.kind,
+      q,
+      page: "1",
+      pageSize: "40",
+      minScore: "0",
+      minBoards: "1",
+      sort: "score",
+      dinOnly: "0",
+    });
+    setDrillLoading(true);
+    setDrillError(null);
+    setDrillData(null);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/governance-map?${params}`);
+        const text = await res.text();
+        let json: ApiResponse & { error?: string };
+        try {
+          json = JSON.parse(text) as ApiResponse & { error?: string };
+        } catch {
+          if (cancelled) return;
+          setDrillError(
+            res.ok
+              ? "Invalid response from governance map"
+              : `Failed to open ${top.kind} (${res.status})`,
+          );
+          return;
+        }
+        if (cancelled) return;
+        if (!res.ok || json.error) {
+          setDrillError(json.error || `Failed to open ${top.kind}`);
+          return;
+        }
+        setDrillData(json);
+        if (top.kind === "director") {
+          const rows = json.rows as DirectorRow[];
+          const hit = rows.find((r) => r.person_id === top.personId);
+          setOpenId(hit?.person_id ?? rows[0]?.person_id ?? top.personId);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        setDrillError(
+          err instanceof Error ? err.message : "Failed to open director",
+        );
+      } finally {
+        if (!cancelled) setDrillLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [top]);
+
+  useEffect(() => {
+    if (pendingScrollRef.current == null) return;
+    const y = pendingScrollRef.current;
+    pendingScrollRef.current = null;
+    window.scrollTo(0, y);
+  }, [stack]);
+
   const stats = data?.stats;
   const start = data ? (data.page - 1) * 40 + 1 : 0;
   const end = data ? Math.min(data.page * 40, data.total) : 0;
-  const ready = data?.view === view;
+  const ready = inDrill
+    ? drillData?.view === top?.kind
+    : data?.view === view;
   const directorRows =
-    ready && view === "director" ? (data.rows as DirectorRow[]) : [];
+    ready && (inDrill ? top?.kind === "director" : view === "director")
+      ? ((inDrill ? drillData : data)?.rows as DirectorRow[])
+      : [];
   const companyRows =
-    ready && view === "company" ? (data.rows as CompanyRow[]) : [];
+    ready && (inDrill ? top?.kind === "company" : view === "company")
+      ? ((inDrill ? drillData : data)?.rows as CompanyRow[])
+      : [];
+  const showDirectors = inDrill ? top?.kind === "director" : view === "director";
+  const showCompanies = inDrill ? top?.kind === "company" : view === "company";
 
   const pageTickers = useMemo(() => {
     const set = new Set<string>();
@@ -300,22 +409,56 @@ export function GovernanceMapPanel() {
     return [...set];
   }, [view, directorRows, companyRows]);
 
-  function drillDirector(personId: string, name: string) {
-    setQ(name);
-    setDebouncedQ(name);
-    setView("director");
-    setOpenId(personId);
+  function drillDirector(personId: string, name: string, fromLabel?: string) {
+    if (top?.kind === "director" && top.personId === personId) return;
+    setStack((s) => [
+      ...s,
+      {
+        kind: "director",
+        personId,
+        name,
+        restoreY: typeof window !== "undefined" ? window.scrollY : 0,
+        fromLabel:
+          fromLabel ||
+          (top?.kind === "company"
+            ? top.ticker
+            : top?.kind === "director"
+              ? top.name
+              : view === "company"
+                ? "Companies"
+                : "Directors"),
+      },
+    ]);
   }
 
   function bumpChanges() {
     setChangesRefreshKey((k) => k + 1);
   }
 
-  function drillTicker(ticker: string) {
-    setQ(ticker);
-    setDebouncedQ(ticker);
-    setView("director");
-    setOpenId(null);
+  function drillTicker(ticker: string, fromLabel?: string) {
+    if (top?.kind === "company" && top.ticker === ticker) return;
+    const from =
+      fromLabel ||
+      (top?.kind === "director"
+        ? top.name
+        : view === "director"
+          ? "Directors"
+          : "Companies");
+    setStack((s) => [
+      ...s,
+      {
+        kind: "company",
+        ticker,
+        fromLabel: from,
+        restoreY: typeof window !== "undefined" ? window.scrollY : 0,
+      },
+    ]);
+  }
+
+  function goBack() {
+    const leaving = stack[stack.length - 1];
+    pendingScrollRef.current = leaving?.restoreY ?? 0;
+    setStack((s) => s.slice(0, -1));
   }
 
   function toggleBridge(mode: BridgeMode) {
@@ -361,10 +504,24 @@ export function GovernanceMapPanel() {
     setCap("All");
     setSme(false);
     setOpenId(null);
+    setView("company");
+    setStack([]);
   }
 
   return (
     <div className="panel">
+      {inDrill && top ? (
+        <div className="gov-back-bar">
+          <button type="button" className="gov-back-btn" onClick={goBack}>
+            ← Back to {top.fromLabel}
+          </button>
+          <span className="gov-back-now">
+            {top.kind === "director" ? top.name : top.ticker}
+          </span>
+        </div>
+      ) : null}
+
+      <div hidden={inDrill}>
       <div className="toolbar gov-toolbar">
         <div className="gov-view-tabs" role="tablist" aria-label="Map view">
           {(
@@ -379,7 +536,10 @@ export function GovernanceMapPanel() {
               role="tab"
               className={view === id ? "tab on" : "tab"}
               aria-selected={view === id}
-              onClick={() => setView(id)}
+              onClick={() => {
+                setStack([]);
+                setView(id);
+              }}
             >
               {label}
             </button>
@@ -390,7 +550,14 @@ export function GovernanceMapPanel() {
           <span>Search</span>
           <input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setQ(v);
+              if (!v.trim()) {
+                setOpenId(null);
+                setView("company");
+              }
+            }}
             placeholder="Director, DIN, company, ticker…"
             aria-label="Search directors and companies"
           />
@@ -476,17 +643,27 @@ export function GovernanceMapPanel() {
             type="button"
             className={`hold ${filterHold ? "on" : ""}`}
             onClick={() => setFilterHold((v) => !v)}
-            title="Any board seat is in your HOLD list"
+            title={
+              view === "company"
+                ? "Companies in your HOLD list"
+                : "Directors with a board seat in your HOLD list"
+            }
           >
             Hold
+            {stats?.hold != null ? <i>{stats.hold}</i> : null}
           </button>
           <button
             type="button"
             className={`edge ${filterEdge ? "on" : ""}`}
             onClick={() => setFilterEdge((v) => !v)}
-            title="Any board seat is on Early Edge"
+            title={
+              view === "company"
+                ? "Companies on Early Edge"
+                : "Directors with a board seat on Early Edge"
+            }
           >
             Edge
+            {stats?.edge != null ? <i>{stats.edge}</i> : null}
           </button>
           {FUND_WATCHLIST_KEYS.map((key) => (
             <button
@@ -496,9 +673,14 @@ export function GovernanceMapPanel() {
               onClick={() =>
                 setFundFilters((prev) => ({ ...prev, [key]: !prev[key] }))
               }
-              title={`Any board seat is on ${FUND_WATCHLIST_LABELS[key]}`}
+              title={
+                view === "company"
+                  ? `Companies on ${FUND_WATCHLIST_LABELS[key]}`
+                  : `Directors with a board seat on ${FUND_WATCHLIST_LABELS[key]}`
+              }
             >
               {FUND_WATCHLIST_LABELS[key]}
+              {stats?.funds?.[key] != null ? <i>{stats.funds[key]}</i> : null}
             </button>
           ))}
         </div>
@@ -571,12 +753,20 @@ export function GovernanceMapPanel() {
           </span>
         ) : null}
       </div>
+      </div>
 
-      {!ready && loading ? (
-        <div className="table-meta">Loading…</div>
+      {!ready && (inDrill ? drillLoading : loading) ? (
+        <div className="table-meta">{inDrill ? "Opening…" : "Loading…"}</div>
+      ) : null}
+      {inDrill && drillError ? (
+        <div className="table-meta">
+          <span className="gov-load-error" role="alert">
+            {drillError}
+          </span>
+        </div>
       ) : null}
 
-      {view === "director" && ready ? (
+      {showDirectors && ready ? (
         <div className="gov-list">
           {directorRows.map((r) => {
             const open = openId === r.person_id;
@@ -659,10 +849,10 @@ export function GovernanceMapPanel() {
                                 key={c.ticker}
                                 type="button"
                                 className="gov-ticker"
-                                title={`Show directors on ${c.ticker}`}
+                                title={`Open ${c.ticker}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  drillTicker(c.ticker);
+                                  drillTicker(c.ticker, r.name);
                                 }}
                               >
                                 {i > 0 ? ", " : null}
@@ -806,10 +996,13 @@ export function GovernanceMapPanel() {
               </article>
             );
           })}
+          {inDrill && directorRows.length === 0 ? (
+            <div className="table-meta">No other boards found for this director.</div>
+          ) : null}
         </div>
       ) : null}
 
-      {view === "company" && ready ? (
+      {showCompanies && ready ? (
         <div className="gov-list">
           {companyRows.map((c) => {
             const directors = c.directors ?? [];
@@ -883,7 +1076,20 @@ export function GovernanceMapPanel() {
                           {d.dir_score.toFixed(1)}
                         </span>
                         <span>
-                          {d.name}
+                          <button
+                            type="button"
+                            className="gov-dir-link"
+                            title={`Show other boards for ${d.name}`}
+                            onClick={() =>
+                              drillDirector(
+                                d.person_id,
+                                d.name,
+                                `${c.name} (${c.ticker})`,
+                              )
+                            }
+                          >
+                            {d.name}
+                          </button>
                           {d.din_backed ? (
                             <span className="gov-badge">DIN</span>
                           ) : null}
@@ -902,7 +1108,7 @@ export function GovernanceMapPanel() {
         </div>
       ) : null}
 
-      {data && data.pages > 1 ? (
+      {!inDrill && data && data.pages > 1 ? (
         <div className="pager">
           <button
             type="button"

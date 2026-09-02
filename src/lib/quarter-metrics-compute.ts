@@ -139,7 +139,9 @@ export async function resolveQuarterPanelData(
   const rowPrice = resolveRowPrice(key, priceOverride);
 
   try {
-    const live = await fetchQuarterlyFundamentals(key, market);
+    const live = await fetchQuarterlyFundamentals(key, market, {
+      screenerForce: opts?.force,
+    });
     const panel = buildQuarterPanel(live.quarters);
     if (!panel) {
       return computeAndCacheQuarterMetrics(ticker, market, priceOverride, {
@@ -207,7 +209,9 @@ export async function computeAndCacheQuarterMetrics(
 
   try {
     const { quarters, price: yahooPrice, symbol, source, operating_cashflow } =
-      await fetchQuarterlyFundamentals(key, market);
+      await fetchQuarterlyFundamentals(key, market, {
+        screenerForce: opts?.force,
+      });
     const panel = buildQuarterPanel(quarters);
     if (!panel) {
       saveTombstone(key);

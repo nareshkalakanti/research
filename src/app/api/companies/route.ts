@@ -11,12 +11,19 @@ import {
   combinePatterns,
   matchedKeywords,
   scrapeHighlightsForRow,
+  splitSearchOrTerms,
+  searchMatchScore,
   textHasTerm,
   tickerMatchesSearch,
 } from "@/lib/pattern";
 import { themesByIds, loadThemes } from "@/lib/themes";
 import type { MatchedThemeTag } from "@/lib/types";
 import { matchThemesForRow, mergeThemePortfolioRows, themeMatchPattern } from "@/lib/theme-match";
+import {
+  invalidateThemeLlmScanCache,
+  runThemeLlmScan,
+  type ThemeLlmScanResult,
+} from "@/lib/theme-llm-scan";
 import { runThemeScrapeBatch, type ThemeScrapeStats } from "@/lib/theme-scrape";
 import {
   invalidateBreakoutCache,
@@ -58,7 +65,7 @@ import { filterCompaniesByScanList } from "@/lib/scan-lists-server";
 import type { BbTimeframe } from "@/lib/signals";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 180;
 
 export type { CapTier };
 
@@ -88,6 +95,7 @@ function fundStubRow(stub: {
     about: null,
     scraped_about: null,
     scraped_about_clean: null,
+    llm_about: null,
     scrape_source_url: null,
     headquarters: null,
     sector: null,
@@ -210,6 +218,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     invalidateEdgeCache();
     invalidateFundWatchlistCache();
     invalidateNotesCache();
+    invalidateThemeLlmScanCache();
   }
   const market = sp.get("market") || "All";
   const bbTf: BbTimeframe = sp.get("bbTf") === "monthly" ? "monthly" : "weekly";
@@ -239,14 +248,21 @@ async function buildCompaniesResponse(req: NextRequest) {
     .map((s) => s.trim())
     .filter(Boolean);
   const custom = (sp.get("custom") || "").trim();
+  const ask = (sp.get("ask") || "").trim();
+  const tokenOverride = (sp.get("tokens") || "")
+    .split("|")
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 2)
+    .slice(0, 24);
   const selectedThemes = themesByIds(themeIds);
   const themePatterns = selectedThemes.map((t) => themeMatchPattern(t));
-  const scanPattern = combinePatterns([...themePatterns, custom]);
+  let scanPattern = combinePatterns([...themePatterns, custom]);
   const page = Math.max(1, Number(sp.get("page") || 1));
   const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") || 100)));
   const sort = sp.get("sort") || "sector";
   const dir = sp.get("dir") === "desc" ? "desc" : "asc";
   const scan = sp.get("scan") === "1";
+  const llmScanActive = scan && ask.length > 0;
   const dynamicScrape = sp.get("dynamicScrape") === "1";
   const scrapeLimit = Math.min(
     15,
@@ -266,10 +282,10 @@ async function buildCompaniesResponse(req: NextRequest) {
   const notes = notesTickerSet();
 
   const qTrim = q.trim();
-  if (qTrim && !qTrim.includes("|")) {
+  if (qTrim && !/[|/]/.test(qTrim)) {
     const tickerTerm = (qTrim.split(/\s+/)[0] ?? qTrim).toUpperCase();
     if (looksLikeTickerSearch(tickerTerm)) {
-      await bootstrapCompanyTicker(tickerTerm);
+      void bootstrapCompanyTicker(tickerTerm).catch(() => {});
     }
   }
 
@@ -342,12 +358,23 @@ async function buildCompaniesResponse(req: NextRequest) {
     );
   }
 
-  const qTerms = q
-    ? q
-        .split("|")
-        .map((t) => t.trim())
-        .filter(Boolean)
-    : [];
+  const qTerms = q ? splitSearchOrTerms(q) : [];
+
+  let llmScan: ThemeLlmScanResult | null = null;
+  const llmScore = new Map<string, number>();
+  if (llmScanActive) {
+    llmScan = await runThemeLlmScan(ask, companies, {
+      universeKey: `${market}|${cap}|${companies.length}`,
+      refresh: sp.get("refresh") === "1",
+      include: tokenOverride.length ? tokenOverride : undefined,
+    });
+    scanPattern = llmScan.scanPattern;
+    const keep = new Set(llmScan.hits.map((h) => h.ticker.toUpperCase()));
+    for (const h of llmScan.hits) {
+      llmScore.set(h.ticker.toUpperCase(), h.score);
+    }
+    companies = companies.filter((c) => keep.has(c.ticker.toUpperCase()));
+  }
 
   if (qTerms.length) {
     companies = companies.filter((c) => {
@@ -367,7 +394,16 @@ async function buildCompaniesResponse(req: NextRequest) {
   const highlightsByTicker: Record<string, string[]> = {};
   const fullHighlightsByTicker: Record<string, string[]> = {};
 
-  if (scan && (selectedThemes.length > 0 || custom.trim())) {
+  if (llmScan) {
+    const byTicker = new Map(companies.map((c) => [c.ticker.toUpperCase(), c]));
+    for (const h of llmScan.hits) {
+      const c = byTicker.get(h.ticker);
+      if (!c) continue;
+      matchedByTheme[c.ticker] = [h.why];
+      fullHighlightsByTicker[c.ticker] = h.terms;
+      highlightsByTicker[c.ticker] = aboutHighlightsForRow(c.about, h.terms);
+    }
+  } else if (scan && (selectedThemes.length > 0 || custom.trim())) {
     const hits = [];
     for (const c of companies) {
       const result = matchThemesForRow(c, selectedThemes, {
@@ -431,9 +467,15 @@ async function buildCompaniesResponse(req: NextRequest) {
       FUND_WATCHLIST_KEYS.map((k) => [k, 0]),
     ) as Record<(typeof FUND_WATCHLIST_KEYS)[number], number>;
     const themeScanActive =
-      scan && (selectedThemes.length > 0 || custom.trim());
+      llmScanActive ||
+      (scan && (selectedThemes.length > 0 || custom.trim()));
+    const llmKeep = llmScan
+      ? new Set(llmScan.hits.map((h) => h.ticker.toUpperCase()))
+      : null;
     for (const c of pool) {
-      if (themeScanActive) {
+      if (llmKeep) {
+        if (!llmKeep.has(c.ticker.toUpperCase())) continue;
+      } else if (themeScanActive) {
         if (
           !matchThemesForRow(c, selectedThemes, {
             customPattern: custom.trim() || null,
@@ -531,7 +573,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     }
   }
 
-  if (scan && (selectedThemes.length > 0 || custom.trim())) {
+  if (scan && !llmScanActive && (selectedThemes.length > 0 || custom.trim())) {
     let themePool = allCompanies;
     if (!watchlistMode && market && market !== "All") {
       if (market === "NSE") {
@@ -553,8 +595,8 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   const themeScanActive =
-    scan &&
-    (selectedThemes.length > 0 || custom.trim().length > 0);
+    llmScanActive ||
+    (scan && (selectedThemes.length > 0 || custom.trim().length > 0));
 
   companies = applyWatchlistFilters(companies, {
     filterSme,
@@ -587,7 +629,24 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   const mul = dir === "desc" ? -1 : 1;
+  const relevanceTerms = qTerms.length
+    ? qTerms
+    : custom.trim()
+      ? splitSearchOrTerms(custom)
+      : [];
   companies = [...companies].sort((a, b) => {
+    if (llmScanActive) {
+      const as = llmScore.get(a.ticker.toUpperCase()) ?? 0;
+      const bs = llmScore.get(b.ticker.toUpperCase()) ?? 0;
+      if (as !== bs) return bs - as;
+      const ah = holdings.has(a.ticker.toUpperCase()) ? 0 : 1;
+      const bh = holdings.has(b.ticker.toUpperCase()) ? 0 : 1;
+      if (ah !== bh) return ah - bh;
+    }
+    if (relevanceTerms.length) {
+      const rel = searchMatchScore(b, relevanceTerms) - searchMatchScore(a, relevanceTerms);
+      if (rel !== 0) return rel;
+    }
     if (themeScanActive) {
       const ah = holdings.has(a.ticker.toUpperCase()) ? 0 : 1;
       const bh = holdings.has(b.ticker.toUpperCase()) ? 0 : 1;
@@ -675,11 +734,14 @@ async function buildCompaniesResponse(req: NextRequest) {
       mcap_cr: m?.market_cap_cr ?? c.mcap_cr,
     };
 
-    let themeIds = matchedThemeIdsByTicker[row.ticker] ?? [];
+    let themeIds = llmScanActive ? [] : matchedThemeIdsByTicker[row.ticker] ?? [];
     let fullHits = fullHighlightsByTicker[row.ticker] ?? [];
     let aboutHits = highlightsByTicker[row.ticker] ?? [];
 
-    if (!themeIds.length || (!fullHits.length && annotateThemes.length > 0)) {
+    if (
+      !llmScanActive &&
+      (!themeIds.length || (!fullHits.length && annotateThemes.length > 0))
+    ) {
       const result = matchThemesForRow(row, annotateThemes, {
         customPattern:
           themeScanActive && custom.trim() ? custom.trim() : null,
@@ -759,7 +821,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     };
   });
 
-  // Gap summary: Missing tab uses market universe (+ fund lists); Watching uses active filters.
+  // Gap summary: Missing tab uses market universe (+ fund lists); Theme Scanner uses active filters.
   function buildGapSummary(pool: typeof companies) {
     return {
       missingPrice: pool.filter((c) => c.price == null).length,
@@ -817,6 +879,16 @@ async function buildCompaniesResponse(req: NextRequest) {
     markets: marketCounts(),
     sectors: distinctSectors(),
     scanPattern: scanPattern || null,
+    llm: llmScan
+      ? {
+          intent: llmScan.intent,
+          include: llmScan.include,
+          engine: llmScan.engine,
+          detail: llmScan.detail,
+          judged: llmScan.judged,
+          retrieved: llmScan.retrieved,
+        }
+      : undefined,
     gaps: gapSummary,
     signals: signalCounts,
     session: latestSignalDates(breakouts),

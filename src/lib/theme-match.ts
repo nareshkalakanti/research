@@ -22,7 +22,9 @@ export type ThemeFilterFile = {
 export type ThemeMatchRow = {
   about?: string | null;
   yf_about?: string | null;
+  llm_about?: string | null;
   scraped_about?: string | null;
+  scraped_about_clean?: string | null;
   headquarters?: string | null;
   search_text?: string | null;
   theme_search_text?: string | null;
@@ -31,7 +33,7 @@ export type ThemeMatchRow = {
   mcap_cr?: number | null;
 };
 
-/** Keyword corpus: About + Yahoo + optional LLM-cleaned website summary. */
+/** Keyword corpus: About + Yahoo + LLM about + optional cleaned website summary. */
 export function themeSearchCorpus(row: ThemeMatchRow): string {
   const themeText = row.theme_search_text?.trim();
   if (themeText) return themeText;
@@ -39,6 +41,9 @@ export function themeSearchCorpus(row: ThemeMatchRow): string {
   const merged = mergeAboutSourcesForThemeSearch({
     about: row.about ?? null,
     yf_about: row.yf_about ?? null,
+    llm_about: row.llm_about ?? null,
+    scraped_about: row.scraped_about ?? null,
+    scraped_about_clean: row.scraped_about_clean ?? null,
   });
   const fallback = [row.headquarters, merged, row.about]
     .map((s) => (s ?? "").trim())
