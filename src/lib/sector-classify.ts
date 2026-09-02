@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import { pickAboutText } from "./db";
 
 const CLASS_PATH = path.join(process.cwd(), "data", "classifications.db");
@@ -215,7 +215,7 @@ async function callOpenAiClassify(
   corpus: string,
   taxonomy: SectorPair[],
 ): Promise<SectorClassifyResult | null> {
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   if (!cfg.openaiApiKey) return null;
 
   const options = taxonomy.slice(0, 120).map((p) => ({
@@ -282,7 +282,7 @@ async function callAnthropicClassify(
   corpus: string,
   taxonomy: SectorPair[],
 ): Promise<SectorClassifyResult | null> {
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   if (!cfg.anthropicApiKey) return null;
 
   const options = taxonomy.slice(0, 120).map((p) => ({
@@ -349,7 +349,7 @@ export async function classifySectorAI(
   if (!corpus.trim()) return null;
 
   const taxonomy = loadSectorTaxonomy();
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
 
   if (cfg.openaiApiKey && cfg.llmProvider !== "anthropic") {
     const llm = await callOpenAiClassify(corpus, taxonomy);

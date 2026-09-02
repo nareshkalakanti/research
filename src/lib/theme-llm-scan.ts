@@ -2,7 +2,7 @@
  * Theme Scanner: LLM expands a natural-language search, we retrieve from
  * stocks + About (Yahoo / LLM / cleaned scrape), then the LLM keeps real matches.
  */
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import { hasUsableAboutText, type CompanyRow } from "./db";
 import { generateLlmAbout, saveLlmAbout } from "./llm-about";
 import { checkLlmStatus, completeJson } from "./llm-client";
@@ -295,7 +295,7 @@ function fallbackExpansion(ask: string): Expansion {
 }
 
 async function expandQuery(ask: string): Promise<Expansion> {
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const raw = await completeJson(
     cfg,
     loadPrompt("theme-scan-expand", EXPAND_FALLBACK),
@@ -551,7 +551,7 @@ async function judgeBatch(
   const cards = batch
     .map((c) => cardLine(c.company, c.terms, c.source))
     .join("\n\n");
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const raw = await completeJson(
     cfg,
     loadPrompt("theme-scan-judge", JUDGE_FALLBACK),
@@ -703,7 +703,7 @@ export async function runThemeLlmScan(
     };
     statusDetail = "Your tokens";
   } else {
-    const cfg = loadAgentConfig();
+    const cfg = loadLlmConfig();
     const status = await checkLlmStatus(cfg);
     if (!status.available) {
       throw new Error(status.hint || status.detail || "LLM unavailable");

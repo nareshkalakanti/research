@@ -10,7 +10,6 @@ import {
   matchedKeywords,
   patternMatches,
 } from "@/lib/pattern";
-import { themesByIds } from "@/lib/themes";
 import { FUND_WATCHLIST_KEYS } from "@/lib/fund-watchlist-meta";
 import {
   anyFundFilterActive,
@@ -261,6 +260,8 @@ type CompanyAgg = {
   market_cap_cr: number | null;
   cap_code: string | null;
   has_bb: boolean;
+  has_bb_w: boolean;
+  has_bb_m: boolean;
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
@@ -318,14 +319,8 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const sort = (sp.get("sort") || "score") as GovSort;
   const refresh = sp.get("refresh") === "1";
   const format = sp.get("format") || "json";
-  const themeIds = (sp.get("themes") || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
   const custom = (sp.get("custom") || "").trim();
-  const themePatterns = themesByIds(themeIds).map((t) => t.display_pattern);
-  const themePattern =
-    combinePatterns([...themePatterns, custom]) || null;
+  const themePattern = combinePatterns([custom]) || null;
 
   const all = loadGovernanceMap({ minBoards, refresh, q });
   // Stats from the multi-board universe (stable), not the search subset.
@@ -382,6 +377,8 @@ async function buildGovernanceMapResponse(req: NextRequest) {
             market_cap_cr: c.market_cap_cr,
             cap_code: c.cap_code,
             has_bb: c.has_bb,
+            has_bb_w: c.has_bb_w,
+            has_bb_m: c.has_bb_m,
             has_tq: c.has_tq,
             has_hold: c.has_hold,
             has_edge: c.has_edge,

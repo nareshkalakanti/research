@@ -19,7 +19,7 @@ import {
   fetchSourceHoldings,
   invalidateResolverCaches,
   resolveHoldings,
-} from "../src/lib/superstars/scrape";
+} from "../src/lib/trendlyne-holdings";
 import {
   pickBetterFundChange,
   type FundChangeInfo,

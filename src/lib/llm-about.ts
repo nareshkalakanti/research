@@ -1,4 +1,4 @@
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import {
   hasUsableAboutText,
   invalidateCompanyCache,
@@ -70,7 +70,7 @@ export async function generateLlmAbout(input: {
   end_markets?: string | null;
   llmPreChecked?: boolean;
 }): Promise<{ about: string | null; confidence: "high" | "low" | "reject" }> {
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const user = [
     `Ticker: ${input.ticker}`,
     `Name: ${input.name}`,
@@ -164,7 +164,7 @@ export async function fillLlmAboutBatch(opts?: {
     return { tried: 0, saved: 0, failed: 0, remaining: 0, saved_tickers: [] };
   }
 
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const status = await checkLlmStatus(cfg);
   if (!status.available) {
     throw new Error(status.hint || status.detail || "LLM unavailable");

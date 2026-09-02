@@ -11,7 +11,7 @@ import {
   type InvestorMaterialKind,
 } from "@/lib/investor-materials";
 import { firecrawlConfigured } from "@/lib/firecrawl-parse";
-import { loadAgentConfig } from "@/lib/agents/config";
+import { loadLlmConfig } from "@/lib/llm-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   }
 
   const materials = listInvestorMaterials(ticker).map(toClientInvestorMaterial);
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   return NextResponse.json({
     ok: true,
     ticker,

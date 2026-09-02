@@ -2,9 +2,12 @@ import YahooFinance from "yahoo-finance2";
 import type { Bar } from "./indicators";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
-const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+const yf = new YahooFinance({
+  suppressNotices: ["yahooSurvey"],
+  validation: { logErrors: false, logOptionsErrors: false },
+});
 
-const NIFTY_SYMBOLS = ["^NSEI", "^NSEBANK"]; // fallback unused for now — ^NSEI first
+const NIFTY_SYMBOLS = ["^NSEI", "NSEI.NS", "^BSESN", "^NSEBANK"];
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -268,7 +271,7 @@ export async function fetchNiftyDailyBars(): Promise<Bar[]> {
   const now = Date.now();
   if (
     niftyDailyCache &&
-    niftyDailyCache.bars.length >= 65 &&
+    niftyDailyCache.bars.length >= 40 &&
     now - niftyDailyCache.at < NIFTY_CACHE_MS
   ) {
     return niftyDailyCache.bars;
@@ -297,7 +300,7 @@ export async function fetchNiftyDailyBars(): Promise<Bar[]> {
           volume: Number(q.volume ?? 0),
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
-      if (bars.length >= 65) {
+      if (bars.length >= 40) {
         niftyDailyCache = { at: now, bars };
         return bars;
       }

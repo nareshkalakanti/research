@@ -1,4 +1,5 @@
 import YahooFinance from "yahoo-finance2";
+import { runConcurrent } from "./scrape-pool";
 
 const yf = new YahooFinance({
   suppressNotices: ["yahooSurvey"],
@@ -107,8 +108,50 @@ function deriveMcapFromKnownShares(
 }
 
 function mcapToCr(mcap: number | null): number | null {
-  if (mcap == null) return null;
+  if (mcap == null || mcap <= 0) return null;
   return Math.round((mcap / 1e7) * 10) / 10;
+}
+
+function isGhostNs(sym: string, priceSym: string | null): boolean {
+  return (
+    sym.endsWith(".NS") &&
+    !sym.includes("-SM") &&
+    !!priceSym?.includes("-SM")
+  );
+}
+
+function absorbBits(
+  bits: QuoteBits,
+  used: string,
+  priceSym: string | null,
+  sym: string,
+  q: QuoteBits | null,
+): { bits: QuoteBits; used: string; priceSym: string | null } {
+  if (!q) return { bits, used, priceSym };
+  let next = bits;
+  let nextUsed = used;
+  let nextPrice = priceSym;
+  if (q.price != null && next.price == null) {
+    next = { ...next, price: q.price };
+    nextPrice = sym;
+    nextUsed = sym;
+  }
+  if (
+    q.mcap != null &&
+    q.mcap > 0 &&
+    next.mcap == null &&
+    !isGhostNs(sym, nextPrice)
+  ) {
+    next = { ...next, mcap: q.mcap };
+    if (next.price == null) nextUsed = sym;
+  }
+  if (q.shares != null && next.shares == null) {
+    next = { ...next, shares: q.shares };
+  }
+  if (q.sector != null && next.sector == null) {
+    next = { ...next, sector: q.sector };
+  }
+  return { bits: next, used: nextUsed, priceSym: nextPrice };
 }
 
 type QuoteBits = {
@@ -178,22 +221,6 @@ async function summaryBits(symbol: string): Promise<QuoteBits | null> {
   }
 }
 
-function mergeBits(
-  primary: QuoteBits | null,
-  secondary: QuoteBits | null,
-): QuoteBits {
-  const price = primary?.price ?? secondary?.price ?? null;
-  const mcap = primary?.mcap ?? secondary?.mcap ?? null;
-  const shares = primary?.shares ?? secondary?.shares ?? null;
-  const sector = primary?.sector ?? secondary?.sector ?? null;
-  // Derive mcap from shares × price when Yahoo omits marketCap on .NS
-  const derived =
-    mcap == null && price != null && shares != null && shares > 0
-      ? price * shares
-      : mcap;
-  return { price, mcap: derived, shares, sector };
-}
-
 /**
  * Fetch price + market cap (₹ Cr).
  * Many India names expose mcap only on `.BO` — we try `.NS` then `.BO` + quoteSummary.
@@ -225,47 +252,30 @@ export async function fetchQuoteDetailed(
   let used = base;
   let priceSym: string | null = null;
 
-  for (const sym of symbols) {
-    const q = await quoteBits(sym);
-    if (q?.price != null && bits.price == null) {
-      bits = { ...bits, price: q.price };
-      priceSym = sym;
-      used = sym;
-    }
-    if (q?.mcap != null && bits.mcap == null) {
-      const ghostNs =
-        sym.endsWith(".NS") && !sym.includes("-SM") && priceSym?.includes("-SM");
-      if (!ghostNs) {
-        bits = { ...bits, mcap: q.mcap };
-        if (bits.price == null) used = sym;
-      }
-    }
-    if (q?.shares != null && bits.shares == null) bits.shares = q.shares;
-    if (q?.sector != null && bits.sector == null) bits.sector = q.sector;
-    if (bits.price != null && bits.mcap != null) break;
+  const quoteHits = await Promise.all(
+    symbols.map(async (sym) => ({ sym, q: await quoteBits(sym) })),
+  );
+  for (const { sym, q } of quoteHits) {
+    const next = absorbBits(bits, used, priceSym, sym, q);
+    bits = next.bits;
+    used = next.used;
+    priceSym = next.priceSym;
   }
 
-  // quoteSummary fallback when still missing mcap
   if (
     !opts?.skipSummary &&
     (bits.mcap == null || bits.price == null)
   ) {
-    for (const sym of symbols) {
-      const ghostNs =
-        sym.endsWith(".NS") && !sym.includes("-SM") && priceSym?.includes("-SM");
-      if (ghostNs) continue;
-      const s = await summaryBits(sym);
-      if (s?.price != null && bits.price == null) {
-        bits = { ...bits, price: s.price };
-        priceSym = sym;
-        used = sym;
-      }
-      if (s?.mcap != null && bits.mcap == null) {
-        bits = { ...bits, mcap: s.mcap };
-      }
-      if (s?.shares != null && bits.shares == null) bits.shares = s.shares;
-      if (s?.sector != null && bits.sector == null) bits.sector = s.sector;
-      if (bits.price != null && bits.mcap != null) break;
+    const summaryHits = await Promise.all(
+      symbols
+        .filter((sym) => !isGhostNs(sym, priceSym))
+        .map(async (sym) => ({ sym, s: await summaryBits(sym) })),
+    );
+    for (const { sym, s } of summaryHits) {
+      const next = absorbBits(bits, used, priceSym, sym, s);
+      bits = next.bits;
+      used = next.used;
+      priceSym = next.priceSym;
     }
   }
 
@@ -302,56 +312,62 @@ export async function fetchLivePrices(
   items: Array<{ ticker: string; market?: string | null }>,
   opts?: { concurrency?: number },
 ): Promise<YfQuote[]> {
-  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 8, 12));
-  const out: YfQuote[] = [];
-
-  for (let i = 0; i < items.length; i += concurrency) {
-    const chunk = items.slice(i, i + concurrency);
-    const results = await Promise.all(
-      chunk.map(async ({ ticker, market }) => {
-        const sym = toYfinanceSymbol(ticker, market);
-        if (!sym) {
-          return {
-            ticker: ticker.toUpperCase(),
-            yf_symbol: "",
-            price: null,
-            mcap_cr: null,
-            sector: null,
-            error: "empty symbol",
-          };
-        }
-        const bits = await quoteBits(sym);
-        if (!bits || (bits.price == null && bits.mcap == null)) {
-          return {
-            ticker: ticker.toUpperCase(),
-            yf_symbol: sym,
-            price: null,
-            mcap_cr: null,
-            sector: null,
-            error: "no quote",
-          };
-        }
-        let mcap = bits.mcap;
-        if (mcap == null && bits.price != null && bits.shares != null) {
-          mcap = bits.price * bits.shares;
-        }
-        if (mcap == null && bits.price != null) {
-          mcap = deriveMcapFromKnownShares(ticker, bits.price);
-        }
-        return {
-          ticker: ticker.toUpperCase(),
-          yf_symbol: sym,
-          price:
-            bits.price != null ? Math.round(bits.price * 100) / 100 : null,
-          mcap_cr: mcapToCr(mcap),
-          sector: bits.sector,
-        };
-      }),
+  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 10, 16));
+  return runConcurrent(items, concurrency, async ({ ticker, market }) => {
+    const candidates = yfSymbolCandidates(ticker, market);
+    const sym = candidates[0] ?? "";
+    if (!sym) {
+      return {
+        ticker: ticker.toUpperCase(),
+        yf_symbol: "",
+        price: null,
+        mcap_cr: null,
+        sector: null,
+        error: "empty symbol",
+      };
+    }
+    const hits = await Promise.all(
+      candidates.slice(0, 3).map(async (s) => ({ s, q: await quoteBits(s) })),
     );
-    out.push(...results);
-  }
-
-  return out;
+    let bits: QuoteBits = {
+      price: null,
+      mcap: null,
+      shares: null,
+      sector: null,
+    };
+    let used = sym;
+    let priceSym: string | null = null;
+    for (const { s, q } of hits) {
+      const next = absorbBits(bits, used, priceSym, s, q);
+      bits = next.bits;
+      used = next.used;
+      priceSym = next.priceSym;
+    }
+    if (bits.price == null && bits.mcap == null) {
+      return {
+        ticker: ticker.toUpperCase(),
+        yf_symbol: used,
+        price: null,
+        mcap_cr: null,
+        sector: null,
+        error: "no quote",
+      };
+    }
+    let mcap = bits.mcap;
+    if (mcap == null && bits.price != null && bits.shares != null) {
+      mcap = bits.price * bits.shares;
+    }
+    if (mcap == null && bits.price != null) {
+      mcap = deriveMcapFromKnownShares(ticker, bits.price);
+    }
+    return {
+      ticker: ticker.toUpperCase(),
+      yf_symbol: used,
+      price: bits.price != null ? Math.round(bits.price * 100) / 100 : null,
+      mcap_cr: mcapToCr(mcap),
+      sector: bits.sector,
+    };
+  });
 }
 
 /**
@@ -361,20 +377,10 @@ export async function fetchQuotes(
   items: Array<{ ticker: string; market?: string | null }>,
   opts?: { concurrency?: number; skipSummary?: boolean },
 ): Promise<YfQuote[]> {
-  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 4, 8));
-  const out: YfQuote[] = [];
-
-  for (let i = 0; i < items.length; i += concurrency) {
-    const chunk = items.slice(i, i + concurrency);
-    const results = await Promise.all(
-      chunk.map(({ ticker, market }) =>
-        fetchQuoteDetailed(ticker, market, { skipSummary: opts?.skipSummary }),
-      ),
-    );
-    out.push(...results);
-  }
-
-  return out;
+  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 10, 16));
+  return runConcurrent(items, concurrency, ({ ticker, market }) =>
+    fetchQuoteDetailed(ticker, market, { skipSummary: opts?.skipSummary }),
+  );
 }
 
 export type YfAboutProfile = {

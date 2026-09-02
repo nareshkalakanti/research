@@ -59,6 +59,8 @@ type ScanApi = {
 
 export function ThemeScanner() {
   const [markets, setMarkets] = useState<Record<string, number>>({});
+  const [custom, setCustom] = useState("");
+  const [debouncedCustom, setDebouncedCustom] = useState("");
   const [draft, setDraft] = useState("");
   const [ask, setAsk] = useState("");
   const [tokens, setTokens] = useState<string[]>([]);
@@ -90,6 +92,7 @@ export function ThemeScanner() {
   const loadSeqRef = useRef(0);
   const llmKeyRef = useRef("");
   const hydrateKeyRef = useRef("");
+  const abortRef = useRef<AbortController | null>(null);
   const progressTickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const progressHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   hasDataRef.current = !!data;
@@ -133,10 +136,16 @@ export function ThemeScanner() {
       }
       const tail = 1 - Math.exp(-(ms - 16000) / 20000);
       setProgress({
-        pct: Math.min(90, Math.round(64 + tail * 26)),
-        label: "Ranking matches",
-        detail: "Keeping companies that actually match…",
+        pct: Math.min(92, Math.round(64 + tail * 26)),
+        label: ms > 50000 ? "Still ranking" : "Ranking matches",
+        detail:
+          ms > 50000
+            ? "Taking longer than usual — cancel and pick a theme instead"
+            : "Keeping companies that actually match…",
       });
+      if (ms > 140000) {
+        abortRef.current?.abort();
+      }
     }, 180);
   }, [clearProgressTimers]);
 
@@ -169,6 +178,7 @@ export function ThemeScanner() {
   );
 
   useEffect(() => () => clearProgressTimers(), [clearProgressTimers]);
+
   const [signalCounts, setSignalCounts] = useState<Record<string, number>>({
     hold: 0,
     distress: 0,
@@ -231,12 +241,18 @@ export function ThemeScanner() {
   }, [draft]);
 
   useEffect(() => {
-    setPage(1);
-  }, [ask, market, cap, sector, mode, debouncedQ, filterHold, filterEdge, fundFilters, filterSme, filterNote]);
+    const t = setTimeout(() => setDebouncedCustom(custom), 300);
+    return () => clearTimeout(t);
+  }, [custom]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [ask, debouncedCustom, market, cap, sector, mode, debouncedQ, filterHold, filterEdge, fundFilters, filterSme, filterNote]);
+
+  const themeActive = debouncedCustom.trim().length > 0 && !ask.trim();
   const askActive = ask.trim().length > 0;
   const listMarket = market;
-  const keywordQ = !askActive ? debouncedQ.trim() : "";
+  const keywordQ = !askActive && !themeActive ? debouncedQ.trim() : "";
 
   useEffect(() => {
     if (!askActive) return;
@@ -262,6 +278,9 @@ export function ThemeScanner() {
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
+      abortRef.current?.abort();
+      const ac = new AbortController();
+      abortRef.current = ac;
       const seq = ++loadSeqRef.current;
       const llmKey = askActive
         ? `${ask.trim().toLowerCase()}|${listMarket}|${cap}|${searchNonce}|${(tokenOverride ?? []).join("|")}`
@@ -275,7 +294,11 @@ export function ThemeScanner() {
         llmKeyRef.current = llmKey;
         setLoading(true);
         startLlmProgress();
-      } else if (!hasDataRef.current) {
+      } else {
+        if (progressTickRef.current) {
+          clearProgressTimers();
+          setProgress(null);
+        }
         setLoading(true);
       }
       const params = new URLSearchParams({
@@ -288,7 +311,10 @@ export function ThemeScanner() {
         mode,
         sector,
       });
-      if (askActive) {
+      if (themeActive) {
+        params.set("scan", "1");
+        if (debouncedCustom.trim()) params.set("custom", debouncedCustom.trim());
+      } else if (askActive) {
         params.set("scan", "1");
         params.set("ask", ask.trim());
         if (tokenOverride?.length) {
@@ -304,12 +330,23 @@ export function ThemeScanner() {
       if (filterNote) params.set("note", "1");
       if (opts?.refresh) params.set("refresh", "1");
       setLoadError(null);
+      const timeout = setTimeout(() => ac.abort(), askActive ? 140_000 : 45_000);
       try {
         let res: Response;
         try {
-          res = await fetch(`/api/companies?${params}`);
-        } catch {
-          throw new Error("Network error — is the dev server running?");
+          res = await fetch(`/api/companies?${params}`, { signal: ac.signal });
+        } catch (err) {
+          if (ac.signal.aborted && seq !== loadSeqRef.current) return;
+          if (ac.signal.aborted) {
+            throw new Error(
+              askActive
+                ? "Search timed out — pick a theme from the dropdown instead"
+                : "Request timed out",
+            );
+          }
+          throw err instanceof Error
+            ? err
+            : new Error("Network error — is the dev server running?");
         }
         const raw = await res.text();
         if (!raw.trim()) {
@@ -334,7 +371,9 @@ export function ThemeScanner() {
         }
         if (seq !== loadSeqRef.current) return;
         setData(json);
-        if (runBar) finishLlmProgress({ total: json.total });
+        if (runBar || progressTickRef.current) {
+          finishLlmProgress({ total: json.total });
+        }
         if (json.llm?.include && !tokenOverride?.length) {
           const hydrateKey = `${ask.trim().toLowerCase()}|${searchNonce}`;
           if (hydrateKeyRef.current !== hydrateKey) {
@@ -363,14 +402,17 @@ export function ThemeScanner() {
         if (seq !== loadSeqRef.current) return;
         const msg = e instanceof Error ? e.message : "Load failed";
         setLoadError(msg);
-        if (runBar) finishLlmProgress({ error: msg });
+        if (runBar || progressTickRef.current) finishLlmProgress({ error: msg });
       } finally {
+        clearTimeout(timeout);
         if (seq === loadSeqRef.current) setLoading(false);
       }
     },
     [
       askActive,
+      themeActive,
       ask,
+      debouncedCustom,
       keywordQ,
       listMarket,
       cap,
@@ -406,7 +448,8 @@ export function ThemeScanner() {
   }, [load]);
 
   function submitAsk(next?: string) {
-    const q = (next ?? draft).trim();
+    const q = (next ?? (custom || draft)).trim();
+    if (!q) return;
     setActiveSavedId(null);
     setAsk(q);
     setTokenOverride(null);
@@ -435,8 +478,8 @@ export function ThemeScanner() {
         <div>
           <h2>Theme Scanner</h2>
           <p>
-            Browse the list like before. Type to filter, or press Search so the
-            model expands a theme against our stocks database.
+            Type keywords to filter the list, or Ask model to search About,
+            scrapes, and the stock database.
           </p>
         </div>
         <div className="scanner-hero-right scanner-hero-actions">
@@ -467,34 +510,36 @@ export function ThemeScanner() {
 
       <div className="scanner-controls scanner-controls--compact scanner-controls--ask">
         <div className="scanner-col">
-          <label className="field-label" htmlFor="theme-ask">
-            Search
+          <label className="field-label" htmlFor="custom-kw">
+            Keywords
           </label>
           <form
             className="search-bar search-bar--ask"
             onSubmit={(e) => {
               e.preventDefault();
-              submitAsk();
+              submitAsk(custom || draft);
             }}
           >
             <span className="search-icon" aria-hidden>
               ⌕
             </span>
             <input
-              id="theme-ask"
-              value={draft}
+              id="custom-kw"
+              value={custom}
               onChange={(e) => {
+                setCustom(e.target.value);
                 setDraft(e.target.value);
                 setActiveSavedId(null);
               }}
-              placeholder="e.g. industrial valves, data-center cooling, sterile CDMO"
+              placeholder="acsr | copper | transformer oil"
               autoComplete="off"
             />
-            {draft ? (
+            {custom ? (
               <button
                 type="button"
                 className="theme-search-clear"
                 onClick={() => {
+                  setCustom("");
                   setDraft("");
                   setAsk("");
                   setTokens([]);
@@ -505,7 +550,7 @@ export function ThemeScanner() {
                   setProgress(null);
                   clearProgressTimers();
                 }}
-                aria-label="Clear search"
+                aria-label="Clear keywords"
               >
                 ×
               </button>
@@ -514,13 +559,14 @@ export function ThemeScanner() {
               type="submit"
               className="btn-scan-theme"
               disabled={loading && askActive}
+              title="Ask the model to find matching listed companies"
             >
-              {loading && askActive ? "Searching…" : "Search"}
+              {loading && askActive ? "Searching…" : "Ask model"}
             </button>
           </form>
           <p className="hint tight">
-            Type to filter the list (AND / OR). Press Search to expand a theme
-            with the model.
+            Pipe = OR · + = AND inside a clause. Ask model searches the stock
+            database and can time out.
           </p>
           <div className="search-meta">
             <div className="mode-toggle">
@@ -540,17 +586,19 @@ export function ThemeScanner() {
                 OR
               </button>
             </div>
-            <span className="hint">e.g. acsr | copper | transformer oil</span>
           </div>
           <SavedSearchesBar
             scope="theme"
-            pattern={ask || draft}
+            pattern={custom || ask || draft}
+            activeId={activeSavedId}
             onApply={(s: SavedSearchRow) => {
               setActiveSavedId(s.id);
+              setCustom(s.pattern);
               setDraft(s.pattern);
-              setAsk(s.pattern.trim());
-              setTokenOverride(null);
-              setSearchNonce((n) => n + 1);
+              setAsk("");
+              abortRef.current?.abort();
+              clearProgressTimers();
+              setProgress(null);
             }}
           />
         </div>
@@ -590,6 +638,27 @@ export function ThemeScanner() {
               {progress.detail ? ` · ${progress.detail}` : null}
             </span>
             <span className="theme-ask-progress-pct">{progress.pct}%</span>
+            {!progress.done ? (
+              <button
+                type="button"
+                className="theme-ask-cancel"
+                onClick={() => {
+                  abortRef.current?.abort();
+                  clearProgressTimers();
+                  setAsk("");
+                  setLoading(false);
+                  setProgress({
+                    pct: 100,
+                    label: "Cancelled",
+                    detail: "Try keywords, or Ask model again",
+                    error: true,
+                    done: true,
+                  });
+                }}
+              >
+                Cancel
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -614,13 +683,10 @@ export function ThemeScanner() {
             setPage(1);
           }}
         />
-      ) : data?.llm?.intent || data?.scanPattern ? (
+      ) : data?.scanPattern ? (
         <div className="pattern-preview">
-          <span>{data.llm?.engine === "corpus" ? "Corpus" : "LLM"}</span>
-          <code>{data.llm?.intent || data.scanPattern}</code>
-          {data.llm?.detail ? (
-            <span className="llm-scan-detail">{data.llm.detail}</span>
-          ) : null}
+          <span>Scanning</span>
+          <code>{data.scanPattern}</code>
         </div>
       ) : null}
 
@@ -661,7 +727,7 @@ export function ThemeScanner() {
         sort={sort}
         dir={dir}
         onSort={onSort}
-        showMatched={askActive || Boolean(keywordQ)}
+        showMatched={askActive || themeActive || Boolean(keywordQ)}
         capFilter={cap}
         onNoteChange={softReload}
         onScrapeDone={softReload}

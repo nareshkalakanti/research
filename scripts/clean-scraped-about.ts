@@ -9,7 +9,7 @@
  */
 import fs from "fs";
 import path from "path";
-import { loadAgentConfig } from "../src/lib/agents/config";
+import { loadLlmConfig } from "../src/lib/llm-config";
 import { checkLlmStatus } from "../src/lib/llm-client";
 import {
   CLEAN_SESSION_MAX_ITEMS,
@@ -85,7 +85,7 @@ async function main() {
   loadEnvLocal();
   const { dryRun, force, limit, ticker, market } = parseArgs();
 
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const status = await checkLlmStatus(cfg);
   if (!status.available) {
     console.error(`LLM unavailable: ${status.detail}`);

@@ -6,6 +6,7 @@
 import { invalidateCompanyCache } from "../src/lib/db";
 import {
   ensureFundWatchlistInCompanyAbout,
+  FUND_WATCHLIST_KEYS,
   type FundWatchlistKey,
   upsertFundWatchlistRows,
 } from "../src/lib/fund-watchlists";

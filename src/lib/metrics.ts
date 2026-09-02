@@ -80,6 +80,7 @@ function ensureMetricsDb(): Database.Database {
 
   const db = new Database(METRICS_PATH);
   db.pragma("journal_mode = WAL");
+  db.pragma("busy_timeout = 8000");
   db.exec(METRICS_SCHEMA);
   metricsDb = db;
   return db;
@@ -176,14 +177,7 @@ export function upsertMetrics(
         market = COALESCE(excluded.market, stock_metrics.market),
         yf_symbol = COALESCE(excluded.yf_symbol, stock_metrics.yf_symbol),
         price = COALESCE(excluded.price, stock_metrics.price),
-        market_cap_cr = CASE
-          WHEN excluded.market_cap_cr IS NOT NULL THEN excluded.market_cap_cr
-          WHEN excluded.yf_symbol LIKE '%-SM.NS' THEN NULL
-          WHEN excluded.price IS NOT NULL
-            AND stock_metrics.price IS NOT NULL
-            AND ABS(excluded.price - stock_metrics.price) > 0.01 THEN NULL
-          ELSE stock_metrics.market_cap_cr
-        END,
+        market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
         sector = COALESCE(excluded.sector, stock_metrics.sector),
         fetched_at = excluded.fetched_at
     `);
@@ -232,7 +226,7 @@ export function metricsGapCount(
   for (const t of tickers) {
     const m = map.get(t.toUpperCase());
     const needP = m?.price == null;
-    const needM = m?.market_cap_cr == null;
+    const needM = m?.market_cap_cr == null || m.market_cap_cr <= 0;
     if (needP) missingPrice += 1;
     if (needM) missingMcap += 1;
     if (needP || needM) any += 1;
@@ -285,7 +279,7 @@ export async function fillBseSmeMetricsGaps(
     return !m || m.price == null || m.market_cap_cr == null;
   });
 
-  const concurrency = Math.max(1, opts?.concurrency ?? 4);
+  const concurrency = Math.max(1, opts?.concurrency ?? 8);
   const delayMs = opts?.delayMs ?? 120;
   const quotes: YfQuote[] = [];
   let next = 0;

@@ -6,23 +6,17 @@ import type { SavedSearchRow, SavedSearchScope } from "@/lib/saved-searches";
 type Props = {
   scope: SavedSearchScope;
   pattern: string;
-  themeIds?: string[];
   onApply: (search: SavedSearchRow) => void;
   activeId?: number | null;
 };
 
 function chipTitle(s: SavedSearchRow): string {
-  const parts = [
-    s.pattern.trim() || null,
-    s.theme_ids.length ? `${s.theme_ids.length} theme(s)` : null,
-  ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : s.name;
+  return s.pattern.trim() || s.name;
 }
 
 export function SavedSearchesBar({
   scope,
   pattern,
-  themeIds = [],
   onApply,
   activeId = null,
 }: Props) {
@@ -34,8 +28,7 @@ export function SavedSearchesBar({
   const onApplyRef = useRef(onApply);
   onApplyRef.current = onApply;
 
-  const canSave =
-    pattern.trim().length > 0 || (scope === "theme" && themeIds.length > 0);
+  const canSave = pattern.trim().length > 0;
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -75,7 +68,7 @@ export function SavedSearchesBar({
         body: JSON.stringify({
           name,
           pattern: pattern.trim(),
-          theme_ids: scope === "theme" ? themeIds : [],
+          theme_ids: [],
           scope,
         }),
       });
@@ -95,7 +88,7 @@ export function SavedSearchesBar({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save");
     }
-  }, [pattern, reload, saveName, scope, themeIds]);
+  }, [pattern, reload, saveName, scope]);
 
   async function onDelete(id: number) {
     await fetch(`/api/saved-searches?id=${id}`, { method: "DELETE" });
@@ -121,9 +114,6 @@ export function SavedSearchesBar({
               onClick={() => onApplyRef.current(s)}
             >
               {s.name}
-              {s.theme_ids.length ? (
-                <span className="saved-kw-badge">{s.theme_ids.length}</span>
-              ) : null}
             </button>
             <button
               type="button"

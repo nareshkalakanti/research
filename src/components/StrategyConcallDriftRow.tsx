@@ -27,6 +27,8 @@ export type StrategyConcallDriftRowData = {
   has_baseline: boolean;
   earn_subject: string | null;
   has_bb: boolean;
+  has_bb_w: boolean;
+  has_bb_m: boolean;
   has_tq: boolean;
   has_edge: boolean;
   has_hold: boolean;
@@ -149,9 +151,14 @@ export function StrategyConcallDriftRow({
                   Hold
                 </span>
               ) : null}
-              {r.has_bb ? (
-                <span className="result-tag tag-scan-bb" title="BB NEW breakout">
-                  BB
+              {r.has_bb_w ? (
+                <span className="result-tag tag-scan-bb-w" title="BB NEW weekly">
+                  BB W
+                </span>
+              ) : null}
+              {r.has_bb_m ? (
+                <span className="result-tag tag-scan-bb-m" title="BB NEW monthly">
+                  BB M
                 </span>
               ) : null}
               {r.has_tq ? (

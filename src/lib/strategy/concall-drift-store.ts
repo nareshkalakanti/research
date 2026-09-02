@@ -376,6 +376,8 @@ function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): Co
     has_baseline: consistent,
     earn_subject: row.earn_subject,
     has_bb: Boolean(breakout?.has_bb),
+    has_bb_w: Boolean(breakout?.has_bb_w),
+    has_bb_m: Boolean(breakout?.has_bb_m),
     has_tq: Boolean(breakout?.has_tq),
     has_edge: isEdge(row.ticker),
     has_hold: holdingsTickerSet().has(key),

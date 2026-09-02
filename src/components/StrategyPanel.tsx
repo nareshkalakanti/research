@@ -370,7 +370,7 @@ export function StrategyPanel() {
       <div className="missing-head">
         <div>
           <div className="missing-head-title-row">
-            <h2>Concall drift</h2>
+            <h2>Concall</h2>
             <LiveNseFeedBadge status={data?.nse_feed} />
           </div>
           <p className="missing-sub">

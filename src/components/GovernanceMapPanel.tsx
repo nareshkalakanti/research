@@ -77,6 +77,8 @@ type Seat = {
   sector: string | null;
   is_sme: boolean;
   has_bb: boolean;
+  has_bb_w?: boolean;
+  has_bb_m?: boolean;
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
@@ -128,6 +130,8 @@ type CompanyRow = {
   market_cap_cr: number | null;
   cap_code: string | null;
   has_bb: boolean;
+  has_bb_w?: boolean;
+  has_bb_m?: boolean;
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
@@ -950,8 +954,11 @@ export function GovernanceMapPanel() {
                                   Hold
                                 </span>
                               ) : null}
-                              {c.has_bb ? (
-                                <span className="gov-tag gov-tag-bb">BB</span>
+                              {c.has_bb_w || (c.has_bb && !c.has_bb_m) ? (
+                                <span className="gov-tag gov-tag-bb-w">BB W</span>
+                              ) : null}
+                              {c.has_bb_m ? (
+                                <span className="gov-tag gov-tag-bb-m">BB M</span>
                               ) : null}
                               {c.has_tq ? (
                                 <span className="gov-tag gov-tag-tq">TQ</span>
@@ -1031,8 +1038,11 @@ export function GovernanceMapPanel() {
                       {c.has_hold ? (
                         <span className="gov-tag gov-tag-hold">Hold</span>
                       ) : null}
-                      {c.has_bb ? (
-                        <span className="gov-tag gov-tag-bb">BB</span>
+                      {c.has_bb_w || (c.has_bb && !c.has_bb_m) ? (
+                        <span className="gov-tag gov-tag-bb-w">BB W</span>
+                      ) : null}
+                      {c.has_bb_m ? (
+                        <span className="gov-tag gov-tag-bb-m">BB M</span>
                       ) : null}
                       {c.has_tq ? (
                         <span className="gov-tag gov-tag-tq">TQ</span>

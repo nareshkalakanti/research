@@ -102,8 +102,15 @@ function SignalTags({ company }: { company: Company }) {
           ) : null}
         </span>
       ) : null}
-      {company.has_bb ? (
-        <span className="result-tag tag-scan-bb">BB</span>
+      {company.has_bb_w || (company.has_bb && company.bb?.timeframe !== "monthly" && !company.has_bb_m) ? (
+        <span className="result-tag tag-scan-bb-w" title="BB NEW weekly">
+          BB W
+        </span>
+      ) : null}
+      {company.has_bb_m || company.bb?.timeframe === "monthly" ? (
+        <span className="result-tag tag-scan-bb-m" title="BB NEW monthly">
+          BB M
+        </span>
       ) : null}
       {company.has_tq ? (
         <span className="result-tag tag-scan-tq">TQ</span>
@@ -121,14 +128,6 @@ function SignalTags({ company }: { company: Company }) {
       {company.has_high52 ? (
         <span className="result-tag tag-scan-high52" title="NEW 52-week high">
           52W
-        </span>
-      ) : null}
-      {company.has_dd ? (
-        <span
-          className="result-tag tag-scan-dd"
-          title="Weekly Dragonfly Doji"
-        >
-          DD
         </span>
       ) : null}
     </span>

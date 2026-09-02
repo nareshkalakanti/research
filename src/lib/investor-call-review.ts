@@ -1,4 +1,4 @@
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import { buildCallReviewCorpus } from "./investor-material-corpus";
 import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadPrompt } from "./prompts";
@@ -91,7 +91,7 @@ export async function generateInvestorCallReview(
     return hit.review;
   }
 
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const llm = await checkLlmStatus(cfg);
   if (!llm.available) return null;
 

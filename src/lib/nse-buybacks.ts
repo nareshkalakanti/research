@@ -24,7 +24,7 @@ import {
 } from "./strategy/buyback-parse";
 import type { BuybackEvent } from "./strategy/types";
 
-type CookieJar = { cookie: string };
+export type NseCookieJar = { cookie: string };
 
 function safeStr(v: unknown): string {
   if (v == null) return "";
@@ -37,9 +37,9 @@ function formatNseRange(d: Date): string {
   return `${dd}-${mm}-${d.getFullYear()}`;
 }
 
-async function nseFetch(
+export async function nseFetch(
   url: string,
-  jar: CookieJar,
+  jar: NseCookieJar,
   opts?: { params?: Record<string, string>; referer?: string },
 ): Promise<Response> {
   const u = new URL(url);
@@ -77,8 +77,8 @@ async function nseFetch(
   }
 }
 
-export async function createNseBuybackSession(): Promise<CookieJar> {
-  const jar: CookieJar = { cookie: "" };
+export async function createNseBuybackSession(): Promise<NseCookieJar> {
+  const jar: NseCookieJar = { cookie: "" };
   try {
     await nseFetch(NSE_QUOTE, jar, {
       params: { symbol: "TCS" },
@@ -121,7 +121,7 @@ function eventId(
 }
 
 export async function fetchNseBuybackActions(
-  jar: CookieJar,
+  jar: NseCookieJar,
   opts?: { yearsBack?: number },
 ): Promise<BuybackEvent[]> {
   const yearsBack = opts?.yearsBack ?? 6;
@@ -167,7 +167,7 @@ export async function fetchNseBuybackActions(
 }
 
 export async function fetchNseBuybackAnnouncements(
-  jar: CookieJar,
+  jar: NseCookieJar,
   ticker: string,
 ): Promise<BuybackEvent[]> {
   const key = ticker.toUpperCase();
@@ -212,7 +212,7 @@ export async function fetchNseBuybackAnnouncements(
 }
 
 export async function fetchNseBuybacksForTicker(
-  jar: CookieJar,
+  jar: NseCookieJar,
   ticker: string,
 ): Promise<BuybackEvent[]> {
   return fetchNseBuybackAnnouncements(jar, ticker);

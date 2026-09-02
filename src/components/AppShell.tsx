@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AgentsPanel } from "@/components/AgentsPanel";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
 import { ScanPanel } from "@/components/ScanPanel";
@@ -15,15 +14,13 @@ type Tab =
   | "theme-scanner"
   | "governance"
   | "strategy"
-  | "agents"
   | "missing";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "theme-scanner", label: "Theme Scanner" },
   { id: "scan", label: "Scan" },
   { id: "governance", label: "Governance" },
-  { id: "strategy", label: "Strategy" },
-  { id: "agents", label: "Agents" },
+  { id: "strategy", label: "Concall" },
   { id: "missing", label: "Missing data" },
 ];
 
@@ -81,8 +78,6 @@ export function AppShell() {
           <GovernanceMapPanel />
         ) : tab === "strategy" ? (
           <StrategyShell />
-        ) : tab === "agents" ? (
-          <AgentsPanel />
         ) : (
           <ThemeScanner />
         )}

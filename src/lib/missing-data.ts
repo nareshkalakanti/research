@@ -82,7 +82,7 @@ export function companyGapFlags(
   const sets = outcomes ?? loadScrapeOutcomeSets("All");
   return {
     price: c.price == null,
-    mcap: c.mcap_cr == null,
+    mcap: c.mcap_cr == null || c.mcap_cr <= 0,
     sector: !c.sector?.trim(),
     sub_sector: !c.sub_sector?.trim(),
     about: !c.about?.trim(),

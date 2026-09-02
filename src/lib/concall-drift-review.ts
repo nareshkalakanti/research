@@ -1,4 +1,4 @@
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import {
   buildDailyDriftPath,
   formatDailyPathForPrompt,
@@ -332,7 +332,7 @@ export async function generateConcallDriftReview(
     return { review: hit.review };
   }
 
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const llm = await checkLlmStatus(cfg);
   if (!llm.available) {
     return {

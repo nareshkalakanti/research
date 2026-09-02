@@ -1,4 +1,4 @@
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import { formatInvestorMaterialsBriefBlock as formatBriefBlockFromCorpus } from "./investor-material-corpus";
 import { loadPrompt } from "./prompts";
 import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
@@ -181,7 +181,7 @@ export async function distillInvestorMaterial(
   rawText: string,
   meta: { title?: string; kind?: string },
 ): Promise<string | null> {
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const llm = await checkLlmStatus(cfg);
   if (!llm.available) return null;
 
