@@ -13,12 +13,12 @@ export async function getQuarterPanel(
   source: string | null;
   symbol: string;
 }> {
-  const { quarters, symbol } = await fetchQuarterlyFundamentals(ticker, market);
+  const { quarters, symbol, source } = await fetchQuarterlyFundamentals(ticker, market);
   const panel = buildQuarterPanel(quarters);
   return {
     panel,
     cached: false,
-    source: "yahoo",
+    source,
     symbol,
   };
 }

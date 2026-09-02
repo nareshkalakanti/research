@@ -10,7 +10,7 @@ import {
 } from "./quarter-panel";
 import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
 import { fetchBseQuarterlyByTicker } from "./bse-quarters";
-import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
+import { fetchScreenerQuarterlyFundamentals, mergeScreenerQuarterOverlay } from "./screener-quarters";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
 export type { QuarterPoint };
@@ -139,13 +139,13 @@ async function fetchLatestOperatingCashflow(symbol: string): Promise<number | nu
 export async function fetchQuarterlyFundamentals(
   ticker: string,
   market?: string | null,
-  opts?: { skipChart?: boolean },
+  opts?: { skipChart?: boolean; screenerForce?: boolean },
 ): Promise<{
   quarters: QuarterPoint[];
   price: number | null;
   ret_3m_pct: number | null;
   symbol: string;
-  source: "yahoo" | "nse" | "bse" | "screener" | "none";
+  source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "none";
   /** Latest-quarter operating cash flow (Yahoo cash-flow module). */
   operating_cashflow: number | null;
 }> {
@@ -166,7 +166,7 @@ export async function fetchQuarterlyFundamentals(
 
   let usedSymbol = symbol;
   let quarters: QuarterPoint[] = [];
-  let source: "yahoo" | "nse" | "bse" | "screener" | "none" = "none";
+  let source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "none" = "none";
 
   for (const sym of symbolCandidates) {
     const period1 = new Date();
@@ -250,10 +250,29 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  // Screener.in table fallback (NSE SME / thin Yahoo coverage).
-  if (quarters.length < 2) {
+  // Screener.in consolidated table — throttled, cached; enriches OP / other income.
+  if (quarters.length >= 2) {
+    let screener = await fetchScreenerQuarterlyFundamentals(ticker, {
+      cacheOnly: !opts?.screenerForce,
+      force: opts?.screenerForce,
+      consolidated: true,
+    });
+    if (!screener.length && !opts?.screenerForce) {
+      screener = await fetchScreenerQuarterlyFundamentals(ticker, {
+        consolidated: true,
+      });
+    }
+    if (screener.length >= 2) {
+      quarters = mergeScreenerQuarterOverlay(quarters, screener);
+      source = source === "yahoo" ? "yahoo+screener" : source;
+    }
+  } else {
+    // Thin Yahoo — full fallback from Screener (one page fetch, cached).
     try {
-      const screener = await fetchScreenerQuarterlyFundamentals(ticker);
+      const screener = await fetchScreenerQuarterlyFundamentals(ticker, {
+        consolidated: true,
+        force: opts?.screenerForce,
+      });
       if (screener.length >= 2) {
         quarters = screener;
         source = "screener";

@@ -7,8 +7,11 @@ import {
   listInvestorMaterials,
   redistillInvestorMaterial,
   saveInvestorMaterial,
+  toClientInvestorMaterial,
   type InvestorMaterialKind,
 } from "@/lib/investor-materials";
+import { firecrawlConfigured } from "@/lib/firecrawl-parse";
+import { loadAgentConfig } from "@/lib/agents/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,8 +38,18 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const materials = listInvestorMaterials(ticker);
-  return NextResponse.json({ ok: true, ticker, materials, count: materials.length });
+  const materials = listInvestorMaterials(ticker).map(toClientInvestorMaterial);
+  const cfg = loadAgentConfig();
+  return NextResponse.json({
+    ok: true,
+    ticker,
+    materials,
+    count: materials.length,
+    tools: {
+      firecrawl: firecrawlConfigured(),
+      llm: cfg.llmProvider !== "none",
+    },
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -77,11 +90,20 @@ export async function POST(req: NextRequest) {
         kinds: body.kinds,
         distill: body.distill === true,
       });
-      const materials = listInvestorMaterials(ticker);
+      const materials = listInvestorMaterials(ticker).map(toClientInvestorMaterial);
       const hasIcons = materials.some(
         (m) => m.kind === "concall" || m.kind === "transcript" || m.kind === "ppt",
       );
-      if (!hasIcons) {
+      const importedOk = result.imported.length > 0;
+      const payload = {
+        imported: result.imported.map(toClientInvestorMaterial),
+        skipped: result.skipped,
+        errors: result.errors,
+        parsed_with: result.parsed_with,
+        distilled: result.distilled,
+        materials,
+      };
+      if (!hasIcons && !importedOk) {
         const message =
           result.errors[0]?.error ||
           (result.imported.length === 0 && result.skipped.length > 0
@@ -90,14 +112,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
           ok: false,
           error: message,
-          ...result,
-          materials,
+          ...payload,
         });
       }
       return NextResponse.json({
         ok: true,
-        ...result,
-        materials,
+        ...payload,
       });
     }
 
@@ -114,8 +134,8 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json({
         ok: true,
-        material,
-        materials: listInvestorMaterials(ticker),
+        material: toClientInvestorMaterial(material),
+        materials: listInvestorMaterials(ticker).map(toClientInvestorMaterial),
       });
     }
 
@@ -128,10 +148,14 @@ export async function POST(req: NextRequest) {
       url: body.url ?? null,
       distill: body.distill === true,
     });
-    return NextResponse.json({ ok: true, material, materials: listInvestorMaterials(ticker) });
+    return NextResponse.json({
+      ok: true,
+      material: toClientInvestorMaterial(material),
+      materials: listInvestorMaterials(ticker).map(toClientInvestorMaterial),
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Save failed";
-    return NextResponse.json({ ok: false, error: message }, { status: 400 });
+    return NextResponse.json({ ok: false, error: message }, { status: 500 });
   }
 }
 

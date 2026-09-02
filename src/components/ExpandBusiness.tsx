@@ -1,13 +1,11 @@
 "use client";
 
-import type { CallReviewRow, CompanyBrief, GovSignal, QtrSignal } from "@/lib/company-brief";
+import type { CompanyBrief, OfferingItem, QtrSignal } from "@/lib/company-brief";
 import type { ExpandBriefData } from "@/lib/use-expand-brief";
 
 type Props = {
   data: ExpandBriefData;
 };
-
-type VerdictSignal = QtrSignal | GovSignal;
 
 function isDisclosed(text: string): boolean {
   const t = text.trim();
@@ -15,14 +13,7 @@ function isDisclosed(text: string): boolean {
   return !/^not disclosed$/i.test(t);
 }
 
-function directionClass(direction: string): string {
-  const d = direction.toLowerCase();
-  if (d.startsWith("pos")) return "positive";
-  if (d.startsWith("neg")) return "negative";
-  return "neutral";
-}
-
-function verdictClass(signal: VerdictSignal): string {
+function verdictClass(signal: QtrSignal): string {
   return signal.toLowerCase().replace(/\s+/g, "-");
 }
 
@@ -36,25 +27,14 @@ function splitTriggers(text: string): string[] {
 function buildGrowthTriggers(brief: CompanyBrief): string[] {
   const out: string[] = [];
   const seen = new Set<string>();
-  const add = (s: string) => {
-    const t = s.trim();
-    if (!isDisclosed(t)) return;
+  for (const part of splitTriggers(brief.growth_triggers || "")) {
+    const t = part.trim();
+    if (!isDisclosed(t)) continue;
     const key = t.toLowerCase().slice(0, 48);
-    if (seen.has(key)) return;
+    if (seen.has(key)) continue;
     seen.add(key);
     out.push(t);
-  };
-
-  for (const part of splitTriggers(brief.growth_triggers || "")) add(part);
-
-  for (const row of brief.call_review_rows ?? []) {
-    if (row.direction !== "positive" || out.length >= 5) continue;
-    if (isDisclosed(row.thesis_impact)) add(row.thesis_impact);
-    else if (isDisclosed(row.what_said)) {
-      add(row.what_said.split("·")[0]?.trim() || row.what_said);
-    }
   }
-
   return out.slice(0, 5);
 }
 
@@ -62,11 +42,6 @@ function buildWatchLine(brief: CompanyBrief): string | null {
   const parts: string[] = [];
   if (brief.qtr_signal === "Declining" && brief.qtr_reason) {
     parts.push(brief.qtr_reason.split(";")[0]?.trim() || brief.qtr_reason);
-  }
-  for (const row of brief.call_review_rows ?? []) {
-    if (row.direction === "negative" && isDisclosed(row.what_said)) {
-      parts.push(row.what_said.split("·")[0]?.trim() || row.what_said);
-    }
   }
   if (isDisclosed(brief.watch || "")) parts.push(brief.watch.trim());
   return parts.length ? [...new Set(parts)].slice(0, 2).join(" · ") : null;
@@ -89,27 +64,10 @@ function capabilityLine(brief: CompanyBrief): string {
   return brief.headline?.trim() || "Capability unclear from sources";
 }
 
-function disclosedCallRows(rows: CallReviewRow[] | undefined): CallReviewRow[] {
-  return (rows ?? []).filter((r) => isDisclosed(r.what_said));
-}
-
-function SimpleCallSignals({ rows }: { rows: CallReviewRow[] }) {
-  return (
-    <ul className="biz-signal-list">
-      {rows.map((row) => (
-        <li key={row.category} className={`biz-signal biz-signal--${directionClass(row.direction)}`}>
-          <span className="biz-signal-cat">{row.category}</span>
-          <span className="biz-signal-text">{row.what_said}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 export function ExpandBusiness({ data }: Props) {
   const { brief, context, loading, error, setupHint, waitingForQuarters } = data;
 
-  if (loading) {
+  if (loading && !brief) {
     return (
       <div className="biz-panel">
         <p className="biz-loading-label">
@@ -138,33 +96,57 @@ export function ExpandBusiness({ data }: Props) {
 
   if (!brief) return null;
 
-  const companyName = context?.name || brief.headline || "Company";
-  const ticker = context?.ticker || "";
   const triggers = buildGrowthTriggers(brief);
   const capex = disclosedCapex(brief);
   const watch = buildWatchLine(brief);
-  const callRows = disclosedCallRows(brief.call_review_rows);
-  const callHeadline = brief.call_review_headline?.trim();
-  const products = brief.products?.slice(0, 5) ?? [];
-
-  const hasDetails =
-    callRows.length > 0 ||
-    brief.model ||
-    brief.customers ||
-    brief.qtr_reason ||
-    brief.gov_reason;
+  const offerings: OfferingItem[] =
+    brief.offerings?.length > 0
+      ? brief.offerings.slice(0, 5)
+      : (brief.products ?? []).slice(0, 5).map((name) => ({ name, line: "" }));
+  const sector = brief.sector?.trim() || context?.sector?.trim() || "";
+  const subSector = brief.sub_sector?.trim() || context?.sub_sector?.trim() || "";
+  const themeTags = brief.themes?.length
+    ? brief.themes
+    : (context?.themes ?? []).map((t) => t.tag);
+  const themeTitles = new Map((context?.themes ?? []).map((t) => [t.tag, t.name]));
+  const hasClassification = sector || subSector || themeTags.length > 0;
 
   return (
     <div className="biz-panel biz-stack">
       <section className="biz-hero">
         <span className="biz-hero-kicker">Capabilities, growth triggers &amp; capex</span>
-        <h3 className="biz-hero-title">{companyName}</h3>
-        {ticker ? <div className="biz-hero-ticker">{ticker}</div> : null}
-        {callHeadline && callHeadline.toLowerCase() !== companyName.toLowerCase() ? (
-          <p className="biz-hero-lead">{callHeadline}</p>
-        ) : null}
-        {brief.call_review_sources ? (
-          <p className="biz-hero-meta">Calls · {brief.call_review_sources}</p>
+        <h3 className="biz-hero-title">{brief.headline?.trim() || capabilityLine(brief)}</h3>
+        {hasClassification ? (
+          <dl className="biz-classify">
+            {sector ? (
+              <>
+                <dt>Sector</dt>
+                <dd>{sector}</dd>
+              </>
+            ) : null}
+            {subSector && subSector.toLowerCase() !== sector.toLowerCase() ? (
+              <>
+                <dt>Sub-sector</dt>
+                <dd>{subSector}</dd>
+              </>
+            ) : null}
+            {themeTags.length ? (
+              <>
+                <dt>Theme</dt>
+                <dd>
+                  <ul className="biz-chip-list biz-chip-list--inline">
+                    {themeTags.map((tag) => (
+                      <li key={tag}>
+                        <span className="biz-chip" title={themeTitles.get(tag) || tag}>
+                          {tag}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              </>
+            ) : null}
+          </dl>
         ) : null}
       </section>
 
@@ -216,44 +198,24 @@ export function ExpandBusiness({ data }: Props) {
         ) : null}
       </div>
 
-      {products.length ? (
-        <div className="biz-card">
+      {offerings.length ? (
+        <div className="biz-card biz-card--offerings">
           <p className="biz-card-label">Offerings</p>
-          <ul className="biz-chip-list">
-            {products.map((p) => (
-              <li key={p}>
-                <span className="biz-chip">{p}</span>
-              </li>
+          <dl className="biz-offering-list">
+            {offerings.map((o) => (
+              <div key={o.name} className="biz-offering-item">
+                <dt className="biz-offering-name">{o.name}</dt>
+                {o.line ? <dd className="biz-offering-line">{o.line}</dd> : null}
+              </div>
             ))}
-          </ul>
-          {brief.customers ? <p className="biz-card-meta">Customers · {brief.customers}</p> : null}
+          </dl>
+          {brief.customers ? (
+            <div className="biz-offering-customers">
+              <p className="biz-offering-customers-label">Customers</p>
+              <p className="biz-offering-customers-text">{brief.customers}</p>
+            </div>
+          ) : null}
         </div>
-      ) : null}
-
-      {hasDetails ? (
-        <details className="biz-details">
-          <summary className="biz-details-summary">Call review &amp; notes</summary>
-          <div className="biz-details-body">
-            {callRows.length ? <SimpleCallSignals rows={callRows} /> : null}
-            <dl className="biz-details-dl">
-              {brief.customers && !products.length ? (
-                <>
-                  <dt>Customers</dt>
-                  <dd>{brief.customers}</dd>
-                </>
-              ) : null}
-              {brief.gov_reason ? (
-                <>
-                  <dt>Governance</dt>
-                  <dd>
-                    {brief.gov_signal ? `${brief.gov_signal} — ` : ""}
-                    {brief.gov_reason}
-                  </dd>
-                </>
-              ) : null}
-            </dl>
-          </div>
-        </details>
       ) : null}
     </div>
   );

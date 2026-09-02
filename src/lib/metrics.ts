@@ -176,7 +176,14 @@ export function upsertMetrics(
         market = COALESCE(excluded.market, stock_metrics.market),
         yf_symbol = COALESCE(excluded.yf_symbol, stock_metrics.yf_symbol),
         price = COALESCE(excluded.price, stock_metrics.price),
-        market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
+        market_cap_cr = CASE
+          WHEN excluded.market_cap_cr IS NOT NULL THEN excluded.market_cap_cr
+          WHEN excluded.yf_symbol LIKE '%-SM.NS' THEN NULL
+          WHEN excluded.price IS NOT NULL
+            AND stock_metrics.price IS NOT NULL
+            AND ABS(excluded.price - stock_metrics.price) > 0.01 THEN NULL
+          ELSE stock_metrics.market_cap_cr
+        END,
         sector = COALESCE(excluded.sector, stock_metrics.sector),
         fetched_at = excluded.fetched_at
     `);

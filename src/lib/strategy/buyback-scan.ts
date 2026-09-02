@@ -4,6 +4,10 @@ import {
   fetchNseBuybackActions,
   fetchNseBuybacksForTicker,
 } from "../nse-buybacks";
+import {
+  buybackEventsNeedScreener,
+  fetchScreenerBuybacks,
+} from "../screener-buybacks";
 import { runConcurrent } from "../scrape-pool";
 import {
   pendingBuybackDetailTickers,
@@ -19,8 +23,12 @@ export type BuybackScanResult = {
   remaining: number;
   saved_tickers: string[];
   synced_actions: number;
+  screener_enriched: number;
   done: boolean;
 };
+
+/** Max Screener company-page fetches per batch (spaced 2.5s — never global search). */
+const SCREENER_ENRICH_PER_BATCH = 3;
 
 export async function syncNseBuybackActions(): Promise<number> {
   const jar = await createNseBuybackSession();
@@ -83,36 +91,63 @@ export async function runBuybackScanBatch(opts: {
     remaining: pending.length,
     saved_tickers: [],
     synced_actions: syncedActions,
+    screener_enriched: 0,
     done: pending.length === 0,
   };
   if (!batch.length) return empty;
 
   const jar = await createNseBuybackSession();
   const savedTickers: string[] = [];
+  const screenerQueue: Array<{ ticker: string; nseEvents: Awaited<ReturnType<typeof fetchNseBuybacksForTicker>> }> = [];
 
   const results = await runConcurrent(batch, concurrency, async (ticker) => {
     try {
       const events = await fetchNseBuybacksForTicker(jar, ticker);
-      if (!events.length) {
-        recordStrategyScan(ticker, "buyback", "empty", "no buyback announcements");
-        recomputeBuybackSummary(ticker, { detailFetched: true });
-        return { ticker, ok: false as const };
+      if (buybackEventsNeedScreener(events)) {
+        screenerQueue.push({ ticker, nseEvents: events });
       }
-      upsertBuybackEvents(events);
-      recomputeBuybackSummary(ticker, { detailFetched: true });
-      recordStrategyScan(ticker, "buyback", "ok", `${events.length} events`);
-      return { ticker, ok: true as const };
+      if (events.length) {
+        upsertBuybackEvents(events);
+        recomputeBuybackSummary(ticker, { detailFetched: true });
+        recordStrategyScan(ticker, "buyback", "ok", `${events.length} NSE events`);
+        return { ticker, ok: true as const, nse: events.length };
+      }
+      return { ticker, ok: false as const, nse: 0 };
     } catch (err) {
       recordStrategyScan(
         ticker,
         "buyback",
         "failed",
-        err instanceof Error ? err.message : "fetch failed",
+        err instanceof Error ? err.message : "NSE fetch failed",
       );
-      recomputeBuybackSummary(ticker, { detailFetched: true });
-      return { ticker, ok: false as const };
+      screenerQueue.push({ ticker, nseEvents: [] });
+      return { ticker, ok: false as const, nse: 0 };
     }
   });
+
+  let screenerEnriched = 0;
+  for (const job of screenerQueue.slice(0, SCREENER_ENRICH_PER_BATCH)) {
+    const scEvents = await fetchScreenerBuybacks(job.ticker);
+    if (!scEvents.length) {
+      if (!job.nseEvents.length) {
+        recordStrategyScan(job.ticker, "buyback", "empty", "no NSE or Screener buybacks");
+        recomputeBuybackSummary(job.ticker, { detailFetched: true });
+      }
+      continue;
+    }
+    upsertBuybackEvents(scEvents);
+    recomputeBuybackSummary(job.ticker, { detailFetched: true });
+    screenerEnriched += 1;
+    if (!savedTickers.includes(job.ticker)) savedTickers.push(job.ticker);
+    recordStrategyScan(
+      job.ticker,
+      "buyback",
+      "ok",
+      job.nseEvents.length
+        ? `${job.nseEvents.length} NSE + ${scEvents.length} Screener`
+        : `${scEvents.length} Screener events`,
+    );
+  }
 
   let saved = 0;
   let failed = 0;
@@ -138,6 +173,7 @@ export async function runBuybackScanBatch(opts: {
     remaining,
     saved_tickers: savedTickers,
     synced_actions: syncedActions,
+    screener_enriched: screenerEnriched,
     done: remaining === 0,
   };
 }

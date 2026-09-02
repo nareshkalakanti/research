@@ -54,13 +54,6 @@ export function useExpandBrief(
       return;
     }
 
-    if (quarters.loading) {
-      setLoading(true);
-      setError(null);
-      setSetupHint(null);
-      return;
-    }
-
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -77,7 +70,7 @@ export function useExpandBrief(
         quarterBlock,
         quarterPanel: quarters.panel,
       }),
-      signal: AbortSignal.timeout(180_000),
+      signal: AbortSignal.timeout(300_000),
     })
       .then(async (r) => {
         const j = (await r.json()) as {
@@ -115,13 +108,13 @@ export function useExpandBrief(
     return () => {
       cancelled = true;
     };
-  }, [enabled, ticker, market, price, quarters.loading, quarterBlock, quarters.panel, materialsRev]);
+  }, [enabled, ticker, market, price, quarterBlock, materialsRev]);
 
   return {
     brief,
     context,
     loading,
-    waitingForQuarters: enabled && quarters.loading,
+    waitingForQuarters: enabled && quarters.loading && loading && !brief,
     error,
     setupHint,
   };

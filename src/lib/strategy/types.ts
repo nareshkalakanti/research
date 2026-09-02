@@ -18,7 +18,7 @@ export type BuybackEvent = {
   status: BuybackStatus;
   subject: string | null;
   description: string | null;
-  source: "nse_action" | "nse_announcement";
+  source: "nse_action" | "nse_announcement" | "screener_announcement";
   seq_id: string | null;
 };
 
@@ -65,4 +65,8 @@ export type LiquidityScore = {
   web: string | null;
 };
 
-export type StrategyKind = "buyback" | "liquidity";
+export type StrategyKind =
+  | "buyback"
+  | "liquidity"
+  | "concall_drift"
+  | "market_turnover";

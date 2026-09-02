@@ -15,10 +15,9 @@ export type ViewFilter =
   | "ema"
   | "ath"
   | "high52"
-  | "dd"
-  | "mom";
+  | "dd";
 
-type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "dd" | "mom" | "all";
+type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "dd" | "all";
 
 type Props = {
   listLabel: string;
@@ -35,14 +34,12 @@ type Props = {
   athCount?: number;
   high52Count?: number;
   ddCount?: number;
-  momCount?: number;
   bbDate?: string | null;
   tqDate?: string | null;
   emaDate?: string | null;
   athDate?: string | null;
   high52Date?: string | null;
   ddDate?: string | null;
-  momDate?: string | null;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
 };
@@ -65,7 +62,7 @@ async function scanOnce(body: Record<string, unknown>) {
     });
   } catch {
     throw new Error(
-      "Network dropped mid-scan (common on NSE SME + MOM). Retry — progress is saved.",
+      "Network dropped mid-scan. Retry — progress is saved.",
     );
   }
   const raw = await res.text();
@@ -78,7 +75,6 @@ async function scanOnce(body: Record<string, unknown>) {
     athHits?: number;
     high52Hits?: number;
     ddHits?: number;
-    momHits?: number;
     remaining?: number;
     session?: {
       bb: string | null;
@@ -87,7 +83,6 @@ async function scanOnce(body: Record<string, unknown>) {
       ath?: string | null;
       high52?: string | null;
       dd?: string | null;
-      mom?: string | null;
     };
     error?: string;
   } = {};
@@ -116,7 +111,6 @@ const SCAN_LABELS: Record<ScanKind, string> = {
   ath: "ATH",
   high52: "52W",
   dd: "DD",
-  mom: "MOM",
   all: "All",
 };
 
@@ -128,8 +122,36 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   ath: "ATH",
   high52: "52W",
   dd: "DD",
-  mom: "MOM",
 };
+
+type ScanCounts = {
+  bb: number;
+  tq: number;
+  ema: number;
+  ath: number;
+  high52: number;
+  dd: number;
+};
+
+function formatScanProgress(
+  kind: ScanKind,
+  counts: ScanCounts,
+  remaining: number,
+  suffix?: string,
+): string {
+  const left = `${remaining.toLocaleString()} left`;
+  const tail = suffix ? ` · ${suffix}` : "";
+  if (kind === "all") {
+    return `${counts.bb} BB · ${counts.tq} TQ · ${counts.ema} EMA · ${counts.ath} ATH · ${counts.high52} 52W · ${counts.dd} DD · ${left}${tail}`;
+  }
+  if (kind === "bb") return `${counts.bb} BB · ${left}${tail}`;
+  if (kind === "tq") return `${counts.tq} TQ · ${left}${tail}`;
+  if (kind === "ema") return `${counts.ema} EMA · ${left}${tail}`;
+  if (kind === "ath") return `${counts.ath} ATH · ${left}${tail}`;
+  if (kind === "high52") return `${counts.high52} 52W · ${left}${tail}`;
+  if (kind === "dd") return `${counts.dd} DD · ${left}${tail}`;
+  return `${left}${tail}`;
+}
 
 export function viewFilterLabel(view: ViewFilter): string {
   return VIEW_LABELS[view];
@@ -151,14 +173,12 @@ export function SignalScanBar({
   athCount,
   high52Count,
   ddCount,
-  momCount,
   bbDate,
   tqDate,
   emaDate,
   athDate,
   high52Date,
   ddDate,
-  momDate,
   onBatch,
   onDone,
 }: Props) {
@@ -187,11 +207,10 @@ export function SignalScanBar({
       let gotAth = 0;
       let gotHigh52 = 0;
       let gotDd = 0;
-      let gotMom = 0;
 
       try {
         for (let round = 1; round <= 200; round += 1) {
-          const batchLimit = kind === "mom" ? 12 : 40;
+          const batchLimit = 40;
           let json: Awaited<ReturnType<typeof scanOnce>> | null = null;
           let attemptError: Error | null = null;
           for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -208,7 +227,7 @@ export function SignalScanBar({
             } catch (e) {
               attemptError =
                 e instanceof Error ? e : new Error("Scan failed");
-              // Soft retry on network drops — MOM on SME often trips this.
+              // Soft retry on network drops.
               if (
                 attempt < 3 &&
                 /network dropped|failed to fetch|fetch failed/i.test(
@@ -233,14 +252,21 @@ export function SignalScanBar({
           gotAth += json.athHits ?? 0;
           gotHigh52 += json.high52Hits ?? 0;
           gotDd += json.ddHits ?? 0;
-          gotMom += json.momHits ?? 0;
           remaining = json.remaining ?? 0;
+          const counts: ScanCounts = {
+            bb: gotBb,
+            tq: gotTq,
+            ema: gotEma,
+            ath: gotAth,
+            high52: gotHigh52,
+            dd: gotDd,
+          };
           const pct =
             remaining <= 0 ? 100 : Math.min(97, 3 + round * 2);
           setProgress({
             pct,
             label: remaining <= 0 ? "Done" : `Scanning ${SCAN_LABELS[kind]}`,
-            detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${gotDd} DD · ${gotMom} MOM · ${remaining.toLocaleString()} left`,
+            detail: formatScanProgress(kind, counts, remaining),
             done: remaining <= 0,
           });
           if (
@@ -253,9 +279,7 @@ export function SignalScanBar({
             await (onBatch ?? onDone)?.();
           }
           if (json.tried === 0 || remaining <= 0) break;
-          await new Promise((r) =>
-            setTimeout(r, kind === "mom" ? 350 : 200),
-          );
+          await new Promise((r) => setTimeout(r, 200));
         }
 
         if (kind === "bb") onView("bb");
@@ -264,13 +288,24 @@ export function SignalScanBar({
         else if (kind === "ath") onView("ath");
         else if (kind === "high52") onView("high52");
         else if (kind === "dd") onView("dd");
-        else if (kind === "mom") onView("mom");
         else onView("all");
 
         setProgress({
           pct: 100,
           label: "Done",
-          detail: `${gotBb} BB · ${gotTq} TQ · ${gotEma} EMA · ${gotAth} ATH · ${gotHigh52} 52W · ${gotDd} DD · ${gotMom} MOM · ${listLabel}`,
+          detail: formatScanProgress(
+            kind,
+            {
+              bb: gotBb,
+              tq: gotTq,
+              ema: gotEma,
+              ath: gotAth,
+              high52: gotHigh52,
+              dd: gotDd,
+            },
+            0,
+            listLabel,
+          ),
           done: true,
         });
         await onDone?.();
@@ -396,23 +431,6 @@ export function SignalScanBar({
           ) : null}
         </button>
 
-        <button
-          type="button"
-          className={`chip tag-chip tag-scan-mom ${view === "mom" ? "on" : ""}`}
-          onClick={() => onView("mom")}
-          title={
-            momDate
-              ? `12−1 momentum (positive) · ${momDate}`
-              : "Positive 12−1 price momentum"
-          }
-        >
-          MOM
-          <Count n={momCount} />
-          {momDate ? (
-            <span className="chip-date">{momDate.slice(5)}</span>
-          ) : null}
-        </button>
-
         {view !== "all" ? (
           <button
             type="button"
@@ -427,7 +445,7 @@ export function SignalScanBar({
         <span className="filter-sep scan-actions-sep" aria-hidden />
 
         <div className="scan-actions">
-          {(["bb", "tq", "ema", "ath", "high52", "dd", "mom", "all"] as const).map((kind) => (
+          {(["bb", "tq", "ema", "ath", "high52", "dd", "all"] as const).map((kind) => (
             <button
               key={kind}
               type="button"
@@ -438,14 +456,12 @@ export function SignalScanBar({
                 kind === "bb"
                   ? `Scan ${bbTfLabel} BB on ${listLabel}`
                   : kind === "all"
-                    ? `Scan BB, TQ, EMA, ATH, 52W, DD, MOM on ${listLabel}`
+                    ? `Scan BB, TQ, EMA, ATH, 52W, DD on ${listLabel}`
                     : kind === "high52"
                       ? `Scan 52W highs on ${listLabel}`
                       : kind === "dd"
                         ? `Scan weekly Dragonfly Doji on ${listLabel}`
-                        : kind === "mom"
-                          ? `Scan 12−1 momentum on ${listLabel}`
-                          : `Scan ${SCAN_LABELS[kind]} on ${listLabel}`
+                        : `Scan ${SCAN_LABELS[kind]} on ${listLabel}`
               }
             >
               {busyKind === kind

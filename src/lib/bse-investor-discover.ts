@@ -9,12 +9,12 @@ const BSE_ANN_API =
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title?: string }> = [
   {
-    re: /earnings\s+call\s+transcript|concall\s+transcript|conference\s+call\s+transcript/i,
-    kind: "concall",
+    re: /investor\s+presentation|earnings\s+presentation|analyst\s+presentation/i,
+    kind: "ppt",
   },
   {
-    re: /investor\s+presentation|earnings\s+presentation|analyst\s+presentation|investor\s+meet/i,
-    kind: "ppt",
+    re: /transcript|concall|conference\s+call|earnings?\s+call|investor\s+meet|analyst\s+meet/i,
+    kind: "concall",
   },
   {
     re: /analyst\s*\/\s*investor\s+meet\s*-\s*outcome|investor\s+meet\s*-\s*outcome|meet\s+outcome/i,
@@ -235,7 +235,11 @@ export async function discoverBseInvestorMaterialSources(
     if (seen.has(id)) continue;
     seen.add(id);
 
-    const period = formatPeriod(row.DissemDT || row.NEWS_DT);
+    const rawDt = row.DissemDT || row.NEWS_DT;
+    const parsed = rawDt ? new Date(String(rawDt)) : null;
+    const announced_at =
+      parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : null;
+    const period = formatPeriod(announced_at);
     out.push({
       id,
       kind: match.kind,
@@ -248,12 +252,18 @@ export async function discoverBseInvestorMaterialSources(
             ? "Financial results"
             : "Earnings call transcript"),
       period,
+      announced_at,
       url,
       provider: "bse_announcements",
       imported: importedUrls.has(id),
     });
   }
 
-  out.sort((a, b) => periodSortKey(b.period) - periodSortKey(a.period));
+  out.sort((a, b) => {
+    const at = a.announced_at ? Date.parse(a.announced_at) : 0;
+    const bt = b.announced_at ? Date.parse(b.announced_at) : 0;
+    if (bt !== at) return bt - at;
+    return periodSortKey(b.period) - periodSortKey(a.period);
+  });
   return out;
 }

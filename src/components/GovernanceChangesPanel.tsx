@@ -61,8 +61,12 @@ function formatWhen(iso: string): string {
 
 type Props = {
   refreshKey?: number;
-  onDrillDirector?: (personId: string, name: string) => void;
-  onDrillTicker?: (ticker: string) => void;
+  onDrillDirector?: (
+    personId: string,
+    name: string,
+    fromLabel?: string,
+  ) => void;
+  onDrillTicker?: (ticker: string, fromLabel?: string) => void;
 };
 
 export function GovernanceChangesPanel({
@@ -122,7 +126,9 @@ export function GovernanceChangesPanel({
               type="button"
               className="gov-watch-chip"
               title={w.note || w.name}
-              onClick={() => onDrillDirector?.(w.person_id, w.name)}
+              onClick={() =>
+                onDrillDirector?.(w.person_id, w.name, "Pinned")
+              }
             >
               {w.name.split(" ").slice(-1)[0] || w.name}
               {w.din ? <em>DIN {w.din}</em> : null}
@@ -150,7 +156,11 @@ export function GovernanceChangesPanel({
                   type="button"
                   className="gov-change-name"
                   onClick={() =>
-                    onDrillDirector?.(e.person_id, e.director_name)
+                    onDrillDirector?.(
+                      e.person_id,
+                      e.director_name,
+                      "Board changes",
+                    )
                   }
                 >
                   {e.director_name}
@@ -162,7 +172,9 @@ export function GovernanceChangesPanel({
                 <button
                   type="button"
                   className="gov-ticker"
-                  onClick={() => onDrillTicker?.(e.ticker)}
+                  onClick={() =>
+                    onDrillTicker?.(e.ticker, "Board changes")
+                  }
                 >
                   {e.ticker}
                 </button>

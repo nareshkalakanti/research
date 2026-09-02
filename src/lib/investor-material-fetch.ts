@@ -78,27 +78,98 @@ async function fetchTrendlyneListingPost(ticker: string, postId: string): Promis
   return hit.bodyText.trim();
 }
 
+function isPdfParseNoise(message: string): boolean {
+  return (
+    /font private use area/i.test(message) ||
+    /Warning:\s*TT:/i.test(message) ||
+    /undefined function:\s*\d+/i.test(message) ||
+    /invalid function id:/i.test(message)
+  );
+}
+
+/** pdf.js / fontkit spam on many Indian exchange PDFs — not actionable. */
+async function withSuppressedPdfNoise<T>(fn: () => Promise<T>): Promise<T> {
+  const origWarn = console.warn;
+  const origError = console.error;
+  const origLog = console.log;
+  const filter =
+    (orig: typeof console.warn) =>
+    (...args: unknown[]) => {
+      const msg = args.map(String).join(" ");
+      if (isPdfParseNoise(msg)) return;
+      orig.apply(console, args as [unknown?, ...unknown[]]);
+    };
+  console.warn = filter(origWarn);
+  console.error = filter(origError);
+  console.log = filter(origLog);
+  try {
+    return await fn();
+  } finally {
+    console.warn = origWarn;
+    console.error = origError;
+    console.log = origLog;
+  }
+}
+
 async function extractPdfText(buf: Buffer): Promise<string> {
-  // pdf-parse main entry runs debug code on import — use lib path only.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (
-    b: Buffer,
-    opts?: { max?: number },
-  ) => Promise<{ text: string; numpages: number }>;
-  const data = await pdfParse(buf, { max: 12 });
-  const text = data.text
-    .replace(/\u00a0/g, " ")
-    .replace(/[ \t]+\n/g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  return text.slice(0, MAX_CHARS);
+  return withSuppressedPdfNoise(async () => {
+    // pdf-parse main entry runs debug code on import — use lib path only.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require("pdf-parse/lib/pdf-parse.js") as (
+      b: Buffer,
+      opts?: { max?: number },
+    ) => Promise<{ text: string; numpages: number }>;
+    const data = await pdfParse(buf, { max: 12 });
+    const text = data.text
+      .replace(/\u00a0/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    return text.slice(0, MAX_CHARS);
+  });
 }
 
 export type FetchMaterialResult = {
   text: string;
   title: string | null;
   content_type: string | null;
+  parser?: "pdf-parse" | "firecrawl" | "html" | "trendlyne";
 };
+
+async function extractWithFirecrawl(
+  url: string,
+  isPdf: boolean,
+  contentType: string,
+  getBuffer: () => Promise<Buffer>,
+): Promise<string | null> {
+  if (!process.env.FIRECRAWL_API_KEY?.trim()) return null;
+
+  const fc = await import("./firecrawl-parse");
+  if (!isPdf && !fc.isFirecrawlDocumentUrl(url, contentType)) return null;
+
+  try {
+    const parsed = await fc.parseDocumentFromUrl(url, async () => {
+      const buf = await getBuffer();
+      return { buffer: buf, contentType };
+    });
+    if (parsed.markdown.replace(/\s/g, "").length < 80) return null;
+    return parsed.markdown;
+  } catch {
+    try {
+      const buf = await getBuffer();
+      const name = url.split("/").pop()?.split("?")[0] || "document.pdf";
+      const parsed = await fc.parseDocumentBuffer(buf, name, { contentType });
+      if (parsed.markdown.replace(/\s/g, "").length < 80) return null;
+      return parsed.markdown;
+    } catch {
+      return null;
+    }
+  }
+}
+
+function firecrawlConfigured(): boolean {
+  return Boolean(process.env.FIRECRAWL_API_KEY?.trim());
+}
 
 /** Fetch URL and extract readable text (HTML, plain text, or PDF). */
 export async function fetchInvestorMaterialUrl(
@@ -138,11 +209,50 @@ export async function fetchInvestorMaterialUrl(
     if (isPdf) {
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length < 200) throw new Error("PDF download empty");
+
+      const firecrawlText = await extractWithFirecrawl(
+        finalUrl || u,
+        true,
+        contentType,
+        async () => buf,
+      );
+      if (firecrawlText) {
+        return {
+          text: firecrawlText,
+          title: null,
+          content_type: "application/pdf",
+          parser: "firecrawl",
+        };
+      }
+
       const text = await extractPdfText(buf);
       if (text.replace(/\s/g, "").length < 80) {
-        throw new Error("PDF has no extractable text — paste manually");
+        throw new Error(
+          firecrawlConfigured()
+            ? "PDF has no extractable text — Firecrawl also failed"
+            : "PDF has no extractable text — set FIRECRAWL_API_KEY for OCR parse",
+        );
       }
-      return { text, title: null, content_type: "application/pdf" };
+      return { text, title: null, content_type: "application/pdf", parser: "pdf-parse" };
+    }
+
+    if (/\.(pdf|docx?|docm|odt|rtf|xlsx?|xlsm|pptx?|pptm|epub|csv)(\?|$)/i.test(finalUrl || u) ||
+      /application\/pdf|wordprocessing|msword|spreadsheet|presentation|opendocument|rtf|epub|csv/i.test(contentType)) {
+      const buf = Buffer.from(await res.arrayBuffer());
+      const firecrawlText = await extractWithFirecrawl(
+        finalUrl || u,
+        false,
+        contentType,
+        async () => buf,
+      );
+      if (firecrawlText) {
+        return {
+          text: firecrawlText,
+          title: null,
+          content_type: contentType || null,
+          parser: "firecrawl",
+        };
+      }
     }
 
     const raw = await res.text();

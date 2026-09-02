@@ -34,6 +34,8 @@
     "add:fund-watchlist": "tsx scripts/add-fund-watchlist-tickers.ts",
     "sync:bse-sme": "tsx scripts/sync-bse-sme.ts",
     "sync:bse-about": "tsx scripts/sync-bse-about.ts",
+    "build:nifty500-turnover": "tsx scripts/build-nifty500-turnover.ts",
+    "scan:concall-drift": "tsx scripts/scan-concall-drift.ts",
     "import:qwen-about": "tsx scripts/import-qwen-scraped-about.ts",
     "fill-sectors": "tsx scripts/fill-sectors-ai.ts",
     "db:verify": "tsx scripts/db-maintenance.ts verify",
@@ -49,6 +51,7 @@
     "pdf-parse": "^1.1.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "recharts": "^3.10.1",
     "yahoo-finance2": "^4.0.0"
   },
   "devDependencies": {

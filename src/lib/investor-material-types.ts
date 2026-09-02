@@ -12,6 +12,8 @@ export type DiscoveredMaterialSource = {
   kind: InvestorMaterialKind;
   title: string;
   period: string | null;
+  /** ISO timestamp when known — used to pick the newest filing, not month-year. */
+  announced_at?: string | null;
   url: string;
   provider: MaterialSourceProvider;
   imported: boolean;

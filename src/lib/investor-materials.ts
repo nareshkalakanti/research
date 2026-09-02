@@ -1,10 +1,16 @@
 import { loadAgentConfig } from "./agents/config";
+import { formatInvestorMaterialsBriefBlock as formatBriefBlockFromCorpus } from "./investor-material-corpus";
+import { loadPrompt } from "./prompts";
 import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
 import { fetchInvestorMaterialUrl } from "./investor-material-fetch";
 import {
   discoverInvestorMaterialSources,
   pickLatestSources,
 } from "./investor-material-scrape";
+import {
+  isTranscriptLike,
+  pickMaterialsForEvent,
+} from "./investor-material-corpus";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
 import { checkLlmStatus, completeJson } from "./llm-client";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -24,7 +30,7 @@ export type InvestorMaterial = {
   updated_at: string;
 };
 
-const DISTILL_SYSTEM = `Extract equity-research facts from an Indian company concall, PPT, or transcript.
+const DISTILL_FALLBACK = `Extract equity-research facts from an Indian company concall, PPT, or transcript.
 Return ONLY valid JSON:
 {
   "summary": "180-280 words. Management-stated capabilities, growth catalysts, capacity/capex (₹ amounts and FY labels when stated), guidance, order book, commissioning dates. Use exact numbers from source.",
@@ -33,6 +39,10 @@ Return ONLY valid JSON:
   "capabilities": "ONE sentence — key technical / commercial edge from source"
 }
 Use only source text. Do not invent. Do not repeat these field instructions in your output.`;
+
+function distillSystemPrompt(): string {
+  return loadPrompt("investor-material-distill", DISTILL_FALLBACK);
+}
 
 function isPromptLeak(s: string): boolean {
   return /one sentence —|one line —|exactly one of|separated by ·|only from source|180-280 words|commercial edge from source/i.test(
@@ -82,6 +92,37 @@ export function listInvestorMaterials(ticker: string): InvestorMaterial[] {
   }
 }
 
+export function listInvestorMaterialsForTickers(
+  tickers: string[],
+): Map<string, InvestorMaterial[]> {
+  const out = new Map<string, InvestorMaterial[]>();
+  const uniq = [...new Set(tickers.map((t) => t.toUpperCase()).filter(Boolean))];
+  if (!uniq.length) return out;
+  const conn = db();
+  try {
+    for (let i = 0; i < uniq.length; i += 200) {
+      const chunk = uniq.slice(i, i + 200);
+      const placeholders = chunk.map(() => "?").join(",");
+      const rows = conn
+        .prepare(
+          `SELECT id, ticker, kind, title, period, source_url, raw_text, brief_text, created_at, updated_at
+           FROM investor_materials WHERE ticker IN (${placeholders})
+           ORDER BY updated_at DESC`,
+        )
+        .all(...chunk) as Array<Record<string, unknown>>;
+      for (const row of rows) {
+        const m = rowToMaterial(row);
+        const list = out.get(m.ticker) ?? [];
+        list.push(m);
+        out.set(m.ticker, list);
+      }
+    }
+  } finally {
+    conn.close();
+  }
+  return out;
+}
+
 export function investorMaterialsCount(ticker: string): number {
   return listInvestorMaterials(ticker).length;
 }
@@ -100,6 +141,22 @@ export function isPendingInvestorMaterial(m: Pick<InvestorMaterial, "raw_text">)
   return m.raw_text.startsWith(PENDING_PREFIX);
 }
 
+/** API payload — omit full PDF text so JSON stays small and serializable. */
+export function toClientInvestorMaterial(m: InvestorMaterial): InvestorMaterial & {
+  has_text: boolean;
+  pending: boolean;
+} {
+  const pending = isPendingInvestorMaterial(m);
+  const has_text = !pending && m.raw_text.replace(/\s/g, "").length >= 80;
+  return {
+    ...m,
+    pending,
+    has_text,
+    raw_text: pending ? m.raw_text.slice(0, 160) : "",
+    brief_text: m.brief_text ? m.brief_text.slice(0, 8_000) : null,
+  };
+}
+
 function placeholderText(input: {
   title: string;
   url: string;
@@ -115,88 +172,9 @@ function placeholderText(input: {
   return lines.join("\n");
 }
 
-/** Drop BSE cover-letter noise before slide deck content. */
-function trimInvestorMaterialBody(raw: string): string {
-  const text = raw.trim();
-  const markers = [
-    /Investor Presentation/i,
-    /Safe Harbor/i,
-    /Financial Results/i,
-    /Q[1-4]\s*FY/i,
-    /Company Overview/i,
-  ];
-  for (const re of markers) {
-    const m = re.exec(text);
-    if (m && m.index != null && m.index > 80) {
-      return text.slice(m.index).trim();
-    }
-  }
-  return text;
-}
-
-function materialBodyForBrief(m: InvestorMaterial): string {
-  if (m.brief_text?.trim()) return m.brief_text.trim().slice(0, 3500);
-  return trimInvestorMaterialBody(m.raw_text).slice(0, 3500);
-}
-
-/** Pick latest concall, ppt, and one results row for the Business dossier. */
-function pickMaterialsForBrief(items: InvestorMaterial[]): InvestorMaterial[] {
-  const usable = items.filter((m) => !isPendingInvestorMaterial(m));
-  const picked: InvestorMaterial[] = [];
-  const seen = new Set<string>();
-
-  const add = (m: InvestorMaterial | undefined) => {
-    if (!m || seen.has(m.id)) return;
-    seen.add(String(m.id));
-    picked.push(m);
-  };
-
-  for (const kind of ["concall", "ppt", "other"] as const) {
-    if (kind === "other") {
-      add(
-        usable.find((m) => /annual\s*report|board\s*report/i.test(m.title || "")) ||
-          usable.find((m) => m.kind === kind),
-      );
-    } else {
-      add(usable.find((m) => m.kind === kind));
-    }
-  }
-
-  for (const m of usable) {
-    if (picked.length >= 3) break;
-    add(m);
-  }
-  return picked;
-}
-
 /** Text block appended to Business LLM dossier. */
 export function formatInvestorMaterialsBriefBlock(ticker: string): string | null {
-  const items = listInvestorMaterials(ticker);
-  if (!items.length) return null;
-
-  const parts: string[] = ["Investor materials (concall / PPT / transcripts / results):"];
-  for (const m of pickMaterialsForBrief(items)) {
-    const head = [
-      m.kind === "other" ? "RESULTS" : m.kind.toUpperCase(),
-      m.title || "Untitled",
-      m.period ? `(${m.period})` : null,
-    ]
-      .filter(Boolean)
-      .join(" · ");
-
-    if (isPendingInvestorMaterial(m)) {
-      parts.push(
-        `\n[${head}]\nTranscript/PDF not fetched — source URL unavailable or blocked. No capex from this file.`,
-      );
-      continue;
-    }
-
-    const body = materialBodyForBrief(m);
-    if (body.replace(/\s/g, "").length < 40) continue;
-    parts.push(`\n[${head}]\n${body}`);
-  }
-  if (parts.length <= 1) return null;
-  return parts.join("\n");
+  return formatBriefBlockFromCorpus(ticker);
 }
 
 export async function distillInvestorMaterial(
@@ -210,7 +188,7 @@ export async function distillInvestorMaterial(
   try {
     const parsed = await completeJson(
       cfg,
-      DISTILL_SYSTEM,
+      distillSystemPrompt(),
       `Source: ${meta.title || meta.kind || "investor material"}\n\n${rawText.slice(0, 12_000)}`,
     );
     const summary = cleanDistillField(parsed.summary);
@@ -347,9 +325,14 @@ export type ImportInvestorMaterialsResult = {
   imported: InvestorMaterial[];
   skipped: Array<{ url: string; reason: string }>;
   errors: Array<{ url: string; error: string }>;
+  parsed_with?: "firecrawl" | "local" | "none";
+  distilled?: number;
 };
 
-export async function enrichInvestorMaterialText(id: number): Promise<InvestorMaterial | null> {
+export async function enrichInvestorMaterialText(
+  id: number,
+  opts?: { distill?: boolean; throwOnError?: boolean },
+): Promise<InvestorMaterial | null> {
   const conn = db();
   let row: Record<string, unknown> | undefined;
   try {
@@ -390,9 +373,12 @@ export async function enrichInvestorMaterialText(id: number): Promise<InvestorMa
     } finally {
       conn2.close();
     }
-    void redistillInvestorMaterial(id).catch(() => {});
+    if (opts?.distill) {
+      return (await redistillInvestorMaterial(id)) ?? updated;
+    }
     return updated;
-  } catch {
+  } catch (err) {
+    if (opts?.throwOnError) throw err;
     return material;
   }
 }
@@ -416,7 +402,7 @@ export async function importInvestorMaterialFromSource(input: {
     /trendlyne\.com\/posts\//i.test(input.source.url);
 
   if (isTrendlyne) {
-    const material = await saveInvestorMaterial({
+    return saveInvestorMaterial({
       ticker,
       kind: input.source.kind,
       title: input.source.title,
@@ -424,8 +410,6 @@ export async function importInvestorMaterialFromSource(input: {
       url: input.source.url,
       distill: input.distill === true,
     });
-    void redistillInvestorMaterial(material.id).catch(() => {});
-    return material;
   }
 
   if (input.metadataOnly) {
@@ -462,7 +446,10 @@ export async function importLatestInvestorMaterials(input: {
   distill?: boolean;
 }): Promise<ImportInvestorMaterialsResult> {
   const ticker = input.ticker.toUpperCase();
-  const { sources } = await discoverInvestorMaterialSources(ticker);
+  const distill = input.distill === true;
+  const { sources } = await discoverInvestorMaterialSources(ticker, {
+    refresh: true,
+  });
   const picks = pickLatestSources(sources, {
     limit: input.limit ?? 2,
     kinds: input.kinds,
@@ -483,8 +470,8 @@ export async function importLatestInvestorMaterials(input: {
         const material = await importInvestorMaterialFromSource({
           ticker,
           source,
-          metadataOnly: true,
-          distill: false,
+          metadataOnly: !distill,
+          distill,
         });
         return { type: "ok" as const, material };
       } catch (err) {
@@ -504,14 +491,129 @@ export async function importLatestInvestorMaterials(input: {
   }
 
   for (const material of imported) {
-    if (isPendingInvestorMaterial(material)) {
-      void enrichInvestorMaterialText(material.id).catch(() => {});
-    } else {
-      void redistillInvestorMaterial(material.id).catch(() => {});
+    if (!isPendingInvestorMaterial(material)) continue;
+    try {
+      await enrichInvestorMaterialText(material.id, {
+        distill,
+        throwOnError: true,
+      });
+    } catch (err) {
+      errors.push({
+        url: material.source_url || material.title,
+        error: err instanceof Error ? err.message : "Firecrawl parse failed",
+      });
     }
   }
 
-  return { imported, skipped, errors };
+  if (distill) {
+    const latest = listInvestorMaterials(ticker)
+      .filter(
+        (m) =>
+          m.kind === "concall" || m.kind === "transcript" || m.kind === "ppt",
+      )
+      .slice(0, 2);
+    for (const m of latest) {
+      if (isPendingInvestorMaterial(m)) {
+        try {
+          await enrichInvestorMaterialText(m.id, {
+            distill: true,
+            throwOnError: true,
+          });
+        } catch (err) {
+          errors.push({
+            url: m.source_url || m.title,
+            error: err instanceof Error ? err.message : "Firecrawl parse failed",
+          });
+        }
+        continue;
+      }
+      if (!(m.brief_text || "").trim()) {
+        await redistillInvestorMaterial(m.id).catch(() => null);
+      }
+    }
+  }
+
+  const ready = listInvestorMaterials(ticker).filter(
+    (m) => !isPendingInvestorMaterial(m) && m.raw_text.replace(/\s/g, "").length >= 80,
+  );
+  const distilled = ready.filter((m) => Boolean((m.brief_text || "").trim())).length;
+
+  return {
+    imported,
+    skipped,
+    errors,
+    parsed_with: firecrawlConfigured() ? "firecrawl" : ready.length ? "local" : "none",
+    distilled,
+  };
+}
+
+function materialHasUsableText(m: InvestorMaterial): boolean {
+  if (isPendingInvestorMaterial(m)) return false;
+  return m.raw_text.replace(/\s/g, "").length >= 80;
+}
+
+function firecrawlConfigured(): boolean {
+  return Boolean(process.env.FIRECRAWL_API_KEY?.trim());
+}
+
+/** Discover, download (Firecrawl/pdf), and distill concall/PPT for a drift event. */
+export async function ensureInvestorMaterialsForDrift(
+  ticker: string,
+  anchorIso: string,
+): Promise<{ fetched: number; parsed_with: "firecrawl" | "local" | "none" }> {
+  const key = ticker.toUpperCase();
+  const existing = pickMaterialsForEvent(key, anchorIso);
+  const hasUsable = existing.some(materialHasUsableText);
+  const hasTranscript = existing.some(
+    (m) =>
+      materialHasUsableText(m) &&
+      (m.kind === "concall" || m.kind === "transcript") &&
+      isTranscriptLike(m),
+  );
+  if (hasUsable && hasTranscript) {
+    return { fetched: 0, parsed_with: firecrawlConfigured() ? "firecrawl" : "local" };
+  }
+
+  const { sources } = await discoverInvestorMaterialSources(key, {
+    refresh: true,
+  });
+  const picks = pickLatestSources(sources, {
+    limit: 2,
+    kinds: ["concall", "ppt"],
+    skipImported: true,
+    includeResults: !hasUsable,
+  });
+
+  let fetched = 0;
+  for (const source of picks) {
+    if (investorMaterialExistsByUrl(key, source.url)) continue;
+    try {
+      const material = await importInvestorMaterialFromSource({
+        ticker: key,
+        source,
+        distill: true,
+      });
+      if (isPendingInvestorMaterial(material)) {
+        const enriched = await enrichInvestorMaterialText(material.id);
+        if (enriched && materialHasUsableText(enriched)) fetched += 1;
+      } else if (materialHasUsableText(material)) {
+        fetched += 1;
+      }
+    } catch {
+      /* try next source */
+    }
+  }
+
+  for (const m of listInvestorMaterials(key)) {
+    if (!isPendingInvestorMaterial(m)) continue;
+    const enriched = await enrichInvestorMaterialText(m.id);
+    if (enriched && materialHasUsableText(enriched)) fetched += 1;
+  }
+
+  return {
+    fetched,
+    parsed_with: firecrawlConfigured() ? "firecrawl" : fetched ? "local" : "none",
+  };
 }
 
 export type { InvestorMaterialKind, DiscoveredMaterialSource } from "./investor-material-types";

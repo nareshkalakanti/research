@@ -83,9 +83,13 @@ export async function bootstrapCompanyTicker(ticker: string): Promise<boolean> {
   if (companyExists(key)) return false;
 
   const nse = await resolveFromNse(key);
-  const name = nse?.name || key;
   const market = nse?.market || "NSE";
+  const quote = await fetchQuoteDetailed(key, market);
+  const hasQuote = quote.price != null || quote.mcap_cr != null;
+  // Require exchange or Yahoo proof — never insert bare prefix stubs.
+  if (!nse && !hasQuote) return false;
 
+  const name = nse?.name || key;
   if (!ensureCompanyAboutRow(key, { name, market })) return false;
 
   const db = new Database(ABOUT_PATH);
@@ -99,11 +103,10 @@ export async function bootstrapCompanyTicker(ticker: string): Promise<boolean> {
   }
 
   try {
-    const q = await fetchQuoteDetailed(key, market);
     const profile = await fetchYfAboutProfile(key, market);
     if (profile) saveYfAboutProfile(key, profile);
 
-    const sector = profile?.sector || q?.sector || null;
+    const sector = profile?.sector || quote.sector || null;
     const subSector = profile?.industry?.trim() || null;
     if (sector && subSector) {
       upsertClassification(key, market, {
@@ -113,15 +116,15 @@ export async function bootstrapCompanyTicker(ticker: string): Promise<boolean> {
       });
     }
 
-    if (q && (q.price != null || q.mcap_cr != null)) {
+    if (hasQuote) {
       upsertMetrics(
         [
           {
             ticker: key,
-            yf_symbol: q.yf_symbol || profile?.yf_symbol,
-            price: q.price,
-            mcap_cr: q.mcap_cr,
-            sector: sector || q.sector,
+            yf_symbol: quote.yf_symbol || profile?.yf_symbol,
+            price: quote.price,
+            mcap_cr: quote.mcap_cr,
+            sector: sector || quote.sector,
           },
         ],
         { [key]: market },

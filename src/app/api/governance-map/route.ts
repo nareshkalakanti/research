@@ -128,13 +128,15 @@ function filterRows(
     }
 
     if (opts.hold || opts.edge || anyFundFilterActive(opts.funds)) {
-      const hit = companies.some(
+      const matched = companies.filter(
         (c) =>
           (opts.hold && c.has_hold) ||
           (opts.edge && c.has_edge) ||
           FUND_WATCHLIST_KEYS.some((k) => opts.funds[k] && c.fund_tags?.includes(k)),
       );
-      if (!hit) continue;
+      if (!matched.length) continue;
+      // Companies tab: only the matching names, not every board those directors sit on.
+      if (opts.narrowCompanies) companies = matched;
     }
 
     if (q) {

@@ -1,7 +1,7 @@
 /**
  * Theme / keyword pattern matching.
- * Syntax: `+` = AND, `|` = OR (AND binds tighter).
- * Example: `die casting + auto | EV components`
+ * Syntax: `+` = AND, `|` or `/` = OR (AND binds tighter).
+ * Example: `die casting + auto | EV components` or `thermocouples/rtds`
  *   → (die casting AND auto) OR (EV components)
  *
  * AND terms must each appear as whole words/phrases somewhere in the text
@@ -116,9 +116,17 @@ function hyphenCompoundContext(text: string, start: number): boolean {
   return start > 0 && text[start - 1] === "-";
 }
 
+/** Split user search into OR terms (`|` or `/`). */
+export function splitSearchOrTerms(q: string): string[] {
+  return q
+    .split(/[|/]/)
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
 export function parsePattern(pattern: string): OrClause[] {
   return pattern
-    .split("|")
+    .split(/[|/]/)
     .map((clause) =>
       clause
         .split("+")
@@ -132,26 +140,94 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * Match -ize/-ise word families (same meaning):
+ * decarbonize ≈ decarbonisation ≈ decarbonizing (US/UK).
+ */
+function wordIzIsFamilyPattern(word: string): string | null {
+  const lower = word.toLowerCase();
+  if (lower.endsWith("size")) return null;
+  const m = lower.match(/^(.*?)(?:iz|is)(?:e|ing|ation)$/);
+  if (!m?.[1] || m[1].length < 4) return null;
+  const root = escapeRegExp(m[1]);
+  return `${root}(?:iz|is)(?:e|ing|ation)(?:s|es)?`;
+}
+
+/** Build a word match that accepts singular/plural in the haystack. */
+function wordMatchPattern(word: string): string {
+  const w = word.trim();
+  if (!w) return "";
+  const family = wordIzIsFamilyPattern(w);
+  if (family) return family;
+
+  const lower = w.toLowerCase();
+  let base = lower;
+  if (lower.endsWith("ies") && lower.length > 4) {
+    base = `${lower.slice(0, -3)}y`;
+  } else if (
+    lower.endsWith("s") &&
+    !lower.endsWith("ss") &&
+    lower.length > 3
+  ) {
+    base = lower.slice(0, -1);
+  }
+  if (base !== lower && base.length >= 3) {
+    return `${escapeRegExp(base)}(?:s|es)?`;
+  }
+  return `${escapeRegExp(w)}(?:s|es)?`;
+}
+
 /** Optional plural on the last word of a phrase (component → components, casting → castings). */
 function termRegexBody(term: string): string {
   const parts = term.trim().split(/\s+/).filter(Boolean);
   if (!parts.length) return "";
   if (parts.length === 1) {
-    return `${escapeRegExp(parts[0]!)}(?:s|es)?`;
+    return wordMatchPattern(parts[0]!);
   }
   const prefix = parts
     .slice(0, -1)
-    .map((p) => escapeRegExp(p))
-    .join("\\s+");
-  const last = escapeRegExp(parts[parts.length - 1]!);
-  return `${prefix}\\s+${last}(?:s|es)?`;
+    .map((p) => wordMatchPattern(p))
+    .join("[-\\s]+");
+  const last = wordMatchPattern(parts[parts.length - 1]!);
+  return `${prefix}[-\\s]+${last}`;
 }
 
-/**
- * Whole-phrase positions in haystack.
- * Acronym terms (LED, BESS) use case-sensitive search on the original text.
- */
-function termPositions(haystack: string, term: string): number[] {
+function normalizeSearchPhrase(term: string): string {
+  return term.trim().toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ");
+}
+
+/** Same-meaning industrial phrases → literal corpus terms. */
+/** Same-meaning phrases for non-contact **temperature** instruments (not LiDAR/payments). */
+const NON_CONTACT_TEMPERATURE_SENSOR_ALIASES = [
+  "infrared pyrometer",
+  "infrared pyrometers",
+  "thermal imager",
+  "thermal imagers",
+  "online thermal imager",
+  "fiber optic temperature sensor",
+  "fiber optic temperature sensors",
+  "temperature transmitter",
+  "heat flux sensor",
+  "temperature sensing solutions",
+  "ir meter",
+  "infrared thermometer",
+  "radiation thermometer",
+  "non-contact temperature",
+  "non contact temperature",
+  "non-contact temperature sensor",
+  "non contact temperature sensor",
+  "optical fiber based high temperature",
+  "furnace monitoring camera",
+  "pyrometer",
+  "pyrometers",
+];
+
+const SEARCH_PHRASE_ALIASES: Record<string, string[]> = {
+  "non contact temperature sensor": NON_CONTACT_TEMPERATURE_SENSOR_ALIASES,
+  "non contact sensing": NON_CONTACT_TEMPERATURE_SENSOR_ALIASES,
+};
+
+function termPositionsRaw(haystack: string, term: string): number[] {
   const raw = term.trim();
   if (!raw) return [];
   const acronym = isAcronymTerm(raw);
@@ -178,9 +254,22 @@ function termPositions(haystack: string, term: string): number[] {
 }
 
 /**
- * True when every AND term appears as a whole phrase in the document.
- * (Document-level AND so HQ/location can combine with About terms.)
+ * Whole-phrase positions in haystack.
+ * Acronym terms (LED, BESS) use case-sensitive search on the original text.
  */
+function termPositions(haystack: string, term: string): number[] {
+  const direct = termPositionsRaw(haystack, term);
+  if (direct.length) return direct;
+  const aliases = SEARCH_PHRASE_ALIASES[normalizeSearchPhrase(term)];
+  if (!aliases) return [];
+  for (const alias of aliases) {
+    const hits = termPositionsRaw(haystack, alias);
+    if (hits.length) return hits;
+  }
+  return [];
+}
+
+/** True when every AND term appears as a whole phrase in the document. */
 export function clauseMatches(haystack: string, clause: OrClause): boolean {
   if (clause.length === 0) return false;
   const lower = haystack.toLowerCase();
@@ -219,6 +308,27 @@ export function textHasTerm(haystack: string, term: string): boolean {
   const t = term.trim();
   if (!t) return false;
   return termPositions(haystack, t).length > 0;
+}
+
+/** Rank search hits — exact ticker/name first. */
+export function searchMatchScore(
+  row: { ticker: string; name: string; search_text: string },
+  qTerms: string[],
+): number {
+  let score = 0;
+  for (const term of qTerms) {
+    const t = term.trim().toLowerCase();
+    if (!t) continue;
+    if (row.ticker.toLowerCase() === t) score += 10_000;
+    else if (tickerMatchesSearch(row.ticker, t) && row.ticker.toLowerCase().startsWith(t)) {
+      score += 5_000;
+    }
+    const name = row.name.toLowerCase();
+    if (name.startsWith(t)) score += 2_000;
+    else if (textHasTerm(name, term)) score += 1_000;
+    if (textHasTerm(row.search_text, term)) score += 100;
+  }
+  return score;
 }
 
 /** Combine selected theme patterns + custom input into one OR of clauses. */

@@ -1,8 +1,12 @@
 import { openSqliteNamed } from "../sqlite-utils";
 import type { BuybackEvent, BuybackSummary, LiquidityScore } from "./types";
 import {
+  classifyBuybackStatus,
   computeSpreadPct,
+  effectiveBuybackStatus,
   isBuyableBuyback,
+  isLiveTenderSpread8,
+  isRecentBuyback,
   pickSummaryMethod,
   scoreBuybackSummary,
 } from "./buyback-parse";
@@ -182,13 +186,25 @@ export function recomputeBuybackSummary(
   const db = openSqliteNamed("strategy.db", { readonly: false, wal: true });
   const key = ticker.toUpperCase();
   try {
-    const events = db
-      .prepare(
-        `SELECT id, ticker, announced_at, ex_date, max_price, pct_equity, size_shares,
-                status, subject, description, source, seq_id
-         FROM buyback_events WHERE ticker = ? ORDER BY announced_at DESC`,
-      )
-      .all(key) as BuybackEvent[];
+    const events = (
+      db
+        .prepare(
+          `SELECT id, ticker, announced_at, ex_date, max_price, pct_equity, size_shares,
+                  status, subject, description, source, seq_id
+           FROM buyback_events WHERE ticker = ? ORDER BY announced_at DESC`,
+        )
+        .all(key) as BuybackEvent[]
+    ).map((e) =>
+      e.source === "nse_announcement"
+        ? {
+            ...e,
+            status: classifyBuybackStatus(
+              e.subject ?? "",
+              e.description ?? "",
+            ),
+          }
+        : e,
+    );
 
     if (!events.length) {
       db.prepare(`DELETE FROM buyback_summary WHERE ticker = ?`).run(key);
@@ -204,9 +220,11 @@ export function recomputeBuybackSummary(
     const maxPrice = events
       .filter((e) => e.max_price != null)
       .sort((a, b) => {
-        const annA = a.source === "nse_announcement" ? 1 : 0;
-        const annB = b.source === "nse_announcement" ? 1 : 0;
-        if (annB !== annA) return annB - annA;
+        const rank = (s: string) =>
+          s === "screener_announcement" || s === "nse_announcement" ? 1 : 0;
+        const rA = rank(a.source);
+        const rB = rank(b.source);
+        if (rB !== rA) return rB - rA;
         return (b.max_price ?? 0) - (a.max_price ?? 0);
       })[0]?.max_price ?? null;
     const pctEquity = events
@@ -318,7 +336,7 @@ export function upsertLiquidityScore(row: LiquidityScore): void {
 
 export function recordStrategyScan(
   ticker: string,
-  scanType: "buyback" | "liquidity",
+  scanType: "buyback" | "liquidity" | "concall_drift",
   status: "ok" | "empty" | "failed",
   detail?: string,
 ): void {
@@ -359,6 +377,7 @@ export type BuybackLoadOpts = {
   openOnly?: boolean;
   tenderOnly?: boolean;
   buyableOnly?: boolean;
+  liveTender8Only?: boolean;
   minSpreadPct?: number;
 };
 
@@ -380,6 +399,7 @@ export function enrichBuybackRow(
   const flags = row.flags ? row.flags.split(",").filter(Boolean) : [];
   const method = pickSummaryMethod(events);
   const spread_pct = computeSpreadPct(row.max_price, meta.price);
+  const latest_status = effectiveBuybackStatus(row.latest_status, row.latest_date);
   const has_history =
     flags.includes("past_buyback") ||
     flags.includes("active_buyback") ||
@@ -394,7 +414,7 @@ export function enrichBuybackRow(
     price: meta.price,
     event_count: row.event_count,
     latest_date: row.latest_date,
-    latest_status: (row.latest_status as BuybackSummary["latest_status"]) || null,
+    latest_status,
     buyback_method: method,
     max_price: row.max_price,
     pct_equity: row.pct_equity,
@@ -414,6 +434,18 @@ export function passesBuybackFilters(
   summary: BuybackSummary,
   opts?: BuybackLoadOpts,
 ): boolean {
+  const strategyChipActive =
+    opts?.liveTender8Only ||
+    opts?.openOnly ||
+    opts?.tenderOnly ||
+    opts?.buyableOnly ||
+    opts?.minSpreadPct != null;
+
+  if (strategyChipActive && !isRecentBuyback(summary.latest_date)) {
+    return false;
+  }
+
+  if (opts?.liveTender8Only && !isLiveTenderSpread8(summary)) return false;
   if (opts?.openOnly && summary.latest_status !== "open") return false;
   if (opts?.tenderOnly && summary.buyback_method !== "tender") return false;
   if (opts?.buyableOnly && !isBuyableBuyback(summary)) return false;
@@ -432,13 +464,17 @@ export function buybackFilterCounts(rows: BuybackSummary[]): {
   tender: number;
   spread8: number;
   buy: number;
+  live_tender8: number;
 } {
+  const recent = rows.filter((r) => isRecentBuyback(r.latest_date));
   return {
     history: rows.length,
-    open: rows.filter((r) => r.latest_status === "open").length,
-    tender: rows.filter((r) => r.buyback_method === "tender").length,
-    spread8: rows.filter((r) => r.spread_pct != null && r.spread_pct >= 8).length,
-    buy: rows.filter((r) => isBuyableBuyback(r)).length,
+    open: recent.filter((r) => r.latest_status === "open").length,
+    tender: recent.filter((r) => r.buyback_method === "tender").length,
+    spread8: recent.filter((r) => r.spread_pct != null && r.spread_pct >= 8)
+      .length,
+    buy: recent.filter((r) => isBuyableBuyback(r)).length,
+    live_tender8: recent.filter((r) => isLiveTenderSpread8(r)).length,
   };
 }
 

@@ -144,6 +144,7 @@ function fundStubRow(stub: {
     about: null,
     scraped_about: null,
     scraped_about_clean: null,
+    llm_about: null,
     scrape_source_url: null,
     headquarters: null,
     sector: null,

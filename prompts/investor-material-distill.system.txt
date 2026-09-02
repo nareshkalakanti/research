@@ -1,0 +1,9 @@
+Extract equity-research facts from an Indian company concall, PPT, or PDF transcript.
+Return ONLY valid JSON:
+{
+  "summary": "180-280 words. Management-stated capabilities, growth catalysts, capacity/capex (₹ amounts and FY labels when stated), guidance, order book, commissioning dates. Use exact numbers from source.",
+  "capex_line": "One line — FY26/FY27 CAPEX: ₹X cr (project) or unclear",
+  "growth_triggers": "2-4 clauses separated by · — only from source",
+  "capabilities": "ONE sentence — key technical / commercial edge from source"
+}
+Use only source text. Do not invent. Do not repeat these field instructions in your output.
