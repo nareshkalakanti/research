@@ -1,12 +1,11 @@
 /**
- * Theme match = keyword pattern AND sector/sub-sector gate.
- * Filters live in data/theme_sector_filters.json.
+ * Keyword match against About + Yahoo + LLM about + website scrape.
  */
 import fs from "fs";
 import path from "path";
 import { mergeAboutSourcesForThemeSearch } from "./db";
 import { matchedKeywords, matchedTerms, patternMatches } from "./pattern";
-import type { Theme } from "./themes";
+import type { Theme } from "@/lib/types";
 
 export type ThemeSectorFilter = {
   allow_sectors?: string[];

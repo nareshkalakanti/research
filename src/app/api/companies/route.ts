@@ -16,15 +16,12 @@ import {
   textHasTerm,
   tickerMatchesSearch,
 } from "@/lib/pattern";
-import { themesByIds, loadThemes } from "@/lib/themes";
-import type { MatchedThemeTag } from "@/lib/types";
-import { matchThemesForRow, mergeThemePortfolioRows, themeMatchPattern } from "@/lib/theme-match";
+import { matchThemesForRow, mergeThemePortfolioRows } from "@/lib/theme-match";
 import {
   invalidateThemeLlmScanCache,
   runThemeLlmScan,
   type ThemeLlmScanResult,
 } from "@/lib/theme-llm-scan";
-import { runThemeScrapeBatch, type ThemeScrapeStats } from "@/lib/theme-scrape";
 import {
   invalidateBreakoutCache,
   latestSignalDates,
@@ -49,7 +46,7 @@ import {
   parseFundFiltersFromSearchParams,
 } from "@/lib/fund-watchlists";
 import { invalidateNotesCache, notesTickerSet } from "@/lib/notes";
-import { distressSeedSet } from "@/lib/distress/tickers";
+import { distressSeedSet } from "@/lib/distress-seeds";
 import { researchLinks } from "@/lib/links";
 import { loadMetricsMap, refreshPagePrices } from "@/lib/metrics";
 import {
@@ -228,11 +225,12 @@ async function buildCompaniesResponse(req: NextRequest) {
   const cap = (sp.get("cap") || "All") as CapTier | "All";
   const filterSme = sp.get("sme") === "1";
   const filterBb = sp.get("bb") === "1";
+  const filterBbw = sp.get("bbw") === "1";
+  const filterBbm = sp.get("bbm") === "1";
   const filterTq = sp.get("tq") === "1";
   const filterEma = sp.get("ema") === "1";
   const filterAth = sp.get("ath") === "1";
   const filterHigh52 = sp.get("high52") === "1";
-  const filterDd = sp.get("dd") === "1";
   const filterMom = sp.get("mom") === "1";
   const bbAnd = sp.get("bbAnd") === "1";
   const filterHold = sp.get("hold") === "1";
@@ -243,10 +241,6 @@ async function buildCompaniesResponse(req: NextRequest) {
   const fundListMode = anyFundFilterActive(fundActive);
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
   const preferBreakouts = sp.get("preferBreakouts") === "1";
-  const themeIds = (sp.get("themes") || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
   const custom = (sp.get("custom") || "").trim();
   const ask = (sp.get("ask") || "").trim();
   const tokenOverride = (sp.get("tokens") || "")
@@ -254,20 +248,13 @@ async function buildCompaniesResponse(req: NextRequest) {
     .map((s) => s.trim())
     .filter((s) => s.length >= 2)
     .slice(0, 24);
-  const selectedThemes = themesByIds(themeIds);
-  const themePatterns = selectedThemes.map((t) => themeMatchPattern(t));
-  let scanPattern = combinePatterns([...themePatterns, custom]);
+  let scanPattern = combinePatterns([custom]);
   const page = Math.max(1, Number(sp.get("page") || 1));
   const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") || 100)));
   const sort = sp.get("sort") || "sector";
   const dir = sp.get("dir") === "desc" ? "desc" : "asc";
   const scan = sp.get("scan") === "1";
   const llmScanActive = scan && ask.length > 0;
-  const dynamicScrape = sp.get("dynamicScrape") === "1";
-  const scrapeLimit = Math.min(
-    15,
-    Math.max(1, Number(sp.get("scrapeLimit") || 5)),
-  );
   const missing = (sp.get("missing") || "").trim().toLowerCase();
   const scrapeOutcomes = loadScrapeOutcomeSets(
     market && market !== "All" ? market : "All",
@@ -325,24 +312,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterNote;
   const scanListMode = isScanWatchlist(market);
   companies = applyMarketPoolFilters(companies);
-
-  let scrapeStats: ThemeScrapeStats | null = null;
-  if (
-    scan &&
-    dynamicScrape &&
-    selectedThemes.length > 0 &&
-    !missing
-  ) {
-    const pool = companies;
-    scrapeStats = await runThemeScrapeBatch({
-      companies: pool,
-      themes: selectedThemes,
-      limit: scrapeLimit,
-    });
-    if (scrapeStats.saved > 0) {
-      companies = applyMarketPoolFilters(loadAllCompanies());
-    }
-  }
 
   if (missing) {
     companies = mergeFundWatchlistUniverse(companies, allCompanies);
@@ -403,10 +372,10 @@ async function buildCompaniesResponse(req: NextRequest) {
       fullHighlightsByTicker[c.ticker] = h.terms;
       highlightsByTicker[c.ticker] = aboutHighlightsForRow(c.about, h.terms);
     }
-  } else if (scan && (selectedThemes.length > 0 || custom.trim())) {
+  } else if (scan && custom.trim()) {
     const hits = [];
     for (const c of companies) {
-      const result = matchThemesForRow(c, selectedThemes, {
+      const result = matchThemesForRow(c, [], {
         customPattern: custom.trim() || null,
       });
       if (!result.matched) continue;
@@ -452,11 +421,12 @@ async function buildCompaniesResponse(req: NextRequest) {
       pool = pool.filter((c) => capTier(c.mcap_cr) === cap);
     }
     let bb = 0;
+    let bb_w = 0;
+    let bb_m = 0;
     let tq = 0;
     let ema = 0;
     let ath = 0;
     let high52 = 0;
-    let dd = 0;
     let mom = 0;
     let hold = 0;
     let edgeCount = 0;
@@ -468,7 +438,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     ) as Record<(typeof FUND_WATCHLIST_KEYS)[number], number>;
     const themeScanActive =
       llmScanActive ||
-      (scan && (selectedThemes.length > 0 || custom.trim()));
+      (scan && custom.trim());
     const llmKeep = llmScan
       ? new Set(llmScan.hits.map((h) => h.ticker.toUpperCase()))
       : null;
@@ -477,7 +447,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         if (!llmKeep.has(c.ticker.toUpperCase())) continue;
       } else if (themeScanActive) {
         if (
-          !matchThemesForRow(c, selectedThemes, {
+          !matchThemesForRow(c, [], {
             customPattern: custom.trim() || null,
           }).matched
         ) {
@@ -487,11 +457,12 @@ async function buildCompaniesResponse(req: NextRequest) {
       const t = c.ticker.toUpperCase();
       const flags = breakouts.get(t);
       if (flags?.has_bb) bb += 1;
+      if (flags?.has_bb_w) bb_w += 1;
+      if (flags?.has_bb_m) bb_m += 1;
       if (flags?.has_tq) tq += 1;
       if (flags?.has_ema) ema += 1;
       if (flags?.has_ath) ath += 1;
       if (flags?.has_high52) high52 += 1;
-      if (flags?.has_dd) dd += 1;
       if (flags?.has_mom) mom += 1;
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
@@ -510,11 +481,12 @@ async function buildCompaniesResponse(req: NextRequest) {
     );
     return {
       bb,
+      bb_w,
+      bb_m,
       tq,
       ema,
       ath,
       high52,
-      dd,
       mom,
       hold,
       edge: edgeCount,
@@ -525,32 +497,35 @@ async function buildCompaniesResponse(req: NextRequest) {
     };
   })();
 
-  // BB/TQ/EMA/ATH/52W/DD/MOM narrows scan results — skip when viewing a fund watchlist.
+  // BB/TQ/EMA/ATH/52W/MOM narrows scan results — skip when viewing a fund watchlist.
   if (
     (filterBb ||
+      filterBbw ||
+      filterBbm ||
       filterTq ||
       filterEma ||
       filterAth ||
       filterHigh52 ||
-      filterDd ||
       filterMom) &&
     !fundListMode
   ) {
     companies = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
       const hasBb = !!flags?.has_bb;
+      const hasBbw = !!flags?.has_bb_w;
+      const hasBbm = !!flags?.has_bb_m;
       const hasTq = !!flags?.has_tq;
       const hasEma = !!flags?.has_ema;
       const hasAth = !!flags?.has_ath;
       const hasHigh52 = !!flags?.has_high52;
-      const hasDd = !!flags?.has_dd;
       const hasMom = !!flags?.has_mom;
+      if (filterBbw) return hasBbw;
+      if (filterBbm) return hasBbm;
       if (filterBb) return hasBb;
       if (filterTq) return hasTq;
       if (filterEma) return hasEma;
       if (filterAth) return hasAth;
       if (filterHigh52) return hasHigh52;
-      if (filterDd) return hasDd;
       if (filterMom) return hasMom;
       return false;
     });
@@ -564,7 +539,6 @@ async function buildCompaniesResponse(req: NextRequest) {
         !!flags?.has_ema ||
         !!flags?.has_ath ||
         !!flags?.has_high52 ||
-        !!flags?.has_dd ||
         !!flags?.has_mom
       );
     });
@@ -573,7 +547,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     }
   }
 
-  if (scan && !llmScanActive && (selectedThemes.length > 0 || custom.trim())) {
+  if (scan && !llmScanActive && custom.trim()) {
     let themePool = allCompanies;
     if (!watchlistMode && market && market !== "All") {
       if (market === "NSE") {
@@ -584,7 +558,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         themePool = themePool.filter((c) => c.market === market);
       }
     }
-    companies = mergeThemePortfolioRows(companies, themePool, selectedThemes, {
+    companies = mergeThemePortfolioRows(companies, themePool, [], {
       customPattern: custom,
       holdings,
       matchedByTheme,
@@ -596,7 +570,7 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const themeScanActive =
     llmScanActive ||
-    (scan && (selectedThemes.length > 0 || custom.trim().length > 0));
+    (scan && custom.trim().length > 0);
 
   companies = applyWatchlistFilters(companies, {
     filterSme,
@@ -685,7 +659,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     !filterEma &&
     !filterAth &&
     !filterHigh52 &&
-    !filterDd &&
     !filterMom &&
     companies.length > 0 &&
     companies.every((c) => {
@@ -696,7 +669,6 @@ async function buildCompaniesResponse(req: NextRequest) {
         !!flags?.has_ema ||
         !!flags?.has_ath ||
         !!flags?.has_high52 ||
-        !!flags?.has_dd ||
         !!flags?.has_mom
       );
     });
@@ -720,11 +692,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     }
   }
   const metricsMap = loadMetricsMap();
-  const allThemes = loadThemes().themes;
-  const themeById = new Map(allThemes.map((t) => [t.id, t]));
-  /** Annotate themes against selected set when scanning; otherwise all themes. */
-  const annotateThemes =
-    themeScanActive && selectedThemes.length > 0 ? selectedThemes : allThemes;
 
   const slice = pageItems.map((c) => {
     const m = metricsMap.get(c.ticker.toUpperCase());
@@ -734,23 +701,14 @@ async function buildCompaniesResponse(req: NextRequest) {
       mcap_cr: m?.market_cap_cr ?? c.mcap_cr,
     };
 
-    let themeIds = llmScanActive ? [] : matchedThemeIdsByTicker[row.ticker] ?? [];
     let fullHits = fullHighlightsByTicker[row.ticker] ?? [];
     let aboutHits = highlightsByTicker[row.ticker] ?? [];
 
-    if (
-      !llmScanActive &&
-      (!themeIds.length || (!fullHits.length && annotateThemes.length > 0))
-    ) {
-      const result = matchThemesForRow(row, annotateThemes, {
-        customPattern:
-          themeScanActive && custom.trim() ? custom.trim() : null,
+    if (!llmScanActive && !fullHits.length && themeScanActive && custom.trim()) {
+      const result = matchThemesForRow(row, [], {
+        customPattern: custom.trim(),
       });
-      if (result.matchedThemeIds.length) {
-        themeIds = result.matchedThemeIds;
-        matchedThemeIdsByTicker[row.ticker] = themeIds;
-      }
-      if (result.highlights.length && !fullHits.length) {
+      if (result.highlights.length) {
         fullHits = result.highlights;
         fullHighlightsByTicker[row.ticker] = fullHits;
         aboutHits = aboutHighlightsForRow(row.about, fullHits);
@@ -761,33 +719,22 @@ async function buildCompaniesResponse(req: NextRequest) {
       }
     }
 
-    const matched_themes: MatchedThemeTag[] = themeIds
-      .map((id) => {
-        const t = themeById.get(id);
-        if (!t) return null;
-        return {
-          id: t.id,
-          tag: t.tag?.trim() || t.name,
-          name: t.name,
-        };
-      })
-      .filter((x): x is MatchedThemeTag => !!x);
-
     const { search_text: _, theme_search_text: __, ...rest } = row;
     const g = gapFlags(row);
     const flags = breakouts.get(row.ticker.toUpperCase());
     return {
       ...rest,
       matched: matchedByTheme[row.ticker] ?? [],
-      matched_themes,
+      matched_themes: [],
       highlights: aboutHits,
       scrape_highlights: scrapeHighlightsForRow(row.scraped_about, fullHits),
       has_bb: !!flags?.has_bb,
+      has_bb_w: !!flags?.has_bb_w,
+      has_bb_m: !!flags?.has_bb_m,
       has_tq: !!flags?.has_tq,
       has_ema: !!flags?.has_ema,
       has_ath: !!flags?.has_ath,
       has_high52: !!flags?.has_high52,
-      has_dd: !!flags?.has_dd,
       has_mom: !!flags?.has_mom,
       momentum_pct: flags?.mom?.momentum_pct ?? null,
       momentum_rank:
@@ -801,11 +748,12 @@ async function buildCompaniesResponse(req: NextRequest) {
       fund_changes: fundChangesForTicker(row.ticker),
       has_note: notes.has(row.ticker.toUpperCase()),
       bb: flags?.bb,
+      bb_w: flags?.bb_w,
+      bb_m: flags?.bb_m,
       tq: flags?.tq,
       ema: flags?.ema,
       ath: flags?.ath,
       high52: flags?.high52,
-      dd: flags?.dd,
       mom: flags?.mom,
       missing: {
         price: g.price,
@@ -825,7 +773,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   function buildGapSummary(pool: typeof companies) {
     return {
       missingPrice: pool.filter((c) => c.price == null).length,
-      missingMcap: pool.filter((c) => c.mcap_cr == null).length,
+      missingMcap: pool.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0).length,
       missingSector: pool.filter(
         (c) => !c.sector?.trim() || !c.sub_sector?.trim(),
       ).length,
@@ -852,7 +800,7 @@ async function buildCompaniesResponse(req: NextRequest) {
           g.scrape
         );
       }).length,
-      metrics: pool.filter((c) => c.price == null || c.mcap_cr == null).length,
+      metrics: pool.filter((c) => c.price == null || c.mcap_cr == null || c.mcap_cr <= 0).length,
     };
   }
 
@@ -893,6 +841,5 @@ async function buildCompaniesResponse(req: NextRequest) {
     signals: signalCounts,
     session: latestSignalDates(breakouts),
     breakoutsPreferred: !!breakoutsPreferred,
-    scrape: scrapeStats ?? undefined,
   });
 }

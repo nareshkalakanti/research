@@ -1,4 +1,4 @@
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import { loadAllCompanies, type CompanyRow } from "./db";
 import { checkLlmStatus } from "./llm-client";
 import { runConcurrent } from "./scrape-pool";
@@ -117,7 +117,7 @@ export async function runScrapeCleanBatch(
   ensureScrapeCleanSchema();
 
   if (!opts.skipLlmCheck) {
-    const cfg = loadAgentConfig();
+    const cfg = loadLlmConfig();
     const status = await checkLlmStatus(cfg);
     if (!status.available) {
       throw new Error(status.detail || "LLM unavailable");
@@ -241,7 +241,7 @@ export async function runScrapeCleanSession(opts: {
 }): Promise<ScrapeCleanBatchResult> {
   ensureScrapeCleanSchema();
 
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const status = await checkLlmStatus(cfg);
   if (!status.available) {
     throw new Error(status.detail || "LLM unavailable");

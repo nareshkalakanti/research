@@ -36,6 +36,8 @@ export type ConcallDriftRow = {
   has_baseline: boolean;
   earn_subject: string | null;
   has_bb: boolean;
+  has_bb_w: boolean;
+  has_bb_m: boolean;
   has_tq: boolean;
   has_edge: boolean;
   has_hold: boolean;

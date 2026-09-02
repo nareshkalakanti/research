@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { AgentConfig } from "./agents/config";
+import type { AgentConfig } from "./llm-config";
 
 const execFileAsync = promisify(execFile);
 
@@ -214,13 +214,6 @@ export async function checkLlmStatus(cfg: AgentConfig): Promise<LlmStatus> {
     detail: "No LLM backend available",
     hint,
   };
-}
-
-export async function resolveLlmEngine(
-  cfg: AgentConfig,
-): Promise<"deterministic" | "llm"> {
-  const status = await checkLlmStatus(cfg);
-  return status.engine;
 }
 
 function closeTruncatedJson(text: string): string {

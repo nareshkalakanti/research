@@ -1,4 +1,4 @@
-import { loadAgentConfig, type AgentConfig } from "./agents/config";
+import { loadLlmConfig, type LlmConfig } from "./llm-config";
 import {
   computePeerUniqueness,
   peerContextBlock,
@@ -10,8 +10,6 @@ import { checkLlmStatus, completeJson, type LlmStatus } from "./llm-client";
 import { loadPrompt } from "./prompts";
 import { loadQuarterDossier } from "./quarter-dossier";
 import { classifyQuarterTrend, type QtrTrendSignal } from "./quarter-trend";
-import { matchThemesForRow } from "./theme-match";
-import { loadThemes } from "./themes";
 import { capTier, formatMcap, type CapTier } from "./types";
 import type { QuarterPanel } from "./quarter-panel";
 
@@ -112,7 +110,7 @@ const BRIEF_USER_CHAR_LIMIT = 30_000;
 const BRIEF_JSON_OPTS = { numPredict: 1800, temperature: 0.12 } as const;
 
 async function completeBriefJson(
-  cfg: AgentConfig,
+  cfg: LlmConfig,
   corpus: string,
 ): Promise<Record<string, unknown>> {
   const user = `Company dossier:\n${corpus.slice(0, BRIEF_USER_CHAR_LIMIT)}`;
@@ -128,33 +126,6 @@ async function completeBriefJson(
       skipStatusCheck: true,
     });
   }
-}
-
-function matchedThemesForRow(row: {
-  about: string | null;
-  scraped_about: string | null;
-  headquarters: string | null;
-  search_text: string;
-  theme_search_text: string;
-  sector: string | null;
-  sub_sector: string | null;
-  mcap_cr: number | null;
-}): MatchedThemeTag[] {
-  const { themes } = loadThemes();
-  if (!themes.length) return [];
-  const result = matchThemesForRow(row, themes);
-  const byId = new Map(themes.map((t) => [t.id, t]));
-  return result.matchedThemeIds
-    .map((id) => {
-      const t = byId.get(id);
-      if (!t) return null;
-      return {
-        id: t.id,
-        tag: t.tag?.trim() || t.name,
-        name: t.name,
-      };
-    })
-    .filter((x): x is MatchedThemeTag => !!x);
 }
 
 function normalizeQtrSignal(raw: unknown): QtrSignal | null {
@@ -346,7 +317,7 @@ function normalizeBrief(
 }
 
 export async function getLlmStatus(): Promise<LlmStatus> {
-  return checkLlmStatus(loadAgentConfig());
+  return checkLlmStatus(loadLlmConfig());
 }
 
 export async function generateCompanyBrief(
@@ -362,7 +333,7 @@ export async function generateCompanyBrief(
   cached: boolean;
   error?: string;
 }> {
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
   const llm = await checkLlmStatus(cfg);
   const row = loadAllCompanies().find(
     (c) =>
@@ -379,7 +350,7 @@ export async function generateCompanyBrief(
     };
   }
 
-  const matchedThemes = matchedThemesForRow(row);
+  const matchedThemes: MatchedThemeTag[] = [];
   const context = buildContext(
     row,
     computePeerUniqueness(row, loadAllCompanies()),

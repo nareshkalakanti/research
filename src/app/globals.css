@@ -920,8 +920,8 @@ a {
   color: #475569;
 }
 .tag-cap-all.on {
-  background: #334155;
-  border-color: #1e293b;
+  background: #64748b;
+  border-color: #475569;
   color: #fff;
 }
 
@@ -1104,16 +1104,32 @@ a {
   border-radius: 999px;
 }
 
-/* Scan / list tags — each hue unique (no overlap with SME / caps). */
-.tag-scan-bb {
+/* Scan / list tags — each hue unique (no overlap with SME / caps). Never black. */
+.tag-scan-bb,
+.tag-scan-bb-w {
   background: #dbeafe;
   border-color: #93c5fd;
   color: #1d4ed8;
 }
 .tag-scan-bb.on,
-.result-tag.tag-scan-bb {
+.result-tag.tag-scan-bb,
+.tag-scan-bb-w.on,
+.result-tag.tag-scan-bb-w {
   background: #2563eb;
   border-color: #1d4ed8;
+  color: #fff;
+}
+
+/* BB M — lime (not TQ green, not MC/Mukul teal) */
+.tag-scan-bb-m {
+  background: #ecfccb;
+  border-color: #bef264;
+  color: #4d7c0f;
+}
+.tag-scan-bb-m.on,
+.result-tag.tag-scan-bb-m {
+  background: #65a30d;
+  border-color: #4d7c0f;
   color: #fff;
 }
 
@@ -1154,29 +1170,16 @@ a {
   color: #fff;
 }
 
-/* 52W — cyan (distinct from SME pink and MC teal) */
+/* 52W — aqua (not Hold sky, not MC teal, not near-black) */
 .tag-scan-high52 {
-  background: #cffafe;
+  background: #ecfeff;
   border-color: #67e8f9;
-  color: #155e75;
+  color: #0e7490;
 }
 .tag-scan-high52.on,
 .result-tag.tag-scan-high52 {
-  background: #155e75;
-  border-color: #164e63;
-  color: #fff;
-}
-
-/* DD — rose (distinct from SME pink / distress red) */
-.tag-scan-dd {
-  background: #ffe4e6;
-  border-color: #fda4af;
-  color: #9f1239;
-}
-.tag-scan-dd.on,
-.result-tag.tag-scan-dd {
-  background: #e11d48;
-  border-color: #be123c;
+  background: #0ea5e9;
+  border-color: #0284c7;
   color: #fff;
 }
 
@@ -4405,6 +4408,22 @@ a {
   text-align: right;
 }
 
+.theme-ask-cancel {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: #b91c1c;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.theme-ask-cancel:hover {
+  text-decoration: underline;
+}
+
 .match-why {
   margin: 4px 0 0;
   font-size: 0.78rem;
@@ -4700,6 +4719,65 @@ a {
   gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.theme-create {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-bottom: 1px solid var(--line);
+  background: #f8fafc;
+}
+
+.theme-create input,
+.theme-create textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.88rem;
+  background: #fff;
+}
+
+.theme-create textarea {
+  resize: vertical;
+  min-height: 64px;
+}
+
+.theme-create-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-create-row button {
+  border: 0;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 650;
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.theme-create-row button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.theme-create-hint {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.theme-create-error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #b91c1c;
 }
 
 .theme-multi-actions button,
@@ -4744,6 +4822,47 @@ a {
   list-style: none;
   margin: 0;
   padding: 0 8px 8px;
+}
+
+.theme-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.theme-item-row .theme-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.theme-item-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 6px 8px 0 0;
+  flex-shrink: 0;
+}
+
+.theme-item-edit {
+  flex-shrink: 0;
+  padding: 0;
+  font-size: 0.78rem;
+}
+
+.theme-item-remove.is-confirm {
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.theme-create-delete {
+  border: 0;
+  background: transparent;
+  color: #b91c1c;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 0;
 }
 
 .theme-item {
@@ -5696,9 +5815,15 @@ a {
   background: #fce7f3;
 }
 
-.gov-tag-bb {
-  color: #1e3a8a;
+.gov-tag-bb,
+.gov-tag-bb-w {
+  color: #1d4ed8;
   background: #dbeafe;
+}
+
+.gov-tag-bb-m {
+  color: #4d7c0f;
+  background: #ecfccb;
 }
 
 .gov-tag-tq {

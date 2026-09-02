@@ -6,6 +6,7 @@ import {
   seedBseSmeMcapFromCache,
   upsertMetrics,
 } from "@/lib/metrics";
+import { fetchNseMcapQuotes } from "@/lib/nse-quote-mcap";
 import { fetchLivePrices, fetchQuotes, type YfQuote } from "@/lib/yfinance";
 
 export const runtime = "nodejs";
@@ -15,9 +16,11 @@ type Body = {
   tickers?: string[];
   market?: string;
   limit?: number;
+  concurrency?: number;
   missingOnly?: boolean;
   preferMcap?: boolean;
   skipTickers?: string[];
+  offset?: number;
 };
 
 export async function POST(req: NextRequest) {
@@ -29,9 +32,10 @@ export async function POST(req: NextRequest) {
   }
 
   const market = body.market || "All";
-  const limit = Math.min(150, Math.max(1, Number(body.limit) || 50));
+  const limit = Math.min(200, Math.max(1, Number(body.limit) || 80));
   const missingOnly = body.missingOnly !== false;
   const preferMcap = body.preferMcap !== false;
+  const concurrency = Math.min(16, Math.max(4, Number(body.concurrency) || 12));
 
   let companies = loadAllCompanies();
   if (market && market !== "All") {
@@ -52,7 +56,7 @@ export async function POST(req: NextRequest) {
   let pending = companies.filter((c) => {
     if (skip.has(c.ticker.toUpperCase())) return false;
     if (!missingOnly) return true;
-    return c.price == null || c.mcap_cr == null;
+    return c.price == null || c.mcap_cr == null || c.mcap_cr <= 0;
   });
 
   if (preferMcap) {
@@ -60,8 +64,8 @@ export async function POST(req: NextRequest) {
     // Those sat at the front of Fill All and the same ~80 NSE SME rows were retried
     // while ~500 others never got a detailed mcap pass.
     pending = [
-      ...pending.filter((c) => c.mcap_cr == null && c.price == null),
-      ...pending.filter((c) => c.mcap_cr == null && c.price != null),
+      ...pending.filter((c) => (c.mcap_cr == null || c.mcap_cr <= 0) && c.price == null),
+      ...pending.filter((c) => (c.mcap_cr == null || c.mcap_cr <= 0) && c.price != null),
       ...pending.filter((c) => c.mcap_cr != null && c.price == null),
     ];
     const seen = new Set<string>();
@@ -74,7 +78,8 @@ export async function POST(req: NextRequest) {
   }
 
   const gapsBefore = metricsGapCount(companies.map((c) => c.ticker));
-  const batch = pending.slice(0, limit);
+  const offset = Math.max(0, Number(body.offset) || 0);
+  const batch = pending.slice(offset, offset + limit);
 
   if (!batch.length) {
     return NextResponse.json({
@@ -85,17 +90,17 @@ export async function POST(req: NextRequest) {
       filledMcap: 0,
       failed: 0,
       remaining: gapsBefore.any,
-      remainingMcap: companies.filter((c) => c.mcap_cr == null).length,
+      remainingMcap: companies.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0).length,
       gaps: gapsBefore,
       message: "Nothing missing to fill",
     });
   }
 
-  const quotes = tickerSet
-    ? await fillPageQuotes(batch)
+  let quotes = tickerSet
+    ? await fillPageQuotes(batch, concurrency)
     : await fetchQuotes(
         batch.map((c) => ({ ticker: c.ticker, market: c.market })),
-        { concurrency: 4 },
+        { concurrency },
       );
 
   const marketBy: Record<string, string> = {};
@@ -105,8 +110,50 @@ export async function POST(req: NextRequest) {
 
   if (batch.some((c) => c.market === "BSE SME")) {
     seedBseSmeMcapFromCache(batch.map((c) => c.ticker));
-    const bse = await fillBseSmeMetricsGaps(batch);
+    const bse = await fillBseSmeMetricsGaps(batch, { concurrency: 8 });
     saved += bse.saved;
+  }
+
+  const byQuote = new Map(quotes.map((q) => [q.ticker.toUpperCase(), q]));
+  const stillNeedMcap = batch.filter((c) => {
+    const q = byQuote.get(c.ticker.toUpperCase());
+    const mcap = q?.mcap_cr;
+    return mcap == null || mcap <= 0;
+  });
+  let nseFilled = 0;
+  const nseTried = new Set(
+    stillNeedMcap.map((c) => c.ticker.toUpperCase()),
+  );
+  if (stillNeedMcap.length) {
+    const nseQuotes = await fetchNseMcapQuotes(stillNeedMcap, {
+      concurrency: 3,
+    });
+    nseFilled = nseQuotes.length;
+    if (nseQuotes.length) {
+      saved += upsertMetrics(nseQuotes, marketBy);
+      for (const q of nseQuotes) {
+        const key = q.ticker.toUpperCase();
+        const prev = byQuote.get(key);
+        byQuote.set(key, {
+          ticker: key,
+          yf_symbol: q.yf_symbol || prev?.yf_symbol || "",
+          price: prev?.price ?? q.price ?? null,
+          mcap_cr: q.mcap_cr ?? prev?.mcap_cr ?? null,
+          sector: prev?.sector ?? q.sector ?? null,
+        });
+      }
+    }
+    quotes = batch.map(
+      (c) =>
+        byQuote.get(c.ticker.toUpperCase()) ?? {
+          ticker: c.ticker.toUpperCase(),
+          yf_symbol: "",
+          price: null,
+          mcap_cr: null,
+          sector: null,
+          error: "no quote",
+        },
+    );
   }
 
   invalidateCompanyCache();
@@ -122,10 +169,21 @@ export async function POST(req: NextRequest) {
   let filledPrice = 0;
   let filledMcap = 0;
   let failed = 0;
+  const closedTickers: string[] = [];
   for (const q of quotes) {
+    const key = q.ticker.toUpperCase();
     if (q.price != null) filledPrice += 1;
     if (q.mcap_cr != null) filledMcap += 1;
     if (q.price == null && q.mcap_cr == null) failed += 1;
+    // Skip later Fill-all rounds once mcap landed, the name is dead, or NSE
+    // already ran for this ticker (don't park on Yahoo-price / no-mcap names).
+    if (
+      q.mcap_cr != null ||
+      (q.price == null && q.mcap_cr == null) ||
+      nseTried.has(key)
+    ) {
+      closedTickers.push(key);
+    }
   }
 
   return NextResponse.json({
@@ -134,10 +192,12 @@ export async function POST(req: NextRequest) {
     saved,
     filledPrice,
     filledMcap,
+    nseFilled,
     failed,
     remaining: gapsAfter.any,
-    remainingMcap: afterScope.filter((c) => c.mcap_cr == null).length,
+    remainingMcap: afterScope.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0).length,
     triedTickers: batch.map((c) => c.ticker),
+    closedTickers,
     gaps: gapsAfter,
     sample: quotes.slice(0, 8).map((q) => ({
       ticker: q.ticker,
@@ -160,24 +220,26 @@ export async function GET(req: NextRequest) {
     market,
     total: companies.length,
     gaps,
-    remainingMcap: companies.filter((c) => c.mcap_cr == null).length,
+    remainingMcap: companies.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0).length,
   });
 }
 
-/** Page fill: live quotes first, then a short detailed pass for missing mcap. */
+/** Page fill: live quotes first, then a parallel detailed pass for every missing mcap. */
 async function fillPageQuotes(
   batch: Array<{ ticker: string; market: string }>,
+  concurrency: number,
 ): Promise<YfQuote[]> {
   const items = batch.map((c) => ({ ticker: c.ticker, market: c.market }));
-  const live = await fetchLivePrices(items, { concurrency: 10 });
+  const live = await fetchLivePrices(items, { concurrency });
   const by = new Map(live.map((q) => [q.ticker.toUpperCase(), q]));
-  const need = batch
-    .filter((c) => by.get(c.ticker.toUpperCase())?.mcap_cr == null)
-    .slice(0, 16);
+  const need = batch.filter((c) => {
+    const mcap = by.get(c.ticker.toUpperCase())?.mcap_cr;
+    return mcap == null || mcap <= 0;
+  });
   if (need.length) {
     const extra = await fetchQuotes(
       need.map((c) => ({ ticker: c.ticker, market: c.market })),
-      { concurrency: 6, skipSummary: true },
+      { concurrency },
     );
     for (const q of extra) {
       const key = q.ticker.toUpperCase();

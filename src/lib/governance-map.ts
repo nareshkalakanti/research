@@ -46,6 +46,8 @@ export type GovCompanySeat = {
   is_sme: boolean;
   is_main: boolean;
   has_bb: boolean;
+  has_bb_w: boolean;
+  has_bb_m: boolean;
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
@@ -337,6 +339,8 @@ function buildRowsFromSeats(
         is_sme: isSme,
         is_main: !isSme && market === "NSE",
         has_bb: Boolean(bo?.has_bb),
+        has_bb_w: Boolean(bo?.has_bb_w),
+        has_bb_m: Boolean(bo?.has_bb_m),
         has_tq: Boolean(bo?.has_tq),
         has_hold: holdings.has(ticker),
         has_edge: edge.has(ticker),

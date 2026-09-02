@@ -13,6 +13,7 @@ type FillResult = {
   remaining: number;
   remainingMcap?: number;
   triedTickers?: string[];
+  closedTickers?: string[];
   message?: string;
 };
 
@@ -101,11 +102,12 @@ export function FillMissingButton({
         {
           market,
           tickers: tickers?.length ? tickers : undefined,
-          limit: tickers?.length ? Math.min(tickers.length, 100) : 50,
+          limit: tickers?.length ? Math.min(tickers.length, 120) : 80,
+          concurrency: 12,
           missingOnly: true,
           preferMcap: true,
         },
-        75_000,
+        120_000,
       );
       const left = json.remainingMcap ?? json.remaining;
       await finish({
@@ -114,7 +116,7 @@ export function FillMissingButton({
         detail:
           left === 0
             ? `+${json.filledMcap} mcap · +${json.filledPrice} price`
-            : `+${json.filledMcap} mcap · +${json.filledPrice} price · ${left} still no Yahoo mcap`,
+            : `+${json.filledMcap} mcap · +${json.filledPrice} price · ${left} still missing mcap`,
         done: true,
         error: json.filledMcap === 0 && json.filledPrice === 0 && left > 0,
       });
@@ -152,27 +154,37 @@ export function FillMissingButton({
           detail: `${closed.toLocaleString()} done · ${remaining.toLocaleString()} left`,
         });
 
-        const json = await fillOnce(
-          {
-            market,
-            limit: 80,
-            missingOnly: true,
-            preferMcap: true,
-            skipTickers,
-          },
-          180_000,
-        );
-
-        gotMcap += json.filledMcap;
-        gotPrice += json.filledPrice;
-        for (const t of json.triedTickers ?? []) {
-          if (!skipTickers.includes(t.toUpperCase())) {
-            skipTickers.push(t.toUpperCase());
+        const shard = (offset: number) =>
+          fillOnce(
+            {
+              market,
+              limit: 80,
+              concurrency: 8,
+              offset,
+              missingOnly: true,
+              preferMcap: true,
+              skipTickers,
+            },
+            180_000,
+          );
+        const [jsonA, jsonB] = await Promise.all([shard(0), shard(80)]);
+        const jsons = [jsonA, jsonB];
+        let tried = 0;
+        for (const json of jsons) {
+          gotMcap += json.filledMcap;
+          gotPrice += json.filledPrice;
+          tried += json.tried;
+          for (const t of json.closedTickers ?? json.triedTickers ?? []) {
+            if (!skipTickers.includes(t.toUpperCase())) {
+              skipTickers.push(t.toUpperCase());
+            }
           }
         }
-        remaining = json.remainingMcap ?? json.remaining;
+        remaining = Math.min(
+          ...jsons.map((j) => j.remainingMcap ?? j.remaining),
+        );
         if (remaining <= 0) break;
-        if (json.tried === 0) break;
+        if (tried === 0) break;
         await new Promise((r) => setTimeout(r, 280));
       }
 
@@ -183,7 +195,7 @@ export function FillMissingButton({
         detail:
           remaining <= 0
             ? `All closed · +${gotMcap} mcap · +${gotPrice} price`
-            : `${closed} closed · ${remaining} left (no Yahoo)`,
+            : `${closed} closed · ${remaining} left (no mcap source)`,
         done: true,
         error: remaining > 0 && closed === 0,
       });

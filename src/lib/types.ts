@@ -1,6 +1,7 @@
 import type { FundWatchlistKey } from "@/lib/fund-watchlist-meta";
 
 export type Company = {
+  ticker: string;
   name: string;
   market: string;
   website: string | null;
@@ -22,8 +23,12 @@ export type Company = {
   matched_themes?: MatchedThemeTag[];
   /** Keyword phrases to highlight inside About text. */
   highlights?: string[];
-  /** BB NEW weekly breakout (local Yahoo scan). */
+  /** BB NEW weekly breakout. */
   has_bb?: boolean;
+  /** BB NEW weekly (BB W). */
+  has_bb_w?: boolean;
+  /** BB NEW monthly (BB M). */
+  has_bb_m?: boolean;
   /** TQ weekly signal (local Yahoo scan). */
   has_tq?: boolean;
   /** Daily close above 10/20/50/200 EMA. */
@@ -32,8 +37,6 @@ export type Company = {
   has_ath?: boolean;
   /** NEW 52-week high (daily). */
   has_high52?: boolean;
-  /** Weekly Dragonfly Doji (tiny body, long lower wick). */
-  has_dd?: boolean;
   /** Positive 12−1 price momentum (stocks-ai formula). */
   has_mom?: boolean;
   /** 12−1 momentum % (Price 1M / Price 1Y − 1) × 100. */
@@ -69,6 +72,8 @@ export type Company = {
     upper_band: number | null;
     signal_date: string | null;
   };
+  bb_w?: Company["bb"];
+  bb_m?: Company["bb"];
   tq?: {
     timeframe: string;
     score: number | null;
@@ -94,14 +99,6 @@ export type Company = {
     timeframe: string;
     price: number | null;
     high_52w: number | null;
-    signal_date: string | null;
-  };
-  dd?: {
-    timeframe: string;
-    price: number | null;
-    open: number | null;
-    high: number | null;
-    low: number | null;
     signal_date: string | null;
   };
   mom?: {
@@ -159,11 +156,6 @@ export type MatchedThemeTag = {
   id: string;
   tag: string;
   name: string;
-};
-
-export type ThemeGroup = {
-  blog_theme: string;
-  themes: Theme[];
 };
 
 export function formatInr(n: number | null | undefined): string {

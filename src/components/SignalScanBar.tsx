@@ -11,13 +11,14 @@ export type BbTimeframe = "weekly" | "monthly";
 export type ViewFilter =
   | "all"
   | "bb"
+  | "bbw"
+  | "bbm"
   | "tq"
   | "ema"
   | "ath"
-  | "high52"
-  | "dd";
+  | "high52";
 
-type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "dd" | "all";
+type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "all";
 
 type Props = {
   listLabel: string;
@@ -29,17 +30,19 @@ type Props = {
   onCap?: (cap: CapFilter) => void;
   showCap?: boolean;
   bbCount?: number;
+  bbWCount?: number;
+  bbMCount?: number;
   tqCount?: number;
   emaCount?: number;
   athCount?: number;
   high52Count?: number;
-  ddCount?: number;
   bbDate?: string | null;
+  bbWDate?: string | null;
+  bbMDate?: string | null;
   tqDate?: string | null;
   emaDate?: string | null;
   athDate?: string | null;
   high52Date?: string | null;
-  ddDate?: string | null;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
 };
@@ -74,7 +77,6 @@ async function scanOnce(body: Record<string, unknown>) {
     emaHits?: number;
     athHits?: number;
     high52Hits?: number;
-    ddHits?: number;
     remaining?: number;
     session?: {
       bb: string | null;
@@ -82,7 +84,6 @@ async function scanOnce(body: Record<string, unknown>) {
       ema?: string | null;
       ath?: string | null;
       high52?: string | null;
-      dd?: string | null;
     };
     error?: string;
   } = {};
@@ -110,18 +111,18 @@ const SCAN_LABELS: Record<ScanKind, string> = {
   ema: "EMA",
   ath: "ATH",
   high52: "52W",
-  dd: "DD",
   all: "All",
 };
 
 const VIEW_LABELS: Record<ViewFilter, string> = {
   all: "All",
   bb: "BB",
+  bbw: "BB W",
+  bbm: "BB M",
   tq: "TQ",
   ema: "EMA",
   ath: "ATH",
   high52: "52W",
-  dd: "DD",
 };
 
 type ScanCounts = {
@@ -130,7 +131,6 @@ type ScanCounts = {
   ema: number;
   ath: number;
   high52: number;
-  dd: number;
 };
 
 function formatScanProgress(
@@ -142,14 +142,13 @@ function formatScanProgress(
   const left = `${remaining.toLocaleString()} left`;
   const tail = suffix ? ` · ${suffix}` : "";
   if (kind === "all") {
-    return `${counts.bb} BB · ${counts.tq} TQ · ${counts.ema} EMA · ${counts.ath} ATH · ${counts.high52} 52W · ${counts.dd} DD · ${left}${tail}`;
+    return `${counts.bb} BB · ${counts.tq} TQ · ${counts.ema} EMA · ${counts.ath} ATH · ${counts.high52} 52W · ${left}${tail}`;
   }
   if (kind === "bb") return `${counts.bb} BB · ${left}${tail}`;
   if (kind === "tq") return `${counts.tq} TQ · ${left}${tail}`;
   if (kind === "ema") return `${counts.ema} EMA · ${left}${tail}`;
   if (kind === "ath") return `${counts.ath} ATH · ${left}${tail}`;
   if (kind === "high52") return `${counts.high52} 52W · ${left}${tail}`;
-  if (kind === "dd") return `${counts.dd} DD · ${left}${tail}`;
   return `${left}${tail}`;
 }
 
@@ -168,21 +167,24 @@ export function SignalScanBar({
   onCap,
   showCap,
   bbCount,
+  bbWCount,
+  bbMCount,
   tqCount,
   emaCount,
   athCount,
   high52Count,
-  ddCount,
   bbDate,
+  bbWDate,
+  bbMDate,
   tqDate,
   emaDate,
   athDate,
   high52Date,
-  ddDate,
   onBatch,
   onDone,
 }: Props) {
   const [busyKind, setBusyKind] = useState<ScanKind | null>(null);
+  const [busyTf, setBusyTf] = useState<BbTimeframe | null>(null);
   const [progress, setProgress] = useState<Progress | null>(null);
 
   useEffect(() => {
@@ -192,11 +194,18 @@ export function SignalScanBar({
   }, [progress]);
 
   const runScan = useCallback(
-    async (kind: ScanKind) => {
+    async (kind: ScanKind, tf: BbTimeframe = bbTimeframe) => {
+      const scanLabel =
+        kind === "bb"
+          ? tf === "monthly"
+            ? "BB M"
+            : "BB W"
+          : SCAN_LABELS[kind];
       setBusyKind(kind);
+      setBusyTf(kind === "bb" ? tf : null);
       setProgress({
         pct: 2,
-        label: `Scanning ${SCAN_LABELS[kind]}`,
+        label: `Scanning ${scanLabel}`,
         detail: `${listLabel}…`,
       });
 
@@ -206,7 +215,6 @@ export function SignalScanBar({
       let gotEma = 0;
       let gotAth = 0;
       let gotHigh52 = 0;
-      let gotDd = 0;
 
       try {
         for (let round = 1; round <= 200; round += 1) {
@@ -218,7 +226,7 @@ export function SignalScanBar({
               json = await scanOnce({
                 kind,
                 market,
-                bbTimeframe,
+                bbTimeframe: kind === "bb" ? tf : bbTimeframe,
                 limit: batchLimit,
                 missingOnly: true,
               });
@@ -236,7 +244,7 @@ export function SignalScanBar({
               ) {
                 setProgress({
                   pct: Math.min(97, 3 + round * 2),
-                  label: `Scanning ${SCAN_LABELS[kind]}`,
+                  label: `Scanning ${scanLabel}`,
                   detail: `Retry ${attempt}/3 after network drop…`,
                 });
                 await new Promise((r) => setTimeout(r, 800 * attempt));
@@ -251,7 +259,6 @@ export function SignalScanBar({
           gotEma += json.emaHits ?? 0;
           gotAth += json.athHits ?? 0;
           gotHigh52 += json.high52Hits ?? 0;
-          gotDd += json.ddHits ?? 0;
           remaining = json.remaining ?? 0;
           const counts: ScanCounts = {
             bb: gotBb,
@@ -259,13 +266,12 @@ export function SignalScanBar({
             ema: gotEma,
             ath: gotAth,
             high52: gotHigh52,
-            dd: gotDd,
           };
           const pct =
             remaining <= 0 ? 100 : Math.min(97, 3 + round * 2);
           setProgress({
             pct,
-            label: remaining <= 0 ? "Done" : `Scanning ${SCAN_LABELS[kind]}`,
+            label: remaining <= 0 ? "Done" : `Scanning ${scanLabel}`,
             detail: formatScanProgress(kind, counts, remaining),
             done: remaining <= 0,
           });
@@ -282,12 +288,11 @@ export function SignalScanBar({
           await new Promise((r) => setTimeout(r, 200));
         }
 
-        if (kind === "bb") onView("bb");
+        if (kind === "bb") onView(tf === "monthly" ? "bbm" : "bbw");
         else if (kind === "tq") onView("tq");
         else if (kind === "ema") onView("ema");
         else if (kind === "ath") onView("ath");
         else if (kind === "high52") onView("high52");
-        else if (kind === "dd") onView("dd");
         else onView("all");
 
         setProgress({
@@ -301,7 +306,6 @@ export function SignalScanBar({
               ema: gotEma,
               ath: gotAth,
               high52: gotHigh52,
-              dd: gotDd,
             },
             0,
             listLabel,
@@ -319,13 +323,13 @@ export function SignalScanBar({
         });
       } finally {
         setBusyKind(null);
+        setBusyTf(null);
       }
     },
     [market, bbTimeframe, listLabel, onBatch, onDone, onView],
   );
 
   const busy = busyKind != null;
-  const bbTfLabel = bbTimeframe === "monthly" ? "monthly" : "weekly";
 
   return (
     <div className="filter-bar scan-signal-bar">
@@ -347,17 +351,31 @@ export function SignalScanBar({
         </button>
         <button
           type="button"
-          className={`chip tag-chip tag-scan-bb ${view === "bb" ? "on" : ""}`}
-          onClick={() => onView("bb")}
+          className={`chip tag-chip tag-scan-bb-w ${view === "bbw" ? "on" : ""}`}
+          onClick={() => onView("bbw")}
           title={
-            bbDate
-              ? `${bbTfLabel} BB NEW · ${bbDate}`
-              : `${bbTfLabel} BB NEW hits`
+            bbWDate || bbDate
+              ? `Weekly BB NEW · ${bbWDate || bbDate}`
+              : "Weekly BB NEW hits"
           }
         >
-          BB
-          <Count n={bbCount} />
-          {bbDate ? <span className="chip-date">{bbDate.slice(5)}</span> : null}
+          BB W
+          <Count n={bbWCount ?? bbCount} />
+          {bbWDate || bbDate ? (
+            <span className="chip-date">{(bbWDate || bbDate)!.slice(5)}</span>
+          ) : null}
+        </button>
+        <button
+          type="button"
+          className={`chip tag-chip tag-scan-bb-m ${view === "bbm" ? "on" : ""}`}
+          onClick={() => onView("bbm")}
+          title={
+            bbMDate ? `Monthly BB NEW · ${bbMDate}` : "Monthly BB NEW hits"
+          }
+        >
+          BB M
+          <Count n={bbMCount} />
+          {bbMDate ? <span className="chip-date">{bbMDate.slice(5)}</span> : null}
         </button>
         <button
           type="button"
@@ -414,23 +432,6 @@ export function SignalScanBar({
           ) : null}
         </button>
 
-        <button
-          type="button"
-          className={`chip tag-chip tag-scan-dd ${view === "dd" ? "on" : ""}`}
-          onClick={() => onView("dd")}
-          title={
-            ddDate
-              ? `Weekly Dragonfly Doji · ${ddDate}`
-              : "Weekly Dragonfly Doji hits"
-          }
-        >
-          DD
-          <Count n={ddCount} />
-          {ddDate ? (
-            <span className="chip-date">{ddDate.slice(5)}</span>
-          ) : null}
-        </button>
-
         {view !== "all" ? (
           <button
             type="button"
@@ -445,32 +446,40 @@ export function SignalScanBar({
         <span className="filter-sep scan-actions-sep" aria-hidden />
 
         <div className="scan-actions">
-          {(["bb", "tq", "ema", "ath", "high52", "dd", "all"] as const).map((kind) => (
-            <button
-              key={kind}
-              type="button"
-              className={`chip chip-scan ${busyKind === kind ? "busy" : ""}`}
-              disabled={busy}
-              onClick={() => void runScan(kind)}
-              title={
-                kind === "bb"
-                  ? `Scan ${bbTfLabel} BB on ${listLabel}`
-                  : kind === "all"
-                    ? `Scan BB, TQ, EMA, ATH, 52W, DD on ${listLabel}`
-                    : kind === "high52"
-                      ? `Scan 52W highs on ${listLabel}`
-                      : kind === "dd"
-                        ? `Scan weekly Dragonfly Doji on ${listLabel}`
-                        : `Scan ${SCAN_LABELS[kind]} on ${listLabel}`
-              }
-            >
-              {busyKind === kind
-                ? "…"
-                : kind === "all"
-                  ? "Scan all"
-                  : `Scan ${SCAN_LABELS[kind]}`}
-            </button>
-          ))}
+          {(
+            [
+              { kind: "bb" as const, tf: "weekly" as const, label: "Scan BB W" },
+              { kind: "bb" as const, tf: "monthly" as const, label: "Scan BB M" },
+              { kind: "tq" as const, label: "Scan TQ" },
+              { kind: "ema" as const, label: "Scan EMA" },
+              { kind: "ath" as const, label: "Scan ATH" },
+              { kind: "high52" as const, label: "Scan 52W" },
+              { kind: "all" as const, label: "Scan all" },
+            ] as const
+          ).map((btn) => {
+            const tf = "tf" in btn ? btn.tf : undefined;
+            const isThisBusy =
+              busyKind === btn.kind &&
+              (btn.kind !== "bb" || busyTf === tf);
+            return (
+              <button
+                key={btn.label}
+                type="button"
+                className={`chip chip-scan ${isThisBusy ? "busy" : ""}`}
+                disabled={busy}
+                onClick={() => void runScan(btn.kind, tf ?? bbTimeframe)}
+                title={
+                  btn.kind === "bb"
+                    ? `Scan ${tf === "monthly" ? "monthly" : "weekly"} BB on ${listLabel}`
+                    : btn.kind === "all"
+                      ? `Scan BB W, TQ, EMA, ATH, 52W on ${listLabel}`
+                      : `Scan ${SCAN_LABELS[btn.kind]} on ${listLabel}`
+                }
+              >
+                {isThisBusy ? "…" : btn.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 

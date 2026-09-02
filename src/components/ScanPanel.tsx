@@ -10,7 +10,6 @@ import { RefreshButton } from "@/components/RefreshButton";
 import {
   SignalScanBar,
   viewFilterLabel,
-  type BbTimeframe,
   type ViewFilter,
 } from "@/components/SignalScanBar";
 import { isScanWatchlist, scanListLabel, type ScanList } from "@/lib/scan-lists";
@@ -29,18 +28,18 @@ type ApiResponse = {
   signals?: Record<string, number>;
   session?: {
     bb: string | null;
+    bb_w?: string | null;
+    bb_m?: string | null;
     tq: string | null;
     ema?: string | null;
     ath?: string | null;
     high52?: string | null;
-    dd?: string | null;
   };
 };
 
 export function ScanPanel() {
   const [list, setList] = useState<ScanList>("All");
   const [cap, setCap] = useState<CapFilter>("All");
-  const [bbTimeframe, setBbTimeframe] = useState<BbTimeframe>("weekly");
   const [view, setView] = useState<ViewFilter>("all");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("sector");
@@ -75,7 +74,7 @@ export function ScanPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [list, cap, view, bbTimeframe]);
+  }, [list, cap, view]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -84,18 +83,18 @@ export function ScanPanel() {
       const params = new URLSearchParams({
         market: list,
         cap,
-        bbTf: bbTimeframe,
+        bbTf: "weekly",
         page: String(page),
         pageSize: "100",
         sort,
         dir,
       });
-      if (view === "bb") params.set("bb", "1");
+      if (view === "bb" || view === "bbw") params.set("bbw", "1");
+      if (view === "bbm") params.set("bbm", "1");
       if (view === "tq") params.set("tq", "1");
       if (view === "ema") params.set("ema", "1");
       if (view === "ath") params.set("ath", "1");
       if (view === "high52") params.set("high52", "1");
-      if (view === "dd") params.set("dd", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
@@ -117,7 +116,7 @@ export function ScanPanel() {
         if (seq === loadSeqRef.current) setLoading(false);
       }
     },
-    [list, cap, bbTimeframe, view, page, sort, dir],
+    [list, cap, view, page, sort, dir],
   );
 
   const loadRef = useRef(load);
@@ -195,19 +194,6 @@ export function ScanPanel() {
           </select>
         </label>
 
-        <label className="field">
-          <span>BB</span>
-          <select
-            value={bbTimeframe}
-            onChange={(e) =>
-              setBbTimeframe(e.target.value as BbTimeframe)
-            }
-          >
-            <option value="weekly">Weekly</option>
-            <option value="monthly">Monthly</option>
-          </select>
-        </label>
-
         <div className="toolbar-actions">
           <RefreshButton
             busy={loading}
@@ -229,22 +215,24 @@ export function ScanPanel() {
           view={view}
           onView={setView}
           market={list}
-          bbTimeframe={bbTimeframe}
+          bbTimeframe="weekly"
           cap={cap}
           onCap={setCap}
           showCap={!isScanWatchlist(list)}
           bbCount={data?.signals?.bb}
+          bbWCount={data?.signals?.bb_w}
+          bbMCount={data?.signals?.bb_m}
           tqCount={data?.signals?.tq}
           emaCount={data?.signals?.ema}
           athCount={data?.signals?.ath}
           high52Count={data?.signals?.high52}
-          ddCount={data?.signals?.dd}
           bbDate={data?.session?.bb ?? null}
+          bbWDate={data?.session?.bb_w ?? data?.session?.bb ?? null}
+          bbMDate={data?.session?.bb_m ?? null}
           tqDate={data?.session?.tq ?? null}
           emaDate={data?.session?.ema ?? null}
           athDate={data?.session?.ath ?? null}
           high52Date={data?.session?.high52 ?? null}
-          ddDate={data?.session?.dd ?? null}
           onBatch={softReload}
           onDone={hardReload}
         />

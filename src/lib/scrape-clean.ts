@@ -1,4 +1,4 @@
-import { loadAgentConfig } from "./agents/config";
+import { loadLlmConfig } from "./llm-config";
 import { invalidateCompanyCache, looksLikeNavJunk } from "./db";
 import { completeJson } from "./llm-client";
 import { ensureScrapeCleanSchema } from "./scrape-clean-schema";
@@ -77,7 +77,7 @@ export async function distillScrapedAbout(input: {
     };
   }
 
-  const cfg = loadAgentConfig();
+  const cfg = loadLlmConfig();
 
   const user = [
     `Ticker: ${input.ticker}`,
