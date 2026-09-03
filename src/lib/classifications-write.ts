@@ -39,9 +39,7 @@ export function upsertClassification(
 
   const db = openClassDb();
   try {
-    db.prepare(
-      `DELETE FROM classifications WHERE UPPER(ticker) = ? AND market = ?`,
-    ).run(key, market);
+    db.prepare(`DELETE FROM classifications WHERE UPPER(ticker) = ?`).run(key);
     db.prepare(
       `INSERT INTO classifications (ticker, market, sector, industry, sub_sector)
        VALUES (?, ?, ?, ?, ?)`,

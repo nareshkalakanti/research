@@ -6,6 +6,7 @@ import { loadMetricsMap } from "./metrics";
 import { ensureScrapeCleanSchema } from "./scrape-clean-schema";
 import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
 import { ensureLlmAboutSchema } from "./llm-about-schema";
+import { ensureWebProfileSchema } from "./web-profile-schema";
 import { openSqliteNamed } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -21,6 +22,9 @@ export type CompanyRow = {
   llm_about: string | null;
   scrape_source_url: string | null;
   headquarters: string | null;
+  ceo: string | null;
+  managing_director: string | null;
+  founded_year: string | null;
   sector: string | null;
   sub_sector: string | null;
   price: number | null;
@@ -121,6 +125,9 @@ type RawAbout = {
   company_sector: string | null;
   company_industry: string | null;
   headquarters: string | null;
+  ceo: string | null;
+  managing_director: string | null;
+  founded_year: string | null;
   products: string | null;
   end_markets: string | null;
   theme_tags: string | null;
@@ -408,6 +415,9 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       llm_about: nonempty(row.llm_about),
       scrape_source_url: scrapeSources.get(row.ticker.toUpperCase()) ?? null,
       headquarters: nonempty(row.headquarters),
+      ceo: nonempty(row.ceo),
+      managing_director: nonempty(row.managing_director),
+      founded_year: nonempty(row.founded_year),
       sector,
       sub_sector,
       price: m?.price ?? null,
@@ -604,6 +614,14 @@ export function loadAllCompanies(): CompanyRow[] {
     }
     aboutDb = null;
   }
+  if (ensureWebProfileSchema() && aboutDb) {
+    try {
+      aboutDb.close();
+    } catch {
+      /* ignore */
+    }
+    aboutDb = null;
+  }
 
   ensureInvestorMaterialsSchema();
 
@@ -613,6 +631,7 @@ export function loadAllCompanies(): CompanyRow[] {
       `SELECT ticker, name, market, website, about, yf_about, scraped_about,
               scraped_about_clean, llm_about,
               company_sector, company_industry, headquarters,
+              ceo, managing_director, founded_year,
               products, end_markets, theme_tags
        FROM company_about ORDER BY ticker`,
     )

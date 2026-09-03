@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "fill-metrics": "tsx scripts/fill-metrics.ts",
+    "fill:mcap-web": "tsx scripts/fetch-market-cap.ts",
     "test:scan": "tsx scripts/test-scan.ts",
     "test:gov": "tsx scripts/test-gov-map.ts",
     "test:gov-changes": "tsx scripts/test-gov-changes.ts",

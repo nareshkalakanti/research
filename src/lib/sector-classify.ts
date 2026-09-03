@@ -28,17 +28,25 @@ export type SectorClassifyResult = {
   confidence: "high" | "medium" | "low";
 };
 
-let taxonomyCache: SectorPair[] | null = null;
+let taxonomyCache: { at: number; pairs: SectorPair[] } | null = null;
+const TAXONOMY_MS = 15_000;
+
+export function invalidateSectorTaxonomyCache(): void {
+  taxonomyCache = null;
+}
 
 export function loadSectorTaxonomy(): SectorPair[] {
-  if (taxonomyCache) return taxonomyCache;
+  const now = Date.now();
+  if (taxonomyCache && now - taxonomyCache.at < TAXONOMY_MS) {
+    return taxonomyCache.pairs;
+  }
   if (!fs.existsSync(CLASS_PATH)) {
-    taxonomyCache = [];
-    return taxonomyCache;
+    taxonomyCache = { at: now, pairs: [] };
+    return taxonomyCache.pairs;
   }
   const db = new Database(CLASS_PATH, { readonly: true });
   try {
-    taxonomyCache = db
+    const pairs = db
       .prepare(
         `SELECT TRIM(sector) AS sector, TRIM(sub_sector) AS sub_sector, COUNT(*) AS count
          FROM classifications
@@ -48,7 +56,8 @@ export function loadSectorTaxonomy(): SectorPair[] {
          ORDER BY count DESC`,
       )
       .all() as SectorPair[];
-    return taxonomyCache;
+    taxonomyCache = { at: now, pairs };
+    return pairs;
   } finally {
     db.close();
   }

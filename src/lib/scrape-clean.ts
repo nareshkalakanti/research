@@ -1,6 +1,7 @@
 import { loadLlmConfig } from "./llm-config";
 import { invalidateCompanyCache, looksLikeNavJunk } from "./db";
 import { completeJson } from "./llm-client";
+import { withScrapeWriteLock } from "./scrape-pool";
 import { ensureScrapeCleanSchema } from "./scrape-clean-schema";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -119,66 +120,75 @@ export async function distillScrapedAbout(input: {
   };
 }
 
-export function saveScrapedAboutClean(
+export async function saveScrapedAboutClean(
   ticker: string,
   opts: {
     scraped_about_clean: string | null;
     confidence: ScrapeCleanConfidence;
+    skipCacheInvalidate?: boolean;
   },
-): void {
+): Promise<void> {
   ensureScrapeCleanSchema();
   const key = ticker.toUpperCase();
   const text = opts.scraped_about_clean?.trim() || null;
   const now = new Date().toISOString();
 
-  const aboutDb = openSqliteNamed("company_about.db", { readonly: false, wal: true });
-  try {
-    aboutDb.pragma("busy_timeout = 5000");
-    aboutDb
-      .prepare(
-        `UPDATE company_about SET
-           scraped_about_clean = @text,
-           has_scraped_about_clean = @has,
-           scraped_clean_at = @at
-         WHERE ticker = @ticker`,
-      )
-      .run({
-        ticker: key,
-        text,
-        has: text && text.length >= 120 ? 1 : 0,
-        at: text ? now : null,
-      });
-  } finally {
-    aboutDb.close();
-  }
-
-  try {
-    const scrapeDb = openSqliteNamed("scraper.db", { readonly: false, wal: true });
+  await withScrapeWriteLock(() => {
+    const aboutDb = openSqliteNamed("company_about.db", {
+      readonly: false,
+      wal: true,
+    });
     try {
-      scrapeDb.pragma("busy_timeout = 5000");
-      scrapeDb
+      aboutDb.pragma("busy_timeout = 8000");
+      aboutDb
         .prepare(
-          `UPDATE company_scrape SET
+          `UPDATE company_about SET
              scraped_about_clean = @text,
-             scraped_clean_at = @at,
-             clean_confidence = @confidence,
-             updated_at = @at
+             has_scraped_about_clean = @has,
+             scraped_clean_at = @at
            WHERE ticker = @ticker`,
         )
         .run({
           ticker: key,
           text,
+          has: text && text.length >= 120 ? 1 : 0,
           at: now,
-          confidence: opts.confidence,
         });
     } finally {
-      scrapeDb.close();
+      aboutDb.close();
     }
-  } catch {
-    /* scraper row may not exist yet */
-  }
 
-  invalidateCompanyCache();
+    try {
+      const scrapeDb = openSqliteNamed("scraper.db", {
+        readonly: false,
+        wal: true,
+      });
+      try {
+        scrapeDb.pragma("busy_timeout = 8000");
+        scrapeDb
+          .prepare(
+            `UPDATE company_scrape SET
+               scraped_about_clean = @text,
+               scraped_clean_at = @at,
+               clean_confidence = @confidence,
+               updated_at = @at
+             WHERE ticker = @ticker`,
+          )
+          .run({
+            ticker: key,
+            text,
+            at: now,
+            confidence: opts.confidence,
+          });
+      } finally {
+        scrapeDb.close();
+      }
+    } catch {
+      /* scraper row may not exist yet */
+    }
+  });
+
+  if (!opts.skipCacheInvalidate) invalidateCompanyCache();
 }
 
 export async function distillAndSaveScrapedAbout(input: {
@@ -190,11 +200,13 @@ export async function distillAndSaveScrapedAbout(input: {
   yf_about?: string | null;
   manual_about?: string | null;
   llmPreChecked?: boolean;
+  skipCacheInvalidate?: boolean;
 }): Promise<ScrapeCleanResult> {
   const result = await distillScrapedAbout(input);
-  saveScrapedAboutClean(input.ticker, {
+  await saveScrapedAboutClean(input.ticker, {
     scraped_about_clean: result.summary,
     confidence: result.confidence,
+    skipCacheInvalidate: input.skipCacheInvalidate,
   });
   return result;
 }

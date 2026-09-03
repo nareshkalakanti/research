@@ -1,21 +1,24 @@
 /**
- * LLM-clean raw website scrapes → scraped_about_clean (CLI).
+ * LLM-clean raw website scrapes → scraped_about_clean.
+ * Skips already-cleaned and already-attempted rows; runs pending in parallel.
  *
  *   npx tsx scripts/clean-scraped-about.ts
- *   npx tsx scripts/clean-scraped-about.ts --limit 20
+ *   npx tsx scripts/clean-scraped-about.ts --concurrency 12
+ *   npx tsx scripts/clean-scraped-about.ts --limit 40
  *   npx tsx scripts/clean-scraped-about.ts --dry-run --limit 20
  *   npx tsx scripts/clean-scraped-about.ts --ticker GLAND --force
- *   npx tsx scripts/clean-scraped-about.ts --market NSE
+ *   npx tsx scripts/clean-scraped-about.ts --market "NSE SME"
+ *   npx tsx scripts/clean-scraped-about.ts --force   # redo cleaned + rejected
  */
 import fs from "fs";
 import path from "path";
 import { loadLlmConfig } from "../src/lib/llm-config";
 import { checkLlmStatus } from "../src/lib/llm-client";
 import {
-  CLEAN_SESSION_MAX_ITEMS,
-  pendingScrapeCleanCount,
-  runScrapeCleanBatch,
-  runScrapeCleanSession,
+  CLEAN_CLI_CONCURRENCY_DEFAULT,
+  CLEAN_CLI_CONCURRENCY_MAX,
+  loadScrapeCleanInventory,
+  runScrapeCleanQueue,
   type ScrapeCleanRowProgress,
 } from "../src/lib/scrape-clean-batch";
 
@@ -39,23 +42,26 @@ function loadEnvLocal(): void {
   }
 }
 
+function argValue(args: string[], flag: string): string {
+  const i = args.indexOf(flag);
+  return i >= 0 ? String(args[i + 1] || "").trim() : "";
+}
+
 function parseArgs() {
   const args = process.argv.slice(2);
+  const concurrencyRaw = Number(argValue(args, "--concurrency") || argValue(args, "-c"));
   return {
     dryRun: args.includes("--dry-run"),
     force: args.includes("--force"),
     limit: (() => {
-      const i = args.indexOf("--limit");
-      return i >= 0 ? Math.max(1, Number(args[i + 1]) || 0) : 0;
+      const n = Number(argValue(args, "--limit"));
+      return n > 0 ? Math.floor(n) : 0;
     })(),
-    ticker: (() => {
-      const i = args.indexOf("--ticker");
-      return i >= 0 ? String(args[i + 1] || "").trim().toUpperCase() : "";
-    })(),
-    market: (() => {
-      const i = args.indexOf("--market");
-      return i >= 0 ? String(args[i + 1] || "All") : "All";
-    })(),
+    ticker: argValue(args, "--ticker").toUpperCase(),
+    market: argValue(args, "--market") || "All",
+    concurrency: Number.isFinite(concurrencyRaw) && concurrencyRaw > 0
+      ? Math.min(CLEAN_CLI_CONCURRENCY_MAX, Math.max(1, Math.floor(concurrencyRaw)))
+      : CLEAN_CLI_CONCURRENCY_DEFAULT,
   };
 }
 
@@ -65,25 +71,9 @@ function rowStatus(result: ScrapeCleanRowProgress["result"]): string {
   return result.reason;
 }
 
-function makeProgressLogger(opts: {
-  chunkStart: number;
-  chunkTarget: number;
-  getDoneInChunk: () => number;
-  bumpDoneInChunk: () => void;
-}) {
-  return (p: ScrapeCleanRowProgress) => {
-    opts.bumpDoneInChunk();
-    const done = opts.getDoneInChunk();
-    const elapsed = Math.round((Date.now() - opts.chunkStart) / 1000);
-    console.log(
-      `  [${done}/${opts.chunkTarget}] ${p.ticker} ${rowStatus(p.result)} · ${elapsed}s`,
-    );
-  };
-}
-
 async function main() {
   loadEnvLocal();
-  const { dryRun, force, limit, ticker, market } = parseArgs();
+  const { dryRun, force, limit, ticker, market, concurrency } = parseArgs();
 
   const cfg = loadLlmConfig();
   const status = await checkLlmStatus(cfg);
@@ -93,94 +83,60 @@ async function main() {
     process.exit(1);
   }
   console.log(`LLM: ${status.detail}`);
-
-  if (ticker) {
-    console.log(`Cleaning ${ticker}…`);
-    const one = await runScrapeCleanBatch({
-      tickers: [ticker],
-      limit: 1,
-      force,
-      dryRun,
-      onProgress: (p) => {
-        console.log(`  ${p.ticker} ${rowStatus(p.result)}`);
-      },
-    });
-    console.log(one);
-    return;
-  }
-
-  let remaining = pendingScrapeCleanCount(market);
-  if (remaining === 0) {
-    console.log(`Nothing to clean (${market}).`);
-    return;
-  }
-
-  console.log(`${remaining.toLocaleString()} pending (${market})`);
-
-  let totalSaved = 0;
-  let totalRejected = 0;
-  let totalFailed = 0;
-  let chunks = 0;
-
-  while (remaining > 0) {
-    chunks += 1;
-    const chunkTarget = limit > 0 ? limit : Math.min(remaining, CLEAN_SESSION_MAX_ITEMS);
-    const chunkStart = Date.now();
-    let doneInChunk = 0;
-
-    console.log(
-      `\nchunk ${chunks}: up to ${chunkTarget.toLocaleString()} rows · ${remaining.toLocaleString()} in queue`,
-    );
-
-    const onProgress = makeProgressLogger({
-      chunkStart,
-      chunkTarget,
-      getDoneInChunk: () => doneInChunk,
-      bumpDoneInChunk: () => {
-        doneInChunk += 1;
-      },
-    });
-
-    const batch =
-      limit > 0
-        ? await runScrapeCleanBatch({
-            market,
-            limit,
-            force,
-            dryRun,
-            onProgress,
-          })
-        : await runScrapeCleanSession({
-            market,
-            force,
-            dryRun,
-            onProgress,
-            onBatchDone: (inner) => {
-              if (inner.tried === 0) return;
-              console.log(
-                `  batch done: +${inner.saved} cleaned · ${inner.rejected} rejected · ${inner.failed} errors · ${inner.remaining.toLocaleString()} left`,
-              );
-            },
-          });
-
-    if (batch.tried === 0) break;
-
-    totalSaved += batch.saved;
-    totalRejected += batch.rejected;
-    totalFailed += batch.failed;
-    remaining = batch.remaining;
-
-    const chunkSec = Math.round((Date.now() - chunkStart) / 1000);
-    console.log(
-      `chunk ${chunks} done (${chunkSec}s): +${batch.saved} cleaned · ${batch.rejected} rejected · ${batch.failed} errors · ${remaining.toLocaleString()} left`,
-    );
-
-    if (limit > 0) break;
-    if (batch.done) break;
-  }
-
   console.log(
-    `\nDone — pass ${totalSaved} · reject ${totalRejected} · errors ${totalFailed} · ${remaining.toLocaleString()} remaining`,
+    `Workers: ${concurrency} parallel` +
+      (dryRun ? " · dry-run" : "") +
+      (force ? " · force (redo done)" : ""),
+  );
+
+  const inv = loadScrapeCleanInventory({
+    market,
+    tickers: ticker ? [ticker] : undefined,
+    force,
+  });
+  console.log(
+    `Inventory (${market}): ${inv.withRaw.toLocaleString()} with scrape · ` +
+      `${inv.alreadyClean.toLocaleString()} cleaned · ` +
+      `${inv.alreadyAttempted.toLocaleString()} already attempted · ` +
+      `${inv.pending.length.toLocaleString()} pending`,
+  );
+
+  if (!inv.pending.length) {
+    console.log(
+      force
+        ? "Nothing to clean."
+        : "Nothing pending — already cleaned or attempted. Use --force to redo.",
+    );
+    return;
+  }
+
+  const target = limit > 0 ? Math.min(limit, inv.pending.length) : inv.pending.length;
+  console.log(`Running ${target.toLocaleString()} of ${inv.pending.length.toLocaleString()} pending…`);
+
+  const started = Date.now();
+  let done = 0;
+  const result = await runScrapeCleanQueue({
+    market,
+    tickers: ticker ? [ticker] : undefined,
+    limit: limit > 0 ? limit : undefined,
+    force,
+    dryRun,
+    concurrency,
+    onProgress: (p) => {
+      done += 1;
+      const elapsed = Math.max(1, (Date.now() - started) / 1000);
+      const rate = (done / elapsed).toFixed(2);
+      const left = target - done;
+      const eta = left > 0 ? Math.round(left / Math.max(done / elapsed, 0.01)) : 0;
+      console.log(
+        `  [${done}/${target}] ${p.ticker} ${rowStatus(p.result)} · ${rate}/s · eta ${eta}s`,
+      );
+    },
+  });
+
+  const sec = Math.round((Date.now() - started) / 1000);
+  console.log(
+    `\nDone in ${sec}s — pass ${result.saved} · reject ${result.rejected} · errors ${result.failed} · ${result.remaining.toLocaleString()} remaining`,
   );
 }
 

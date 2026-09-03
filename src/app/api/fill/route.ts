@@ -7,6 +7,8 @@ import {
   upsertMetrics,
 } from "@/lib/metrics";
 import { fetchNseMcapQuotes } from "@/lib/nse-quote-mcap";
+import { fetchWebProfiles, webProfileToQuote } from "@/lib/web-mcap";
+import { applyWebProfiles } from "@/lib/web-profile-apply";
 import { fetchLivePrices, fetchQuotes, type YfQuote } from "@/lib/yfinance";
 
 export const runtime = "nodejs";
@@ -21,6 +23,8 @@ type Body = {
   preferMcap?: boolean;
   skipTickers?: string[];
   offset?: number;
+  /** all = Yahoo→NSE→Tickertape. web = Tickertape/Groww only. */
+  source?: "all" | "web";
 };
 
 export async function POST(req: NextRequest) {
@@ -32,10 +36,17 @@ export async function POST(req: NextRequest) {
   }
 
   const market = body.market || "All";
-  const limit = Math.min(200, Math.max(1, Number(body.limit) || 80));
+  const source = body.source === "web" ? "web" : "all";
+  const limit = Math.min(
+    source === "web" ? 80 : 200,
+    Math.max(1, Number(body.limit) || (source === "web" ? 40 : 80)),
+  );
   const missingOnly = body.missingOnly !== false;
   const preferMcap = body.preferMcap !== false;
-  const concurrency = Math.min(16, Math.max(4, Number(body.concurrency) || 12));
+  const concurrency = Math.min(
+    source === "web" ? 8 : 16,
+    Math.max(source === "web" ? 2 : 4, Number(body.concurrency) || (source === "web" ? 4 : 12)),
+  );
 
   let companies = loadAllCompanies();
   if (market && market !== "All") {
@@ -55,11 +66,12 @@ export async function POST(req: NextRequest) {
 
   let pending = companies.filter((c) => {
     if (skip.has(c.ticker.toUpperCase())) return false;
+    if (source === "web") return c.mcap_cr == null || c.mcap_cr <= 0;
     if (!missingOnly) return true;
     return c.price == null || c.mcap_cr == null || c.mcap_cr <= 0;
   });
 
-  if (preferMcap) {
+  if (preferMcap && source !== "web") {
     // Don't park forever on names Yahoo already quoted (price in, mcap still null).
     // Those sat at the front of Fill All and the same ~80 NSE SME rows were retried
     // while ~500 others never got a detailed mcap pass.
@@ -96,15 +108,82 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  const marketBy: Record<string, string> = {};
+  for (const c of batch) marketBy[c.ticker.toUpperCase()] = c.market;
+
+  if (source === "web") {
+    const profiles = await fetchWebProfiles(batch, {
+      concurrency,
+      delayMs: 120,
+    });
+    const applied = applyWebProfiles(profiles, marketBy);
+    const webQuotes = profiles
+      .map(webProfileToQuote)
+      .filter((q): q is YfQuote => q != null);
+
+    const byQuote = new Map(webQuotes.map((q) => [q.ticker.toUpperCase(), q]));
+    const quotes = batch.map(
+      (c) =>
+        byQuote.get(c.ticker.toUpperCase()) ?? {
+          ticker: c.ticker.toUpperCase(),
+          yf_symbol: "",
+          price: null,
+          mcap_cr: null,
+          sector: null,
+          error: "no quote",
+        },
+    );
+
+    const afterCompanies = loadAllCompanies().filter((c) =>
+      market && market !== "All" ? c.market === market : true,
+    );
+    const afterScope = tickerSet
+      ? afterCompanies.filter((c) => tickerSet.has(c.ticker.toUpperCase()))
+      : afterCompanies;
+    const gapsAfter = metricsGapCount(afterScope.map((c) => c.ticker));
+
+    let filledPrice = 0;
+    let filledMcap = 0;
+    let failed = 0;
+    for (const q of quotes) {
+      if (q.price != null) filledPrice += 1;
+      if (q.mcap_cr != null) filledMcap += 1;
+      if (q.mcap_cr == null) failed += 1;
+    }
+
+    return NextResponse.json({
+      ok: true,
+      source: "web",
+      tried: batch.length,
+      saved: applied.metrics,
+      filledPrice,
+      filledMcap,
+      webFilled: filledMcap,
+      nseFilled: 0,
+      profile: applied,
+      failed,
+      remaining: gapsAfter.any,
+      remainingMcap: afterScope.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0)
+        .length,
+      triedTickers: batch.map((c) => c.ticker),
+      closedTickers: batch.map((c) => c.ticker.toUpperCase()),
+      gaps: gapsAfter,
+      sample: quotes.slice(0, 8).map((q) => ({
+        ticker: q.ticker,
+        price: q.price,
+        mcap_cr: q.mcap_cr,
+        yf_symbol: q.yf_symbol,
+        error: q.error ?? null,
+      })),
+    });
+  }
+
   let quotes = tickerSet
     ? await fillPageQuotes(batch, concurrency)
     : await fetchQuotes(
         batch.map((c) => ({ ticker: c.ticker, market: c.market })),
         { concurrency },
       );
-
-  const marketBy: Record<string, string> = {};
-  for (const c of batch) marketBy[c.ticker.toUpperCase()] = c.market;
 
   let saved = upsertMetrics(quotes, marketBy);
 
@@ -143,18 +222,52 @@ export async function POST(req: NextRequest) {
         });
       }
     }
-    quotes = batch.map(
-      (c) =>
-        byQuote.get(c.ticker.toUpperCase()) ?? {
-          ticker: c.ticker.toUpperCase(),
-          yf_symbol: "",
-          price: null,
-          mcap_cr: null,
-          sector: null,
-          error: "no quote",
-        },
-    );
   }
+
+  const stillNeedWeb = batch.filter((c) => {
+    const q = byQuote.get(c.ticker.toUpperCase());
+    const mcap = q?.mcap_cr;
+    return mcap == null || mcap <= 0;
+  });
+  let webFilled = 0;
+  const webTried = new Set(
+    stillNeedWeb.map((c) => c.ticker.toUpperCase()),
+  );
+  if (stillNeedWeb.length) {
+    const profiles = await fetchWebProfiles(stillNeedWeb, {
+      concurrency: 4,
+      delayMs: 120,
+    });
+    const applied = applyWebProfiles(profiles, marketBy);
+    const webQuotes = profiles
+      .map(webProfileToQuote)
+      .filter((q): q is YfQuote => q != null);
+    webFilled = webQuotes.length;
+    saved += applied.metrics;
+    for (const q of webQuotes) {
+      const key = q.ticker.toUpperCase();
+      const prev = byQuote.get(key);
+      byQuote.set(key, {
+        ticker: key,
+        yf_symbol: q.yf_symbol || prev?.yf_symbol || "",
+        price: prev?.price ?? q.price ?? null,
+        mcap_cr: q.mcap_cr ?? prev?.mcap_cr ?? null,
+        sector: prev?.sector ?? q.sector ?? null,
+      });
+    }
+  }
+
+  quotes = batch.map(
+    (c) =>
+      byQuote.get(c.ticker.toUpperCase()) ?? {
+        ticker: c.ticker.toUpperCase(),
+        yf_symbol: "",
+        price: null,
+        mcap_cr: null,
+        sector: null,
+        error: "no quote",
+      },
+  );
 
   invalidateCompanyCache();
 
@@ -175,11 +288,12 @@ export async function POST(req: NextRequest) {
     if (q.price != null) filledPrice += 1;
     if (q.mcap_cr != null) filledMcap += 1;
     if (q.price == null && q.mcap_cr == null) failed += 1;
-    // Skip later Fill-all rounds once mcap landed, the name is dead, or NSE
-    // already ran for this ticker (don't park on Yahoo-price / no-mcap names).
+    // Skip later Fill-all rounds once mcap landed, the name is dead, or
+    // Yahoo+NSE+Tickertape/Groww already ran for this ticker.
     if (
       q.mcap_cr != null ||
       (q.price == null && q.mcap_cr == null) ||
+      webTried.has(key) ||
       nseTried.has(key)
     ) {
       closedTickers.push(key);
@@ -193,6 +307,7 @@ export async function POST(req: NextRequest) {
     filledPrice,
     filledMcap,
     nseFilled,
+    webFilled,
     failed,
     remaining: gapsAfter.any,
     remainingMcap: afterScope.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0).length,

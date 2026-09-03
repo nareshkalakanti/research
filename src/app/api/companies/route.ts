@@ -54,6 +54,7 @@ import {
   loadScrapeOutcomeSets,
   matchesMissingGap,
 } from "@/lib/missing-data";
+import { dinBoardTickerSet } from "@/lib/governance-write";
 import { capTier, type CapTier } from "@/lib/types";
 import {
   isScanWatchlist,
@@ -95,6 +96,9 @@ function fundStubRow(stub: {
     llm_about: null,
     scrape_source_url: null,
     headquarters: null,
+    ceo: null,
+    managing_director: null,
+    founded_year: null,
     sector: null,
     sub_sector: null,
     price: null,
@@ -259,6 +263,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const scrapeOutcomes = loadScrapeOutcomeSets(
     market && market !== "All" ? market : "All",
   );
+  const dinBoards = dinBoardTickerSet();
 
   const breakouts = loadBreakoutMap(bbTf);
   const holdings = holdingsTickerSet();
@@ -318,7 +323,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   function gapFlags(c: (typeof companies)[number]) {
-    return companyGapFlags(c, scrapeOutcomes);
+    return companyGapFlags(c, scrapeOutcomes, dinBoards);
   }
 
   if (missing) {
@@ -765,6 +770,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         scrape: g.scrape,
         scrape_empty: g.scrape_empty,
         scrape_failed: g.scrape_failed,
+        board: g.board,
       },
     };
   });
@@ -788,6 +794,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         const g = gapFlags(c);
         return g.scrape_empty || g.scrape_failed;
       }).length,
+      missingBoard: pool.filter((c) => gapFlags(c).board).length,
       any: pool.filter((c) => {
         const g = gapFlags(c);
         return (

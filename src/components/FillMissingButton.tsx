@@ -150,7 +150,7 @@ export function FillMissingButton({
         const pct = Math.min(96, Math.round((closed / initial) * 100) + 5);
         setProgress({
           pct,
-          label: round === 1 ? "Seed + Yahoo" : `Batch ${round}`,
+          label: round === 1 ? "Yahoo + NSE + Tickertape" : `Batch ${round}`,
           detail: `${closed.toLocaleString()} done · ${remaining.toLocaleString()} left`,
         });
 

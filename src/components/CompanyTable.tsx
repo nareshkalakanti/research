@@ -877,6 +877,7 @@ function CompanyRows({
             ["about", r.missing.about],
             ["web", r.missing.web],
             ["scrape", r.missing.scrape],
+            ["board", Boolean(r.missing.board)],
           ] as const
         )
           .filter(([, on]) => on)
@@ -1172,6 +1173,28 @@ function CompanyRows({
                         keywords={highlights}
                         source="about"
                       />
+                    </div>
+                  ) : null}
+                  {r.ceo || r.managing_director || r.founded_year ? (
+                    <div className="about-meta">
+                      {r.ceo ? (
+                        <>
+                          <span className="about-meta-label">CEO</span>
+                          <span>{r.ceo}</span>
+                        </>
+                      ) : null}
+                      {r.managing_director ? (
+                        <>
+                          <span className="about-meta-label">MD</span>
+                          <span>{r.managing_director}</span>
+                        </>
+                      ) : null}
+                      {r.founded_year ? (
+                        <>
+                          <span className="about-meta-label">Founded</span>
+                          <span>{r.founded_year}</span>
+                        </>
+                      ) : null}
                     </div>
                   ) : null}
                   <div className="about-label">About</div>
