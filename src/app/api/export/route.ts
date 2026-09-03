@@ -3,6 +3,7 @@ import {
   csvEscape,
   loadMissingCompanies,
 } from "@/lib/missing-data";
+import { loadGovScanLogMap } from "@/lib/governance-write";
 import {
   listScrapeOutcomeRows,
   loadScrapeStatusMap,
@@ -61,6 +62,44 @@ export async function GET(req: NextRequest) {
           o.status,
           o.error ?? "",
           o.website_status ?? "",
+        ]
+          .map(csvEscape)
+          .join(","),
+      );
+    }
+    const filename = `missing-${safeMissing}-${safeMarket}-${stamp}.csv`;
+    return new NextResponse(lines.join("\n"), {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  if (missing.trim().toLowerCase() === "board") {
+    const companies = loadMissingCompanies(market, missing);
+    const scanLog = loadGovScanLogMap();
+    const header = [
+      "company name",
+      "symbol",
+      "market",
+      "website",
+      "scan_status",
+      "scan_detail",
+    ];
+    const lines = [header.join(",")];
+    for (const c of companies) {
+      const log = scanLog.get(c.ticker.toUpperCase());
+      lines.push(
+        [
+          c.name,
+          c.ticker,
+          c.market,
+          websiteUrl(c.website) ?? c.web ?? "",
+          log?.status ?? "",
+          log?.detail ?? "",
         ]
           .map(csvEscape)
           .join(","),

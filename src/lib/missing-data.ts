@@ -9,6 +9,8 @@ import {
   companyNeedsWebsiteScrape,
   scrapeOutcomeTickerSet,
 } from "@/lib/scraper-store";
+import { scrapeCleanAttemptedSet } from "@/lib/scrape-clean-batch";
+import { dinBoardTickerSet } from "@/lib/governance-write";
 
 export type MissingGapKey =
   | "metrics"
@@ -23,6 +25,7 @@ export type MissingGapKey =
   | "scrape_empty"
   | "scrape_failed"
   | "scrape_bad"
+  | "board"
   | "any";
 
 export type GapFlags = {
@@ -36,10 +39,12 @@ export type GapFlags = {
   scrape_clean: boolean;
   scrape_empty: boolean;
   scrape_failed: boolean;
+  board: boolean;
 };
 
 type CompanyLike = {
   ticker: string;
+  market?: string | null;
   website?: string | null;
   scraped_about?: string | null;
   scraped_about_clean?: string | null;
@@ -65,21 +70,30 @@ export function loadScrapeOutcomeSets(market = "All"): ScrapeOutcomeSets {
 }
 
 export function companyNeedsScrapeClean(c: {
+  ticker?: string;
   scraped_about?: string | null;
   scraped_about_clean?: string | null;
 }): boolean {
-  return (
-    (c.scraped_about ?? "").trim().length >= 80 &&
-    !(c.scraped_about_clean ?? "").trim()
-  );
+  if ((c.scraped_about ?? "").trim().length < 80) return false;
+  if ((c.scraped_about_clean ?? "").trim()) return false;
+  const ticker = c.ticker?.toUpperCase();
+  if (ticker && scrapeCleanAttemptedSet().has(ticker)) return false;
+  return true;
+}
+
+function isNseGovMarket(market?: string | null): boolean {
+  const m = (market || "").trim().toUpperCase();
+  return m === "NSE" || m === "NSE SME";
 }
 
 export function companyGapFlags(
   c: CompanyLike,
   outcomes?: ScrapeOutcomeSets,
+  dinBoards?: Set<string>,
 ): GapFlags {
   const key = c.ticker.toUpperCase();
   const sets = outcomes ?? loadScrapeOutcomeSets("All");
+  const din = dinBoards ?? dinBoardTickerSet();
   return {
     price: c.price == null,
     mcap: c.mcap_cr == null || c.mcap_cr <= 0,
@@ -95,6 +109,7 @@ export function companyGapFlags(
     scrape_clean: companyNeedsScrapeClean(c),
     scrape_empty: sets.empty.has(key),
     scrape_failed: sets.failed.has(key),
+    board: isNseGovMarket(c.market) && !din.has(key),
   };
 }
 
@@ -125,6 +140,7 @@ export function matchesMissingGap(
   if (key === "scrape_empty") return g.scrape_empty;
   if (key === "scrape_failed") return g.scrape_failed;
   if (key === "scrape_bad") return g.scrape_empty || g.scrape_failed;
+  if (key === "board") return g.board;
   if (key === "metrics") return g.price || g.mcap;
   return g.price || g.mcap;
 }
@@ -147,6 +163,9 @@ function fundStubRow(stub: {
     llm_about: null,
     scrape_source_url: null,
     headquarters: null,
+    ceo: null,
+    managing_director: null,
+    founded_year: null,
     sector: null,
     sub_sector: null,
     price: null,
@@ -208,8 +227,11 @@ export function loadMissingCompanies(
   companies = mergeFundWatchlistUniverse(companies, allCompanies);
 
   const outcomes = loadScrapeOutcomeSets(market || "All");
+  const dinBoards = dinBoardTickerSet();
   return companies
-    .filter((c) => matchesMissingGap(companyGapFlags(c, outcomes), missing))
+    .filter((c) =>
+      matchesMissingGap(companyGapFlags(c, outcomes, dinBoards), missing),
+    )
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

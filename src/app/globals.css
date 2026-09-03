@@ -10333,40 +10333,6 @@ tr.sm-row-sme-hit td {
   border-top: none;
 }
 
-.sx-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.sx-kpi {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.sx-kpi-label {
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-
-.sx-kpi strong {
-  font-size: 0.98rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink);
-  font-family: inherit;
-}
-
 .sx-links {
   margin: 0 0 12px;
 }
@@ -10483,12 +10449,6 @@ tr.sm-row-sme-hit td {
 
 .sx-hi li + li {
   margin-top: 4px;
-}
-
-@media (max-width: 720px) {
-  .sx-kpis {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 .cd-hi li + li {

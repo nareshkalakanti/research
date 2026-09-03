@@ -7,6 +7,9 @@ export type Company = {
   website: string | null;
   about: string | null;
   headquarters: string | null;
+  ceo?: string | null;
+  managing_director?: string | null;
+  founded_year?: string | null;
   scraped_about?: string | null;
   scrape_source_url?: string | null;
   /** Theme/custom keywords that hit inside scraped website text. */
@@ -120,6 +123,7 @@ export type Company = {
     scrape: boolean;
     scrape_empty?: boolean;
     scrape_failed?: boolean;
+    board?: boolean;
   };
 };
 

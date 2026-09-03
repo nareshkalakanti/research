@@ -2,9 +2,7 @@
 
 import { ExpandInvestorMaterials } from "@/components/ExpandInvestorMaterials";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
-import { fmtYoYPct, yoyClass } from "@/lib/quarter-panel";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
-import { formatPeDisplay, forwardPeClass } from "@/lib/valuation";
 
 export type StrategyExpandPanel = "qtr" | "docs" | "highlights";
 
@@ -31,11 +29,6 @@ type Props = {
   onFetchDocs?: () => void;
   onDocsChange?: () => void;
 };
-
-function fmtLtp(n: number | null): string {
-  if (n == null) return "—";
-  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-}
 
 export function StrategyExpandDetail({
   ticker,
@@ -64,54 +57,6 @@ export function StrategyExpandDetail({
     <tr className="about-row">
       <td colSpan={colSpan}>
         <div className="about-box strategy-expand">
-          <div className="sx-kpis">
-            <Kpi label="LTP" value={fmtLtp(price)} />
-            <Kpi
-              label="Fwd PE"
-              value={
-                quarterData.loading
-                  ? "…"
-                  : quarterData.forward_pe != null
-                    ? formatPeDisplay(quarterData.forward_pe)
-                    : "—"
-              }
-              tone={
-                quarterData.forward_pe != null
-                  ? forwardPeClass(quarterData.forward_pe)
-                  : undefined
-              }
-            />
-            <Kpi
-              label="EPS YoY"
-              value={
-                quarterData.loading
-                  ? "…"
-                  : quarterData.yoy?.eps_yoy != null
-                    ? fmtYoYPct(quarterData.yoy.eps_yoy)
-                    : "—"
-              }
-              tone={
-                quarterData.yoy?.eps_yoy != null
-                  ? yoyClass(quarterData.yoy.eps_yoy)
-                  : undefined
-              }
-            />
-            <Kpi
-              label="QoQ Sales"
-              value={
-                quarterData.loading
-                  ? "…"
-                  : quarterData.extras?.sales_qoq != null
-                    ? fmtYoYPct(quarterData.extras.sales_qoq)
-                    : "—"
-              }
-              tone={
-                quarterData.extras?.sales_qoq != null
-                  ? yoyClass(quarterData.extras.sales_qoq)
-                  : undefined
-              }
-            />
-          </div>
           <div className="link-row link-row--compact sx-links">
             {links.web ? (
               <a
@@ -194,23 +139,6 @@ export function StrategyExpandDetail({
         </div>
       </td>
     </tr>
-  );
-}
-
-function Kpi({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: string;
-}) {
-  return (
-    <div className="sx-kpi">
-      <span className="sx-kpi-label">{label}</span>
-      <strong className={tone}>{value}</strong>
-    </div>
   );
 }
 

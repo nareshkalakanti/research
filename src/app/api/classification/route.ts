@@ -18,9 +18,13 @@ export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get("taxonomy") !== "1") {
     return NextResponse.json({ ok: false, error: "unknown request" }, { status: 400 });
   }
-  const pairs = loadSectorTaxonomy().slice(0, 300);
-  const sectors = [...new Set(pairs.map((p) => p.sector))].sort();
-  return NextResponse.json({ ok: true, pairs, sectors });
+  const taxonomy = loadSectorTaxonomy();
+  const sectors = [...new Set(taxonomy.map((p) => p.sector))].sort();
+  return NextResponse.json({
+    ok: true,
+    pairs: taxonomy.slice(0, 500),
+    sectors,
+  });
 }
 
 export async function POST(req: NextRequest) {

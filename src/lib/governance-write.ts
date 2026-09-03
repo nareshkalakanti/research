@@ -554,3 +554,26 @@ export function dinBoardTickerSet(): Set<string> {
     .all() as Array<{ ticker: string }>;
   return new Set(rows.map((r) => r.ticker.toUpperCase()));
 }
+
+export function loadGovScanLogMap(): Map<
+  string,
+  { status: string; detail: string | null; fetched_at: string }
+> {
+  const map = new Map<
+    string,
+    { status: string; detail: string | null; fetched_at: string }
+  >();
+  const rows = getGovernanceWriteDb()
+    .prepare(`SELECT ticker, status, detail, fetched_at FROM scan_log`)
+    .all() as Array<{
+    ticker: string;
+    status: string;
+    detail: string | null;
+    fetched_at: string;
+  }>;
+  for (const r of rows) {
+    const key = r.ticker.toUpperCase();
+    if (key) map.set(key, r);
+  }
+  return map;
+}

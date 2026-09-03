@@ -5,6 +5,9 @@ import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillLlmAboutButton } from "@/components/FillLlmAboutButton";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { FillSectorButton } from "@/components/FillSectorButton";
+import { FillWebMcapButton } from "@/components/FillWebMcapButton";
+import { GovernanceScanBar } from "@/components/GovernanceScanBar";
+import { MapGrowwDinButton } from "@/components/MapGrowwDinButton";
 import { RefreshButton } from "@/components/RefreshButton";
 import { WebsiteScrapeBar } from "@/components/WebsiteScrapeBar";
 import type { ScanList } from "@/lib/scan-lists";
@@ -23,6 +26,7 @@ type GapKey =
   | "scrape_empty"
   | "scrape_failed"
   | "scrape_bad"
+  | "board"
   | "any";
 
 type Gaps = {
@@ -37,6 +41,7 @@ type Gaps = {
   scrapeFailed: number;
   scrapeBad: number;
   missingScrapeClean: number;
+  missingBoard: number;
   any: number;
   metrics: number;
 };
@@ -63,6 +68,7 @@ const GAP_OPTIONS: { id: GapKey; label: string; countKey: keyof Gaps }[] = [
   { id: "scrape_empty", label: "Scrape empty", countKey: "scrapeEmpty" },
   { id: "scrape_failed", label: "Scrape failed", countKey: "scrapeFailed" },
   { id: "scrape_bad", label: "Scrape empty + failed", countKey: "scrapeBad" },
+  { id: "board", label: "Gov board (NSE DIN)", countKey: "missingBoard" },
   { id: "any", label: "Any gap", countKey: "any" },
 ];
 
@@ -128,6 +134,9 @@ export function MissingDataPanel() {
   const fillableGaps = data?.rows.filter(
     (r) => r.missing?.price || r.missing?.mcap,
   ).length;
+  const mcapGapRows =
+    data?.rows.filter((r) => r.missing?.mcap).length ?? 0;
+  const totalMcapGaps = gaps?.missingMcap ?? 0;
   const sectorGapRows =
     data?.rows.filter((r) => r.missing?.sector || r.missing?.sub_sector)
       .length ?? 0;
@@ -177,6 +186,14 @@ export function MissingDataPanel() {
         onDone={() => load({ refresh: true })}
       />
 
+      <FillWebMcapButton
+        market={market}
+        tickers={pageTickers}
+        gapCount={mcapGapRows}
+        totalGaps={totalMcapGaps}
+        onDone={() => load({ refresh: true })}
+      />
+
       {gap === "sector" || gap === "sub_sector" ? (
         <FillSectorButton
           market={market}
@@ -221,11 +238,33 @@ export function MissingDataPanel() {
         <p className="hint tight missing-export-hint">
           Run in terminal (Ollama must be up):{" "}
           <code>npx tsx scripts/clean-scraped-about.ts</code>
-          {" · "}
-          test: <code>--limit 20</code>
-          {" · "}
-          one ticker: <code>--ticker GLAND</code>
+          {" · skips cleaned/attempted, parallel workers "}
+          <code>--concurrency 12</code>
+          {" · test: "}
+          <code>--limit 20</code>
+          {" · redo: "}
+          <code>--force</code>
+          {" · one ticker: "}
+          <code>--ticker GLAND --force</code>
         </p>
+      ) : null}
+
+      {gap === "board" ? (
+        <>
+          <GovernanceScanBar
+            market={market}
+            pageTickers={pageTickers}
+            onDone={() => load({ refresh: true })}
+          />
+          <MapGrowwDinButton onDone={() => load({ refresh: true })} />
+          <p className="hint tight missing-export-hint">
+            NSE filings give DIN boards. Groww only has CEO / MD (no DIN, no
+            full board). Mapping links a Groww name to an existing DIN director
+            only when the name is unique and distinctive — common names like
+            Amit Gupta are skipped. Download CSV for names still missing a DIN
+            board.
+          </p>
+        </>
       ) : null}
 
       <div className="toolbar">
@@ -272,7 +311,9 @@ export function MissingDataPanel() {
         <strong>website</strong>
         {gap.startsWith("scrape_")
           ? " · plus scrape_status and error"
-          : null}{" "}
+          : gap === "board"
+            ? " · plus market, scan_status, scan_detail"
+            : null}{" "}
         — all rows for the selected list and gap filter
         {data ? ` (${data.total.toLocaleString()} stocks)` : null}.
         Expand a row → <strong>Sector</strong> tab to set sector/sub-sector, or{" "}
