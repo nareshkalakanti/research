@@ -6,34 +6,37 @@ import {
   FundWatchlistTags,
 } from "@/components/FundWatchlistTags";
 import { ExpandBusiness } from "@/components/ExpandBusiness";
-import { ExpandInvestorMaterials } from "@/components/ExpandInvestorMaterials";
 import { ExpandExtraMetrics } from "@/components/ExpandExtraMetrics";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
 import type { Company } from "@/lib/types";
-import { scrapeHighlightsForRow, matchTagSource } from "@/lib/pattern";
+import { matchTagSource } from "@/lib/pattern";
 import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
-import { formatInr, formatMcap } from "@/lib/types";
+import { formatInr, formatMcap, formatMomPct, formatRsiM } from "@/lib/types";
+import { SecCell } from "@/components/SecCell";
 
 export type SortKey =
   | "name"
   | "price"
+  | "price_1y"
+  | "price_1m"
   | "sector"
   | "sub_sector"
   | "mcap_cr"
   | "momentum_pct"
-  | "momentum_rank";
+  | "momentum_rank"
+  | "rsi_m"
+  | "board_score"
+  | "board_dirs"
+  | "board_top";
 
 type ExpandPanel =
   | "about"
   | "sector"
-  | "website"
   | "notes"
-  | "qtr"
-  | "calls"
-  | "business";
+  | "qtr";
 
 type Props = {
   rows: Company[];
@@ -42,6 +45,13 @@ type Props = {
   onSort: (key: SortKey) => void;
   showMatched?: boolean;
   showMissing?: boolean;
+  /** Theme/Scan/Missing — 12m momentum column is Scan-only. */
+  showMomentum?: boolean;
+  /** Scan Board view — reputation score / dirs / flags / top director. */
+  showBoardRep?: boolean;
+  /** Allow deleting a stock from local DBs (Missing Data). */
+  allowDelete?: boolean;
+  onDeleteStock?: (ticker: string) => void | Promise<void>;
   /** @deprecated Cap tags no longer shown in results — filter still works via API. */
   capFilter?: string;
   /** Called after a note is saved/cleared so parent can refresh NOTE counts. */
@@ -65,6 +75,21 @@ function SortIcon({
   return <span className="sort-active">{dir === "asc" ? "↑" : "↓"}</span>;
 }
 
+/** Shorten ALL-CAPS DIN names for the Board column (full name in title). */
+function formatBoardDirectorName(name: string | null | undefined): string {
+  const raw = (name || "").trim();
+  if (!raw) return "—";
+  const parts = raw.split(/\s+/).filter(Boolean);
+  if (parts.length <= 2) {
+    return parts
+      .map((p) => p.charAt(0) + p.slice(1).toLowerCase())
+      .join(" ");
+  }
+  const first = parts[0]!;
+  const last = parts[parts.length - 1]!;
+  return `${first.charAt(0) + first.slice(1).toLowerCase()} ${last.charAt(0) + last.slice(1).toLowerCase()}`;
+}
+
 function SignalTags({ company }: { company: Company }) {
   return (
     <span className="result-tags">
@@ -81,6 +106,14 @@ function SignalTags({ company }: { company: Company }) {
       {company.has_edge ? (
         <span className="result-tag tag-edge" title="Early Edge watchlist">
           Edge
+        </span>
+      ) : null}
+      {company.has_quality ? (
+        <span
+          className="result-tag tag-quality"
+          title="Screener quality screen (growth + ROE/ROCE + low debt + OPM)"
+        >
+          Quality
         </span>
       ) : null}
       <FundWatchlistTags
@@ -141,6 +174,10 @@ export function CompanyTable({
   onSort,
   showMatched,
   showMissing,
+  showMomentum,
+  showBoardRep,
+  allowDelete,
+  onDeleteStock,
   onNoteChange,
   onScrapeDone,
   toolbar,
@@ -149,7 +186,87 @@ export function CompanyTable({
   const [more, setMore] = useState<Record<string, boolean>>({});
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
-  const colSpan = 6;
+  const colSpan = showBoardRep ? 9 : showMomentum ? 10 : 5;
+  const headers = useMemo(
+    () =>
+      (showBoardRep
+        ? [
+            { key: "name" as const, label: "Company", align: "left" as const },
+            { key: "sector" as const, label: "Sec", align: "left" as const },
+            { key: "mcap_cr" as const, label: "Mcap", align: "right" as const },
+            {
+              key: "board_score" as const,
+              label: "Score",
+              align: "right" as const,
+            },
+            {
+              key: "board_dirs" as const,
+              label: "Dirs",
+              align: "right" as const,
+            },
+            {
+              key: "board_top" as const,
+              label: "Director",
+              align: "left" as const,
+            },
+            { key: "price" as const, label: "LTP", align: "right" as const },
+          ]
+        : showMomentum
+          ? [
+              {
+                key: "momentum_rank" as const,
+                label: "Rank",
+                align: "left" as const,
+              },
+              { key: "name" as const, label: "Company", align: "left" as const },
+              { key: "sector" as const, label: "Sec", align: "left" as const },
+              {
+                key: "mcap_cr" as const,
+                label: "Mcap",
+                align: "right" as const,
+              },
+              { key: "price" as const, label: "LTP", align: "right" as const },
+              {
+                key: "price_1y" as const,
+                label: "1Y",
+                align: "right" as const,
+              },
+              {
+                key: "price_1m" as const,
+                label: "1M",
+                align: "right" as const,
+              },
+              {
+                key: "momentum_pct" as const,
+                label: "Mom",
+                align: "right" as const,
+              },
+              {
+                key: "rsi_m" as const,
+                label: "RSI M",
+                align: "right" as const,
+              },
+            ]
+          : [
+              { key: "name" as const, label: "Company", align: "left" as const },
+              { key: "sector" as const, label: "Sec", align: "left" as const },
+              {
+                key: "mcap_cr" as const,
+                label: "Mcap",
+                align: "right" as const,
+              },
+              {
+                key: "price" as const,
+                label: "Price",
+                align: "right" as const,
+              },
+            ]) satisfies Array<{
+        key: SortKey;
+        label: string;
+        align: "left" | "right";
+      }>,
+    [showMomentum, showBoardRep],
+  );
   const rowIdentity = useMemo(
     () => rows.map((r) => `${r.market}:${r.ticker}`).join("|"),
     [rows],
@@ -168,38 +285,47 @@ export function CompanyTable({
     setNoteFlags(next);
   }, [rowIdentity]);
 
-  const headers = useMemo(
-    () =>
-      [
-        { key: "name" as const, label: "Company", align: "left" as const },
-        { key: "price" as const, label: "Price", align: "right" as const },
-        { key: "sector" as const, label: "Sector", align: "left" as const },
-        {
-          key: "sub_sector" as const,
-          label: "Sub-sector",
-          align: "left" as const,
-        },
-        { key: "mcap_cr" as const, label: "Mcap", align: "right" as const },
-      ] satisfies Array<{
-        key: SortKey;
-        label: string;
-        align: "left" | "right";
-      }>,
-    [],
-  );
-
   return (
     <div className="table-card">
       {toolbar ? <div className="table-card-toolbar">{toolbar}</div> : null}
       <div className="table-wrap">
-        <table className="data-table">
+        <table
+          className={`data-table${showMomentum ? " data-table--mom" : ""}${showBoardRep ? " data-table--board" : ""}`}
+        >
           <colgroup>
-            <col className="col-name" />
-            <col className="col-price" />
-            <col className="col-sector" />
-            <col className="col-sub_sector" />
-            <col className="col-mcap_cr" />
-            <col className="col-links" />
+            {showBoardRep ? (
+              <>
+                <col className="col-name" />
+                <col className="col-sec" />
+                <col className="col-mcap_cr" />
+                <col className="col-board-score" />
+                <col className="col-board-dirs" />
+                <col className="col-board-top" />
+                <col className="col-price" />
+                <col className="col-links" />
+              </>
+            ) : showMomentum ? (
+              <>
+                <col className="col-rank" />
+                <col className="col-name" />
+                <col className="col-sec" />
+                <col className="col-mcap_cr" />
+                <col className="col-price" />
+                <col className="col-p1y" />
+                <col className="col-p1m" />
+                <col className="col-mom" />
+                <col className="col-rsi-m" />
+                <col className="col-links" />
+              </>
+            ) : (
+              <>
+                <col className="col-name" />
+                <col className="col-sec" />
+                <col className="col-mcap_cr" />
+                <col className="col-price" />
+                <col className="col-links" />
+              </>
+            )}
           </colgroup>
           <thead>
             <tr>
@@ -208,7 +334,25 @@ export function CompanyTable({
                   key={h.key}
                   className={[
                     h.align === "right" ? "num" : "",
-                    `col-${h.key}`,
+                    h.key === "sector"
+                      ? "col-sec"
+                      : h.key === "momentum_pct"
+                        ? "col-mom"
+                    : h.key === "momentum_rank"
+                      ? "col-rank"
+                          : h.key === "price_1y"
+                            ? "col-p1y"
+                            : h.key === "price_1m"
+                              ? "col-p1m"
+                              : h.key === "rsi_m"
+                                ? "col-rsi-m"
+                              : h.key === "board_score"
+                                ? "col-board-score"
+                                : h.key === "board_dirs"
+                                  ? "col-board-dirs"
+                                  : h.key === "board_top"
+                                    ? "col-board-top"
+                              : `col-${h.key}`,
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -216,6 +360,23 @@ export function CompanyTable({
                   <button
                     type="button"
                     className={`th-btn${h.align === "right" ? " th-btn--end" : ""}`}
+                    title={
+                      h.key === "momentum_pct"
+                        ? "Rounded 12−1 momentum (price 1m vs price 1y)"
+                        : h.key === "momentum_rank"
+                          ? "1 = highest rounded momentum in this list"
+                          : h.key === "rsi_m"
+                            ? "Monthly RSI(14). Green = 70–90 momentum zone; red = ≥90 stretched. Filter RSI M = new cross above 70"
+                          : h.key === "price_1y"
+                            ? "Price ~1 year ago"
+                            : h.key === "price_1m"
+                              ? "Price ~1 month ago"
+                              : h.key === "price" && showMomentum
+                                ? "Last traded price"
+                                : h.key === "mcap_cr"
+                                  ? "Market cap in ₹ crore"
+                                  : undefined
+                    }
                     onClick={() => onSort(h.key)}
                   >
                     {h.label}
@@ -246,6 +407,10 @@ export function CompanyTable({
                   showMore={!!more[`${r.ticker}:${open ? panel : "about"}`]}
                   showMatched={showMatched}
                   showMissing={showMissing}
+                  showMomentum={showMomentum}
+                  showBoardRep={showBoardRep}
+                  allowDelete={allowDelete}
+                  onDeleteStock={onDeleteStock}
                   colSpan={colSpan}
                   onToggleAbout={() => {
                     setExpanded(open ? null : r.ticker);
@@ -274,330 +439,6 @@ export function CompanyTable({
         </table>
       </div>
     </div>
-  );
-}
-
-function WebsiteScrapePanel({
-  company,
-  themeHighlights,
-  showMore,
-  editable,
-  onToggleMore,
-  onScrapeDone,
-  onUpdated,
-}: {
-  company: Company;
-  themeHighlights: string[];
-  showMore: boolean;
-  editable?: boolean;
-  onToggleMore: () => void;
-  onScrapeDone?: () => void;
-  onUpdated: (patch: {
-    scraped_about: string | null;
-    scrape_source_url: string | null;
-    scrape_highlights: string[];
-  }) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [webValue, setWebValue] = useState(company.website || "");
-  const [scrapeValue, setScrapeValue] = useState(company.scraped_about || "");
-  const [webSaving, setWebSaving] = useState(false);
-  const [scrapeSaving, setScrapeSaving] = useState(false);
-  const [webErr, setWebErr] = useState<string | null>(null);
-  const [scrapeErr, setScrapeErr] = useState<string | null>(null);
-  const [webSaved, setWebSaved] = useState<string | null>(null);
-  const [scrapeSaved, setScrapeSaved] = useState<string | null>(null);
-
-  useEffect(() => {
-    setWebValue(company.website || "");
-    setScrapeValue(company.scraped_about || "");
-    setWebErr(null);
-    setScrapeErr(null);
-  }, [company.ticker, company.website, company.scraped_about]);
-
-  const scraped = company.scraped_about?.trim() || "";
-  const scrapeHighlights = company.scrape_highlights ?? [];
-  const scrapedShort = scraped.length > 320 && !showMore;
-  const scrapedText = scrapedShort
-    ? `${scraped.slice(0, 320).trim()}…`
-    : scraped;
-  const canScrape = !!(company.web || company.website);
-
-  const runScrape = useCallback(async (rescan = false) => {
-    if (!canScrape || busy) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/about-scrape", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tickers: [company.ticker],
-          limit: 1,
-          rescan,
-          missingOnly: false,
-        }),
-      });
-      const raw = await res.text();
-      let json: {
-        ok?: boolean;
-        error?: string;
-        message?: string;
-        scraped_about?: string | null;
-        source_url?: string | null;
-      } = {};
-      try {
-        json = JSON.parse(raw) as typeof json;
-      } catch {
-        throw new Error(`Scrape failed (${res.status})`);
-      }
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || json.message || `Scrape failed (${res.status})`);
-      }
-      const text = json.scraped_about?.trim() || "";
-      const source = json.source_url?.trim() || company.scrape_source_url || null;
-      const scrapeHits = scrapeHighlightsForRow(text, themeHighlights);
-      onUpdated({
-        scraped_about: text || null,
-        scrape_source_url: source,
-        scrape_highlights: scrapeHits,
-      });
-      onScrapeDone?.();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Scrape failed");
-    } finally {
-      setBusy(false);
-    }
-  }, [busy, canScrape, company, onScrapeDone, onUpdated, themeHighlights]);
-
-  const saveField = useCallback(
-    async (action: "website" | "scraped_about", value: string) => {
-      const res = await fetch("/api/scrapper", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ticker: company.ticker,
-          name: company.name,
-          market: company.market,
-          action,
-          website: action === "website" ? value : undefined,
-          scraped_about: action === "scraped_about" ? value : undefined,
-        }),
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || "Save failed");
-      }
-    },
-    [company.market, company.name, company.ticker],
-  );
-
-  const saveWebsite = useCallback(async () => {
-    setWebSaving(true);
-    setWebErr(null);
-    setWebSaved(null);
-    try {
-      await saveField("website", webValue);
-      setWebSaved("Website saved");
-      onScrapeDone?.();
-    } catch (e) {
-      setWebErr(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setWebSaving(false);
-    }
-  }, [onScrapeDone, saveField, webValue]);
-
-  const saveScrapeText = useCallback(async () => {
-    setScrapeSaving(true);
-    setScrapeErr(null);
-    setScrapeSaved(null);
-    try {
-      await saveField("scraped_about", scrapeValue);
-      const text = scrapeValue.trim();
-      const scrapeHits = scrapeHighlightsForRow(text, themeHighlights);
-      onUpdated({
-        scraped_about: text || null,
-        scrape_source_url: company.scrape_source_url || company.web || null,
-        scrape_highlights: scrapeHits,
-      });
-      setScrapeSaved("Scrape text saved");
-      onScrapeDone?.();
-    } catch (e) {
-      setScrapeErr(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setScrapeSaving(false);
-    }
-  }, [
-    company.scrape_source_url,
-    company.web,
-    onScrapeDone,
-    onUpdated,
-    saveField,
-    scrapeValue,
-    themeHighlights,
-  ]);
-
-  return (
-    <>
-      {editable ? (
-        <div className="missing-edit-block">
-          <form
-            className="scrapper-web-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void saveWebsite();
-            }}
-          >
-            <label
-              className="scrapper-web-form-label"
-              htmlFor={`missing-web-${company.ticker}`}
-            >
-              Website URL
-            </label>
-            <input
-              id={`missing-web-${company.ticker}`}
-              className="scrapper-web-input"
-              value={webValue}
-              onChange={(e) => setWebValue(e.target.value)}
-              placeholder="https://example.com"
-              spellCheck={false}
-            />
-            <div className="scrapper-web-form-actions">
-              <button type="submit" className="btn-fill" disabled={webSaving}>
-                {webSaving ? "Saving…" : "Save URL"}
-              </button>
-              {webSaved ? (
-                <span className="missing-edit-ok">{webSaved}</span>
-              ) : null}
-            </div>
-            {webErr ? <p className="scrapper-form-err">{webErr}</p> : null}
-          </form>
-
-          <form
-            className="scrapper-about-form"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void saveScrapeText();
-            }}
-          >
-            <label
-              className="scrapper-web-form-label"
-              htmlFor={`missing-scrape-${company.ticker}`}
-            >
-              Website scrape text
-            </label>
-            <textarea
-              id={`missing-scrape-${company.ticker}`}
-              className="scrapper-about-input"
-              value={scrapeValue}
-              onChange={(e) => setScrapeValue(e.target.value)}
-              placeholder="Paste company about text from the website…"
-              rows={6}
-            />
-            <div className="scrapper-web-form-actions scrapper-about-form-actions">
-              <button type="submit" className="btn-fill" disabled={scrapeSaving}>
-                {scrapeSaving ? "Saving…" : "Save scrape"}
-              </button>
-              <span className="scrapper-about-hint">
-                Min 40 characters
-              </span>
-              {scrapeSaved ? (
-                <span className="missing-edit-ok">{scrapeSaved}</span>
-              ) : null}
-            </div>
-            {scrapeErr ? (
-              <p className="scrapper-form-err scrapper-about-form-err">
-                {scrapeErr}
-              </p>
-            ) : null}
-          </form>
-        </div>
-      ) : null}
-      {company.scrape_source_url || company.web ? (
-        <div className="about-meta">
-          <span className="about-meta-label">Source</span>
-          {company.scrape_source_url ? (
-            <a
-              href={company.scrape_source_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="about-source-link"
-            >
-              {company.scrape_source_url}
-            </a>
-          ) : company.web ? (
-            <a
-              href={company.web}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="about-source-link"
-            >
-              {company.web}
-            </a>
-          ) : null}
-        </div>
-      ) : null}
-      {scrapeHighlights.length > 0 ? (
-        <div className="matched-tags scrape-match-tags">
-          {scrapeHighlights.map((t) => (
-            <span key={t} className="tag tag-scrape-hit">
-              {t}
-            </span>
-          ))}
-        </div>
-      ) : null}
-      <div className="about-label">Website scrape</div>
-      {scraped ? (
-        <>
-          <p>
-            <HighlightedText
-              text={scrapedText}
-              keywords={scrapeHighlights}
-              source="scrape"
-            />
-          </p>
-          {scraped.length > 320 ? (
-            <button type="button" className="show-more" onClick={onToggleMore}>
-              {showMore ? "Show less" : "Show more"}
-            </button>
-          ) : null}
-          {canScrape ? (
-            <div className="website-scrape-actions">
-              <button
-                type="button"
-                className="show-more"
-                disabled={busy}
-                onClick={() => void runScrape(true)}
-              >
-                {busy ? "Scraping…" : "Re-scrape website"}
-              </button>
-            </div>
-          ) : null}
-        </>
-      ) : (
-        <>
-          <p className="hint tight">
-            {canScrape
-              ? "No website text scraped yet."
-              : "No website on file for this company."}
-          </p>
-          {canScrape ? (
-            <div className="website-scrape-actions">
-              <button
-                type="button"
-                className="btn-scrape-website"
-                disabled={busy}
-                onClick={() => void runScrape()}
-              >
-                {busy ? "Scraping…" : "Scrape website"}
-              </button>
-            </div>
-          ) : null}
-        </>
-      )}
-      {error ? <p className="hint tight website-scrape-error">{error}</p> : null}
-    </>
   );
 }
 
@@ -746,6 +587,88 @@ function SectorEditPanel({
   );
 }
 
+function MomTag({ value }: { value: number | null | undefined }) {
+  const label = formatMomPct(value);
+  if (value == null || Number.isNaN(value)) {
+    return <span className="mom-tag mom-tag--empty">—</span>;
+  }
+  const rounded = Math.round(value);
+  const tone = rounded > 0 ? "pos" : rounded < 0 ? "neg" : "flat";
+  return <span className={`mom-tag mom-tag--${tone}`}>{label}</span>;
+}
+
+/** Monthly RSI tag: good 70–85, excellent 85–90, overbought ≥90. */
+function RsiMTag({ value }: { value: number | null | undefined }) {
+  const label = formatRsiM(value);
+  if (value == null || Number.isNaN(value)) {
+    return <span className="mom-tag mom-tag--empty">—</span>;
+  }
+  const tone =
+    value >= 90
+      ? "rsi-hot"
+      : value >= 85
+        ? "rsi-great"
+        : value >= 70
+          ? "rsi-ok"
+          : "flat";
+  const title =
+    value >= 90
+      ? "Monthly RSI ≥ 90 — extended / overbought"
+      : value >= 85
+        ? "Monthly RSI 85–90 — excellent momentum window"
+        : value >= 70
+          ? "Monthly RSI 70–85 — constructive"
+          : "Monthly RSI below 70";
+  return (
+    <span className={`mom-tag mom-tag--${tone}`} title={title}>
+      {label}
+    </span>
+  );
+}
+
+function CompanyLinks({
+  web,
+  sc,
+  tv,
+}: {
+  web?: string | null;
+  sc: string;
+  tv: string;
+}) {
+  return (
+    <div className="link-row link-row--compact">
+      {web ? (
+        <a
+          href={web}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="link-chip"
+        >
+          Web
+        </a>
+      ) : (
+        <span className="link-chip disabled">Web</span>
+      )}
+      <a
+        href={sc}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="link-chip"
+      >
+        SC
+      </a>
+      <a
+        href={tv}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="link-chip"
+      >
+        TV
+      </a>
+    </div>
+  );
+}
+
 function CompanyRows({
   company: r,
   open,
@@ -753,6 +676,10 @@ function CompanyRows({
   showMore,
   showMatched,
   showMissing,
+  showMomentum,
+  showBoardRep,
+  allowDelete,
+  onDeleteStock,
   colSpan,
   onToggleAbout,
   onToggleMore,
@@ -766,6 +693,10 @@ function CompanyRows({
   showMore: boolean;
   showMatched?: boolean;
   showMissing?: boolean;
+  showMomentum?: boolean;
+  showBoardRep?: boolean;
+  allowDelete?: boolean;
+  onDeleteStock?: (ticker: string) => void | Promise<void>;
   colSpan: number;
   onToggleAbout: () => void;
   onToggleMore: () => void;
@@ -773,52 +704,24 @@ function CompanyRows({
   onNoteSaved: (body: string | null) => void;
   onScrapeDone?: () => void;
 }) {
-  const [scrapePatch, setScrapePatch] = useState<{
-    scraped_about: string | null;
-    scrape_source_url: string | null;
-    scrape_highlights: string[];
-  } | null>(null);
   const [sectorPatch, setSectorPatch] = useState<{
     sector: string;
     sub_sector: string;
   } | null>(null);
-  const [materialsRev, setMaterialsRev] = useState(0);
-
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => {
-    setScrapePatch(null);
     setSectorPatch(null);
-    setMaterialsRev(0);
-  }, [r.ticker, r.scraped_about, r.scrape_source_url, r.scrape_highlights, r.sector, r.sub_sector]);
-
-  const websiteCompany = useMemo(
-    () =>
-      scrapePatch
-        ? {
-            ...r,
-            scraped_about: scrapePatch.scraped_about,
-            scrape_source_url: scrapePatch.scrape_source_url,
-            scrape_highlights: scrapePatch.scrape_highlights,
-          }
-        : r,
-    [r, scrapePatch],
-  );
+  }, [r.ticker, r.sector, r.sub_sector]);
 
   const displaySector = sectorPatch?.sector ?? r.sector;
   const displaySubSector = sectorPatch?.sub_sector ?? r.sub_sector;
 
   const about = r.about?.trim() || "";
-  const scraped = websiteCompany.scraped_about?.trim() || "";
+  const scraped = r.scraped_about?.trim() || "";
   const highlights = r.highlights ?? [];
-  const scrapeHighlights = websiteCompany.scrape_highlights ?? [];
+  const scrapeHighlights = r.scrape_highlights ?? [];
   const short = about.length > 320 && !showMore;
   const text = short ? `${about.slice(0, 320).trim()}…` : about;
-  const preview =
-    about.length > 180 ? `${about.slice(0, 180).trim()}…` : about;
-
-  const matchHighlights = useMemo(
-    () => [...new Set([...highlights, ...scrapeHighlights])],
-    [highlights, scrapeHighlights],
-  );
 
   /** One chip per term: About (or both) → blue; scrape-only → orange. */
   const displayMatchTags = useMemo(() => {
@@ -853,8 +756,7 @@ function CompanyRows({
     r.market,
     r.price,
     quarterData,
-    open && panel === "business",
-    materialsRev,
+    open && panel === "about",
   );
 
   const matchWhy =
@@ -893,22 +795,29 @@ function CompanyRows({
   return (
     <>
       <tr className={open ? "row-open" : undefined}>
+        {showMomentum ? (
+          <td className="col-rank">
+            {r.momentum_rank != null ? r.momentum_rank : "—"}
+          </td>
+        ) : null}
         <td className="col-name">
           <button type="button" className="company-cell" onClick={onToggleAbout}>
             <span className="company-name">{r.name}</span>
-            <span className="company-meta">
-              <span className="ticker">{r.ticker}</span>
-              {r.headquarters ? (
-                <>
-                  <span className="meta-sep" aria-hidden>
-                    ·
-                  </span>
-                  <span className="hq-line" title="Headquarters">
-                    {r.headquarters}
-                  </span>
-                </>
-              ) : null}
-            </span>
+            {!open ? (
+              <span className="company-meta">
+                <span className="ticker">{r.ticker}</span>
+                {r.headquarters ? (
+                  <>
+                    <span className="meta-sep" aria-hidden>
+                      ·
+                    </span>
+                    <span className="hq-line" title="Headquarters">
+                      {r.headquarters}
+                    </span>
+                  </>
+                ) : null}
+              </span>
+            ) : null}
             <SignalTags company={r} />
           </button>
           {missingTags.length > 0 ? (
@@ -957,70 +866,122 @@ function CompanyRows({
               })}
             </div>
           ) : null}
-          {!open && about ? (
-            <button
-              type="button"
-              className="about-preview"
-              onClick={onToggleAbout}
-              title="Click to expand About"
-            >
-              <HighlightedText
-                text={preview}
-                keywords={highlights}
-                source="about"
-              />
-            </button>
-          ) : null}
         </td>
-        <td className="num col-price">
-          <button
-            type="button"
-            className="price-btn"
-            title="Click to show About / Notes"
-            onClick={onToggleAbout}
-          >
-            {formatInr(r.price)}
-          </button>
-        </td>
-        <td className="col-sector" title={displaySector || undefined}>
-          {displaySector || "—"}
-        </td>
-        <td className="col-sub_sector" title={displaySubSector || undefined}>
-          {displaySubSector || "—"}
-        </td>
-        <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
-        <td className="col-links">
-          <div className="link-row link-row--compact">
-            {r.web ? (
-              <a
-                href={r.web}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="link-chip"
+        {showBoardRep ? (
+          <>
+            <SecCell
+              className="cd-sec col-sec"
+              sector={displaySector}
+              subSector={displaySubSector}
+            />
+            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
+            <td className="num col-board-score" title="Best DIN-backed director score">
+              {r.board_score != null ? r.board_score.toFixed(1) : "—"}
+            </td>
+            <td className="num col-board-dirs" title="Qualifying directors on this board">
+              {r.board_dirs != null ? r.board_dirs : "—"}
+            </td>
+            <td className="col-board-top">
+              <span
+                className="board-top-name"
+                title={r.board_top || undefined}
               >
-                Web
-              </a>
-            ) : (
-              <span className="link-chip disabled">Web</span>
-            )}
-            <a
-              href={r.sc}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link-chip"
-            >
-              SC
-            </a>
-            <a
-              href={r.tv}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link-chip"
-            >
-              TV
-            </a>
-          </div>
-        </td>
+                {formatBoardDirectorName(r.board_top)}
+              </span>
+              <span className="board-flag-row">
+                {r.board_bridge ? (
+                  <span
+                    className="result-tag tag-scan-board"
+                    title="Cap bridge director"
+                  >
+                    Bridge
+                  </span>
+                ) : null}
+                {r.board_multi_lc ? (
+                  <span
+                    className="result-tag tag-scan-board"
+                    title="Multi large-cap director"
+                  >
+                    Multi-LC
+                  </span>
+                ) : null}
+                {r.board_sme_cross ? (
+                  <span
+                    className="result-tag tag-scan-board"
+                    title="SME ↔ mainboard director"
+                  >
+                    SME×
+                  </span>
+                ) : null}
+              </span>
+            </td>
+            <td className="num col-price">
+              <button
+                type="button"
+                className="price-btn"
+                title="Click to show About / Notes"
+                onClick={onToggleAbout}
+              >
+                {formatInr(r.price)}
+              </button>
+            </td>
+            <td className="col-links">
+              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
+            </td>
+          </>
+        ) : showMomentum ? (
+          <>
+            <SecCell
+              className="cd-sec col-sec"
+              sector={displaySector}
+              subSector={displaySubSector}
+            />
+            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
+            <td className="num col-price">
+              <button
+                type="button"
+                className="price-btn"
+                title="Click to show About / Notes"
+                onClick={onToggleAbout}
+              >
+                {formatInr(r.price)}
+              </button>
+            </td>
+            <td className="num col-p1y">{formatInr(r.price_1y)}</td>
+            <td className="num col-p1m">{formatInr(r.price_1m)}</td>
+            <td className="num col-mom">
+              <MomTag value={r.momentum_score ?? r.momentum_pct} />
+            </td>
+            <td className="num col-rsi-m">
+              <RsiMTag value={r.rsi_m} />
+            </td>
+            <td className="col-links">
+              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
+            </td>
+          </>
+        ) : (
+          <>
+            <SecCell
+              className="cd-sec col-sec"
+              sector={displaySector}
+              subSector={displaySubSector}
+            />
+            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
+            <td className="num col-price">
+              <button
+                type="button"
+                className="price-btn"
+                title="Click to show About / Notes"
+                onClick={onToggleAbout}
+              >
+                {formatInr(r.price)}
+              </button>
+            </td>
+            <td className="col-links">
+              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
+            </td>
+          </>
+        )}
       </tr>
       {open ? (
         <tr className="about-row">
@@ -1075,49 +1036,11 @@ function CompanyRows({
                 <button
                   type="button"
                   role="tab"
-                  aria-selected={panel === "website"}
-                  className={`about-tab ${panel === "website" ? "on" : ""}`}
-                  onClick={() => onPanel("website")}
-                >
-                  Website
-                  {scraped && scrapeHighlights.length > 0 ? (
-                    <em
-                      className="about-tab-dot about-tab-dot--scrape"
-                      title="Keyword match in scrape"
-                    />
-                  ) : scraped ? (
-                    <em
-                      className="about-tab-dot about-tab-dot--muted"
-                      title="Scraped"
-                    />
-                  ) : null}
-                </button>
-                <button
-                  type="button"
-                  role="tab"
                   aria-selected={panel === "qtr"}
                   className={`about-tab ${panel === "qtr" ? "on" : ""}`}
                   onClick={() => onPanel("qtr")}
                 >
                   Qtr
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={panel === "calls"}
-                  className={`about-tab ${panel === "calls" ? "on" : ""}`}
-                  onClick={() => onPanel("calls")}
-                >
-                  Calls
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={panel === "business"}
-                  className={`about-tab ${panel === "business" ? "on" : ""}`}
-                  onClick={() => onPanel("business")}
-                >
-                  Business
                 </button>
                 <button
                   type="button"
@@ -1129,18 +1052,33 @@ function CompanyRows({
                   Notes
                   {r.has_note ? <em className="about-tab-dot" /> : null}
                 </button>
+                {allowDelete && onDeleteStock ? (
+                  <button
+                    type="button"
+                    className="about-tab about-tab-delete"
+                    disabled={deleting}
+                    title="Remove this stock from local research databases"
+                    onClick={() => {
+                      if (
+                        !window.confirm(
+                          `Delete ${r.ticker} from local DBs? This cannot be undone.`,
+                        )
+                      ) {
+                        return;
+                      }
+                      setDeleting(true);
+                      void Promise.resolve(onDeleteStock(r.ticker)).finally(
+                        () => setDeleting(false),
+                      );
+                    }}
+                  >
+                    {deleting ? "Deleting…" : "Delete"}
+                  </button>
+                ) : null}
               </div>
 
               {panel === "qtr" ? (
                 <ExpandQuarters data={quarterData} price={r.price} />
-              ) : panel === "calls" ? (
-                <ExpandInvestorMaterials
-                  ticker={r.ticker}
-                  market={r.market}
-                  onMaterialsChange={() => setMaterialsRev((n) => n + 1)}
-                />
-              ) : panel === "business" ? (
-                <ExpandBusiness data={briefData} />
               ) : panel === "sector" ? (
                 <SectorEditPanel
                   company={{
@@ -1153,51 +1091,37 @@ function CompanyRows({
                     onScrapeDone?.();
                   }}
                 />
-              ) : panel === "website" ? (
-                <WebsiteScrapePanel
-                  company={websiteCompany}
-                  themeHighlights={matchHighlights}
-                  showMore={showMore}
-                  editable={showMissing}
-                  onToggleMore={onToggleMore}
-                  onScrapeDone={onScrapeDone}
-                  onUpdated={setScrapePatch}
-                />
               ) : panel === "about" ? (
                 <>
                   {r.headquarters ? (
                     <div className="about-meta">
-                      <span className="about-meta-label">HQ</span>
-                      <HighlightedText
-                        text={r.headquarters}
-                        keywords={highlights}
-                        source="about"
-                      />
+                      <span className="about-meta-label">Location</span>
+                      <span>{r.headquarters}</span>
                     </div>
                   ) : null}
-                  {r.ceo || r.managing_director || r.founded_year ? (
-                    <div className="about-meta">
-                      {r.ceo ? (
-                        <>
-                          <span className="about-meta-label">CEO</span>
-                          <span>{r.ceo}</span>
-                        </>
-                      ) : null}
-                      {r.managing_director ? (
-                        <>
-                          <span className="about-meta-label">MD</span>
-                          <span>{r.managing_director}</span>
-                        </>
-                      ) : null}
-                      {r.founded_year ? (
-                        <>
-                          <span className="about-meta-label">Founded</span>
-                          <span>{r.founded_year}</span>
-                        </>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  <div className="about-label">About</div>
+                  {(() => {
+                    const ceo = r.ceo?.trim() || "";
+                    const md = r.managing_director?.trim() || "";
+                    const leaderName = ceo || md;
+                    const leaderLabel = ceo ? "CEO" : "MD";
+                    if (!leaderName && !r.founded_year) return null;
+                    return (
+                      <div className="about-meta">
+                        {leaderName ? (
+                          <>
+                            <span className="about-meta-label">{leaderLabel}</span>
+                            <span>{leaderName}</span>
+                          </>
+                        ) : null}
+                        {r.founded_year ? (
+                          <>
+                            <span className="about-meta-label">Founded</span>
+                            <span>{r.founded_year}</span>
+                          </>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
                   {highlights.length > 0 ? (
                     <div className="matched-tags about-match-tags">
                       {highlights.map((t) => (
@@ -1208,16 +1132,19 @@ function CompanyRows({
                     </div>
                   ) : null}
                   {text ? (
-                    <p>
-                      <HighlightedText
-                        text={text}
-                        keywords={highlights}
-                        source="about"
-                      />
-                    </p>
-                  ) : (
+                    <>
+                      <div className="about-label">About</div>
+                      <p>
+                        <HighlightedText
+                          text={text}
+                          keywords={highlights}
+                          source="about"
+                        />
+                      </p>
+                    </>
+                  ) : !briefData.brief && !briefData.loading ? (
                     <p>No about text available.</p>
-                  )}
+                  ) : null}
                   {about.length > 320 ? (
                     <button
                       type="button"
@@ -1227,6 +1154,7 @@ function CompanyRows({
                       {showMore ? "Show less" : "Show more"}
                     </button>
                   ) : null}
+                  <ExpandBusiness data={briefData} />
                 </>
               ) : (
                 <NotesPanel ticker={r.ticker} onSaved={onNoteSaved} />

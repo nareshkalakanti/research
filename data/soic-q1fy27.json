@@ -1,0 +1,502 @@
+[
+  {
+    "ticker": "TVSMOTOR",
+    "name": "TVS Motor Company Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "ATHERENERG",
+    "name": "Ather Energy Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "LUMAXTECH",
+    "name": "Lumax Auto Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "ASKAUTOLTD",
+    "name": "ASK Automotive Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "PRICOLLTD",
+    "name": "Pricol Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SJS",
+    "name": "S.J.S. Enterprises Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SSWL",
+    "name": "Steel Strips Wheels Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "DIVGIITTS",
+    "name": "Divgi Torqtransfer Systems Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "DIVISLAB",
+    "name": "Divi's Laboratories Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "LAURUSLABS",
+    "name": "Laurus Labs Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "GLAND",
+    "name": "Gland Pharma Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "EMCURE",
+    "name": "Emcure Pharmaceuticals Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "NEULANDLAB",
+    "name": "Neuland Laboratories Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "ACUTAAS",
+    "name": "Acutaas Chemicals Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "ONESOURCE",
+    "name": "Onesource Specialty Pharma Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SHILPAMED",
+    "name": "Shilpa Medicare Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "CONCORDBIO",
+    "name": "Concord Biotech Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "AARTIPHARM",
+    "name": "Aarti Pharmalabs Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "INNOVACAP",
+    "name": "Innova Captab Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "MOREPENLAB",
+    "name": "Morepen Laboratories Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "NAVINFLUOR",
+    "name": "Navin Fluorine International Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "AETHER",
+    "name": "Aether Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "DEEPAKFERT",
+    "name": "Deepak Fertilizers and Petrochemicals Corporation Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "NEOGEN",
+    "name": "Neogen Chemicals Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "YASHO",
+    "name": "Yasho Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "ELLEN",
+    "name": "Ellenbarrie Industrial Gases Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "RADICO",
+    "name": "Radico Khaitan Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "HONASA",
+    "name": "Honasa Consumer Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "TI",
+    "name": "Tilaknagar Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SAREGAMA",
+    "name": "Saregama India Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "BECTORFOOD",
+    "name": "Mrs. Bectors Food Specialities Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "HNDFDS",
+    "name": "Hindustan Foods Ltd.",
+    "market": "NSE"
+  },
+  {
+    "ticker": "STYLAMIND",
+    "name": "Stylam Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "TCPLPACK",
+    "name": "TCPL Packaging Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "HFCL",
+    "name": "HFCL Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "STLTECH",
+    "name": "Sterlite Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "TDPOWERSYS",
+    "name": "TD Power Systems Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "MTARTECH",
+    "name": "Mtar Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "E2E",
+    "name": "E2E Networks Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "AEROFLEX",
+    "name": "Aeroflex Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SYRMA",
+    "name": "Syrma SGS Technology Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "TIIL",
+    "name": "Technocraft Industries (India) Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "CYIENTDLM",
+    "name": "Cyient DLM Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "RAMRAT",
+    "name": "Ram Ratna Wires Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "MACPOWER",
+    "name": "Macpower CNC Machines Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "BSE",
+    "name": "BSE Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "GROWW",
+    "name": "Billionbrains Garage Ventures Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "MCX",
+    "name": "Multi Commodity Exchange of India Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "360ONE",
+    "name": "360 ONE WAM LIMITED",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SONACOMS",
+    "name": "Sona BLW Precision Forgings Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "HAPPYFORGE",
+    "name": "Happy Forgings Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "RKFORGE",
+    "name": "Ramkrishna Forgings Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "STEELCAS",
+    "name": "Steelcast Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "MMFL",
+    "name": "MM Forgings Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "APOLLOHOSP",
+    "name": "Apollo Hospitals Enterprise Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "VIJAYA",
+    "name": "Vijaya Diagnostic Centre Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "PARKHOSPS",
+    "name": "Park Medi World Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "HCG",
+    "name": "Healthcare Global Enterprises Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "THYROCARE",
+    "name": "Thyrocare Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "ARTEMISMED",
+    "name": "Artemis Medicare Services Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "PAYTM",
+    "name": "One 97 Communications Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "COFORGE",
+    "name": "Coforge Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "TATATECH",
+    "name": "Tata Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "PWL",
+    "name": "Physicswallah Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SHADOWFAX",
+    "name": "Shadowfax Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "CARTRADE",
+    "name": "Cartrade Tech Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "RATEGAIN",
+    "name": "Rategain Travel Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "TITAN",
+    "name": "Titan Company Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "KALYANKJIL",
+    "name": "Kalyan Jewellers India Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SKYGOLD",
+    "name": "SKY GOLD AND DIAMONDS LIMITED",
+    "market": "NSE"
+  },
+  {
+    "ticker": "GOLDIAM",
+    "name": "Goldiam International Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "PNGSREVA",
+    "name": "PNGS Reva Diamond Jewellery Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "HINDZINC",
+    "name": "Hindustan Zinc Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "LLOYDSME",
+    "name": "Lloyds Metals And Energy Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "USHAMART",
+    "name": "Usha Martin Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "JAYNECOIND",
+    "name": "Jayaswal Neco Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "IMFA",
+    "name": "Indian Metals & Ferro Alloys Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "GRWRHITECH",
+    "name": "Garware Hi-Tech Films Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "PRIVISCL",
+    "name": "Privi Speciality Chemicals Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "MANORAMA",
+    "name": "Manorama Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "POWERINDIA",
+    "name": "Hitachi Energy India Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "APARINDS",
+    "name": "Apar Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "KEI",
+    "name": "KEI Industries Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "RRKABEL",
+    "name": "R R Kabel Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "ATLANTAELE",
+    "name": "Atlanta Electricals Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "QPOWER",
+    "name": "Quality Power Electrical Equipments Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "KSHINTL",
+    "name": "KSH International Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "UNIVCABLES",
+    "name": "Universal Cables Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "MSUMI",
+    "name": "Motherson Sumi Wiring India Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SANSERA",
+    "name": "Sansera Engineering Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "AZAD",
+    "name": "Azad Engineering Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "DYNAMATECH",
+    "name": "Dynamatic Technologies Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "OMNI",
+    "name": "Omnitech Engineering Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SBCL",
+    "name": "Shivalik Bimetal Controls Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "KDDL",
+    "name": "KDDL Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "NRBBEARING",
+    "name": "NRB Bearing Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "UNIPARTS",
+    "name": "Uniparts India Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "WELCORP",
+    "name": "Welspun Corp Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "DEEDEV",
+    "name": "DEE Development Engineers Limited",
+    "market": "NSE"
+  },
+  {
+    "ticker": "SAMBHV",
+    "name": "Sambhv Steel Tubes Limited",
+    "market": "NSE"
+  }
+]

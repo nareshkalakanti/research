@@ -59,11 +59,6 @@ export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
         <div className="q-block-head">
           <div className="q-block-title">Quarterly · Rs Cr</div>
           <div className="q-block-meta">
-            {price != null && price > 0 ? (
-              <span className="q-ltp" title="Last traded price">
-                LTP ₹{price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-              </span>
-            ) : null}
             {overall ? (
               <span
                 className={`q-overall-trend q-overall-trend--${overall.signal.toLowerCase()}`}

@@ -63,7 +63,7 @@ export function ExpandConcallDrift({ data, drift, price }: Props) {
           </p>
         ) : null}
         <p className="concall-meta">
-          Download concall / PPT on the <strong>Calls</strong> tab, then reopen{" "}
+          Download concall / PPT on the <strong>Con-calls</strong> tab, then reopen{" "}
           <strong>Concall</strong>.
         </p>
       </div>
@@ -149,7 +149,7 @@ export function ExpandConcallDrift({ data, drift, price }: Props) {
           <p className="concall-meta">
             {review.has_transcript
               ? "No per-filing breakdown returned — see headline below."
-              : "No extractable text from filings — import concall/PPT on Calls tab."}
+              : "No extractable text from filings — import concall/PPT on Con-calls tab."}
           </p>
         )}
       </section>
@@ -190,7 +190,7 @@ export function ExpandConcallDrift({ data, drift, price }: Props) {
             </table>
           </div>
           <p className="concall-meta">
-            Baseline ₹{drift.baseline_close?.toLocaleString("en-IN") ?? "—"} → CMP ₹
+            Close before concall filing ₹{drift.baseline_close?.toLocaleString("en-IN") ?? "—"} → CMP ₹
             {price?.toLocaleString("en-IN") ?? "—"} ·{" "}
             <span className={up ? "strategy-drift-up" : "strategy-drift-down"}>
               {fmtDrift(drift.drift_pct)}

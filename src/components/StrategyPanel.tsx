@@ -12,6 +12,8 @@ import {
   defaultCustomDates,
   type ConcallDriftDatePreset,
   type ConcallDriftSort,
+  type ConcallDriftSortCounts,
+  type ConcallDriftWindowCounts,
 } from "@/components/ConcallDriftFilterBar";
 import { recentFyQuarterOptions, currentEarnSeasonQuarter } from "@/lib/strategy/concall-drift-quarters";
 import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
@@ -27,9 +29,12 @@ type ApiResponse = {
   pending: number;
   quarters?: string[];
   sectors?: string[];
+  sub_sectors?: string[];
   mcap_bounds?: { min: number; max: number };
   total_events?: number;
   with_baseline?: number;
+  window_counts?: ConcallDriftWindowCounts;
+  sort_counts?: ConcallDriftSortCounts;
   scan_progress?: { pending: number; scanned: number; universe: number };
   nse_feed?: NseFeedStatus;
   rows: StrategyConcallDriftRowData[];
@@ -236,7 +241,7 @@ function StrategyScanBar({
       <div className="filter-bar-main strategy-scan-actions">
         <button
           type="button"
-          className={`chip chip-scan ${scanBusy ? "busy" : ""}`}
+          className={`chip chip-scan tag-chip ${scanBusy ? "busy on" : ""}`}
           disabled={scanBusy || busy || !ready}
           title="Pull companies that filed results or a concall on NSE (last 7 days)"
           onClick={() => void run()}
@@ -277,6 +282,7 @@ export function StrategyPanel() {
   const [customFrom, setCustomFrom] = useState(DEFAULT_CUSTOM.from);
   const [customTo, setCustomTo] = useState(DEFAULT_CUSTOM.to);
   const [sector, setSector] = useState("");
+  const [subSector, setSubSector] = useState("");
   const [mcapMin, setMcapMin] = useState<number | null>(null);
   const [mcapMax, setMcapMax] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -310,6 +316,7 @@ export function StrategyPanel() {
       params.set("sort", driftSort);
       if (search.trim()) params.set("q", search.trim());
       if (sector) params.set("sector", sector);
+      if (subSector) params.set("subSector", subSector);
       if (datePreset === "custom") {
         if (customFrom) params.set("from", customFrom);
         if (customTo) params.set("to", customTo);
@@ -341,6 +348,7 @@ export function StrategyPanel() {
     driftSort,
     search,
     sector,
+    subSector,
     customFrom,
     customTo,
     mcapMin,
@@ -366,26 +374,8 @@ export function StrategyPanel() {
   const dataReady = data?.kind === KIND && !loading;
 
   return (
-    <div className="panel strategy-panel">
-      <div className="missing-head">
-        <div>
-          <div className="missing-head-title-row">
-            <h2>Concall</h2>
-            <LiveNseFeedBadge status={data?.nse_feed} />
-          </div>
-          <p className="missing-sub">
-            NSE-filed results and concalls — drift from prior close to CMP
-            {data ? (
-              <> · <strong>{rows.length.toLocaleString()}</strong> shown</>
-            ) : null}
-          </p>
-        </div>
-        <div className="missing-head-actions">
-          <RefreshButton busy={loading} onRefresh={() => void load({ refresh: true })} />
-        </div>
-      </div>
-
-      <div className="toolbar strategy-toolbar">
+    <div className="panel scan-panel strategy-panel">
+      <div className="toolbar">
         <label className="field">
           <span>List</span>
           <select value={market} onChange={(e) => setMarket(e.target.value)}>
@@ -395,7 +385,23 @@ export function StrategyPanel() {
             <option value="BSE SME">BSE SME</option>
           </select>
         </label>
+        <div className="toolbar-actions">
+          <LiveNseFeedBadge status={data?.nse_feed} />
+          <RefreshButton busy={loading} onRefresh={() => void load({ refresh: true })} />
+        </div>
       </div>
+
+      <p className="hint tight concall-panel-lead">
+        Post-concall announcement drift — last close before the NSE concall filing,
+        to CMP
+        {data ? (
+          <>
+            {" "}
+            · <strong>{rows.length.toLocaleString()}</strong> shown
+          </>
+        ) : null}
+        . Early movers: <strong>Early</strong> + <strong>↑ Gainers</strong>.
+      </p>
 
       <ConcallDriftFilterBar
         sort={driftSort}
@@ -412,6 +418,9 @@ export function StrategyPanel() {
         sector={sector}
         onSector={setSector}
         sectors={data?.sectors ?? []}
+        subSector={subSector}
+        onSubSector={setSubSector}
+        subSectors={data?.sub_sectors ?? []}
         mcapMin={mcapMin}
         mcapMax={mcapMax}
         onMcapMin={setMcapMin}
@@ -421,22 +430,47 @@ export function StrategyPanel() {
         onSearch={setSearch}
         withBaseline={data?.with_baseline}
         totalEvents={data?.total_events}
+        windowCounts={data?.window_counts}
+        sortCounts={data?.sort_counts}
+        loading={loading}
+        onClear={() => {
+          setDriftSort("all");
+          setDatePreset("");
+          setQuarter("");
+          setSector("");
+          setSubSector("");
+          setSearch("");
+          setMcapMin(null);
+          setMcapMax(null);
+          const defaults = defaultCustomDates();
+          setCustomFrom(defaults.from);
+          setCustomTo(defaults.to);
+        }}
         nseFeed={data?.nse_feed}
       />
 
-      <StrategyScanBar
-        market={market}
-        busy={loading}
-        ready={dataReady}
-        onRefresh={load}
-      />
+      <div className="scan-filter-stack concall-scan-stack">
+        <div className="scan-filter-row">
+          <span className="scan-filter-label">Scan</span>
+          <StrategyScanBar
+            market={market}
+            busy={loading}
+            ready={dataReady}
+            onRefresh={load}
+          />
+        </div>
+      </div>
 
       <p className="hint tight">
-        <strong>Get announced</strong> pulls companies that just filed results or a concall
-        on NSE (last 7 days) — not the whole universe. Expand a row for Qtr, Documents, and Highlights.
+        <strong>Get announced</strong> pulls companies that just filed results or a
+        concall on NSE (last 7 days). Expand a row for Qtr, Con-calls, and Highlights.
       </p>
 
-      {loading && !data ? <div className="loading">Loading…</div> : null}
+      {loading ? (
+        <div className="loading" aria-live="polite">
+          {data ? "Updating…" : "Loading…"}
+        </div>
+      ) : null}
 
       {loadError ? (
         <div className="empty-state empty-state-error">{loadError}</div>
@@ -462,13 +496,29 @@ export function StrategyPanel() {
         <div className="table-card strategy-table-card">
           <div className="table-wrap">
             <table className="data-table strategy-data-table cd-board">
+              <colgroup>
+                <col className="cd-col-idx" />
+                <col className="cd-col-co" />
+                <col className="cd-col-date" />
+                <col className="cd-col-mcap" />
+                <col className="cd-col-sec" />
+                <col className="cd-col-ltp" />
+                <col className="cd-col-drift" />
+                <col className="cd-col-links" />
+              </colgroup>
               <thead>
                 <tr>
                   <th className="cd-idx-h">#</th>
                   <th>Company</th>
                   <th className="cd-date-h">Date</th>
+                  <th className="num" title="Market cap in ₹ crore">
+                    Mcap
+                  </th>
+                  <th>Sec</th>
                   <th className="num">LTP</th>
-                  <th className="num">Drift</th>
+                  <th className="num" title="LTP vs last close before concall announcement">
+                    Δ call
+                  </th>
                   <th className="col-links">Links</th>
                 </tr>
               </thead>

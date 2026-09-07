@@ -4,6 +4,7 @@ import {
   type PanelYoY,
   type QuarterPanel,
 } from "./quarter-panel";
+import { classifyOpmConsistency } from "./opm-math";
 
 export type QtrTrendSignal = "Growing" | "Inconsistent" | "Declining";
 
@@ -61,6 +62,18 @@ export function trendLabelForRow(row: {
   const first = nums[0]!;
   const last = nums[nums.length - 1]!;
   const { up, down } = sequentialMoves(row.values);
+
+  if (row.label === "OPM %" || row.label.startsWith("OPM")) {
+    const signal = classifyOpmConsistency(row.values);
+    if (!signal) return null;
+    const tone =
+      signal === "Stable" || signal === "Expanding"
+        ? "good"
+        : signal === "Compressing"
+          ? "bad"
+          : "neutral";
+    return { text: signal, tone };
+  }
 
   if (row.good_up) {
     if (last > first && up >= down) return { text: "Growing", tone: "good" };

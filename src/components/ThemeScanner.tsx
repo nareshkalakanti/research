@@ -5,9 +5,8 @@ import {
   type CapFilter,
 } from "@/components/CapMarketFilters";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
-import { FillMissingButton } from "@/components/FillMissingButton";
 import { RefreshButton } from "@/components/RefreshButton";
-import { WatchlistFilterBar } from "@/components/WatchlistFilterBar";
+import { WatchlistFilterBar, FundsFilterBar } from "@/components/WatchlistFilterBar";
 import { SavedSearchesBar } from "@/components/SavedSearchesBar";
 import { ThemeTokenBar } from "@/components/ThemeTokenBar";
 import type { Company } from "@/lib/types";
@@ -40,6 +39,7 @@ type ScanApi = {
   scanPattern: string | null;
   markets: Record<string, number>;
   sectors?: string[];
+  sub_sectors?: string[];
   gaps?: {
     missingPrice?: number;
     missingMcap?: number;
@@ -72,6 +72,7 @@ export function ThemeScanner() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [filterQuality, setFilterQuality] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
     setFundFilters((prev) => ({ ...prev, [key]: on }));
@@ -79,6 +80,7 @@ export function ThemeScanner() {
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
+  const [subSector, setSubSector] = useState("All");
   const [mode, setMode] = useState<"AND" | "OR">("OR");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [page, setPage] = useState(1);
@@ -183,20 +185,26 @@ export function ThemeScanner() {
     hold: 0,
     distress: 0,
     edge: 0,
+    quality: 0,
     sme: 0,
     note: 0,
+    NC: 0,
+    TI: 0,
+    MIC: 0,
+    SC: 0,
+    MC: 0,
+    LC: 0,
     ...Object.fromEntries(FUND_WATCHLIST_KEYS.map((k) => [k, 0])),
   });
 
   useEffect(() => {
-    const ac = new AbortController();
+    let cancelled = false;
     void fetch(
       `/api/companies?market=${encodeURIComponent(market)}&pageSize=1`,
-      { signal: ac.signal },
     )
       .then(async (r) => {
         const raw = await r.text();
-        if (!raw.trim() || !r.ok) return null;
+        if (cancelled || !raw.trim() || !r.ok) return null;
         try {
           return JSON.parse(raw) as {
             markets: Record<string, number>;
@@ -213,7 +221,7 @@ export function ThemeScanner() {
         }
       })
       .then((j) => {
-        if (!j) return;
+        if (cancelled || !j) return;
         setMarkets(j.markets ?? {});
         if (j.signals) {
           setSignalCounts({
@@ -222,6 +230,12 @@ export function ThemeScanner() {
             edge: j.signals.edge ?? 0,
             sme: j.signals.sme ?? 0,
             note: j.signals.note ?? 0,
+            NC: j.signals.NC ?? 0,
+            TI: j.signals.TI ?? 0,
+            MIC: j.signals.MIC ?? 0,
+            SC: j.signals.SC ?? 0,
+            MC: j.signals.MC ?? 0,
+            LC: j.signals.LC ?? 0,
             ...Object.fromEntries(
               FUND_WATCHLIST_KEYS.map((k) => [k, j.signals?.[k] ?? 0]),
             ),
@@ -229,10 +243,12 @@ export function ThemeScanner() {
         }
       })
       .catch((err) => {
-        if (ac.signal.aborted) return;
+        if (cancelled) return;
         console.warn("[ThemeScanner] market counts load failed:", err);
       });
-    return () => ac.abort();
+    return () => {
+      cancelled = true;
+    };
   }, [market]);
 
   useEffect(() => {
@@ -247,7 +263,7 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [ask, debouncedCustom, market, cap, sector, mode, debouncedQ, filterHold, filterEdge, fundFilters, filterSme, filterNote]);
+  }, [ask, debouncedCustom, market, cap, sector, subSector, mode, debouncedQ, filterHold, filterEdge, filterQuality, fundFilters, filterSme, filterNote]);
 
   const themeActive = debouncedCustom.trim().length > 0 && !ask.trim();
   const askActive = ask.trim().length > 0;
@@ -310,6 +326,7 @@ export function ThemeScanner() {
         dir,
         mode,
         sector,
+        sub_sector: subSector,
       });
       if (themeActive) {
         params.set("scan", "1");
@@ -325,6 +342,7 @@ export function ThemeScanner() {
       }
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
+      if (filterQuality) params.set("quality", "1");
       appendFundParams(params, fundFilters);
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
@@ -393,6 +411,12 @@ export function ThemeScanner() {
             edge: json.signals.edge ?? 0,
             sme: json.signals.sme ?? 0,
             note: json.signals.note ?? 0,
+            NC: json.signals.NC ?? 0,
+            TI: json.signals.TI ?? 0,
+            MIC: json.signals.MIC ?? 0,
+            SC: json.signals.SC ?? 0,
+            MC: json.signals.MC ?? 0,
+            LC: json.signals.LC ?? 0,
             ...Object.fromEntries(
               FUND_WATCHLIST_KEYS.map((k) => [k, json.signals?.[k] ?? 0]),
             ),
@@ -417,12 +441,15 @@ export function ThemeScanner() {
       listMarket,
       cap,
       sector,
+      subSector,
       mode,
       filterHold,
       filterEdge,
+     
+      filterQuality,
       fundFilters,
       filterSme,
-      filterNote,
+            filterNote,
       page,
       sort,
       dir,
@@ -461,7 +488,11 @@ export function ThemeScanner() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
+      setDir(
+        key === "price" || key === "mcap_cr" || key === "momentum_pct"
+          ? "desc"
+          : "asc",
+      );
     }
   }
 
@@ -476,7 +507,7 @@ export function ThemeScanner() {
     <div className="panel">
       <div className="scanner-hero">
         <div>
-          <h2>Theme Scanner</h2>
+          <h2>Theme</h2>
           <p>
             Type keywords to filter the list, or Ask model to search About,
             scrapes, and the stock database.
@@ -493,17 +524,6 @@ export function ThemeScanner() {
                 });
               await hardReload();
             }}
-          />
-          <FillMissingButton
-            variant="inline"
-            market={listMarket}
-            tickers={(data?.rows ?? []).map((r) => r.ticker)}
-            gapCount={
-              (data?.rows ?? []).filter((r) => r.price == null || r.mcap_cr == null)
-                .length
-            }
-            totalGaps={data?.gaps?.metrics ?? 0}
-            onDone={softReload}
           />
         </div>
       </div>
@@ -690,32 +710,57 @@ export function ThemeScanner() {
         </div>
       ) : null}
 
-      <div className="filters filters-compact">
-        <WatchlistFilterBar
-          cap={cap}
-          onCap={setCap}
-          hold={filterHold}
-          edge={filterEdge}
-          funds={fundFilters}
-          onFund={setFund}
-          sme={filterSme}
-          note={filterNote}
-          onHold={setFilterHold}
-          onEdge={setFilterEdge}
-          onSme={setFilterSme}
-          onNote={setFilterNote}
-          holdCount={data?.signals?.hold ?? signalCounts.hold}
-          distressCount={data?.signals?.distress ?? signalCounts.distress}
-          edgeCount={data?.signals?.edge ?? signalCounts.edge}
-          fundCounts={Object.fromEntries(
-            FUND_WATCHLIST_KEYS.map((k) => [
-              k,
-              data?.signals?.[k] ?? signalCounts[k] ?? 0,
-            ]),
-          ) as FundCountState}
-          smeCount={data?.signals?.sme ?? signalCounts.sme}
-          noteCount={data?.signals?.note ?? signalCounts.note}
-        />
+      <div className="scan-filter-stack theme-filter-stack">
+        <div className="scan-filter-row">
+          <span className="scan-filter-label">Lists</span>
+          <WatchlistFilterBar
+            cap={cap}
+            onCap={setCap}
+            sme={filterSme}
+            note={filterNote}
+            onSme={setFilterSme}
+            onNote={setFilterNote}
+            smeCount={data?.signals?.sme ?? signalCounts.sme}
+            noteCount={data?.signals?.note ?? signalCounts.note}
+            allCount={
+              data?.total ??
+              Object.values(markets).reduce((a, b) => a + b, 0)
+            }
+            capCounts={{
+              NC: data?.signals?.NC ?? signalCounts.NC,
+              TI: data?.signals?.TI ?? signalCounts.TI,
+              MIC: data?.signals?.MIC ?? signalCounts.MIC,
+              SC: data?.signals?.SC ?? signalCounts.SC,
+              MC: data?.signals?.MC ?? signalCounts.MC,
+              LC: data?.signals?.LC ?? signalCounts.LC,
+            }}
+          />
+        </div>
+        <div className="scan-filter-row">
+          <span className="scan-filter-label">Funds</span>
+          <FundsFilterBar
+            hold={filterHold}
+            edge={filterEdge}
+            quality={filterQuality}
+            onHold={setFilterHold}
+            onEdge={setFilterEdge}
+            onQuality={setFilterQuality}
+            holdCount={data?.signals?.hold ?? signalCounts.hold}
+            distressCount={data?.signals?.distress ?? signalCounts.distress}
+            edgeCount={data?.signals?.edge ?? signalCounts.edge}
+            qualityCount={data?.signals?.quality ?? signalCounts.quality}
+            funds={fundFilters}
+            onFund={setFund}
+            fundCounts={
+              Object.fromEntries(
+                FUND_WATCHLIST_KEYS.map((k) => [
+                  k,
+                  data?.signals?.[k] ?? signalCounts[k] ?? 0,
+                ]),
+              ) as FundCountState
+            }
+          />
+        </div>
       </div>
 
       {loadError && !progress ? (
@@ -738,6 +783,17 @@ export function ThemeScanner() {
               <select value={sector} onChange={(e) => setSector(e.target.value)}>
                 <option value="All">All sectors</option>
                 {(data?.sectors ?? []).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field sector-field sector-field--table">
+              <span>Sub-sector</span>
+              <select value={subSector} onChange={(e) => setSubSector(e.target.value)}>
+                <option value="All">All sub-sectors</option>
+                {(data?.sub_sectors ?? []).map((s) => (
                   <option key={s} value={s}>
                     {s}
                   </option>

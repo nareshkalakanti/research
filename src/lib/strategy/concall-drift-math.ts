@@ -1,4 +1,4 @@
-/** Post-earn drift math — price and baseline must be from the same board. */
+/** Post-concall-announcement drift — price and baseline must be from the same board. */
 
 export function computeDriftPct(
   ltp: number | null | undefined,
@@ -24,13 +24,27 @@ export function priceBaselineConsistent(
 
 export function baselineCloseBefore(
   bars: Array<{ date: string; close: number }>,
-  earnAt: string,
+  eventAt: string,
 ): number | null {
-  const earnDay = earnAt.slice(0, 10);
+  const eventDay = eventAt.slice(0, 10);
   let last: number | null = null;
   for (const bar of bars) {
-    if (bar.date.slice(0, 10) < earnDay) last = bar.close;
+    if (bar.date.slice(0, 10) < eventDay) last = bar.close;
     else break;
   }
   return last;
+}
+
+/**
+ * Last close before the NSE concall/meet *announcement* day.
+ * Ignores intimations filed before the results day (not post-call).
+ */
+export function concallAnnouncementBaseline(
+  bars: Array<{ date: string; close: number }>,
+  concallAt: string | null | undefined,
+  earnAt: string,
+): number | null {
+  if (!concallAt) return null;
+  if (concallAt.slice(0, 10) < earnAt.slice(0, 10)) return null;
+  return baselineCloseBefore(bars, concallAt);
 }

@@ -279,9 +279,15 @@ async function growwCompanyData(
     const nse = str(rec.nse_scrip_code).toUpperCase();
     const bse = str(rec.bse_scrip_code).toUpperCase();
     const title = str(rec.title) || str(rec.company_short_name);
-    if (nse === symbol.toUpperCase() || bse === symbol.toUpperCase()) {
+    const searchId = str(rec.search_id) || str(rec.id);
+    const sym = symbol.toUpperCase();
+    if (nse === sym || bse === sym) {
       exact.push(rec);
-    } else if (namesMatch(companyName, title)) {
+    } else if (
+      namesMatch(companyName, title) ||
+      searchId.toLowerCase().includes(sym.toLowerCase()) ||
+      title.toUpperCase().split(/\s+/)[0] === sym
+    ) {
       fuzzy.push(rec);
     }
   }
@@ -306,6 +312,63 @@ function profileFromGroww(company: Record<string, unknown>): Partial<WebProfile>
   };
 }
 
+/** Market Cap (+ live price when needed) from Groww company payload. */
+function mcapPriceFromGroww(
+  company: Record<string, unknown>,
+): { mcap_cr: number | null; price: number | null; exchange: string } {
+  const header = asRecord(company.header);
+  const fundamentals = asArray(company.fundamentals);
+  const marketCapValue = fundamentals
+    .map((item) => asRecord(item))
+    .find((item) => {
+      const name = str(item.name).toLowerCase();
+      const short = str(item.shortName).toLowerCase();
+      return name === "market cap" || short === "mkt cap";
+    });
+  const marketCapCr = parseCompactInr(str(marketCapValue?.value) || null);
+  const exchange = header.isNseTradable
+    ? "NSE"
+    : header.isBseTradable
+      ? "BSE"
+      : "";
+  return {
+    mcap_cr:
+      marketCapCr != null && marketCapCr > 0
+        ? Math.round(marketCapCr * 10_000) / 10_000
+        : null,
+    price: null,
+    exchange,
+  };
+}
+
+async function growwLivePrice(
+  company: Record<string, unknown>,
+  fallbackSymbol: string,
+): Promise<number | null> {
+  const header = asRecord(company.header);
+  const exchange = header.isNseTradable
+    ? "NSE"
+    : header.isBseTradable
+      ? "BSE"
+      : "";
+  const liveSymbol =
+    str(header.nseScriptCode) ||
+    str(header.bseTradingSymbol) ||
+    str(header.bseScriptCode) ||
+    fallbackSymbol;
+  if (!exchange || !liveSymbol) return null;
+  try {
+    const pricePayload = asRecord(
+      await httpGetJson(
+        `${GROWW_PRICE}${encodeURIComponent(exchange)}/segment/CASH/${encodeURIComponent(liveSymbol)}/latest`,
+      ),
+    );
+    return num(pricePayload.ltp) ?? num(pricePayload.close);
+  } catch {
+    return null;
+  }
+}
+
 async function growwLookup(
   symbol: string,
   companyName: string,
@@ -314,32 +377,8 @@ async function growwLookup(
   if (!data) return null;
   const { hit, company } = data;
   const header = asRecord(company.header);
-  const fundamentals = asArray(company.fundamentals);
-  const marketCapValue = fundamentals
-    .map((item) => asRecord(item))
-    .find((item) => str(item.name) === "Market Cap");
-  const marketCapCr = parseCompactInr(str(marketCapValue?.value) || null);
-
-  let price: number | null = null;
-  const exchange = header.isNseTradable
-    ? "NSE"
-    : header.isBseTradable
-      ? "BSE"
-      : "";
-  const liveSymbol =
-    str(header.nseScriptCode) || str(header.bseScriptCode) || symbol;
-  if (exchange && liveSymbol) {
-    try {
-      const pricePayload = asRecord(
-        await httpGetJson(
-          `${GROWW_PRICE}${encodeURIComponent(exchange)}/segment/CASH/${encodeURIComponent(liveSymbol)}/latest`,
-        ),
-      );
-      price = num(pricePayload.ltp) ?? num(pricePayload.close);
-    } catch {
-      price = null;
-    }
-  }
+  const { mcap_cr, exchange } = mcapPriceFromGroww(company);
+  const price = await growwLivePrice(company, symbol);
 
   return {
     ...emptyProfile(symbol),
@@ -349,10 +388,7 @@ async function growwLookup(
     subsector: firstText(header.industryName),
     ...profileFromGroww(company),
     price,
-    mcap_cr:
-      marketCapCr != null && marketCapCr > 0
-        ? Math.round(marketCapCr * 10_000) / 10_000
-        : null,
+    mcap_cr,
     source: "groww",
   };
 }
@@ -398,13 +434,28 @@ async function fetchOne(
       if (groww) {
         fillBlank(found, profileFromGroww(groww.company));
         const header = asRecord(groww.company.header);
+        const { mcap_cr, exchange } = mcapPriceFromGroww(groww.company);
         fillBlank(found, {
           subsector: firstText(header.industryName),
           isin: firstText(header.isin),
+          mcap_cr,
+          exchange: exchange || undefined,
         });
-        found.source = found.ceo || found.managing_director || found.about
-          ? "tickertape+groww"
-          : "tickertape";
+        // Tickertape often omits mcap on fresh BSE listings; Groww still has ₹…Cr.
+        if (found.mcap_cr == null && mcap_cr != null) {
+          found.mcap_cr = mcap_cr;
+        }
+        if (found.price == null) {
+          const live = await growwLivePrice(groww.company, symbol);
+          if (live != null) found.price = live;
+        }
+        found.source =
+          found.ceo ||
+          found.managing_director ||
+          found.about ||
+          found.mcap_cr != null
+            ? "tickertape+groww"
+            : "tickertape";
       }
     } catch {
       /* Tickertape hit is enough */

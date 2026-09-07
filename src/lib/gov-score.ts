@@ -33,7 +33,8 @@ export const GOV_TINY_BRIDGE_TITLE = GOV_MIC_BRIDGE_TITLE;
 export const GOV_CAP_BRIDGE_HINT = "≥5k ↔ <5k Cr";
 export const GOV_SME_CROSS_LABEL = "SME ↔ Mainboard";
 export const GOV_SME_CROSS_TITLE =
-  "Director on both an NSE SME listing and a main NSE board";
+  "Strong board reputation → investor confidence: director sits on both an NSE SME listing and a main NSE board";
+export const GOV_SME_CROSS_HINT = "SME with mainboard directors";
 export const GOV_MULTI_LC_LABEL = "Multi-LC";
 export const GOV_MULTI_LC_TITLE =
   "Director on 2+ large-cap boards (≥ ₹20,000 Cr) — group chairs, cross-holdings";

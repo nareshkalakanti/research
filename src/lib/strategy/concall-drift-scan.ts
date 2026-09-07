@@ -10,7 +10,7 @@ import {
 } from "../nse-corp-events";
 import { runConcurrent, withScrapeWriteLock } from "../scrape-pool";
 import {
-  baselineCloseBefore,
+  concallAnnouncementBaseline,
   computeDriftPct,
   priceBaselineConsistent,
 } from "./concall-drift-math";
@@ -18,9 +18,11 @@ import { recordStrategyScan } from "./buyback-store";
 import { pairEarnConcall } from "./concall-drift-pair";
 import {
   concallDriftScanProgress,
+  listConcallDriftBaselineJobs,
   loadConcallDriftRepairCandidates,
-  pendingConcallDriftTickers,
+  patchConcallDriftBaseline,
   patchConcallDriftPairing,
+  pendingConcallDriftTickers,
   recentlyFetchedConcallTickers,
   recentConcallDriftTickers,
   upsertConcallDriftEvents,
@@ -78,7 +80,11 @@ export async function scanTickerConcallDrift(
   const out: ConcallDriftEvent[] = [];
 
   for (const { earn, concall } of pairs) {
-    const baseline = baselineCloseBefore(bars, earn.announced_at);
+    const baseline = concallAnnouncementBaseline(
+      bars,
+      concall?.announced_at ?? null,
+      earn.announced_at,
+    );
     const consistent =
       baseline != null && price != null && priceBaselineConsistent(price, baseline);
     const drift = consistent ? computeDriftPct(price, baseline) : null;
@@ -100,6 +106,49 @@ export async function scanTickerConcallDrift(
     });
   }
   return out;
+}
+
+/** Rewrite stored baselines to last close before concall announcement (not earn). */
+export async function recomputeConcallAnnouncementBaselines(
+  tickers: string[],
+): Promise<number> {
+  const jobs = listConcallDriftBaselineJobs(tickers);
+  if (!jobs.length) return 0;
+
+  const byTicker = new Map<string, typeof jobs>();
+  for (const job of jobs) {
+    const list = byTicker.get(job.ticker) ?? [];
+    list.push(job);
+    byTicker.set(job.ticker, list);
+  }
+
+  let updated = 0;
+  for (const [ticker, rows] of byTicker) {
+    const market = rows[0]?.market;
+    const [bars, quotes] = await Promise.all([
+      fetchDailyBars(ticker, market, 1),
+      fetchLivePrices([{ ticker, market }]),
+    ]);
+    const price = quotes[0]?.price ?? null;
+    for (const row of rows) {
+      const baseline = concallAnnouncementBaseline(
+        bars,
+        row.concall_at,
+        row.earn_at,
+      );
+      const consistent =
+        baseline != null &&
+        price != null &&
+        priceBaselineConsistent(price, baseline);
+      patchConcallDriftBaseline(row.id, {
+        baseline_close: consistent ? baseline : null,
+        drift_pct: consistent ? computeDriftPct(price, baseline) : null,
+        has_baseline: Boolean(consistent),
+      });
+      updated += 1;
+    }
+  }
+  return updated;
 }
 
 /** Re-pair concall times from NSE for rows missing concall_at (no price re-fetch). */

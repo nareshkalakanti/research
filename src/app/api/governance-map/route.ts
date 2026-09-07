@@ -63,6 +63,7 @@ function filterRows(
     tq: boolean;
     hold: boolean;
     edge: boolean;
+    quality: boolean;
     funds: Partial<Record<(typeof FUND_WATCHLIST_KEYS)[number], boolean>>;
     hideCollision: boolean;
     minScore: number;
@@ -119,6 +120,13 @@ function filterRows(
       companies = matched;
     }
 
+    // Thesis chip: identify the SME names that share directors with mainboard.
+    if (opts.smeCross && opts.narrowCompanies) {
+      const matched = companies.filter((c) => c.is_sme);
+      if (!matched.length) continue;
+      companies = matched;
+    }
+
     if (opts.bb || opts.tq) {
       const hit = companies.some(
         (c) => (opts.bb && c.has_bb) || (opts.tq && c.has_tq),
@@ -126,11 +134,17 @@ function filterRows(
       if (!hit) continue;
     }
 
-    if (opts.hold || opts.edge || anyFundFilterActive(opts.funds)) {
+    if (
+      opts.hold ||
+      opts.edge ||
+      opts.quality ||
+      anyFundFilterActive(opts.funds)
+    ) {
       const matched = companies.filter(
         (c) =>
           (opts.hold && c.has_hold) ||
           (opts.edge && c.has_edge) ||
+          (opts.quality && c.has_quality) ||
           FUND_WATCHLIST_KEYS.some((k) => opts.funds[k] && c.fund_tags?.includes(k)),
       );
       if (!matched.length) continue;
@@ -265,6 +279,7 @@ type CompanyAgg = {
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
+  has_quality: boolean;
   fund_tags: import("@/lib/fund-watchlist-meta").FundWatchlistKey[];
   about: string | null;
   headquarters: string | null;
@@ -280,6 +295,14 @@ type CompanyAgg = {
     din_backed: boolean;
     designation: string;
     category: string | null;
+    /** Other board seats (excludes this company). */
+    other_boards: Array<{
+      ticker: string;
+      name: string;
+      market: string;
+      cap_code: string | null;
+      is_sme?: boolean;
+    }>;
   }>;
 };
 
@@ -339,6 +362,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     tq: sp.get("tq") === "1",
     hold: sp.get("hold") === "1",
     edge: sp.get("edge") === "1",
+    quality: sp.get("quality") === "1",
     funds: parseFundFiltersFromSearchParams(sp),
     hideCollision: sp.get("hideCollision") !== "0",
     minScore: Number.isFinite(minScore) ? minScore : 0,
@@ -364,6 +388,9 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   }
 
   if (view === "company") {
+    const fullBoardsByPerson = new Map(
+      all.map((r) => [r.person_id, r.companies] as const),
+    );
     const byTicker = new Map<string, CompanyAgg>();
     for (const r of filtered) {
       for (const c of r.companies) {
@@ -382,6 +409,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
             has_tq: c.has_tq,
             has_hold: c.has_hold,
             has_edge: c.has_edge,
+            has_quality: c.has_quality,
             fund_tags: c.fund_tags,
             about: c.about,
             headquarters: c.headquarters,
@@ -393,6 +421,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
           };
           byTicker.set(c.ticker, agg);
         }
+        const fullBoards = fullBoardsByPerson.get(r.person_id) ?? r.companies;
         agg.directors.push({
           person_id: r.person_id,
           name: r.name,
@@ -401,6 +430,21 @@ async function buildGovernanceMapResponse(req: NextRequest) {
           din_backed: r.din_backed,
           designation: c.designation,
           category: c.category,
+          other_boards: fullBoards
+            .filter((x) => x.ticker.toUpperCase() !== c.ticker.toUpperCase())
+            .slice()
+            .sort((a, b) => {
+              // SME first so small listings stay visible, then largest mcap.
+              if (a.is_sme !== b.is_sme) return a.is_sme ? -1 : 1;
+              return (b.market_cap_cr ?? -1) - (a.market_cap_cr ?? -1);
+            })
+            .map((x) => ({
+              ticker: x.ticker,
+              name: x.name,
+              market: x.market,
+              cap_code: x.cap_code,
+              is_sme: x.is_sme,
+            })),
         });
       }
     }

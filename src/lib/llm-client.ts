@@ -244,11 +244,54 @@ function closeTruncatedJson(text: string): string {
   return s;
 }
 
+/** Escape raw newlines / tabs inside JSON strings (common LLM glitch). */
+function escapeControlsInStrings(text: string): string {
+  let out = "";
+  let inString = false;
+  let escape = false;
+  for (const ch of text) {
+    if (escape) {
+      out += ch;
+      escape = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      out += ch;
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      out += ch;
+      continue;
+    }
+    if (inString) {
+      if (ch === "\n") {
+        out += "\\n";
+        continue;
+      }
+      if (ch === "\r") {
+        out += "\\r";
+        continue;
+      }
+      if (ch === "\t") {
+        out += "\\t";
+        continue;
+      }
+    }
+    out += ch;
+  }
+  return out;
+}
+
 function repairJsonText(s: string): string {
-  return s
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/,\s*([}\]])/g, "$1");
+  return escapeControlsInStrings(
+    s
+      .replace(/^\uFEFF/, "")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/,\s*([}\]])/g, "$1"),
+  );
 }
 
 function parseJsonBlock(raw: string): Record<string, unknown> {
@@ -256,7 +299,7 @@ function parseJsonBlock(raw: string): Record<string, unknown> {
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const body = fenced?.[1]?.trim() || trimmed;
   const start = body.indexOf("{");
-  if (start < 0) throw new Error("no JSON in LLM output");
+  if (start < 0) throw new Error("invalid JSON in LLM output");
 
   const end = body.lastIndexOf("}");
   const candidates: string[] = [];
@@ -266,11 +309,17 @@ function parseJsonBlock(raw: string): Record<string, unknown> {
   }
   const truncated = closeTruncatedJson(body.slice(start));
   candidates.push(truncated, repairJsonText(truncated));
+  // Last resort: strip trailing non-JSON after final brace.
+  const repairedBody = repairJsonText(body.slice(start));
+  const repairedEnd = repairedBody.lastIndexOf("}");
+  if (repairedEnd > 0) {
+    candidates.push(repairedBody.slice(0, repairedEnd + 1));
+  }
 
   let lastErr: Error | null = null;
   const seen = new Set<string>();
   for (const candidate of candidates) {
-    const key = candidate.slice(0, 120);
+    const key = candidate.slice(0, 160);
     if (seen.has(key)) continue;
     seen.add(key);
     try {
@@ -285,7 +334,7 @@ function parseJsonBlock(raw: string): Record<string, unknown> {
   if (/unexpected end|no json/i.test(msg)) {
     throw new Error("LLM returned incomplete JSON — try again");
   }
-  throw new Error(msg);
+  throw new Error("invalid JSON in LLM output");
 }
 
 export type LlmJsonOpts = {

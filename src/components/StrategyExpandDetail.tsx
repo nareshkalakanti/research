@@ -35,7 +35,7 @@ export function StrategyExpandDetail({
   name: _name,
   market,
   price,
-  links,
+  links: _links,
   open,
   panel,
   onPanel,
@@ -57,36 +57,6 @@ export function StrategyExpandDetail({
     <tr className="about-row">
       <td colSpan={colSpan}>
         <div className="about-box strategy-expand">
-          <div className="link-row link-row--compact sx-links">
-            {links.web ? (
-              <a
-                href={links.web}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="link-chip"
-              >
-                Web
-              </a>
-            ) : (
-              <span className="link-chip disabled">Web</span>
-            )}
-            <a
-              href={links.sc}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link-chip"
-            >
-              SC
-            </a>
-            <a
-              href={links.tv}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="link-chip"
-            >
-              TV
-            </a>
-          </div>
           <div className="about-tabs" role="tablist">
             <button
               type="button"
@@ -106,7 +76,7 @@ export function StrategyExpandDetail({
                   className={`about-tab ${active === "docs" ? "on" : ""}`}
                   onClick={() => onPanel("docs")}
                 >
-                  Documents
+                  Con-calls
                 </button>
                 <button
                   type="button"

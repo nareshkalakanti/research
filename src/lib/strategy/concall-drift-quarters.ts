@@ -269,35 +269,53 @@ export function windowRange(
   const w = (window || "all").toLowerCase();
   if (w === "all" || w === "quarter") return null;
 
-  const now = new Date();
   const day = 86_400_000;
+  /** NSE calendar days in Asia/Kolkata. */
+  const istParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const y = Number(istParts.find((p) => p.type === "year")?.value);
+  const m = Number(istParts.find((p) => p.type === "month")?.value);
+  const d = Number(istParts.find((p) => p.type === "day")?.value);
+  // Treat IST calendar day as a UTC date object for range compare on ISO timestamps.
+  const istTodayUtc = new Date(Date.UTC(y, m - 1, d));
 
-  const startOfDay = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const endOfDay = (d: Date) =>
-    new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  const startOfDay = (base: Date) =>
+    new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
+  const endOfDay = (base: Date) =>
+    new Date(
+      Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate(), 23, 59, 59, 999),
+    );
 
   if (w === "yesterday") {
-    const y = new Date(now);
-    y.setDate(y.getDate() - 1);
-    return { from: startOfDay(y), to: endOfDay(y) };
+    const yest = new Date(istTodayUtc.getTime() - day);
+    return { from: startOfDay(yest), to: endOfDay(yest) };
   }
   if (w === "today") {
-    return { from: startOfDay(now), to: endOfDay(now) };
+    return { from: startOfDay(istTodayUtc), to: endOfDay(istTodayUtc) };
   }
   if (w === "tomorrow") {
-    const t = new Date(now);
-    t.setDate(t.getDate() + 1);
+    const t = new Date(istTodayUtc.getTime() + day);
     return { from: startOfDay(t), to: endOfDay(t) };
   }
+  if (w === "early") {
+    // Fresh post-call moves: call in last 2 IST calendar days (incl. today).
+    const from = new Date(istTodayUtc.getTime() - day);
+    return { from: startOfDay(from), to: endOfDay(istTodayUtc) };
+  }
   if (w === "last7") {
-    return { from: new Date(now.getTime() - 7 * day), to: now };
+    const from = new Date(istTodayUtc.getTime() - 6 * day);
+    return { from: startOfDay(from), to: endOfDay(istTodayUtc) };
   }
   if (w === "next7") {
-    return { from: now, to: new Date(now.getTime() + 7 * day) };
+    const to = new Date(istTodayUtc.getTime() + 7 * day);
+    return { from: startOfDay(istTodayUtc), to: endOfDay(to) };
   }
   if (w === "90d") {
-    return { from: new Date(now.getTime() - 90 * day), to: now };
+    return { from: new Date(Date.now() - 90 * day), to: new Date() };
   }
   if (w === "custom" && customFrom && customTo) {
     const from = new Date(`${customFrom}T00:00:00`);

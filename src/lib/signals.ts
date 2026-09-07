@@ -15,6 +15,7 @@ import {
 import {
   fetchDailyBars,
   fetchMonthlyBars,
+  fetchMonthlyBarsForRsi,
   fetchNiftyDailyBars,
   fetchNiftyWeeklyBars,
   fetchWeeklyBars,
@@ -39,6 +40,11 @@ const MOM_TF = "daily";
 const MOM_LOOKBACK_1Y = 395;
 const MOM_LOOKBACK_1M = 30;
 const MOM_MIN_HISTORY = 400;
+/** Monthly RSI(14) — ~2y+ of monthly bars. */
+const MRSI_TF = "monthly";
+const MRSI_PERIOD = 14;
+const MRSI_MIN_HISTORY = MRSI_PERIOD + 2;
+const MRSI_CROSS_LEVEL = 70;
 
 export type BbTimeframe = "weekly" | "monthly";
 export const BB_TIMEFRAMES: BbTimeframe[] = ["weekly", "monthly"];
@@ -93,6 +99,16 @@ export type MomSignal = {
   signal_date: string | null;
 };
 
+/** Monthly RSI(14) — Suzlon-style momentum (cross above 70). */
+export type MrsiSignal = {
+  timeframe: string;
+  price: number | null;
+  rsi: number | null;
+  /** True when prior month ≤70 and this month >70. */
+  crossed_above_70: boolean;
+  signal_date: string | null;
+};
+
 export type BreakoutFlags = {
   has_bb: boolean;
   has_bb_w: boolean;
@@ -102,6 +118,10 @@ export type BreakoutFlags = {
   has_ath: boolean;
   has_high52: boolean;
   has_mom: boolean;
+  /** New monthly RSI cross above 70. */
+  has_mrsi: boolean;
+  /** Current monthly RSI in the 85–90 excellent band. */
+  has_mrsi85: boolean;
   bb?: BbSignal;
   bb_w?: BbSignal;
   bb_m?: BbSignal;
@@ -110,6 +130,7 @@ export type BreakoutFlags = {
   ath?: AthSignal;
   high52?: High52Signal;
   mom?: MomSignal;
+  mrsi?: MrsiSignal;
 };
 
 function emptyFlags(): BreakoutFlags {
@@ -122,6 +143,8 @@ function emptyFlags(): BreakoutFlags {
     has_ath: false,
     has_high52: false,
     has_mom: false,
+    has_mrsi: false,
+    has_mrsi85: false,
   };
 }
 
@@ -210,6 +233,17 @@ const SIGNALS_SCHEMA = `
       fetched_at TEXT NOT NULL,
       PRIMARY KEY (ticker, timeframe)
     );
+    CREATE TABLE IF NOT EXISTS mrsi_signals (
+      ticker TEXT NOT NULL,
+      timeframe TEXT NOT NULL DEFAULT 'monthly',
+      market TEXT,
+      price REAL,
+      rsi REAL,
+      crossed_above_70 INTEGER NOT NULL DEFAULT 0,
+      signal_date TEXT,
+      fetched_at TEXT NOT NULL,
+      PRIMARY KEY (ticker, timeframe)
+    );
 `;
 
 function closeSignalsDb(): void {
@@ -236,6 +270,19 @@ export function resetSignalsDb(): void {
   }
 }
 
+/** Add columns created after an older CREATE TABLE IF NOT EXISTS. */
+function migrateSignalsSchema(db: Database.Database): void {
+  const mrsiCols = db
+    .prepare(`PRAGMA table_info(mrsi_signals)`)
+    .all() as Array<{ name: string }>;
+  const mrsiNames = new Set(mrsiCols.map((c) => c.name));
+  if (mrsiCols.length && !mrsiNames.has("crossed_above_70")) {
+    db.exec(
+      `ALTER TABLE mrsi_signals ADD COLUMN crossed_above_70 INTEGER NOT NULL DEFAULT 0`,
+    );
+  }
+}
+
 function ensureDb(): Database.Database {
   if (signalsDb) return signalsDb;
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -243,6 +290,7 @@ function ensureDb(): Database.Database {
     const db = new Database(SIGNALS_PATH);
     db.pragma("journal_mode = WAL");
     db.exec(SIGNALS_SCHEMA);
+    migrateSignalsSchema(db);
     // Fail fast if the file is already corrupt (open alone often succeeds).
     db.pragma("quick_check");
     signalsDb = db;
@@ -254,6 +302,7 @@ function ensureDb(): Database.Database {
     const db = new Database(SIGNALS_PATH);
     db.pragma("journal_mode = WAL");
     db.exec(SIGNALS_SCHEMA);
+    migrateSignalsSchema(db);
     signalsDb = db;
     return db;
   }
@@ -287,10 +336,49 @@ export function clearAllWeeklySignals(): void {
       DELETE FROM ath_signals;
       DELETE FROM high52_signals;
       DELETE FROM mom_signals;
+      DELETE FROM mrsi_signals;
       DELETE FROM scan_checked;
     `);
   });
   invalidateBreakoutCache();
+}
+
+/** Drop empty RSI placeholders so Scan RSI M can refill (SME fetch fixes, etc.). */
+export function clearEmptyMrsiSignals(): number {
+  return withSignalsWrite((db) => {
+    const info = db
+      .prepare(`DELETE FROM mrsi_signals WHERE rsi IS NULL`)
+      .run();
+    return Number(info.changes ?? 0);
+  });
+}
+
+/** Drop empty 12−1 placeholders so Scan 12m can refill after Yahoo misses. */
+export function clearEmptyMomSignals(): number {
+  return withSignalsWrite((db) => {
+    const info = db
+      .prepare(
+        `DELETE FROM mom_signals WHERE timeframe = ? AND momentum_pct IS NULL`,
+      )
+      .run(MOM_TF);
+    return Number(info.changes ?? 0);
+  });
+}
+
+/** Tickers that already have an mrsi_signals row (incl. null / failed). */
+export function mrsiAttemptedTickers(): Set<string> {
+  const out = new Set<string>();
+  try {
+    if (!fs.existsSync(SIGNALS_PATH)) return out;
+    const db = ensureDb();
+    const rows = db
+      .prepare(`SELECT ticker FROM mrsi_signals WHERE lower(timeframe) = ?`)
+      .all(MRSI_TF) as { ticker: string }[];
+    for (const r of rows) out.add(r.ticker.toUpperCase());
+  } catch {
+    /* ignore */
+  }
+  return out;
 }
 
 /** Keep only the latest session bar date. */
@@ -311,6 +399,7 @@ export function latestSignalDates(map = loadBreakoutMap()): {
   ath: string | null;
   high52: string | null;
   mom: string | null;
+  mrsi: string | null;
 } {
   let bb: string | null = null;
   let bb_w: string | null = null;
@@ -320,6 +409,7 @@ export function latestSignalDates(map = loadBreakoutMap()): {
   let ath: string | null = null;
   let high52: string | null = null;
   let mom: string | null = null;
+  let mrsi: string | null = null;
   for (const v of map.values()) {
     if (v.has_bb_w && v.bb_w?.signal_date) {
       const d = v.bb_w.signal_date.slice(0, 10);
@@ -353,8 +443,12 @@ export function latestSignalDates(map = loadBreakoutMap()): {
       const d = v.mom.signal_date.slice(0, 10);
       if (!mom || d > mom) mom = d;
     }
+    if (v.mrsi?.signal_date) {
+      const d = v.mrsi.signal_date.slice(0, 10);
+      if (!mrsi || d > mrsi) mrsi = d;
+    }
   }
-  return { bb, bb_w, bb_m, tq, ema, ath, high52, mom };
+  return { bb, bb_w, bb_m, tq, ema, ath, high52, mom, mrsi };
 }
 
 export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string, BreakoutFlags> {
@@ -659,6 +753,38 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
       cur.has_mom = r.momentum_pct > 0;
       map.set(t, cur);
     }
+
+    const mrsiRows = db
+      .prepare(
+        `SELECT ticker, timeframe, price, rsi, crossed_above_70, signal_date
+         FROM mrsi_signals WHERE lower(timeframe) = ?`,
+      )
+      .all(MRSI_TF) as Array<{
+      ticker: string;
+      timeframe: string;
+      price: number | null;
+      rsi: number | null;
+      crossed_above_70: number;
+      signal_date: string | null;
+    }>;
+    for (const r of mrsiRows) {
+      if (r.rsi == null) continue;
+      const t = r.ticker.toUpperCase();
+      const cur = map.get(t) ?? emptyFlags();
+      const crossed = !!r.crossed_above_70;
+      cur.mrsi = {
+        timeframe: r.timeframe,
+        price: r.price,
+        rsi: r.rsi,
+        crossed_above_70: crossed,
+        signal_date: r.signal_date,
+      };
+      // Filter chip = new cross above 70 (option A)
+      cur.has_mrsi = crossed;
+      // Excellent band — current RSI in [85, 90)
+      cur.has_mrsi85 = r.rsi >= 85 && r.rsi < 90;
+      map.set(t, cur);
+    }
   } catch (err) {
     if (isSqliteCorrupt(err)) {
       console.warn("[signals] corrupt db on load — recreating signals.db");
@@ -680,6 +806,8 @@ export function breakoutCounts(map = loadBreakoutMap()): {
   ath: number;
   high52: number;
   mom: number;
+  mrsi: number;
+  mrsi85: number;
 } {
   let bb = 0;
   let bb_w = 0;
@@ -689,6 +817,8 @@ export function breakoutCounts(map = loadBreakoutMap()): {
   let ath = 0;
   let high52 = 0;
   let mom = 0;
+  let mrsi = 0;
+  let mrsi85 = 0;
   for (const v of map.values()) {
     if (v.has_bb) bb += 1;
     if (v.has_bb_w) bb_w += 1;
@@ -698,8 +828,10 @@ export function breakoutCounts(map = loadBreakoutMap()): {
     if (v.has_ath) ath += 1;
     if (v.has_high52) high52 += 1;
     if (v.has_mom) mom += 1;
+    if (v.has_mrsi) mrsi += 1;
+    if (v.has_mrsi85) mrsi85 += 1;
   }
-  return { bb, bb_w, bb_m, tq, ema, ath, high52, mom };
+  return { bb, bb_w, bb_m, tq, ema, ath, high52, mom, mrsi, mrsi85 };
 }
 
 export function analyzeBbNewBreakout(
@@ -951,6 +1083,38 @@ export function analyzeMomentumDaily(bars: Bar[]): {
   };
 }
 
+/**
+ * Monthly RSI(14) momentum (Suzlon-style):
+ * Option A signal = prior month RSI ≤ 70 and current month RSI > 70.
+ */
+export function analyzeMonthlyRsi(bars: Bar[]): {
+  price: number;
+  rsi: number;
+  crossed_above_70: boolean;
+  signal_date: string;
+} | null {
+  if (bars.length < MRSI_MIN_HISTORY) return null;
+  const closes = bars.map((b) => b.close).filter((n) => Number.isFinite(n));
+  if (closes.length < MRSI_MIN_HISTORY) return null;
+  const rsiVals = rsi(closes, MRSI_PERIOD);
+  const i = closes.length - 1;
+  const cur = rsiVals[i];
+  const prev = rsiVals[i - 1];
+  if (cur == null || !Number.isFinite(cur)) return null;
+  const crossed =
+    prev != null &&
+    Number.isFinite(prev) &&
+    prev <= MRSI_CROSS_LEVEL &&
+    cur > MRSI_CROSS_LEVEL;
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return {
+    price: round(closes[i]!),
+    rsi: round(cur),
+    crossed_above_70: crossed,
+    signal_date: bars[bars.length - 1]!.date.slice(0, 10),
+  };
+}
+
 function upsertBb(
   rows: Array<{
     ticker: string;
@@ -1170,11 +1334,11 @@ function upsertMom(
   rows: Array<{
     ticker: string;
     market: string | null;
-    price: number;
-    price_1y: number;
-    price_1m: number;
-    momentum_pct: number;
-    signal_date: string;
+    price: number | null;
+    price_1y: number | null;
+    price_1m: number | null;
+    momentum_pct: number | null;
+    signal_date: string | null;
   }>,
 ): number {
   if (!rows.length) return 0;
@@ -1204,6 +1368,32 @@ function upsertMom(
   });
 }
 
+/** Persist a MOM attempt so remaining drops (short history / Yahoo miss). */
+function momSentinel(
+  ticker: string,
+  market: string | null,
+  bars?: Bar[],
+): {
+  ticker: string;
+  market: string | null;
+  price: number | null;
+  price_1y: number | null;
+  price_1m: number | null;
+  momentum_pct: number | null;
+  signal_date: string | null;
+} {
+  const last = bars?.length ? bars[bars.length - 1] : null;
+  return {
+    ticker,
+    market,
+    price: last && Number.isFinite(last.close) ? last.close : null,
+    price_1y: null,
+    price_1m: null,
+    momentum_pct: null,
+    signal_date: last?.date?.slice(0, 10) ?? null,
+  };
+}
+
 function clearMomForTickers(tickers: string[]): void {
   if (!tickers.length) return;
   withSignalsWrite((db) => {
@@ -1214,6 +1404,76 @@ function clearMomForTickers(tickers: string[]): void {
   });
 }
 
+function upsertMrsi(
+  rows: Array<{
+    ticker: string;
+    market: string | null;
+    price: number | null;
+    rsi: number | null;
+    crossed_above_70: boolean;
+    signal_date: string | null;
+  }>,
+): number {
+  if (!rows.length) return 0;
+  return withSignalsWrite((db) => {
+    const now = new Date().toISOString();
+    const stmt = db.prepare(`
+      INSERT INTO mrsi_signals (
+        ticker, timeframe, market, price, rsi, crossed_above_70, signal_date, fetched_at
+      )
+      VALUES (
+        @ticker, '${MRSI_TF}', @market, @price, @rsi, @crossed_above_70, @signal_date, @fetched_at
+      )
+      ON CONFLICT(ticker, timeframe) DO UPDATE SET
+        market = excluded.market,
+        price = excluded.price,
+        rsi = excluded.rsi,
+        crossed_above_70 = excluded.crossed_above_70,
+        signal_date = excluded.signal_date,
+        fetched_at = excluded.fetched_at
+    `);
+    const tx = db.transaction((batch: typeof rows) => {
+      for (const r of batch) {
+        stmt.run({
+          ticker: r.ticker,
+          market: r.market,
+          price: r.price,
+          rsi: r.rsi,
+          crossed_above_70: r.crossed_above_70 ? 1 : 0,
+          signal_date: r.signal_date,
+          fetched_at: now,
+        });
+      }
+    });
+    tx(rows);
+    return rows.length;
+  });
+}
+
+/** Persist an MRSI attempt so remaining drops (too-short history / miss). */
+function mrsiSentinel(
+  ticker: string,
+  market: string | null,
+  bars?: Bar[],
+): {
+  ticker: string;
+  market: string | null;
+  price: number | null;
+  rsi: number | null;
+  crossed_above_70: boolean;
+  signal_date: string | null;
+} {
+  const last = bars?.length ? bars[bars.length - 1] : null;
+  return {
+    ticker,
+    market,
+    price: last && Number.isFinite(last.close) ? last.close : null,
+    rsi: null,
+    crossed_above_70: false,
+    signal_date: last?.date?.slice(0, 10) ?? null,
+  };
+}
+
 export type ScanKind =
   | "bb"
   | "tq"
@@ -1221,13 +1481,14 @@ export type ScanKind =
   | "ath"
   | "high52"
   | "mom"
+  | "mrsi"
   | "both"
   | "all";
 
-type SignalKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom";
+type SignalKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi";
 
 function scanKinds(kind: ScanKind): SignalKind[] {
-  if (kind === "all") return ["bb", "tq", "ema", "ath", "high52", "mom"];
+  if (kind === "all") return ["bb", "tq", "ema", "ath", "high52", "mom", "mrsi"];
   if (kind === "both") return ["bb", "tq"];
   return [kind];
 }
@@ -1236,13 +1497,14 @@ function kindTimeframe(
   k: SignalKind,
   bbTimeframe: BbTimeframe = "weekly",
 ): string {
+  if (k === "mrsi") return MRSI_TF;
   if (k === "ema" || k === "ath" || k === "high52" || k === "mom") return EMA_TF;
   if (k === "bb") return bbTimeframe;
   return TQ_TF;
 }
 
 function kindMaxAgeMs(k: SignalKind): number {
-  return k === "ema" || k === "ath" || k === "high52" || k === "mom"
+  return k === "ema" || k === "ath" || k === "high52" || k === "mom" || k === "mrsi"
     ? 24 * 60 * 60 * 1000
     : 6 * 24 * 60 * 60 * 1000;
 }
@@ -1268,6 +1530,109 @@ function markChecked(
   });
 }
 
+/** MOM attempt times from scan_checked — used to prefer never-tried names. */
+export function momAttemptedAtMs(): Map<string, number> {
+  const out = new Map<string, number>();
+  try {
+    if (!fs.existsSync(SIGNALS_PATH)) return out;
+    const db = ensureDb();
+    const rows = db
+      .prepare(
+        `SELECT ticker, fetched_at FROM scan_checked WHERE kind = ? AND timeframe = ?`,
+      )
+      .all("mom", MOM_TF) as { ticker: string; fetched_at: string }[];
+    for (const r of rows) {
+      const at = Date.parse(r.fetched_at);
+      if (Number.isFinite(at)) out.set(r.ticker.toUpperCase(), at);
+    }
+  } catch {
+    /* ignore */
+  }
+  return out;
+}
+
+/** Prefer never-attempted / empty-RSI names, then oldest attempts. Main board before SME. */
+export function prioritizeMomQueue<
+  T extends { ticker: string; market?: string | null },
+>(companies: T[], kind: "mom" | "mrsi" = "mom"): T[] {
+  if (companies.length <= 1) return companies;
+  const attempted =
+    kind === "mrsi" ? scanAttemptedAtMs("mrsi", MRSI_TF) : momAttemptedAtMs();
+  const filled =
+    kind === "mrsi" ? mrsiFilledSet() : momFilledSet();
+  return [...companies].sort((a, b) => {
+    const aKey = a.ticker.toUpperCase();
+    const bKey = b.ticker.toUpperCase();
+    const aFilled = filled.has(aKey) ? 1 : 0;
+    const bFilled = filled.has(bKey) ? 1 : 0;
+    if (aFilled !== bFilled) return aFilled - bFilled;
+    const aa = attempted.get(aKey) ?? 0;
+    const bb = attempted.get(bKey) ?? 0;
+    const aPend = aa === 0 ? 0 : 1;
+    const bPend = bb === 0 ? 0 : 1;
+    if (aPend !== bPend) return aPend - bPend;
+    const aSme = /\bSME\b/i.test(a.market ?? "") ? 1 : 0;
+    const bSme = /\bSME\b/i.test(b.market ?? "") ? 1 : 0;
+    if (aSme !== bSme) return aSme - bSme;
+    if (aa !== bb) return aa - bb;
+    return 0;
+  });
+}
+
+function momFilledSet(): Set<string> {
+  const out = new Set<string>();
+  try {
+    if (!fs.existsSync(SIGNALS_PATH)) return out;
+    const db = ensureDb();
+    const rows = db
+      .prepare(
+        `SELECT ticker FROM mom_signals WHERE timeframe = ? AND momentum_pct IS NOT NULL`,
+      )
+      .all(MOM_TF) as { ticker: string }[];
+    for (const r of rows) out.add(r.ticker.toUpperCase());
+  } catch {
+    /* ignore */
+  }
+  return out;
+}
+
+function mrsiFilledSet(): Set<string> {
+  const out = new Set<string>();
+  try {
+    if (!fs.existsSync(SIGNALS_PATH)) return out;
+    const db = ensureDb();
+    const rows = db
+      .prepare(
+        `SELECT ticker FROM mrsi_signals WHERE timeframe = ? AND rsi IS NOT NULL`,
+      )
+      .all(MRSI_TF) as { ticker: string }[];
+    for (const r of rows) out.add(r.ticker.toUpperCase());
+  } catch {
+    /* ignore */
+  }
+  return out;
+}
+
+function scanAttemptedAtMs(kind: string, timeframe: string): Map<string, number> {
+  const out = new Map<string, number>();
+  try {
+    if (!fs.existsSync(SIGNALS_PATH)) return out;
+    const db = ensureDb();
+    const rows = db
+      .prepare(
+        `SELECT ticker, fetched_at FROM scan_checked WHERE kind = ? AND timeframe = ?`,
+      )
+      .all(kind, timeframe) as { ticker: string; fetched_at: string }[];
+    for (const r of rows) {
+      const at = Date.parse(r.fetched_at);
+      if (Number.isFinite(at)) out.set(r.ticker.toUpperCase(), at);
+    }
+  } catch {
+    /* ignore */
+  }
+  return out;
+}
+
 export function uncheckedTickers(
   tickers: string[],
   kind: ScanKind,
@@ -1284,15 +1649,31 @@ export function uncheckedTickers(
     for (const k of kinds) {
       const maxAgeMs = opts?.maxAgeMs ?? kindMaxAgeMs(k);
       const tf = kindTimeframe(k, bbTf);
-      // MOM: only treat as done if we actually stored a 12−1 row (not just
-      // scan_checked — earlier session-gated runs marked many with no data).
+      // MOM: only a stored 12−1 row counts as done. scan_checked is used for
+      // attempt ordering (prefer never-tried) — not for skipping forever.
       if (k === "mom") {
-        const rows = db
+        const momRows = db
           .prepare(
             `SELECT ticker, fetched_at FROM mom_signals WHERE lower(timeframe) = ?`,
           )
           .all(tf) as { ticker: string; fetched_at: string }[];
-        for (const r of rows) {
+        for (const r of momRows) {
+          const at = Date.parse(r.fetched_at);
+          if (Number.isFinite(at) && now - at < maxAgeMs) {
+            checked.add(`${r.ticker.toUpperCase()}:${k}`);
+          }
+        }
+        continue;
+      }
+      // MRSI: same as MOM — any stored row (incl. short-history sentinel) is done.
+      // Scan RSI M sends clearEmptyMrsi once to drop nulls before a refill pass.
+      if (k === "mrsi") {
+        const mrsiRows = db
+          .prepare(
+            `SELECT ticker, fetched_at FROM mrsi_signals WHERE lower(timeframe) = ?`,
+          )
+          .all(tf) as { ticker: string; fetched_at: string }[];
+        for (const r of mrsiRows) {
           const at = Date.parse(r.fetched_at);
           if (Number.isFinite(at) && now - at < maxAgeMs) {
             checked.add(`${r.ticker.toUpperCase()}:${k}`);
@@ -1331,6 +1712,10 @@ export type ScanBatchResult = {
   athHits: number;
   high52Hits: number;
   momHits: number;
+  /** Rows written this batch (incl. null sentinels for short/missing history). */
+  momScanned?: number;
+  mrsiHits: number;
+  mrsiScanned?: number;
   failed: number;
   remaining: number;
   bbTickers: string[];
@@ -1339,19 +1724,26 @@ export type ScanBatchResult = {
   athTickers: string[];
   high52Tickers: string[];
   momTickers: string[];
+  mrsiTickers: string[];
   /** Set when TQ cannot run because Nifty weekly OHLC failed to load. */
   error?: string;
 };
 
 /**
- * Scan a batch of tickers for BB/TQ/EMA/ATH/52W/MOM (latest session only).
+ * Scan a batch of tickers for BB/TQ/EMA/ATH/52W/MOM/MRSI.
  */
 export async function runSignalBatch(
   items: Array<{ ticker: string; market?: string | null }>,
   kind: ScanKind = "both",
   opts?: { concurrency?: number; bbTimeframe?: BbTimeframe },
 ): Promise<ScanBatchResult> {
-  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 4, 6));
+  const concurrency = Math.max(
+    1,
+    Math.min(
+      opts?.concurrency ?? (kind === "mom" ? 2 : kind === "mrsi" ? 6 : 4),
+      kind === "mrsi" ? 8 : 6,
+    ),
+  );
   const bbTf = opts?.bbTimeframe ?? "weekly";
   const tickers = items
     .map((i) => ({
@@ -1361,11 +1753,12 @@ export async function runSignalBatch(
     .filter((i) => !isSkippableSymbol(i.ticker));
 
   const doBb = kind === "bb" || kind === "both" || kind === "all";
-  const doTq = kind === "tq" || kind === "both" || kind === "all";
+  let doTq = kind === "tq" || kind === "both" || kind === "all";
   const doEma = kind === "ema" || kind === "all";
   const doAth = kind === "ath" || kind === "all";
   const doHigh52 = kind === "high52" || kind === "all";
   const doMom = kind === "mom" || kind === "all";
+  const doMrsi = kind === "mrsi" || kind === "all";
   const needDaily = doEma || doAth || doHigh52 || doMom;
   const needDailySession = doEma || doAth || doHigh52;
   const needWeekly = doTq || (doBb && bbTf === "weekly");
@@ -1378,6 +1771,7 @@ export async function runSignalBatch(
     athHits: 0,
     high52Hits: 0,
     momHits: 0,
+    mrsiHits: 0,
     failed: tickers.length,
     remaining: 0,
     bbTickers: [],
@@ -1386,6 +1780,7 @@ export async function runSignalBatch(
     athTickers: [],
     high52Tickers: [],
     momTickers: [],
+    mrsiTickers: [],
     ...(error ? { error } : {}),
   });
 
@@ -1400,7 +1795,11 @@ export async function runSignalBatch(
     : null;
 
   if (doTq && !nifty.length) {
-    return emptyResult("Nifty weekly data unavailable — retry TQ scan");
+    // stocks-ai style: skip TQ this batch, still run BB / MOM / RSI M.
+    if (kind === "tq") {
+      return emptyResult("Nifty weekly data unavailable — retry TQ scan");
+    }
+    doTq = false;
   }
 
   // 52W / ATH / EMA still run off each name's own last daily bar if Nifty
@@ -1411,7 +1810,8 @@ export async function runSignalBatch(
   if (doEma) clearEmaForTickers(tickers.map((t) => t.ticker));
   if (doAth) clearAthForTickers(tickers.map((t) => t.ticker));
   if (doHigh52) clearHigh52ForTickers(tickers.map((t) => t.ticker));
-  if (doMom) clearMomForTickers(tickers.map((t) => t.ticker));
+  // MOM: do not clear before fetch — a failed Yahoo/SME pull would wipe good
+  // 12−1 rows. Upsert overwrites on success; leave prior values on failure.
 
   const bbRows: Array<{
     ticker: string;
@@ -1456,12 +1856,23 @@ export async function runSignalBatch(
   const momRows: Array<{
     ticker: string;
     market: string | null;
-    price: number;
-    price_1y: number;
-    price_1m: number;
-    momentum_pct: number;
-    signal_date: string;
+    price: number | null;
+    price_1y: number | null;
+    price_1m: number | null;
+    momentum_pct: number | null;
+    signal_date: string | null;
   }> = [];
+  /** MOM only: upserted OR confirmed too-short history (not empty/rate-limit fails). */
+  const momResolved = new Set<string>();
+  const mrsiRows: Array<{
+    ticker: string;
+    market: string | null;
+    price: number | null;
+    rsi: number | null;
+    crossed_above_70: boolean;
+    signal_date: string | null;
+  }> = [];
+  const mrsiResolved = new Set<string>();
   let failed = 0;
 
   for (let i = 0; i < tickers.length; i += concurrency) {
@@ -1535,9 +1946,38 @@ export async function runSignalBatch(
             }
           }
 
+          if (doMrsi) {
+            const monthlyBars = await fetchMonthlyBarsForRsi(
+              ticker,
+              market,
+              5,
+              MRSI_MIN_HISTORY,
+            );
+            if (monthlyBars.length > 0) {
+              const hit = analyzeMonthlyRsi(monthlyBars);
+              if (hit) {
+                any = true;
+                mrsiRows.push({
+                  ticker,
+                  market,
+                  price: hit.price,
+                  rsi: hit.rsi,
+                  crossed_above_70: hit.crossed_above_70,
+                  signal_date: hit.signal_date,
+                });
+              } else {
+                mrsiRows.push(mrsiSentinel(ticker, market, monthlyBars));
+              }
+              mrsiResolved.add(ticker);
+            } else {
+              mrsiRows.push(mrsiSentinel(ticker, market));
+              mrsiResolved.add(ticker);
+            }
+          }
+
           if (needDaily) {
-            // ATH needs long history; MOM/52W/EMA need ~2y — one fetch covers all.
-            const yearsBack = doAth ? 25 : 2;
+            // ATH needs long history; MOM needs ≥400 sessions (~2y+); EMA/52W ~2y.
+            const yearsBack = doAth ? 25 : doMom ? 3 : 2;
             const dailyBars = await fetchDailyBars(ticker, market, yearsBack);
             if (dailyBars.length >= 60) {
               const lastDay = dailyBars[dailyBars.length - 1]!.date.slice(0, 10);
@@ -1556,7 +1996,11 @@ export async function runSignalBatch(
                     momentum_pct: hit.momentum_pct,
                     signal_date: hit.signal_date,
                   });
+                } else {
+                  // Short history (< ~400 sessions) — still mark scanned.
+                  momRows.push(momSentinel(ticker, market, dailyBars));
                 }
+                momResolved.add(ticker);
               }
               if (!dailySession || lastDay === dailySession) {
                 any = true;
@@ -1609,12 +2053,22 @@ export async function runSignalBatch(
                   }
                 }
               }
+            } else if (doMom && dailyBars.length >= 60) {
+              // Enough to try later, but short of 12−1 lookback — mark scanned.
+              momRows.push(momSentinel(ticker, market, dailyBars));
+              momResolved.add(ticker);
             }
+            // 0 / tiny bars: Yahoo miss — leave unchecked so the next batch retries.
           }
 
           if (!any) failed += 1;
         } catch {
           failed += 1;
+          // Don't persist empty MOM/MRSI on throw — rate-limits would block refill.
+          if (doMrsi) {
+            mrsiRows.push(mrsiSentinel(ticker, market));
+            mrsiResolved.add(ticker);
+          }
         }
       }),
     );
@@ -1626,14 +2080,30 @@ export async function runSignalBatch(
   if (doAth) upsertAth(athRows);
   if (doHigh52) upsertHigh52(high52Rows);
   if (doMom) upsertMom(momRows);
-  const checks = scanKinds(kind).map((k) => ({
-    kind: k,
-    timeframe: kindTimeframe(k, bbTf),
-  }));
-  markChecked(
-    tickers.map((t) => t.ticker),
-    checks,
-  );
+  if (doMrsi) upsertMrsi(mrsiRows);
+
+  const otherKinds = scanKinds(kind).filter((k) => k !== "mom" && k !== "mrsi");
+  if (otherKinds.length) {
+    markChecked(
+      tickers.map((t) => t.ticker),
+      otherKinds.map((k) => ({
+        kind: k,
+        timeframe: kindTimeframe(k, bbTf),
+      })),
+    );
+  }
+  if (doMom && momResolved.size) {
+    markChecked(
+      [...momResolved],
+      [{ kind: "mom", timeframe: kindTimeframe("mom", bbTf) }],
+    );
+  }
+  if (doMrsi && mrsiResolved.size) {
+    markChecked(
+      [...mrsiResolved],
+      [{ kind: "mrsi", timeframe: kindTimeframe("mrsi", bbTf) }],
+    );
+  }
   invalidateBreakoutCache();
 
   return {
@@ -1643,7 +2113,12 @@ export async function runSignalBatch(
     emaHits: emaRows.length,
     athHits: athRows.length,
     high52Hits: high52Rows.length,
-    momHits: momRows.filter((r) => r.momentum_pct > 0).length,
+    momHits: momRows.filter(
+      (r) => r.momentum_pct != null && r.momentum_pct > 0,
+    ).length,
+    momScanned: momRows.length,
+    mrsiHits: mrsiRows.filter((r) => r.crossed_above_70).length,
+    mrsiScanned: mrsiRows.length,
     failed,
     remaining: 0,
     bbTickers: bbRows.map((r) => r.ticker),
@@ -1651,6 +2126,11 @@ export async function runSignalBatch(
     emaTickers: emaRows.map((r) => r.ticker),
     athTickers: athRows.map((r) => r.ticker),
     high52Tickers: high52Rows.map((r) => r.ticker),
-    momTickers: momRows.filter((r) => r.momentum_pct > 0).map((r) => r.ticker),
+    momTickers: momRows
+      .filter((r) => r.momentum_pct != null && r.momentum_pct > 0)
+      .map((r) => r.ticker),
+    mrsiTickers: mrsiRows
+      .filter((r) => r.crossed_above_70)
+      .map((r) => r.ticker),
   };
 }

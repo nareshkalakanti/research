@@ -8,6 +8,7 @@
 import { invalidateCompanyCache } from "../src/lib/db";
 import {
   ensureFundWatchlistInCompanyAbout,
+  FUND_WATCHLIST_HOLDER_FILTER,
   FUND_WATCHLIST_KEYS,
   FUND_WATCHLIST_LABELS,
   FUND_WATCHLIST_SOURCES,
@@ -83,9 +84,15 @@ async function pullOne(listKey: FundWatchlistKey): Promise<number> {
     src,
     ...(src.extra_sources ?? []),
   ];
+  const holderFilter = FUND_WATCHLIST_HOLDER_FILTER[listKey];
   const parsed = [];
   for (const s of sources) {
-    parsed.push(...(await fetchSourceHoldings(s, src.label)));
+    const rows = await fetchSourceHoldings(s, src.label);
+    parsed.push(
+      ...(holderFilter
+        ? rows.filter((r) => holderFilter.test(r.holder_name || ""))
+        : rows),
+    );
   }
 
   const bySym = new Map<

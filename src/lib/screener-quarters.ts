@@ -111,6 +111,34 @@ function writeCache(
   }
 }
 
+/** Persist any quarterly series into the Stable-OPM / Quarters cache. */
+export function upsertQuartersCache(
+  ticker: string,
+  quarters: QuarterPoint[],
+): void {
+  if (!quarters.length) return;
+  writeCache(ticker, quarters);
+}
+
+/** Mark a ticker as recently attempted with no usable series (skip for 24h). */
+export function markQuartersFillMiss(ticker: string): void {
+  const until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  writeCache(ticker, [], until);
+}
+
+export function quartersCacheTickerSet(): Set<string> {
+  ensureCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const rows = db
+      .prepare(`SELECT ticker FROM screener_quarters_cache`)
+      .all() as Array<{ ticker: string }>;
+    return new Set(rows.map((r) => r.ticker.toUpperCase()));
+  } finally {
+    db.close();
+  }
+}
+
 function parsePeriodLabel(label: string): string | null {
   const m = label.trim().match(/^([A-Za-z]{3})\s+(\d{4})$/);
   if (!m) return null;

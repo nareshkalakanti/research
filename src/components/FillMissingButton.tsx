@@ -221,7 +221,7 @@ export function FillMissingButton({
         disabled={pageDisabled}
         onClick={() => void runPage()}
       >
-        Fill page
+        Fill prices
         {gapCount > 0 ? <span className="btn-count">{gapCount}</span> : null}
       </button>
       {variant === "panel" || totalGaps > 0 ? (
@@ -267,8 +267,28 @@ export function FillMissingButton({
   if (variant === "inline") {
     return (
       <div className={`fill-inline ${busy ? "is-busy" : ""}`}>
-        {actions}
-        {progressUi}
+        <button
+          type="button"
+          className={`chip chip-scan tag-chip fill-chip ${busy ? "busy on" : ""}`}
+          disabled={busy || (!gapCount && !tickers?.length)}
+          title={
+            gapCount > 0
+              ? `Fetch missing price / mcap for ${gapCount} names on this page`
+              : "No missing price/mcap on this page"
+          }
+          onClick={() => void runPage()}
+        >
+          {busy
+            ? `Filling… ${progress?.pct ?? 0}%`
+            : gapCount > 0
+              ? `Fill prices ${gapCount}`
+              : "Fill prices"}
+        </button>
+        {showProgress && progress?.detail ? (
+          <span className="fill-inline-detail" role="status" aria-live="polite">
+            {progress.detail}
+          </span>
+        ) : null}
       </div>
     );
   }

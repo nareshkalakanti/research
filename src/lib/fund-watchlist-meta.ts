@@ -7,7 +7,8 @@ export type FundWatchlistKey =
   | "mukul"
   | "kedia"
   | "singhania"
-  | "kela";
+  | "kela"
+  | "manohar";
 
 export const FUND_WATCHLIST_KEYS: FundWatchlistKey[] = [
   "niveshaay",
@@ -17,6 +18,7 @@ export const FUND_WATCHLIST_KEYS: FundWatchlistKey[] = [
   "kedia",
   "singhania",
   "kela",
+  "manohar",
 ];
 
 export const FUND_WATCHLIST_LABELS: Record<FundWatchlistKey, string> = {
@@ -27,6 +29,7 @@ export const FUND_WATCHLIST_LABELS: Record<FundWatchlistKey, string> = {
   kedia: "Kedia",
   singhania: "Singhania",
   kela: "Kela",
+  manohar: "Manohar",
 };
 
 export type FundFilterState = Partial<Record<FundWatchlistKey, boolean>>;
