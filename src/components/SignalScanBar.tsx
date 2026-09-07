@@ -24,8 +24,7 @@ export type ViewFilter =
   | "mrsi"
   | "mrsi85"
   | "mrsi_empty"
-  | "opm"
-  | "board";
+  | "opm";
 
 type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi" | "all";
 type ExtraBusy = "quarters";
@@ -60,7 +59,6 @@ type Props = {
   mrsi85Count?: number;
   mrsiEmptyCount?: number;
   opmCount?: number;
-  boardCount?: number;
   bbDate?: string | null;
   bbWDate?: string | null;
   bbMDate?: string | null;
@@ -163,7 +161,6 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   mrsi85: "85–90",
   mrsi_empty: "Empty",
   opm: "Operating Metrics",
-  board: "Board",
 };
 
 type ScanCounts = {
@@ -260,7 +257,6 @@ export function SignalScanBar({
   mrsi85Count,
   mrsiEmptyCount,
   opmCount,
-  boardCount,
   bbDate,
   bbWDate,
   bbMDate,
@@ -821,16 +817,6 @@ export function SignalScanBar({
             >
               Operating Metrics
               <Count n={opmCount} />
-            </button>
-
-            <button
-              type="button"
-              className={`chip tag-chip tag-scan-board ${view === "board" ? "on" : ""}`}
-              onClick={() => onView("board")}
-              title="Board reputation: DIN-backed directors with cap bridge, Multi-LC, SME×mainboard, or strong multi-board score. Uses local governance.db — no separate Scan button."
-            >
-              Board
-              <Count n={boardCount} />
             </button>
 
             {view !== "all" ? (

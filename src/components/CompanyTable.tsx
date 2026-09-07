@@ -27,10 +27,7 @@ export type SortKey =
   | "mcap_cr"
   | "momentum_pct"
   | "momentum_rank"
-  | "rsi_m"
-  | "board_score"
-  | "board_dirs"
-  | "board_top";
+  | "rsi_m";
 
 type ExpandPanel =
   | "about"
@@ -47,8 +44,6 @@ type Props = {
   showMissing?: boolean;
   /** Theme/Scan/Missing — 12m momentum column is Scan-only. */
   showMomentum?: boolean;
-  /** Scan Board view — reputation score / dirs / flags / top director. */
-  showBoardRep?: boolean;
   /** Allow deleting a stock from local DBs (Missing Data). */
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
@@ -73,21 +68,6 @@ function SortIcon({
     return <span className="sort-idle">⇅</span>;
   }
   return <span className="sort-active">{dir === "asc" ? "↑" : "↓"}</span>;
-}
-
-/** Shorten ALL-CAPS DIN names for the Board column (full name in title). */
-function formatBoardDirectorName(name: string | null | undefined): string {
-  const raw = (name || "").trim();
-  if (!raw) return "—";
-  const parts = raw.split(/\s+/).filter(Boolean);
-  if (parts.length <= 2) {
-    return parts
-      .map((p) => p.charAt(0) + p.slice(1).toLowerCase())
-      .join(" ");
-  }
-  const first = parts[0]!;
-  const last = parts[parts.length - 1]!;
-  return `${first.charAt(0) + first.slice(1).toLowerCase()} ${last.charAt(0) + last.slice(1).toLowerCase()}`;
 }
 
 function SignalTags({ company }: { company: Company }) {
@@ -175,7 +155,6 @@ export function CompanyTable({
   showMatched,
   showMissing,
   showMomentum,
-  showBoardRep,
   allowDelete,
   onDeleteStock,
   onNoteChange,
@@ -186,86 +165,64 @@ export function CompanyTable({
   const [more, setMore] = useState<Record<string, boolean>>({});
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
-  const colSpan = showBoardRep ? 9 : showMomentum ? 10 : 5;
+  const colSpan = showMomentum ? 10 : 5;
   const headers = useMemo(
     () =>
-      (showBoardRep
+      (showMomentum
         ? [
-            { key: "name" as const, label: "Company", align: "left" as const },
-            { key: "sector" as const, label: "Sec", align: "left" as const },
-            { key: "mcap_cr" as const, label: "Mcap", align: "right" as const },
             {
-              key: "board_score" as const,
-              label: "Score",
-              align: "right" as const,
-            },
-            {
-              key: "board_dirs" as const,
-              label: "Dirs",
-              align: "right" as const,
-            },
-            {
-              key: "board_top" as const,
-              label: "Director",
+              key: "momentum_rank" as const,
+              label: "Rank",
               align: "left" as const,
             },
+            { key: "name" as const, label: "Company", align: "left" as const },
+            { key: "sector" as const, label: "Sec", align: "left" as const },
+            {
+              key: "mcap_cr" as const,
+              label: "Mcap",
+              align: "right" as const,
+            },
             { key: "price" as const, label: "LTP", align: "right" as const },
+            {
+              key: "price_1y" as const,
+              label: "1Y",
+              align: "right" as const,
+            },
+            {
+              key: "price_1m" as const,
+              label: "1M",
+              align: "right" as const,
+            },
+            {
+              key: "momentum_pct" as const,
+              label: "Mom",
+              align: "right" as const,
+            },
+            {
+              key: "rsi_m" as const,
+              label: "RSI M",
+              align: "right" as const,
+            },
           ]
-        : showMomentum
-          ? [
-              {
-                key: "momentum_rank" as const,
-                label: "Rank",
-                align: "left" as const,
-              },
-              { key: "name" as const, label: "Company", align: "left" as const },
-              { key: "sector" as const, label: "Sec", align: "left" as const },
-              {
-                key: "mcap_cr" as const,
-                label: "Mcap",
-                align: "right" as const,
-              },
-              { key: "price" as const, label: "LTP", align: "right" as const },
-              {
-                key: "price_1y" as const,
-                label: "1Y",
-                align: "right" as const,
-              },
-              {
-                key: "price_1m" as const,
-                label: "1M",
-                align: "right" as const,
-              },
-              {
-                key: "momentum_pct" as const,
-                label: "Mom",
-                align: "right" as const,
-              },
-              {
-                key: "rsi_m" as const,
-                label: "RSI M",
-                align: "right" as const,
-              },
-            ]
-          : [
-              { key: "name" as const, label: "Company", align: "left" as const },
-              { key: "sector" as const, label: "Sec", align: "left" as const },
-              {
-                key: "mcap_cr" as const,
-                label: "Mcap",
-                align: "right" as const,
-              },
-              {
-                key: "price" as const,
-                label: "Price",
-                align: "right" as const,
-              },
-            ]) satisfies Array<{
+        : [
+            { key: "name" as const, label: "Company", align: "left" as const },
+            { key: "sector" as const, label: "Sec", align: "left" as const },
+            {
+              key: "mcap_cr" as const,
+              label: "Mcap",
+              align: "right" as const,
+            },
+            {
+              key: "price" as const,
+              label: "Price",
+              align: "right" as const,
+            },
+          ]) satisfies Array<{
         key: SortKey;
         label: string;
         align: "left" | "right";
       }>,
-    [showMomentum, showBoardRep],
+    [showMomentum],
   );
   const rowIdentity = useMemo(
     () => rows.map((r) => `${r.market}:${r.ticker}`).join("|"),
@@ -290,21 +247,10 @@ export function CompanyTable({
       {toolbar ? <div className="table-card-toolbar">{toolbar}</div> : null}
       <div className="table-wrap">
         <table
-          className={`data-table${showMomentum ? " data-table--mom" : ""}${showBoardRep ? " data-table--board" : ""}`}
+          className={`data-table${showMomentum ? " data-table--mom" : ""}`}
         >
           <colgroup>
-            {showBoardRep ? (
-              <>
-                <col className="col-name" />
-                <col className="col-sec" />
-                <col className="col-mcap_cr" />
-                <col className="col-board-score" />
-                <col className="col-board-dirs" />
-                <col className="col-board-top" />
-                <col className="col-price" />
-                <col className="col-links" />
-              </>
-            ) : showMomentum ? (
+            {showMomentum ? (
               <>
                 <col className="col-rank" />
                 <col className="col-name" />
@@ -338,21 +284,15 @@ export function CompanyTable({
                       ? "col-sec"
                       : h.key === "momentum_pct"
                         ? "col-mom"
-                    : h.key === "momentum_rank"
-                      ? "col-rank"
+                        : h.key === "momentum_rank"
+                          ? "col-rank"
                           : h.key === "price_1y"
                             ? "col-p1y"
                             : h.key === "price_1m"
                               ? "col-p1m"
                               : h.key === "rsi_m"
                                 ? "col-rsi-m"
-                              : h.key === "board_score"
-                                ? "col-board-score"
-                                : h.key === "board_dirs"
-                                  ? "col-board-dirs"
-                                  : h.key === "board_top"
-                                    ? "col-board-top"
-                              : `col-${h.key}`,
+                                : `col-${h.key}`,
                   ]
                     .filter(Boolean)
                     .join(" ")}
@@ -408,7 +348,6 @@ export function CompanyTable({
                   showMatched={showMatched}
                   showMissing={showMissing}
                   showMomentum={showMomentum}
-                  showBoardRep={showBoardRep}
                   allowDelete={allowDelete}
                   onDeleteStock={onDeleteStock}
                   colSpan={colSpan}
@@ -677,7 +616,6 @@ function CompanyRows({
   showMatched,
   showMissing,
   showMomentum,
-  showBoardRep,
   allowDelete,
   onDeleteStock,
   colSpan,
@@ -694,7 +632,6 @@ function CompanyRows({
   showMatched?: boolean;
   showMissing?: boolean;
   showMomentum?: boolean;
-  showBoardRep?: boolean;
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
   colSpan: number;
@@ -867,69 +804,7 @@ function CompanyRows({
             </div>
           ) : null}
         </td>
-        {showBoardRep ? (
-          <>
-            <SecCell
-              className="cd-sec col-sec"
-              sector={displaySector}
-              subSector={displaySubSector}
-            />
-            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
-            <td className="num col-board-score" title="Best DIN-backed director score">
-              {r.board_score != null ? r.board_score.toFixed(1) : "—"}
-            </td>
-            <td className="num col-board-dirs" title="Qualifying directors on this board">
-              {r.board_dirs != null ? r.board_dirs : "—"}
-            </td>
-            <td className="col-board-top">
-              <span
-                className="board-top-name"
-                title={r.board_top || undefined}
-              >
-                {formatBoardDirectorName(r.board_top)}
-              </span>
-              <span className="board-flag-row">
-                {r.board_bridge ? (
-                  <span
-                    className="result-tag tag-scan-board"
-                    title="Cap bridge director"
-                  >
-                    Bridge
-                  </span>
-                ) : null}
-                {r.board_multi_lc ? (
-                  <span
-                    className="result-tag tag-scan-board"
-                    title="Multi large-cap director"
-                  >
-                    Multi-LC
-                  </span>
-                ) : null}
-                {r.board_sme_cross ? (
-                  <span
-                    className="result-tag tag-scan-board"
-                    title="SME ↔ mainboard director"
-                  >
-                    SME×
-                  </span>
-                ) : null}
-              </span>
-            </td>
-            <td className="num col-price">
-              <button
-                type="button"
-                className="price-btn"
-                title="Click to show About / Notes"
-                onClick={onToggleAbout}
-              >
-                {formatInr(r.price)}
-              </button>
-            </td>
-            <td className="col-links">
-              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
-            </td>
-          </>
-        ) : showMomentum ? (
+        {showMomentum ? (
           <>
             <SecCell
               className="cd-sec col-sec"

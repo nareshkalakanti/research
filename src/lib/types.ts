@@ -70,17 +70,6 @@ export type Company = {
   has_edge?: boolean;
   /** Screener quality screen (growth + ROE/ROCE + low debt + OPM) — data/quality.db. */
   has_quality?: boolean;
-  /** Board reputation hit — DIN-backed multi-board / bridge / Multi-LC / SME×. */
-  has_board_rep?: boolean;
-  /** Best qualifying director score (0–100). */
-  board_score?: number | null;
-  /** Count of qualifying directors on this board. */
-  board_dirs?: number | null;
-  /** Top director name by score. */
-  board_top?: string | null;
-  board_bridge?: boolean;
-  board_multi_lc?: boolean;
-  board_sme_cross?: boolean;
   /** Trendlyne fund watchlist tags (Niveshaay, Negen, Kacholia, …). */
   fund_tags?: FundWatchlistKey[];
   /** QoQ change per fund tag (new / inc / dec from Trendlyne). */

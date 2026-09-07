@@ -129,7 +129,6 @@ export function ScanPanel() {
       if (view === "mrsi85") params.set("mrsi85", "1");
       if (view === "mrsi_empty") params.set("mrsi_empty", "1");
       if (view === "opm") params.set("opm", "1");
-      if (view === "board") params.set("board", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterQuality) params.set("quality", "1");
@@ -349,13 +348,6 @@ export function ScanPanel() {
           onView={(v) => {
             setView(v);
             setPage(1);
-            if (v === "board") {
-              setSort("board_score");
-              setDir("desc");
-            } else if (sort === "board_score" || sort === "board_dirs" || sort === "board_top") {
-              setSort("momentum_rank");
-              setDir("asc");
-            }
           }}
           market={list}
           bbTimeframe="weekly"
@@ -380,7 +372,6 @@ export function ScanPanel() {
           mrsi85Count={data?.signals?.mrsi85}
           mrsiEmptyCount={data?.signals?.mrsi_empty}
           opmCount={data?.signals?.operating_metrics}
-          boardCount={data?.signals?.board_rep}
           bbDate={data?.session?.bb ?? null}
           bbWDate={data?.session?.bb_w ?? data?.session?.bb ?? null}
           bbMDate={data?.session?.bb_m ?? null}
@@ -404,13 +395,6 @@ export function ScanPanel() {
               listings: Stable OPM + QoQ sales &gt;0). Use{" "}
               <strong>Fill Quarters</strong> (List / Tags), open Quarters, or
               widen List.{" "}
-            </>
-          ) : view === "board" ? (
-            <>
-              {" "}
-              Needs DIN-backed multi-board directors in governance.db (cap
-              bridge, Multi-LC, SME×mainboard, or score ≥50). Run Governance
-              scan/fill first, then widen List.{" "}
             </>
           ) : selectionActive ? (
             <>
@@ -452,7 +436,6 @@ export function ScanPanel() {
       ) : null}
 
       {!loading &&
-      view !== "board" &&
       data &&
       data.rows.length > 0 &&
       data.rows.filter((r) => r.momentum_pct == null).length >
@@ -470,8 +453,7 @@ export function ScanPanel() {
         sort={sort}
         dir={dir}
         onSort={onSort}
-        showMomentum={view !== "board"}
-        showBoardRep={view === "board"}
+        showMomentum
         capFilter={cap}
         onNoteChange={softReload}
         onScrapeDone={softReload}

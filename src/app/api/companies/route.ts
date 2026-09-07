@@ -35,11 +35,6 @@ import {
 import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
 import { qualityTickerSet, invalidateQualityCache } from "@/lib/quality";
 import {
-  boardRepMap,
-  boardRepTickerSet,
-  invalidateBoardRepCache,
-} from "@/lib/board-reputation";
-import {
   activeFundFilterSet,
   anyFundFilterActive,
   fundTagsForTicker,
@@ -254,7 +249,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     invalidateHoldingsCache();
     invalidateEdgeCache();
     invalidateQualityCache();
-    invalidateBoardRepCache();
     invalidateFundWatchlistCache();
     invalidateNotesCache();
     invalidateThemeLlmScanCache();
@@ -282,8 +276,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     sp.get("opm") === "1" ||
     sp.get("stableOpm") === "1" ||
     sp.get("operating") === "1";
-  const filterBoardRep =
-    sp.get("board") === "1" || sp.get("boardRep") === "1";
   const bbAnd = sp.get("bbAnd") === "1";
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
@@ -320,8 +312,6 @@ async function buildCompaniesResponse(req: NextRequest) {
   const distressSet = distressSeedSet();
   const edge = edgeTickerSet();
   const quality = qualityTickerSet();
-  const boardRep = boardRepTickerSet();
-  const boardRepByTicker = boardRepMap();
   const fundSets = fundWatchlistSets();
   const notes = notesTickerSet();
 
@@ -516,7 +506,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     let hold = 0;
     let edgeCount = 0;
     let qualityCount = 0;
-    let board_rep = 0;
     let smeCount = 0;
     let note = 0;
     let distressCount = 0;
@@ -567,7 +556,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
       if (quality.has(t)) qualityCount += 1;
-      if (boardRep.has(t)) board_rep += 1;
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
@@ -595,7 +583,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       hold,
       edge: edgeCount,
       quality: qualityCount,
-      board_rep,
       ...fundSignals,
       sme: smeCount,
       note,
@@ -622,8 +609,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterMrsi ||
     filterMrsi85 ||
     filterMrsiEmpty ||
-    filterOperatingMetrics ||
-    filterBoardRep
+    filterOperatingMetrics
   ) {
     companies = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
@@ -640,7 +626,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       const rsiVal = flags?.mrsi?.rsi;
       const hasMrsiEmpty = rsiVal == null || !Number.isFinite(rsiVal);
       const t = c.ticker.toUpperCase();
-      if (filterBoardRep) return boardRep.has(t);
       if (filterOperatingMetrics) return operatingMetrics.has(t);
       if (filterBbw) return hasBbw;
       if (filterBbm) return hasBbm;
@@ -727,8 +712,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       filterMrsi ||
       filterMrsi85 ||
       filterMrsiEmpty ||
-      filterOperatingMetrics ||
-      filterBoardRep,
+      filterOperatingMetrics,
   });
 
   // List-relative MOM rank (1 = highest rounded 12−1 within the current filtered set).
@@ -797,19 +781,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       const bm = breakouts.get(b.ticker.toUpperCase())?.mrsi?.rsi ?? null;
       const an = am == null ? Number.NEGATIVE_INFINITY : am;
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
-      return (an - bn) * mul;
-    }
-    if (sort === "board_score" || sort === "board_dirs") {
-      const am = boardRepByTicker.get(a.ticker.toUpperCase());
-      const bm = boardRepByTicker.get(b.ticker.toUpperCase());
-      const an =
-        sort === "board_score"
-          ? (am?.board_score ?? Number.NEGATIVE_INFINITY)
-          : (am?.board_dirs ?? Number.NEGATIVE_INFINITY);
-      const bn =
-        sort === "board_score"
-          ? (bm?.board_score ?? Number.NEGATIVE_INFINITY)
-          : (bm?.board_dirs ?? Number.NEGATIVE_INFINITY);
       return (an - bn) * mul;
     }
     if (sort === "price_1y" || sort === "price_1m") {
@@ -952,18 +923,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
       has_quality: quality.has(row.ticker.toUpperCase()),
-      ...((): Record<string, unknown> => {
-        const br = boardRepByTicker.get(row.ticker.toUpperCase());
-        return {
-          has_board_rep: !!br,
-          board_score: br?.board_score ?? null,
-          board_dirs: br?.board_dirs ?? null,
-          board_top: br?.board_top ?? null,
-          board_bridge: br?.bridge ?? false,
-          board_multi_lc: br?.multi_lc ?? false,
-          board_sme_cross: br?.sme_cross ?? false,
-        };
-      })(),
       fund_tags: fundTagsForTicker(row.ticker),
       fund_changes: fundChangesForTicker(row.ticker),
       has_note: notes.has(row.ticker.toUpperCase()),
