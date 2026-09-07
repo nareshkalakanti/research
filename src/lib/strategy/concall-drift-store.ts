@@ -93,6 +93,7 @@ function companyMeta(ticker: string) {
     name: c?.name || ticker,
     market: c?.market || "NSE",
     sector: c?.sector ?? null,
+    sub_sector: c?.sub_sector ?? null,
     market_cap_cr: c?.mcap_cr ?? null,
     price: c?.price ?? null,
     sc: links.sc,
@@ -194,6 +195,7 @@ export type ConcallDriftLoadOpts = {
   sort?: "all" | "gainers" | "losers" | "earn";
   q?: string | null;
   sector?: string | null;
+  subSector?: string | null;
   mcapMin?: number | null;
   mcapMax?: number | null;
   onePerTicker?: boolean;
@@ -201,6 +203,7 @@ export type ConcallDriftLoadOpts = {
 
 export type ConcallDriftFilterMeta = {
   sectors: string[];
+  sub_sectors: string[];
   mcap_bounds: { min: number; max: number };
   total_events: number;
   with_baseline: number;
@@ -348,7 +351,9 @@ function enrichConcallDriftRows(rows: ConcallDriftRow[]): ConcallDriftRow[] {
 
 function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): ConcallDriftRow {
   const priceOk = smePriceTrusted(meta.market, row.ticker, meta.price);
+  const callOk = passesConcallAnnouncement(row);
   const consistent =
+    callOk &&
     priceOk &&
     row.has_baseline === 1 &&
     row.baseline_close != null &&
@@ -366,6 +371,7 @@ function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): Co
     name: meta.name,
     market: meta.market,
     sector: meta.sector,
+    sub_sector: meta.sub_sector,
     market_cap_cr: meta.market_cap_cr,
     price: meta.price,
     earn_at: row.earn_at,
@@ -393,7 +399,14 @@ function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): Co
   return output;
 }
 
+function passesConcallAnnouncement(row: RawEventRow): boolean {
+  const call = (row.concall_at || "").trim();
+  if (!call) return false;
+  return call.slice(0, 10) >= row.earn_at.slice(0, 10);
+}
+
 function passesEarnRow(row: RawEventRow, output: ConcallDriftRow): boolean {
+  if (!passesConcallAnnouncement(row)) return false;
   return passesEarnQuality(row.earn_subject, output.has_baseline);
 }
 
@@ -402,10 +415,15 @@ function passesRowFilters(
   opts: ConcallDriftLoadOpts | undefined,
   range: { from: Date; to: Date } | null,
 ): { ok: boolean; meta?: ReturnType<typeof companyMeta> } {
+  const anchorIso = (row.concall_at || "").trim() || row.earn_at;
   const earnTs = Date.parse(row.earn_at);
   if (!Number.isFinite(earnTs)) return { ok: false };
-  if (range && (earnTs < range.from.getTime() || earnTs > range.to.getTime())) {
-    return { ok: false };
+  if (range) {
+    const eventKey = istDateKey(anchorIso);
+    if (!eventKey) return { ok: false };
+    const fromKey = range.from.toISOString().slice(0, 10);
+    const toKey = range.to.toISOString().slice(0, 10);
+    if (eventKey < fromKey || eventKey > toKey) return { ok: false };
   }
 
   if (
@@ -424,25 +442,41 @@ function passesRowFilters(
   if (!passesCapFilter(meta.market_cap_cr, opts?.cap)) return { ok: false };
   if (!passesStrategyTags(row.ticker, meta.market, opts?.tags)) return { ok: false };
   if (!passesSectorFilter(meta.sector, opts?.sector)) return { ok: false };
+  if (!passesSectorFilter(meta.sub_sector, opts?.subSector)) return { ok: false };
   if (!passesMcapRange(meta.market_cap_cr, opts?.mcapMin, opts?.mcapMax)) {
     return { ok: false };
   }
 
   const q = (opts?.q || "").trim().toLowerCase();
   if (q) {
-    const blob = `${row.ticker} ${meta.name} ${meta.sector || ""}`.toLowerCase();
+    const blob = `${row.ticker} ${meta.name} ${meta.sector || ""} ${meta.sub_sector || ""}`.toLowerCase();
     if (!blob.includes(q)) return { ok: false };
   }
 
   return { ok: true, meta };
 }
 
+function istDateKey(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) {
+    const m = iso.match(/^(\d{4}-\d{2}-\d{2})/);
+    return m?.[1] ?? "";
+  }
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
 export function concallDriftFilterMeta(
-  opts?: Omit<ConcallDriftLoadOpts, "sector" | "mcapMin" | "mcapMax" | "sort" | "q" | "limit">,
+  opts?: Omit<ConcallDriftLoadOpts, "sector" | "subSector" | "mcapMin" | "mcapMax" | "sort" | "q" | "limit">,
 ): ConcallDriftFilterMeta {
   const range = resolveDateRange(opts);
   const rows = loadRawEvents();
   const sectors = new Set<string>();
+  const subSectors = new Set<string>();
   const mcaps: number[] = [];
   let total = 0;
   let withBaseline = 0;
@@ -470,6 +504,7 @@ export function concallDriftFilterMeta(
     total += 1;
     if (output.has_baseline) withBaseline += 1;
     if (meta.sector) sectors.add(meta.sector);
+    if (meta.sub_sector) subSectors.add(meta.sub_sector);
     const sane = saneMcap(meta.market_cap_cr);
     if (sane != null) mcaps.push(sane);
   }
@@ -479,6 +514,7 @@ export function concallDriftFilterMeta(
       total += 1;
       if (output.has_baseline) withBaseline += 1;
       if (output.sector) sectors.add(output.sector);
+      if (output.sub_sector) subSectors.add(output.sub_sector);
       const sane = saneMcap(output.market_cap_cr);
       if (sane != null) mcaps.push(sane);
     }
@@ -486,10 +522,114 @@ export function concallDriftFilterMeta(
 
   return {
     sectors: [...sectors].sort((a, b) => a.localeCompare(b)),
+    sub_sectors: [...subSectors].sort((a, b) => a.localeCompare(b)),
     mcap_bounds: mcapSliderBounds(mcaps),
     total_events: total,
     with_baseline: withBaseline,
   };
+}
+
+const WINDOW_CHIP_IDS = [
+  "yesterday",
+  "today",
+  "early",
+  "last7",
+  "tomorrow",
+  "next7",
+] as const;
+
+export type ConcallDriftWindowCounts = Record<
+  (typeof WINDOW_CHIP_IDS)[number] | "all",
+  number
+>;
+
+export type ConcallDriftSortCounts = {
+  all: number;
+  gainers: number;
+  losers: number;
+};
+
+/** Scan-style chip counts for date windows (IST, by concall date). */
+export function concallDriftWindowCounts(
+  opts?: Omit<ConcallDriftLoadOpts, "window" | "from" | "to" | "sort" | "limit">,
+): ConcallDriftWindowCounts {
+  const counts: ConcallDriftWindowCounts = {
+    all: 0,
+    yesterday: 0,
+    today: 0,
+    early: 0,
+    last7: 0,
+    tomorrow: 0,
+    next7: 0,
+  };
+  const ranges = Object.fromEntries(
+    WINDOW_CHIP_IDS.map((id) => [id, windowRange(id)]),
+  ) as Record<(typeof WINDOW_CHIP_IDS)[number], { from: Date; to: Date } | null>;
+
+  const rows = loadRawEvents();
+  const bestAll = new Map<string, true>();
+  const bestByWindow = Object.fromEntries(
+    WINDOW_CHIP_IDS.map((id) => [id, new Map<string, true>()]),
+  ) as Record<(typeof WINDOW_CHIP_IDS)[number], Map<string, true>>;
+
+  const baseOpts = { ...opts, window: "all", sort: "all" as const };
+
+  for (const row of rows) {
+    const { ok, meta } = passesRowFilters(row, baseOpts, null);
+    if (!ok || !meta) continue;
+    const output = rowToOutput(row, meta);
+    if (!passesEarnRow(row, output)) continue;
+
+    const key = row.ticker.toUpperCase();
+    bestAll.set(key, true);
+
+    const anchorIso = (row.concall_at || "").trim() || row.earn_at;
+    const eventKey = istDateKey(anchorIso);
+    if (!eventKey) continue;
+    for (const id of WINDOW_CHIP_IDS) {
+      const range = ranges[id];
+      if (!range) continue;
+      const fromKey = range.from.toISOString().slice(0, 10);
+      const toKey = range.to.toISOString().slice(0, 10);
+      if (eventKey < fromKey || eventKey > toKey) continue;
+      bestByWindow[id].set(key, true);
+    }
+  }
+
+  counts.all = bestAll.size;
+  for (const id of WINDOW_CHIP_IDS) {
+    counts[id] = bestByWindow[id].size;
+  }
+  return counts;
+}
+
+/** Counts for All / Gainers / Losers under the active date window. */
+export function concallDriftSortCounts(
+  opts?: Omit<ConcallDriftLoadOpts, "sort" | "limit">,
+): ConcallDriftSortCounts {
+  const range = resolveDateRange(opts);
+  const rows = loadRawEvents();
+  const bestByTicker = new Map<string, ConcallDriftRow>();
+
+  for (const row of rows) {
+    const { ok, meta } = passesRowFilters(row, opts, range);
+    if (!ok || !meta) continue;
+    const output = rowToOutput(row, meta);
+    if (!passesEarnRow(row, output)) continue;
+    const key = row.ticker.toUpperCase();
+    const prev = bestByTicker.get(key);
+    if (!prev) bestByTicker.set(key, output);
+    else bestByTicker.set(key, pickBetterDriftRow(prev, output));
+  }
+
+  let gainers = 0;
+  let losers = 0;
+  for (const r of bestByTicker.values()) {
+    if (!r.has_baseline || r.drift_pct == null) continue;
+    if (r.drift_pct > 0) gainers += 1;
+    else if (r.drift_pct < 0) losers += 1;
+  }
+  return { all: bestByTicker.size, gainers, losers };
 }
 
 export function loadConcallDriftRows(opts?: ConcallDriftLoadOpts): ConcallDriftRow[] {
@@ -786,6 +926,67 @@ export function loadConcallDriftRepairCandidates(
     if (out.length >= limit) break;
   }
   return out;
+}
+
+export function listConcallDriftBaselineJobs(tickers: string[]): Array<{
+  id: string;
+  ticker: string;
+  market: string;
+  earn_at: string;
+  concall_at: string;
+}> {
+  const want = new Set(tickers.map((t) => t.toUpperCase()));
+  const out: Array<{
+    id: string;
+    ticker: string;
+    market: string;
+    earn_at: string;
+    concall_at: string;
+  }> = [];
+  for (const row of loadRawEvents()) {
+    const t = row.ticker.toUpperCase();
+    if (!want.has(t)) continue;
+    if (!passesConcallAnnouncement(row) || !row.concall_at) continue;
+    const meta = companyMeta(row.ticker);
+    out.push({
+      id: row.id,
+      ticker: t,
+      market: meta.market,
+      earn_at: row.earn_at,
+      concall_at: row.concall_at,
+    });
+  }
+  return out;
+}
+
+export function patchConcallDriftBaseline(
+  id: string,
+  patch: {
+    baseline_close: number | null;
+    drift_pct: number | null;
+    has_baseline: boolean;
+  },
+): void {
+  ensureSchema();
+  const db = openSqliteNamed("strategy.db", { readonly: false, wal: true });
+  try {
+    db.prepare(
+      `UPDATE concall_drift_events
+       SET baseline_close = @baseline_close,
+           drift_pct = @drift_pct,
+           has_baseline = @has_baseline,
+           fetched_at = @fetched_at
+       WHERE id = @id`,
+    ).run({
+      id,
+      baseline_close: patch.baseline_close,
+      drift_pct: patch.drift_pct,
+      has_baseline: patch.has_baseline ? 1 : 0,
+      fetched_at: new Date().toISOString(),
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export function patchConcallDriftPairing(

@@ -34,6 +34,12 @@ export function ensureScrapeCleanSchema(): boolean {
         db.exec(`ALTER TABLE company_about ADD COLUMN scraped_clean_at TEXT`);
         migrated = true;
       }
+      for (const col of ["group_name", "recent_moves", "business_model"] as const) {
+        if (!names.has(col)) {
+          db.exec(`ALTER TABLE company_about ADD COLUMN ${col} TEXT`);
+          migrated = true;
+        }
+      }
     } finally {
       db.close();
     }

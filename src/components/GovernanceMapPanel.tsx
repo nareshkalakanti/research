@@ -27,9 +27,12 @@ import {
   GOV_TI_BRIDGE_TITLE,
   GOV_MULTI_LC_LABEL,
   GOV_MULTI_LC_TITLE,
+  GOV_SME_CROSS_HINT,
+  GOV_SME_CROSS_LABEL,
   GOV_SME_CROSS_TITLE,
 } from "@/lib/gov-score";
 import { formatMcap } from "@/lib/types";
+import { tradingviewUrl } from "@/lib/links";
 
 type View = "director" | "company";
 type BridgeMode = "off" | "ti" | "mic" | "cap";
@@ -61,7 +64,9 @@ type Stats = {
   companies: number;
   hold?: number;
   edge?: number;
+  quality?: number;
   funds?: Partial<Record<FundWatchlistKey, number>>;
+  caps?: Partial<Record<"NC" | "TI" | "MIC" | "SC" | "MC" | "LC", number>>;
 };
 
 type Seat = {
@@ -82,6 +87,7 @@ type Seat = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_quality?: boolean;
   fund_tags?: FundWatchlistKey[];
   fund_changes?: Partial<
     Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
@@ -135,6 +141,7 @@ type CompanyRow = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
+  has_quality?: boolean;
   fund_tags?: FundWatchlistKey[];
   fund_changes?: Partial<
     Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
@@ -152,6 +159,13 @@ type CompanyRow = {
     din_backed: boolean;
     designation: string;
     category: string | null;
+    other_boards?: Array<{
+      ticker: string;
+      name: string;
+      market?: string;
+      cap_code: string | null;
+      is_sme?: boolean;
+    }>;
   }>;
 };
 
@@ -215,8 +229,10 @@ export function GovernanceMapPanel() {
   const [minBoards, setMinBoards] = useState(2);
   const [bridgeMode, setBridgeMode] = useState<BridgeMode>("off");
   const [filterMultiLc, setFilterMultiLc] = useState(false);
+  const [filterSmeCross, setFilterSmeCross] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [filterQuality, setFilterQuality] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const [cap, setCap] = useState<CapFilter>("All");
   const [sme, setSme] = useState(false);
@@ -240,7 +256,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, fundFilters, cap, sme]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, filterQuality, fundFilters, cap, sme]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -259,8 +275,10 @@ export function GovernanceMapPanel() {
       if (bridgeMode === "mic") params.set("tinyBridge", "1");
       if (bridgeMode === "cap") params.set("bridge", "1");
       if (filterMultiLc) params.set("multiLc", "1");
+      if (filterSmeCross) params.set("smeCross", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
+      if (filterQuality) params.set("quality", "1");
       appendFundParams(params, fundFilters);
       if (cap !== "All") params.set("cap", cap);
       if (sme) params.set("sme", "1");
@@ -300,7 +318,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterHold, filterEdge, fundFilters, cap, sme],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, filterQuality, fundFilters, cap, sme],
   );
 
   useEffect(() => {
@@ -475,7 +493,9 @@ export function GovernanceMapPanel() {
     if (next !== "All") setBridgeMode("off");
   }
 
-  const bridgeHint = filterMultiLc
+  const bridgeHint = filterSmeCross
+    ? GOV_SME_CROSS_HINT
+    : filterMultiLc
     ? "2+ large-cap boards (≥ ₹20,000 Cr) — group chairs, cross-holdings"
     : bridgeMode === "ti"
       ? `≥ ₹5,000 Cr board + under ₹${BRIDGE_TI_MAX_CR} Cr`
@@ -490,8 +510,10 @@ export function GovernanceMapPanel() {
     minBoards !== 2 ||
     bridgeMode !== "off" ||
     filterMultiLc ||
+    filterSmeCross ||
     filterHold ||
     filterEdge ||
+    filterQuality ||
     FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) ||
     cap !== "All" ||
     sme;
@@ -502,8 +524,10 @@ export function GovernanceMapPanel() {
     setMinBoards(2);
     setBridgeMode("off");
     setFilterMultiLc(false);
+    setFilterSmeCross(false);
     setFilterHold(false);
     setFilterEdge(false);
+    setFilterQuality(false);
     setFundFilters(EMPTY_FUNDS);
     setCap("All");
     setSme(false);
@@ -642,7 +666,36 @@ export function GovernanceMapPanel() {
             {stats?.bridges != null ? <i>{stats.bridges}</i> : null}
           </button>
         </div>
-        <div className="gov-focus-seg gov-focus-watch" role="group" aria-label="Watchlists">
+        <span className="gov-focus-label">Lists</span>
+        <div className="gov-focus-seg gov-focus-watch" role="group" aria-label="Lists">
+          <button
+            type="button"
+            className={`sme-cross ${filterSmeCross ? "on" : ""}`}
+            onClick={() => {
+              setFilterSmeCross((v) => !v);
+              // Thesis targets SMEs — Companies view shows those listings.
+              if (!filterSmeCross) setView("company");
+            }}
+            title={GOV_SME_CROSS_TITLE}
+          >
+            {GOV_SME_CROSS_LABEL}
+            {stats?.sme_cross != null ? <i>{stats.sme_cross}</i> : null}
+          </button>
+          <button
+            type="button"
+            className={`sme ${sme ? "on" : ""}`}
+            onClick={() => setSme((v) => !v)}
+            title="SME listings (NSE SME + BSE SME)"
+          >
+            SME
+          </button>
+        </div>
+        <p className="gov-focus-hint">{bridgeHint}</p>
+      </div>
+
+      <div className="gov-funds-bar">
+        <span className="gov-focus-label">Funds</span>
+        <div className="gov-focus-seg gov-focus-funds" role="group" aria-label="Fund watchlists">
           <button
             type="button"
             className={`hold ${filterHold ? "on" : ""}`}
@@ -669,6 +722,19 @@ export function GovernanceMapPanel() {
             Edge
             {stats?.edge != null ? <i>{stats.edge}</i> : null}
           </button>
+          <button
+            type="button"
+            className={`quality ${filterQuality ? "on" : ""}`}
+            onClick={() => setFilterQuality((v) => !v)}
+            title={
+              view === "company"
+                ? "Companies on Screener quality screen"
+                : "Directors with a board seat on Quality list"
+            }
+          >
+            Quality
+            {stats?.quality != null ? <i>{stats.quality}</i> : null}
+          </button>
           {FUND_WATCHLIST_KEYS.map((key) => (
             <button
               key={key}
@@ -688,16 +754,14 @@ export function GovernanceMapPanel() {
             </button>
           ))}
         </div>
-        <p className="gov-focus-hint">{bridgeHint}</p>
       </div>
 
       <div className="gov-cap-filters">
         <CapMarketFilters
           cap={cap}
           onCap={onCapChange}
-          sme={sme}
-          onSme={setSme}
-          showSme
+          allCount={stats?.companies}
+          capCounts={stats?.caps}
         />
         {filtersActive ? (
           <button
@@ -736,6 +800,9 @@ export function GovernanceMapPanel() {
           </span>
           <span>
             <strong>{stats.bridges.toLocaleString()}</strong> cap bridges
+          </span>
+          <span>
+            <strong>{(stats.sme_cross ?? 0).toLocaleString()}</strong> SME↔main
           </span>
           <span>
             <strong>{stats.din_backed.toLocaleString()}</strong> DIN-linked
@@ -944,6 +1011,9 @@ export function GovernanceMapPanel() {
                               {c.has_edge ? (
                                 <span className="gov-tag gov-tag-edge">Edge</span>
                               ) : null}
+                              {c.has_quality ? (
+                                <span className="gov-tag gov-tag-quality">Quality</span>
+                              ) : null}
                               <FundWatchlistTags
                                 tags={c.fund_tags}
                                 changes={c.fund_changes}
@@ -971,7 +1041,7 @@ export function GovernanceMapPanel() {
                               {c.headquarters ? ` · ${c.headquarters}` : ""}
                               {c.sector ? ` · ${c.sector}` : ""}
                               {c.market_cap_cr != null
-                                ? ` · ₹${formatMcap(c.market_cap_cr)} Cr`
+                                ? ` · ₹${formatMcap(c.market_cap_cr)}`
                                 : ""}
                             </div>
                           </div>
@@ -1030,6 +1100,9 @@ export function GovernanceMapPanel() {
                       {c.has_edge ? (
                         <span className="gov-tag gov-tag-edge">Edge</span>
                       ) : null}
+                      {c.has_quality ? (
+                        <span className="gov-tag gov-tag-quality">Quality</span>
+                      ) : null}
                       <FundWatchlistTags
                         tags={c.fund_tags}
                         changes={c.fund_changes}
@@ -1051,7 +1124,7 @@ export function GovernanceMapPanel() {
                     <div className="gov-dir-sub">
                       {c.market}
                       {c.market_cap_cr != null
-                        ? ` · ₹${formatMcap(c.market_cap_cr)} Cr`
+                        ? ` · ₹${formatMcap(c.market_cap_cr)}`
                         : ""}
                       {` · ${directors.length} multi-board directors`}
                     </div>
@@ -1080,28 +1153,78 @@ export function GovernanceMapPanel() {
                   {directors
                     .slice()
                     .sort((a, b) => b.dir_score - a.dir_score)
-                    .map((d) => (
+                    .map((d) => {
+                      const others = d.other_boards ?? [];
+                      // Keep SME visible even when many large-cap boards exist.
+                      const smeOthers = others.filter((b) => b.is_sme);
+                      const mainOthers = others.filter((b) => !b.is_sme);
+                      const shown = [
+                        ...smeOthers.slice(0, 4),
+                        ...mainOthers.slice(0, Math.max(2, 8 - Math.min(4, smeOthers.length))),
+                      ].slice(0, 8);
+                      const shownSet = new Set(shown.map((b) => b.ticker));
+                      const extra = others.filter((b) => !shownSet.has(b.ticker)).length;
+                      return (
                       <li key={`${c.ticker}-${d.person_id}`}>
                         <span className="gov-score inline">
                           {d.dir_score.toFixed(1)}
                         </span>
-                        <span>
-                          <button
-                            type="button"
-                            className="gov-dir-link"
-                            title={`Show other boards for ${d.name}`}
-                            onClick={() =>
-                              drillDirector(
-                                d.person_id,
-                                d.name,
-                                `${c.name} (${c.ticker})`,
-                              )
-                            }
-                          >
-                            {d.name}
-                          </button>
-                          {d.din_backed ? (
-                            <span className="gov-badge">DIN</span>
+                        <span className="gov-dir-main">
+                          <span className="gov-dir-name-row">
+                            <button
+                              type="button"
+                              className="gov-dir-link"
+                              title={`Show other boards for ${d.name}`}
+                              onClick={() =>
+                                drillDirector(
+                                  d.person_id,
+                                  d.name,
+                                  `${c.name} (${c.ticker})`,
+                                )
+                              }
+                            >
+                              {d.name}
+                            </button>
+                            {d.din_backed ? (
+                              <span className="gov-badge">DIN</span>
+                            ) : null}
+                          </span>
+                          {shown.length > 0 ? (
+                            <span className="gov-other-boards">
+                              {shown.map((b) => (
+                                <a
+                                  key={b.ticker}
+                                  className={`gov-other-link${
+                                    b.cap_code
+                                      ? ` cap-${b.cap_code.toLowerCase()}`
+                                      : " cap-nc"
+                                  }${b.is_sme ? " is-sme" : ""}`}
+                                  href={tradingviewUrl(b.ticker, b.market)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title={`${b.name}${b.cap_code ? ` · ${b.cap_code}` : ""}${b.is_sme ? " · SME" : ""} — TradingView`}
+                                >
+                                  {b.ticker.toUpperCase()}
+                                  {b.is_sme ? <em className="gov-other-sme">SME</em> : null}
+                                </a>
+                              ))}
+                              {extra > 0 ? (
+                                <button
+                                  type="button"
+                                  className="gov-other-more"
+                                  title={`Show all ${others.length} other boards`}
+                                  onClick={() =>
+                                    drillDirector(
+                                      d.person_id,
+                                      d.name,
+                                      `${c.name} (${c.ticker})`,
+                                    )
+                                  }
+                                >
+                                  +{extra}
+                                </button>
+                              ) : null}
+                            </span>
                           ) : null}
                         </span>
                         <span className="muted">
@@ -1110,7 +1233,8 @@ export function GovernanceMapPanel() {
                             .join(" · ")}
                         </span>
                       </li>
-                    ))}
+                      );
+                    })}
                 </ul>
               </article>
             );

@@ -1,3 +1,5 @@
+import { opmPctSeries } from "./opm-math";
+
 /**
  * Screener-style quarterly panel (PEAD2 `build_quarter_panel`).
  * Last 5 quarters, ₹ → Cr when Yahoo amounts look like rupees.
@@ -131,6 +133,11 @@ export function buildQuarterPanel(
     { label: "Operating Profit", values: op, good_up: true, decimals: 0 },
   ];
 
+  const opm = opmPctSeries(sales, op);
+  if (opm.some((v) => v != null)) {
+    rows.push({ label: "OPM %", values: opm, good_up: true, decimals: 1 });
+  }
+
   const oiRaw = slice.map((q) => q.otherIncome ?? null);
   if (oiRaw.some((v) => v != null && v !== 0)) {
     rows.push({
@@ -164,6 +171,12 @@ export function qCellClass(
 
 export function fmtQVal(v: number | null, decimals: number): string {
   if (v == null || !Number.isFinite(v)) return "—";
+  if (decimals === 1) {
+    return v.toLocaleString("en-IN", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+  }
   if (decimals === 2) {
     return v.toLocaleString("en-IN", {
       minimumFractionDigits: 2,
@@ -275,14 +288,28 @@ export function qoqFromPanel(panel: QuarterPanel): PanelQoQ | null {
   return { sales_qoq: sales, np_qoq: np, eps_qoq: eps, ebidt_qoq: ebidt };
 }
 
-/** Operating cash flow ÷ latest net profit (Fisher-style quality). */
+/** Align Yahoo absolute INR vs Screener ₹ Cr before dividing. */
+function alignCashflowToProfit(
+  cfo: number,
+  netProfit: number,
+): { cfo: number; np: number } {
+  const a = Math.abs(cfo);
+  const b = Math.abs(netProfit);
+  if (a >= 1e5 && b < 1e5) return { cfo: cfo / 1e7, np: netProfit };
+  if (b >= 1e5 && a < 1e5) return { cfo, np: netProfit / 1e7 };
+  return { cfo, np: netProfit };
+}
+
+/** Operating cash flow ÷ net profit (Fisher-style quality). */
 export function computeCfProfit(
   cfo: number | null | undefined,
   netProfit: number | null | undefined,
 ): number | null {
   if (cfo == null || netProfit == null || !Number.isFinite(cfo)) return null;
   if (!Number.isFinite(netProfit) || netProfit === 0) return null;
-  return Math.round((cfo / netProfit) * 100) / 100;
+  const { cfo: c, np } = alignCashflowToProfit(cfo, netProfit);
+  if (np === 0) return null;
+  return Math.round((c / np) * 100) / 100;
 }
 
 export function cfProfitClass(ratio: number | null | undefined): string {

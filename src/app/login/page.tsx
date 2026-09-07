@@ -32,7 +32,7 @@ export default function LoginPage() {
         <div className="login-brand">
           <span className="brand-mark lg">R</span>
           <h1>Research</h1>
-          <p>Demo sign-in for Theme Scanner</p>
+          <p>Demo sign-in for Theme</p>
         </div>
 
         <label className="login-field">

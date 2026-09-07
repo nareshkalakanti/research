@@ -42,10 +42,20 @@ export type Company = {
   has_high52?: boolean;
   /** Positive 12−1 price momentum (stocks-ai formula). */
   has_mom?: boolean;
+  /** New monthly RSI(14) cross above 70. */
+  has_mrsi?: boolean;
+  /** Current monthly RSI in the 85–90 excellent band. */
+  has_mrsi85?: boolean;
   /** 12−1 momentum % (Price 1M / Price 1Y − 1) × 100. */
   momentum_pct?: number | null;
-  /** Cross-sectional rank: 1 = highest momentum in scanned universe. */
+  /** Rounded momentum used for ranking. */
+  momentum_score?: number | null;
+  /** Cross-sectional rank: 1 = highest rounded momentum in the current list. */
   momentum_rank?: number | null;
+  price_1y?: number | null;
+  price_1m?: number | null;
+  /** Latest monthly RSI(14). */
+  rsi_m?: number | null;
   /** Saved research note headline tags when present. */
   news?: {
     count: number;
@@ -54,10 +64,23 @@ export type Company = {
   };
   /** In personal holdings (data/holdings.db). */
   has_hold?: boolean;
-  /** Fixed distress turnaround seed (8 monitors). */
+  /** Fixed distress turnaround seed (Hold + distress monitors). */
   has_distress?: boolean;
   /** In Early Edge watchlist (data/edge.db). */
   has_edge?: boolean;
+  /** Screener quality screen (growth + ROE/ROCE + low debt + OPM) — data/quality.db. */
+  has_quality?: boolean;
+  /** Board reputation hit — DIN-backed multi-board / bridge / Multi-LC / SME×. */
+  has_board_rep?: boolean;
+  /** Best qualifying director score (0–100). */
+  board_score?: number | null;
+  /** Count of qualifying directors on this board. */
+  board_dirs?: number | null;
+  /** Top director name by score. */
+  board_top?: string | null;
+  board_bridge?: boolean;
+  board_multi_lc?: boolean;
+  board_sme_cross?: boolean;
   /** Trendlyne fund watchlist tags (Niveshaay, Negen, Kacholia, …). */
   fund_tags?: FundWatchlistKey[];
   /** QoQ change per fund tag (new / inc / dec from Trendlyne). */
@@ -111,6 +134,13 @@ export type Company = {
     price_1m: number | null;
     momentum_pct: number | null;
     momentum_rank: number | null;
+    signal_date: string | null;
+  };
+  mrsi?: {
+    timeframe: string;
+    price: number | null;
+    rsi: number | null;
+    crossed_above_70: boolean;
     signal_date: string | null;
   };
   missing?: {
@@ -172,5 +202,20 @@ export function formatInr(n: number | null | undefined): string {
 
 export function formatMcap(n: number | null | undefined): string {
   if (n == null || Number.isNaN(n)) return "—";
-  return n.toLocaleString("en-IN", { maximumFractionDigits: 1 });
+  return `${n.toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
+}
+
+/** 12−1 momentum % (Price 1M / Price 1Y − 1). */
+export function formatMomPct(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  const rounded = Math.round(n);
+  if (rounded > 0) return `+${rounded}%`;
+  return `${rounded}%`;
+}
+
+/** Monthly RSI for scan tags — one decimal when not integer. */
+export function formatRsiM(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  const rounded = Math.round(n * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
 }

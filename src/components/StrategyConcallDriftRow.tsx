@@ -6,6 +6,7 @@ import {
   type StrategyExpandPanel,
   type StrategyRowLinks,
 } from "@/components/StrategyExpandDetail";
+import { SecCell } from "@/components/SecCell";
 import { FundWatchlistTags } from "@/components/FundWatchlistTags";
 import type { FundWatchlistKey } from "@/lib/fund-watchlist-meta";
 import type { ConcallDocLinks } from "@/lib/strategy/concall-drift-types";
@@ -17,6 +18,7 @@ export type StrategyConcallDriftRowData = {
   name: string;
   market: string;
   sector: string | null;
+  sub_sector: string | null;
   market_cap_cr: number | null;
   price: number | null;
   earn_at: string;
@@ -62,7 +64,14 @@ function fmtDrift(n: number | null): string {
   return `${sign}${n.toFixed(1)}%`;
 }
 
-const COL_SPAN = 6;
+function fmtMcap(n: number | null): string {
+  if (n == null) return "—";
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)}L Cr`;
+  if (n >= 1_000) return `₹${(n / 1_000).toFixed(1)}K Cr`;
+  return `₹${Math.round(n).toLocaleString("en-IN")} Cr`;
+}
+
+const COL_SPAN = 8;
 
 type Props = {
   index: number;
@@ -139,7 +148,7 @@ export function StrategyConcallDriftRow({
         <td className="cd-co">
           <button type="button" className="company-cell cd-co-btn" onClick={onToggle}>
             <span className="company-name">{r.name}</span>
-            <span className="cd-co-sub">{r.sector || r.ticker}</span>
+            {!open ? <span className="cd-co-sub">{r.ticker}</span> : null}
             <span className="result-tags">
               {/\bSME\b/i.test(r.market) ? (
                 <span className="result-tag tag-mkt-sme" title={r.market}>
@@ -186,24 +195,36 @@ export function StrategyConcallDriftRow({
             r.quarter_fy || "—"
           )}
         </td>
+        <td className="cd-mcap num" title={r.market_cap_cr != null ? `₹${r.market_cap_cr.toLocaleString("en-IN")} Cr` : undefined}>
+          {fmtMcap(r.market_cap_cr)}
+        </td>
+        <SecCell sector={r.sector} subSector={r.sub_sector} />
         <td className="num cd-ltp">{fmtLtp(r.price)}</td>
         <td
-          className={`num cd-drift ${
-            r.drift_pct == null
-              ? ""
-              : r.drift_pct >= 0
-                ? "strategy-drift-up"
-                : "strategy-drift-down"
-          }`}
+          className="num cd-drift"
           title={
             r.baseline_close != null
-              ? `Baseline ₹${r.baseline_close.toLocaleString("en-IN")}`
+              ? `Close before concall announcement ₹${r.baseline_close.toLocaleString("en-IN")}`
               : undefined
           }
         >
-          {fmtDrift(r.drift_pct)}
+          {r.drift_pct == null ? (
+            <span className="mom-tag mom-tag--empty">—</span>
+          ) : (
+            <span
+              className={`mom-tag ${
+                r.drift_pct > 0
+                  ? "mom-tag--pos"
+                  : r.drift_pct < 0
+                    ? "mom-tag--neg"
+                    : "mom-tag--flat"
+              }`}
+            >
+              {fmtDrift(r.drift_pct)}
+            </span>
+          )}
         </td>
-        <td className="col-links cd-links">
+        <td className="col-links">
           <div className="link-row link-row--compact">
             {r.web ? (
               <a

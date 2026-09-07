@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
 import { ScanPanel } from "@/components/ScanPanel";
-import { StrategyShell } from "@/components/StrategyShell";
+import { StrategyPanel } from "@/components/StrategyPanel";
 import { ThemeScanner } from "@/components/ThemeScanner";
 import { useAuth } from "@/lib/auth";
 
@@ -13,25 +13,54 @@ type Tab =
   | "scan"
   | "theme-scanner"
   | "governance"
-  | "strategy"
+  | "concall"
   | "missing";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "theme-scanner", label: "Theme Scanner" },
+  { id: "theme-scanner", label: "Theme" },
   { id: "scan", label: "Scan" },
   { id: "governance", label: "Governance" },
-  { id: "strategy", label: "Concall" },
+  { id: "concall", label: "Concall" },
   { id: "missing", label: "Missing data" },
 ];
+
+const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
+
+function tabFromParam(raw: string | null): Tab {
+  // Old deep-links
+  if (raw === "ht") return "scan";
+  if (raw === "strategy" || raw === "buyback") return "concall";
+  if (raw && TAB_IDS.has(raw)) return raw as Tab;
+  return "theme-scanner";
+}
 
 export function AppShell() {
   const { user, ready, logout } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>("theme-scanner");
+  const searchParams = useSearchParams();
+  const [tab, setTabState] = useState<Tab>(() =>
+    tabFromParam(searchParams.get("tab")),
+  );
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
   }, [ready, user, router]);
+
+  useEffect(() => {
+    setTabState(tabFromParam(searchParams.get("tab")));
+  }, [searchParams]);
+
+  const setTab = useCallback(
+    (next: Tab) => {
+      setTabState(next);
+      const params = new URLSearchParams(searchParams.toString());
+      if (next === "theme-scanner") params.delete("tab");
+      else params.set("tab", next);
+      const qs = params.toString();
+      router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   if (!ready || !user) {
     return <div className="boot">Loading…</div>;
@@ -76,8 +105,8 @@ export function AppShell() {
           <MissingDataPanel />
         ) : tab === "governance" ? (
           <GovernanceMapPanel />
-        ) : tab === "strategy" ? (
-          <StrategyShell />
+        ) : tab === "concall" ? (
+          <StrategyPanel />
         ) : (
           <ThemeScanner />
         )}

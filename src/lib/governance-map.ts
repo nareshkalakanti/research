@@ -8,6 +8,7 @@ import path from "path";
 import { pickAboutText } from "./db";
 import { holdingsTickerSet } from "./holdings";
 import { edgeTickerSet } from "./edge";
+import { qualityTickerSet } from "./quality";
 import { fundTagsForTicker, fundChangesForTicker } from "./fund-watchlists";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
@@ -51,6 +52,7 @@ export type GovCompanySeat = {
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
+  has_quality: boolean;
   fund_tags: FundWatchlistKey[];
   fund_changes?: Partial<Record<FundWatchlistKey, FundChangeInfo>>;
   web: string | null;
@@ -160,7 +162,7 @@ const SEAT_SELECT = `
       FROM directors d
       JOIN board_seats s ON s.person_id = d.person_id
       JOIN companies c ON c.ticker = s.ticker
-      WHERE UPPER(c.market) IN ('NSE', 'NSE SME')`;
+      WHERE UPPER(c.market) IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')`;
 
 function loadMultiBoardSeats(minBoards: number): SeatRow[] {
   const min = Math.max(2, minBoards);
@@ -173,7 +175,7 @@ function loadMultiBoardSeats(minBoards: number): SeatRow[] {
           SELECT s2.person_id
           FROM board_seats s2
           JOIN companies c2 ON c2.ticker = s2.ticker
-          WHERE UPPER(c2.market) IN ('NSE', 'NSE SME')
+          WHERE UPPER(c2.market) IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')
           GROUP BY s2.person_id
           HAVING COUNT(DISTINCT s2.ticker) >= ?
         )
@@ -201,7 +203,7 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
           FROM directors d2
           LEFT JOIN board_seats s2 ON s2.person_id = d2.person_id
           LEFT JOIN companies c2 ON c2.ticker = s2.ticker
-            AND UPPER(c2.market) IN ('NSE', 'NSE SME')
+            AND UPPER(c2.market) IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')
           WHERE LOWER(d2.name) LIKE ?
              OR (d2.din IS NOT NULL AND LOWER(d2.din) LIKE ?)
              OR (c2.ticker IS NOT NULL AND LOWER(c2.ticker) LIKE ?)
@@ -293,6 +295,7 @@ function buildRowsFromSeats(
   const breakouts = loadBreakoutMap();
   const holdings = holdingsTickerSet();
   const edge = edgeTickerSet();
+  const quality = qualityTickerSet();
   const abouts = loadAboutMap(allTickers);
 
   const rows: GovernanceMapRow[] = [];
@@ -303,8 +306,14 @@ function buildRowsFromSeats(
       const ticker = seat.ticker.toUpperCase();
       if (!ticker) continue;
       let market = (seat.market || "NSE").toUpperCase();
-      const isSme = market === "NSE SME";
-      if (isSme) market = "NSE SME";
+      const isSme = market === "NSE SME" || market === "BSE SME";
+      if (market === "NSE SME" || market === "BSE SME") {
+        /* keep SME market label */
+      } else if (market.startsWith("NSE")) {
+        market = "NSE";
+      } else if (market.startsWith("BSE")) {
+        market = "BSE";
+      }
 
       const m = metrics.get(ticker);
       const mcap = m?.market_cap_cr ?? null;
@@ -344,6 +353,7 @@ function buildRowsFromSeats(
         has_tq: Boolean(bo?.has_tq),
         has_hold: holdings.has(ticker),
         has_edge: edge.has(ticker),
+        has_quality: quality.has(ticker),
         fund_tags: fundTagsForTicker(ticker),
         fund_changes: fundChangesForTicker(ticker),
         web: links.web,
@@ -459,7 +469,16 @@ export type GovernanceMapStats = {
   companies: number;
   hold: number;
   edge: number;
+  quality: number;
   funds: Partial<Record<FundWatchlistKey, number>>;
+  caps: {
+    NC: number;
+    TI: number;
+    MIC: number;
+    SC: number;
+    MC: number;
+    LC: number;
+  };
 };
 
 export function governanceMapStats(
@@ -468,9 +487,18 @@ export function governanceMapStats(
   const tickers = new Set<string>();
   const holdTickers = new Set<string>();
   const edgeTickers = new Set<string>();
+  const qualityTickers = new Set<string>();
   const fundTickers = Object.fromEntries(
     FUND_WATCHLIST_KEYS.map((k) => [k, new Set<string>()]),
   ) as Record<FundWatchlistKey, Set<string>>;
+  const capTickers = {
+    NC: new Set<string>(),
+    TI: new Set<string>(),
+    MIC: new Set<string>(),
+    SC: new Set<string>(),
+    MC: new Set<string>(),
+    LC: new Set<string>(),
+  };
   let dinBacked = 0;
   let bridges = 0;
   let tinyBridges = 0;
@@ -488,7 +516,14 @@ export function governanceMapStats(
       tickers.add(c.ticker);
       if (c.has_hold) holdTickers.add(c.ticker);
       if (c.has_edge) edgeTickers.add(c.ticker);
+      if (c.has_quality) qualityTickers.add(c.ticker);
       for (const k of c.fund_tags ?? []) fundTickers[k]?.add(c.ticker);
+      const code = (c.cap_code || "NC").toUpperCase();
+      if (code in capTickers) {
+        capTickers[code as keyof typeof capTickers].add(c.ticker);
+      } else {
+        capTickers.NC.add(c.ticker);
+      }
     }
   }
   const funds = Object.fromEntries(
@@ -506,6 +541,15 @@ export function governanceMapStats(
     companies: tickers.size,
     hold: holdTickers.size,
     edge: edgeTickers.size,
+    quality: qualityTickers.size,
     funds,
+    caps: {
+      NC: capTickers.NC.size,
+      TI: capTickers.TI.size,
+      MIC: capTickers.MIC.size,
+      SC: capTickers.SC.size,
+      MC: capTickers.MC.size,
+      LC: capTickers.LC.size,
+    },
   };
 }

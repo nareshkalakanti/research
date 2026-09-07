@@ -53,7 +53,7 @@ export type ConcallDriftReview = {
   disclosure_ladder: DisclosureLadderItem[];
 };
 
-const DRIFT_FALLBACK = `Explain post-earn drift for an Indian stock using daily price path and Calls-tab materials. Return ONLY valid JSON with headline, move_summary, reaction_summary, triggers, concall_highlights, risks.`;
+const DRIFT_FALLBACK = `Explain post-concall-announcement drift for an Indian stock using daily price path and Calls-tab materials. Baseline is the last close before the NSE concall/meet filing, not the results day. Return ONLY valid JSON with headline, move_summary, reaction_summary, triggers, concall_highlights, risks.`;
 
 function driftSystemPrompt(): string {
   return loadPrompt("concall-drift", DRIFT_FALLBACK);

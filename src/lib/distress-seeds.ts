@@ -4,7 +4,8 @@ export const DISTRESS_SEED_TICKERS = [
   "HMT",
   "LOKESHMACH",
   "ATAM",
-  "MIRCELECTR",
+  "CORDSCABLE",
+  "ONIDA", // formerly MIRCELECTR
   "TEAMGTY",
   "DGCONTENT",
   "BPL",

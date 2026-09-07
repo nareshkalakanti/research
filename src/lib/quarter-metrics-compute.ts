@@ -154,7 +154,9 @@ export async function resolveQuarterPanelData(
       rowPrice,
       computeCfProfit(
         live.operating_cashflow,
-        live.quarters.at(-1)?.netIncome ?? null,
+        live.operating_cashflow_np ??
+          live.quarters.at(-1)?.netIncome ??
+          null,
       ),
     );
     persistSnapshot(key, snapshot);
@@ -208,7 +210,7 @@ export async function computeAndCacheQuarterMetrics(
   }
 
   try {
-    const { quarters, price: yahooPrice, symbol, source, operating_cashflow } =
+    const { quarters, price: yahooPrice, symbol, source, operating_cashflow, operating_cashflow_np } =
       await fetchQuarterlyFundamentals(key, market, {
         screenerForce: opts?.force,
       });
@@ -235,7 +237,10 @@ export async function computeAndCacheQuarterMetrics(
         : (yahooPrice ?? priceRow?.price ?? null);
 
     const latestNp = quarters[quarters.length - 1]?.netIncome ?? null;
-    const cfProfit = computeCfProfit(operating_cashflow, latestNp);
+    const cfProfit = computeCfProfit(
+      operating_cashflow,
+      operating_cashflow_np ?? latestNp,
+    );
     const snapshot = metricsSnapshotFromPanel(panel, price, cfProfit);
     persistSnapshot(key, snapshot);
     return { ok: true, snapshot, panel, price, symbol, source };

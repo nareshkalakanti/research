@@ -9,7 +9,7 @@ export type DailyDriftPoint = {
   volume: number;
 };
 
-/** Trading days on/after concall (or earn) with % vs pre-earn baseline. */
+/** Trading days on/after concall announcement with % vs pre-announcement close. */
 export function buildDailyDriftPath(
   bars: Bar[],
   anchorAt: string,

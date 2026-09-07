@@ -60,6 +60,12 @@ const CFO_FIELDS = [
   "cashFlowFromOperations",
 ] as const;
 
+const CFO_NP_FIELDS = [
+  "netIncomeFromContinuingOperations",
+  "netIncome",
+  "netIncomeCommonStockholders",
+] as const;
+
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
 
 /** Allow limited parallel Yahoo calls (global mutex was ~1 req / 200ms). */
@@ -107,47 +113,88 @@ function pickField(
   return null;
 }
 
-async function fetchLatestOperatingCashflow(symbol: string): Promise<number | null> {
-  if (!symbol) return null;
+export type OperatingCashflowHit = {
+  cfo: number;
+  /** Same-period NP from the cash-flow row (used for annual fallback). */
+  netIncome: number | null;
+  period: "quarterly" | "annual";
+};
+
+async function fetchCashflowSeries(
+  symbol: string,
+  type: "quarterly" | "annual",
+): Promise<Array<Record<string, unknown>>> {
   const period1 = new Date();
   period1.setFullYear(period1.getFullYear() - 4);
   try {
-    const series = await withYahooThrottle(async () => {
+    return await withYahooThrottle(async () => {
       const ft = await yf.fundamentalsTimeSeries(symbol, {
         period1: toDateStr(period1),
-        type: "quarterly",
+        type,
         module: "cash-flow",
       });
       return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
     });
-    let best: { date: string; cfo: number } | null = null;
-    for (const row of series) {
-      const date = toDateStr(row.date as Date);
-      if (!date) continue;
-      const cfo = pickField(row, CFO_FIELDS);
-      if (cfo == null) continue;
-      if (!best || date.localeCompare(best.date) > 0) {
-        best = { date, cfo };
-      }
-    }
-    return best?.cfo ?? null;
   } catch {
-    return null;
+    return [];
   }
+}
+
+function bestCashflowFromSeries(
+  series: Array<Record<string, unknown>>,
+  period: "quarterly" | "annual",
+): OperatingCashflowHit | null {
+  let best: { date: string; cfo: number; netIncome: number | null } | null =
+    null;
+  for (const row of series) {
+    const date = toDateStr(row.date as Date);
+    if (!date) continue;
+    const cfo = pickField(row, CFO_FIELDS);
+    if (cfo == null) continue;
+    const netIncome = pickField(row, CFO_NP_FIELDS);
+    if (!best || date.localeCompare(best.date) > 0) {
+      best = { date, cfo, netIncome };
+    }
+  }
+  if (!best) return null;
+  return { cfo: best.cfo, netIncome: best.netIncome, period };
+}
+
+/** Latest operating cash flow — quarterly first, then annual. */
+async function fetchLatestOperatingCashflow(
+  symbol: string,
+): Promise<OperatingCashflowHit | null> {
+  if (!symbol) return null;
+  const quarterly = bestCashflowFromSeries(
+    await fetchCashflowSeries(symbol, "quarterly"),
+    "quarterly",
+  );
+  if (quarterly) return quarterly;
+  return bestCashflowFromSeries(
+    await fetchCashflowSeries(symbol, "annual"),
+    "annual",
+  );
 }
 
 export async function fetchQuarterlyFundamentals(
   ticker: string,
   market?: string | null,
-  opts?: { skipChart?: boolean; screenerForce?: boolean },
+  opts?: {
+    skipChart?: boolean;
+    screenerForce?: boolean;
+    /** Skip Screener live/cache overlay (bulk Fill Quarters — avoid throttle hangs). */
+    skipScreener?: boolean;
+  },
 ): Promise<{
   quarters: QuarterPoint[];
   price: number | null;
   ret_3m_pct: number | null;
   symbol: string;
   source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "none";
-  /** Latest-quarter operating cash flow (Yahoo cash-flow module). */
+  /** Latest operating cash flow (Yahoo cash-flow module). */
   operating_cashflow: number | null;
+  /** NP paired with CFO when annual cash-flow fallback is used (same units). */
+  operating_cashflow_np: number | null;
 }> {
   const symbol = toYfinanceSymbol(ticker, market);
   if (!symbol) {
@@ -158,6 +205,7 @@ export async function fetchQuarterlyFundamentals(
       symbol: "",
       source: "none",
       operating_cashflow: null,
+      operating_cashflow_np: null,
     };
   }
 
@@ -251,34 +299,37 @@ export async function fetchQuarterlyFundamentals(
   }
 
   // Screener.in consolidated table — throttled, cached; enriches OP / other income.
-  if (quarters.length >= 2) {
-    let screener = await fetchScreenerQuarterlyFundamentals(ticker, {
-      cacheOnly: !opts?.screenerForce,
-      force: opts?.screenerForce,
-      consolidated: true,
-    });
-    if (!screener.length && !opts?.screenerForce) {
-      screener = await fetchScreenerQuarterlyFundamentals(ticker, {
-        consolidated: true,
-      });
-    }
-    if (screener.length >= 2) {
-      quarters = mergeScreenerQuarterOverlay(quarters, screener);
-      source = source === "yahoo" ? "yahoo+screener" : source;
-    }
-  } else {
-    // Thin Yahoo — full fallback from Screener (one page fetch, cached).
-    try {
-      const screener = await fetchScreenerQuarterlyFundamentals(ticker, {
-        consolidated: true,
+  // Bulk Fill Quarters sets skipScreener to avoid multi-minute Screener queues / dropped fetches.
+  if (!opts?.skipScreener) {
+    if (quarters.length >= 2) {
+      let screener = await fetchScreenerQuarterlyFundamentals(ticker, {
+        cacheOnly: !opts?.screenerForce,
         force: opts?.screenerForce,
+        consolidated: true,
       });
-      if (screener.length >= 2) {
-        quarters = screener;
-        source = "screener";
+      if (!screener.length && !opts?.screenerForce) {
+        screener = await fetchScreenerQuarterlyFundamentals(ticker, {
+          consolidated: true,
+        });
       }
-    } catch {
-      /* keep prior source */
+      if (screener.length >= 2) {
+        quarters = mergeScreenerQuarterOverlay(quarters, screener);
+        source = source === "yahoo" ? "yahoo+screener" : source;
+      }
+    } else {
+      // Thin Yahoo — full fallback from Screener (one page fetch, cached).
+      try {
+        const screener = await fetchScreenerQuarterlyFundamentals(ticker, {
+          consolidated: true,
+          force: opts?.screenerForce,
+        });
+        if (screener.length >= 2) {
+          quarters = screener;
+          source = "screener";
+        }
+      } catch {
+        /* keep prior source */
+      }
     }
   }
 
@@ -314,9 +365,29 @@ export async function fetchQuarterlyFundamentals(
   }
 
   let operating_cashflow: number | null = null;
-  if (quarters.length >= 2 && usedSymbol && source === "yahoo") {
-    operating_cashflow = await fetchLatestOperatingCashflow(usedSymbol);
+  let operating_cashflow_np: number | null = null;
+  // Screener overlay sets source to "yahoo+screener"; still use Yahoo for CFO.
+  if (
+    quarters.length >= 2 &&
+    usedSymbol &&
+    (source === "yahoo" || source === "yahoo+screener")
+  ) {
+    const hit = await fetchLatestOperatingCashflow(usedSymbol);
+    if (hit) {
+      operating_cashflow = hit.cfo;
+      // Prefer same-period NP for annual CFO (quarterly NP is a different period/units).
+      operating_cashflow_np =
+        hit.period === "annual" ? hit.netIncome : null;
+    }
   }
 
-  return { quarters, price, ret_3m_pct, symbol: usedSymbol, source, operating_cashflow };
+  return {
+    quarters,
+    price,
+    ret_3m_pct,
+    symbol: usedSymbol,
+    source,
+    operating_cashflow,
+    operating_cashflow_np,
+  };
 }

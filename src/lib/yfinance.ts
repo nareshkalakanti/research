@@ -1,5 +1,6 @@
 import YahooFinance from "yahoo-finance2";
 import { runConcurrent } from "./scrape-pool";
+import { canonicalTicker } from "./ticker-aliases";
 
 const yf = new YahooFinance({
   suppressNotices: ["yahooSurvey"],
@@ -21,7 +22,7 @@ export function toYfinanceSymbol(
   ticker: string,
   market?: string | null,
 ): string {
-  const sym = (ticker || "").trim().toUpperCase();
+  const sym = canonicalTicker(ticker);
   if (!sym) return "";
   if (sym.endsWith(".NS") || sym.endsWith(".BO")) return sym;
   if (sym.endsWith("-SM")) return `${sym}.NS`;
@@ -37,6 +38,8 @@ export function toYfinanceSymbol(
   ) {
     return `${sym}.BO`;
   }
+  // Known BSE-only (often mis-tagged NSE in company_about).
+  if (sym === "ASMTEC") return `${sym}.BO`;
   return `${sym}.NS`;
 }
 
@@ -58,9 +61,7 @@ export function yfSymbolCandidates(
   const primary = toYfinanceSymbol(ticker, market);
   if (!primary) return [];
 
-  const bare = (ticker || "")
-    .trim()
-    .toUpperCase()
+  const bare = canonicalTicker(ticker)
     .replace(/-SM$/i, "")
     .replace(/\.(NS|BO)$/i, "");
   if (!bare) return [primary];

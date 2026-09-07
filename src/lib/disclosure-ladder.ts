@@ -1,11 +1,13 @@
 import { createNseBuybackSession } from "./nse-buybacks";
-import { isBuybackSubject } from "./strategy/buyback-parse";
 import { isFinancialEarnAnnouncement } from "./strategy/concall-drift-earn";
 
 const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
 const NSE_ANN_REF =
   "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
 
+function isBuybackSubject(subject: string): boolean {
+  return /buy\s*back|buyback|repurchase/i.test(subject);
+}
 export type DisclosureLadderTag = "EARNINGS" | "IR" | "UPDATE" | "BUYBACK";
 
 export type DisclosureLadderItem = {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   distinctSectors,
+  distinctSubSectors,
   invalidateCompanyCache,
   loadAllCompanies,
   marketCounts,
@@ -32,13 +33,18 @@ import {
   invalidateHoldingsCache,
 } from "@/lib/holdings";
 import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
+import { qualityTickerSet, invalidateQualityCache } from "@/lib/quality";
+import {
+  boardRepMap,
+  boardRepTickerSet,
+  invalidateBoardRepCache,
+} from "@/lib/board-reputation";
 import {
   activeFundFilterSet,
   anyFundFilterActive,
   fundTagsForTicker,
   fundChangesForTicker,
   fundWatchlistAllTickers,
-  fundWatchlistCounts,
   fundWatchlistSets,
   FUND_WATCHLIST_KEYS,
   invalidateFundWatchlistCache,
@@ -61,6 +67,7 @@ import {
 } from "@/lib/scan-lists";
 import { filterCompaniesByScanList } from "@/lib/scan-lists-server";
 import type { BbTimeframe } from "@/lib/signals";
+import { operatingMetricsTickerSet } from "@/lib/opm-consistency";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -99,6 +106,11 @@ function fundStubRow(stub: {
     ceo: null,
     managing_director: null,
     founded_year: null,
+    group_name: null,
+    recent_moves: null,
+    products: null,
+    end_markets: null,
+    business_model: null,
     sector: null,
     sub_sector: null,
     price: null,
@@ -141,14 +153,18 @@ function applyWatchlistFilters(
     filterHold: boolean;
     filterDistress: boolean;
     filterEdge: boolean;
+    filterQuality: boolean;
     fundActive: Partial<Record<(typeof FUND_WATCHLIST_KEYS)[number], boolean>>;
     filterNote: boolean;
     holdings: Set<string>;
     distressSet: Set<string>;
     edge: Set<string>;
+    quality: Set<string>;
     notes: Set<string>;
     allCompanies: CompanyRow[];
     themeScanActive?: boolean;
+    /** When true, do not append missing fund-watchlist stubs (signal ∩ list). */
+    skipFundStubInject?: boolean;
   },
 ): CompanyRow[] {
   let companies = input;
@@ -156,6 +172,7 @@ function applyWatchlistFilters(
   if (opts.filterSme) {
     companies = companies.filter((c) => /\bSME\b/i.test(c.market));
   }
+
 
   if (opts.filterHold) {
     companies = companies.filter((c) =>
@@ -173,12 +190,31 @@ function applyWatchlistFilters(
     companies = companies.filter((c) => opts.edge.has(c.ticker.toUpperCase()));
   }
 
+
+  if (opts.filterQuality) {
+    companies = companies.filter((c) =>
+      opts.quality.has(c.ticker.toUpperCase()),
+    );
+  }
+
   const fundFilter = activeFundFilterSet(opts.fundActive);
   if (fundFilter) {
     companies = companies.filter((c) =>
       fundFilter.has(c.ticker.toUpperCase()),
     );
-    if (!opts.themeScanActive) {
+    // Stubs fill fund-only names missing from the company DB. Skip when another
+    // Tags chip is ANDed (Hold / Edge / …) — stubs would re-widen past that chip.
+    const andedWithOtherTag =
+      opts.filterHold ||
+      opts.filterDistress ||
+      opts.filterEdge ||
+      opts.filterQuality ||
+      opts.filterNote;
+    if (
+      !opts.themeScanActive &&
+      !opts.skipFundStubInject &&
+      !andedWithOtherTag
+    ) {
       companies = appendFundWatchlistStubs(
         companies,
         fundFilter,
@@ -217,6 +253,8 @@ async function buildCompaniesResponse(req: NextRequest) {
     invalidateBreakoutCache();
     invalidateHoldingsCache();
     invalidateEdgeCache();
+    invalidateQualityCache();
+    invalidateBoardRepCache();
     invalidateFundWatchlistCache();
     invalidateNotesCache();
     invalidateThemeLlmScanCache();
@@ -226,6 +264,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const q = (sp.get("q") || "").trim();
   const mode = (sp.get("mode") || "OR").toUpperCase() === "AND" ? "AND" : "OR";
   const sector = sp.get("sector") || "All";
+  const subSector = sp.get("sub_sector") || "All";
   const cap = (sp.get("cap") || "All") as CapTier | "All";
   const filterSme = sp.get("sme") === "1";
   const filterBb = sp.get("bb") === "1";
@@ -236,10 +275,20 @@ async function buildCompaniesResponse(req: NextRequest) {
   const filterAth = sp.get("ath") === "1";
   const filterHigh52 = sp.get("high52") === "1";
   const filterMom = sp.get("mom") === "1";
+  const filterMrsi = sp.get("mrsi") === "1";
+  const filterMrsi85 = sp.get("mrsi85") === "1";
+  const filterMrsiEmpty = sp.get("mrsi_empty") === "1";
+  const filterOperatingMetrics =
+    sp.get("opm") === "1" ||
+    sp.get("stableOpm") === "1" ||
+    sp.get("operating") === "1";
+  const filterBoardRep =
+    sp.get("board") === "1" || sp.get("boardRep") === "1";
   const bbAnd = sp.get("bbAnd") === "1";
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
   const filterEdge = sp.get("edge") === "1";
+  const filterQuality = sp.get("quality") === "1";
   const fundActive = parseFundFiltersFromSearchParams(sp);
   const filterNote = sp.get("note") === "1";
   const fundListMode = anyFundFilterActive(fundActive);
@@ -266,11 +315,14 @@ async function buildCompaniesResponse(req: NextRequest) {
   const dinBoards = dinBoardTickerSet();
 
   const breakouts = loadBreakoutMap(bbTf);
+  const operatingMetrics = operatingMetricsTickerSet();
   const holdings = holdingsTickerSet();
   const distressSet = distressSeedSet();
   const edge = edgeTickerSet();
+  const quality = qualityTickerSet();
+  const boardRep = boardRepTickerSet();
+  const boardRepByTicker = boardRepMap();
   const fundSets = fundWatchlistSets();
-  const fundCounts = fundWatchlistCounts();
   const notes = notesTickerSet();
 
   const qTrim = q.trim();
@@ -301,6 +353,9 @@ async function buildCompaniesResponse(req: NextRequest) {
     if (sector && sector !== "All") {
       out = out.filter((c) => c.sector === sector);
     }
+    if (subSector && subSector !== "All") {
+      out = out.filter((c) => c.sub_sector === subSector);
+    }
     if (cap && cap !== "All") {
       out = out.filter((c) => capTier(c.mcap_cr) === cap);
     }
@@ -312,6 +367,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterHold ||
     filterDistress ||
     filterEdge ||
+    filterQuality ||
     anyFundFilterActive(fundActive) ||
     filterSme ||
     filterNote;
@@ -405,7 +461,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     }
   }
 
-  // Signal counts for current list — NSE counts include NSE SME when listing NSE.
+  // Signal counts for current list + active Tags chips.
   const signalCounts = (() => {
     let pool = allCompanies;
     if (scanListMode) {
@@ -422,9 +478,29 @@ async function buildCompaniesResponse(req: NextRequest) {
     if (sector && sector !== "All") {
       pool = pool.filter((c) => c.sector === sector);
     }
+    if (subSector && subSector !== "All") {
+      pool = pool.filter((c) => c.sub_sector === subSector);
+    }
     if (cap && cap !== "All") {
       pool = pool.filter((c) => capTier(c.mcap_cr) === cap);
     }
+    // Scope chip counts to Hold / Edge / SME / fund Tags (same as the table).
+    pool = applyWatchlistFilters(pool, {
+      filterSme,
+      filterHold,
+      filterDistress,
+      filterEdge,
+      filterQuality,
+      fundActive,
+      filterNote,
+      holdings,
+      distressSet,
+      edge,
+      quality,
+      notes,
+      allCompanies,
+      themeScanActive: false,
+    });
     let bb = 0;
     let bb_w = 0;
     let bb_m = 0;
@@ -433,11 +509,25 @@ async function buildCompaniesResponse(req: NextRequest) {
     let ath = 0;
     let high52 = 0;
     let mom = 0;
+    let mrsi = 0;
+    let mrsi85 = 0;
+    let mrsi_empty = 0;
+    let operating_metrics = 0;
     let hold = 0;
     let edgeCount = 0;
+    let qualityCount = 0;
+    let board_rep = 0;
     let smeCount = 0;
     let note = 0;
     let distressCount = 0;
+    const capPoolCounts: Record<CapTier, number> = {
+      NC: 0,
+      TI: 0,
+      MIC: 0,
+      SC: 0,
+      MC: 0,
+      LC: 0,
+    };
     const fundPoolCounts = Object.fromEntries(
       FUND_WATCHLIST_KEYS.map((k) => [k, 0]),
     ) as Record<(typeof FUND_WATCHLIST_KEYS)[number], number>;
@@ -469,20 +559,25 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (flags?.has_ath) ath += 1;
       if (flags?.has_high52) high52 += 1;
       if (flags?.has_mom) mom += 1;
+      if (flags?.has_mrsi) mrsi += 1;
+      if (flags?.has_mrsi85) mrsi85 += 1;
+      const rsiVal = flags?.mrsi?.rsi;
+      if (rsiVal == null || !Number.isFinite(rsiVal)) mrsi_empty += 1;
+      if (operatingMetrics.has(t)) operating_metrics += 1;
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
+      if (quality.has(t)) qualityCount += 1;
+      if (boardRep.has(t)) board_rep += 1;
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
+      capPoolCounts[capTier(c.mcap_cr)] += 1;
       for (const key of FUND_WATCHLIST_KEYS) {
         if (fundSets[key].has(t)) fundPoolCounts[key] += 1;
       }
     }
     const fundSignals = Object.fromEntries(
-      FUND_WATCHLIST_KEYS.map((k) => [
-        k,
-        themeScanActive ? fundPoolCounts[k] : fundCounts[k],
-      ]),
+      FUND_WATCHLIST_KEYS.map((k) => [k, fundPoolCounts[k]]),
     );
     return {
       bb,
@@ -493,26 +588,42 @@ async function buildCompaniesResponse(req: NextRequest) {
       ath,
       high52,
       mom,
+      mrsi,
+      mrsi85,
+      mrsi_empty,
+      operating_metrics,
       hold,
       edge: edgeCount,
+      quality: qualityCount,
+      board_rep,
       ...fundSignals,
       sme: smeCount,
       note,
       distress: distressCount,
+      NC: capPoolCounts.NC,
+      TI: capPoolCounts.TI,
+      MIC: capPoolCounts.MIC,
+      SC: capPoolCounts.SC,
+      MC: capPoolCounts.MC,
+      LC: capPoolCounts.LC,
     };
   })();
 
-  // BB/TQ/EMA/ATH/52W/MOM narrows scan results — skip when viewing a fund watchlist.
+  // Signal filters AND with List / Tags (incl. fund watchlists).
   if (
-    (filterBb ||
-      filterBbw ||
-      filterBbm ||
-      filterTq ||
-      filterEma ||
-      filterAth ||
-      filterHigh52 ||
-      filterMom) &&
-    !fundListMode
+    filterBb ||
+    filterBbw ||
+    filterBbm ||
+    filterTq ||
+    filterEma ||
+    filterAth ||
+    filterHigh52 ||
+    filterMom ||
+    filterMrsi ||
+    filterMrsi85 ||
+    filterMrsiEmpty ||
+    filterOperatingMetrics ||
+    filterBoardRep
   ) {
     companies = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
@@ -524,6 +635,13 @@ async function buildCompaniesResponse(req: NextRequest) {
       const hasAth = !!flags?.has_ath;
       const hasHigh52 = !!flags?.has_high52;
       const hasMom = !!flags?.has_mom;
+      const hasMrsi = !!flags?.has_mrsi;
+      const hasMrsi85 = !!flags?.has_mrsi85;
+      const rsiVal = flags?.mrsi?.rsi;
+      const hasMrsiEmpty = rsiVal == null || !Number.isFinite(rsiVal);
+      const t = c.ticker.toUpperCase();
+      if (filterBoardRep) return boardRep.has(t);
+      if (filterOperatingMetrics) return operatingMetrics.has(t);
       if (filterBbw) return hasBbw;
       if (filterBbm) return hasBbm;
       if (filterBb) return hasBb;
@@ -532,10 +650,13 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (filterAth) return hasAth;
       if (filterHigh52) return hasHigh52;
       if (filterMom) return hasMom;
+      if (filterMrsiEmpty) return hasMrsiEmpty;
+      if (filterMrsi85) return hasMrsi85;
+      if (filterMrsi) return hasMrsi;
       return false;
     });
   } else if (preferBreakouts && scan) {
-    // Theme results: if any hit has a scan signal, show only those.
+    // Theme results: if any matches have a scan signal, show only those.
     const withSignal = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
       return (
@@ -544,7 +665,8 @@ async function buildCompaniesResponse(req: NextRequest) {
         !!flags?.has_ema ||
         !!flags?.has_ath ||
         !!flags?.has_high52 ||
-        !!flags?.has_mom
+        !!flags?.has_mom ||
+        !!flags?.has_mrsi
       );
     });
     if (withSignal.length > 0) {
@@ -582,29 +704,54 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterHold,
     filterDistress,
     filterEdge,
+    filterQuality,
     fundActive,
     filterNote,
     holdings,
     distressSet,
     edge,
+    quality,
     notes,
     allCompanies,
     themeScanActive,
+    /** Don't re-inject full fund list after a signal filter narrowed the set. */
+    skipFundStubInject:
+      filterBb ||
+      filterBbw ||
+      filterBbm ||
+      filterTq ||
+      filterEma ||
+      filterAth ||
+      filterHigh52 ||
+      filterMom ||
+      filterMrsi ||
+      filterMrsi85 ||
+      filterMrsiEmpty ||
+      filterOperatingMetrics ||
+      filterBoardRep,
   });
 
-  // List-relative MOM rank (1 = highest 12−1 within the current filtered set).
-  // Holdings + MOM → #1 is best momentum *in holdings*, not the full universe.
+  // List-relative MOM rank (1 = highest rounded 12−1 within the current filtered set).
   const listMomRank = new Map<string, number>();
+  const listMomScore = new Map<string, number>();
   {
     const scored = companies
       .map((c) => {
         const t = c.ticker.toUpperCase();
         const pct = breakouts.get(t)?.mom?.momentum_pct;
-        return pct == null ? null : { t, pct };
+        if (pct == null) return null;
+        const score = Math.round(pct);
+        return { t, pct, score };
       })
-      .filter((x): x is { t: string; pct: number } => !!x)
-      .sort((a, b) => b.pct - a.pct || a.t.localeCompare(b.t));
-    scored.forEach((x, i) => listMomRank.set(x.t, i + 1));
+      .filter((x): x is { t: string; pct: number; score: number } => !!x)
+      .sort(
+        (a, b) =>
+          b.score - a.score || b.pct - a.pct || a.t.localeCompare(b.t),
+      );
+    scored.forEach((x, i) => {
+      listMomRank.set(x.t, i + 1);
+      listMomScore.set(x.t, x.score);
+    });
   }
 
   const mul = dir === "desc" ? -1 : 1;
@@ -639,10 +786,36 @@ async function buildCompaniesResponse(req: NextRequest) {
       return (an - bn) * mul;
     }
     if (sort === "momentum_pct") {
-      const am =
-        breakouts.get(a.ticker.toUpperCase())?.mom?.momentum_pct ?? null;
-      const bm =
-        breakouts.get(b.ticker.toUpperCase())?.mom?.momentum_pct ?? null;
+      const am = listMomScore.get(a.ticker.toUpperCase()) ?? null;
+      const bm = listMomScore.get(b.ticker.toUpperCase()) ?? null;
+      const an = am == null ? Number.NEGATIVE_INFINITY : am;
+      const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
+      return (an - bn) * mul;
+    }
+    if (sort === "rsi_m") {
+      const am = breakouts.get(a.ticker.toUpperCase())?.mrsi?.rsi ?? null;
+      const bm = breakouts.get(b.ticker.toUpperCase())?.mrsi?.rsi ?? null;
+      const an = am == null ? Number.NEGATIVE_INFINITY : am;
+      const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
+      return (an - bn) * mul;
+    }
+    if (sort === "board_score" || sort === "board_dirs") {
+      const am = boardRepByTicker.get(a.ticker.toUpperCase());
+      const bm = boardRepByTicker.get(b.ticker.toUpperCase());
+      const an =
+        sort === "board_score"
+          ? (am?.board_score ?? Number.NEGATIVE_INFINITY)
+          : (am?.board_dirs ?? Number.NEGATIVE_INFINITY);
+      const bn =
+        sort === "board_score"
+          ? (bm?.board_score ?? Number.NEGATIVE_INFINITY)
+          : (bm?.board_dirs ?? Number.NEGATIVE_INFINITY);
+      return (an - bn) * mul;
+    }
+    if (sort === "price_1y" || sort === "price_1m") {
+      const key = sort === "price_1y" ? "price_1y" : "price_1m";
+      const am = breakouts.get(a.ticker.toUpperCase())?.mom?.[key] ?? null;
+      const bm = breakouts.get(b.ticker.toUpperCase())?.mom?.[key] ?? null;
       const an = am == null ? Number.NEGATIVE_INFINITY : am;
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
       return (an - bn) * mul;
@@ -665,6 +838,9 @@ async function buildCompaniesResponse(req: NextRequest) {
     !filterAth &&
     !filterHigh52 &&
     !filterMom &&
+    !filterMrsi &&
+    !filterMrsi85 &&
+    !filterMrsiEmpty &&
     companies.length > 0 &&
     companies.every((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
@@ -674,7 +850,9 @@ async function buildCompaniesResponse(req: NextRequest) {
         !!flags?.has_ema ||
         !!flags?.has_ath ||
         !!flags?.has_high52 ||
-        !!flags?.has_mom
+        !!flags?.has_mom ||
+        !!flags?.has_mrsi ||
+        !!flags?.has_mrsi85
       );
     });
 
@@ -686,11 +864,18 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const forcePriceRefresh = sp.get("refresh") === "1";
   // Background price/mcap refresh for list tabs (skip Missing data — no live quotes needed).
+  // Tag/page flips must stay snappy: only await Yahoo when Refresh is pressed, or when
+  // a visible row has no price at all. Stale-but-present quotes refresh on hard refresh.
   if (pageItems.length && !missing) {
     try {
       await refreshPagePrices(
         pageItems.map((c) => ({ ticker: c.ticker, market: c.market })),
-        { force: forcePriceRefresh },
+        {
+          force: forcePriceRefresh,
+          maxAgeMs: forcePriceRefresh
+            ? undefined
+            : Number.POSITIVE_INFINITY,
+        },
       );
     } catch (err) {
       console.warn("[api/companies] price refresh skipped:", err);
@@ -724,7 +909,14 @@ async function buildCompaniesResponse(req: NextRequest) {
       }
     }
 
-    const { search_text: _, theme_search_text: __, ...rest } = row;
+    const {
+      search_text: _st,
+      theme_search_text: _tt,
+      dossier_text: _dt,
+      scraped_about_clean: _sc,
+      llm_about: _la,
+      ...rest
+    } = row;
     const g = gapFlags(row);
     const flags = breakouts.get(row.ticker.toUpperCase());
     return {
@@ -741,14 +933,37 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_ath: !!flags?.has_ath,
       has_high52: !!flags?.has_high52,
       has_mom: !!flags?.has_mom,
+      has_mrsi: !!flags?.has_mrsi,
+      has_mrsi85: !!flags?.has_mrsi85,
       momentum_pct: flags?.mom?.momentum_pct ?? null,
+      momentum_score:
+        listMomScore.get(row.ticker.toUpperCase()) ??
+        (flags?.mom?.momentum_pct != null
+          ? Math.round(flags.mom.momentum_pct)
+          : null),
       momentum_rank:
         listMomRank.get(row.ticker.toUpperCase()) ??
         flags?.mom?.momentum_rank ??
         null,
+      price_1y: flags?.mom?.price_1y ?? null,
+      price_1m: flags?.mom?.price_1m ?? null,
+      rsi_m: flags?.mrsi?.rsi ?? null,
       has_hold: holdings.has(row.ticker.toUpperCase()),
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
+      has_quality: quality.has(row.ticker.toUpperCase()),
+      ...((): Record<string, unknown> => {
+        const br = boardRepByTicker.get(row.ticker.toUpperCase());
+        return {
+          has_board_rep: !!br,
+          board_score: br?.board_score ?? null,
+          board_dirs: br?.board_dirs ?? null,
+          board_top: br?.board_top ?? null,
+          board_bridge: br?.bridge ?? false,
+          board_multi_lc: br?.multi_lc ?? false,
+          board_sme_cross: br?.sme_cross ?? false,
+        };
+      })(),
       fund_tags: fundTagsForTicker(row.ticker),
       fund_changes: fundChangesForTicker(row.ticker),
       has_note: notes.has(row.ticker.toUpperCase()),
@@ -760,6 +975,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       ath: flags?.ath,
       high52: flags?.high52,
       mom: flags?.mom,
+      mrsi: flags?.mrsi,
       missing: {
         price: g.price,
         mcap: g.mcap,
@@ -833,6 +1049,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     pageSize,
     markets: marketCounts(),
     sectors: distinctSectors(),
+    sub_sectors: distinctSubSectors(),
     scanPattern: scanPattern || null,
     llm: llmScan
       ? {

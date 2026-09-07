@@ -25,6 +25,14 @@ export type CompanyRow = {
   ceo: string | null;
   managing_director: string | null;
   founded_year: string | null;
+  /** Parent / promoter group from cleaned scrape (not listing sector). */
+  group_name: string | null;
+  /** Mergers, demergers, renames from cleaned scrape. */
+  recent_moves: string | null;
+  /** Cleaned scrape: products / end markets / business model. */
+  products: string | null;
+  end_markets: string | null;
+  business_model: string | null;
   sector: string | null;
   sub_sector: string | null;
   price: number | null;
@@ -131,6 +139,9 @@ type RawAbout = {
   products: string | null;
   end_markets: string | null;
   theme_tags: string | null;
+  group_name: string | null;
+  recent_moves: string | null;
+  business_model: string | null;
 };
 
 function normalizeForDedupe(s: string): string {
@@ -164,7 +175,9 @@ export function mergeAboutSourcesForThemeSearch(row: {
     row.llm_about ?? null,
   ];
   if (useCleanScrapeInThemes()) {
-    sources.push(row.scraped_about_clean ?? null);
+    const clean = (row.scraped_about_clean ?? "").trim();
+    // Cap length so Theme/Scan company cache stays fast after bulk clean imports.
+    sources.push(clean.length > 900 ? clean.slice(0, 900) : clean || null);
   }
   const filtered = sources
     .map(nonempty)
@@ -227,6 +240,9 @@ function buildThemeSearchText(
     aboutCorpus,
     row.products,
     row.end_markets,
+    row.group_name,
+    row.recent_moves,
+    row.business_model,
     row.theme_tags,
     sector,
     sub,
@@ -250,6 +266,9 @@ function buildSearchText(
     aboutCorpus,
     row.products,
     row.end_markets,
+    row.group_name,
+    row.recent_moves,
+    row.business_model,
     row.theme_tags,
     sector,
     sub,
@@ -270,12 +289,22 @@ export function buildCompanyDossierText(row: {
   mcap_cr: number | null;
   theme_search_text: string;
   scraped_about_clean: string | null;
+  group_name?: string | null;
+  recent_moves?: string | null;
+  products?: string | null;
+  end_markets?: string | null;
+  business_model?: string | null;
 }): string {
   const header = [
     `${row.name} (${row.ticker}) · ${row.market}`,
     row.sector || row.sub_sector
       ? `Sector: ${[row.sector, row.sub_sector].filter(Boolean).join(" / ")}`
       : null,
+    row.group_name ? `Group: ${row.group_name}` : null,
+    row.recent_moves ? `Recent moves: ${row.recent_moves}` : null,
+    row.business_model ? `Business model: ${row.business_model}` : null,
+    row.products ? `Products: ${row.products}` : null,
+    row.end_markets ? `End markets: ${row.end_markets}` : null,
     row.headquarters ? `HQ: ${row.headquarters}` : null,
     row.mcap_cr != null ? `Mcap: ₹${Math.round(row.mcap_cr)} Cr` : null,
   ]
@@ -418,6 +447,11 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       ceo: nonempty(row.ceo),
       managing_director: nonempty(row.managing_director),
       founded_year: nonempty(row.founded_year),
+      group_name: nonempty(row.group_name),
+      recent_moves: nonempty(row.recent_moves),
+      products: nonempty(row.products),
+      end_markets: nonempty(row.end_markets),
+      business_model: nonempty(row.business_model),
       sector,
       sub_sector,
       price: m?.price ?? null,
@@ -447,21 +481,44 @@ function looksLikeScripCodeName(name: string | null | undefined): boolean {
   return /^\d{1,6}$/.test(n);
 }
 
+/** Placeholder when ingest left ticker (or empty) as the company name. */
+function looksLikeTickerAsName(
+  name: string | null | undefined,
+  ticker: string,
+): boolean {
+  const n = (name ?? "").trim();
+  if (!n) return true;
+  return n.toUpperCase() === ticker.trim().toUpperCase();
+}
+
 /** Parse "Acme Widgets Limited designs…" from Yahoo/BSE about prose. */
 export function nameFromAboutText(
   about: string | null | undefined,
 ): string | null {
   const text = (about ?? "").trim();
   if (text.length < 20) return null;
+  // Prefer legal-entity end (Limited/Ltd) so "X Limited, a Y company, provides…" stays short.
+  const legal = text.match(
+    /^([A-Z][\w.'’\-]*(?:\s+(?:&|and|[A-Z][\w.'’\-]*))*\s+(?:Limited|Ltd\.?|LLP|PLC))\b/,
+  );
+  if (legal?.[1]) return legal[1].trim();
   const m = text.match(
     /^(.{3,120}?)\s+(designs|engages|operates|provides|manufactures|develops|offers|is an|is a|specializes|focuses|distributes|produces|supplies|markets|trades in)\b/i,
   );
-  return m?.[1]?.trim() || null;
+  const raw = m?.[1]?.trim() || null;
+  if (!raw) return null;
+  // Drop trailing ", a … company" clause if the verb path over-captured.
+  const cut = raw.split(/,\s+a\s+/i)[0]?.trim();
+  return cut || raw;
 }
 
 function resolveCompanyName(row: RawAbout, about: string | null): string {
   const stored = nonempty(row.name);
-  if (stored && !looksLikeScripCodeName(stored)) return stored;
+  const needsParse =
+    !stored ||
+    looksLikeScripCodeName(stored) ||
+    looksLikeTickerAsName(stored, row.ticker);
+  if (!needsParse && stored) return stored;
   const parsed = nameFromAboutText(about ?? row.about ?? row.yf_about);
   if (parsed) return parsed;
   return stored || row.ticker;
@@ -632,7 +689,8 @@ export function loadAllCompanies(): CompanyRow[] {
               scraped_about_clean, llm_about,
               company_sector, company_industry, headquarters,
               ceo, managing_director, founded_year,
-              products, end_markets, theme_tags
+              products, end_markets, theme_tags,
+              group_name, recent_moves, business_model
        FROM company_about ORDER BY ticker`,
     )
     .all() as RawAbout[];
@@ -668,6 +726,14 @@ export function distinctSectors(): string[] {
   const set = new Set<string>();
   for (const c of loadAllCompanies()) {
     if (c.sector?.trim()) set.add(c.sector.trim());
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+export function distinctSubSectors(): string[] {
+  const set = new Set<string>();
+  for (const c of loadAllCompanies()) {
+    if (c.sub_sector?.trim()) set.add(c.sub_sector.trim());
   }
   return [...set].sort((a, b) => a.localeCompare(b));
 }

@@ -77,6 +77,10 @@ export const FUND_WATCHLIST_SOURCES: Record<
     portfolio_id: "584325",
     portfolio_slug: "madhusudan-kela-portfolio",
   },
+  manohar: {
+    label: "Manohar Devabhaktuni",
+    query: "MANOHAR DEVABHAKTUNI",
+  },
 };
 
 const FUND_INVESTOR_KEYS: Record<FundWatchlistKey, string> = {
@@ -87,6 +91,14 @@ const FUND_INVESTOR_KEYS: Record<FundWatchlistKey, string> = {
   kedia: "Vijay Kishanlal Kedia",
   singhania: "Sunil Singhania",
   kela: "Madhusudan Kela",
+  manohar: "Manohar Devabhaktuni",
+};
+
+/** When Trendlyne custom search is fuzzy, keep only matching holder names. */
+export const FUND_WATCHLIST_HOLDER_FILTER: Partial<
+  Record<FundWatchlistKey, RegExp>
+> = {
+  manohar: /manohar\s+devabhaktuni/i,
 };
 
 export type FundWatchlistRow = {

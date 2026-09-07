@@ -4,7 +4,7 @@ import {
   peerContextBlock,
   type PeerUniqueness,
 } from "./company-uniqueness";
-import { buildCompanyDossierText, loadAllCompanies } from "./db";
+import { buildCompanyDossierText, loadAllCompanies, type CompanyRow } from "./db";
 import { formatInvestorMaterialsBriefBlock } from "./investor-material-corpus";
 import { checkLlmStatus, completeJson, type LlmStatus } from "./llm-client";
 import { loadPrompt } from "./prompts";
@@ -27,6 +27,12 @@ export type CompanyBriefContext = {
   sub_sector: string | null;
   themes: MatchedThemeTag[];
   headquarters: string | null;
+  group_name: string | null;
+  recent_moves: string | null;
+  products: string | null;
+  end_markets: string | null;
+  business_model: string | null;
+  scraped_about_clean: string | null;
   mcap_cr: number | null;
   mcap_label: string | null;
   cap_band: CapTier;
@@ -144,19 +150,7 @@ function normalizeQtrSignal(raw: unknown): QtrSignal | null {
 }
 
 function buildContext(
-  row: {
-    ticker: string;
-    name: string;
-    market: string;
-    sector: string | null;
-    sub_sector: string | null;
-    headquarters: string | null;
-    mcap_cr: number | null;
-    about: string | null;
-    scraped_about: string | null;
-    search_text: string;
-    theme_search_text: string;
-  },
+  row: CompanyRow,
   peers: PeerUniqueness,
   matchedThemes: MatchedThemeTag[],
 ): CompanyBriefContext {
@@ -169,6 +163,12 @@ function buildContext(
     sub_sector: row.sub_sector,
     themes: matchedThemes,
     headquarters: row.headquarters,
+    group_name: row.group_name ?? null,
+    recent_moves: row.recent_moves ?? null,
+    products: row.products ?? null,
+    end_markets: row.end_markets ?? null,
+    business_model: row.business_model ?? null,
+    scraped_about_clean: row.scraped_about_clean ?? null,
     mcap_cr: row.mcap_cr,
     mcap_label: row.mcap_cr != null ? formatMcap(row.mcap_cr) : null,
     cap_band: band,
@@ -187,6 +187,8 @@ function buildCorpus(row: {
   mcap_cr: number | null;
   theme_search_text: string;
   scraped_about_clean: string | null;
+  group_name?: string | null;
+  recent_moves?: string | null;
   dossier_text?: string;
 }): string {
   return row.dossier_text?.trim() || buildCompanyDossierText(row);
@@ -316,6 +318,52 @@ function normalizeBrief(
   };
 }
 
+/** Offline / LLM-fail brief from cleaned scrape + computed QTR. */
+function fallbackBriefFromRow(
+  row: CompanyRow,
+  matchedThemes: MatchedThemeTag[],
+  qtrTrend: { signal: QtrSignal; reason: string } | null,
+): CompanyBrief | null {
+  const model = (row.business_model || "").trim();
+  const products = normalizeProducts(row.products);
+  const customers = (row.end_markets || "").trim();
+  const clean = (row.scraped_about_clean || "").trim();
+  if (!model && !products.length && !customers && clean.length < 40) {
+    return null;
+  }
+
+  let niche = "";
+  const diff = clean.match(/^Differentiator:\s*(.+)$/im);
+  if (diff?.[1] && diff[1].trim() !== "—") {
+    niche = diff[1].trim().slice(0, 400);
+  }
+
+  const headline =
+    model.slice(0, 120) ||
+    niche.slice(0, 120) ||
+    `${row.name} business summary`;
+
+  return {
+    sector: (row.sector || "").trim().slice(0, 80),
+    sub_sector: (row.sub_sector || "").trim().slice(0, 80),
+    themes: matchedThemes.map((t) => t.tag).slice(0, 6),
+    headline,
+    capabilities: model.slice(0, 420) || niche.slice(0, 420),
+    growth_triggers: "",
+    capex: "",
+    niche,
+    model: model.slice(0, 120),
+    angle: "",
+    uniqueness: niche.slice(0, 320),
+    products,
+    offerings: products.map((name) => ({ name, line: "" })),
+    customers: customers.slice(0, 240),
+    qtr_signal: qtrTrend?.signal ?? null,
+    qtr_reason: qtrTrend?.reason ?? "",
+    watch: "",
+  };
+}
+
 export async function getLlmStatus(): Promise<LlmStatus> {
   return checkLlmStatus(loadLlmConfig());
 }
@@ -405,6 +453,10 @@ export async function generateCompanyBrief(
   }
 
   if (!llm.available) {
+    const fallback = fallbackBriefFromRow(row, matchedThemes, qtrTrend);
+    if (fallback) {
+      return { llm, context, brief: fallback, cached: false };
+    }
     return {
       llm,
       context,
@@ -425,6 +477,10 @@ export async function generateCompanyBrief(
     return { llm, context, brief, cached: false };
   } catch (err) {
     const message = err instanceof Error ? err.message : "LLM request failed";
+    const fallback = fallbackBriefFromRow(row, matchedThemes, qtrTrend);
+    if (fallback) {
+      return { llm, context, brief: fallback, cached: false };
+    }
     return { llm, context, brief: null, cached: false, error: message };
   }
 }

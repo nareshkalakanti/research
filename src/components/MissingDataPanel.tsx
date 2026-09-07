@@ -118,7 +118,11 @@ export function MissingDataPanel() {
     if (sort === key) setDir((d) => (d === "asc" ? "desc" : "asc"));
     else {
       setSort(key);
-      setDir(key === "price" || key === "mcap_cr" ? "desc" : "asc");
+      setDir(
+        key === "price" || key === "mcap_cr" || key === "momentum_pct"
+          ? "desc"
+          : "asc",
+      );
     }
   }
 
@@ -217,7 +221,7 @@ export function MissingDataPanel() {
           />
           <p className="hint tight missing-export-hint">
             Writes a short About from name, listed sector, and Yahoo — no website
-            scrape. Theme Scanner uses this instead of raw site dumps. Terminal:{" "}
+            scrape. Theme uses this instead of raw site dumps. Terminal:{" "}
             <code>npx tsx scripts/fill-llm-about.ts --market &quot;NSE SME&quot;</code>
           </p>
         </>
@@ -316,8 +320,9 @@ export function MissingDataPanel() {
             : null}{" "}
         — all rows for the selected list and gap filter
         {data ? ` (${data.total.toLocaleString()} stocks)` : null}.
-        Expand a row → <strong>Sector</strong> tab to set sector/sub-sector, or{" "}
-        <strong>Website</strong> tab to edit URL and scrape text.
+        Expand a row → <strong>Sector</strong> tab to set sector/sub-sector,{" "}
+        <strong>Website</strong> tab to edit URL, or <strong>Delete</strong> to
+        remove the stock from local DBs.
       </p>
 
       <div className="filters">
@@ -362,6 +367,23 @@ export function MissingDataPanel() {
           dir={dir}
           onSort={onSort}
           showMissing
+          allowDelete
+          onDeleteStock={async (ticker) => {
+            try {
+              const res = await fetch(
+                `/api/companies/delete?ticker=${encodeURIComponent(ticker)}`,
+                { method: "DELETE" },
+              );
+              const j = (await res.json()) as { ok?: boolean; error?: string };
+              if (!res.ok || !j.ok) {
+                window.alert(j.error || "Delete failed");
+                return;
+              }
+              await load({ refresh: true });
+            } catch (e) {
+              window.alert(e instanceof Error ? e.message : "Delete failed");
+            }
+          }}
           onScrapeDone={() => load({ refresh: true })}
         />
       )}

@@ -4,12 +4,18 @@ import {
   concallDriftFilterMeta,
   concallDriftQuarterOptions,
   concallDriftScanProgress,
+  concallDriftSortCounts,
   concallDriftStats,
+  concallDriftWindowCounts,
   loadConcallDriftRows,
   pendingConcallDriftTickers,
   pruneConcallDriftJunk,
 } from "@/lib/strategy/concall-drift-store";
-import { runConcallDriftScanBatch, repairConcallDriftPairing } from "@/lib/strategy/concall-drift-scan";
+import {
+  runConcallDriftScanBatch,
+  repairConcallDriftPairing,
+  recomputeConcallAnnouncementBaselines,
+} from "@/lib/strategy/concall-drift-scan";
 import { checkNseFeedStatus } from "@/lib/nse-feed-status";
 import type { CapTier } from "@/lib/types";
 
@@ -27,6 +33,12 @@ type Body = {
   refreshRecent?: boolean;
   announced?: boolean;
   announcedDays?: number;
+  force?: boolean;
+  retryFailed?: boolean;
+  cap?: CapTier | "All";
+  lookbackDays?: number;
+  withReturns?: boolean;
+  refreshFeed?: boolean;
 };
 
 export async function GET(req: NextRequest) {
@@ -51,10 +63,13 @@ async function getStrategyConcallDrift(req: NextRequest) {
   const sort = (sp.get("sort") || "all") as "all" | "gainers" | "losers";
   const q = sp.get("q");
   const sector = sp.get("sector");
+  const subSector = sp.get("subSector");
   const mcapMinRaw = sp.get("mcapMin");
   const mcapMaxRaw = sp.get("mcapMax");
-  const mcapMin = mcapMinRaw != null && mcapMinRaw !== "" ? Number(mcapMinRaw) : null;
-  const mcapMax = mcapMaxRaw != null && mcapMaxRaw !== "" ? Number(mcapMaxRaw) : null;
+  const mcapMin =
+    mcapMinRaw != null && mcapMinRaw !== "" ? Number(mcapMinRaw) : null;
+  const mcapMax =
+    mcapMaxRaw != null && mcapMaxRaw !== "" ? Number(mcapMaxRaw) : null;
 
   if (refresh) {
     invalidateCompanyCache();
@@ -80,6 +95,7 @@ async function getStrategyConcallDrift(req: NextRequest) {
     sort,
     q,
     sector,
+    subSector,
     mcapMin: Number.isFinite(mcapMin!) ? mcapMin : null,
     mcapMax: Number.isFinite(mcapMax!) ? mcapMax : null,
   };
@@ -95,12 +111,12 @@ async function getStrategyConcallDrift(req: NextRequest) {
   if (refresh) {
     try {
       const preview = loadConcallDriftRows(rowOpts);
-      const tickers = [...new Set(preview.map((r) => r.ticker.toUpperCase()))].slice(
-        0,
-        30,
-      );
+      const tickers = [
+        ...new Set(preview.map((r) => r.ticker.toUpperCase())),
+      ].slice(0, 30);
       if (tickers.length) {
         await repairConcallDriftPairing({ tickers, limit: 40 });
+        await recomputeConcallAnnouncementBaselines(tickers);
       }
       const { refreshPagePrices } = await import("@/lib/metrics");
       const seen = new Set<string>();
@@ -122,6 +138,19 @@ async function getStrategyConcallDrift(req: NextRequest) {
   }
 
   const rows = loadConcallDriftRows(rowOpts);
+  const window_counts = concallDriftWindowCounts({
+    market,
+    quarter,
+    onePerTicker: true,
+  });
+  const sort_counts = concallDriftSortCounts({
+    market,
+    quarter,
+    window,
+    from,
+    to,
+    onePerTicker: true,
+  });
 
   let nse_feed = {
     live: false,
@@ -146,9 +175,12 @@ async function getStrategyConcallDrift(req: NextRequest) {
     sector,
     quarters: concallDriftQuarterOptions(),
     sectors: filterMeta.sectors,
+    sub_sectors: filterMeta.sub_sectors,
     mcap_bounds: filterMeta.mcap_bounds,
     total_events: filterMeta.total_events,
     with_baseline: filterMeta.with_baseline,
+    window_counts,
+    sort_counts,
     stats: concallDriftStats(),
     scan_progress: concallDriftScanProgress({ market }),
     pending: pendingConcallDriftTickers({ market }).length,
@@ -195,7 +227,8 @@ export async function POST(req: NextRequest) {
           : `Scanned ${result.saved} · ${result.failed} failed · ${result.remaining.toLocaleString()} left`,
     });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Concall drift scan failed";
+    const msg =
+      err instanceof Error ? err.message : "Concall drift scan failed";
     return NextResponse.json({ ok: false, error: msg }, { status: 503 });
   }
 }

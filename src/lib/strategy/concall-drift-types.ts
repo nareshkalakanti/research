@@ -26,6 +26,7 @@ export type ConcallDriftRow = {
   name: string;
   market: string;
   sector: string | null;
+  sub_sector: string | null;
   market_cap_cr: number | null;
   price: number | null;
   earn_at: string;
