@@ -20,6 +20,7 @@ type SeatEvent = {
   event_type: "joined" | "resigned" | "role_changed";
   old_designation: string | null;
   new_designation: string | null;
+  source?: string | null;
   detected_at: string;
   watched: boolean;
   market_cap_cr: number | null;
@@ -75,21 +76,29 @@ export function GovernanceChangesPanel({
   onDrillTicker,
 }: Props) {
   const [watchOnly, setWatchOnly] = useState(true);
+  const [corpPushes, setCorpPushes] = useState(false);
   const [data, setData] = useState<ChangesResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: "25" });
-      if (watchOnly) params.set("watchOnly", "1");
+      const params = new URLSearchParams({
+        limit: corpPushes ? "80" : "25",
+      });
+      if (corpPushes) {
+        params.set("source", "corporate_pdf");
+        params.set("eventType", "joined");
+      } else if (watchOnly) {
+        params.set("watchOnly", "1");
+      }
       const res = await fetch(`/api/governance-changes?${params}`);
       if (!res.ok) return;
       setData((await res.json()) as ChangesResponse);
     } finally {
       setLoading(false);
     }
-  }, [watchOnly]);
+  }, [watchOnly, corpPushes]);
 
   useEffect(() => {
     void load();
@@ -104,20 +113,37 @@ export function GovernanceChangesPanel({
         <div>
           <h3 className="gov-changes-title">Recent board changes</h3>
           <p className="gov-changes-sub">
-            Detected when NSE boards are refreshed (join / exit / role change).
+            {corpPushes
+              ? "DINs newly pushed from corporate PDF extract (corporate_pdf)."
+              : "Detected when NSE boards are refreshed (join / exit / role change)."}
           </p>
         </div>
-        <label className="gov-changes-toggle">
-          <input
-            type="checkbox"
-            checked={watchOnly}
-            onChange={(e) => setWatchOnly(e.target.checked)}
-          />
-          Watchlist only
-        </label>
+        <div className="gov-changes-toggles">
+          <label className="gov-changes-toggle">
+            <input
+              type="checkbox"
+              checked={corpPushes}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setCorpPushes(on);
+                if (on) setWatchOnly(false);
+              }}
+            />
+            Corp PDF pushes
+          </label>
+          <label className="gov-changes-toggle">
+            <input
+              type="checkbox"
+              checked={watchOnly}
+              disabled={corpPushes}
+              onChange={(e) => setWatchOnly(e.target.checked)}
+            />
+            Watchlist only
+          </label>
+        </div>
       </div>
 
-      {watch.length ? (
+      {watch.length && !corpPushes ? (
         <div className="gov-watch-row">
           <span className="gov-watch-label">Pinned</span>
           {watch.map((w) => (
@@ -141,8 +167,17 @@ export function GovernanceChangesPanel({
         <p className="gov-changes-empty">Loading changes…</p>
       ) : events.length === 0 ? (
         <p className="gov-changes-empty">
-          No changes yet. Run <strong>Refresh page</strong> on Tata boards to
-          detect movements after NSE updates.
+          {corpPushes ? (
+            <>
+              No corp PDF joins yet. Run corporate PDF extract scan /{" "}
+              <strong>Push DINs to gov</strong> via the corporate-data API.
+            </>
+          ) : (
+            <>
+              No changes yet. Run <strong>Refresh page</strong> on Tata boards to
+              detect movements after NSE updates.
+            </>
+          )}
         </p>
       ) : (
         <ul className="gov-changes-list">
@@ -164,9 +199,22 @@ export function GovernanceChangesPanel({
                   }
                 >
                   {e.director_name}
-                  {e.watched ? <span className="gov-badge watch">watch</span> : null}
+                  {e.watched ? (
+                    <span className="gov-badge watch">watch</span>
+                  ) : null}
+                  {e.source === "corporate_pdf" ? (
+                    <span
+                      className="gov-badge corp"
+                      title="Pushed from Corporate extract"
+                    >
+                      corp
+                    </span>
+                  ) : null}
                 </button>
                 <span className="gov-change-text">{eventLabel(e)}</span>
+                {e.din ? (
+                  <span className="gov-change-din">DIN {e.din}</span>
+                ) : null}
               </div>
               <div className="gov-change-meta">
                 <button
@@ -179,12 +227,16 @@ export function GovernanceChangesPanel({
                   {e.ticker}
                 </button>
                 {e.cap_code ? (
-                  <span className={`result-tag tag-cap-${e.cap_code.toLowerCase()}`}>
+                  <span
+                    className={`result-tag tag-cap-${e.cap_code.toLowerCase()}`}
+                  >
                     {e.cap_code}
                   </span>
                 ) : null}
                 {e.market_cap_cr != null ? (
-                  <span className="gov-change-mcap">{formatMcap(e.market_cap_cr)}</span>
+                  <span className="gov-change-mcap">
+                    {formatMcap(e.market_cap_cr)}
+                  </span>
                 ) : null}
                 <time dateTime={e.detected_at}>{formatWhen(e.detected_at)}</time>
               </div>

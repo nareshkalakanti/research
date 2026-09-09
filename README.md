@@ -48,6 +48,14 @@ FIRECRAWL_API_KEY=
 
 With `FIRECRAWL_API_KEY`, Strategy concall **Documents** / **Get highlights** use Firecrawl AnyDoc (OCR for scanned PDFs). Without a key, local `pdf-parse` is used (text PDFs only).
 
+**Concall** tab (`?tab=concall`): post-concall price drift (to CMP, ~500) plus corporate tone/DIN when extracted. Legacy `?tab=corporate` redirects here.
+
+**Scan → Brutal**: age ≥25 (Groww `founded_year`) + Screener annual ROCE &gt;15% every year (~12 FY) + median YoY sales ≥12% + median YoY EPS &gt;12%. Use **Scan Brutal** then the **Brutal** chip.
+
+**Scan → Superstar**: pulls latest Trendlyne superstar holdings into `data/superstar_holdings.db` (UI **Scan Superstar**, or `npm run scan:superstar`).
+
+**Research** tab (`?tab=research`): **1 · Buyback** (tender PDF screen + pass row), **2 · Order book** (Reg-30 order PDF → awarding / size / execution + order÷sales), and **3 · Concall** (define extract fields in `data/concall-research-fields.json`; screening next). Text via `pdf-parse`; thin PDFs use vision OCR when `QIANFAN_OCR_BASE_URL` is set.
+
 ## SQLite health
 
 Corrupt DBs (common after copying mid-write or cloud sync) auto-recover on open: drop bad WAL, then `sqlite3 .recover` if needed.
@@ -64,3 +72,5 @@ npm run scan:concall-drift
 ### LLM prompts
 
 Edit system prompts in [`prompts/`](prompts/) — Business, Concall drift, call review, and PPT distill. See [`prompts/README.md`](prompts/README.md).
+
+"award of order" OR "Notification of Award" OR "letter of intent" OR "large order" OR "Order for Procurement" OR "Awarding of order" OR "bagged an order"

@@ -63,7 +63,6 @@ function filterRows(
     tq: boolean;
     hold: boolean;
     edge: boolean;
-    quality: boolean;
     funds: Partial<Record<(typeof FUND_WATCHLIST_KEYS)[number], boolean>>;
     hideCollision: boolean;
     minScore: number;
@@ -137,14 +136,12 @@ function filterRows(
     if (
       opts.hold ||
       opts.edge ||
-      opts.quality ||
       anyFundFilterActive(opts.funds)
     ) {
       const matched = companies.filter(
         (c) =>
           (opts.hold && c.has_hold) ||
           (opts.edge && c.has_edge) ||
-          (opts.quality && c.has_quality) ||
           FUND_WATCHLIST_KEYS.some((k) => opts.funds[k] && c.fund_tags?.includes(k)),
       );
       if (!matched.length) continue;
@@ -279,7 +276,6 @@ type CompanyAgg = {
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
-  has_quality: boolean;
   fund_tags: import("@/lib/fund-watchlist-meta").FundWatchlistKey[];
   about: string | null;
   headquarters: string | null;
@@ -362,7 +358,6 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     tq: sp.get("tq") === "1",
     hold: sp.get("hold") === "1",
     edge: sp.get("edge") === "1",
-    quality: sp.get("quality") === "1",
     funds: parseFundFiltersFromSearchParams(sp),
     hideCollision: sp.get("hideCollision") !== "0",
     minScore: Number.isFinite(minScore) ? minScore : 0,
@@ -409,7 +404,6 @@ async function buildGovernanceMapResponse(req: NextRequest) {
             has_tq: c.has_tq,
             has_hold: c.has_hold,
             has_edge: c.has_edge,
-            has_quality: c.has_quality,
             fund_tags: c.fund_tags,
             about: c.about,
             headquarters: c.headquarters,

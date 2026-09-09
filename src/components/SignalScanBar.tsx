@@ -24,10 +24,11 @@ export type ViewFilter =
   | "mrsi"
   | "mrsi85"
   | "mrsi_empty"
-  | "opm";
+  | "opm"
+  | "brutal";
 
 type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi" | "all";
-type ExtraBusy = "quarters";
+type ExtraBusy = "quarters" | "brutal" | "superstar";
 
 type Props = {
   listLabel: string;
@@ -41,9 +42,9 @@ type Props = {
   cap?: CapFilter;
   hold?: boolean;
   edge?: boolean;
-  quality?: boolean;
   sme?: boolean;
   note?: boolean;
+  ageMin?: number | null;
   funds?: FundFilterState;
   onCap?: (cap: CapFilter) => void;
   showCap?: boolean;
@@ -59,6 +60,7 @@ type Props = {
   mrsi85Count?: number;
   mrsiEmptyCount?: number;
   opmCount?: number;
+  brutalCount?: number;
   bbDate?: string | null;
   bbWDate?: string | null;
   bbMDate?: string | null;
@@ -87,8 +89,15 @@ async function scanOnce(body: Record<string, unknown>) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      // Scan all does many Yahoo pulls per batch — allow long batches, not forever.
+      signal: AbortSignal.timeout(240_000),
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && /abort|timeout/i.test(e.message)) {
+      throw new Error(
+        "Batch timed out (4 min). Progress is saved — click Scan again to continue.",
+      );
+    }
     throw new Error(
       "Network dropped mid-scan. Retry — progress is saved.",
     );
@@ -161,6 +170,7 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   mrsi85: "85–90",
   mrsi_empty: "Empty",
   opm: "Operating Metrics",
+  brutal: "Brutal",
 };
 
 type ScanCounts = {
@@ -209,18 +219,18 @@ export function hasScanSelection(opts: {
   cap?: CapFilter;
   hold?: boolean;
   edge?: boolean;
-  quality?: boolean;
   sme?: boolean;
   note?: boolean;
+  ageMin?: number | null;
   funds?: FundFilterState;
 }): boolean {
   if (opts.cap && opts.cap !== "All") return true;
   if (
     opts.hold ||
     opts.edge ||
-    opts.quality ||
     opts.sme ||
-    opts.note
+    opts.note ||
+    opts.ageMin != null
   )
     return true;
   return anyFundFilterActive(opts.funds ?? {});
@@ -239,9 +249,9 @@ export function SignalScanBar({
   cap,
   hold,
   edge,
-  quality,
   sme,
   note,
+  ageMin,
   funds,
   onCap,
   showCap,
@@ -257,6 +267,7 @@ export function SignalScanBar({
   mrsi85Count,
   mrsiEmptyCount,
   opmCount,
+  brutalCount,
   bbDate,
   bbWDate,
   bbMDate,
@@ -307,6 +318,7 @@ export function SignalScanBar({
       });
 
       let remaining = 1;
+      let startRemaining = 0;
       let gotBb = 0;
       let gotTq = 0;
       let gotEma = 0;
@@ -333,9 +345,9 @@ export function SignalScanBar({
               cap: cap ?? "All",
               hold: !!hold,
               edge: !!edge,
-              quality: !!quality,
               sme: !!sme,
               note: !!note,
+              ageMin: ageMin ?? null,
               funds: funds ?? {},
             }
           : {}),
@@ -374,7 +386,19 @@ export function SignalScanBar({
                 )
               ) {
                 setProgress({
-                  pct: Math.min(97, 3 + round * 2),
+                  pct:
+                    startRemaining > 0
+                      ? Math.min(
+                          99,
+                          Math.max(
+                            3,
+                            Math.round(
+                              ((startRemaining - remaining) / startRemaining) *
+                                100,
+                            ),
+                          ),
+                        )
+                      : Math.min(97, 3 + round * 2),
                   label: `Scanning ${scanLabel}`,
                   detail: `Retry ${attempt}/3 after network drop…`,
                 });
@@ -395,6 +419,9 @@ export function SignalScanBar({
           scannedMom += json.momScanned ?? json.tried ?? 0;
           scannedMrsi += json.mrsiScanned ?? json.tried ?? 0;
           remaining = json.remaining ?? 0;
+          if (round === 1 || startRemaining <= 0) {
+            startRemaining = Math.max(remaining + (json.tried ?? 0), 1);
+          }
           const counts: ScanCounts = {
             bb: gotBb,
             tq: gotTq,
@@ -404,8 +431,14 @@ export function SignalScanBar({
             mom: gotMom,
             mrsi: gotMrsi,
           };
+          const doneCount = Math.max(0, startRemaining - remaining);
           const pct =
-            remaining <= 0 ? 100 : Math.min(97, 3 + round * 2);
+            remaining <= 0
+              ? 100
+              : Math.min(
+                  99,
+                  Math.max(3, Math.round((doneCount / startRemaining) * 100)),
+                );
           setProgress({
             pct,
             label: remaining <= 0 ? "Done" : `Scanning ${scanLabel}`,
@@ -484,9 +517,9 @@ export function SignalScanBar({
       cap,
       hold,
       edge,
-          quality,
       sme,
       note,
+      ageMin,
       funds,
       onBatch,
       onDone,
@@ -502,13 +535,13 @@ export function SignalScanBar({
             cap: cap ?? "All",
             hold: !!hold,
             edge: !!edge,
-            quality: !!quality,
             sme: !!sme,
             note: !!note,
+            ageMin: ageMin ?? null,
             funds: funds ?? {},
           }
         : { scope: "list" as const },
-    [scope, cap, hold, edge, quality, sme, note, funds],
+    [scope, cap, hold, edge, sme, note, ageMin, funds],
   );
 
   const runQuartersFill = useCallback(async () => {
@@ -636,6 +669,217 @@ export function SignalScanBar({
     onDone,
     onView,
   ]);
+
+  const runBrutalScan = useCallback(async () => {
+    const scopeLabel = scope === "selection" ? listLabel : market;
+    setBusyKind("brutal");
+    setBusyTf(null);
+    setProgress({
+      pct: 2,
+      label: "Scan Brutal",
+      detail: `${scope === "selection" ? "Tags" : "List"} · ${scopeLabel} · missing-only…`,
+    });
+    let remaining = 1;
+    let saved = 0;
+    let passed = 0;
+    let failed = 0;
+
+    async function postBatch(round: number): Promise<{
+      ok?: boolean;
+      tried?: number;
+      saved?: number;
+      passed?: number;
+      failed?: number;
+      remaining?: number;
+      message?: string;
+      error?: string;
+    }> {
+      const maxAttempts = 3;
+      let lastErr: Error | null = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const res = await fetch("/api/brutal-scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              market,
+              limit: 4,
+              concurrency: 1,
+              missingOnly: true,
+              ...selectionBody(),
+            }),
+            signal: AbortSignal.timeout(180_000),
+          });
+          const json = (await res.json()) as {
+            ok?: boolean;
+            tried?: number;
+            saved?: number;
+            passed?: number;
+            failed?: number;
+            remaining?: number;
+            message?: string;
+            error?: string;
+          };
+          if (!res.ok || json.ok === false) {
+            throw new Error(json.error || json.message || "Brutal scan failed");
+          }
+          return json;
+        } catch (e) {
+          lastErr = e instanceof Error ? e : new Error(String(e));
+          const msg = lastErr.message || "";
+          const retryable =
+            /failed to fetch|networkerror|load failed|aborted|timeout|timed out/i.test(
+              msg,
+            ) ||
+            lastErr.name === "TimeoutError" ||
+            lastErr.name === "AbortError";
+          if (!retryable || attempt === maxAttempts) break;
+          setProgress({
+            pct: Math.min(97, 3 + round * 2),
+            label: "Scan Brutal",
+            detail: `Reconnect ${attempt}/${maxAttempts - 1}… · ${scopeLabel}`,
+          });
+          await new Promise((r) => setTimeout(r, 800 * attempt));
+        }
+      }
+      throw lastErr ?? new Error("Brutal scan failed");
+    }
+
+    try {
+      for (let round = 1; round <= 800; round += 1) {
+        const json = await postBatch(round);
+        saved += json.saved ?? 0;
+        passed += json.passed ?? 0;
+        failed += json.failed ?? 0;
+        remaining = json.remaining ?? 0;
+        setProgress({
+          pct: remaining <= 0 ? 100 : Math.min(97, 3 + round),
+          label: remaining <= 0 ? "Done" : "Scan Brutal",
+          detail: `+${saved} scored · ${passed} pass · ${failed} err · ${remaining.toLocaleString()} left · ${scopeLabel}`,
+          done: remaining <= 0,
+        });
+        if (round === 1 || round % 2 === 0 || remaining <= 0) {
+          await (onBatch ?? onDone)?.();
+        }
+        if ((json.tried ?? 0) === 0 || remaining <= 0) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      setProgress({
+        pct: 100,
+        label: "Done",
+        detail: `+${saved} scored · ${passed} Brutal pass · ${scopeLabel}`,
+        done: true,
+      });
+      onView("brutal");
+      await onDone?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Brutal scan failed";
+      const nicer = /failed to fetch|networkerror|load failed/i.test(msg)
+        ? "Server disconnected — try Scan Brutal again"
+        : /aborted|timeout|timed out/i.test(msg)
+          ? "Timed out — try a smaller List/Tags scope, then Scan Brutal again"
+          : msg;
+      setProgress({
+        pct: 100,
+        label: "Failed",
+        detail: nicer,
+        error: true,
+      });
+    } finally {
+      setBusyKind(null);
+    }
+  }, [
+    market,
+    listLabel,
+    scope,
+    selectionBody,
+    onBatch,
+    onDone,
+    onView,
+  ]);
+
+  const runSuperstarScan = useCallback(async () => {
+    setBusyKind("superstar");
+    setBusyTf(null);
+    setProgress({
+      pct: 2,
+      label: "Scan Superstar",
+      detail: "Trendlyne holdings · batch…",
+    });
+    let offset = 0;
+    let total = 0;
+    let saved = 0;
+
+    try {
+      for (let round = 1; round <= 80; round += 1) {
+        const res = await fetch("/api/superstars", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            offset,
+            limit: 4,
+            includeFunds: true,
+          }),
+          signal: AbortSignal.timeout(240_000),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          offset?: number;
+          total?: number;
+          done?: number;
+          remaining?: number;
+          pct?: number;
+          holdings_saved?: number;
+          batch?: Array<{ short?: string; name: string; holdings: number; error?: string }>;
+          error?: string;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || "Superstar scan failed");
+        }
+        total = json.total ?? total;
+        offset = json.done ?? offset + 4;
+        saved += json.holdings_saved ?? 0;
+        const remaining = json.remaining ?? Math.max(0, total - offset);
+        const names = (json.batch ?? [])
+          .map((b) => b.short || b.name)
+          .slice(0, 3)
+          .join(", ");
+        setProgress({
+          pct: remaining <= 0 ? 100 : Math.min(97, json.pct ?? 3 + round),
+          label: remaining <= 0 ? "Done" : "Scan Superstar",
+          detail: `+${saved} holdings · ${offset}/${total}${names ? ` · ${names}` : ""}`,
+          done: remaining <= 0,
+        });
+        if (round === 1 || round % 2 === 0 || remaining <= 0) {
+          await (onBatch ?? onDone)?.();
+        }
+        if (remaining <= 0) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      setProgress({
+        pct: 100,
+        label: "Done",
+        detail: `+${saved} superstar holdings refreshed`,
+        done: true,
+      });
+      await onDone?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Superstar scan failed";
+      const nicer = /failed to fetch|networkerror|load failed/i.test(msg)
+        ? "Server disconnected — try Scan Superstar again"
+        : /aborted|timeout|timed out/i.test(msg)
+          ? "Timed out — click Scan Superstar again to continue"
+          : msg;
+      setProgress({
+        pct: 100,
+        label: "Failed",
+        detail: nicer,
+        error: true,
+      });
+    } finally {
+      setBusyKind(null);
+    }
+  }, [onBatch, onDone]);
 
   const busy = busyKind != null;
 
@@ -819,6 +1063,16 @@ export function SignalScanBar({
               <Count n={opmCount} />
             </button>
 
+            <button
+              type="button"
+              className={`chip tag-chip tag-scan-brutal ${view === "brutal" ? "on" : ""}`}
+              onClick={() => onView("brutal")}
+              title="Brutal: age ≥25 · ROCE >15% every year (~12y Screener) · median sales YoY ≥12% · median EPS YoY >12%. Run Scan Brutal first."
+            >
+              Brutal
+              <Count n={brutalCount} />
+            </button>
+
             {view !== "all" ? (
               <button
                 type="button"
@@ -844,8 +1098,8 @@ export function SignalScanBar({
               onClick={() => onScope("selection")}
               title={
                 selectionActive
-                  ? `Scan only the active tags (e.g. Edge, Quality, Hold, Cap) within ${market}`
-                  : "Select a Lists or Funds tag (Edge, Quality, Hold, Cap, …) first"
+                  ? `Scan only the active tags (e.g. Edge, Hold, Cap) within ${market}`
+                  : "Select a Lists or Funds tag (Edge, Hold, Cap, …) first"
               }
             >
               Tags
@@ -925,6 +1179,24 @@ export function SignalScanBar({
               title={`Fill missing quarterly Sales/OP (for Operating Metrics) on ${scope === "selection" ? listLabel : market} — missing-only`}
             >
               {busyKind === "quarters" ? "…" : "Fill Quarters"}
+            </button>
+            <button
+              type="button"
+              className={`chip chip-scan tag-chip ${busyKind === "brutal" ? "busy on" : ""}`}
+              disabled={busy || (scope === "selection" && !selectionActive)}
+              onClick={() => void runBrutalScan()}
+              title={`Brutal funnel on ${scope === "selection" ? listLabel : market}: age≥25 (Groww founded) + Screener ROCE/Sales/EPS — missing-only`}
+            >
+              {busyKind === "brutal" ? "…" : "Scan Brutal"}
+            </button>
+            <button
+              type="button"
+              className={`chip chip-scan tag-chip ${busyKind === "superstar" ? "busy on" : ""}`}
+              disabled={busy}
+              onClick={() => void runSuperstarScan()}
+              title="Pull latest Trendlyne superstar holdings into superstar_holdings.db"
+            >
+              {busyKind === "superstar" ? "…" : "Scan Superstar"}
             </button>
           </div>
           {progressEl}

@@ -134,6 +134,17 @@ export function deleteCompanyEverywhere(tickerRaw: string): {
     ticker,
   );
 
+  removed.brutal = deleteFromDb(
+    "brutal.db",
+    `DELETE FROM brutal_scan WHERE UPPER(ticker) = ?`,
+    ticker,
+  );
+  removed.screener_annual = deleteFromDb(
+    "metrics.db",
+    `DELETE FROM screener_annual_cache WHERE UPPER(ticker) = ?`,
+    ticker,
+  );
+
   removed.holdings = deleteFromDb(
     "holdings.db",
     `DELETE FROM holdings WHERE UPPER(ticker) = ?`,

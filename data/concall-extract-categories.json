@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "source": "corporate-concall-extract.ts",
+  "purpose": "Categories and field schema for concall / earnings-call management extract",
+  "updated_at": "2026-09-09",
+  "sentiment_labels": [
+    "bullish",
+    "optimistic",
+    "neutral",
+    "cautious",
+    "bearish"
+  ],
+  "sentiment_scores": {
+    "bullish": 2,
+    "optimistic": 1,
+    "neutral": 0,
+    "cautious": -1,
+    "bearish": -2
+  },
+  "sentiment_rules": {
+    "bullish": "confident raise/strong guidance, robust demand, margin expansion clearly stated",
+    "optimistic": "constructive / on-track / improving without big caveats",
+    "neutral": "mixed or factual update, no clear lean",
+    "cautious": "soft demand, temporary issues, watchful, delays while still managing",
+    "bearish": "cuts, misses, structural pressure, defensive tone"
+  },
+  "content_fields": [
+    "summary",
+    "guidance",
+    "margins",
+    "capex",
+    "orders",
+    "tone",
+    "sentiment",
+    "sentiment_score",
+    "sentiment_why",
+    "risks"
+  ],
+  "meta_fields": [
+    "period",
+    "url",
+    "title",
+    "source"
+  ],
+  "related_event_keywords_file": "corporate-event-keywords.json",
+  "related_concall_focus": "See corporate-event-keywords.json → concall_focus (42 tags)"
+}

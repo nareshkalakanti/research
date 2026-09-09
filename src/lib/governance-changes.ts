@@ -42,6 +42,9 @@ export function listRecentSeatEvents(opts?: {
   watchOnly?: boolean;
   personId?: string | null;
   ticker?: string | null;
+  /** e.g. corporate_pdf — DINs pushed from Concall extract */
+  source?: string | null;
+  eventType?: SeatEventType | null;
 }): BoardSeatEvent[] {
   const db = openGovDb();
   if (!db) return [];
@@ -50,6 +53,8 @@ export function listRecentSeatEvents(opts?: {
   const watchOnly = opts?.watchOnly === true;
   const personId = opts?.personId?.trim() || null;
   const ticker = opts?.ticker?.trim().toUpperCase() || null;
+  const source = opts?.source?.trim() || null;
+  const eventType = opts?.eventType || null;
 
   let sql = `
     SELECT
@@ -80,6 +85,14 @@ export function listRecentSeatEvents(opts?: {
   if (ticker) {
     sql += ` AND e.ticker = ?`;
     params.push(ticker);
+  }
+  if (source) {
+    sql += ` AND e.source = ?`;
+    params.push(source);
+  }
+  if (eventType) {
+    sql += ` AND e.event_type = ?`;
+    params.push(eventType);
   }
   if (watchOnly) {
     const watch = loadGovWatch();

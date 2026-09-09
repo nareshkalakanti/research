@@ -5,6 +5,7 @@ import {
   StrategyExpandDetail,
   type StrategyExpandPanel,
   type StrategyRowLinks,
+  type StrategyCorpEnrichment,
 } from "@/components/StrategyExpandDetail";
 import { SecCell } from "@/components/SecCell";
 import { FundWatchlistTags } from "@/components/FundWatchlistTags";
@@ -12,6 +13,8 @@ import type { FundWatchlistKey } from "@/lib/fund-watchlist-meta";
 import type { ConcallDocLinks } from "@/lib/strategy/concall-drift-types";
 import { highlightsFromMaterials } from "@/lib/strategy/concall-highlights";
 import { parseFetchJson } from "@/lib/fetch-json";
+
+export type { StrategyCorpEnrichment };
 
 export type StrategyConcallDriftRowData = {
   ticker: string;
@@ -37,6 +40,8 @@ export type StrategyConcallDriftRowData = {
   fund_tags: FundWatchlistKey[];
   docs: ConcallDocLinks;
   highlights: string[];
+  keyword?: string | null;
+  corp?: StrategyCorpEnrichment | null;
 } & StrategyRowLinks;
 
 function fmtEventParts(iso: string | null): { date: string; time: string } | null {
@@ -71,7 +76,25 @@ function fmtMcap(n: number | null): string {
   return `₹${Math.round(n).toLocaleString("en-IN")} Cr`;
 }
 
-const COL_SPAN = 8;
+const COL_SPAN = 11;
+
+function toneClass(sentiment: string | null | undefined): string {
+  const s = (sentiment || "").toLowerCase();
+  if (s === "bullish" || s === "optimistic") return "ann-sent-pill--bullish";
+  if (s === "bearish" || s === "cautious") return "ann-sent-pill--bearish";
+  if (s) return "ann-sent-pill--neutral";
+  return "";
+}
+
+function dinShort(corp: StrategyCorpEnrichment | null | undefined): string {
+  if (!corp?.has_extract) return "—";
+  const flags = corp.din_flags || [];
+  if (flags.includes("din_ok")) return "DIN ok";
+  if (flags.includes("din_off_board")) return "New DIN";
+  if (flags.includes("names_no_din")) return "No DIN";
+  if (flags.includes("empty")) return "Empty";
+  return corp.din_summary?.slice(0, 18) || "…";
+}
 
 type Props = {
   index: number;
@@ -224,6 +247,38 @@ export function StrategyConcallDriftRow({
             </span>
           )}
         </td>
+        <td
+          className="cd-tone"
+          title={r.corp?.sentiment_why || r.corp?.summary || undefined}
+        >
+          {r.corp?.sentiment ? (
+            <span className={`ann-sent-pill ${toneClass(r.corp.sentiment)}`}>
+              {r.corp.sentiment}
+            </span>
+          ) : (
+            <span className="mom-tag mom-tag--empty">—</span>
+          )}
+        </td>
+        <td
+          className="cd-din"
+          title={r.corp?.din_summary || undefined}
+        >
+          {dinShort(r.corp)}
+        </td>
+        <td
+          className="cd-kw"
+          title={r.keyword || r.corp?.keyword || r.earn_subject || undefined}
+        >
+          {r.keyword || r.corp?.keyword ? (
+            <div className="ann-cat">
+              <span className="ann-cat-pill">
+                {r.keyword || r.corp?.keyword}
+              </span>
+            </div>
+          ) : (
+            <span className="ann-muted">—</span>
+          )}
+        </td>
         <td className="col-links">
           <div className="link-row link-row--compact">
             {r.web ? (
@@ -273,6 +328,7 @@ export function StrategyConcallDriftRow({
         docsError={fetchError}
         onFetchDocs={fetchDocs}
         onDocsChange={onDocsChange}
+        corp={r.corp ?? null}
       />
     </>
   );

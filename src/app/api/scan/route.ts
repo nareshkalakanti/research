@@ -12,7 +12,7 @@ import {
 import { holdingsTickerSet } from "@/lib/holdings";
 import { notesTickerSet } from "@/lib/notes";
 import { filterCompaniesByScanList } from "@/lib/scan-lists-server";
-import { qualityTickerSet } from "@/lib/quality";
+import { isAgeAtLeast, parseAgeMin } from "@/lib/company-age";
 import {
   breakoutCounts,
   clearAllWeeklySignals,
@@ -54,9 +54,10 @@ type Body = {
   cap?: CapTier | "All";
   hold?: boolean;
   edge?: boolean;
-  quality?: boolean;
   sme?: boolean;
   note?: boolean;
+  ageMin?: number | null;
+  age25?: boolean;
   funds?: FundFilterState;
 };
 
@@ -75,16 +76,21 @@ function parseFunds(raw: unknown): FundFilterState {
 }
 
 function applySelectionFilters<
-  T extends { ticker: string; market: string; mcap_cr?: number | null },
+  T extends {
+    ticker: string;
+    market: string;
+    mcap_cr?: number | null;
+    founded_year?: string | null;
+  },
 >(
   companies: T[],
   opts: {
     cap: CapTier | "All";
     hold: boolean;
     edge: boolean;
-    quality: boolean;
     sme: boolean;
     note: boolean;
+    ageMin: number | null;
     funds: FundFilterState;
   },
 ): T[] {
@@ -95,6 +101,9 @@ function applySelectionFilters<
   if (opts.sme) {
     out = out.filter((c) => /\bSME\b/i.test(c.market));
   }
+  if (opts.ageMin != null) {
+    out = out.filter((c) => isAgeAtLeast(c.founded_year, opts.ageMin!));
+  }
   if (opts.hold) {
     const holdings = holdingsTickerSet();
     out = out.filter((c) => holdings.has(c.ticker.toUpperCase()));
@@ -102,10 +111,6 @@ function applySelectionFilters<
   if (opts.edge) {
     const edge = edgeTickerSet();
     out = out.filter((c) => edge.has(c.ticker.toUpperCase()));
-  }
-  if (opts.quality) {
-    const quality = qualityTickerSet();
-    out = out.filter((c) => quality.has(c.ticker.toUpperCase()));
   }
   const fundFilter = activeFundFilterSet(opts.funds);
   if (fundFilter) {
@@ -122,18 +127,18 @@ function hasSelectionFilters(opts: {
   cap: CapTier | "All";
   hold: boolean;
   edge: boolean;
-  quality: boolean;
   sme: boolean;
   note: boolean;
+  ageMin: number | null;
   funds: FundFilterState;
 }): boolean {
   if (opts.cap && opts.cap !== "All") return true;
   if (
     opts.hold ||
     opts.edge ||
-    opts.quality ||
     opts.sme ||
-    opts.note
+    opts.note ||
+    opts.ageMin != null
   ) {
     return true;
   }
@@ -186,9 +191,10 @@ export async function POST(req: NextRequest) {
     cap: (body.cap || "All") as CapTier | "All",
     hold: body.hold === true,
     edge: body.edge === true,
-    quality: body.quality === true,
     sme: body.sme === true,
     note: body.note === true,
+    ageMin:
+      parseAgeMin(body.ageMin) ?? (body.age25 === true ? 25 : null),
     funds: parseFunds(body.funds),
   };
   const scope: ScanScope =

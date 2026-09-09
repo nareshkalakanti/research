@@ -428,7 +428,8 @@ export function saveCompanyBoard(opts: {
   const now = utcNow();
   const db = getGovernanceWriteDb();
   const replaceSeats = opts.replaceSeats !== false;
-  const oldSeats = replaceSeats ? loadOldSeats(db, tickerKey) : [];
+  // Always load prior seats for event diffs; DELETE only when replaceSeats.
+  const oldSeats = loadOldSeats(db, tickerKey);
   let eventsRecorded = 0;
 
   const tx = db.transaction(() => {

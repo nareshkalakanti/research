@@ -64,7 +64,6 @@ type Stats = {
   companies: number;
   hold?: number;
   edge?: number;
-  quality?: number;
   funds?: Partial<Record<FundWatchlistKey, number>>;
   caps?: Partial<Record<"NC" | "TI" | "MIC" | "SC" | "MC" | "LC", number>>;
 };
@@ -87,7 +86,6 @@ type Seat = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
-  has_quality?: boolean;
   fund_tags?: FundWatchlistKey[];
   fund_changes?: Partial<
     Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
@@ -141,7 +139,6 @@ type CompanyRow = {
   has_tq: boolean;
   has_hold?: boolean;
   has_edge?: boolean;
-  has_quality?: boolean;
   fund_tags?: FundWatchlistKey[];
   fund_changes?: Partial<
     Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>
@@ -232,7 +229,6 @@ export function GovernanceMapPanel() {
   const [filterSmeCross, setFilterSmeCross] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
-  const [filterQuality, setFilterQuality] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const [cap, setCap] = useState<CapFilter>("All");
   const [sme, setSme] = useState(false);
@@ -256,7 +252,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, filterQuality, fundFilters, cap, sme]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, cap, sme]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -278,7 +274,6 @@ export function GovernanceMapPanel() {
       if (filterSmeCross) params.set("smeCross", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
-      if (filterQuality) params.set("quality", "1");
       appendFundParams(params, fundFilters);
       if (cap !== "All") params.set("cap", cap);
       if (sme) params.set("sme", "1");
@@ -318,7 +313,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, filterQuality, fundFilters, cap, sme],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, cap, sme],
   );
 
   useEffect(() => {
@@ -513,7 +508,6 @@ export function GovernanceMapPanel() {
     filterSmeCross ||
     filterHold ||
     filterEdge ||
-    filterQuality ||
     FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) ||
     cap !== "All" ||
     sme;
@@ -527,7 +521,6 @@ export function GovernanceMapPanel() {
     setFilterSmeCross(false);
     setFilterHold(false);
     setFilterEdge(false);
-    setFilterQuality(false);
     setFundFilters(EMPTY_FUNDS);
     setCap("All");
     setSme(false);
@@ -721,19 +714,6 @@ export function GovernanceMapPanel() {
           >
             Edge
             {stats?.edge != null ? <i>{stats.edge}</i> : null}
-          </button>
-          <button
-            type="button"
-            className={`quality ${filterQuality ? "on" : ""}`}
-            onClick={() => setFilterQuality((v) => !v)}
-            title={
-              view === "company"
-                ? "Companies on Screener quality screen"
-                : "Directors with a board seat on Quality list"
-            }
-          >
-            Quality
-            {stats?.quality != null ? <i>{stats.quality}</i> : null}
           </button>
           {FUND_WATCHLIST_KEYS.map((key) => (
             <button
@@ -1011,9 +991,6 @@ export function GovernanceMapPanel() {
                               {c.has_edge ? (
                                 <span className="gov-tag gov-tag-edge">Edge</span>
                               ) : null}
-                              {c.has_quality ? (
-                                <span className="gov-tag gov-tag-quality">Quality</span>
-                              ) : null}
                               <FundWatchlistTags
                                 tags={c.fund_tags}
                                 changes={c.fund_changes}
@@ -1099,9 +1076,6 @@ export function GovernanceMapPanel() {
                       ) : null}
                       {c.has_edge ? (
                         <span className="gov-tag gov-tag-edge">Edge</span>
-                      ) : null}
-                      {c.has_quality ? (
-                        <span className="gov-tag gov-tag-quality">Quality</span>
                       ) : null}
                       <FundWatchlistTags
                         tags={c.fund_tags}

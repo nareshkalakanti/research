@@ -8,7 +8,6 @@ import path from "path";
 import { pickAboutText } from "./db";
 import { holdingsTickerSet } from "./holdings";
 import { edgeTickerSet } from "./edge";
-import { qualityTickerSet } from "./quality";
 import { fundTagsForTicker, fundChangesForTicker } from "./fund-watchlists";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
@@ -52,7 +51,6 @@ export type GovCompanySeat = {
   has_tq: boolean;
   has_hold: boolean;
   has_edge: boolean;
-  has_quality: boolean;
   fund_tags: FundWatchlistKey[];
   fund_changes?: Partial<Record<FundWatchlistKey, FundChangeInfo>>;
   web: string | null;
@@ -295,7 +293,6 @@ function buildRowsFromSeats(
   const breakouts = loadBreakoutMap();
   const holdings = holdingsTickerSet();
   const edge = edgeTickerSet();
-  const quality = qualityTickerSet();
   const abouts = loadAboutMap(allTickers);
 
   const rows: GovernanceMapRow[] = [];
@@ -353,7 +350,6 @@ function buildRowsFromSeats(
         has_tq: Boolean(bo?.has_tq),
         has_hold: holdings.has(ticker),
         has_edge: edge.has(ticker),
-        has_quality: quality.has(ticker),
         fund_tags: fundTagsForTicker(ticker),
         fund_changes: fundChangesForTicker(ticker),
         web: links.web,
@@ -469,7 +465,6 @@ export type GovernanceMapStats = {
   companies: number;
   hold: number;
   edge: number;
-  quality: number;
   funds: Partial<Record<FundWatchlistKey, number>>;
   caps: {
     NC: number;
@@ -487,7 +482,6 @@ export function governanceMapStats(
   const tickers = new Set<string>();
   const holdTickers = new Set<string>();
   const edgeTickers = new Set<string>();
-  const qualityTickers = new Set<string>();
   const fundTickers = Object.fromEntries(
     FUND_WATCHLIST_KEYS.map((k) => [k, new Set<string>()]),
   ) as Record<FundWatchlistKey, Set<string>>;
@@ -516,7 +510,6 @@ export function governanceMapStats(
       tickers.add(c.ticker);
       if (c.has_hold) holdTickers.add(c.ticker);
       if (c.has_edge) edgeTickers.add(c.ticker);
-      if (c.has_quality) qualityTickers.add(c.ticker);
       for (const k of c.fund_tags ?? []) fundTickers[k]?.add(c.ticker);
       const code = (c.cap_code || "NC").toUpperCase();
       if (code in capTickers) {
@@ -541,7 +534,6 @@ export function governanceMapStats(
     companies: tickers.size,
     hold: holdTickers.size,
     edge: edgeTickers.size,
-    quality: qualityTickers.size,
     funds,
     caps: {
       NC: capTickers.NC.size,

@@ -33,7 +33,6 @@ import {
   invalidateHoldingsCache,
 } from "@/lib/holdings";
 import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
-import { qualityTickerSet, invalidateQualityCache } from "@/lib/quality";
 import {
   activeFundFilterSet,
   anyFundFilterActive,
@@ -63,6 +62,8 @@ import {
 import { filterCompaniesByScanList } from "@/lib/scan-lists-server";
 import type { BbTimeframe } from "@/lib/signals";
 import { operatingMetricsTickerSet } from "@/lib/opm-consistency";
+import { brutalPassTickerSet } from "@/lib/brutal-scan";
+import { isAgeAtLeast, parseAgeMin } from "@/lib/company-age";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -148,13 +149,12 @@ function applyWatchlistFilters(
     filterHold: boolean;
     filterDistress: boolean;
     filterEdge: boolean;
-    filterQuality: boolean;
+    filterAgeMin?: number | null;
     fundActive: Partial<Record<(typeof FUND_WATCHLIST_KEYS)[number], boolean>>;
     filterNote: boolean;
     holdings: Set<string>;
     distressSet: Set<string>;
     edge: Set<string>;
-    quality: Set<string>;
     notes: Set<string>;
     allCompanies: CompanyRow[];
     themeScanActive?: boolean;
@@ -168,6 +168,11 @@ function applyWatchlistFilters(
     companies = companies.filter((c) => /\bSME\b/i.test(c.market));
   }
 
+  if (opts.filterAgeMin != null) {
+    companies = companies.filter((c) =>
+      isAgeAtLeast(c.founded_year, opts.filterAgeMin!),
+    );
+  }
 
   if (opts.filterHold) {
     companies = companies.filter((c) =>
@@ -185,13 +190,6 @@ function applyWatchlistFilters(
     companies = companies.filter((c) => opts.edge.has(c.ticker.toUpperCase()));
   }
 
-
-  if (opts.filterQuality) {
-    companies = companies.filter((c) =>
-      opts.quality.has(c.ticker.toUpperCase()),
-    );
-  }
-
   const fundFilter = activeFundFilterSet(opts.fundActive);
   if (fundFilter) {
     companies = companies.filter((c) =>
@@ -203,8 +201,8 @@ function applyWatchlistFilters(
       opts.filterHold ||
       opts.filterDistress ||
       opts.filterEdge ||
-      opts.filterQuality ||
-      opts.filterNote;
+      opts.filterNote ||
+      (opts.filterAgeMin != null && opts.filterAgeMin > 0);
     if (
       !opts.themeScanActive &&
       !opts.skipFundStubInject &&
@@ -248,7 +246,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     invalidateBreakoutCache();
     invalidateHoldingsCache();
     invalidateEdgeCache();
-    invalidateQualityCache();
     invalidateFundWatchlistCache();
     invalidateNotesCache();
     invalidateThemeLlmScanCache();
@@ -276,11 +273,14 @@ async function buildCompaniesResponse(req: NextRequest) {
     sp.get("opm") === "1" ||
     sp.get("stableOpm") === "1" ||
     sp.get("operating") === "1";
+  const filterBrutal = sp.get("brutal") === "1";
+  const filterAgeMin =
+    parseAgeMin(sp.get("ageMin")) ??
+    (sp.get("age25") === "1" ? 25 : null);
   const bbAnd = sp.get("bbAnd") === "1";
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
   const filterEdge = sp.get("edge") === "1";
-  const filterQuality = sp.get("quality") === "1";
   const fundActive = parseFundFiltersFromSearchParams(sp);
   const filterNote = sp.get("note") === "1";
   const fundListMode = anyFundFilterActive(fundActive);
@@ -308,10 +308,10 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const breakouts = loadBreakoutMap(bbTf);
   const operatingMetrics = operatingMetricsTickerSet();
+  const brutalPass = brutalPassTickerSet();
   const holdings = holdingsTickerSet();
   const distressSet = distressSeedSet();
   const edge = edgeTickerSet();
-  const quality = qualityTickerSet();
   const fundSets = fundWatchlistSets();
   const notes = notesTickerSet();
 
@@ -357,7 +357,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterHold ||
     filterDistress ||
     filterEdge ||
-    filterQuality ||
+    filterAgeMin != null ||
     anyFundFilterActive(fundActive) ||
     filterSme ||
     filterNote;
@@ -475,22 +475,26 @@ async function buildCompaniesResponse(req: NextRequest) {
       pool = pool.filter((c) => capTier(c.mcap_cr) === cap);
     }
     // Scope chip counts to Hold / Edge / SME / fund Tags (same as the table).
-    pool = applyWatchlistFilters(pool, {
+    // Age presets counted on pool without age filter so 25/50/100 stay comparable.
+    const poolBase = applyWatchlistFilters(pool, {
       filterSme,
       filterHold,
       filterDistress,
       filterEdge,
-      filterQuality,
+      filterAgeMin: null,
       fundActive,
       filterNote,
       holdings,
       distressSet,
       edge,
-      quality,
       notes,
       allCompanies,
       themeScanActive: false,
     });
+    pool =
+      filterAgeMin != null
+        ? poolBase.filter((c) => isAgeAtLeast(c.founded_year, filterAgeMin))
+        : poolBase;
     let bb = 0;
     let bb_w = 0;
     let bb_m = 0;
@@ -503,9 +507,13 @@ async function buildCompaniesResponse(req: NextRequest) {
     let mrsi85 = 0;
     let mrsi_empty = 0;
     let operating_metrics = 0;
+    let brutal = 0;
+    let age25 = 0;
+    let age50 = 0;
+    let age100 = 0;
+    let age_min = 0;
     let hold = 0;
     let edgeCount = 0;
-    let qualityCount = 0;
     let smeCount = 0;
     let note = 0;
     let distressCount = 0;
@@ -526,6 +534,28 @@ async function buildCompaniesResponse(req: NextRequest) {
     const llmKeep = llmScan
       ? new Set(llmScan.hits.map((h) => h.ticker.toUpperCase()))
       : null;
+    for (const c of poolBase) {
+      if (llmKeep) {
+        if (!llmKeep.has(c.ticker.toUpperCase())) continue;
+      } else if (themeScanActive) {
+        if (
+          !matchThemesForRow(c, [], {
+            customPattern: custom.trim() || null,
+          }).matched
+        ) {
+          continue;
+        }
+      }
+      if (isAgeAtLeast(c.founded_year, 25)) age25 += 1;
+      if (isAgeAtLeast(c.founded_year, 50)) age50 += 1;
+      if (isAgeAtLeast(c.founded_year, 100)) age100 += 1;
+      if (
+        filterAgeMin != null &&
+        isAgeAtLeast(c.founded_year, filterAgeMin)
+      ) {
+        age_min += 1;
+      }
+    }
     for (const c of pool) {
       if (llmKeep) {
         if (!llmKeep.has(c.ticker.toUpperCase())) continue;
@@ -553,9 +583,9 @@ async function buildCompaniesResponse(req: NextRequest) {
       const rsiVal = flags?.mrsi?.rsi;
       if (rsiVal == null || !Number.isFinite(rsiVal)) mrsi_empty += 1;
       if (operatingMetrics.has(t)) operating_metrics += 1;
+      if (brutalPass.has(t)) brutal += 1;
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
-      if (quality.has(t)) qualityCount += 1;
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
@@ -580,9 +610,13 @@ async function buildCompaniesResponse(req: NextRequest) {
       mrsi85,
       mrsi_empty,
       operating_metrics,
+      brutal,
+      age25,
+      age50,
+      age100,
+      age_min,
       hold,
       edge: edgeCount,
-      quality: qualityCount,
       ...fundSignals,
       sme: smeCount,
       note,
@@ -609,7 +643,8 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterMrsi ||
     filterMrsi85 ||
     filterMrsiEmpty ||
-    filterOperatingMetrics
+    filterOperatingMetrics ||
+    filterBrutal
   ) {
     companies = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
@@ -626,6 +661,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       const rsiVal = flags?.mrsi?.rsi;
       const hasMrsiEmpty = rsiVal == null || !Number.isFinite(rsiVal);
       const t = c.ticker.toUpperCase();
+      if (filterBrutal) return brutalPass.has(t);
       if (filterOperatingMetrics) return operatingMetrics.has(t);
       if (filterBbw) return hasBbw;
       if (filterBbm) return hasBbm;
@@ -689,13 +725,12 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterHold,
     filterDistress,
     filterEdge,
-    filterQuality,
+    filterAgeMin,
     fundActive,
     filterNote,
     holdings,
     distressSet,
     edge,
-    quality,
     notes,
     allCompanies,
     themeScanActive,
@@ -712,7 +747,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       filterMrsi ||
       filterMrsi85 ||
       filterMrsiEmpty ||
-      filterOperatingMetrics,
+      filterOperatingMetrics ||
+      filterBrutal,
   });
 
   // List-relative MOM rank (1 = highest rounded 12−1 within the current filtered set).
@@ -922,7 +958,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_hold: holdings.has(row.ticker.toUpperCase()),
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
-      has_quality: quality.has(row.ticker.toUpperCase()),
       fund_tags: fundTagsForTicker(row.ticker),
       fund_changes: fundChangesForTicker(row.ticker),
       has_note: notes.has(row.ticker.toUpperCase()),

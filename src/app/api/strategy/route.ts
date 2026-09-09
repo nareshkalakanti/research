@@ -17,6 +17,8 @@ import {
   recomputeConcallAnnouncementBaselines,
 } from "@/lib/strategy/concall-drift-scan";
 import { checkNseFeedStatus } from "@/lib/nse-feed-status";
+import { loadCorporateEnrichmentByTickers } from "@/lib/corporate-data";
+import { primaryCorporateEventKeyword } from "@/lib/corporate-event-keywords";
 import type { CapTier } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -137,7 +139,46 @@ async function getStrategyConcallDrift(req: NextRequest) {
     }
   }
 
-  const rows = loadConcallDriftRows(rowOpts);
+  const baseRows = loadConcallDriftRows(rowOpts);
+  const corpMap = loadCorporateEnrichmentByTickers(
+    baseRows.map((r) => r.ticker),
+  );
+  const rows = baseRows.map((r) => {
+    const corp = corpMap.get(r.ticker.toUpperCase());
+    const keyword =
+      primaryCorporateEventKeyword(
+        r.earn_subject,
+        corp?.document_title,
+        corp?.summary,
+        corp?.guidance,
+      ) || corp?.keyword || null;
+    if (!corp) {
+      return {
+        ...r,
+        keyword,
+        corp: null as null,
+      };
+    }
+    return {
+      ...r,
+      keyword,
+      corp: {
+        sentiment: corp.sentiment,
+        sentiment_score: corp.sentiment_score,
+        sentiment_why: corp.sentiment_why,
+        summary: corp.summary,
+        guidance: corp.guidance,
+        din_flags: corp.din_flags,
+        din_summary: corp.din_summary,
+        match_din: corp.match_din,
+        document_url: corp.document_url,
+        concall_url: corp.concall_url,
+        extract_status: corp.extract_status,
+        has_extract: corp.has_extract,
+        keyword,
+      },
+    };
+  });
   const window_counts = concallDriftWindowCounts({
     market,
     quarter,

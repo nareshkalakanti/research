@@ -68,8 +68,6 @@ export type Company = {
   has_distress?: boolean;
   /** In Early Edge watchlist (data/edge.db). */
   has_edge?: boolean;
-  /** Screener quality screen (growth + ROE/ROCE + low debt + OPM) — data/quality.db. */
-  has_quality?: boolean;
   /** Trendlyne fund watchlist tags (Niveshaay, Negen, Kacholia, …). */
   fund_tags?: FundWatchlistKey[];
   /** QoQ change per fund tag (new / inc / dec from Trendlyne). */
