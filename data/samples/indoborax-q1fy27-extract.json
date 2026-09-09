@@ -1,0 +1,101 @@
+{
+  "metadata": {
+    "source": "Q1 FY '27 Indo Borax Q&A session",
+    "speaker": "Suresh Kalra",
+    "questioner": "Dhruv Bajaj",
+    "nse_symbol": "INDOBORAX",
+    "bse_code": "524342",
+    "call_date": "2026-09-02",
+    "quarter": "Q1",
+    "fiscal_year": "FY27",
+    "company_name": "Indo Borax & Chemicals Limited"
+  },
+  "reported_financials": {
+    "revenue": {
+      "current_qtr": 70.36,
+      "yoy_qtr": 53.57,
+      "pct_change": 31.34,
+      "unit": "INR cr"
+    },
+    "ebitda": {
+      "current_qtr": 19.8,
+      "yoy_qtr": 12.21,
+      "pct_change": 62.16,
+      "unit": "INR cr"
+    },
+    "ebitda_margin_pct": {
+      "current_qtr": 28.1,
+      "yoy_qtr": null,
+      "pct_change": null
+    },
+    "net_profit": {
+      "current_qtr": 16.25,
+      "yoy_qtr": 10.2,
+      "pct_change": 59.31,
+      "unit": "INR cr"
+    },
+    "pat_margin_pct": {
+      "current_qtr": 22.3,
+      "yoy_qtr": null,
+      "pct_change": null
+    },
+    "eps": {
+      "current_qtr": 5.07,
+      "yoy_qtr": null,
+      "unit": "INR"
+    }
+  },
+  "forward_guidance": {
+    "revenue_guidance_range": {
+      "low": 250,
+      "high": 260,
+      "unit": "INR cr",
+      "fiscal_year": "FY27",
+      "prior_year_actual": 215
+    },
+    "margin_guidance": {
+      "ebitda_pct": 20,
+      "fiscal_year": "FY27"
+    },
+    "explicit_caveats": [],
+    "capex_guidance": []
+  },
+  "segment_data": [],
+  "corporate_actions": [
+    {
+      "type": "acquisition",
+      "target_counterparty": "Kronox Lab Sciences Ltd",
+      "stake_pct": 64.26,
+      "deal_value": {
+        "amount": 250,
+        "unit": "INR cr",
+        "component": "promoter stake"
+      }
+    },
+    {
+      "type": "merger",
+      "target_counterparty": "Indo Borax Infrastructure Private Limited (wholly-owned subsidiary)",
+      "stake_pct": 100,
+      "deal_value": null
+    }
+  ],
+  "risk_governance_flags": [
+    "risk of raw material prices increasing",
+    "risk of low-volume monsoon quarter",
+    "risk of not being able to pass on all increased costs to the market",
+    "risk of not achieving the same level of EBITDA percentage and revenue as in Q1",
+    "risk of not being able to add capacities as planned due to financial constraints"
+  ],
+  "management_tone": {
+    "overall_tone": "bullish",
+    "justification": null,
+    "confidence_markers": {
+      "specific_commitments": [],
+      "hedged_language": []
+    },
+    "guidance_walkback": null,
+    "net_sentiment_score": null,
+    "sentiment_rationale": null
+  },
+  "key_catalysts": []
+}

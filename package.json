@@ -18,6 +18,7 @@
     "test:corporate-extract": "tsx scripts/test-corporate-extract.ts",
     "test:buyback-screen": "tsx scripts/test-buyback-screen.ts",
     "test:orderbook-screen": "tsx scripts/test-orderbook-screen.ts",
+    "test:concall-screen": "tsx scripts/test-concall-screen.ts",
     "sync:holdings": "tsx scripts/sync-holdings.ts",
     "sync:edge": "tsx scripts/sync-edge.ts",
     "sync:nifty-indexes": "tsx scripts/sync-nifty-indexes.ts",

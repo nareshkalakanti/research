@@ -1,0 +1,176 @@
+{
+  "metadata": {
+    "company_name": "Indo Borax & Chemicals Ltd",
+    "nse_symbol": "INDOBORAX",
+    "bse_code": "524342",
+    "call_date": "2026-09-02",
+    "quarter": "Q1",
+    "fiscal_year": "FY27",
+    "speakers": [
+      {"name": "Suresh Kalra", "role": "Managing Director & CEO"},
+      {"name": "Shashikant Bharuka", "role": "CFO"},
+      {"name": "Harsh Malhotra", "role": "Executive Director (Zenrock)"}
+    ]
+  },
+  "reported_financials": {
+    "revenue": {"current_qtr": 70.36, "yoy_qtr": 53.57, "pct_change": 31.34, "unit": "INR cr"},
+    "ebitda": {"current_qtr": 19.8, "yoy_qtr": 12.21, "pct_change": 62.16, "unit": "INR cr"},
+    "ebitda_margin_pct": {"current_qtr": 28.1, "yoy_qtr": null, "pct_change": null},
+    "net_profit": {"current_qtr": 16.25, "yoy_qtr": 10.2, "pct_change": 59.31, "unit": "INR cr"},
+    "pat_margin_pct": {"current_qtr": 22.3, "yoy_qtr": null, "pct_change": 4.3, "note": "430 bps improvement YoY"},
+    "eps": {"current_qtr": 5.07, "yoy_qtr": null, "unit": "INR"}
+  },
+  "forward_guidance": {
+    "revenue_guidance_range": {"low": 250, "high": 260, "unit": "INR cr", "fiscal_year": "FY27", "prior_year_actual": 215},
+    "margin_guidance": {"ebitda_pct": 20, "fiscal_year": "FY27"},
+    "explicit_caveats": [
+      "Q1 EBITDA margin of 28.1% is not representative and should not be extrapolated for full year",
+      "Q2 is seasonally weak (monsoon, low volume)",
+      "Not all raw material cost increases (due to ongoing 'war') can be passed on to market",
+      "Next FY (FY28) expected to grow further due to Boron Oxide and Boric Acid capacity additions"
+    ],
+    "capex_guidance": [
+      {"amount": 50, "unit": "INR cr", "horizon": "2-3 years", "allocation": "Boron Oxide (~20 cr), Boric Acid capacity expansion (~20-25 cr), Zinc Borate (unspecified)"},
+      {"amount": 110, "unit": "INR cr", "horizon": "through FY29-31", "allocation": "Kronox Dahej capex — excipients/pharma/nutraceutical capacity"}
+    ]
+  },
+  "segment_data": [
+    {
+      "segment": "Boric Acid (Technical grade)",
+      "current_volume": "15,917 tons (FY26 actual)",
+      "target_volume": "18,000 tons (FY27 target)",
+      "nameplate_capacity": "20,000 TPA",
+      "utilization_pct": "96-98% practical capacity",
+      "margin_commentary": "Baseline product; premium/market-plus pricing strategy",
+      "market_share_pct": 50,
+      "market_size": "40,000 TPA India, growing at 8% CAGR to ~53,000 TPA by 2030"
+    },
+    {
+      "segment": "Boric Acid IP grade",
+      "current_volume": "100 tons (~7-8% of Boric Acid volume)",
+      "target_volume": null,
+      "nameplate_capacity": null,
+      "utilization_pct": null,
+      "margin_commentary": "Higher margin than technical grade; sole IP-grade manufacturer in India with FDA/BIS licenses; targeting personal care/pharma customers (P&G, Indian Additives)",
+      "market_share_pct": null,
+      "market_size": null
+    },
+    {
+      "segment": "DOT (Disodium Octaborate Tetrahydrate)",
+      "current_volume": "900 tons (FY26 actual)",
+      "target_volume": "1,500 tons (FY27 target)",
+      "nameplate_capacity": "6,000 TPA (4,000+ TPA spare after debottlenecking)",
+      "utilization_pct": null,
+      "margin_commentary": "Forward-integrated from Boric Acid; ~0.6-0.65 tonne Boric Acid per tonne DOT, similar/better overall margin",
+      "market_share_pct": "small player",
+      "market_size": "~18,500 TPA India (8,500 tons imports + ~10,000 tons local production)"
+    },
+    {
+      "segment": "Boron Oxide",
+      "current_volume": "0 (traded historically, new product line)",
+      "target_volume": null,
+      "nameplate_capacity": "under design, ~₹20 cr capex planned",
+      "utilization_pct": null,
+      "margin_commentary": null,
+      "market_share_pct": null,
+      "market_size": "used in fiberglass and steel industry"
+    },
+    {
+      "segment": "Kronox Lab Sciences (excipients/pharma/nutraceuticals)",
+      "current_volume": "185 products, capacity described as fully utilized",
+      "target_volume": "3-3.5x current revenue post-Dahej capex",
+      "nameplate_capacity": null,
+      "utilization_pct": "fully utilized (pre-Dahej expansion)",
+      "margin_commentary": null,
+      "market_share_pct": null,
+      "market_size": "India nutraceutical/excipient/API market growing ~11% CAGR; global markets via Kronox distribution network"
+    }
+  ],
+  "corporate_actions": [
+    {
+      "type": "acquisition",
+      "target_counterparty": "Kronox Lab Sciences Ltd",
+      "stake_pct": 64.26,
+      "deal_value": {"amount": 250, "unit": "INR cr", "component": "promoter stake"},
+      "additional_contingency": {"amount": 151, "unit": "INR cr", "component": "open offer"},
+      "total_funding_required": {"amount": 400, "unit": "INR cr"},
+      "funding_sources": [
+        {"source": "internal accruals", "amount": 134.5, "unit": "INR cr"},
+        {"source": "sale of two Mumbai commercial properties", "amount": 48, "unit": "INR cr", "status": "in process"},
+        {"source": "term loan", "amount": null, "unit": "INR cr", "status": "in process, expected within weeks"},
+        {"source": "promoter group commitment", "amount": 25, "unit": "INR cr", "purpose": "contingency for open offer"}
+      ],
+      "total_funding_available": {"amount": 432, "unit": "INR cr"},
+      "funding_gap_vs_available": "surplus of ~32 cr",
+      "expected_earnings_impact_timeline": "FY29 initial benefit, FY30-31 full impact (Dahej capex)",
+      "integration_governance": "Kronox and Indo Borax remain separate listed entities for now; common leadership team; no merger decision made; selling promoters retain 9.95% equity + 3-year consultancy contracts (~2.1 cr/year each); expedited SEBI process to take control ahead of open offer completion"
+    },
+    {
+      "type": "merger",
+      "target_counterparty": "Indo Borax Infrastructure Private Limited (wholly-owned subsidiary)",
+      "stake_pct": 100,
+      "deal_value": null,
+      "funding_sources": null,
+      "total_funding_available": null,
+      "funding_gap_vs_available": null,
+      "expected_earnings_impact_timeline": null,
+      "integration_governance": "Board-approved scheme of amalgamation with parent company, approved in July 2026"
+    }
+  ],
+  "risk_governance_flags": {
+    "pledged_shares": {
+      "exists": true,
+      "pct": null,
+      "purpose": "security for acquisition financing (standard practice for lender)",
+      "unpledge_timeline": "not disclosed; no specific update given, described as ongoing work in progress"
+    },
+    "debt_disclosed": [
+      {"instrument": "NCDs", "amount_original": 390, "amount_outstanding": 255, "unit": "INR cr", "interest_rate": "not disclosed on call (offered offline)"}
+    ],
+    "related_party_transactions": [
+      "Consultancy payments to former Kronox promoters (~2.1 cr/year each, 3-year term)",
+      "Inter-company transactions between Indo Borax and Kronox to be on arm's length basis (currently minimal, only Boric Acid)"
+    ],
+    "deflected_or_vague_topics": [
+      "Reason for previous Kronox promoter's exit from the business",
+      "Exact NCD interest rate and servicing mechanics",
+      "Timeline for unpledging Indo Borax promoter shares",
+      "Whether Kronox will eventually merge into Indo Borax or remain separate",
+      "Exact 'vitality index' / new product revenue target (deferred to future call)",
+      "How Zenrock (SPV) services acquisition debt interest given credit rating note that Indo Borax balance sheet won't be used to repay it"
+    ]
+  },
+  "management_tone": {
+    "overall_tone": "bullish",
+    "justification": "Strong Q1 beat, confident reiteration of FY27 guidance, well-structured acquisition financing with disclosed funding surplus",
+    "confidence_markers": {
+      "specific_commitments": [
+        "FY27 revenue guidance of 250-260 cr reiterated",
+        "20% EBITDA margin target reiterated",
+        "DOT target of 1,500 tons for FY27",
+        "Capacity utilization target of 18,000 tons",
+        "Kronox acquisition completion expected 'in the next few days'"
+      ],
+      "hedged_language": [
+        "'case-by-case basis' on further acquisitions",
+        "'we have not made up any decision yet' on Kronox merger structure",
+        "'I am not saying either way yes or no' on entity structure",
+        "'give us couple of more months' on vitality index metrics",
+        "'that is a great question' (non-answer) on Kronox growth timing"
+      ]
+    },
+    "guidance_walkback": "None on revenue/margin targets; explicit expectation-setting that Q1 margin (28.1%) will not repeat in Q2/Q3",
+    "net_sentiment_score": 0.55,
+    "sentiment_rationale": "Strong quarter beat with credible core-business turnaround (utilization, mix shift) supports positive score; tempered by margin normalization guidance, unresolved share pledge, deflected debt-servicing questions, and a multi-year (FY29-31) payoff horizon on the Kronox acquisition that adds execution risk."
+  },
+  "key_catalysts": [
+    {"event": "Term loan finalization for Kronox acquisition/open offer funding", "timeline": "expected within a couple of weeks from call date (early-mid Sept 2026)"},
+    {"event": "Kronox acquisition completion (expedited process, control transfer before open offer completes)", "timeline": "next few days from call date"},
+    {"event": "Open offer for Kronox shares", "timeline": "to run in parallel post-control transfer"},
+    {"event": "Q2 FY27 results (expected seasonally weak)", "timeline": "next quarter"},
+    {"event": "Vitality index / new product revenue target disclosure", "timeline": "couple of months from call date"},
+    {"event": "Kronox Dahej capex initial benefit", "timeline": "FY29"},
+    {"event": "Kronox Dahej capex full impact", "timeline": "FY30-31"},
+    {"event": "Sale of two Mumbai commercial properties (funding source)", "timeline": "in process, no firm date given"}
+  ]
+}

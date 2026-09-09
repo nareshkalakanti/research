@@ -2,13 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-type Field = {
-  id: string;
-  label: string;
-  group: string;
-  required: boolean;
-  notes: string;
-  enabled: boolean;
+type Extract = Record<string, unknown>;
+
+type ScreenResult = {
+  ok?: boolean;
+  decision?: "pass" | "review" | "fail";
+  why?: string;
+  extract?: Extract;
+  extract_json?: Extract;
+  engine?: string;
+  text_chars?: number;
+  text_excerpt?: string;
+  source_url?: string | null;
+  error?: string;
 };
 
 type HistoryRow = {
@@ -18,30 +24,31 @@ type HistoryRow = {
   company: string | null;
   period: string | null;
   sentiment: string | null;
+  decision: string;
   screened_at: string;
 };
 
-type ReadResult = {
-  ok?: boolean;
-  engine?: string;
-  text_chars?: number;
-  text_excerpt?: string;
-  source_url?: string | null;
-  enabled_fields?: string[];
-  error?: string;
+type Meta = {
+  company_name?: string | null;
+  nse_symbol?: string | null;
+  bse_code?: string | null;
+  call_date?: string | null;
+  quarter?: string | null;
+  fiscal_year?: string | null;
 };
 
-type ApiPayload = {
-  ok?: boolean;
-  fields?: Field[];
-  pass_rule?: string;
-  purpose?: string;
-  updated_at?: string;
-  history?: HistoryRow[];
-  error?: string;
+type Tone = {
+  overall_tone?: string | null;
+  net_sentiment_score?: number | null;
+  justification?: string | null;
 };
 
-const GROUPS = ["meta", "content", "sentiment", "custom"] as const;
+const PROGRESS_STEPS = [
+  { id: "fetch", label: "Download / read PDF" },
+  { id: "text", label: "Extract text (pdf-parse)" },
+  { id: "llm", label: "LLM structured JSON extract" },
+  { id: "save", label: "Validate shape + save history" },
+] as const;
 
 function fmtElapsed(ms: number): string {
   const s = Math.floor(ms / 1000);
@@ -49,54 +56,52 @@ function fmtElapsed(ms: number): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
+function decisionClass(d: string | null | undefined): string {
+  if (d === "pass") return "buyback-decision pass";
+  if (d === "fail") return "buyback-decision fail";
+  return "buyback-decision review";
+}
+
+function asObj(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
 export function ConcallResearchPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [fields, setFields] = useState<Field[]>([]);
-  const [history, setHistory] = useState<HistoryRow[]>([]);
-  const [passRule, setPassRule] = useState("");
-  const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
-
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const [result, setResult] = useState<ReadResult | null>(null);
-  const [showText, setShowText] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [progressStep, setProgressStep] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [result, setResult] = useState<ScreenResult | null>(null);
+  const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [showText, setShowText] = useState(false);
+  const [showJson, setShowJson] = useState(true);
 
-  const [newLabel, setNewLabel] = useState("");
-  const [newGroup, setNewGroup] = useState<string>("custom");
-  const [newNotes, setNewNotes] = useState("");
-  const [newRequired, setNewRequired] = useState(false);
-
-  const load = useCallback(async () => {
+  const loadHistory = useCallback(async () => {
     try {
       const res = await fetch("/api/concall-screen?limit=40", {
         signal: AbortSignal.timeout(15_000),
       });
-      const json = (await res.json()) as ApiPayload;
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || `HTTP ${res.status}`);
-      }
-      setFields(json.fields || []);
-      setHistory(json.history || []);
-      setPassRule(json.pass_rule || "");
-      setUpdatedAt(json.updated_at || null);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load");
-    } finally {
-      setLoading(false);
+      const json = (await res.json()) as {
+        ok?: boolean;
+        history?: HistoryRow[];
+      };
+      if (res.ok && json.history) setHistory(json.history);
+    } catch {
+      /* ignore */
     }
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    void loadHistory();
+  }, [loadHistory]);
 
   useEffect(() => {
     if (!file) {
@@ -116,6 +121,16 @@ export function ConcallResearchPanel() {
     return () => window.clearInterval(tick);
   }, [busy, startedAt]);
 
+  useEffect(() => {
+    if (!busy) return;
+    const timers = [
+      window.setTimeout(() => setProgressStep(1), 400),
+      window.setTimeout(() => setProgressStep(2), 2000),
+      window.setTimeout(() => setProgressStep(3), 8000),
+    ];
+    return () => timers.forEach((t) => window.clearTimeout(t));
+  }, [busy]);
+
   const pdfSrc = useMemo(() => {
     if (fileUrl) return fileUrl;
     const u = url.trim();
@@ -130,28 +145,7 @@ export function ConcallResearchPanel() {
     return `/api/concall-screen?pdf=${encodeURIComponent(u)}&download=1`;
   }, [fileUrl, url]);
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, Field[]>();
-    for (const f of fields) {
-      const g = f.group || "custom";
-      const list = map.get(g) || [];
-      list.push(f);
-      map.set(g, list);
-    }
-    const order = [
-      ...GROUPS,
-      ...[...map.keys()].filter(
-        (k) => !GROUPS.includes(k as (typeof GROUPS)[number]),
-      ),
-    ];
-    return order
-      .filter((g) => map.has(g))
-      .map((g) => ({ group: g, fields: map.get(g)! }));
-  }, [fields]);
-
-  const enabledCount = fields.filter((f) => f.enabled).length;
-
-  const readPdf = useCallback(async () => {
+  const run = useCallback(async () => {
     const trimmed = url.trim();
     if (!trimmed && !file) {
       setError("Paste a PDF URL or upload a file");
@@ -160,133 +154,82 @@ export function ConcallResearchPanel() {
     setBusy(true);
     setError(null);
     setResult(null);
-    setShowText(true);
+    setShowText(false);
+    setShowJson(true);
+    setProgressStep(0);
     setStartedAt(Date.now());
     setElapsedMs(0);
     setStatus(
-      file ? "Reading uploaded PDF…" : "Downloading PDF…",
+      file
+        ? "Step 1/4 · Reading uploaded PDF…"
+        : "Step 1/4 · Downloading PDF…",
     );
     try {
       let res: Response;
       if (file) {
         const form = new FormData();
         if (trimmed) form.set("url", trimmed);
-        form.set("action", "read_pdf");
         form.set("file", file);
+        setStatus("Step 2–4 · Text + LLM JSON extract…");
         res = await fetch("/api/concall-screen", {
           method: "POST",
           body: form,
-          signal: AbortSignal.timeout(240_000),
+          signal: AbortSignal.timeout(300_000),
         });
       } else {
+        setStatus("Step 2–4 · Text + LLM JSON extract…");
         res = await fetch("/api/concall-screen", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "read_pdf", url: trimmed }),
-          signal: AbortSignal.timeout(240_000),
+          body: JSON.stringify({ url: trimmed }),
+          signal: AbortSignal.timeout(300_000),
         });
       }
-      setStatus("Done — showing text…");
-      const json = (await res.json()) as ReadResult;
-      if (!res.ok && !json.text_excerpt) {
+      setProgressStep(PROGRESS_STEPS.length);
+      setStatus("Done — filling extract…");
+      const json = (await res.json()) as ScreenResult & { error?: string };
+      if (!res.ok && !json.extract && !json.extract_json) {
         throw new Error(json.error || `HTTP ${res.status}`);
       }
       setResult(json);
       if (!json.ok && json.error) setError(json.error);
+      await loadHistory();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Read failed");
+      setError(e instanceof Error ? e.message : "Extract failed");
     } finally {
       setBusy(false);
       setStatus(null);
       setStartedAt(null);
     }
-  }, [url, file]);
+  }, [url, file, loadHistory]);
 
-  const addField = useCallback(async () => {
-    const label = newLabel.trim();
-    if (!label) {
-      setError("Enter a field label");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setStatus("Saving field…");
-    try {
-      const res = await fetch("/api/concall-screen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "add_field",
-          label,
-          group: newGroup,
-          notes: newNotes.trim(),
-          required: newRequired,
-        }),
-        signal: AbortSignal.timeout(15_000),
-      });
-      const json = (await res.json()) as ApiPayload & { fields?: Field[] };
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || `HTTP ${res.status}`);
-      }
-      setFields(json.fields || []);
-      setNewLabel("");
-      setNewNotes("");
-      setNewRequired(false);
-      setStatus("Field added.");
-      setUpdatedAt(new Date().toISOString().slice(0, 10));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Add failed");
-      setStatus(null);
-    } finally {
-      setBusy(false);
-    }
-  }, [newLabel, newGroup, newNotes, newRequired]);
-
-  const toggleEnabled = useCallback(async (id: string, enabled: boolean) => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/concall-screen", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_enabled", id, enabled }),
-        signal: AbortSignal.timeout(15_000),
-      });
-      const json = (await res.json()) as ApiPayload & { fields?: Field[] };
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error || `HTTP ${res.status}`);
-      }
-      setFields(json.fields || []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Update failed");
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const ex = result?.extract || result?.extract_json || null;
+  const meta = (asObj(ex?.metadata) || {}) as Meta;
+  const tone = (asObj(ex?.management_tone) || {}) as Tone;
+  const fin = asObj(ex?.reported_financials) || {};
+  const finKeys = Object.keys(fin);
 
   return (
     <section className="panel scan-panel buyback-research-panel buyback-research-panel--split">
       <p className="panel-lead">
-        <strong>Research · Concall.</strong> Upload a transcript / earnings PDF
-        (or paste URL), preview it, and read text. Target fields below — we add
-        extract next.{" "}
-        {updatedAt ? (
-          <span className="muted">Schema updated {updatedAt}.</span>
-        ) : null}
+        <strong>Research · Concall.</strong> Upload earnings-call transcript
+        PDF → structured JSON (metadata, financials, guidance, segments,
+        corporate actions, risk flags, tone, catalysts). Same extract JSON /
+        raw text pattern as Order book.
       </p>
 
       <div className="buyback-input-row">
         <input
           type="url"
           className="buyback-url-input"
-          placeholder="Paste transcript / PPT PDF URL…"
+          placeholder="Paste transcript PDF URL…"
           value={url}
           disabled={busy}
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              void readPdf();
+              void run();
             }
           }}
         />
@@ -294,9 +237,9 @@ export function ConcallResearchPanel() {
           type="button"
           className={`chip chip-scan tag-chip ${busy ? "busy on" : ""}`}
           disabled={busy}
-          onClick={() => void readPdf()}
+          onClick={() => void run()}
         >
-          {busy ? "Working…" : "Read PDF"}
+          {busy ? "Working…" : "Extract"}
         </button>
         {downloadPdfHref ? (
           <a
@@ -345,7 +288,9 @@ export function ConcallResearchPanel() {
             Selected: {file.name}
           </span>
         ) : (
-          <span className="buyback-file-hint">Concall transcript / PPT PDF</span>
+          <span className="buyback-file-hint">
+            Earnings call transcript PDF
+          </span>
         )}
         {file ? (
           <button
@@ -387,7 +332,7 @@ export function ConcallResearchPanel() {
 
         <div className="buyback-split-out">
           <div className="buyback-split-label">
-            Text
+            Extract
             {busy ? (
               <span className="buyback-progress-elapsed">
                 {fmtElapsed(elapsedMs)}
@@ -399,172 +344,178 @@ export function ConcallResearchPanel() {
               <p className="buyback-progress-title">
                 {status || "Working…"}
               </p>
+              <ul className="buyback-progress-steps">
+                {PROGRESS_STEPS.map((step, i) => {
+                  const done = progressStep > i;
+                  const current = progressStep === i;
+                  return (
+                    <li
+                      key={step.id}
+                      className={
+                        done
+                          ? "buyback-progress-step done"
+                          : current
+                            ? "buyback-progress-step current"
+                            : "buyback-progress-step"
+                      }
+                    >
+                      <span className="buyback-progress-mark" aria-hidden>
+                        {done ? "✓" : current ? "●" : "○"}
+                      </span>
+                      <span>{step.label}</span>
+                    </li>
+                  );
+                })}
+              </ul>
               <p className="buyback-progress-hint">
-                pdf-parse only for now — OCR for scanned decks later.
+                Long transcripts need a few minutes for full JSON extract.
               </p>
             </div>
           ) : !result ? (
             <div className="buyback-pdf-empty">
-              Click <strong>Read PDF</strong> to pull text ({enabledCount}{" "}
-              fields enabled for later extract)
+              Click <strong>Extract</strong> for structured concall JSON
             </div>
           ) : (
             <>
-              <div className="buyback-decision review">
-                {result.ok
-                  ? `${result.text_chars?.toLocaleString("en-IN") ?? 0} chars · ${result.engine}`
-                  : result.error || "No text"}
+              <div className={decisionClass(result.decision)}>
+                {result.why || "Concall extract"}
               </div>
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => setShowText((v) => !v)}
-              >
-                {showText ? "Hide text" : "Show text"}
-              </button>
-              {showText && result.text_excerpt ? (
-                <pre className="buyback-text-excerpt">{result.text_excerpt}</pre>
+
+              <table className="buyback-out-table">
+                <tbody>
+                  <tr>
+                    <th scope="row">Company</th>
+                    <td>{meta.company_name || "—"}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row">NSE / BSE</th>
+                    <td>
+                      {meta.nse_symbol || "—"}
+                      {meta.bse_code ? ` · ${meta.bse_code}` : ""}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Period</th>
+                    <td>
+                      {[meta.quarter, meta.fiscal_year]
+                        .filter(Boolean)
+                        .join(" ") || "—"}
+                      {meta.call_date ? ` · ${meta.call_date}` : ""}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Tone</th>
+                    <td>
+                      {tone.overall_tone || "—"}
+                      {tone.net_sentiment_score != null
+                        ? ` · score ${tone.net_sentiment_score}`
+                        : ""}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Financials</th>
+                    <td>
+                      {finKeys.length
+                        ? finKeys.join(", ")
+                        : "—"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Engine</th>
+                    <td>
+                      {result.engine || "—"} ·{" "}
+                      {(result.text_chars ?? 0).toLocaleString()} chars
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+
+              {tone.justification ? (
+                <p className="buyback-subject">{tone.justification}</p>
+              ) : null}
+
+              <div className="buyback-text-toggles">
+                <button
+                  type="button"
+                  className="buyback-text-toggle"
+                  onClick={() => setShowJson((v) => !v)}
+                >
+                  {showJson ? "Hide" : "Show"} extract JSON
+                </button>
+                <button
+                  type="button"
+                  className="buyback-text-toggle"
+                  onClick={() => setShowText((v) => !v)}
+                >
+                  {showText ? "Hide" : "Show"} raw extracted text
+                  {result.text_chars != null
+                    ? ` (${result.text_chars.toLocaleString()} chars)`
+                    : ""}
+                </button>
+              </div>
+              {showJson ? (
+                <pre className="buyback-text-pre buyback-json-pre">
+                  {JSON.stringify(
+                    result.extract_json || result.extract || {},
+                    null,
+                    2,
+                  )}
+                </pre>
+              ) : null}
+              {showText ? (
+                <pre className="buyback-text-pre">
+                  {result.text_excerpt?.trim() || "(empty)"}
+                </pre>
               ) : null}
             </>
           )}
         </div>
       </div>
 
-      <p className="buyback-status" role="status">
-        {enabledCount} enabled · {fields.length} total
-        {passRule ? ` · Pass: ${passRule}` : null}
-      </p>
-
-      {loading ? <p className="buyback-history-empty">Loading fields…</p> : null}
-
-      <div className="buyback-result-card concall-research-fields">
-        <div className="buyback-result-head">
-          <strong>Target fields</strong>
-          <span className="buyback-meta">data/concall-research-fields.json</span>
-        </div>
-
-        {grouped.map(({ group, fields: list }) => (
-          <div key={group} className="concall-field-group">
-            <h4 className="concall-field-group-title">{group}</h4>
-            <ul className="concall-field-list">
-              {list.map((f) => (
-                <li key={f.id} className={f.enabled ? "" : "is-disabled"}>
-                  <label className="concall-field-row">
-                    <input
-                      type="checkbox"
-                      checked={f.enabled}
-                      disabled={busy}
-                      onChange={(e) => void toggleEnabled(f.id, e.target.checked)}
-                    />
-                    <span className="concall-field-label">
-                      {f.label}
-                      {f.required ? (
-                        <span className="concall-field-req" title="Required">
-                          *
-                        </span>
-                      ) : null}
-                    </span>
-                    <code className="concall-field-id">{f.id}</code>
-                    {f.notes ? (
-                      <span className="concall-field-notes">{f.notes}</span>
-                    ) : null}
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-
-        <div className="concall-add-field">
-          <strong>Add field</strong>
-          <div className="buyback-input-row">
-            <input
-              type="text"
-              className="buyback-url-input"
-              placeholder="Label (e.g. Working capital days)"
-              value={newLabel}
-              disabled={busy}
-              onChange={(e) => setNewLabel(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void addField();
-                }
-              }}
-            />
-            <select
-              className="concall-group-select"
-              value={newGroup}
-              disabled={busy}
-              onChange={(e) => setNewGroup(e.target.value)}
-              aria-label="Field group"
-            >
-              {GROUPS.map((g) => (
-                <option key={g} value={g}>
-                  {g}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className={`chip chip-scan tag-chip ${busy ? "busy on" : ""}`}
-              disabled={busy}
-              onClick={() => void addField()}
-            >
-              {busy ? "Saving…" : "Add"}
-            </button>
-          </div>
-          <input
-            type="text"
-            className="buyback-url-input concall-notes-input"
-            placeholder="Notes (optional)"
-            value={newNotes}
-            disabled={busy}
-            onChange={(e) => setNewNotes(e.target.value)}
-          />
-          <label className="concall-required-check">
-            <input
-              type="checkbox"
-              checked={newRequired}
-              disabled={busy}
-              onChange={(e) => setNewRequired(e.target.checked)}
-            />
-            Required for future PASS
-          </label>
-        </div>
-      </div>
-
-      <h3 className="buyback-history-title">Pass list</h3>
-      {history.length === 0 ? (
-        <p className="buyback-history-empty">
-          Empty for now — once field extract + PASS rule land, rows appear here.
-        </p>
-      ) : (
-        <div className="buyback-history-table-wrap">
-          <table className="buyback-history-table">
-            <thead>
-              <tr>
-                <th>Ticker</th>
-                <th>Company</th>
-                <th>Period</th>
-                <th>Sentiment</th>
-                <th>Screened</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.ticker || "—"}</td>
-                  <td>{r.company || "—"}</td>
-                  <td>{r.period || "—"}</td>
-                  <td>{r.sentiment || "—"}</td>
-                  <td>{r.screened_at}</td>
+      <div className="buyback-history">
+        <h3 className="buyback-history-title">
+          Extract list
+          <span className="buyback-history-count">{history.length}</span>
+        </h3>
+        {history.length === 0 ? (
+          <p className="buyback-history-empty">
+            No extracts yet — upload a transcript and click Extract.
+          </p>
+        ) : (
+          <div className="buyback-history-table-wrap">
+            <table className="buyback-history-table">
+              <thead>
+                <tr>
+                  <th>Ticker</th>
+                  <th>Company</th>
+                  <th>Period</th>
+                  <th>Tone</th>
+                  <th>Decision</th>
+                  <th>Screened</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {history.map((r) => (
+                  <tr key={r.id}>
+                    <td>{r.ticker || "—"}</td>
+                    <td>{r.company || "—"}</td>
+                    <td>{r.period || "—"}</td>
+                    <td>{r.sentiment || "—"}</td>
+                    <td>
+                      <span
+                        className={`buyback-hist-pill ${r.decision || "need_review"}`}
+                      >
+                        {r.decision || "review"}
+                      </span>
+                    </td>
+                    <td>{r.screened_at?.slice(0, 19) || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

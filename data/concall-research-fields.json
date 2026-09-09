@@ -1,112 +1,48 @@
 {
-  "version": 1,
-  "purpose": "Research · Concall — target fields to extract from transcripts / earnings calls. Add fields here as we decide what matters; screening comes later.",
+  "version": 2,
+  "purpose": "Research · Concall — structured earnings-call extract schema (see prompts/concall-research-extract.system.txt)",
   "updated_at": "2026-09-09",
-  "pass_rule": "TBD — decide pass criteria after fields stabilize (e.g. guidance clarity + tone).",
-  "fields": [
-    {
-      "id": "ticker",
-      "label": "Ticker",
-      "group": "meta",
-      "required": true,
-      "notes": "NSE symbol",
-      "enabled": true
-    },
-    {
-      "id": "company",
-      "label": "Company",
-      "group": "meta",
-      "required": false,
-      "notes": "Legal / trading name",
-      "enabled": true
-    },
-    {
-      "id": "period",
-      "label": "Period",
-      "group": "meta",
-      "required": true,
-      "notes": "e.g. Q3 FY26 / FY25",
-      "enabled": true
-    },
-    {
-      "id": "source_url",
-      "label": "Source URL",
-      "group": "meta",
-      "required": false,
-      "notes": "Transcript / PPT / audio link",
-      "enabled": true
-    },
-    {
-      "id": "summary",
-      "label": "Summary",
-      "group": "content",
-      "required": false,
-      "notes": "Short management narrative",
-      "enabled": true
-    },
-    {
-      "id": "guidance",
-      "label": "Guidance",
-      "group": "content",
-      "required": false,
-      "notes": "Revenue / margin / volume guidance",
-      "enabled": true
-    },
-    {
-      "id": "margins",
-      "label": "Margins",
-      "group": "content",
-      "required": false,
-      "notes": "Gross / EBITDA / PAT commentary",
-      "enabled": true
-    },
-    {
-      "id": "capex",
-      "label": "Capex",
-      "group": "content",
-      "required": false,
-      "notes": "Capex plans and timing",
-      "enabled": true
-    },
-    {
-      "id": "orders",
-      "label": "Orders / pipeline",
-      "group": "content",
-      "required": false,
-      "notes": "Order book, wins, inquiry pipeline",
-      "enabled": true
-    },
-    {
-      "id": "tone",
-      "label": "Tone",
-      "group": "sentiment",
-      "required": false,
-      "notes": "Free-text management tone",
-      "enabled": true
-    },
-    {
-      "id": "sentiment",
-      "label": "Sentiment",
-      "group": "sentiment",
-      "required": false,
-      "notes": "bullish | optimistic | neutral | cautious | bearish",
-      "enabled": true
-    },
-    {
-      "id": "sentiment_why",
-      "label": "Sentiment why",
-      "group": "sentiment",
-      "required": false,
-      "notes": "One-line rationale",
-      "enabled": true
-    },
-    {
-      "id": "risks",
-      "label": "Risks",
-      "group": "content",
-      "required": false,
-      "notes": "Key risks called out",
-      "enabled": true
-    }
-  ]
+  "pass_rule": "TBD — save successful extracts; PASS criteria after schema stabilizes",
+  "prompt_file": "prompts/concall-research-extract.system.txt",
+  "top_level_keys": [
+    "metadata",
+    "reported_financials",
+    "forward_guidance",
+    "segment_data",
+    "corporate_actions",
+    "risk_governance_flags",
+    "management_tone",
+    "key_catalysts"
+  ],
+  "metadata_fields": [
+    "company_name",
+    "nse_symbol",
+    "bse_code",
+    "call_date",
+    "quarter",
+    "fiscal_year",
+    "speakers"
+  ],
+  "reported_financial_metrics": [
+    "revenue",
+    "ebitda",
+    "ebitda_margin_pct",
+    "net_profit",
+    "pat_margin_pct",
+    "eps"
+  ],
+  "management_tone_values": [
+    "bullish",
+    "neutral",
+    "cautious",
+    "defensive"
+  ],
+  "corporate_action_types": [
+    "acquisition",
+    "merger",
+    "disposal",
+    "JV",
+    "other"
+  ],
+  "validation_fixture": "data/concall-research-expected-indoborax.json"
 }
