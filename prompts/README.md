@@ -11,6 +11,7 @@ Edit the `.system.txt` files in this folder to tune AI output. Changes apply on 
 | `concall-drift.system.txt` | **Concall** tab — post-earn drift analysis |
 | `investor-call-review.system.txt` | **Business** tab — 10-row call/PPT review |
 | `investor-material-distill.system.txt` | **Calls** tab — distill imported PPT/PDF/concall text |
+| `concall-research-extract.system.txt` | **Research · Concall** — structured earnings-call JSON extract |
 
 Materials downloaded on the **Calls** tab (concall transcript, investor PPT, PDF) are fed into Business and Concall prompts automatically when present in `company_about.db`.
 

@@ -54,7 +54,7 @@ With `FIRECRAWL_API_KEY`, Strategy concall **Documents** / **Get highlights** us
 
 **Scan → Superstar**: pulls latest Trendlyne superstar holdings into `data/superstar_holdings.db` (UI **Scan Superstar**, or `npm run scan:superstar`).
 
-**Research** tab (`?tab=research`): **1 · Buyback** (tender PDF screen + pass row), **2 · Order book** (Reg-30 order PDF → awarding / size / execution + order÷sales), and **3 · Concall** (define extract fields in `data/concall-research-fields.json`; screening next). Text via `pdf-parse`; thin PDFs use vision OCR when `QIANFAN_OCR_BASE_URL` is set.
+**Research** tab (`?tab=research`): **1 · Buyback** (tender PDF screen + pass row), **2 · Order book** (Reg-30 order PDF → awarding / size / execution + order÷sales), and **3 · Concall** (earnings-call transcript PDF → structured JSON via `prompts/concall-research-extract.system.txt`; fixture `data/concall-research-expected-indoborax.json`). Text via `pdf-parse`; thin PDFs use vision OCR when `QIANFAN_OCR_BASE_URL` is set.
 
 ## SQLite health
 

@@ -368,7 +368,11 @@ async function callOllama(
       },
     }),
     signal: AbortSignal.timeout(
-      (opts?.maxTokens ?? opts?.numPredict ?? 720) >= 1200 ? 150_000 : 90_000,
+      (opts?.maxTokens ?? opts?.numPredict ?? 720) >= 3000
+        ? 300_000
+        : (opts?.maxTokens ?? opts?.numPredict ?? 720) >= 1200
+          ? 150_000
+          : 90_000,
     ),
   });
   if (!res.ok) throw new Error(`ollama ${res.status}`);
