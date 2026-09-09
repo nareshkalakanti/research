@@ -20,7 +20,7 @@ import {
   quartersCacheTickerSet,
   upsertQuartersCache,
 } from "./screener-quarters";
-import { qualityTickerSet } from "./quality";
+import { isAgeAtLeast } from "./company-age";
 import { openSqliteNamed } from "./sqlite-utils";
 import type { CapTier } from "./types";
 import { capTier } from "./types";
@@ -40,9 +40,10 @@ export type QuartersFillSelection = {
   cap?: CapTier | "All";
   hold?: boolean;
   edge?: boolean;
-  quality?: boolean;
   sme?: boolean;
   note?: boolean;
+  ageMin?: number | null;
+  age25?: boolean;
   funds?: FundFilterState;
 };
 
@@ -95,7 +96,12 @@ function cachedQuartersUsableMap(): Map<
 }
 
 function applySelectionFilters<
-  T extends { ticker: string; market: string; mcap_cr?: number | null },
+  T extends {
+    ticker: string;
+    market: string;
+    mcap_cr?: number | null;
+    founded_year?: string | null;
+  },
 >(companies: T[], opts: QuartersFillSelection): T[] {
   let out = companies;
   if (opts.cap && opts.cap !== "All") {
@@ -104,6 +110,9 @@ function applySelectionFilters<
   if (opts.sme) {
     out = out.filter((c) => /\bSME\b/i.test(c.market));
   }
+  if (opts.ageMin != null) {
+    out = out.filter((c) => isAgeAtLeast(c.founded_year, opts.ageMin!));
+  }
   if (opts.hold) {
     const holdings = holdingsTickerSet();
     out = out.filter((c) => holdings.has(c.ticker.toUpperCase()));
@@ -111,10 +120,6 @@ function applySelectionFilters<
   if (opts.edge) {
     const edge = edgeTickerSet();
     out = out.filter((c) => edge.has(c.ticker.toUpperCase()));
-  }
-  if (opts.quality) {
-    const quality = qualityTickerSet();
-    out = out.filter((c) => quality.has(c.ticker.toUpperCase()));
   }
   const fundFilter = activeFundFilterSet(opts.funds ?? {});
   if (fundFilter) {
@@ -132,9 +137,9 @@ export function hasQuartersFillSelection(opts: QuartersFillSelection): boolean {
   if (
     opts.hold ||
     opts.edge ||
-    opts.quality ||
     opts.sme ||
-    opts.note
+    opts.note ||
+    opts.ageMin != null
   )
     return true;
   return FUND_WATCHLIST_KEYS.some(

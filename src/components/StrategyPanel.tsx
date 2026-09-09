@@ -22,7 +22,6 @@ import { parseFetchJson } from "@/lib/fetch-json";
 
 const DEFAULT_CUSTOM = defaultCustomDates();
 const KIND = "concall_drift" as const;
-
 type ApiResponse = {
   kind: typeof KIND;
   stats: Record<string, number>;
@@ -387,7 +386,10 @@ export function StrategyPanel() {
         </label>
         <div className="toolbar-actions">
           <LiveNseFeedBadge status={data?.nse_feed} />
-          <RefreshButton busy={loading} onRefresh={() => void load({ refresh: true })} />
+          <RefreshButton
+            busy={loading}
+            onRefresh={() => void load({ refresh: true })}
+          />
         </div>
       </div>
 
@@ -504,6 +506,9 @@ export function StrategyPanel() {
                 <col className="cd-col-sec" />
                 <col className="cd-col-ltp" />
                 <col className="cd-col-drift" />
+                <col className="cd-col-tone" />
+                <col className="cd-col-din" />
+                <col className="cd-col-kw" />
                 <col className="cd-col-links" />
               </colgroup>
               <thead>
@@ -518,6 +523,13 @@ export function StrategyPanel() {
                   <th className="num">LTP</th>
                   <th className="num" title="LTP vs last close before concall announcement">
                     Δ call
+                  </th>
+                  <th title="Management tone from corporate concall extract">
+                    Tone
+                  </th>
+                  <th title="Board DIN extract vs Expected governance">DIN</th>
+                  <th title="Matched corporate-event keyword (same pills as Corporate extract)">
+                    Keyword
                   </th>
                   <th className="col-links">Links</th>
                 </tr>

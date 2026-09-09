@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ResearchPanel } from "@/components/ResearchPanel";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
 import { ScanPanel } from "@/components/ScanPanel";
@@ -14,13 +15,15 @@ type Tab =
   | "theme-scanner"
   | "governance"
   | "concall"
-  | "missing";
+  | "missing"
+  | "research";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "theme-scanner", label: "Theme" },
   { id: "scan", label: "Scan" },
   { id: "governance", label: "Governance" },
   { id: "concall", label: "Concall" },
+  { id: "research", label: "Research" },
   { id: "missing", label: "Missing data" },
 ];
 
@@ -29,7 +32,10 @@ const TAB_IDS = new Set<string>(TABS.map((t) => t.id));
 function tabFromParam(raw: string | null): Tab {
   // Old deep-links
   if (raw === "ht") return "scan";
-  if (raw === "strategy" || raw === "buyback") return "concall";
+  if (raw === "strategy" || raw === "buyback" || raw === "corporate") {
+    return "concall";
+  }
+  if (raw === "categories") return "theme-scanner";
   if (raw && TAB_IDS.has(raw)) return raw as Tab;
   return "theme-scanner";
 }
@@ -41,6 +47,9 @@ export function AppShell() {
   const [tab, setTabState] = useState<Tab>(() =>
     tabFromParam(searchParams.get("tab")),
   );
+  const concallWide = tab === "concall";
+  const researchWide = tab === "research";
+  const wideMain = concallWide || researchWide;
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
@@ -50,12 +59,40 @@ export function AppShell() {
     setTabState(tabFromParam(searchParams.get("tab")));
   }, [searchParams]);
 
+  // Legacy ?tab=corporate → Concall (DIN/extract UI removed)
+  useEffect(() => {
+    if (searchParams.get("tab") !== "corporate") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "concall");
+    params.delete("view");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  // Legacy ?view=board on Concall — extract tab removed
+  useEffect(() => {
+    if (searchParams.get("tab") !== "concall") return;
+    if (searchParams.get("view") !== "board") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("view");
+    router.replace(`/?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
+
+  // Legacy ?tab=categories removed
+  useEffect(() => {
+    if (searchParams.get("tab") !== "categories") return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("tab");
+    const qs = params.toString();
+    router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+  }, [router, searchParams]);
+
   const setTab = useCallback(
     (next: Tab) => {
       setTabState(next);
       const params = new URLSearchParams(searchParams.toString());
       if (next === "theme-scanner") params.delete("tab");
       else params.set("tab", next);
+      if (next !== "concall") params.delete("view");
       const qs = params.toString();
       router.replace(qs ? `/?${qs}` : "/", { scroll: false });
     },
@@ -67,7 +104,7 @@ export function AppShell() {
   }
 
   return (
-    <div className="app">
+    <div className={wideMain ? "app app-corporate" : "app"}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">R</span>
@@ -98,7 +135,7 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="main">
+      <main className={wideMain ? "main main-corporate" : "main"}>
         {tab === "scan" ? (
           <ScanPanel />
         ) : tab === "missing" ? (
@@ -107,6 +144,8 @@ export function AppShell() {
           <GovernanceMapPanel />
         ) : tab === "concall" ? (
           <StrategyPanel />
+        ) : tab === "research" ? (
+          <ResearchPanel />
         ) : (
           <ThemeScanner />
         )}

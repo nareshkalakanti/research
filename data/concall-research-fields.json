@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "purpose": "Research · Concall — target fields to extract from transcripts / earnings calls. Add fields here as we decide what matters; screening comes later.",
+  "updated_at": "2026-09-09",
+  "pass_rule": "TBD — decide pass criteria after fields stabilize (e.g. guidance clarity + tone).",
+  "fields": [
+    {
+      "id": "ticker",
+      "label": "Ticker",
+      "group": "meta",
+      "required": true,
+      "notes": "NSE symbol",
+      "enabled": true
+    },
+    {
+      "id": "company",
+      "label": "Company",
+      "group": "meta",
+      "required": false,
+      "notes": "Legal / trading name",
+      "enabled": true
+    },
+    {
+      "id": "period",
+      "label": "Period",
+      "group": "meta",
+      "required": true,
+      "notes": "e.g. Q3 FY26 / FY25",
+      "enabled": true
+    },
+    {
+      "id": "source_url",
+      "label": "Source URL",
+      "group": "meta",
+      "required": false,
+      "notes": "Transcript / PPT / audio link",
+      "enabled": true
+    },
+    {
+      "id": "summary",
+      "label": "Summary",
+      "group": "content",
+      "required": false,
+      "notes": "Short management narrative",
+      "enabled": true
+    },
+    {
+      "id": "guidance",
+      "label": "Guidance",
+      "group": "content",
+      "required": false,
+      "notes": "Revenue / margin / volume guidance",
+      "enabled": true
+    },
+    {
+      "id": "margins",
+      "label": "Margins",
+      "group": "content",
+      "required": false,
+      "notes": "Gross / EBITDA / PAT commentary",
+      "enabled": true
+    },
+    {
+      "id": "capex",
+      "label": "Capex",
+      "group": "content",
+      "required": false,
+      "notes": "Capex plans and timing",
+      "enabled": true
+    },
+    {
+      "id": "orders",
+      "label": "Orders / pipeline",
+      "group": "content",
+      "required": false,
+      "notes": "Order book, wins, inquiry pipeline",
+      "enabled": true
+    },
+    {
+      "id": "tone",
+      "label": "Tone",
+      "group": "sentiment",
+      "required": false,
+      "notes": "Free-text management tone",
+      "enabled": true
+    },
+    {
+      "id": "sentiment",
+      "label": "Sentiment",
+      "group": "sentiment",
+      "required": false,
+      "notes": "bullish | optimistic | neutral | cautious | bearish",
+      "enabled": true
+    },
+    {
+      "id": "sentiment_why",
+      "label": "Sentiment why",
+      "group": "sentiment",
+      "required": false,
+      "notes": "One-line rationale",
+      "enabled": true
+    },
+    {
+      "id": "risks",
+      "label": "Risks",
+      "group": "content",
+      "required": false,
+      "notes": "Key risks called out",
+      "enabled": true
+    }
+  ]
+}

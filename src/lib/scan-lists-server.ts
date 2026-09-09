@@ -9,7 +9,6 @@ import {
 } from "@/lib/fund-watchlists";
 import { holdingsTickerSet } from "@/lib/holdings";
 import { researchLinks } from "@/lib/links";
-import { qualityTickerSet } from "@/lib/quality";
 
 function fundStubRow(stub: {
   ticker: string;
@@ -90,16 +89,12 @@ export function filterCompaniesByScanList<T extends { ticker: string; market: st
   const universe = allCompanies ?? companies;
   const holdings = holdingsTickerSet();
   const edge = edgeTickerSet();
-  const quality = qualityTickerSet();
 
   if (list === "Hold") {
     return companies.filter((c) => holdings.has(c.ticker.toUpperCase()));
   }
   if (list === "Edge") {
     return companies.filter((c) => edge.has(c.ticker.toUpperCase()));
-  }
-  if (list === "Quality") {
-    return companies.filter((c) => quality.has(c.ticker.toUpperCase()));
   }
 
   const fundKey = fundKeyFromScanList(list);

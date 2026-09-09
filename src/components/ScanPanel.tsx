@@ -54,13 +54,13 @@ export function ScanPanel() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
-  const [filterQuality, setFilterQuality] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
     setFundFilters((prev) => ({ ...prev, [key]: on }));
   }, []);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
+  const [ageMin, setAgeMin] = useState<number | null>(null);
   const [scanScope, setScanScope] = useState<ScanScope>("list");
   const [view, setView] = useState<ViewFilter>("all");
   const [page, setPage] = useState(1);
@@ -74,9 +74,12 @@ export function ScanPanel() {
   const [listCounts, setListCounts] = useState<Record<string, number>>({
     hold: 0,
     edge: 0,
-    quality: 0,
     sme: 0,
     note: 0,
+    age25: 0,
+    age50: 0,
+    age100: 0,
+    age_min: 0,
     distress: 0,
     NC: 0,
     TI: 0,
@@ -93,9 +96,9 @@ export function ScanPanel() {
     view,
     filterHold,
     filterEdge,
-    filterQuality,
     filterSme,
     filterNote,
+    ageMin,
     FUND_WATCHLIST_KEYS.map((k) => (fundFilters[k] ? "1" : "0")).join(""),
   ].join("|");
   const filtersKeyRef = useRef(filtersKey);
@@ -129,12 +132,13 @@ export function ScanPanel() {
       if (view === "mrsi85") params.set("mrsi85", "1");
       if (view === "mrsi_empty") params.set("mrsi_empty", "1");
       if (view === "opm") params.set("opm", "1");
+      if (view === "brutal") params.set("brutal", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
-      if (filterQuality) params.set("quality", "1");
       appendFundParams(params, fundFilters);
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
+      if (ageMin != null) params.set("ageMin", String(ageMin));
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`);
@@ -147,9 +151,12 @@ export function ScanPanel() {
           setListCounts({
             hold: json.signals.hold ?? 0,
             edge: json.signals.edge ?? 0,
-            quality: json.signals.quality ?? 0,
             sme: json.signals.sme ?? 0,
             note: json.signals.note ?? 0,
+            age25: json.signals.age25 ?? 0,
+            age50: json.signals.age50 ?? 0,
+            age100: json.signals.age100 ?? 0,
+            age_min: json.signals.age_min ?? 0,
             distress: json.signals.distress ?? 0,
             NC: json.signals.NC ?? 0,
             TI: json.signals.TI ?? 0,
@@ -175,10 +182,10 @@ export function ScanPanel() {
       dir,
       filterHold,
       filterEdge,
-        filterQuality,
       fundFilters,
       filterSme,
       filterNote,
+      ageMin,
     ],
   );
 
@@ -225,22 +232,22 @@ export function ScanPanel() {
     if (cap !== "All") parts.push(cap);
     if (filterNote) parts.push("Note");
     if (filterEdge) parts.push("Edge");
-    if (filterQuality) parts.push("Quality");
     for (const key of FUND_WATCHLIST_KEYS) {
       if (fundFilters[key]) parts.push(FUND_WATCHLIST_LABELS[key]);
     }
     if (filterSme) parts.push("SME");
     if (filterHold) parts.push("Hold");
+    if (ageMin != null) parts.push(`Age ≥${ageMin}`);
     const base = scanListLabel(list);
     return parts.length ? `${base} · ${parts.join(" · ")}` : base;
-  }, [list, cap, filterNote, filterEdge, filterQuality, fundFilters, filterSme, filterHold]);
+  }, [list, cap, filterNote, filterEdge, fundFilters, filterSme, filterHold, ageMin]);
   const selectionActive = hasScanSelection({
     cap,
     hold: filterHold,
     edge: filterEdge,
-    quality: filterQuality,
     sme: filterSme,
     note: filterNote,
+    ageMin,
     funds: fundFilters,
   });
   useEffect(() => {
@@ -272,7 +279,6 @@ export function ScanPanel() {
               setCap("All");
               setFilterHold(false);
               setFilterEdge(false);
-              setFilterQuality(false);
               setFilterSme(false);
               setFilterNote(false);
               setFundFilters(EMPTY_FUNDS);
@@ -302,10 +308,23 @@ export function ScanPanel() {
             onCap={setCap}
             sme={filterSme}
             note={filterNote}
+            ageMin={ageMin}
             onSme={setFilterSme}
             onNote={setFilterNote}
+            onAgeMin={setAgeMin}
             smeCount={data?.signals?.sme ?? listCounts.sme}
             noteCount={data?.signals?.note ?? listCounts.note}
+            ageCounts={{
+              25: data?.signals?.age25 ?? listCounts.age25,
+              50: data?.signals?.age50 ?? listCounts.age50,
+              100: data?.signals?.age100 ?? listCounts.age100,
+              ...(ageMin != null &&
+              ageMin !== 25 &&
+              ageMin !== 50 &&
+              ageMin !== 100
+                ? { [ageMin]: data?.signals?.age_min ?? listCounts.age_min }
+                : {}),
+            }}
             allCount={allCount}
             capCounts={{
               NC: data?.signals?.NC ?? listCounts.NC,
@@ -322,14 +341,11 @@ export function ScanPanel() {
           <FundsFilterBar
             hold={filterHold}
             edge={filterEdge}
-            quality={filterQuality}
             onHold={setFilterHold}
             onEdge={setFilterEdge}
-            onQuality={setFilterQuality}
             holdCount={data?.signals?.hold ?? listCounts.hold}
             distressCount={data?.signals?.distress ?? listCounts.distress}
             edgeCount={data?.signals?.edge ?? listCounts.edge}
-            qualityCount={data?.signals?.quality ?? listCounts.quality}
             funds={fundFilters}
             onFund={setFund}
             fundCounts={
@@ -357,9 +373,9 @@ export function ScanPanel() {
           cap={cap}
           hold={filterHold}
           edge={filterEdge}
-          quality={filterQuality}
           sme={filterSme}
           note={filterNote}
+          ageMin={ageMin}
           funds={fundFilters}
           bbCount={data?.signals?.bb}
           bbWCount={data?.signals?.bb_w}
@@ -372,6 +388,7 @@ export function ScanPanel() {
           mrsi85Count={data?.signals?.mrsi85}
           mrsiEmptyCount={data?.signals?.mrsi_empty}
           opmCount={data?.signals?.operating_metrics}
+          brutalCount={data?.signals?.brutal}
           bbDate={data?.session?.bb ?? null}
           bbWDate={data?.session?.bb_w ?? data?.session?.bb ?? null}
           bbMDate={data?.session?.bb_m ?? null}
@@ -396,10 +413,17 @@ export function ScanPanel() {
               <strong>Fill Quarters</strong> (List / Tags), open Quarters, or
               widen List.{" "}
             </>
+          ) : view === "brutal" ? (
+            <>
+              {" "}
+              Age ≥25 (Groww founded) · ROCE &gt;15% all ~12y · median sales
+              YoY ≥12% · median EPS YoY &gt;12%. Click{" "}
+              <strong>Scan Brutal</strong> (List / Tags) first.{" "}
+            </>
           ) : selectionActive ? (
             <>
               {" "}
-              Clear tags (e.g. SME) or switch List, then click{" "}
+              Clear tags (e.g. SME / Age ≥25) or switch List, then click{" "}
               <button
                 type="button"
                 className="link-btn"
@@ -408,6 +432,7 @@ export function ScanPanel() {
                   setFilterHold(false);
                   setFilterEdge(false);
                   setFilterNote(false);
+                  setAgeMin(null);
                   setFundFilters(EMPTY_FUNDS);
                   setCap("All");
                   setPage(1);

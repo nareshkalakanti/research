@@ -10,6 +10,7 @@ import {
   runQuartersFillBatch,
   type QuartersFillSelection,
 } from "@/lib/quarters-fill";
+import { parseAgeMin } from "@/lib/company-age";
 import type { CapTier } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -25,9 +26,10 @@ type Body = {
   cap?: CapTier | "All";
   hold?: boolean;
   edge?: boolean;
-  quality?: boolean;
   sme?: boolean;
   note?: boolean;
+  ageMin?: number | null;
+  age25?: boolean;
   funds?: FundFilterState;
 };
 
@@ -48,9 +50,10 @@ function selectionFromBody(body: Body): QuartersFillSelection {
     cap: (body.cap || "All") as CapTier | "All",
     hold: body.hold === true,
     edge: body.edge === true,
-    quality: body.quality === true,
     sme: body.sme === true,
     note: body.note === true,
+    ageMin:
+      parseAgeMin(body.ageMin) ?? (body.age25 === true ? 25 : null),
     funds: parseFunds(body.funds),
   };
 }

@@ -4,7 +4,23 @@ import { ExpandInvestorMaterials } from "@/components/ExpandInvestorMaterials";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 
-export type StrategyExpandPanel = "qtr" | "docs" | "highlights";
+export type StrategyExpandPanel = "qtr" | "docs" | "highlights" | "corp";
+
+export type StrategyCorpEnrichment = {
+  sentiment: string | null;
+  sentiment_score: number | null;
+  sentiment_why: string | null;
+  summary: string | null;
+  guidance: string | null;
+  din_flags: string[];
+  din_summary: string | null;
+  match_din: number;
+  document_url: string | null;
+  concall_url: string | null;
+  extract_status: string | null;
+  has_extract: boolean;
+  keyword?: string | null;
+};
 
 export type StrategyRowLinks = {
   sc: string;
@@ -28,6 +44,7 @@ type Props = {
   docsError?: string | null;
   onFetchDocs?: () => void;
   onDocsChange?: () => void;
+  corp?: StrategyCorpEnrichment | null;
 };
 
 export function StrategyExpandDetail({
@@ -46,6 +63,7 @@ export function StrategyExpandDetail({
   docsError = null,
   onFetchDocs,
   onDocsChange,
+  corp = null,
 }: Props) {
   const quarterData = useExpandQuarters(ticker, market, price, open);
   const active: StrategyExpandPanel =
@@ -87,6 +105,15 @@ export function StrategyExpandDetail({
                 >
                   Highlights
                 </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active === "corp"}
+                  className={`about-tab ${active === "corp" ? "on" : ""}`}
+                  onClick={() => onPanel("corp")}
+                >
+                  Corp
+                </button>
               </>
             ) : null}
           </div>
@@ -103,12 +130,86 @@ export function StrategyExpandDetail({
               error={docsError}
               onFetch={onFetchDocs}
             />
+          ) : active === "corp" && showFilingTabs ? (
+            <ExpandCorp ticker={ticker} corp={corp} />
           ) : (
             <ExpandQuarters data={quarterData} price={price} />
           )}
         </div>
       </td>
     </tr>
+  );
+}
+
+function ExpandCorp({
+  ticker,
+  corp,
+}: {
+  ticker: string;
+  corp: StrategyCorpEnrichment | null;
+}) {
+  if (!corp?.has_extract) {
+    return (
+      <div className="strategy-corp-empty">
+        <p>
+          No corporate extract yet for <strong>{ticker}</strong>. Run the
+          corporate-data extract API to scan NSE board PDFs and concall tone
+          (then Push DINs / Refresh).
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="strategy-corp-detail">
+      <div className="strategy-corp-meta">
+        {corp.sentiment ? (
+          <span className={`ann-sent-pill ann-sent-pill--${corp.sentiment === "bullish" || corp.sentiment === "optimistic" ? "bullish" : corp.sentiment === "bearish" || corp.sentiment === "cautious" ? "bearish" : "neutral"}`}>
+            {corp.sentiment}
+            {corp.sentiment_score != null ? ` · ${corp.sentiment_score > 0 ? "+" : ""}${corp.sentiment_score}` : ""}
+          </span>
+        ) : null}
+        {corp.din_summary ? (
+          <span className="strategy-corp-din">{corp.din_summary}</span>
+        ) : null}
+      </div>
+      {corp.sentiment_why ? (
+        <p className="strategy-corp-why">{corp.sentiment_why}</p>
+      ) : null}
+      {corp.summary ? (
+        <div className="ann-call-row">
+          <span>Summary</span>
+          <p>{corp.summary}</p>
+        </div>
+      ) : null}
+      {corp.guidance ? (
+        <div className="ann-call-row">
+          <span>Guidance</span>
+          <p>{corp.guidance}</p>
+        </div>
+      ) : null}
+      <div className="link-row link-row--compact">
+        {corp.document_url ? (
+          <a
+            href={corp.document_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="link-chip"
+          >
+            Board PDF
+          </a>
+        ) : null}
+        {corp.concall_url ? (
+          <a
+            href={corp.concall_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="link-chip"
+          >
+            Concall
+          </a>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

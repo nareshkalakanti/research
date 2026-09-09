@@ -39,10 +39,28 @@ function periodSortKey(period: string | null): number {
   return Number(m[2]) * 12 + (months[m[1]!.toLowerCase()] ?? 0);
 }
 
+function yearFromPeriodOrLabel(
+  period: string | null | undefined,
+  dateLabel?: string | null,
+): number {
+  const fromPeriod = period?.match(/(\d{4})/);
+  if (fromPeriod) return Number(fromPeriod[1]);
+  const fromLabel = dateLabel?.match(/(\d{4})/);
+  if (fromLabel) return Number(fromLabel[1]);
+  return 0;
+}
+
 function formatPeriodFromTitle(title: string): string | null {
   const m = title.match(/\b(\d{1,2})\s+([A-Za-z]{3}),?\s+(\d{4})\b/);
   if (!m) return null;
   return `${m[2]} ${m[3]}`;
+}
+
+/** Keep Trendlyne's posted date label when present (e.g. "15 Jul, 2026"). */
+function formatDateLabelFromTitle(title: string): string | null {
+  const m = title.match(/\b(\d{1,2})\s+([A-Za-z]{3}),?\s+(\d{4})\b/);
+  if (!m) return null;
+  return `${m[1]} ${m[2]} ${m[3]}`;
 }
 
 function classifyKind(label: string, heading: string): InvestorMaterialKind {
@@ -178,6 +196,8 @@ export type TrendlyneListingPost = {
   kind: InvestorMaterialKind;
   title: string;
   period: string | null;
+  /** Human date from listing, e.g. "15 Jul 2026" */
+  date_label: string | null;
   heading: string;
   bodyText: string;
   postUrl: string;
@@ -210,6 +230,10 @@ export function parseTrendlyneAnalystCallsHtml(
     const period =
       formatPeriodFromTitle(dateTitle) ||
       formatPeriodFromTitle($panel.find(".post-head-subtext").text()) ||
+      null;
+    const date_label =
+      formatDateLabelFromTitle(dateTitle) ||
+      formatDateLabelFromTitle($panel.find(".post-head-subtext").text()) ||
       null;
 
     const label = $panel.find("label.label-secondary span").first().text().trim();
@@ -248,6 +272,7 @@ export function parseTrendlyneAnalystCallsHtml(
           ? `${label} — ${period}`
           : heading.slice(0, 120) || `Trendlyne post ${postId}`,
       period,
+      date_label,
       heading: headingFull.slice(0, 200),
       bodyText: bodyText.slice(0, 12_000),
       postUrl,
@@ -323,4 +348,88 @@ export async function discoverTrendlyneInvestorMaterialSources(
   }
 
   return out;
+}
+
+export type TrendlyneConcallHit = {
+  url: string;
+  title: string;
+  period: string | null;
+  /** e.g. "15 Jul 2026" from Trendlyne listing */
+  date_label: string | null;
+  bodyText: string;
+  pdfUrl: string | null;
+};
+
+function concallRank(p: TrendlyneListingPost, preferYear: number): number {
+  const blob = `${p.kind} ${p.title} ${p.heading}`.toLowerCase();
+  const y = yearFromPeriodOrLabel(p.period, p.date_label);
+  let s = periodSortKey(p.period) * 10;
+  // Strongly prefer current calendar year (latest earnings season).
+  if (y === preferYear) s += 5000;
+  else if (y === preferYear - 1) s += 800;
+  else if (y > 0) s -= Math.max(0, preferYear - y) * 120;
+  if (/transcript/.test(blob)) s += 5;
+  if (p.kind === "concall" || p.kind === "transcript") s += 3;
+  if (
+    /audio recording|meet - outcome|investor meet/.test(blob) &&
+    !/transcript/.test(blob)
+  ) {
+    s -= 2;
+  }
+  return s;
+}
+
+/**
+ * Latest earnings / conference-call post from Trendlyne analyst-calls listing
+ * (same corpus as https://trendlyne.com/conference-calls/ per stock).
+ * Prefers current-year transcripts; falls back to most recent prior year.
+ */
+export async function findLatestTrendlyneConcall(
+  ticker: string,
+): Promise<TrendlyneConcallHit | null> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return null;
+  const stockId = await resolveTrendlyneStockId(key);
+  if (!stockId) return null;
+  let posts: TrendlyneListingPost[];
+  try {
+    posts = await fetchTrendlyneAnalystCallsListing(
+      key,
+      stockId,
+      getCachedTrendlyneSlug(key),
+    );
+  } catch {
+    return null;
+  }
+  const candidates = posts.filter((p) => {
+    const blob = `${p.kind} ${p.title} ${p.heading} ${p.bodyText}`.toLowerCase();
+    return (
+      p.kind === "concall" ||
+      p.kind === "transcript" ||
+      /earnings call|conference call|concall|transcript|analyst \/ investor meet/i.test(
+        blob,
+      )
+    );
+  });
+  if (!candidates.length) return null;
+
+  const preferYear = new Date().getFullYear();
+  const currentYear = candidates.filter(
+    (p) => yearFromPeriodOrLabel(p.period, p.date_label) === preferYear,
+  );
+  const pool = currentYear.length ? currentYear : candidates;
+  pool.sort((a, b) => concallRank(b, preferYear) - concallRank(a, preferYear));
+  const best = pool[0]!;
+  const titleBits = [
+    best.period ? `Concall ${best.period}` : "Concall",
+    best.heading.slice(0, 90) || best.title,
+  ];
+  return {
+    url: best.postUrl,
+    title: titleBits.join(" · "),
+    period: best.period,
+    date_label: best.date_label,
+    bodyText: best.bodyText,
+    pdfUrl: best.pdfUrl,
+  };
 }

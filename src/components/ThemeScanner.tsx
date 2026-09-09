@@ -72,7 +72,6 @@ export function ThemeScanner() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
-  const [filterQuality, setFilterQuality] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
     setFundFilters((prev) => ({ ...prev, [key]: on }));
@@ -185,7 +184,6 @@ export function ThemeScanner() {
     hold: 0,
     distress: 0,
     edge: 0,
-    quality: 0,
     sme: 0,
     note: 0,
     NC: 0,
@@ -263,7 +261,7 @@ export function ThemeScanner() {
 
   useEffect(() => {
     setPage(1);
-  }, [ask, debouncedCustom, market, cap, sector, subSector, mode, debouncedQ, filterHold, filterEdge, filterQuality, fundFilters, filterSme, filterNote]);
+  }, [ask, debouncedCustom, market, cap, sector, subSector, mode, debouncedQ, filterHold, filterEdge, fundFilters, filterSme, filterNote]);
 
   const themeActive = debouncedCustom.trim().length > 0 && !ask.trim();
   const askActive = ask.trim().length > 0;
@@ -342,7 +340,6 @@ export function ThemeScanner() {
       }
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
-      if (filterQuality) params.set("quality", "1");
       appendFundParams(params, fundFilters);
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
@@ -445,8 +442,6 @@ export function ThemeScanner() {
       mode,
       filterHold,
       filterEdge,
-     
-      filterQuality,
       fundFilters,
       filterSme,
             filterNote,
@@ -741,14 +736,11 @@ export function ThemeScanner() {
           <FundsFilterBar
             hold={filterHold}
             edge={filterEdge}
-            quality={filterQuality}
             onHold={setFilterHold}
             onEdge={setFilterEdge}
-            onQuality={setFilterQuality}
             holdCount={data?.signals?.hold ?? signalCounts.hold}
             distressCount={data?.signals?.distress ?? signalCounts.distress}
             edgeCount={data?.signals?.edge ?? signalCounts.edge}
-            qualityCount={data?.signals?.quality ?? signalCounts.quality}
             funds={fundFilters}
             onFund={setFund}
             fundCounts={

@@ -42,6 +42,7 @@ function lastConcallDriftScanAt(): string | null {
 
 async function probeNseAnnouncements(): Promise<{ ok: boolean; detail: string }> {
   try {
+    const { nseHttp1Fetch } = await import("./nse-http");
     const jar = await createNseBuybackSession();
     const to = new Date();
     const from = new Date(to);
@@ -53,13 +54,11 @@ async function probeNseAnnouncements(): Promise<{ ok: boolean; detail: string }>
     u.searchParams.set("from_date", formatNseRange(from));
     u.searchParams.set("to_date", formatNseRange(to));
 
-    const res = await fetch(u.toString(), {
+    const res = await nseHttp1Fetch(u.toString(), {
+      jar,
       headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Accept: "application/json",
         Referer: NSE_ANN_REF,
-        Cookie: jar.cookie,
       },
       signal: AbortSignal.timeout(12_000),
     });
@@ -68,14 +67,23 @@ async function probeNseAnnouncements(): Promise<{ ok: boolean; detail: string }>
       return { ok: false, detail: `NSE API HTTP ${res.status}` };
     }
 
-    const body = (await res.json()) as unknown;
+    const text = await res.text();
+    if (/access denied|akamaighost/i.test(text)) {
+      return { ok: false, detail: "NSE Akamai access denied" };
+    }
+    let body: unknown;
+    try {
+      body = JSON.parse(text) as unknown;
+    } catch {
+      return { ok: false, detail: "NSE API returned invalid JSON" };
+    }
     if (!Array.isArray(body)) {
       return { ok: false, detail: "NSE API returned invalid JSON" };
     }
 
     return {
       ok: true,
-      detail: "Corporate announcements API responding",
+      detail: `Corporate announcements API responding (${body.length} rows)`,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "NSE unreachable";

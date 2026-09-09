@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "source": "corporate-data-extract.ts / corporate-data.ts",
+  "purpose": "Categories and enums used by DIN / board PDF extract (Reg-30 director & KMP filings)",
+  "updated_at": "2026-09-09",
+  "director_categories": [
+    "Executive",
+    "Independent",
+    "Non-Executive"
+  ],
+  "director_category_null_ok": true,
+  "kmp_roles": [
+    "CFO",
+    "CS",
+    "CEO",
+    "MD",
+    "other"
+  ],
+  "director_fields": [
+    "name",
+    "din",
+    "designation",
+    "category",
+    "as_of",
+    "tenure_end",
+    "committees",
+    "age",
+    "dob",
+    "shareholding_pct",
+    "promoter",
+    "related_party",
+    "qualification"
+  ],
+  "extras_fields": [
+    "earnings_snip",
+    "order_wins",
+    "credit_rating",
+    "buyback",
+    "clarification"
+  ],
+  "extract_status_flags": [
+    "empty",
+    "wrong_doc",
+    "names_no_din",
+    "kmp_only",
+    "din_ok",
+    "partial",
+    "din_off_board",
+    "din_from_expected"
+  ],
+  "notes": {
+    "din": "Exactly 8 digits when present; never invent",
+    "expected": "Ground truth from governance.db DIN seats"
+  }
+}

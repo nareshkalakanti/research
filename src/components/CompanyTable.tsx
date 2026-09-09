@@ -35,6 +35,13 @@ type ExpandPanel =
   | "notes"
   | "qtr";
 
+type HeaderDef = {
+  key: SortKey;
+  label: string;
+  align: "left" | "right";
+  sortable?: boolean;
+};
+
 type Props = {
   rows: Company[];
   sort: SortKey;
@@ -86,14 +93,6 @@ function SignalTags({ company }: { company: Company }) {
       {company.has_edge ? (
         <span className="result-tag tag-edge" title="Early Edge watchlist">
           Edge
-        </span>
-      ) : null}
-      {company.has_quality ? (
-        <span
-          className="result-tag tag-quality"
-          title="Screener quality screen (growth + ROE/ROCE + low debt + OPM)"
-        >
-          Quality
         </span>
       ) : null}
       <FundWatchlistTags
@@ -166,64 +165,59 @@ export function CompanyTable({
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
   const colSpan = showMomentum ? 10 : 5;
-  const headers = useMemo(
-    () =>
-      (showMomentum
-        ? [
-            {
-              key: "momentum_rank" as const,
-              label: "Rank",
-              align: "left" as const,
-            },
-            { key: "name" as const, label: "Company", align: "left" as const },
-            { key: "sector" as const, label: "Sec", align: "left" as const },
-            {
-              key: "mcap_cr" as const,
-              label: "Mcap",
-              align: "right" as const,
-            },
-            { key: "price" as const, label: "LTP", align: "right" as const },
-            {
-              key: "price_1y" as const,
-              label: "1Y",
-              align: "right" as const,
-            },
-            {
-              key: "price_1m" as const,
-              label: "1M",
-              align: "right" as const,
-            },
-            {
-              key: "momentum_pct" as const,
-              label: "Mom",
-              align: "right" as const,
-            },
-            {
-              key: "rsi_m" as const,
-              label: "RSI M",
-              align: "right" as const,
-            },
-          ]
-        : [
-            { key: "name" as const, label: "Company", align: "left" as const },
-            { key: "sector" as const, label: "Sec", align: "left" as const },
-            {
-              key: "mcap_cr" as const,
-              label: "Mcap",
-              align: "right" as const,
-            },
-            {
-              key: "price" as const,
-              label: "Price",
-              align: "right" as const,
-            },
-          ]) satisfies Array<{
-        key: SortKey;
-        label: string;
-        align: "left" | "right";
-      }>,
-    [showMomentum],
-  );
+  const headers = useMemo((): HeaderDef[] => {
+    if (showMomentum) {
+      return [
+        {
+          key: "momentum_rank",
+          label: "Rank",
+          align: "left",
+        },
+        { key: "name", label: "Company", align: "left" },
+        { key: "sector", label: "Sec", align: "left" },
+        {
+          key: "mcap_cr",
+          label: "Mcap",
+          align: "right",
+        },
+        { key: "price", label: "LTP", align: "right" },
+        {
+          key: "price_1y",
+          label: "1Y",
+          align: "right",
+        },
+        {
+          key: "price_1m",
+          label: "1M",
+          align: "right",
+        },
+        {
+          key: "momentum_pct",
+          label: "Mom",
+          align: "right",
+        },
+        {
+          key: "rsi_m",
+          label: "RSI M",
+          align: "right",
+        },
+      ];
+    }
+    return [
+      { key: "name", label: "Company", align: "left" },
+      { key: "sector", label: "Sec", align: "left" },
+      {
+        key: "mcap_cr",
+        label: "Mcap",
+        align: "right",
+      },
+      {
+        key: "price",
+        label: "Price",
+        align: "right",
+      },
+    ];
+  }, [showMomentum]);
   const rowIdentity = useMemo(
     () => rows.map((r) => `${r.market}:${r.ticker}`).join("|"),
     [rows],
@@ -275,55 +269,66 @@ export function CompanyTable({
           </colgroup>
           <thead>
             <tr>
-              {headers.map((h) => (
-                <th
-                  key={h.key}
-                  className={[
-                    h.align === "right" ? "num" : "",
-                    h.key === "sector"
-                      ? "col-sec"
-                      : h.key === "momentum_pct"
-                        ? "col-mom"
-                        : h.key === "momentum_rank"
-                          ? "col-rank"
-                          : h.key === "price_1y"
-                            ? "col-p1y"
-                            : h.key === "price_1m"
-                              ? "col-p1m"
-                              : h.key === "rsi_m"
-                                ? "col-rsi-m"
-                                : `col-${h.key}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                >
-                  <button
-                    type="button"
-                    className={`th-btn${h.align === "right" ? " th-btn--end" : ""}`}
-                    title={
-                      h.key === "momentum_pct"
-                        ? "Rounded 12−1 momentum (price 1m vs price 1y)"
-                        : h.key === "momentum_rank"
-                          ? "1 = highest rounded momentum in this list"
-                          : h.key === "rsi_m"
-                            ? "Monthly RSI(14). Green = 70–90 momentum zone; red = ≥90 stretched. Filter RSI M = new cross above 70"
-                          : h.key === "price_1y"
-                            ? "Price ~1 year ago"
-                            : h.key === "price_1m"
-                              ? "Price ~1 month ago"
-                              : h.key === "price" && showMomentum
-                                ? "Last traded price"
-                                : h.key === "mcap_cr"
-                                  ? "Market cap in ₹ crore"
-                                  : undefined
-                    }
-                    onClick={() => onSort(h.key)}
+              {headers.map((h) => {
+                const colClass =
+                  h.key === "sector"
+                    ? "col-sec"
+                    : h.key === "momentum_pct"
+                      ? "col-mom"
+                      : h.key === "momentum_rank"
+                        ? "col-rank"
+                        : h.key === "price_1y"
+                          ? "col-p1y"
+                          : h.key === "price_1m"
+                            ? "col-p1m"
+                            : h.key === "rsi_m"
+                              ? "col-rsi-m"
+                              : `col-${h.key}`;
+                const sortable = h.sortable !== false;
+                return (
+                  <th
+                    key={h.key}
+                    className={[h.align === "right" ? "num" : "", colClass]
+                      .filter(Boolean)
+                      .join(" ")}
                   >
-                    {h.label}
-                    <SortIcon active={sort === h.key} dir={dir} />
-                  </button>
-                </th>
-              ))}
+                    {sortable ? (
+                      <button
+                        type="button"
+                        className={`th-btn${h.align === "right" ? " th-btn--end" : ""}`}
+                        title={
+                          h.key === "momentum_pct"
+                            ? "Rounded 12−1 momentum (price 1m vs price 1y)"
+                            : h.key === "momentum_rank"
+                              ? "1 = highest rounded momentum in this list"
+                              : h.key === "rsi_m"
+                                ? "Monthly RSI(14). Green = 70–90 momentum zone; red = ≥90 stretched. Filter RSI M = new cross above 70"
+                                : h.key === "price_1y"
+                                  ? "Price ~1 year ago"
+                                  : h.key === "price_1m"
+                                    ? "Price ~1 month ago"
+                                    : h.key === "price" && showMomentum
+                                      ? "Last traded price"
+                                      : h.key === "mcap_cr"
+                                        ? "Market cap in ₹ crore"
+                                        : undefined
+                        }
+                        onClick={() => onSort(h.key as SortKey)}
+                      >
+                        {h.label}
+                        <SortIcon active={sort === h.key} dir={dir} />
+                      </button>
+                    ) : (
+                      <span
+                        className={`th-btn${h.align === "right" ? " th-btn--end" : ""}`}
+                        title="Order book as-of date from filing"
+                      >
+                        {h.label}
+                      </span>
+                    )}
+                  </th>
+                );
+              })}
               <th className="col-links">Links</th>
             </tr>
           </thead>

@@ -1,0 +1,6976 @@
+{
+  "version": 1,
+  "source": "screener/corporate announcement category tags",
+  "purpose": "Search/filter concalls, transcripts, and other corporate documents by event category",
+  "updated_at": "2026-09-08T08:29:22.371117+00:00",
+  "count": 1055,
+  "keywords": [
+    "Academic Achievement",
+    "Accident/Incident Report",
+    "Achievement/Record",
+    "Acquisition",
+    "Acquisition Agreement",
+    "Acquisition Update",
+    "Acquisition/Agreement",
+    "Acquisition/Brand Expansion",
+    "Acquisition/Dilution",
+    "Acquisition/Expansion",
+    "Acquisition/Investment",
+    "Acquisition/Merger",
+    "Advisory/Partnership",
+    "AGM/EGM Updates",
+    "Agreement",
+    "Agreement Termination",
+    "Agreement, Board Meeting",
+    "Agreement/Acquisition",
+    "Agreement/Amalgamation Update",
+    "Agreement/Collaboration",
+    "Agreement/Contract Termination",
+    "Agreement/Deal Update",
+    "Agreement/Disinvestment",
+    "Agreement/Disposal",
+    "Agreement/Divestment",
+    "Agreement/Earnings",
+    "Agreement/ECB Issuance",
+    "Agreement/Expansion",
+    "Agreement/Incorporation",
+    "Agreement/Investment",
+    "Agreement/Joint Venture",
+    "Agreement/Loan Repayment",
+    "Agreement/Merger",
+    "Agreement/Ownership Change",
+    "Agreement/Partnership",
+    "Agreement/Restructuring",
+    "Agreement/Settlement",
+    "Agreement/Share Acquisition",
+    "Agreement/Share Allotment",
+    "Agreement/Share Conversion",
+    "Agreement/Share Purchase Agreement",
+    "Agreement/Shareholding Change",
+    "Agreement/Subsidiary Acquisition",
+    "Agreement/Transfer of Shareholding",
+    "Agreement/Update",
+    "Agriculture/Commodity News",
+    "Amalgamation/Merger",
+    "Analyst Recognition",
+    "Anniversary/Expansion Plans",
+    "Anniversary/Milestone",
+    "Announcement",
+    "Announcement/Travel Services",
+    "Annual General Meeting",
+    "Annual General Meeting and Dividend",
+    "Annual General Meeting Update",
+    "Annual General Meeting/Dividend Declaration",
+    "Annual Report",
+    "Annual Report/AGM",
+    "Annual Report/AGM Update",
+    "Annual Reports",
+    "Annual Reports and ESG Disclosure",
+    "Appointment",
+    "Appointment of Senior Management Personnel",
+    "Appointment/Agreement",
+    "Appointment/Expansion",
+    "Appointment/Leadership Change",
+    "Appointment/Personnel Change",
+    "Appointment/Reappointment",
+    "Appointment/Recognition",
+    "Appointment/Resignation",
+    "Asset Sale",
+    "Auction",
+    "Auction/Disposal",
+    "Auction/Insolvency",
+    "Auction/Notice",
+    "Auction/Property Sale",
+    "Auction/Sale",
+    "Auction/Sale Announcement",
+    "Auction/Sale of Assets",
+    "Award/Recognition",
+    "Awards and Recognition",
+    "Awards/Recognition",
+    "Board Appointment",
+    "Board Appointment/Change",
+    "Board Appointment/Reappointment",
+    "Board Appointment/Reshuffle",
+    "Board Appointment/Resignation",
+    "Board Change",
+    "Board Change/Resignation",
+    "Board Changes",
+    "Board Meeting",
+    "Board Meeting and Earnings",
+    "Board Meeting and Earnings Conference Call",
+    "Board Meeting and Financial Results",
+    "Board Meeting Update",
+    "Board Meeting, Acquisition, Share Issue",
+    "Board Meeting, Agreement",
+    "Board Meeting, Buyback",
+    "Board Meeting, Debt Issuance",
+    "Board Meeting, Dividend Declaration",
+    "Board Meeting, Dividend Declaration, Financial Results",
+    "Board Meeting, Earnings",
+    "Board Meeting, Earnings, Investment",
+    "Board Meeting, Fundraising",
+    "Board Meeting, Regulatory Approval",
+    "Board Meeting, Regulatory Filing",
+    "Board Meeting, Share Buyback",
+    "Board Meeting/AGM",
+    "Board Meeting/Agreement",
+    "Board Meeting/Annual General Meeting",
+    "Board Meeting/Appointment",
+    "Board Meeting/Change in Designation",
+    "Board Meeting/Change in Director",
+    "Board Meeting/Change in Directorate",
+    "Board Meeting/Change in Directors",
+    "Board Meeting/Change in Directorship",
+    "Board Meeting/Change in Management",
+    "Board Meeting/Change in Senior Management",
+    "Board Meeting/Changes",
+    "Board Meeting/Changes in Directorate",
+    "Board Meeting/Changes in Directorship",
+    "Board Meeting/Changes in Management",
+    "Board Meeting/Committee Composition",
+    "Board Meeting/Committee Reconstitution",
+    "Board Meeting/Compliance",
+    "Board Meeting/Composition Change",
+    "Board Meeting/Corporate Action",
+    "Board Meeting/Corporate Governance",
+    "Board Meeting/Corporate Restructuring",
+    "Board Meeting/Corporate Update",
+    "Board Meeting/Debenture Allotment",
+    "Board Meeting/Debt Issuance",
+    "Board Meeting/Debt Issue",
+    "Board Meeting/Director Appointment",
+    "Board Meeting/Director Change",
+    "Board Meeting/Dividend Declaration",
+    "Board Meeting/Earnings",
+    "Board Meeting/Earnings Call",
+    "Board Meeting/EGM",
+    "Board Meeting/EGM Proceedings",
+    "Board Meeting/Employee Benefits",
+    "Board Meeting/Employee Incentives",
+    "Board Meeting/Employee Stock Option Plan",
+    "Board Meeting/Employee Stock Option Scheme",
+    "Board Meeting/Employee Stock Option Scheme Update",
+    "Board Meeting/Employee Stock Options",
+    "Board Meeting/ESOP Allotment",
+    "Board Meeting/ESOP Grant",
+    "Board Meeting/ESOP Update",
+    "Board Meeting/Executive Appointment",
+    "Board Meeting/Executive Change",
+    "Board Meeting/Executive Movement",
+    "Board Meeting/Expansion Plans",
+    "Board Meeting/Extraordinary General Meeting",
+    "Board Meeting/Fund Raising",
+    "Board Meeting/Independent Director Appointment",
+    "Board Meeting/Investment Agreement",
+    "Board Meeting/Investment Approval",
+    "Board Meeting/Investor Conference Call",
+    "Board Meeting/Key Managerial Personnel",
+    "Board Meeting/Key Managerial Personnel Appointment",
+    "Board Meeting/Key Managerial Personnel Change",
+    "Board Meeting/Key Personnel Appointment",
+    "Board Meeting/Key Personnel Change",
+    "Board Meeting/Leadership Change",
+    "Board Meeting/Leadership Changes",
+    "Board Meeting/Management Appointment",
+    "Board Meeting/Management Change",
+    "Board Meeting/Management Changes",
+    "Board Meeting/Management Update",
+    "Board Meeting/Nomination",
+    "Board Meeting/Partnership Incorporation",
+    "Board Meeting/Personnel Change",
+    "Board Meeting/Personnel Changes",
+    "Board Meeting/Personnel Update",
+    "Board Meeting/Preferential Issue",
+    "Board Meeting/Project Announcement",
+    "Board Meeting/Project Approval",
+    "Board Meeting/Project Update",
+    "Board Meeting/Proposal",
+    "Board Meeting/Re-appointment",
+    "Board Meeting/Re-appointments",
+    "Board Meeting/Reappointment",
+    "Board Meeting/Reappointment of Directors",
+    "Board Meeting/Regulatory Approval",
+    "Board Meeting/Regulatory Compliance",
+    "Board Meeting/Regulatory Filing",
+    "Board Meeting/Regulatory Update",
+    "Board Meeting/Resignation",
+    "Board Meeting/Resignation/Appointment",
+    "Board Meeting/Resignations/Appointments",
+    "Board Meeting/Resolution",
+    "Board Meeting/Resolution Plan",
+    "Board Meeting/Resolutions",
+    "Board Meeting/Restructuring",
+    "Board Meeting/Securities Issue",
+    "Board Meeting/Share Allotment",
+    "Board Meeting/Share Based Incentive Plan",
+    "Board Meeting/Share Capital Increase",
+    "Board Meeting/Share Conversion",
+    "Board Meeting/Share Issuance",
+    "Board Meeting/Share Issue",
+    "Board Meeting/Share Placement",
+    "Board Meeting/Share Scheme",
+    "Board Meeting/Shareholder Approval",
+    "Board Meeting/Shareholder Update",
+    "Board Meeting/Strategic Initiative",
+    "Board Meeting/Succession Planning",
+    "Board Meeting/Transition",
+    "Board Meeting/Update",
+    "Board Movement",
+    "Board Movement/Change",
+    "Board Movement/Management Change",
+    "Board Movement/Resignation",
+    "Board Resignation",
+    "Board Restructuring",
+    "Board Update",
+    "Board/Management Change",
+    "Board/Management Changes",
+    "Board/Management Update",
+    "Bond Issuance",
+    "Bonus Issue",
+    "Bonus Share Allotment",
+    "Bonus Share Issuance",
+    "Bonus Share Issue",
+    "Book Launch/Corporate Event",
+    "Branch Expansion",
+    "Brand Acquisition/Expansion",
+    "Brand Announcement/Partnership",
+    "Brand Identity Update",
+    "Brand Realignment",
+    "Brand Rebranding",
+    "Brand Recognition/Award",
+    "Brand Refresh",
+    "Brand Update",
+    "Brand Update/Rebranding",
+    "Brand Update/Repositioning",
+    "Brand Upgrade/Repositioning",
+    "Business Expansion",
+    "Business Milestone",
+    "Business Update",
+    "Business Updates",
+    "Buyback",
+    "Buyback Announcement",
+    "Buyback of Securities",
+    "Buyback/Share Repurchase",
+    "Capacity Addition",
+    "Capacity Expansion",
+    "Capex Announcement",
+    "Capex/Expansion",
+    "Capital Expenditure",
+    "Capital Raise",
+    "Capital Raise/Investment",
+    "Capital Strengthening",
+    "Certification/Award",
+    "Change in Key Managerial Personnel",
+    "Change in Management",
+    "Change in Senior Management",
+    "Change in Senior Management Personnel",
+    "Clarification/Denial",
+    "Clarification/Denial of Rumours",
+    "Clarification/Response to Rumours",
+    "Clinical Trials",
+    "Commissioning of New Facility",
+    "Commissioning/Project Completion",
+    "Company Information",
+    "Conference Call",
+    "Conference Call/Investor Update",
+    "Conference Meeting",
+    "Conference Participation",
+    "Conference/Event",
+    "Conference/Meetings",
+    "Content Announcement",
+    "Content Launch/Production",
+    "Contract Extension",
+    "Contract Termination",
+    "Corporate Action",
+    "Corporate Actions",
+    "Corporate Event",
+    "Corporate Presentation",
+    "Corporate Restructuring",
+    "Corporate Social Responsibility",
+    "Corporate Social Responsibility (CSR)",
+    "Corporate Social Responsibility (CSR) Initiative",
+    "Corporate Social Responsibility Initiative",
+    "Corporate Social Responsibility/Healthcare Initiative",
+    "Corporate Social Responsibility/Initiative",
+    "Corporate Update",
+    "Credit Rating",
+    "Credit Rating Change",
+    "Credit Rating Downgrade",
+    "Credit Rating Reaffirmation",
+    "Credit Rating Revision",
+    "Credit Rating Update",
+    "Credit Rating Upgrade",
+    "Cyber Security Incident",
+    "Debt Issuance",
+    "Debt Issuance/Allotment",
+    "Debt Issue",
+    "Debt Issue/Allotment",
+    "Debt Issue/Placement",
+    "Debt Issue/Securities",
+    "Debt Redemption",
+    "Debt Reduction/Agreement",
+    "Debt Reduction/Financial Update",
+    "Debt Reduction/Repayment",
+    "Debt Refinancing",
+    "Debt Repayment",
+    "Debt Repayment/Buyback",
+    "Debt Repayment/Redemption",
+    "Debt Repayment/Restructuring",
+    "Debt Restructuring",
+    "Debt Restructuring/Redemption",
+    "Debt Restructuring/Refinancing",
+    "Debt Securities Allotment",
+    "Default",
+    "Delisting",
+    "Delisting Proposal",
+    "Digital Banking Initiative",
+    "Digital Expansion",
+    "Digital Transformation Initiative",
+    "Digital Transformation/Integration",
+    "Disinvestment",
+    "Disinvestment/Divestment",
+    "Disposal of Business Unit",
+    "Disposal of Stake",
+    "Dispute/Litigation",
+    "Divestment",
+    "Divestment/Disinvestment",
+    "Divestment/Disposal",
+    "Divestment/Share Sale",
+    "Dividend",
+    "Dividend Announcement",
+    "Dividend Announcement, Subsidiary Update",
+    "Dividend Declaration",
+    "Dividend Payment",
+    "Dividend Payment and Redemption",
+    "Dividend Receipt",
+    "Dividend/Payout",
+    "Donation/Philanthropy",
+    "E-commerce Launch",
+    "Earnings",
+    "Earnings and Agreement",
+    "Earnings and Board Meeting",
+    "Earnings Call",
+    "Earnings Conference Call",
+    "Earnings, Appointment",
+    "Earnings/AGM Update",
+    "Earnings/Annual General Meeting",
+    "Earnings/Annual Report",
+    "Earnings/Clarification",
+    "Earnings/Conference Call",
+    "Earnings/Dispatch Data",
+    "Earnings/Financial Projections",
+    "Earnings/Financial Update",
+    "Earnings/Growth Expectation",
+    "Earnings/Growth Outlook",
+    "Earnings/Investment Highlights",
+    "Earnings/Operational Update",
+    "Earnings/Order Win",
+    "Earnings/Production Update",
+    "Earnings/Regulatory Approval",
+    "Earnings/Regulatory Disclosure",
+    "Earnings/Regulatory Filing",
+    "Earnings/Results",
+    "Education/Admissions",
+    "EGM/Share Issue",
+    "Employee Benefits",
+    "Employee Benefits/Stock Option Scheme",
+    "Employee Benefits/Stock Options",
+    "Employee Stock Option Grant",
+    "Employee Stock Option Plan",
+    "Employee Stock Option Plan (ESOP)",
+    "Employee Stock Option Plan (ESOP) Allotment",
+    "Employee Stock Option Plan Allotment",
+    "Employee Stock Option Scheme",
+    "Employee Stock Option Scheme (ESOS) Allotment",
+    "Employee Stock Option Scheme Allotment",
+    "Employee Stock Option/Performance Stock Unit Grant",
+    "Employee Stock Options",
+    "Employee Stock Options/Incentives",
+    "Environmental Certification",
+    "Equipment Acquisition",
+    "Equity Allotment",
+    "Equity Capital Raise",
+    "Equity Fundraise",
+    "Equity Infusion",
+    "Equity Issue",
+    "Equity Issue/Share Capital",
+    "Equity Listing",
+    "Equity Raise",
+    "Equity Raise/Investment",
+    "Equity Share Allotment",
+    "Equity Share Allotment/Grant of RSU",
+    "Equity Share Issuance",
+    "Equity Share Issue",
+    "Equity Share Placement",
+    "Equity Share/Convertible Warrant Allotment",
+    "ESG Rating",
+    "ESG Rating Update",
+    "ESG Rating Upgrade",
+    "ESG/CSR Announcement",
+    "ESOP Allotment",
+    "ESOP/ESPS Allotment",
+    "ESOP/Stock Option",
+    "Event",
+    "Event Announcement",
+    "Event Participation",
+    "Event Update",
+    "Event/Community Engagement",
+    "Event/Competition Announcement",
+    "Event/Exhibition",
+    "Executive Appointment",
+    "Expansion",
+    "Expansion Announcement",
+    "Expansion Plan",
+    "Expansion Plans",
+    "Expansion/Agreement",
+    "Expansion/Capacity Addition",
+    "Expansion/Capacity Increase",
+    "Expansion/Entry into New Market",
+    "Expansion/Foray into New Segment",
+    "Expansion/Geographic Expansion",
+    "Expansion/Geographical Entry",
+    "Expansion/Growth",
+    "Expansion/Growth Strategy",
+    "Expansion/Inauguration",
+    "Expansion/Infrastructure Development",
+    "Expansion/Innovation",
+    "Expansion/International Business",
+    "Expansion/International Operations",
+    "Expansion/International Presence",
+    "Expansion/Investment",
+    "Expansion/Launch",
+    "Expansion/Lease Agreement",
+    "Expansion/Manufacturing Capacity Increase",
+    "Expansion/Market Entry",
+    "Expansion/Market Update",
+    "Expansion/Milestone",
+    "Expansion/Network Strengthening",
+    "Expansion/New Branch Opening",
+    "Expansion/New Business",
+    "Expansion/New Facility",
+    "Expansion/New Launch",
+    "Expansion/New Office Launch",
+    "Expansion/New Store Opening",
+    "Expansion/Opening",
+    "Expansion/Operations Update",
+    "Expansion/Partnership",
+    "Expansion/Relocation",
+    "Expansion/Scaling",
+    "Expansion/Service Launch",
+    "Expansion/Service Upgrade",
+    "Expansion/Store Launch",
+    "Expansion/Store Opening",
+    "Expansion/Strategic Acquisition",
+    "Expansion/Strategic Initiative",
+    "Expansion/Strategic Move",
+    "Expansion/Strategic Signing",
+    "Expansion/Update",
+    "Expansion/Upgrade",
+    "Exploration Discovery",
+    "Exploration Update",
+    "Export Performance",
+    "Export/International Business",
+    "Export/Trade Agreement",
+    "Facility Expansion",
+    "Facility Inauguration",
+    "Facility Inauguration/Expansion",
+    "Facility Launch",
+    "Financial Results",
+    "Financing Agreement",
+    "Financing/Refinancing Agreement",
+    "Fraud Detection",
+    "Fund Raise/Investment",
+    "Fund Raising",
+    "Fund Raising/Debt Issuance",
+    "Fund Raising/Equity Issue",
+    "Fund Raising/Expansion",
+    "Fund Raising/Investment",
+    "Fund Raising/Investment Agreement",
+    "Fund Raising/Investment Grade Achievement",
+    "Fund Raising/Preferential Issue",
+    "Funding Announcement",
+    "Funding/Financing",
+    "Funding/Investment",
+    "Fundraising/Equity Issuance",
+    "Fundraising/Investment",
+    "General Announcement",
+    "General Business Announcement",
+    "General Business Update",
+    "General Meeting",
+    "Growth Ambition",
+    "Growth Announcement",
+    "Growth Plans",
+    "Growth Update",
+    "Guidance",
+    "Health Issue",
+    "Incident Report",
+    "Incident Update",
+    "Incident/Event Update",
+    "Incorporation of Subsidiary",
+    "Index Inclusion",
+    "Industry Recognition",
+    "Infrastructure Development",
+    "Infrastructure Expansion",
+    "Infrastructure Upgrade",
+    "Innovation Initiative",
+    "Innovation/Competition",
+    "Innovation/Expansion",
+    "Insider Trading Disclosure",
+    "Integration/Partnership",
+    "Interview/Management Comments",
+    "Investment",
+    "Investment Agreement",
+    "Investment Announcement",
+    "Investment Decision",
+    "Investment in Technology and Infrastructure",
+    "Investment in Wholly-Owned Subsidiary Company",
+    "Investment Promotion Assistance Scheme",
+    "Investment Update",
+    "Investment/Acquisition",
+    "Investment/Agreement",
+    "Investment/Expansion",
+    "Investment/Expansion Plans",
+    "Investment/Partnership",
+    "Investment/Placement",
+    "Investment/Share Acquisition",
+    "Investment/Share Allotment",
+    "Investment/Share Deal",
+    "Investment/Share Subscription",
+    "Investment/Share Subscription Agreement",
+    "Investment/Subscription",
+    "Investment/Subscription Agreement",
+    "Investor Call",
+    "Investor Call/Update",
+    "Investor Communication",
+    "Investor Conference",
+    "Investor Conference Call",
+    "Investor Conference/Event",
+    "Investor Conference/Meeting",
+    "Investor Engagement",
+    "Investor Event",
+    "Investor Interaction",
+    "Investor Interaction/Conference",
+    "Investor Meet",
+    "Investor Meet Update",
+    "Investor Meet/Analyst Call",
+    "Investor Meet/Conference",
+    "Investor Meet/Presentation",
+    "Investor Meeting",
+    "Investor Meeting/Conference",
+    "Investor Meetings",
+    "Investor Meetings/Conferences",
+    "Investor Presentation",
+    "Investor Relations",
+    "Investor Update",
+    "Investor/Analyst Meeting",
+    "Investors Meet",
+    "Investors Meeting",
+    "Investors/Analysts Meet",
+    "Investors/Analysts Meeting",
+    "IPO",
+    "IPO Update",
+    "IPO/Share Sale",
+    "Job Openings",
+    "Joint Venture Agreement",
+    "Key Managerial Personnel Change",
+    "Land Acquisition",
+    "Land Acquisition/Expansion",
+    "Land Acquisition/Real Estate Development",
+    "Launch",
+    "Launch Announcement",
+    "Launch/Expansion",
+    "Leadership Appointment",
+    "Leadership Appointment/Operational Update",
+    "Leadership Change",
+    "Leadership Change/Corporate Update",
+    "Leadership Recognition",
+    "Leadership Recognition/Award",
+    "Leadership Transition",
+    "Liquidation",
+    "Listing",
+    "Listing Anniversary",
+    "Listing Announcement",
+    "Listing Ceremony",
+    "Listing Update",
+    "Listing/Delisting",
+    "Listing/IPO",
+    "Listing/Migration",
+    "Listing/Trading",
+    "Listing/Trading Information",
+    "Litigation Update",
+    "Litigation/Dispute",
+    "Litigation/Dispute Resolution",
+    "Loan Disbursal/Agreement",
+    "Loan Prepayment",
+    "Loan Repayment",
+    "Loan Sanction",
+    "Maintenance/Shutdown",
+    "Major Development",
+    "Management Appointment",
+    "Management Change",
+    "Management Changes",
+    "Management Update",
+    "Management/Board Update",
+    "Manufacturing Expansion",
+    "Market Expansion",
+    "Market Insights/Research Report",
+    "Market Recognition/Award",
+    "Market Research/Report",
+    "Market Trend/Insight",
+    "Market Update",
+    "Marketing Campaign",
+    "Marketing Initiative",
+    "Marketing/Advertising",
+    "Marketing/Advertising Campaign",
+    "Marketing/Brand Announcement",
+    "Marketing/Brand Promotion",
+    "Marketing/Experiential Initiative",
+    "Marketing/Partnership Announcement",
+    "Marketing/Promotion",
+    "Media Interaction",
+    "Media Interaction/Update",
+    "Media/Investor Interaction",
+    "Media/Press Coverage",
+    "Medical Research",
+    "Merger & Acquisition",
+    "Merger and Acquisition",
+    "Merger and Amalgamation",
+    "Merger/Acquisition",
+    "Mergers and Acquisitions",
+    "Milestone",
+    "Milestone Achievement",
+    "Milestone/Anniversary",
+    "Miscellaneous",
+    "Miscellaneous Services Recruitment Examination",
+    "Miscellaneous/Non-Material Information",
+    "Miscellaneous/Update",
+    "Monthly Production and Sales Report",
+    "Monthly Sales Report",
+    "Monthly Sales Update",
+    "Network Enhancement",
+    "Network Expansion",
+    "Network Optimization",
+    "NEUTRAL",
+    "New Business Initiative",
+    "New Business Line",
+    "New Business Unit Launch",
+    "New Business Venture",
+    "New Business/Expansion",
+    "New Entity Incorporation",
+    "New Initiative/Expansion",
+    "New Initiative/Launch",
+    "New Initiative/Partnership",
+    "New Launch/Expansion",
+    "New Launch/Project Announcement",
+    "New Product/Service Launch",
+    "New Project Launch",
+    "New Property Launch",
+    "New Service Launch",
+    "Offer for Sale",
+    "Open Offer",
+    "Open Offer/Share Acquisition",
+    "Operational Business Update",
+    "Operational Milestone",
+    "Operational Update",
+    "Order Cancellation",
+    "Order Completion",
+    "Order Completion/Project Update",
+    "Order Update",
+    "Order Update/Progress",
+    "Order Win",
+    "Order Win/Achievement",
+    "Order Win/Agreement",
+    "Order Win/Asset Acquisition",
+    "Order Win/Award",
+    "Order Win/Booking Announcement",
+    "Order Win/Booking Update",
+    "Order Win/Box Office Performance",
+    "Order Win/Business Update",
+    "Order Win/Capital Expenditure",
+    "Order Win/Clarification",
+    "Order Win/Commissioning",
+    "Order Win/Commissioning of a Warship",
+    "Order Win/Completion",
+    "Order Win/Contract Award",
+    "Order Win/Contract Extension",
+    "Order Win/Contract Signing",
+    "Order Win/Development Milestone",
+    "Order Win/Execution Update",
+    "Order Win/Expansion",
+    "Order Win/Expansion Plans",
+    "Order Win/Export Achievement",
+    "Order Win/Implementation",
+    "Order Win/Investment Announcement",
+    "Order Win/Lease Agreement",
+    "Order Win/Milestone Achievement",
+    "Order Win/Partnership",
+    "Order Win/Production Commencement",
+    "Order Win/Project Acquisition",
+    "Order Win/Project Announcement",
+    "Order Win/Project Award",
+    "Order Win/Project Commissioning",
+    "Order Win/Project Completion",
+    "Order Win/Project Deployment",
+    "Order Win/Project Launch",
+    "Order Win/Project Update",
+    "Order Win/Project Updates",
+    "Order Win/Recognition",
+    "Order Win/Sale",
+    "Order Win/Sales Achievement",
+    "Order Win/Sales Update",
+    "Order Win/Shipbuilding Milestone",
+    "Order Win/Supply Agreement",
+    "Order Win/Technical Achievement",
+    "Order Win/Tender",
+    "Order Win/Termination",
+    "Order Win/Update",
+    "Order Withdrawal",
+    "Order/Agreement",
+    "Order/Contract Update",
+    "Other Corporate Announcement",
+    "Overseas Expansion",
+    "Partnership",
+    "Partnership Agreement",
+    "Partnership Announcement",
+    "Partnership Expansion",
+    "Partnership Milestone",
+    "Partnership/Accreditation",
+    "Partnership/Agreement",
+    "Partnership/AI-powered Innovations",
+    "Partnership/Award",
+    "Partnership/Awareness Initiative",
+    "Partnership/Collaboration",
+    "Partnership/Endorsement",
+    "Partnership/Expansion",
+    "Personnel Change",
+    "Philanthropic Initiative",
+    "Portfolio Expansion",
+    "Preferential Allotment",
+    "Preferential Issue",
+    "Preferential Issue of Equity Shares",
+    "Price Increase",
+    "Price Revision",
+    "Pricing Update",
+    "Product Announcement",
+    "Product Development",
+    "Product Development/Innovation",
+    "Product Enhancement",
+    "Product Launch",
+    "Product Launch/Agreement",
+    "Product Launch/Brand Introduction",
+    "Product Launch/Brand Milestone",
+    "Product Launch/Community Program",
+    "Product Launch/Event",
+    "Product Launch/Expansion",
+    "Product Launch/Initiative",
+    "Product Launch/Innovation",
+    "Product Launch/Manufacturing",
+    "Product Launch/Milestone",
+    "Product Launch/Order Win",
+    "Product Launch/Partnership",
+    "Product Launch/Rebranding",
+    "Product Launch/Regulatory Approval",
+    "Product Launch/Release",
+    "Product Launch/Service Announcement",
+    "Product Launch/Service Enhancement",
+    "Product Launch/Showcase",
+    "Product Launch/Technology Upgrade",
+    "Product Launch/Update",
+    "Product Launch/Upgrade",
+    "Product Recall",
+    "Product Showcase/Event Participation",
+    "Product Showcase/Exhibition",
+    "Product Showcase/Market Update",
+    "Product Update",
+    "Product Update/Pricing",
+    "Product/Service Enhancement",
+    "Product/Service Expansion",
+    "Product/Service Launch",
+    "Production and Sales Update",
+    "Production Capacity Expansion",
+    "Production Milestone",
+    "Production Update",
+    "Project Announcement",
+    "Project Commencement",
+    "Project Commissioning",
+    "Project Completion",
+    "Project Inauguration",
+    "Project Launch",
+    "Project Revival/Agreement",
+    "Project Update",
+    "Project Update/Inauguration",
+    "Project Updates",
+    "Promotion",
+    "Promotional Announcement",
+    "Promotional Offer",
+    "Public Issue",
+    "Ranking/Award",
+    "Rating Action",
+    "Rating Announcement",
+    "Rating Downgrade",
+    "Rating Reaffirmation",
+    "Rating Reaffirmation/Upgradation",
+    "Rating Reaffirmation/Withdrawal",
+    "Rating Revision",
+    "Rating Update",
+    "Rating Upgrade",
+    "Rebranding",
+    "Rebranding/Upgrade",
+    "Recognition/Award",
+    "Recruitment/Job Opening",
+    "Regulatory",
+    "Regulatory Action",
+    "Regulatory Advisory",
+    "Regulatory Announcement",
+    "Regulatory Appointment",
+    "Regulatory Approval",
+    "Regulatory Approval, Agreement",
+    "Regulatory Approval, Board Meeting",
+    "Regulatory Approval/Agreement",
+    "Regulatory Approval/Announcement",
+    "Regulatory Approval/Award",
+    "Regulatory Approval/Clinical Trials",
+    "Regulatory Approval/Commercial Launch",
+    "Regulatory Approval/Commissioning",
+    "Regulatory Approval/Compliance",
+    "Regulatory Approval/Corporate Restructuring",
+    "Regulatory Approval/Development",
+    "Regulatory Approval/Discovery",
+    "Regulatory Approval/ESG Rating",
+    "Regulatory Approval/Expansion",
+    "Regulatory Approval/Incentives",
+    "Regulatory Approval/Innovation",
+    "Regulatory Approval/Investment Agreement",
+    "Regulatory Approval/Legal",
+    "Regulatory Approval/Milestone Achievement",
+    "Regulatory Approval/Order Win",
+    "Regulatory Approval/Partnership",
+    "Regulatory Approval/Plant Commissioning",
+    "Regulatory Approval/Product Launch",
+    "Regulatory Approval/Production Update",
+    "Regulatory Approval/Project Announcement",
+    "Regulatory Approval/Project Commissioning",
+    "Regulatory Approval/Project Completion",
+    "Regulatory Approval/Project Update",
+    "Regulatory Approval/Quality Assurance",
+    "Regulatory Approval/Recognition",
+    "Regulatory Approval/Research Findings",
+    "Regulatory Approval/Settlement",
+    "Regulatory Approval/Shareholder Update",
+    "Regulatory Approval/Technology Adoption",
+    "Regulatory Approval/Technology Demonstration",
+    "Regulatory Approval/Technology Development",
+    "Regulatory Approval/Transfer of Business",
+    "Regulatory Approval/Update",
+    "Regulatory Clarification",
+    "Regulatory Clearance",
+    "Regulatory Compliance",
+    "Regulatory Correspondence",
+    "Regulatory Disclosure",
+    "Regulatory Dispute",
+    "Regulatory Enquiry",
+    "Regulatory Examination",
+    "Regulatory Filing",
+    "Regulatory Filing - Business Expansion",
+    "Regulatory Filing - Change in Management",
+    "Regulatory Filing Correction",
+    "Regulatory Filing/Acquisition",
+    "Regulatory Filing/AGM",
+    "Regulatory Filing/AGM Update",
+    "Regulatory Filing/Compliance",
+    "Regulatory Filing/Corporate Update",
+    "Regulatory Filing/Earnings",
+    "Regulatory Filing/Earnings Call",
+    "Regulatory Filing/ESOP Scheme",
+    "Regulatory Filing/Investment",
+    "Regulatory Filing/Investor Update",
+    "Regulatory Filing/Litigation",
+    "Regulatory Filing/Patent Application",
+    "Regulatory Filing/Update",
+    "Regulatory Filings",
+    "Regulatory Inspection",
+    "Regulatory Investigation",
+    "Regulatory Non-Compliance",
+    "Regulatory Notice",
+    "Regulatory Order",
+    "Regulatory Penalty",
+    "Regulatory Proceedings",
+    "Regulatory Recognition",
+    "Regulatory Recognition/Award",
+    "Regulatory Refund",
+    "Regulatory Relief",
+    "Regulatory Settlement",
+    "Regulatory Update",
+    "Regulatory Warning",
+    "Regulatory/Compliance",
+    "Regulatory/Compliance Announcement",
+    "Regulatory/Governance Announcement",
+    "Regulatory/Investigation",
+    "Regulatory/Investigation Update",
+    "Regulatory/Legal",
+    "Regulatory/Legal Issue",
+    "Regulatory/Legal Proceedings",
+    "Regulatory/Legal Update",
+    "Renewable Energy Expansion",
+    "Report Release",
+    "Report/Study Findings",
+    "Report/Study Release",
+    "Research & Development",
+    "Research & Development Agreement",
+    "Research and Development",
+    "Research Report",
+    "Research Report/Study",
+    "Research Update",
+    "Research/Report Release",
+    "Research/Study Announcement",
+    "Research/Study Findings",
+    "Resignation",
+    "Resignation and Appointment",
+    "Resignation of Auditor",
+    "Resignation of Key Managerial Personnel",
+    "Resignation of Senior Management Personnel",
+    "Resignation of Senior Managerial Personnel",
+    "Resignation of Statutory Auditor",
+    "Resignation/Apointment",
+    "Resignation/Appointment",
+    "Resignation/Appt of Senior Management Personnel",
+    "Resignation/Audit",
+    "Resignation/Audit Committee",
+    "Resignation/Change in Key Managerial Personnel",
+    "Resignation/Change in Management",
+    "Resignation/Change in Senior Management Personnel",
+    "Resignation/Personnel Change",
+    "Resignation/Withdrawal",
+    "Restructuring",
+    "Restructuring/Agreement",
+    "Restructuring/Dilution of Stake",
+    "Restructuring/Ownership Change",
+    "Restructuring/Portfolio Realignment",
+    "Restructuring/Reorganization",
+    "Retail Expansion",
+    "Rights Issue",
+    "Rights Issue Allotment",
+    "Rights Issue Completion",
+    "Rights Issue Update",
+    "Rights Issue/Share Capital Reorganization",
+    "Sale of Assets",
+    "Sales Milestone",
+    "Sales Performance",
+    "Sales Report",
+    "Sales Update",
+    "Scheme of Amalgamation",
+    "Securitization",
+    "Securitization Transaction",
+    "Securitization/Debt Raising",
+    "Senior Management Change",
+    "Share Acquisition",
+    "Share Allotment",
+    "Share Allotment/Conversion",
+    "Share Allotment/Debt Issuance",
+    "Share Allotment/Employee Benefits",
+    "Share Allotment/Employee Stock Option Plan",
+    "Share Allotment/Employee Stock Options",
+    "Share Allotment/ESOP",
+    "Share Allotment/Grant",
+    "Share Allotment/Investment",
+    "Share Allotment/Investment Agreement",
+    "Share Allotment/Transfer",
+    "Share Buyback",
+    "Share Buyback Approval",
+    "Share Capital Increase",
+    "Share Capital Reorganization",
+    "Share Capital Update",
+    "Share Conversion",
+    "Share Conversion/Allotment",
+    "Share Disposal",
+    "Share Incentive Plan",
+    "Share Issuance",
+    "Share Issuance/Conversion",
+    "Share Issuance/Investment",
+    "Share Issuance/Investment Agreement",
+    "Share Issue",
+    "Share Redemption",
+    "Share Sale",
+    "Share Sale Disclosure",
+    "Share Sale/Disposal",
+    "Share Sale/Investment",
+    "Share Sale/Offer",
+    "Share Sale/Offer for Sale",
+    "Share Sale/Promoter Stake Rationalisation",
+    "Share Sale/Promoter Transaction",
+    "Share Sale/Purchase Agreement",
+    "Share Split",
+    "Share Subscription/Investment Agreement",
+    "Share Transaction",
+    "Share Transfer",
+    "Share Transfer/ESOP",
+    "Share Transfer/ESOPs",
+    "Share Transfer/Exercise of Options",
+    "Share Transfer/Investment",
+    "Share Transfer/Investment Agreement",
+    "Share-based Long Term Incentive Scheme",
+    "Share/Investment Deal",
+    "Shareholder Information",
+    "Shareholder Meeting",
+    "Shareholder Update",
+    "Shareholders' Meeting",
+    "Shareholding Disclosure",
+    "Shareholding Pattern",
+    "Shareholding Update",
+    "Statement/Clarification",
+    "Store Expansion",
+    "Store Launch/Expansion",
+    "Store Opening",
+    "Strategic Expansion",
+    "Strategic Initiative",
+    "Strategic Move",
+    "Strategic Partnership",
+    "Strategic Plan/Initiative",
+    "Strategic Realignment",
+    "Strategy Update",
+    "Sustainability Award",
+    "Sustainability Initiative",
+    "Sustainability Milestone",
+    "Sustainability Recognition",
+    "Sustainability Report",
+    "Sustainability Update",
+    "Sustainability/CSR",
+    "Sustainability/Environmental Initiative",
+    "Sustainability/Environmental Update",
+    "Sustainability/ESG",
+    "Sustainability/Infrastructure Update",
+    "Technology Adoption",
+    "Technology Adoption/Platform Launch",
+    "Technology Advancement",
+    "Technology Development",
+    "Technology Integration",
+    "Technology Partnership/Accreditation",
+    "Technology Partnership/Innovation",
+    "Technology Update",
+    "Technology Upgrade",
+    "Technology Upgrade/Adoption",
+    "Technology/Innovation",
+    "Tender",
+    "Tender Notice",
+    "Tenders",
+    "Travel Trends",
+    "Uncategorizable",
+    "Uncategorized",
+    "UNCERTAIN",
+    "Unknown",
+    "Vessel Acquisition",
+    "Vessel Sale"
+  ],
+  "concall_focus": [
+    "Board Meeting and Earnings",
+    "Board Meeting and Earnings Conference Call",
+    "Board Meeting/Earnings",
+    "Board Meeting/Earnings Call",
+    "Board Meeting/Investor Conference Call",
+    "Business Update",
+    "Buyback",
+    "Capacity Expansion",
+    "Capex Announcement",
+    "Capital Expenditure",
+    "Conference Call",
+    "Conference Call/Investor Update",
+    "Credit Rating",
+    "Credit Rating Downgrade",
+    "Credit Rating Upgrade",
+    "Dividend",
+    "Dividend Declaration",
+    "Earnings",
+    "Earnings Call",
+    "Earnings Conference Call",
+    "Earnings/Conference Call",
+    "Earnings/Financial Update",
+    "Earnings/Growth Outlook",
+    "Earnings/Operational Update",
+    "Earnings/Order Win",
+    "Earnings/Results",
+    "Financial Results",
+    "Guidance",
+    "Interview/Management Comments",
+    "Investor Call",
+    "Investor Call/Update",
+    "Investor Conference Call",
+    "Investor Meet",
+    "Investor Meet/Analyst Call",
+    "Investor Meet/Presentation",
+    "Investor Meeting",
+    "Investor Presentation",
+    "Investor Update",
+    "Investors Meet",
+    "Investors/Analysts Meet",
+    "Operational Update",
+    "Order Win"
+  ],
+  "families": {
+    "Academic Achievement": [
+      "Academic Achievement"
+    ],
+    "Accident": [
+      "Accident/Incident Report"
+    ],
+    "Achievement": [
+      "Achievement/Record"
+    ],
+    "Acquisition": [
+      "Acquisition",
+      "Acquisition/Agreement",
+      "Acquisition/Brand Expansion",
+      "Acquisition/Dilution",
+      "Acquisition/Expansion",
+      "Acquisition/Investment",
+      "Acquisition/Merger"
+    ],
+    "Acquisition Agreement": [
+      "Acquisition Agreement"
+    ],
+    "Acquisition Update": [
+      "Acquisition Update"
+    ],
+    "Advisory": [
+      "Advisory/Partnership"
+    ],
+    "AGM": [
+      "AGM/EGM Updates"
+    ],
+    "Agreement": [
+      "Agreement",
+      "Agreement, Board Meeting",
+      "Agreement/Acquisition",
+      "Agreement/Amalgamation Update",
+      "Agreement/Collaboration",
+      "Agreement/Contract Termination",
+      "Agreement/Deal Update",
+      "Agreement/Disinvestment",
+      "Agreement/Disposal",
+      "Agreement/Divestment",
+      "Agreement/Earnings",
+      "Agreement/ECB Issuance",
+      "Agreement/Expansion",
+      "Agreement/Incorporation",
+      "Agreement/Investment",
+      "Agreement/Joint Venture",
+      "Agreement/Loan Repayment",
+      "Agreement/Merger",
+      "Agreement/Ownership Change",
+      "Agreement/Partnership",
+      "Agreement/Restructuring",
+      "Agreement/Settlement",
+      "Agreement/Share Acquisition",
+      "Agreement/Share Allotment",
+      "Agreement/Share Conversion",
+      "Agreement/Share Purchase Agreement",
+      "Agreement/Shareholding Change",
+      "Agreement/Subsidiary Acquisition",
+      "Agreement/Transfer of Shareholding",
+      "Agreement/Update"
+    ],
+    "Agreement Termination": [
+      "Agreement Termination"
+    ],
+    "Agriculture": [
+      "Agriculture/Commodity News"
+    ],
+    "Amalgamation": [
+      "Amalgamation/Merger"
+    ],
+    "Analyst Recognition": [
+      "Analyst Recognition"
+    ],
+    "Anniversary": [
+      "Anniversary/Expansion Plans",
+      "Anniversary/Milestone"
+    ],
+    "Announcement": [
+      "Announcement",
+      "Announcement/Travel Services"
+    ],
+    "Annual General Meeting": [
+      "Annual General Meeting",
+      "Annual General Meeting/Dividend Declaration"
+    ],
+    "Annual General Meeting and Dividend": [
+      "Annual General Meeting and Dividend"
+    ],
+    "Annual General Meeting Update": [
+      "Annual General Meeting Update"
+    ],
+    "Annual Report": [
+      "Annual Report",
+      "Annual Report/AGM",
+      "Annual Report/AGM Update"
+    ],
+    "Annual Reports": [
+      "Annual Reports"
+    ],
+    "Annual Reports and ESG Disclosure": [
+      "Annual Reports and ESG Disclosure"
+    ],
+    "Appointment": [
+      "Appointment",
+      "Appointment/Agreement",
+      "Appointment/Expansion",
+      "Appointment/Leadership Change",
+      "Appointment/Personnel Change",
+      "Appointment/Reappointment",
+      "Appointment/Recognition",
+      "Appointment/Resignation"
+    ],
+    "Appointment of Senior Management Personnel": [
+      "Appointment of Senior Management Personnel"
+    ],
+    "Asset Sale": [
+      "Asset Sale"
+    ],
+    "Auction": [
+      "Auction",
+      "Auction/Disposal",
+      "Auction/Insolvency",
+      "Auction/Notice",
+      "Auction/Property Sale",
+      "Auction/Sale",
+      "Auction/Sale Announcement",
+      "Auction/Sale of Assets"
+    ],
+    "Award": [
+      "Award/Recognition"
+    ],
+    "Awards": [
+      "Awards/Recognition"
+    ],
+    "Awards and Recognition": [
+      "Awards and Recognition"
+    ],
+    "Board": [
+      "Board/Management Change",
+      "Board/Management Changes",
+      "Board/Management Update"
+    ],
+    "Board Appointment": [
+      "Board Appointment",
+      "Board Appointment/Change",
+      "Board Appointment/Reappointment",
+      "Board Appointment/Reshuffle",
+      "Board Appointment/Resignation"
+    ],
+    "Board Change": [
+      "Board Change",
+      "Board Change/Resignation"
+    ],
+    "Board Changes": [
+      "Board Changes"
+    ],
+    "Board Meeting": [
+      "Board Meeting",
+      "Board Meeting, Acquisition, Share Issue",
+      "Board Meeting, Agreement",
+      "Board Meeting, Buyback",
+      "Board Meeting, Debt Issuance",
+      "Board Meeting, Dividend Declaration",
+      "Board Meeting, Dividend Declaration, Financial Results",
+      "Board Meeting, Earnings",
+      "Board Meeting, Earnings, Investment",
+      "Board Meeting, Fundraising",
+      "Board Meeting, Regulatory Approval",
+      "Board Meeting, Regulatory Filing",
+      "Board Meeting, Share Buyback",
+      "Board Meeting/AGM",
+      "Board Meeting/Agreement",
+      "Board Meeting/Annual General Meeting",
+      "Board Meeting/Appointment",
+      "Board Meeting/Change in Designation",
+      "Board Meeting/Change in Director",
+      "Board Meeting/Change in Directorate",
+      "Board Meeting/Change in Directors",
+      "Board Meeting/Change in Directorship",
+      "Board Meeting/Change in Management",
+      "Board Meeting/Change in Senior Management",
+      "Board Meeting/Changes",
+      "Board Meeting/Changes in Directorate",
+      "Board Meeting/Changes in Directorship",
+      "Board Meeting/Changes in Management",
+      "Board Meeting/Committee Composition",
+      "Board Meeting/Committee Reconstitution",
+      "Board Meeting/Compliance",
+      "Board Meeting/Composition Change",
+      "Board Meeting/Corporate Action",
+      "Board Meeting/Corporate Governance",
+      "Board Meeting/Corporate Restructuring",
+      "Board Meeting/Corporate Update",
+      "Board Meeting/Debenture Allotment",
+      "Board Meeting/Debt Issuance",
+      "Board Meeting/Debt Issue",
+      "Board Meeting/Director Appointment",
+      "Board Meeting/Director Change",
+      "Board Meeting/Dividend Declaration",
+      "Board Meeting/Earnings",
+      "Board Meeting/Earnings Call",
+      "Board Meeting/EGM",
+      "Board Meeting/EGM Proceedings",
+      "Board Meeting/Employee Benefits",
+      "Board Meeting/Employee Incentives",
+      "Board Meeting/Employee Stock Option Plan",
+      "Board Meeting/Employee Stock Option Scheme",
+      "Board Meeting/Employee Stock Option Scheme Update",
+      "Board Meeting/Employee Stock Options",
+      "Board Meeting/ESOP Allotment",
+      "Board Meeting/ESOP Grant",
+      "Board Meeting/ESOP Update",
+      "Board Meeting/Executive Appointment",
+      "Board Meeting/Executive Change",
+      "Board Meeting/Executive Movement",
+      "Board Meeting/Expansion Plans",
+      "Board Meeting/Extraordinary General Meeting",
+      "Board Meeting/Fund Raising",
+      "Board Meeting/Independent Director Appointment",
+      "Board Meeting/Investment Agreement",
+      "Board Meeting/Investment Approval",
+      "Board Meeting/Investor Conference Call",
+      "Board Meeting/Key Managerial Personnel",
+      "Board Meeting/Key Managerial Personnel Appointment",
+      "Board Meeting/Key Managerial Personnel Change",
+      "Board Meeting/Key Personnel Appointment",
+      "Board Meeting/Key Personnel Change",
+      "Board Meeting/Leadership Change",
+      "Board Meeting/Leadership Changes",
+      "Board Meeting/Management Appointment",
+      "Board Meeting/Management Change",
+      "Board Meeting/Management Changes",
+      "Board Meeting/Management Update",
+      "Board Meeting/Nomination",
+      "Board Meeting/Partnership Incorporation",
+      "Board Meeting/Personnel Change",
+      "Board Meeting/Personnel Changes",
+      "Board Meeting/Personnel Update",
+      "Board Meeting/Preferential Issue",
+      "Board Meeting/Project Announcement",
+      "Board Meeting/Project Approval",
+      "Board Meeting/Project Update",
+      "Board Meeting/Proposal",
+      "Board Meeting/Re-appointment",
+      "Board Meeting/Re-appointments",
+      "Board Meeting/Reappointment",
+      "Board Meeting/Reappointment of Directors",
+      "Board Meeting/Regulatory Approval",
+      "Board Meeting/Regulatory Compliance",
+      "Board Meeting/Regulatory Filing",
+      "Board Meeting/Regulatory Update",
+      "Board Meeting/Resignation",
+      "Board Meeting/Resignation/Appointment",
+      "Board Meeting/Resignations/Appointments",
+      "Board Meeting/Resolution",
+      "Board Meeting/Resolution Plan",
+      "Board Meeting/Resolutions",
+      "Board Meeting/Restructuring",
+      "Board Meeting/Securities Issue",
+      "Board Meeting/Share Allotment",
+      "Board Meeting/Share Based Incentive Plan",
+      "Board Meeting/Share Capital Increase",
+      "Board Meeting/Share Conversion",
+      "Board Meeting/Share Issuance",
+      "Board Meeting/Share Issue",
+      "Board Meeting/Share Placement",
+      "Board Meeting/Share Scheme",
+      "Board Meeting/Shareholder Approval",
+      "Board Meeting/Shareholder Update",
+      "Board Meeting/Strategic Initiative",
+      "Board Meeting/Succession Planning",
+      "Board Meeting/Transition",
+      "Board Meeting/Update"
+    ],
+    "Board Meeting and Earnings": [
+      "Board Meeting and Earnings"
+    ],
+    "Board Meeting and Earnings Conference Call": [
+      "Board Meeting and Earnings Conference Call"
+    ],
+    "Board Meeting and Financial Results": [
+      "Board Meeting and Financial Results"
+    ],
+    "Board Meeting Update": [
+      "Board Meeting Update"
+    ],
+    "Board Movement": [
+      "Board Movement",
+      "Board Movement/Change",
+      "Board Movement/Management Change",
+      "Board Movement/Resignation"
+    ],
+    "Board Resignation": [
+      "Board Resignation"
+    ],
+    "Board Restructuring": [
+      "Board Restructuring"
+    ],
+    "Board Update": [
+      "Board Update"
+    ],
+    "Bond Issuance": [
+      "Bond Issuance"
+    ],
+    "Bonus Issue": [
+      "Bonus Issue"
+    ],
+    "Bonus Share Allotment": [
+      "Bonus Share Allotment"
+    ],
+    "Bonus Share Issuance": [
+      "Bonus Share Issuance"
+    ],
+    "Bonus Share Issue": [
+      "Bonus Share Issue"
+    ],
+    "Book Launch": [
+      "Book Launch/Corporate Event"
+    ],
+    "Branch Expansion": [
+      "Branch Expansion"
+    ],
+    "Brand Acquisition": [
+      "Brand Acquisition/Expansion"
+    ],
+    "Brand Announcement": [
+      "Brand Announcement/Partnership"
+    ],
+    "Brand Identity Update": [
+      "Brand Identity Update"
+    ],
+    "Brand Realignment": [
+      "Brand Realignment"
+    ],
+    "Brand Rebranding": [
+      "Brand Rebranding"
+    ],
+    "Brand Recognition": [
+      "Brand Recognition/Award"
+    ],
+    "Brand Refresh": [
+      "Brand Refresh"
+    ],
+    "Brand Update": [
+      "Brand Update",
+      "Brand Update/Rebranding",
+      "Brand Update/Repositioning"
+    ],
+    "Brand Upgrade": [
+      "Brand Upgrade/Repositioning"
+    ],
+    "Business Expansion": [
+      "Business Expansion"
+    ],
+    "Business Milestone": [
+      "Business Milestone"
+    ],
+    "Business Update": [
+      "Business Update"
+    ],
+    "Business Updates": [
+      "Business Updates"
+    ],
+    "Buyback": [
+      "Buyback",
+      "Buyback/Share Repurchase"
+    ],
+    "Buyback Announcement": [
+      "Buyback Announcement"
+    ],
+    "Buyback of Securities": [
+      "Buyback of Securities"
+    ],
+    "Capacity Addition": [
+      "Capacity Addition"
+    ],
+    "Capacity Expansion": [
+      "Capacity Expansion"
+    ],
+    "Capex": [
+      "Capex/Expansion"
+    ],
+    "Capex Announcement": [
+      "Capex Announcement"
+    ],
+    "Capital Expenditure": [
+      "Capital Expenditure"
+    ],
+    "Capital Raise": [
+      "Capital Raise",
+      "Capital Raise/Investment"
+    ],
+    "Capital Strengthening": [
+      "Capital Strengthening"
+    ],
+    "Certification": [
+      "Certification/Award"
+    ],
+    "Change in Key Managerial Personnel": [
+      "Change in Key Managerial Personnel"
+    ],
+    "Change in Management": [
+      "Change in Management"
+    ],
+    "Change in Senior Management": [
+      "Change in Senior Management"
+    ],
+    "Change in Senior Management Personnel": [
+      "Change in Senior Management Personnel"
+    ],
+    "Clarification": [
+      "Clarification/Denial",
+      "Clarification/Denial of Rumours",
+      "Clarification/Response to Rumours"
+    ],
+    "Clinical Trials": [
+      "Clinical Trials"
+    ],
+    "Commissioning": [
+      "Commissioning/Project Completion"
+    ],
+    "Commissioning of New Facility": [
+      "Commissioning of New Facility"
+    ],
+    "Company Information": [
+      "Company Information"
+    ],
+    "Conference": [
+      "Conference/Event",
+      "Conference/Meetings"
+    ],
+    "Conference Call": [
+      "Conference Call",
+      "Conference Call/Investor Update"
+    ],
+    "Conference Meeting": [
+      "Conference Meeting"
+    ],
+    "Conference Participation": [
+      "Conference Participation"
+    ],
+    "Content Announcement": [
+      "Content Announcement"
+    ],
+    "Content Launch": [
+      "Content Launch/Production"
+    ],
+    "Contract Extension": [
+      "Contract Extension"
+    ],
+    "Contract Termination": [
+      "Contract Termination"
+    ],
+    "Corporate Action": [
+      "Corporate Action"
+    ],
+    "Corporate Actions": [
+      "Corporate Actions"
+    ],
+    "Corporate Event": [
+      "Corporate Event"
+    ],
+    "Corporate Presentation": [
+      "Corporate Presentation"
+    ],
+    "Corporate Restructuring": [
+      "Corporate Restructuring"
+    ],
+    "Corporate Social Responsibility": [
+      "Corporate Social Responsibility",
+      "Corporate Social Responsibility/Healthcare Initiative",
+      "Corporate Social Responsibility/Initiative"
+    ],
+    "Corporate Social Responsibility (CSR)": [
+      "Corporate Social Responsibility (CSR)"
+    ],
+    "Corporate Social Responsibility (CSR) Initiative": [
+      "Corporate Social Responsibility (CSR) Initiative"
+    ],
+    "Corporate Social Responsibility Initiative": [
+      "Corporate Social Responsibility Initiative"
+    ],
+    "Corporate Update": [
+      "Corporate Update"
+    ],
+    "Credit Rating": [
+      "Credit Rating"
+    ],
+    "Credit Rating Change": [
+      "Credit Rating Change"
+    ],
+    "Credit Rating Downgrade": [
+      "Credit Rating Downgrade"
+    ],
+    "Credit Rating Reaffirmation": [
+      "Credit Rating Reaffirmation"
+    ],
+    "Credit Rating Revision": [
+      "Credit Rating Revision"
+    ],
+    "Credit Rating Update": [
+      "Credit Rating Update"
+    ],
+    "Credit Rating Upgrade": [
+      "Credit Rating Upgrade"
+    ],
+    "Cyber Security Incident": [
+      "Cyber Security Incident"
+    ],
+    "Debt Issuance": [
+      "Debt Issuance",
+      "Debt Issuance/Allotment"
+    ],
+    "Debt Issue": [
+      "Debt Issue",
+      "Debt Issue/Allotment",
+      "Debt Issue/Placement",
+      "Debt Issue/Securities"
+    ],
+    "Debt Redemption": [
+      "Debt Redemption"
+    ],
+    "Debt Reduction": [
+      "Debt Reduction/Agreement",
+      "Debt Reduction/Financial Update",
+      "Debt Reduction/Repayment"
+    ],
+    "Debt Refinancing": [
+      "Debt Refinancing"
+    ],
+    "Debt Repayment": [
+      "Debt Repayment",
+      "Debt Repayment/Buyback",
+      "Debt Repayment/Redemption",
+      "Debt Repayment/Restructuring"
+    ],
+    "Debt Restructuring": [
+      "Debt Restructuring",
+      "Debt Restructuring/Redemption",
+      "Debt Restructuring/Refinancing"
+    ],
+    "Debt Securities Allotment": [
+      "Debt Securities Allotment"
+    ],
+    "Default": [
+      "Default"
+    ],
+    "Delisting": [
+      "Delisting"
+    ],
+    "Delisting Proposal": [
+      "Delisting Proposal"
+    ],
+    "Digital Banking Initiative": [
+      "Digital Banking Initiative"
+    ],
+    "Digital Expansion": [
+      "Digital Expansion"
+    ],
+    "Digital Transformation": [
+      "Digital Transformation/Integration"
+    ],
+    "Digital Transformation Initiative": [
+      "Digital Transformation Initiative"
+    ],
+    "Disinvestment": [
+      "Disinvestment",
+      "Disinvestment/Divestment"
+    ],
+    "Disposal of Business Unit": [
+      "Disposal of Business Unit"
+    ],
+    "Disposal of Stake": [
+      "Disposal of Stake"
+    ],
+    "Dispute": [
+      "Dispute/Litigation"
+    ],
+    "Divestment": [
+      "Divestment",
+      "Divestment/Disinvestment",
+      "Divestment/Disposal",
+      "Divestment/Share Sale"
+    ],
+    "Dividend": [
+      "Dividend",
+      "Dividend/Payout"
+    ],
+    "Dividend Announcement": [
+      "Dividend Announcement",
+      "Dividend Announcement, Subsidiary Update"
+    ],
+    "Dividend Declaration": [
+      "Dividend Declaration"
+    ],
+    "Dividend Payment": [
+      "Dividend Payment"
+    ],
+    "Dividend Payment and Redemption": [
+      "Dividend Payment and Redemption"
+    ],
+    "Dividend Receipt": [
+      "Dividend Receipt"
+    ],
+    "Donation": [
+      "Donation/Philanthropy"
+    ],
+    "E-commerce Launch": [
+      "E-commerce Launch"
+    ],
+    "Earnings": [
+      "Earnings",
+      "Earnings, Appointment",
+      "Earnings/AGM Update",
+      "Earnings/Annual General Meeting",
+      "Earnings/Annual Report",
+      "Earnings/Clarification",
+      "Earnings/Conference Call",
+      "Earnings/Dispatch Data",
+      "Earnings/Financial Projections",
+      "Earnings/Financial Update",
+      "Earnings/Growth Expectation",
+      "Earnings/Growth Outlook",
+      "Earnings/Investment Highlights",
+      "Earnings/Operational Update",
+      "Earnings/Order Win",
+      "Earnings/Production Update",
+      "Earnings/Regulatory Approval",
+      "Earnings/Regulatory Disclosure",
+      "Earnings/Regulatory Filing",
+      "Earnings/Results"
+    ],
+    "Earnings and Agreement": [
+      "Earnings and Agreement"
+    ],
+    "Earnings and Board Meeting": [
+      "Earnings and Board Meeting"
+    ],
+    "Earnings Call": [
+      "Earnings Call"
+    ],
+    "Earnings Conference Call": [
+      "Earnings Conference Call"
+    ],
+    "Education": [
+      "Education/Admissions"
+    ],
+    "EGM": [
+      "EGM/Share Issue"
+    ],
+    "Employee Benefits": [
+      "Employee Benefits",
+      "Employee Benefits/Stock Option Scheme",
+      "Employee Benefits/Stock Options"
+    ],
+    "Employee Stock Option": [
+      "Employee Stock Option/Performance Stock Unit Grant"
+    ],
+    "Employee Stock Option Grant": [
+      "Employee Stock Option Grant"
+    ],
+    "Employee Stock Option Plan": [
+      "Employee Stock Option Plan"
+    ],
+    "Employee Stock Option Plan (ESOP)": [
+      "Employee Stock Option Plan (ESOP)"
+    ],
+    "Employee Stock Option Plan (ESOP) Allotment": [
+      "Employee Stock Option Plan (ESOP) Allotment"
+    ],
+    "Employee Stock Option Plan Allotment": [
+      "Employee Stock Option Plan Allotment"
+    ],
+    "Employee Stock Option Scheme": [
+      "Employee Stock Option Scheme"
+    ],
+    "Employee Stock Option Scheme (ESOS) Allotment": [
+      "Employee Stock Option Scheme (ESOS) Allotment"
+    ],
+    "Employee Stock Option Scheme Allotment": [
+      "Employee Stock Option Scheme Allotment"
+    ],
+    "Employee Stock Options": [
+      "Employee Stock Options",
+      "Employee Stock Options/Incentives"
+    ],
+    "Environmental Certification": [
+      "Environmental Certification"
+    ],
+    "Equipment Acquisition": [
+      "Equipment Acquisition"
+    ],
+    "Equity Allotment": [
+      "Equity Allotment"
+    ],
+    "Equity Capital Raise": [
+      "Equity Capital Raise"
+    ],
+    "Equity Fundraise": [
+      "Equity Fundraise"
+    ],
+    "Equity Infusion": [
+      "Equity Infusion"
+    ],
+    "Equity Issue": [
+      "Equity Issue",
+      "Equity Issue/Share Capital"
+    ],
+    "Equity Listing": [
+      "Equity Listing"
+    ],
+    "Equity Raise": [
+      "Equity Raise",
+      "Equity Raise/Investment"
+    ],
+    "Equity Share": [
+      "Equity Share/Convertible Warrant Allotment"
+    ],
+    "Equity Share Allotment": [
+      "Equity Share Allotment",
+      "Equity Share Allotment/Grant of RSU"
+    ],
+    "Equity Share Issuance": [
+      "Equity Share Issuance"
+    ],
+    "Equity Share Issue": [
+      "Equity Share Issue"
+    ],
+    "Equity Share Placement": [
+      "Equity Share Placement"
+    ],
+    "ESG": [
+      "ESG/CSR Announcement"
+    ],
+    "ESG Rating": [
+      "ESG Rating"
+    ],
+    "ESG Rating Update": [
+      "ESG Rating Update"
+    ],
+    "ESG Rating Upgrade": [
+      "ESG Rating Upgrade"
+    ],
+    "ESOP": [
+      "ESOP/ESPS Allotment",
+      "ESOP/Stock Option"
+    ],
+    "ESOP Allotment": [
+      "ESOP Allotment"
+    ],
+    "Event": [
+      "Event",
+      "Event/Community Engagement",
+      "Event/Competition Announcement",
+      "Event/Exhibition"
+    ],
+    "Event Announcement": [
+      "Event Announcement"
+    ],
+    "Event Participation": [
+      "Event Participation"
+    ],
+    "Event Update": [
+      "Event Update"
+    ],
+    "Executive Appointment": [
+      "Executive Appointment"
+    ],
+    "Expansion": [
+      "Expansion",
+      "Expansion/Agreement",
+      "Expansion/Capacity Addition",
+      "Expansion/Capacity Increase",
+      "Expansion/Entry into New Market",
+      "Expansion/Foray into New Segment",
+      "Expansion/Geographic Expansion",
+      "Expansion/Geographical Entry",
+      "Expansion/Growth",
+      "Expansion/Growth Strategy",
+      "Expansion/Inauguration",
+      "Expansion/Infrastructure Development",
+      "Expansion/Innovation",
+      "Expansion/International Business",
+      "Expansion/International Operations",
+      "Expansion/International Presence",
+      "Expansion/Investment",
+      "Expansion/Launch",
+      "Expansion/Lease Agreement",
+      "Expansion/Manufacturing Capacity Increase",
+      "Expansion/Market Entry",
+      "Expansion/Market Update",
+      "Expansion/Milestone",
+      "Expansion/Network Strengthening",
+      "Expansion/New Branch Opening",
+      "Expansion/New Business",
+      "Expansion/New Facility",
+      "Expansion/New Launch",
+      "Expansion/New Office Launch",
+      "Expansion/New Store Opening",
+      "Expansion/Opening",
+      "Expansion/Operations Update",
+      "Expansion/Partnership",
+      "Expansion/Relocation",
+      "Expansion/Scaling",
+      "Expansion/Service Launch",
+      "Expansion/Service Upgrade",
+      "Expansion/Store Launch",
+      "Expansion/Store Opening",
+      "Expansion/Strategic Acquisition",
+      "Expansion/Strategic Initiative",
+      "Expansion/Strategic Move",
+      "Expansion/Strategic Signing",
+      "Expansion/Update",
+      "Expansion/Upgrade"
+    ],
+    "Expansion Announcement": [
+      "Expansion Announcement"
+    ],
+    "Expansion Plan": [
+      "Expansion Plan"
+    ],
+    "Expansion Plans": [
+      "Expansion Plans"
+    ],
+    "Exploration Discovery": [
+      "Exploration Discovery"
+    ],
+    "Exploration Update": [
+      "Exploration Update"
+    ],
+    "Export": [
+      "Export/International Business",
+      "Export/Trade Agreement"
+    ],
+    "Export Performance": [
+      "Export Performance"
+    ],
+    "Facility Expansion": [
+      "Facility Expansion"
+    ],
+    "Facility Inauguration": [
+      "Facility Inauguration",
+      "Facility Inauguration/Expansion"
+    ],
+    "Facility Launch": [
+      "Facility Launch"
+    ],
+    "Financial Results": [
+      "Financial Results"
+    ],
+    "Financing": [
+      "Financing/Refinancing Agreement"
+    ],
+    "Financing Agreement": [
+      "Financing Agreement"
+    ],
+    "Fraud Detection": [
+      "Fraud Detection"
+    ],
+    "Fund Raise": [
+      "Fund Raise/Investment"
+    ],
+    "Fund Raising": [
+      "Fund Raising",
+      "Fund Raising/Debt Issuance",
+      "Fund Raising/Equity Issue",
+      "Fund Raising/Expansion",
+      "Fund Raising/Investment",
+      "Fund Raising/Investment Agreement",
+      "Fund Raising/Investment Grade Achievement",
+      "Fund Raising/Preferential Issue"
+    ],
+    "Funding": [
+      "Funding/Financing",
+      "Funding/Investment"
+    ],
+    "Funding Announcement": [
+      "Funding Announcement"
+    ],
+    "Fundraising": [
+      "Fundraising/Equity Issuance",
+      "Fundraising/Investment"
+    ],
+    "General Announcement": [
+      "General Announcement"
+    ],
+    "General Business Announcement": [
+      "General Business Announcement"
+    ],
+    "General Business Update": [
+      "General Business Update"
+    ],
+    "General Meeting": [
+      "General Meeting"
+    ],
+    "Growth Ambition": [
+      "Growth Ambition"
+    ],
+    "Growth Announcement": [
+      "Growth Announcement"
+    ],
+    "Growth Plans": [
+      "Growth Plans"
+    ],
+    "Growth Update": [
+      "Growth Update"
+    ],
+    "Guidance": [
+      "Guidance"
+    ],
+    "Health Issue": [
+      "Health Issue"
+    ],
+    "Incident": [
+      "Incident/Event Update"
+    ],
+    "Incident Report": [
+      "Incident Report"
+    ],
+    "Incident Update": [
+      "Incident Update"
+    ],
+    "Incorporation of Subsidiary": [
+      "Incorporation of Subsidiary"
+    ],
+    "Index Inclusion": [
+      "Index Inclusion"
+    ],
+    "Industry Recognition": [
+      "Industry Recognition"
+    ],
+    "Infrastructure Development": [
+      "Infrastructure Development"
+    ],
+    "Infrastructure Expansion": [
+      "Infrastructure Expansion"
+    ],
+    "Infrastructure Upgrade": [
+      "Infrastructure Upgrade"
+    ],
+    "Innovation": [
+      "Innovation/Competition",
+      "Innovation/Expansion"
+    ],
+    "Innovation Initiative": [
+      "Innovation Initiative"
+    ],
+    "Insider Trading Disclosure": [
+      "Insider Trading Disclosure"
+    ],
+    "Integration": [
+      "Integration/Partnership"
+    ],
+    "Interview": [
+      "Interview/Management Comments"
+    ],
+    "Investment": [
+      "Investment",
+      "Investment/Acquisition",
+      "Investment/Agreement",
+      "Investment/Expansion",
+      "Investment/Expansion Plans",
+      "Investment/Partnership",
+      "Investment/Placement",
+      "Investment/Share Acquisition",
+      "Investment/Share Allotment",
+      "Investment/Share Deal",
+      "Investment/Share Subscription",
+      "Investment/Share Subscription Agreement",
+      "Investment/Subscription",
+      "Investment/Subscription Agreement"
+    ],
+    "Investment Agreement": [
+      "Investment Agreement"
+    ],
+    "Investment Announcement": [
+      "Investment Announcement"
+    ],
+    "Investment Decision": [
+      "Investment Decision"
+    ],
+    "Investment in Technology and Infrastructure": [
+      "Investment in Technology and Infrastructure"
+    ],
+    "Investment in Wholly-Owned Subsidiary Company": [
+      "Investment in Wholly-Owned Subsidiary Company"
+    ],
+    "Investment Promotion Assistance Scheme": [
+      "Investment Promotion Assistance Scheme"
+    ],
+    "Investment Update": [
+      "Investment Update"
+    ],
+    "Investor": [
+      "Investor/Analyst Meeting"
+    ],
+    "Investor Call": [
+      "Investor Call",
+      "Investor Call/Update"
+    ],
+    "Investor Communication": [
+      "Investor Communication"
+    ],
+    "Investor Conference": [
+      "Investor Conference",
+      "Investor Conference/Event",
+      "Investor Conference/Meeting"
+    ],
+    "Investor Conference Call": [
+      "Investor Conference Call"
+    ],
+    "Investor Engagement": [
+      "Investor Engagement"
+    ],
+    "Investor Event": [
+      "Investor Event"
+    ],
+    "Investor Interaction": [
+      "Investor Interaction",
+      "Investor Interaction/Conference"
+    ],
+    "Investor Meet": [
+      "Investor Meet",
+      "Investor Meet/Analyst Call",
+      "Investor Meet/Conference",
+      "Investor Meet/Presentation"
+    ],
+    "Investor Meet Update": [
+      "Investor Meet Update"
+    ],
+    "Investor Meeting": [
+      "Investor Meeting",
+      "Investor Meeting/Conference"
+    ],
+    "Investor Meetings": [
+      "Investor Meetings",
+      "Investor Meetings/Conferences"
+    ],
+    "Investor Presentation": [
+      "Investor Presentation"
+    ],
+    "Investor Relations": [
+      "Investor Relations"
+    ],
+    "Investor Update": [
+      "Investor Update"
+    ],
+    "Investors": [
+      "Investors/Analysts Meet",
+      "Investors/Analysts Meeting"
+    ],
+    "Investors Meet": [
+      "Investors Meet"
+    ],
+    "Investors Meeting": [
+      "Investors Meeting"
+    ],
+    "IPO": [
+      "IPO",
+      "IPO/Share Sale"
+    ],
+    "IPO Update": [
+      "IPO Update"
+    ],
+    "Job Openings": [
+      "Job Openings"
+    ],
+    "Joint Venture Agreement": [
+      "Joint Venture Agreement"
+    ],
+    "Key Managerial Personnel Change": [
+      "Key Managerial Personnel Change"
+    ],
+    "Land Acquisition": [
+      "Land Acquisition",
+      "Land Acquisition/Expansion",
+      "Land Acquisition/Real Estate Development"
+    ],
+    "Launch": [
+      "Launch",
+      "Launch/Expansion"
+    ],
+    "Launch Announcement": [
+      "Launch Announcement"
+    ],
+    "Leadership Appointment": [
+      "Leadership Appointment",
+      "Leadership Appointment/Operational Update"
+    ],
+    "Leadership Change": [
+      "Leadership Change",
+      "Leadership Change/Corporate Update"
+    ],
+    "Leadership Recognition": [
+      "Leadership Recognition",
+      "Leadership Recognition/Award"
+    ],
+    "Leadership Transition": [
+      "Leadership Transition"
+    ],
+    "Liquidation": [
+      "Liquidation"
+    ],
+    "Listing": [
+      "Listing",
+      "Listing/Delisting",
+      "Listing/IPO",
+      "Listing/Migration",
+      "Listing/Trading",
+      "Listing/Trading Information"
+    ],
+    "Listing Anniversary": [
+      "Listing Anniversary"
+    ],
+    "Listing Announcement": [
+      "Listing Announcement"
+    ],
+    "Listing Ceremony": [
+      "Listing Ceremony"
+    ],
+    "Listing Update": [
+      "Listing Update"
+    ],
+    "Litigation": [
+      "Litigation/Dispute",
+      "Litigation/Dispute Resolution"
+    ],
+    "Litigation Update": [
+      "Litigation Update"
+    ],
+    "Loan Disbursal": [
+      "Loan Disbursal/Agreement"
+    ],
+    "Loan Prepayment": [
+      "Loan Prepayment"
+    ],
+    "Loan Repayment": [
+      "Loan Repayment"
+    ],
+    "Loan Sanction": [
+      "Loan Sanction"
+    ],
+    "Maintenance": [
+      "Maintenance/Shutdown"
+    ],
+    "Major Development": [
+      "Major Development"
+    ],
+    "Management": [
+      "Management/Board Update"
+    ],
+    "Management Appointment": [
+      "Management Appointment"
+    ],
+    "Management Change": [
+      "Management Change"
+    ],
+    "Management Changes": [
+      "Management Changes"
+    ],
+    "Management Update": [
+      "Management Update"
+    ],
+    "Manufacturing Expansion": [
+      "Manufacturing Expansion"
+    ],
+    "Market Expansion": [
+      "Market Expansion"
+    ],
+    "Market Insights": [
+      "Market Insights/Research Report"
+    ],
+    "Market Recognition": [
+      "Market Recognition/Award"
+    ],
+    "Market Research": [
+      "Market Research/Report"
+    ],
+    "Market Trend": [
+      "Market Trend/Insight"
+    ],
+    "Market Update": [
+      "Market Update"
+    ],
+    "Marketing": [
+      "Marketing/Advertising",
+      "Marketing/Advertising Campaign",
+      "Marketing/Brand Announcement",
+      "Marketing/Brand Promotion",
+      "Marketing/Experiential Initiative",
+      "Marketing/Partnership Announcement",
+      "Marketing/Promotion"
+    ],
+    "Marketing Campaign": [
+      "Marketing Campaign"
+    ],
+    "Marketing Initiative": [
+      "Marketing Initiative"
+    ],
+    "Media": [
+      "Media/Investor Interaction",
+      "Media/Press Coverage"
+    ],
+    "Media Interaction": [
+      "Media Interaction",
+      "Media Interaction/Update"
+    ],
+    "Medical Research": [
+      "Medical Research"
+    ],
+    "Merger": [
+      "Merger/Acquisition"
+    ],
+    "Merger & Acquisition": [
+      "Merger & Acquisition"
+    ],
+    "Merger and Acquisition": [
+      "Merger and Acquisition"
+    ],
+    "Merger and Amalgamation": [
+      "Merger and Amalgamation"
+    ],
+    "Mergers and Acquisitions": [
+      "Mergers and Acquisitions"
+    ],
+    "Milestone": [
+      "Milestone",
+      "Milestone/Anniversary"
+    ],
+    "Milestone Achievement": [
+      "Milestone Achievement"
+    ],
+    "Miscellaneous": [
+      "Miscellaneous",
+      "Miscellaneous/Non-Material Information",
+      "Miscellaneous/Update"
+    ],
+    "Miscellaneous Services Recruitment Examination": [
+      "Miscellaneous Services Recruitment Examination"
+    ],
+    "Monthly Production and Sales Report": [
+      "Monthly Production and Sales Report"
+    ],
+    "Monthly Sales Report": [
+      "Monthly Sales Report"
+    ],
+    "Monthly Sales Update": [
+      "Monthly Sales Update"
+    ],
+    "Network Enhancement": [
+      "Network Enhancement"
+    ],
+    "Network Expansion": [
+      "Network Expansion"
+    ],
+    "Network Optimization": [
+      "Network Optimization"
+    ],
+    "NEUTRAL": [
+      "NEUTRAL"
+    ],
+    "New Business": [
+      "New Business/Expansion"
+    ],
+    "New Business Initiative": [
+      "New Business Initiative"
+    ],
+    "New Business Line": [
+      "New Business Line"
+    ],
+    "New Business Unit Launch": [
+      "New Business Unit Launch"
+    ],
+    "New Business Venture": [
+      "New Business Venture"
+    ],
+    "New Entity Incorporation": [
+      "New Entity Incorporation"
+    ],
+    "New Initiative": [
+      "New Initiative/Expansion",
+      "New Initiative/Launch",
+      "New Initiative/Partnership"
+    ],
+    "New Launch": [
+      "New Launch/Expansion",
+      "New Launch/Project Announcement"
+    ],
+    "New Product": [
+      "New Product/Service Launch"
+    ],
+    "New Project Launch": [
+      "New Project Launch"
+    ],
+    "New Property Launch": [
+      "New Property Launch"
+    ],
+    "New Service Launch": [
+      "New Service Launch"
+    ],
+    "Offer for Sale": [
+      "Offer for Sale"
+    ],
+    "Open Offer": [
+      "Open Offer",
+      "Open Offer/Share Acquisition"
+    ],
+    "Operational Business Update": [
+      "Operational Business Update"
+    ],
+    "Operational Milestone": [
+      "Operational Milestone"
+    ],
+    "Operational Update": [
+      "Operational Update"
+    ],
+    "Order": [
+      "Order/Agreement",
+      "Order/Contract Update"
+    ],
+    "Order Cancellation": [
+      "Order Cancellation"
+    ],
+    "Order Completion": [
+      "Order Completion",
+      "Order Completion/Project Update"
+    ],
+    "Order Update": [
+      "Order Update",
+      "Order Update/Progress"
+    ],
+    "Order Win": [
+      "Order Win",
+      "Order Win/Achievement",
+      "Order Win/Agreement",
+      "Order Win/Asset Acquisition",
+      "Order Win/Award",
+      "Order Win/Booking Announcement",
+      "Order Win/Booking Update",
+      "Order Win/Box Office Performance",
+      "Order Win/Business Update",
+      "Order Win/Capital Expenditure",
+      "Order Win/Clarification",
+      "Order Win/Commissioning",
+      "Order Win/Commissioning of a Warship",
+      "Order Win/Completion",
+      "Order Win/Contract Award",
+      "Order Win/Contract Extension",
+      "Order Win/Contract Signing",
+      "Order Win/Development Milestone",
+      "Order Win/Execution Update",
+      "Order Win/Expansion",
+      "Order Win/Expansion Plans",
+      "Order Win/Export Achievement",
+      "Order Win/Implementation",
+      "Order Win/Investment Announcement",
+      "Order Win/Lease Agreement",
+      "Order Win/Milestone Achievement",
+      "Order Win/Partnership",
+      "Order Win/Production Commencement",
+      "Order Win/Project Acquisition",
+      "Order Win/Project Announcement",
+      "Order Win/Project Award",
+      "Order Win/Project Commissioning",
+      "Order Win/Project Completion",
+      "Order Win/Project Deployment",
+      "Order Win/Project Launch",
+      "Order Win/Project Update",
+      "Order Win/Project Updates",
+      "Order Win/Recognition",
+      "Order Win/Sale",
+      "Order Win/Sales Achievement",
+      "Order Win/Sales Update",
+      "Order Win/Shipbuilding Milestone",
+      "Order Win/Supply Agreement",
+      "Order Win/Technical Achievement",
+      "Order Win/Tender",
+      "Order Win/Termination",
+      "Order Win/Update"
+    ],
+    "Order Withdrawal": [
+      "Order Withdrawal"
+    ],
+    "Other Corporate Announcement": [
+      "Other Corporate Announcement"
+    ],
+    "Overseas Expansion": [
+      "Overseas Expansion"
+    ],
+    "Partnership": [
+      "Partnership",
+      "Partnership/Accreditation",
+      "Partnership/Agreement",
+      "Partnership/AI-powered Innovations",
+      "Partnership/Award",
+      "Partnership/Awareness Initiative",
+      "Partnership/Collaboration",
+      "Partnership/Endorsement",
+      "Partnership/Expansion"
+    ],
+    "Partnership Agreement": [
+      "Partnership Agreement"
+    ],
+    "Partnership Announcement": [
+      "Partnership Announcement"
+    ],
+    "Partnership Expansion": [
+      "Partnership Expansion"
+    ],
+    "Partnership Milestone": [
+      "Partnership Milestone"
+    ],
+    "Personnel Change": [
+      "Personnel Change"
+    ],
+    "Philanthropic Initiative": [
+      "Philanthropic Initiative"
+    ],
+    "Portfolio Expansion": [
+      "Portfolio Expansion"
+    ],
+    "Preferential Allotment": [
+      "Preferential Allotment"
+    ],
+    "Preferential Issue": [
+      "Preferential Issue"
+    ],
+    "Preferential Issue of Equity Shares": [
+      "Preferential Issue of Equity Shares"
+    ],
+    "Price Increase": [
+      "Price Increase"
+    ],
+    "Price Revision": [
+      "Price Revision"
+    ],
+    "Pricing Update": [
+      "Pricing Update"
+    ],
+    "Product": [
+      "Product/Service Enhancement",
+      "Product/Service Expansion",
+      "Product/Service Launch"
+    ],
+    "Product Announcement": [
+      "Product Announcement"
+    ],
+    "Product Development": [
+      "Product Development",
+      "Product Development/Innovation"
+    ],
+    "Product Enhancement": [
+      "Product Enhancement"
+    ],
+    "Product Launch": [
+      "Product Launch",
+      "Product Launch/Agreement",
+      "Product Launch/Brand Introduction",
+      "Product Launch/Brand Milestone",
+      "Product Launch/Community Program",
+      "Product Launch/Event",
+      "Product Launch/Expansion",
+      "Product Launch/Initiative",
+      "Product Launch/Innovation",
+      "Product Launch/Manufacturing",
+      "Product Launch/Milestone",
+      "Product Launch/Order Win",
+      "Product Launch/Partnership",
+      "Product Launch/Rebranding",
+      "Product Launch/Regulatory Approval",
+      "Product Launch/Release",
+      "Product Launch/Service Announcement",
+      "Product Launch/Service Enhancement",
+      "Product Launch/Showcase",
+      "Product Launch/Technology Upgrade",
+      "Product Launch/Update",
+      "Product Launch/Upgrade"
+    ],
+    "Product Recall": [
+      "Product Recall"
+    ],
+    "Product Showcase": [
+      "Product Showcase/Event Participation",
+      "Product Showcase/Exhibition",
+      "Product Showcase/Market Update"
+    ],
+    "Product Update": [
+      "Product Update",
+      "Product Update/Pricing"
+    ],
+    "Production and Sales Update": [
+      "Production and Sales Update"
+    ],
+    "Production Capacity Expansion": [
+      "Production Capacity Expansion"
+    ],
+    "Production Milestone": [
+      "Production Milestone"
+    ],
+    "Production Update": [
+      "Production Update"
+    ],
+    "Project Announcement": [
+      "Project Announcement"
+    ],
+    "Project Commencement": [
+      "Project Commencement"
+    ],
+    "Project Commissioning": [
+      "Project Commissioning"
+    ],
+    "Project Completion": [
+      "Project Completion"
+    ],
+    "Project Inauguration": [
+      "Project Inauguration"
+    ],
+    "Project Launch": [
+      "Project Launch"
+    ],
+    "Project Revival": [
+      "Project Revival/Agreement"
+    ],
+    "Project Update": [
+      "Project Update",
+      "Project Update/Inauguration"
+    ],
+    "Project Updates": [
+      "Project Updates"
+    ],
+    "Promotion": [
+      "Promotion"
+    ],
+    "Promotional Announcement": [
+      "Promotional Announcement"
+    ],
+    "Promotional Offer": [
+      "Promotional Offer"
+    ],
+    "Public Issue": [
+      "Public Issue"
+    ],
+    "Ranking": [
+      "Ranking/Award"
+    ],
+    "Rating Action": [
+      "Rating Action"
+    ],
+    "Rating Announcement": [
+      "Rating Announcement"
+    ],
+    "Rating Downgrade": [
+      "Rating Downgrade"
+    ],
+    "Rating Reaffirmation": [
+      "Rating Reaffirmation",
+      "Rating Reaffirmation/Upgradation",
+      "Rating Reaffirmation/Withdrawal"
+    ],
+    "Rating Revision": [
+      "Rating Revision"
+    ],
+    "Rating Update": [
+      "Rating Update"
+    ],
+    "Rating Upgrade": [
+      "Rating Upgrade"
+    ],
+    "Rebranding": [
+      "Rebranding",
+      "Rebranding/Upgrade"
+    ],
+    "Recognition": [
+      "Recognition/Award"
+    ],
+    "Recruitment": [
+      "Recruitment/Job Opening"
+    ],
+    "Regulatory": [
+      "Regulatory",
+      "Regulatory/Compliance",
+      "Regulatory/Compliance Announcement",
+      "Regulatory/Governance Announcement",
+      "Regulatory/Investigation",
+      "Regulatory/Investigation Update",
+      "Regulatory/Legal",
+      "Regulatory/Legal Issue",
+      "Regulatory/Legal Proceedings",
+      "Regulatory/Legal Update"
+    ],
+    "Regulatory Action": [
+      "Regulatory Action"
+    ],
+    "Regulatory Advisory": [
+      "Regulatory Advisory"
+    ],
+    "Regulatory Announcement": [
+      "Regulatory Announcement"
+    ],
+    "Regulatory Appointment": [
+      "Regulatory Appointment"
+    ],
+    "Regulatory Approval": [
+      "Regulatory Approval",
+      "Regulatory Approval, Agreement",
+      "Regulatory Approval, Board Meeting",
+      "Regulatory Approval/Agreement",
+      "Regulatory Approval/Announcement",
+      "Regulatory Approval/Award",
+      "Regulatory Approval/Clinical Trials",
+      "Regulatory Approval/Commercial Launch",
+      "Regulatory Approval/Commissioning",
+      "Regulatory Approval/Compliance",
+      "Regulatory Approval/Corporate Restructuring",
+      "Regulatory Approval/Development",
+      "Regulatory Approval/Discovery",
+      "Regulatory Approval/ESG Rating",
+      "Regulatory Approval/Expansion",
+      "Regulatory Approval/Incentives",
+      "Regulatory Approval/Innovation",
+      "Regulatory Approval/Investment Agreement",
+      "Regulatory Approval/Legal",
+      "Regulatory Approval/Milestone Achievement",
+      "Regulatory Approval/Order Win",
+      "Regulatory Approval/Partnership",
+      "Regulatory Approval/Plant Commissioning",
+      "Regulatory Approval/Product Launch",
+      "Regulatory Approval/Production Update",
+      "Regulatory Approval/Project Announcement",
+      "Regulatory Approval/Project Commissioning",
+      "Regulatory Approval/Project Completion",
+      "Regulatory Approval/Project Update",
+      "Regulatory Approval/Quality Assurance",
+      "Regulatory Approval/Recognition",
+      "Regulatory Approval/Research Findings",
+      "Regulatory Approval/Settlement",
+      "Regulatory Approval/Shareholder Update",
+      "Regulatory Approval/Technology Adoption",
+      "Regulatory Approval/Technology Demonstration",
+      "Regulatory Approval/Technology Development",
+      "Regulatory Approval/Transfer of Business",
+      "Regulatory Approval/Update"
+    ],
+    "Regulatory Clarification": [
+      "Regulatory Clarification"
+    ],
+    "Regulatory Clearance": [
+      "Regulatory Clearance"
+    ],
+    "Regulatory Compliance": [
+      "Regulatory Compliance"
+    ],
+    "Regulatory Correspondence": [
+      "Regulatory Correspondence"
+    ],
+    "Regulatory Disclosure": [
+      "Regulatory Disclosure"
+    ],
+    "Regulatory Dispute": [
+      "Regulatory Dispute"
+    ],
+    "Regulatory Enquiry": [
+      "Regulatory Enquiry"
+    ],
+    "Regulatory Examination": [
+      "Regulatory Examination"
+    ],
+    "Regulatory Filing": [
+      "Regulatory Filing",
+      "Regulatory Filing/Acquisition",
+      "Regulatory Filing/AGM",
+      "Regulatory Filing/AGM Update",
+      "Regulatory Filing/Compliance",
+      "Regulatory Filing/Corporate Update",
+      "Regulatory Filing/Earnings",
+      "Regulatory Filing/Earnings Call",
+      "Regulatory Filing/ESOP Scheme",
+      "Regulatory Filing/Investment",
+      "Regulatory Filing/Investor Update",
+      "Regulatory Filing/Litigation",
+      "Regulatory Filing/Patent Application",
+      "Regulatory Filing/Update"
+    ],
+    "Regulatory Filing - Business Expansion": [
+      "Regulatory Filing - Business Expansion"
+    ],
+    "Regulatory Filing - Change in Management": [
+      "Regulatory Filing - Change in Management"
+    ],
+    "Regulatory Filing Correction": [
+      "Regulatory Filing Correction"
+    ],
+    "Regulatory Filings": [
+      "Regulatory Filings"
+    ],
+    "Regulatory Inspection": [
+      "Regulatory Inspection"
+    ],
+    "Regulatory Investigation": [
+      "Regulatory Investigation"
+    ],
+    "Regulatory Non-Compliance": [
+      "Regulatory Non-Compliance"
+    ],
+    "Regulatory Notice": [
+      "Regulatory Notice"
+    ],
+    "Regulatory Order": [
+      "Regulatory Order"
+    ],
+    "Regulatory Penalty": [
+      "Regulatory Penalty"
+    ],
+    "Regulatory Proceedings": [
+      "Regulatory Proceedings"
+    ],
+    "Regulatory Recognition": [
+      "Regulatory Recognition",
+      "Regulatory Recognition/Award"
+    ],
+    "Regulatory Refund": [
+      "Regulatory Refund"
+    ],
+    "Regulatory Relief": [
+      "Regulatory Relief"
+    ],
+    "Regulatory Settlement": [
+      "Regulatory Settlement"
+    ],
+    "Regulatory Update": [
+      "Regulatory Update"
+    ],
+    "Regulatory Warning": [
+      "Regulatory Warning"
+    ],
+    "Renewable Energy Expansion": [
+      "Renewable Energy Expansion"
+    ],
+    "Report": [
+      "Report/Study Findings",
+      "Report/Study Release"
+    ],
+    "Report Release": [
+      "Report Release"
+    ],
+    "Research": [
+      "Research/Report Release",
+      "Research/Study Announcement",
+      "Research/Study Findings"
+    ],
+    "Research & Development": [
+      "Research & Development"
+    ],
+    "Research & Development Agreement": [
+      "Research & Development Agreement"
+    ],
+    "Research and Development": [
+      "Research and Development"
+    ],
+    "Research Report": [
+      "Research Report",
+      "Research Report/Study"
+    ],
+    "Research Update": [
+      "Research Update"
+    ],
+    "Resignation": [
+      "Resignation",
+      "Resignation/Apointment",
+      "Resignation/Appointment",
+      "Resignation/Appt of Senior Management Personnel",
+      "Resignation/Audit",
+      "Resignation/Audit Committee",
+      "Resignation/Change in Key Managerial Personnel",
+      "Resignation/Change in Management",
+      "Resignation/Change in Senior Management Personnel",
+      "Resignation/Personnel Change",
+      "Resignation/Withdrawal"
+    ],
+    "Resignation and Appointment": [
+      "Resignation and Appointment"
+    ],
+    "Resignation of Auditor": [
+      "Resignation of Auditor"
+    ],
+    "Resignation of Key Managerial Personnel": [
+      "Resignation of Key Managerial Personnel"
+    ],
+    "Resignation of Senior Management Personnel": [
+      "Resignation of Senior Management Personnel"
+    ],
+    "Resignation of Senior Managerial Personnel": [
+      "Resignation of Senior Managerial Personnel"
+    ],
+    "Resignation of Statutory Auditor": [
+      "Resignation of Statutory Auditor"
+    ],
+    "Restructuring": [
+      "Restructuring",
+      "Restructuring/Agreement",
+      "Restructuring/Dilution of Stake",
+      "Restructuring/Ownership Change",
+      "Restructuring/Portfolio Realignment",
+      "Restructuring/Reorganization"
+    ],
+    "Retail Expansion": [
+      "Retail Expansion"
+    ],
+    "Rights Issue": [
+      "Rights Issue",
+      "Rights Issue/Share Capital Reorganization"
+    ],
+    "Rights Issue Allotment": [
+      "Rights Issue Allotment"
+    ],
+    "Rights Issue Completion": [
+      "Rights Issue Completion"
+    ],
+    "Rights Issue Update": [
+      "Rights Issue Update"
+    ],
+    "Sale of Assets": [
+      "Sale of Assets"
+    ],
+    "Sales Milestone": [
+      "Sales Milestone"
+    ],
+    "Sales Performance": [
+      "Sales Performance"
+    ],
+    "Sales Report": [
+      "Sales Report"
+    ],
+    "Sales Update": [
+      "Sales Update"
+    ],
+    "Scheme of Amalgamation": [
+      "Scheme of Amalgamation"
+    ],
+    "Securitization": [
+      "Securitization",
+      "Securitization/Debt Raising"
+    ],
+    "Securitization Transaction": [
+      "Securitization Transaction"
+    ],
+    "Senior Management Change": [
+      "Senior Management Change"
+    ],
+    "Share": [
+      "Share/Investment Deal"
+    ],
+    "Share Acquisition": [
+      "Share Acquisition"
+    ],
+    "Share Allotment": [
+      "Share Allotment",
+      "Share Allotment/Conversion",
+      "Share Allotment/Debt Issuance",
+      "Share Allotment/Employee Benefits",
+      "Share Allotment/Employee Stock Option Plan",
+      "Share Allotment/Employee Stock Options",
+      "Share Allotment/ESOP",
+      "Share Allotment/Grant",
+      "Share Allotment/Investment",
+      "Share Allotment/Investment Agreement",
+      "Share Allotment/Transfer"
+    ],
+    "Share Buyback": [
+      "Share Buyback"
+    ],
+    "Share Buyback Approval": [
+      "Share Buyback Approval"
+    ],
+    "Share Capital Increase": [
+      "Share Capital Increase"
+    ],
+    "Share Capital Reorganization": [
+      "Share Capital Reorganization"
+    ],
+    "Share Capital Update": [
+      "Share Capital Update"
+    ],
+    "Share Conversion": [
+      "Share Conversion",
+      "Share Conversion/Allotment"
+    ],
+    "Share Disposal": [
+      "Share Disposal"
+    ],
+    "Share Incentive Plan": [
+      "Share Incentive Plan"
+    ],
+    "Share Issuance": [
+      "Share Issuance",
+      "Share Issuance/Conversion",
+      "Share Issuance/Investment",
+      "Share Issuance/Investment Agreement"
+    ],
+    "Share Issue": [
+      "Share Issue"
+    ],
+    "Share Redemption": [
+      "Share Redemption"
+    ],
+    "Share Sale": [
+      "Share Sale",
+      "Share Sale/Disposal",
+      "Share Sale/Investment",
+      "Share Sale/Offer",
+      "Share Sale/Offer for Sale",
+      "Share Sale/Promoter Stake Rationalisation",
+      "Share Sale/Promoter Transaction",
+      "Share Sale/Purchase Agreement"
+    ],
+    "Share Sale Disclosure": [
+      "Share Sale Disclosure"
+    ],
+    "Share Split": [
+      "Share Split"
+    ],
+    "Share Subscription": [
+      "Share Subscription/Investment Agreement"
+    ],
+    "Share Transaction": [
+      "Share Transaction"
+    ],
+    "Share Transfer": [
+      "Share Transfer",
+      "Share Transfer/ESOP",
+      "Share Transfer/ESOPs",
+      "Share Transfer/Exercise of Options",
+      "Share Transfer/Investment",
+      "Share Transfer/Investment Agreement"
+    ],
+    "Share-based Long Term Incentive Scheme": [
+      "Share-based Long Term Incentive Scheme"
+    ],
+    "Shareholder Information": [
+      "Shareholder Information"
+    ],
+    "Shareholder Meeting": [
+      "Shareholder Meeting"
+    ],
+    "Shareholder Update": [
+      "Shareholder Update"
+    ],
+    "Shareholders' Meeting": [
+      "Shareholders' Meeting"
+    ],
+    "Shareholding Disclosure": [
+      "Shareholding Disclosure"
+    ],
+    "Shareholding Pattern": [
+      "Shareholding Pattern"
+    ],
+    "Shareholding Update": [
+      "Shareholding Update"
+    ],
+    "Statement": [
+      "Statement/Clarification"
+    ],
+    "Store Expansion": [
+      "Store Expansion"
+    ],
+    "Store Launch": [
+      "Store Launch/Expansion"
+    ],
+    "Store Opening": [
+      "Store Opening"
+    ],
+    "Strategic Expansion": [
+      "Strategic Expansion"
+    ],
+    "Strategic Initiative": [
+      "Strategic Initiative"
+    ],
+    "Strategic Move": [
+      "Strategic Move"
+    ],
+    "Strategic Partnership": [
+      "Strategic Partnership"
+    ],
+    "Strategic Plan": [
+      "Strategic Plan/Initiative"
+    ],
+    "Strategic Realignment": [
+      "Strategic Realignment"
+    ],
+    "Strategy Update": [
+      "Strategy Update"
+    ],
+    "Sustainability": [
+      "Sustainability/CSR",
+      "Sustainability/Environmental Initiative",
+      "Sustainability/Environmental Update",
+      "Sustainability/ESG",
+      "Sustainability/Infrastructure Update"
+    ],
+    "Sustainability Award": [
+      "Sustainability Award"
+    ],
+    "Sustainability Initiative": [
+      "Sustainability Initiative"
+    ],
+    "Sustainability Milestone": [
+      "Sustainability Milestone"
+    ],
+    "Sustainability Recognition": [
+      "Sustainability Recognition"
+    ],
+    "Sustainability Report": [
+      "Sustainability Report"
+    ],
+    "Sustainability Update": [
+      "Sustainability Update"
+    ],
+    "Technology": [
+      "Technology/Innovation"
+    ],
+    "Technology Adoption": [
+      "Technology Adoption",
+      "Technology Adoption/Platform Launch"
+    ],
+    "Technology Advancement": [
+      "Technology Advancement"
+    ],
+    "Technology Development": [
+      "Technology Development"
+    ],
+    "Technology Integration": [
+      "Technology Integration"
+    ],
+    "Technology Partnership": [
+      "Technology Partnership/Accreditation",
+      "Technology Partnership/Innovation"
+    ],
+    "Technology Update": [
+      "Technology Update"
+    ],
+    "Technology Upgrade": [
+      "Technology Upgrade",
+      "Technology Upgrade/Adoption"
+    ],
+    "Tender": [
+      "Tender"
+    ],
+    "Tender Notice": [
+      "Tender Notice"
+    ],
+    "Tenders": [
+      "Tenders"
+    ],
+    "Travel Trends": [
+      "Travel Trends"
+    ],
+    "Uncategorizable": [
+      "Uncategorizable"
+    ],
+    "Uncategorized": [
+      "Uncategorized"
+    ],
+    "UNCERTAIN": [
+      "UNCERTAIN"
+    ],
+    "Unknown": [
+      "Unknown"
+    ],
+    "Vessel Acquisition": [
+      "Vessel Acquisition"
+    ],
+    "Vessel Sale": [
+      "Vessel Sale"
+    ]
+  },
+  "aliases": {
+    "Academic Achievement": [
+      "Academic Achievement"
+    ],
+    "Accident/Incident Report": [
+      "Accident",
+      "Incident Report"
+    ],
+    "Achievement/Record": [
+      "Achievement",
+      "Record"
+    ],
+    "Acquisition": [
+      "Acquisition"
+    ],
+    "Acquisition Agreement": [
+      "Acquisition Agreement"
+    ],
+    "Acquisition Update": [
+      "Acquisition Update"
+    ],
+    "Acquisition/Agreement": [
+      "Acquisition",
+      "Agreement"
+    ],
+    "Acquisition/Brand Expansion": [
+      "Acquisition",
+      "Brand Expansion"
+    ],
+    "Acquisition/Dilution": [
+      "Acquisition",
+      "Dilution"
+    ],
+    "Acquisition/Expansion": [
+      "Acquisition",
+      "Expansion"
+    ],
+    "Acquisition/Investment": [
+      "Acquisition",
+      "Investment"
+    ],
+    "Acquisition/Merger": [
+      "Acquisition",
+      "Merger"
+    ],
+    "Advisory/Partnership": [
+      "Advisory",
+      "Partnership"
+    ],
+    "AGM/EGM Updates": [
+      "AGM",
+      "EGM Updates"
+    ],
+    "Agreement": [
+      "Agreement"
+    ],
+    "Agreement Termination": [
+      "Agreement Termination"
+    ],
+    "Agreement, Board Meeting": [
+      "Agreement",
+      "Board Meeting"
+    ],
+    "Agreement/Acquisition": [
+      "Acquisition",
+      "Agreement"
+    ],
+    "Agreement/Amalgamation Update": [
+      "Agreement",
+      "Amalgamation Update"
+    ],
+    "Agreement/Collaboration": [
+      "Agreement",
+      "Collaboration"
+    ],
+    "Agreement/Contract Termination": [
+      "Agreement",
+      "Contract Termination"
+    ],
+    "Agreement/Deal Update": [
+      "Agreement",
+      "Deal Update"
+    ],
+    "Agreement/Disinvestment": [
+      "Agreement",
+      "Disinvestment"
+    ],
+    "Agreement/Disposal": [
+      "Agreement",
+      "Disposal"
+    ],
+    "Agreement/Divestment": [
+      "Agreement",
+      "Divestment"
+    ],
+    "Agreement/Earnings": [
+      "Agreement",
+      "Earnings"
+    ],
+    "Agreement/ECB Issuance": [
+      "Agreement",
+      "ECB Issuance"
+    ],
+    "Agreement/Expansion": [
+      "Agreement",
+      "Expansion"
+    ],
+    "Agreement/Incorporation": [
+      "Agreement",
+      "Incorporation"
+    ],
+    "Agreement/Investment": [
+      "Agreement",
+      "Investment"
+    ],
+    "Agreement/Joint Venture": [
+      "Agreement",
+      "Joint Venture"
+    ],
+    "Agreement/Loan Repayment": [
+      "Agreement",
+      "Loan Repayment"
+    ],
+    "Agreement/Merger": [
+      "Agreement",
+      "Merger"
+    ],
+    "Agreement/Ownership Change": [
+      "Agreement",
+      "Ownership Change"
+    ],
+    "Agreement/Partnership": [
+      "Agreement",
+      "Partnership"
+    ],
+    "Agreement/Restructuring": [
+      "Agreement",
+      "Restructuring"
+    ],
+    "Agreement/Settlement": [
+      "Agreement",
+      "Settlement"
+    ],
+    "Agreement/Share Acquisition": [
+      "Agreement",
+      "Share Acquisition"
+    ],
+    "Agreement/Share Allotment": [
+      "Agreement",
+      "Share Allotment"
+    ],
+    "Agreement/Share Conversion": [
+      "Agreement",
+      "Share Conversion"
+    ],
+    "Agreement/Share Purchase Agreement": [
+      "Agreement",
+      "Share Purchase Agreement"
+    ],
+    "Agreement/Shareholding Change": [
+      "Agreement",
+      "Shareholding Change"
+    ],
+    "Agreement/Subsidiary Acquisition": [
+      "Agreement",
+      "Subsidiary Acquisition"
+    ],
+    "Agreement/Transfer of Shareholding": [
+      "Agreement",
+      "Transfer of Shareholding"
+    ],
+    "Agreement/Update": [
+      "Agreement",
+      "Update"
+    ],
+    "Agriculture/Commodity News": [
+      "Agriculture",
+      "Commodity News"
+    ],
+    "Amalgamation/Merger": [
+      "Amalgamation",
+      "Merger"
+    ],
+    "Analyst Recognition": [
+      "Analyst Recognition"
+    ],
+    "Anniversary/Expansion Plans": [
+      "Anniversary",
+      "Expansion Plans"
+    ],
+    "Anniversary/Milestone": [
+      "Anniversary",
+      "Milestone"
+    ],
+    "Announcement": [
+      "Announcement"
+    ],
+    "Announcement/Travel Services": [
+      "Announcement",
+      "Travel Services"
+    ],
+    "Annual General Meeting": [
+      "Annual General Meeting"
+    ],
+    "Annual General Meeting and Dividend": [
+      "Annual General Meeting and Dividend"
+    ],
+    "Annual General Meeting Update": [
+      "Annual General Meeting Update"
+    ],
+    "Annual General Meeting/Dividend Declaration": [
+      "Annual General Meeting",
+      "Dividend Declaration"
+    ],
+    "Annual Report": [
+      "Annual Report"
+    ],
+    "Annual Report/AGM": [
+      "AGM",
+      "Annual Report"
+    ],
+    "Annual Report/AGM Update": [
+      "AGM Update",
+      "Annual Report"
+    ],
+    "Annual Reports": [
+      "Annual Reports"
+    ],
+    "Annual Reports and ESG Disclosure": [
+      "Annual Reports and ESG Disclosure"
+    ],
+    "Appointment": [
+      "Appointment"
+    ],
+    "Appointment of Senior Management Personnel": [
+      "Appointment of Senior Management Personnel"
+    ],
+    "Appointment/Agreement": [
+      "Agreement",
+      "Appointment"
+    ],
+    "Appointment/Expansion": [
+      "Appointment",
+      "Expansion"
+    ],
+    "Appointment/Leadership Change": [
+      "Appointment",
+      "Leadership Change"
+    ],
+    "Appointment/Personnel Change": [
+      "Appointment",
+      "Personnel Change"
+    ],
+    "Appointment/Reappointment": [
+      "Appointment",
+      "Reappointment"
+    ],
+    "Appointment/Recognition": [
+      "Appointment",
+      "Recognition"
+    ],
+    "Appointment/Resignation": [
+      "Appointment",
+      "Resignation"
+    ],
+    "Asset Sale": [
+      "Asset Sale"
+    ],
+    "Auction": [
+      "Auction"
+    ],
+    "Auction/Disposal": [
+      "Auction",
+      "Disposal"
+    ],
+    "Auction/Insolvency": [
+      "Auction",
+      "Insolvency"
+    ],
+    "Auction/Notice": [
+      "Auction",
+      "Notice"
+    ],
+    "Auction/Property Sale": [
+      "Auction",
+      "Property Sale"
+    ],
+    "Auction/Sale": [
+      "Auction",
+      "Sale"
+    ],
+    "Auction/Sale Announcement": [
+      "Auction",
+      "Sale Announcement"
+    ],
+    "Auction/Sale of Assets": [
+      "Auction",
+      "Sale of Assets"
+    ],
+    "Award/Recognition": [
+      "Award",
+      "Recognition"
+    ],
+    "Awards and Recognition": [
+      "Awards and Recognition"
+    ],
+    "Awards/Recognition": [
+      "Awards",
+      "Recognition"
+    ],
+    "Board Appointment": [
+      "Board Appointment"
+    ],
+    "Board Appointment/Change": [
+      "Board Appointment",
+      "Change"
+    ],
+    "Board Appointment/Reappointment": [
+      "Board Appointment",
+      "Reappointment"
+    ],
+    "Board Appointment/Reshuffle": [
+      "Board Appointment",
+      "Reshuffle"
+    ],
+    "Board Appointment/Resignation": [
+      "Board Appointment",
+      "Resignation"
+    ],
+    "Board Change": [
+      "Board Change"
+    ],
+    "Board Change/Resignation": [
+      "Board Change",
+      "Resignation"
+    ],
+    "Board Changes": [
+      "Board Changes"
+    ],
+    "Board Meeting": [
+      "Board Meeting"
+    ],
+    "Board Meeting and Earnings": [
+      "Board Meeting and Earnings"
+    ],
+    "Board Meeting and Earnings Conference Call": [
+      "Board Meeting and Earnings Conference Call"
+    ],
+    "Board Meeting and Financial Results": [
+      "Board Meeting and Financial Results"
+    ],
+    "Board Meeting Update": [
+      "Board Meeting Update"
+    ],
+    "Board Meeting, Acquisition, Share Issue": [
+      "Acquisition",
+      "Board Meeting",
+      "Share Issue"
+    ],
+    "Board Meeting, Agreement": [
+      "Agreement",
+      "Board Meeting"
+    ],
+    "Board Meeting, Buyback": [
+      "Board Meeting",
+      "Buyback"
+    ],
+    "Board Meeting, Debt Issuance": [
+      "Board Meeting",
+      "Debt Issuance"
+    ],
+    "Board Meeting, Dividend Declaration": [
+      "Board Meeting",
+      "Dividend Declaration"
+    ],
+    "Board Meeting, Dividend Declaration, Financial Results": [
+      "Board Meeting",
+      "Dividend Declaration",
+      "Financial Results"
+    ],
+    "Board Meeting, Earnings": [
+      "Board Meeting",
+      "Earnings"
+    ],
+    "Board Meeting, Earnings, Investment": [
+      "Board Meeting",
+      "Earnings",
+      "Investment"
+    ],
+    "Board Meeting, Fundraising": [
+      "Board Meeting",
+      "Fundraising"
+    ],
+    "Board Meeting, Regulatory Approval": [
+      "Board Meeting",
+      "Regulatory Approval"
+    ],
+    "Board Meeting, Regulatory Filing": [
+      "Board Meeting",
+      "Regulatory Filing"
+    ],
+    "Board Meeting, Share Buyback": [
+      "Board Meeting",
+      "Share Buyback"
+    ],
+    "Board Meeting/AGM": [
+      "AGM",
+      "Board Meeting"
+    ],
+    "Board Meeting/Agreement": [
+      "Agreement",
+      "Board Meeting"
+    ],
+    "Board Meeting/Annual General Meeting": [
+      "Annual General Meeting",
+      "Board Meeting"
+    ],
+    "Board Meeting/Appointment": [
+      "Appointment",
+      "Board Meeting"
+    ],
+    "Board Meeting/Change in Designation": [
+      "Board Meeting",
+      "Change in Designation"
+    ],
+    "Board Meeting/Change in Director": [
+      "Board Meeting",
+      "Change in Director"
+    ],
+    "Board Meeting/Change in Directorate": [
+      "Board Meeting",
+      "Change in Directorate"
+    ],
+    "Board Meeting/Change in Directors": [
+      "Board Meeting",
+      "Change in Directors"
+    ],
+    "Board Meeting/Change in Directorship": [
+      "Board Meeting",
+      "Change in Directorship"
+    ],
+    "Board Meeting/Change in Management": [
+      "Board Meeting",
+      "Change in Management"
+    ],
+    "Board Meeting/Change in Senior Management": [
+      "Board Meeting",
+      "Change in Senior Management"
+    ],
+    "Board Meeting/Changes": [
+      "Board Meeting",
+      "Changes"
+    ],
+    "Board Meeting/Changes in Directorate": [
+      "Board Meeting",
+      "Changes in Directorate"
+    ],
+    "Board Meeting/Changes in Directorship": [
+      "Board Meeting",
+      "Changes in Directorship"
+    ],
+    "Board Meeting/Changes in Management": [
+      "Board Meeting",
+      "Changes in Management"
+    ],
+    "Board Meeting/Committee Composition": [
+      "Board Meeting",
+      "Committee Composition"
+    ],
+    "Board Meeting/Committee Reconstitution": [
+      "Board Meeting",
+      "Committee Reconstitution"
+    ],
+    "Board Meeting/Compliance": [
+      "Board Meeting",
+      "Compliance"
+    ],
+    "Board Meeting/Composition Change": [
+      "Board Meeting",
+      "Composition Change"
+    ],
+    "Board Meeting/Corporate Action": [
+      "Board Meeting",
+      "Corporate Action"
+    ],
+    "Board Meeting/Corporate Governance": [
+      "Board Meeting",
+      "Corporate Governance"
+    ],
+    "Board Meeting/Corporate Restructuring": [
+      "Board Meeting",
+      "Corporate Restructuring"
+    ],
+    "Board Meeting/Corporate Update": [
+      "Board Meeting",
+      "Corporate Update"
+    ],
+    "Board Meeting/Debenture Allotment": [
+      "Board Meeting",
+      "Debenture Allotment"
+    ],
+    "Board Meeting/Debt Issuance": [
+      "Board Meeting",
+      "Debt Issuance"
+    ],
+    "Board Meeting/Debt Issue": [
+      "Board Meeting",
+      "Debt Issue"
+    ],
+    "Board Meeting/Director Appointment": [
+      "Board Meeting",
+      "Director Appointment"
+    ],
+    "Board Meeting/Director Change": [
+      "Board Meeting",
+      "Director Change"
+    ],
+    "Board Meeting/Dividend Declaration": [
+      "Board Meeting",
+      "Dividend Declaration"
+    ],
+    "Board Meeting/Earnings": [
+      "Board Meeting",
+      "Earnings"
+    ],
+    "Board Meeting/Earnings Call": [
+      "Board Meeting",
+      "Earnings Call"
+    ],
+    "Board Meeting/EGM": [
+      "Board Meeting",
+      "EGM"
+    ],
+    "Board Meeting/EGM Proceedings": [
+      "Board Meeting",
+      "EGM Proceedings"
+    ],
+    "Board Meeting/Employee Benefits": [
+      "Board Meeting",
+      "Employee Benefits"
+    ],
+    "Board Meeting/Employee Incentives": [
+      "Board Meeting",
+      "Employee Incentives"
+    ],
+    "Board Meeting/Employee Stock Option Plan": [
+      "Board Meeting",
+      "Employee Stock Option Plan"
+    ],
+    "Board Meeting/Employee Stock Option Scheme": [
+      "Board Meeting",
+      "Employee Stock Option Scheme"
+    ],
+    "Board Meeting/Employee Stock Option Scheme Update": [
+      "Board Meeting",
+      "Employee Stock Option Scheme Update"
+    ],
+    "Board Meeting/Employee Stock Options": [
+      "Board Meeting",
+      "Employee Stock Options"
+    ],
+    "Board Meeting/ESOP Allotment": [
+      "Board Meeting",
+      "ESOP Allotment"
+    ],
+    "Board Meeting/ESOP Grant": [
+      "Board Meeting",
+      "ESOP Grant"
+    ],
+    "Board Meeting/ESOP Update": [
+      "Board Meeting",
+      "ESOP Update"
+    ],
+    "Board Meeting/Executive Appointment": [
+      "Board Meeting",
+      "Executive Appointment"
+    ],
+    "Board Meeting/Executive Change": [
+      "Board Meeting",
+      "Executive Change"
+    ],
+    "Board Meeting/Executive Movement": [
+      "Board Meeting",
+      "Executive Movement"
+    ],
+    "Board Meeting/Expansion Plans": [
+      "Board Meeting",
+      "Expansion Plans"
+    ],
+    "Board Meeting/Extraordinary General Meeting": [
+      "Board Meeting",
+      "Extraordinary General Meeting"
+    ],
+    "Board Meeting/Fund Raising": [
+      "Board Meeting",
+      "Fund Raising"
+    ],
+    "Board Meeting/Independent Director Appointment": [
+      "Board Meeting",
+      "Independent Director Appointment"
+    ],
+    "Board Meeting/Investment Agreement": [
+      "Board Meeting",
+      "Investment Agreement"
+    ],
+    "Board Meeting/Investment Approval": [
+      "Board Meeting",
+      "Investment Approval"
+    ],
+    "Board Meeting/Investor Conference Call": [
+      "Board Meeting",
+      "Investor Conference Call"
+    ],
+    "Board Meeting/Key Managerial Personnel": [
+      "Board Meeting",
+      "Key Managerial Personnel"
+    ],
+    "Board Meeting/Key Managerial Personnel Appointment": [
+      "Board Meeting",
+      "Key Managerial Personnel Appointment"
+    ],
+    "Board Meeting/Key Managerial Personnel Change": [
+      "Board Meeting",
+      "Key Managerial Personnel Change"
+    ],
+    "Board Meeting/Key Personnel Appointment": [
+      "Board Meeting",
+      "Key Personnel Appointment"
+    ],
+    "Board Meeting/Key Personnel Change": [
+      "Board Meeting",
+      "Key Personnel Change"
+    ],
+    "Board Meeting/Leadership Change": [
+      "Board Meeting",
+      "Leadership Change"
+    ],
+    "Board Meeting/Leadership Changes": [
+      "Board Meeting",
+      "Leadership Changes"
+    ],
+    "Board Meeting/Management Appointment": [
+      "Board Meeting",
+      "Management Appointment"
+    ],
+    "Board Meeting/Management Change": [
+      "Board Meeting",
+      "Management Change"
+    ],
+    "Board Meeting/Management Changes": [
+      "Board Meeting",
+      "Management Changes"
+    ],
+    "Board Meeting/Management Update": [
+      "Board Meeting",
+      "Management Update"
+    ],
+    "Board Meeting/Nomination": [
+      "Board Meeting",
+      "Nomination"
+    ],
+    "Board Meeting/Partnership Incorporation": [
+      "Board Meeting",
+      "Partnership Incorporation"
+    ],
+    "Board Meeting/Personnel Change": [
+      "Board Meeting",
+      "Personnel Change"
+    ],
+    "Board Meeting/Personnel Changes": [
+      "Board Meeting",
+      "Personnel Changes"
+    ],
+    "Board Meeting/Personnel Update": [
+      "Board Meeting",
+      "Personnel Update"
+    ],
+    "Board Meeting/Preferential Issue": [
+      "Board Meeting",
+      "Preferential Issue"
+    ],
+    "Board Meeting/Project Announcement": [
+      "Board Meeting",
+      "Project Announcement"
+    ],
+    "Board Meeting/Project Approval": [
+      "Board Meeting",
+      "Project Approval"
+    ],
+    "Board Meeting/Project Update": [
+      "Board Meeting",
+      "Project Update"
+    ],
+    "Board Meeting/Proposal": [
+      "Board Meeting",
+      "Proposal"
+    ],
+    "Board Meeting/Re-appointment": [
+      "Board Meeting",
+      "Re-appointment"
+    ],
+    "Board Meeting/Re-appointments": [
+      "Board Meeting",
+      "Re-appointments"
+    ],
+    "Board Meeting/Reappointment": [
+      "Board Meeting",
+      "Reappointment"
+    ],
+    "Board Meeting/Reappointment of Directors": [
+      "Board Meeting",
+      "Reappointment of Directors"
+    ],
+    "Board Meeting/Regulatory Approval": [
+      "Board Meeting",
+      "Regulatory Approval"
+    ],
+    "Board Meeting/Regulatory Compliance": [
+      "Board Meeting",
+      "Regulatory Compliance"
+    ],
+    "Board Meeting/Regulatory Filing": [
+      "Board Meeting",
+      "Regulatory Filing"
+    ],
+    "Board Meeting/Regulatory Update": [
+      "Board Meeting",
+      "Regulatory Update"
+    ],
+    "Board Meeting/Resignation": [
+      "Board Meeting",
+      "Resignation"
+    ],
+    "Board Meeting/Resignation/Appointment": [
+      "Appointment",
+      "Board Meeting",
+      "Resignation"
+    ],
+    "Board Meeting/Resignations/Appointments": [
+      "Appointments",
+      "Board Meeting",
+      "Resignations"
+    ],
+    "Board Meeting/Resolution": [
+      "Board Meeting",
+      "Resolution"
+    ],
+    "Board Meeting/Resolution Plan": [
+      "Board Meeting",
+      "Resolution Plan"
+    ],
+    "Board Meeting/Resolutions": [
+      "Board Meeting",
+      "Resolutions"
+    ],
+    "Board Meeting/Restructuring": [
+      "Board Meeting",
+      "Restructuring"
+    ],
+    "Board Meeting/Securities Issue": [
+      "Board Meeting",
+      "Securities Issue"
+    ],
+    "Board Meeting/Share Allotment": [
+      "Board Meeting",
+      "Share Allotment"
+    ],
+    "Board Meeting/Share Based Incentive Plan": [
+      "Board Meeting",
+      "Share Based Incentive Plan"
+    ],
+    "Board Meeting/Share Capital Increase": [
+      "Board Meeting",
+      "Share Capital Increase"
+    ],
+    "Board Meeting/Share Conversion": [
+      "Board Meeting",
+      "Share Conversion"
+    ],
+    "Board Meeting/Share Issuance": [
+      "Board Meeting",
+      "Share Issuance"
+    ],
+    "Board Meeting/Share Issue": [
+      "Board Meeting",
+      "Share Issue"
+    ],
+    "Board Meeting/Share Placement": [
+      "Board Meeting",
+      "Share Placement"
+    ],
+    "Board Meeting/Share Scheme": [
+      "Board Meeting",
+      "Share Scheme"
+    ],
+    "Board Meeting/Shareholder Approval": [
+      "Board Meeting",
+      "Shareholder Approval"
+    ],
+    "Board Meeting/Shareholder Update": [
+      "Board Meeting",
+      "Shareholder Update"
+    ],
+    "Board Meeting/Strategic Initiative": [
+      "Board Meeting",
+      "Strategic Initiative"
+    ],
+    "Board Meeting/Succession Planning": [
+      "Board Meeting",
+      "Succession Planning"
+    ],
+    "Board Meeting/Transition": [
+      "Board Meeting",
+      "Transition"
+    ],
+    "Board Meeting/Update": [
+      "Board Meeting",
+      "Update"
+    ],
+    "Board Movement": [
+      "Board Movement"
+    ],
+    "Board Movement/Change": [
+      "Board Movement",
+      "Change"
+    ],
+    "Board Movement/Management Change": [
+      "Board Movement",
+      "Management Change"
+    ],
+    "Board Movement/Resignation": [
+      "Board Movement",
+      "Resignation"
+    ],
+    "Board Resignation": [
+      "Board Resignation"
+    ],
+    "Board Restructuring": [
+      "Board Restructuring"
+    ],
+    "Board Update": [
+      "Board Update"
+    ],
+    "Board/Management Change": [
+      "Board",
+      "Management Change"
+    ],
+    "Board/Management Changes": [
+      "Board",
+      "Management Changes"
+    ],
+    "Board/Management Update": [
+      "Board",
+      "Management Update"
+    ],
+    "Bond Issuance": [
+      "Bond Issuance"
+    ],
+    "Bonus Issue": [
+      "Bonus Issue"
+    ],
+    "Bonus Share Allotment": [
+      "Bonus Share Allotment"
+    ],
+    "Bonus Share Issuance": [
+      "Bonus Share Issuance"
+    ],
+    "Bonus Share Issue": [
+      "Bonus Share Issue"
+    ],
+    "Book Launch/Corporate Event": [
+      "Book Launch",
+      "Corporate Event"
+    ],
+    "Branch Expansion": [
+      "Branch Expansion"
+    ],
+    "Brand Acquisition/Expansion": [
+      "Brand Acquisition",
+      "Expansion"
+    ],
+    "Brand Announcement/Partnership": [
+      "Brand Announcement",
+      "Partnership"
+    ],
+    "Brand Identity Update": [
+      "Brand Identity Update"
+    ],
+    "Brand Realignment": [
+      "Brand Realignment"
+    ],
+    "Brand Rebranding": [
+      "Brand Rebranding"
+    ],
+    "Brand Recognition/Award": [
+      "Award",
+      "Brand Recognition"
+    ],
+    "Brand Refresh": [
+      "Brand Refresh"
+    ],
+    "Brand Update": [
+      "Brand Update"
+    ],
+    "Brand Update/Rebranding": [
+      "Brand Update",
+      "Rebranding"
+    ],
+    "Brand Update/Repositioning": [
+      "Brand Update",
+      "Repositioning"
+    ],
+    "Brand Upgrade/Repositioning": [
+      "Brand Upgrade",
+      "Repositioning"
+    ],
+    "Business Expansion": [
+      "Business Expansion"
+    ],
+    "Business Milestone": [
+      "Business Milestone"
+    ],
+    "Business Update": [
+      "Business Update"
+    ],
+    "Business Updates": [
+      "Business Updates"
+    ],
+    "Buyback": [
+      "Buyback"
+    ],
+    "Buyback Announcement": [
+      "Buyback Announcement"
+    ],
+    "Buyback of Securities": [
+      "Buyback of Securities"
+    ],
+    "Buyback/Share Repurchase": [
+      "Buyback",
+      "Share Repurchase"
+    ],
+    "Capacity Addition": [
+      "Capacity Addition"
+    ],
+    "Capacity Expansion": [
+      "Capacity Expansion"
+    ],
+    "Capex Announcement": [
+      "Capex Announcement"
+    ],
+    "Capex/Expansion": [
+      "Capex",
+      "Expansion"
+    ],
+    "Capital Expenditure": [
+      "Capital Expenditure"
+    ],
+    "Capital Raise": [
+      "Capital Raise"
+    ],
+    "Capital Raise/Investment": [
+      "Capital Raise",
+      "Investment"
+    ],
+    "Capital Strengthening": [
+      "Capital Strengthening"
+    ],
+    "Certification/Award": [
+      "Award",
+      "Certification"
+    ],
+    "Change in Key Managerial Personnel": [
+      "Change in Key Managerial Personnel"
+    ],
+    "Change in Management": [
+      "Change in Management"
+    ],
+    "Change in Senior Management": [
+      "Change in Senior Management"
+    ],
+    "Change in Senior Management Personnel": [
+      "Change in Senior Management Personnel"
+    ],
+    "Clarification/Denial": [
+      "Clarification",
+      "Denial"
+    ],
+    "Clarification/Denial of Rumours": [
+      "Clarification",
+      "Denial of Rumours"
+    ],
+    "Clarification/Response to Rumours": [
+      "Clarification",
+      "Response to Rumours"
+    ],
+    "Clinical Trials": [
+      "Clinical Trials"
+    ],
+    "Commissioning of New Facility": [
+      "Commissioning of New Facility"
+    ],
+    "Commissioning/Project Completion": [
+      "Commissioning",
+      "Project Completion"
+    ],
+    "Company Information": [
+      "Company Information"
+    ],
+    "Conference Call": [
+      "Conference Call"
+    ],
+    "Conference Call/Investor Update": [
+      "Conference Call",
+      "Investor Update"
+    ],
+    "Conference Meeting": [
+      "Conference Meeting"
+    ],
+    "Conference Participation": [
+      "Conference Participation"
+    ],
+    "Conference/Event": [
+      "Conference",
+      "Event"
+    ],
+    "Conference/Meetings": [
+      "Conference",
+      "Meetings"
+    ],
+    "Content Announcement": [
+      "Content Announcement"
+    ],
+    "Content Launch/Production": [
+      "Content Launch",
+      "Production"
+    ],
+    "Contract Extension": [
+      "Contract Extension"
+    ],
+    "Contract Termination": [
+      "Contract Termination"
+    ],
+    "Corporate Action": [
+      "Corporate Action"
+    ],
+    "Corporate Actions": [
+      "Corporate Actions"
+    ],
+    "Corporate Event": [
+      "Corporate Event"
+    ],
+    "Corporate Presentation": [
+      "Corporate Presentation"
+    ],
+    "Corporate Restructuring": [
+      "Corporate Restructuring"
+    ],
+    "Corporate Social Responsibility": [
+      "Corporate Social Responsibility"
+    ],
+    "Corporate Social Responsibility (CSR)": [
+      "Corporate Social Responsibility (CSR)"
+    ],
+    "Corporate Social Responsibility (CSR) Initiative": [
+      "Corporate Social Responsibility (CSR) Initiative"
+    ],
+    "Corporate Social Responsibility Initiative": [
+      "Corporate Social Responsibility Initiative"
+    ],
+    "Corporate Social Responsibility/Healthcare Initiative": [
+      "Corporate Social Responsibility",
+      "Healthcare Initiative"
+    ],
+    "Corporate Social Responsibility/Initiative": [
+      "Corporate Social Responsibility",
+      "Initiative"
+    ],
+    "Corporate Update": [
+      "Corporate Update"
+    ],
+    "Credit Rating": [
+      "Credit Rating"
+    ],
+    "Credit Rating Change": [
+      "Credit Rating Change"
+    ],
+    "Credit Rating Downgrade": [
+      "Credit Rating Downgrade"
+    ],
+    "Credit Rating Reaffirmation": [
+      "Credit Rating Reaffirmation"
+    ],
+    "Credit Rating Revision": [
+      "Credit Rating Revision"
+    ],
+    "Credit Rating Update": [
+      "Credit Rating Update"
+    ],
+    "Credit Rating Upgrade": [
+      "Credit Rating Upgrade"
+    ],
+    "Cyber Security Incident": [
+      "Cyber Security Incident"
+    ],
+    "Debt Issuance": [
+      "Debt Issuance"
+    ],
+    "Debt Issuance/Allotment": [
+      "Allotment",
+      "Debt Issuance"
+    ],
+    "Debt Issue": [
+      "Debt Issue"
+    ],
+    "Debt Issue/Allotment": [
+      "Allotment",
+      "Debt Issue"
+    ],
+    "Debt Issue/Placement": [
+      "Debt Issue",
+      "Placement"
+    ],
+    "Debt Issue/Securities": [
+      "Debt Issue",
+      "Securities"
+    ],
+    "Debt Redemption": [
+      "Debt Redemption"
+    ],
+    "Debt Reduction/Agreement": [
+      "Agreement",
+      "Debt Reduction"
+    ],
+    "Debt Reduction/Financial Update": [
+      "Debt Reduction",
+      "Financial Update"
+    ],
+    "Debt Reduction/Repayment": [
+      "Debt Reduction",
+      "Repayment"
+    ],
+    "Debt Refinancing": [
+      "Debt Refinancing"
+    ],
+    "Debt Repayment": [
+      "Debt Repayment"
+    ],
+    "Debt Repayment/Buyback": [
+      "Buyback",
+      "Debt Repayment"
+    ],
+    "Debt Repayment/Redemption": [
+      "Debt Repayment",
+      "Redemption"
+    ],
+    "Debt Repayment/Restructuring": [
+      "Debt Repayment",
+      "Restructuring"
+    ],
+    "Debt Restructuring": [
+      "Debt Restructuring"
+    ],
+    "Debt Restructuring/Redemption": [
+      "Debt Restructuring",
+      "Redemption"
+    ],
+    "Debt Restructuring/Refinancing": [
+      "Debt Restructuring",
+      "Refinancing"
+    ],
+    "Debt Securities Allotment": [
+      "Debt Securities Allotment"
+    ],
+    "Default": [
+      "Default"
+    ],
+    "Delisting": [
+      "Delisting"
+    ],
+    "Delisting Proposal": [
+      "Delisting Proposal"
+    ],
+    "Digital Banking Initiative": [
+      "Digital Banking Initiative"
+    ],
+    "Digital Expansion": [
+      "Digital Expansion"
+    ],
+    "Digital Transformation Initiative": [
+      "Digital Transformation Initiative"
+    ],
+    "Digital Transformation/Integration": [
+      "Digital Transformation",
+      "Integration"
+    ],
+    "Disinvestment": [
+      "Disinvestment"
+    ],
+    "Disinvestment/Divestment": [
+      "Disinvestment",
+      "Divestment"
+    ],
+    "Disposal of Business Unit": [
+      "Disposal of Business Unit"
+    ],
+    "Disposal of Stake": [
+      "Disposal of Stake"
+    ],
+    "Dispute/Litigation": [
+      "Dispute",
+      "Litigation"
+    ],
+    "Divestment": [
+      "Divestment"
+    ],
+    "Divestment/Disinvestment": [
+      "Disinvestment",
+      "Divestment"
+    ],
+    "Divestment/Disposal": [
+      "Disposal",
+      "Divestment"
+    ],
+    "Divestment/Share Sale": [
+      "Divestment",
+      "Share Sale"
+    ],
+    "Dividend": [
+      "Dividend"
+    ],
+    "Dividend Announcement": [
+      "Dividend Announcement"
+    ],
+    "Dividend Announcement, Subsidiary Update": [
+      "Dividend Announcement",
+      "Subsidiary Update"
+    ],
+    "Dividend Declaration": [
+      "Dividend Declaration"
+    ],
+    "Dividend Payment": [
+      "Dividend Payment"
+    ],
+    "Dividend Payment and Redemption": [
+      "Dividend Payment and Redemption"
+    ],
+    "Dividend Receipt": [
+      "Dividend Receipt"
+    ],
+    "Dividend/Payout": [
+      "Dividend",
+      "Payout"
+    ],
+    "Donation/Philanthropy": [
+      "Donation",
+      "Philanthropy"
+    ],
+    "E-commerce Launch": [
+      "E-commerce Launch"
+    ],
+    "Earnings": [
+      "Earnings"
+    ],
+    "Earnings and Agreement": [
+      "Earnings and Agreement"
+    ],
+    "Earnings and Board Meeting": [
+      "Earnings and Board Meeting"
+    ],
+    "Earnings Call": [
+      "Earnings Call"
+    ],
+    "Earnings Conference Call": [
+      "Earnings Conference Call"
+    ],
+    "Earnings, Appointment": [
+      "Appointment",
+      "Earnings"
+    ],
+    "Earnings/AGM Update": [
+      "AGM Update",
+      "Earnings"
+    ],
+    "Earnings/Annual General Meeting": [
+      "Annual General Meeting",
+      "Earnings"
+    ],
+    "Earnings/Annual Report": [
+      "Annual Report",
+      "Earnings"
+    ],
+    "Earnings/Clarification": [
+      "Clarification",
+      "Earnings"
+    ],
+    "Earnings/Conference Call": [
+      "Conference Call",
+      "Earnings"
+    ],
+    "Earnings/Dispatch Data": [
+      "Dispatch Data",
+      "Earnings"
+    ],
+    "Earnings/Financial Projections": [
+      "Earnings",
+      "Financial Projections"
+    ],
+    "Earnings/Financial Update": [
+      "Earnings",
+      "Financial Update"
+    ],
+    "Earnings/Growth Expectation": [
+      "Earnings",
+      "Growth Expectation"
+    ],
+    "Earnings/Growth Outlook": [
+      "Earnings",
+      "Growth Outlook"
+    ],
+    "Earnings/Investment Highlights": [
+      "Earnings",
+      "Investment Highlights"
+    ],
+    "Earnings/Operational Update": [
+      "Earnings",
+      "Operational Update"
+    ],
+    "Earnings/Order Win": [
+      "Earnings",
+      "Order Win"
+    ],
+    "Earnings/Production Update": [
+      "Earnings",
+      "Production Update"
+    ],
+    "Earnings/Regulatory Approval": [
+      "Earnings",
+      "Regulatory Approval"
+    ],
+    "Earnings/Regulatory Disclosure": [
+      "Earnings",
+      "Regulatory Disclosure"
+    ],
+    "Earnings/Regulatory Filing": [
+      "Earnings",
+      "Regulatory Filing"
+    ],
+    "Earnings/Results": [
+      "Earnings",
+      "Results"
+    ],
+    "Education/Admissions": [
+      "Admissions",
+      "Education"
+    ],
+    "EGM/Share Issue": [
+      "EGM",
+      "Share Issue"
+    ],
+    "Employee Benefits": [
+      "Employee Benefits"
+    ],
+    "Employee Benefits/Stock Option Scheme": [
+      "Employee Benefits",
+      "Stock Option Scheme"
+    ],
+    "Employee Benefits/Stock Options": [
+      "Employee Benefits",
+      "Stock Options"
+    ],
+    "Employee Stock Option Grant": [
+      "Employee Stock Option Grant"
+    ],
+    "Employee Stock Option Plan": [
+      "Employee Stock Option Plan"
+    ],
+    "Employee Stock Option Plan (ESOP)": [
+      "Employee Stock Option Plan (ESOP)"
+    ],
+    "Employee Stock Option Plan (ESOP) Allotment": [
+      "Employee Stock Option Plan (ESOP) Allotment"
+    ],
+    "Employee Stock Option Plan Allotment": [
+      "Employee Stock Option Plan Allotment"
+    ],
+    "Employee Stock Option Scheme": [
+      "Employee Stock Option Scheme"
+    ],
+    "Employee Stock Option Scheme (ESOS) Allotment": [
+      "Employee Stock Option Scheme (ESOS) Allotment"
+    ],
+    "Employee Stock Option Scheme Allotment": [
+      "Employee Stock Option Scheme Allotment"
+    ],
+    "Employee Stock Option/Performance Stock Unit Grant": [
+      "Employee Stock Option",
+      "Performance Stock Unit Grant"
+    ],
+    "Employee Stock Options": [
+      "Employee Stock Options"
+    ],
+    "Employee Stock Options/Incentives": [
+      "Employee Stock Options",
+      "Incentives"
+    ],
+    "Environmental Certification": [
+      "Environmental Certification"
+    ],
+    "Equipment Acquisition": [
+      "Equipment Acquisition"
+    ],
+    "Equity Allotment": [
+      "Equity Allotment"
+    ],
+    "Equity Capital Raise": [
+      "Equity Capital Raise"
+    ],
+    "Equity Fundraise": [
+      "Equity Fundraise"
+    ],
+    "Equity Infusion": [
+      "Equity Infusion"
+    ],
+    "Equity Issue": [
+      "Equity Issue"
+    ],
+    "Equity Issue/Share Capital": [
+      "Equity Issue",
+      "Share Capital"
+    ],
+    "Equity Listing": [
+      "Equity Listing"
+    ],
+    "Equity Raise": [
+      "Equity Raise"
+    ],
+    "Equity Raise/Investment": [
+      "Equity Raise",
+      "Investment"
+    ],
+    "Equity Share Allotment": [
+      "Equity Share Allotment"
+    ],
+    "Equity Share Allotment/Grant of RSU": [
+      "Equity Share Allotment",
+      "Grant of RSU"
+    ],
+    "Equity Share Issuance": [
+      "Equity Share Issuance"
+    ],
+    "Equity Share Issue": [
+      "Equity Share Issue"
+    ],
+    "Equity Share Placement": [
+      "Equity Share Placement"
+    ],
+    "Equity Share/Convertible Warrant Allotment": [
+      "Convertible Warrant Allotment",
+      "Equity Share"
+    ],
+    "ESG Rating": [
+      "ESG Rating"
+    ],
+    "ESG Rating Update": [
+      "ESG Rating Update"
+    ],
+    "ESG Rating Upgrade": [
+      "ESG Rating Upgrade"
+    ],
+    "ESG/CSR Announcement": [
+      "CSR Announcement",
+      "ESG"
+    ],
+    "ESOP Allotment": [
+      "ESOP Allotment"
+    ],
+    "ESOP/ESPS Allotment": [
+      "ESOP",
+      "ESPS Allotment"
+    ],
+    "ESOP/Stock Option": [
+      "ESOP",
+      "Stock Option"
+    ],
+    "Event": [
+      "Event"
+    ],
+    "Event Announcement": [
+      "Event Announcement"
+    ],
+    "Event Participation": [
+      "Event Participation"
+    ],
+    "Event Update": [
+      "Event Update"
+    ],
+    "Event/Community Engagement": [
+      "Community Engagement",
+      "Event"
+    ],
+    "Event/Competition Announcement": [
+      "Competition Announcement",
+      "Event"
+    ],
+    "Event/Exhibition": [
+      "Event",
+      "Exhibition"
+    ],
+    "Executive Appointment": [
+      "Executive Appointment"
+    ],
+    "Expansion": [
+      "Expansion"
+    ],
+    "Expansion Announcement": [
+      "Expansion Announcement"
+    ],
+    "Expansion Plan": [
+      "Expansion Plan"
+    ],
+    "Expansion Plans": [
+      "Expansion Plans"
+    ],
+    "Expansion/Agreement": [
+      "Agreement",
+      "Expansion"
+    ],
+    "Expansion/Capacity Addition": [
+      "Capacity Addition",
+      "Expansion"
+    ],
+    "Expansion/Capacity Increase": [
+      "Capacity Increase",
+      "Expansion"
+    ],
+    "Expansion/Entry into New Market": [
+      "Entry into New Market",
+      "Expansion"
+    ],
+    "Expansion/Foray into New Segment": [
+      "Expansion",
+      "Foray into New Segment"
+    ],
+    "Expansion/Geographic Expansion": [
+      "Expansion",
+      "Geographic Expansion"
+    ],
+    "Expansion/Geographical Entry": [
+      "Expansion",
+      "Geographical Entry"
+    ],
+    "Expansion/Growth": [
+      "Expansion",
+      "Growth"
+    ],
+    "Expansion/Growth Strategy": [
+      "Expansion",
+      "Growth Strategy"
+    ],
+    "Expansion/Inauguration": [
+      "Expansion",
+      "Inauguration"
+    ],
+    "Expansion/Infrastructure Development": [
+      "Expansion",
+      "Infrastructure Development"
+    ],
+    "Expansion/Innovation": [
+      "Expansion",
+      "Innovation"
+    ],
+    "Expansion/International Business": [
+      "Expansion",
+      "International Business"
+    ],
+    "Expansion/International Operations": [
+      "Expansion",
+      "International Operations"
+    ],
+    "Expansion/International Presence": [
+      "Expansion",
+      "International Presence"
+    ],
+    "Expansion/Investment": [
+      "Expansion",
+      "Investment"
+    ],
+    "Expansion/Launch": [
+      "Expansion",
+      "Launch"
+    ],
+    "Expansion/Lease Agreement": [
+      "Expansion",
+      "Lease Agreement"
+    ],
+    "Expansion/Manufacturing Capacity Increase": [
+      "Expansion",
+      "Manufacturing Capacity Increase"
+    ],
+    "Expansion/Market Entry": [
+      "Expansion",
+      "Market Entry"
+    ],
+    "Expansion/Market Update": [
+      "Expansion",
+      "Market Update"
+    ],
+    "Expansion/Milestone": [
+      "Expansion",
+      "Milestone"
+    ],
+    "Expansion/Network Strengthening": [
+      "Expansion",
+      "Network Strengthening"
+    ],
+    "Expansion/New Branch Opening": [
+      "Expansion",
+      "New Branch Opening"
+    ],
+    "Expansion/New Business": [
+      "Expansion",
+      "New Business"
+    ],
+    "Expansion/New Facility": [
+      "Expansion",
+      "New Facility"
+    ],
+    "Expansion/New Launch": [
+      "Expansion",
+      "New Launch"
+    ],
+    "Expansion/New Office Launch": [
+      "Expansion",
+      "New Office Launch"
+    ],
+    "Expansion/New Store Opening": [
+      "Expansion",
+      "New Store Opening"
+    ],
+    "Expansion/Opening": [
+      "Expansion",
+      "Opening"
+    ],
+    "Expansion/Operations Update": [
+      "Expansion",
+      "Operations Update"
+    ],
+    "Expansion/Partnership": [
+      "Expansion",
+      "Partnership"
+    ],
+    "Expansion/Relocation": [
+      "Expansion",
+      "Relocation"
+    ],
+    "Expansion/Scaling": [
+      "Expansion",
+      "Scaling"
+    ],
+    "Expansion/Service Launch": [
+      "Expansion",
+      "Service Launch"
+    ],
+    "Expansion/Service Upgrade": [
+      "Expansion",
+      "Service Upgrade"
+    ],
+    "Expansion/Store Launch": [
+      "Expansion",
+      "Store Launch"
+    ],
+    "Expansion/Store Opening": [
+      "Expansion",
+      "Store Opening"
+    ],
+    "Expansion/Strategic Acquisition": [
+      "Expansion",
+      "Strategic Acquisition"
+    ],
+    "Expansion/Strategic Initiative": [
+      "Expansion",
+      "Strategic Initiative"
+    ],
+    "Expansion/Strategic Move": [
+      "Expansion",
+      "Strategic Move"
+    ],
+    "Expansion/Strategic Signing": [
+      "Expansion",
+      "Strategic Signing"
+    ],
+    "Expansion/Update": [
+      "Expansion",
+      "Update"
+    ],
+    "Expansion/Upgrade": [
+      "Expansion",
+      "Upgrade"
+    ],
+    "Exploration Discovery": [
+      "Exploration Discovery"
+    ],
+    "Exploration Update": [
+      "Exploration Update"
+    ],
+    "Export Performance": [
+      "Export Performance"
+    ],
+    "Export/International Business": [
+      "Export",
+      "International Business"
+    ],
+    "Export/Trade Agreement": [
+      "Export",
+      "Trade Agreement"
+    ],
+    "Facility Expansion": [
+      "Facility Expansion"
+    ],
+    "Facility Inauguration": [
+      "Facility Inauguration"
+    ],
+    "Facility Inauguration/Expansion": [
+      "Expansion",
+      "Facility Inauguration"
+    ],
+    "Facility Launch": [
+      "Facility Launch"
+    ],
+    "Financial Results": [
+      "Financial Results"
+    ],
+    "Financing Agreement": [
+      "Financing Agreement"
+    ],
+    "Financing/Refinancing Agreement": [
+      "Financing",
+      "Refinancing Agreement"
+    ],
+    "Fraud Detection": [
+      "Fraud Detection"
+    ],
+    "Fund Raise/Investment": [
+      "Fund Raise",
+      "Investment"
+    ],
+    "Fund Raising": [
+      "Fund Raising"
+    ],
+    "Fund Raising/Debt Issuance": [
+      "Debt Issuance",
+      "Fund Raising"
+    ],
+    "Fund Raising/Equity Issue": [
+      "Equity Issue",
+      "Fund Raising"
+    ],
+    "Fund Raising/Expansion": [
+      "Expansion",
+      "Fund Raising"
+    ],
+    "Fund Raising/Investment": [
+      "Fund Raising",
+      "Investment"
+    ],
+    "Fund Raising/Investment Agreement": [
+      "Fund Raising",
+      "Investment Agreement"
+    ],
+    "Fund Raising/Investment Grade Achievement": [
+      "Fund Raising",
+      "Investment Grade Achievement"
+    ],
+    "Fund Raising/Preferential Issue": [
+      "Fund Raising",
+      "Preferential Issue"
+    ],
+    "Funding Announcement": [
+      "Funding Announcement"
+    ],
+    "Funding/Financing": [
+      "Financing",
+      "Funding"
+    ],
+    "Funding/Investment": [
+      "Funding",
+      "Investment"
+    ],
+    "Fundraising/Equity Issuance": [
+      "Equity Issuance",
+      "Fundraising"
+    ],
+    "Fundraising/Investment": [
+      "Fundraising",
+      "Investment"
+    ],
+    "General Announcement": [
+      "General Announcement"
+    ],
+    "General Business Announcement": [
+      "General Business Announcement"
+    ],
+    "General Business Update": [
+      "General Business Update"
+    ],
+    "General Meeting": [
+      "General Meeting"
+    ],
+    "Growth Ambition": [
+      "Growth Ambition"
+    ],
+    "Growth Announcement": [
+      "Growth Announcement"
+    ],
+    "Growth Plans": [
+      "Growth Plans"
+    ],
+    "Growth Update": [
+      "Growth Update"
+    ],
+    "Guidance": [
+      "Guidance"
+    ],
+    "Health Issue": [
+      "Health Issue"
+    ],
+    "Incident Report": [
+      "Incident Report"
+    ],
+    "Incident Update": [
+      "Incident Update"
+    ],
+    "Incident/Event Update": [
+      "Event Update",
+      "Incident"
+    ],
+    "Incorporation of Subsidiary": [
+      "Incorporation of Subsidiary"
+    ],
+    "Index Inclusion": [
+      "Index Inclusion"
+    ],
+    "Industry Recognition": [
+      "Industry Recognition"
+    ],
+    "Infrastructure Development": [
+      "Infrastructure Development"
+    ],
+    "Infrastructure Expansion": [
+      "Infrastructure Expansion"
+    ],
+    "Infrastructure Upgrade": [
+      "Infrastructure Upgrade"
+    ],
+    "Innovation Initiative": [
+      "Innovation Initiative"
+    ],
+    "Innovation/Competition": [
+      "Competition",
+      "Innovation"
+    ],
+    "Innovation/Expansion": [
+      "Expansion",
+      "Innovation"
+    ],
+    "Insider Trading Disclosure": [
+      "Insider Trading Disclosure"
+    ],
+    "Integration/Partnership": [
+      "Integration",
+      "Partnership"
+    ],
+    "Interview/Management Comments": [
+      "Interview",
+      "Management Comments"
+    ],
+    "Investment": [
+      "Investment"
+    ],
+    "Investment Agreement": [
+      "Investment Agreement"
+    ],
+    "Investment Announcement": [
+      "Investment Announcement"
+    ],
+    "Investment Decision": [
+      "Investment Decision"
+    ],
+    "Investment in Technology and Infrastructure": [
+      "Investment in Technology and Infrastructure"
+    ],
+    "Investment in Wholly-Owned Subsidiary Company": [
+      "Investment in Wholly-Owned Subsidiary Company"
+    ],
+    "Investment Promotion Assistance Scheme": [
+      "Investment Promotion Assistance Scheme"
+    ],
+    "Investment Update": [
+      "Investment Update"
+    ],
+    "Investment/Acquisition": [
+      "Acquisition",
+      "Investment"
+    ],
+    "Investment/Agreement": [
+      "Agreement",
+      "Investment"
+    ],
+    "Investment/Expansion": [
+      "Expansion",
+      "Investment"
+    ],
+    "Investment/Expansion Plans": [
+      "Expansion Plans",
+      "Investment"
+    ],
+    "Investment/Partnership": [
+      "Investment",
+      "Partnership"
+    ],
+    "Investment/Placement": [
+      "Investment",
+      "Placement"
+    ],
+    "Investment/Share Acquisition": [
+      "Investment",
+      "Share Acquisition"
+    ],
+    "Investment/Share Allotment": [
+      "Investment",
+      "Share Allotment"
+    ],
+    "Investment/Share Deal": [
+      "Investment",
+      "Share Deal"
+    ],
+    "Investment/Share Subscription": [
+      "Investment",
+      "Share Subscription"
+    ],
+    "Investment/Share Subscription Agreement": [
+      "Investment",
+      "Share Subscription Agreement"
+    ],
+    "Investment/Subscription": [
+      "Investment",
+      "Subscription"
+    ],
+    "Investment/Subscription Agreement": [
+      "Investment",
+      "Subscription Agreement"
+    ],
+    "Investor Call": [
+      "Investor Call"
+    ],
+    "Investor Call/Update": [
+      "Investor Call",
+      "Update"
+    ],
+    "Investor Communication": [
+      "Investor Communication"
+    ],
+    "Investor Conference": [
+      "Investor Conference"
+    ],
+    "Investor Conference Call": [
+      "Investor Conference Call"
+    ],
+    "Investor Conference/Event": [
+      "Event",
+      "Investor Conference"
+    ],
+    "Investor Conference/Meeting": [
+      "Investor Conference",
+      "Meeting"
+    ],
+    "Investor Engagement": [
+      "Investor Engagement"
+    ],
+    "Investor Event": [
+      "Investor Event"
+    ],
+    "Investor Interaction": [
+      "Investor Interaction"
+    ],
+    "Investor Interaction/Conference": [
+      "Conference",
+      "Investor Interaction"
+    ],
+    "Investor Meet": [
+      "Investor Meet"
+    ],
+    "Investor Meet Update": [
+      "Investor Meet Update"
+    ],
+    "Investor Meet/Analyst Call": [
+      "Analyst Call",
+      "Investor Meet"
+    ],
+    "Investor Meet/Conference": [
+      "Conference",
+      "Investor Meet"
+    ],
+    "Investor Meet/Presentation": [
+      "Investor Meet",
+      "Presentation"
+    ],
+    "Investor Meeting": [
+      "Investor Meeting"
+    ],
+    "Investor Meeting/Conference": [
+      "Conference",
+      "Investor Meeting"
+    ],
+    "Investor Meetings": [
+      "Investor Meetings"
+    ],
+    "Investor Meetings/Conferences": [
+      "Conferences",
+      "Investor Meetings"
+    ],
+    "Investor Presentation": [
+      "Investor Presentation"
+    ],
+    "Investor Relations": [
+      "Investor Relations"
+    ],
+    "Investor Update": [
+      "Investor Update"
+    ],
+    "Investor/Analyst Meeting": [
+      "Analyst Meeting",
+      "Investor"
+    ],
+    "Investors Meet": [
+      "Investors Meet"
+    ],
+    "Investors Meeting": [
+      "Investors Meeting"
+    ],
+    "Investors/Analysts Meet": [
+      "Analysts Meet",
+      "Investors"
+    ],
+    "Investors/Analysts Meeting": [
+      "Analysts Meeting",
+      "Investors"
+    ],
+    "IPO": [
+      "IPO"
+    ],
+    "IPO Update": [
+      "IPO Update"
+    ],
+    "IPO/Share Sale": [
+      "IPO",
+      "Share Sale"
+    ],
+    "Job Openings": [
+      "Job Openings"
+    ],
+    "Joint Venture Agreement": [
+      "Joint Venture Agreement"
+    ],
+    "Key Managerial Personnel Change": [
+      "Key Managerial Personnel Change"
+    ],
+    "Land Acquisition": [
+      "Land Acquisition"
+    ],
+    "Land Acquisition/Expansion": [
+      "Expansion",
+      "Land Acquisition"
+    ],
+    "Land Acquisition/Real Estate Development": [
+      "Land Acquisition",
+      "Real Estate Development"
+    ],
+    "Launch": [
+      "Launch"
+    ],
+    "Launch Announcement": [
+      "Launch Announcement"
+    ],
+    "Launch/Expansion": [
+      "Expansion",
+      "Launch"
+    ],
+    "Leadership Appointment": [
+      "Leadership Appointment"
+    ],
+    "Leadership Appointment/Operational Update": [
+      "Leadership Appointment",
+      "Operational Update"
+    ],
+    "Leadership Change": [
+      "Leadership Change"
+    ],
+    "Leadership Change/Corporate Update": [
+      "Corporate Update",
+      "Leadership Change"
+    ],
+    "Leadership Recognition": [
+      "Leadership Recognition"
+    ],
+    "Leadership Recognition/Award": [
+      "Award",
+      "Leadership Recognition"
+    ],
+    "Leadership Transition": [
+      "Leadership Transition"
+    ],
+    "Liquidation": [
+      "Liquidation"
+    ],
+    "Listing": [
+      "Listing"
+    ],
+    "Listing Anniversary": [
+      "Listing Anniversary"
+    ],
+    "Listing Announcement": [
+      "Listing Announcement"
+    ],
+    "Listing Ceremony": [
+      "Listing Ceremony"
+    ],
+    "Listing Update": [
+      "Listing Update"
+    ],
+    "Listing/Delisting": [
+      "Delisting",
+      "Listing"
+    ],
+    "Listing/IPO": [
+      "IPO",
+      "Listing"
+    ],
+    "Listing/Migration": [
+      "Listing",
+      "Migration"
+    ],
+    "Listing/Trading": [
+      "Listing",
+      "Trading"
+    ],
+    "Listing/Trading Information": [
+      "Listing",
+      "Trading Information"
+    ],
+    "Litigation Update": [
+      "Litigation Update"
+    ],
+    "Litigation/Dispute": [
+      "Dispute",
+      "Litigation"
+    ],
+    "Litigation/Dispute Resolution": [
+      "Dispute Resolution",
+      "Litigation"
+    ],
+    "Loan Disbursal/Agreement": [
+      "Agreement",
+      "Loan Disbursal"
+    ],
+    "Loan Prepayment": [
+      "Loan Prepayment"
+    ],
+    "Loan Repayment": [
+      "Loan Repayment"
+    ],
+    "Loan Sanction": [
+      "Loan Sanction"
+    ],
+    "Maintenance/Shutdown": [
+      "Maintenance",
+      "Shutdown"
+    ],
+    "Major Development": [
+      "Major Development"
+    ],
+    "Management Appointment": [
+      "Management Appointment"
+    ],
+    "Management Change": [
+      "Management Change"
+    ],
+    "Management Changes": [
+      "Management Changes"
+    ],
+    "Management Update": [
+      "Management Update"
+    ],
+    "Management/Board Update": [
+      "Board Update",
+      "Management"
+    ],
+    "Manufacturing Expansion": [
+      "Manufacturing Expansion"
+    ],
+    "Market Expansion": [
+      "Market Expansion"
+    ],
+    "Market Insights/Research Report": [
+      "Market Insights",
+      "Research Report"
+    ],
+    "Market Recognition/Award": [
+      "Award",
+      "Market Recognition"
+    ],
+    "Market Research/Report": [
+      "Market Research",
+      "Report"
+    ],
+    "Market Trend/Insight": [
+      "Insight",
+      "Market Trend"
+    ],
+    "Market Update": [
+      "Market Update"
+    ],
+    "Marketing Campaign": [
+      "Marketing Campaign"
+    ],
+    "Marketing Initiative": [
+      "Marketing Initiative"
+    ],
+    "Marketing/Advertising": [
+      "Advertising",
+      "Marketing"
+    ],
+    "Marketing/Advertising Campaign": [
+      "Advertising Campaign",
+      "Marketing"
+    ],
+    "Marketing/Brand Announcement": [
+      "Brand Announcement",
+      "Marketing"
+    ],
+    "Marketing/Brand Promotion": [
+      "Brand Promotion",
+      "Marketing"
+    ],
+    "Marketing/Experiential Initiative": [
+      "Experiential Initiative",
+      "Marketing"
+    ],
+    "Marketing/Partnership Announcement": [
+      "Marketing",
+      "Partnership Announcement"
+    ],
+    "Marketing/Promotion": [
+      "Marketing",
+      "Promotion"
+    ],
+    "Media Interaction": [
+      "Media Interaction"
+    ],
+    "Media Interaction/Update": [
+      "Media Interaction",
+      "Update"
+    ],
+    "Media/Investor Interaction": [
+      "Investor Interaction",
+      "Media"
+    ],
+    "Media/Press Coverage": [
+      "Media",
+      "Press Coverage"
+    ],
+    "Medical Research": [
+      "Medical Research"
+    ],
+    "Merger & Acquisition": [
+      "Merger & Acquisition"
+    ],
+    "Merger and Acquisition": [
+      "Merger and Acquisition"
+    ],
+    "Merger and Amalgamation": [
+      "Merger and Amalgamation"
+    ],
+    "Merger/Acquisition": [
+      "Acquisition",
+      "Merger"
+    ],
+    "Mergers and Acquisitions": [
+      "Mergers and Acquisitions"
+    ],
+    "Milestone": [
+      "Milestone"
+    ],
+    "Milestone Achievement": [
+      "Milestone Achievement"
+    ],
+    "Milestone/Anniversary": [
+      "Anniversary",
+      "Milestone"
+    ],
+    "Miscellaneous": [
+      "Miscellaneous"
+    ],
+    "Miscellaneous Services Recruitment Examination": [
+      "Miscellaneous Services Recruitment Examination"
+    ],
+    "Miscellaneous/Non-Material Information": [
+      "Miscellaneous",
+      "Non-Material Information"
+    ],
+    "Miscellaneous/Update": [
+      "Miscellaneous",
+      "Update"
+    ],
+    "Monthly Production and Sales Report": [
+      "Monthly Production and Sales Report"
+    ],
+    "Monthly Sales Report": [
+      "Monthly Sales Report"
+    ],
+    "Monthly Sales Update": [
+      "Monthly Sales Update"
+    ],
+    "Network Enhancement": [
+      "Network Enhancement"
+    ],
+    "Network Expansion": [
+      "Network Expansion"
+    ],
+    "Network Optimization": [
+      "Network Optimization"
+    ],
+    "NEUTRAL": [
+      "NEUTRAL"
+    ],
+    "New Business Initiative": [
+      "New Business Initiative"
+    ],
+    "New Business Line": [
+      "New Business Line"
+    ],
+    "New Business Unit Launch": [
+      "New Business Unit Launch"
+    ],
+    "New Business Venture": [
+      "New Business Venture"
+    ],
+    "New Business/Expansion": [
+      "Expansion",
+      "New Business"
+    ],
+    "New Entity Incorporation": [
+      "New Entity Incorporation"
+    ],
+    "New Initiative/Expansion": [
+      "Expansion",
+      "New Initiative"
+    ],
+    "New Initiative/Launch": [
+      "Launch",
+      "New Initiative"
+    ],
+    "New Initiative/Partnership": [
+      "New Initiative",
+      "Partnership"
+    ],
+    "New Launch/Expansion": [
+      "Expansion",
+      "New Launch"
+    ],
+    "New Launch/Project Announcement": [
+      "New Launch",
+      "Project Announcement"
+    ],
+    "New Product/Service Launch": [
+      "New Product",
+      "Service Launch"
+    ],
+    "New Project Launch": [
+      "New Project Launch"
+    ],
+    "New Property Launch": [
+      "New Property Launch"
+    ],
+    "New Service Launch": [
+      "New Service Launch"
+    ],
+    "Offer for Sale": [
+      "Offer for Sale"
+    ],
+    "Open Offer": [
+      "Open Offer"
+    ],
+    "Open Offer/Share Acquisition": [
+      "Open Offer",
+      "Share Acquisition"
+    ],
+    "Operational Business Update": [
+      "Operational Business Update"
+    ],
+    "Operational Milestone": [
+      "Operational Milestone"
+    ],
+    "Operational Update": [
+      "Operational Update"
+    ],
+    "Order Cancellation": [
+      "Order Cancellation"
+    ],
+    "Order Completion": [
+      "Order Completion"
+    ],
+    "Order Completion/Project Update": [
+      "Order Completion",
+      "Project Update"
+    ],
+    "Order Update": [
+      "Order Update"
+    ],
+    "Order Update/Progress": [
+      "Order Update",
+      "Progress"
+    ],
+    "Order Win": [
+      "Order Win"
+    ],
+    "Order Win/Achievement": [
+      "Achievement",
+      "Order Win"
+    ],
+    "Order Win/Agreement": [
+      "Agreement",
+      "Order Win"
+    ],
+    "Order Win/Asset Acquisition": [
+      "Asset Acquisition",
+      "Order Win"
+    ],
+    "Order Win/Award": [
+      "Award",
+      "Order Win"
+    ],
+    "Order Win/Booking Announcement": [
+      "Booking Announcement",
+      "Order Win"
+    ],
+    "Order Win/Booking Update": [
+      "Booking Update",
+      "Order Win"
+    ],
+    "Order Win/Box Office Performance": [
+      "Box Office Performance",
+      "Order Win"
+    ],
+    "Order Win/Business Update": [
+      "Business Update",
+      "Order Win"
+    ],
+    "Order Win/Capital Expenditure": [
+      "Capital Expenditure",
+      "Order Win"
+    ],
+    "Order Win/Clarification": [
+      "Clarification",
+      "Order Win"
+    ],
+    "Order Win/Commissioning": [
+      "Commissioning",
+      "Order Win"
+    ],
+    "Order Win/Commissioning of a Warship": [
+      "Commissioning of a Warship",
+      "Order Win"
+    ],
+    "Order Win/Completion": [
+      "Completion",
+      "Order Win"
+    ],
+    "Order Win/Contract Award": [
+      "Contract Award",
+      "Order Win"
+    ],
+    "Order Win/Contract Extension": [
+      "Contract Extension",
+      "Order Win"
+    ],
+    "Order Win/Contract Signing": [
+      "Contract Signing",
+      "Order Win"
+    ],
+    "Order Win/Development Milestone": [
+      "Development Milestone",
+      "Order Win"
+    ],
+    "Order Win/Execution Update": [
+      "Execution Update",
+      "Order Win"
+    ],
+    "Order Win/Expansion": [
+      "Expansion",
+      "Order Win"
+    ],
+    "Order Win/Expansion Plans": [
+      "Expansion Plans",
+      "Order Win"
+    ],
+    "Order Win/Export Achievement": [
+      "Export Achievement",
+      "Order Win"
+    ],
+    "Order Win/Implementation": [
+      "Implementation",
+      "Order Win"
+    ],
+    "Order Win/Investment Announcement": [
+      "Investment Announcement",
+      "Order Win"
+    ],
+    "Order Win/Lease Agreement": [
+      "Lease Agreement",
+      "Order Win"
+    ],
+    "Order Win/Milestone Achievement": [
+      "Milestone Achievement",
+      "Order Win"
+    ],
+    "Order Win/Partnership": [
+      "Order Win",
+      "Partnership"
+    ],
+    "Order Win/Production Commencement": [
+      "Order Win",
+      "Production Commencement"
+    ],
+    "Order Win/Project Acquisition": [
+      "Order Win",
+      "Project Acquisition"
+    ],
+    "Order Win/Project Announcement": [
+      "Order Win",
+      "Project Announcement"
+    ],
+    "Order Win/Project Award": [
+      "Order Win",
+      "Project Award"
+    ],
+    "Order Win/Project Commissioning": [
+      "Order Win",
+      "Project Commissioning"
+    ],
+    "Order Win/Project Completion": [
+      "Order Win",
+      "Project Completion"
+    ],
+    "Order Win/Project Deployment": [
+      "Order Win",
+      "Project Deployment"
+    ],
+    "Order Win/Project Launch": [
+      "Order Win",
+      "Project Launch"
+    ],
+    "Order Win/Project Update": [
+      "Order Win",
+      "Project Update"
+    ],
+    "Order Win/Project Updates": [
+      "Order Win",
+      "Project Updates"
+    ],
+    "Order Win/Recognition": [
+      "Order Win",
+      "Recognition"
+    ],
+    "Order Win/Sale": [
+      "Order Win",
+      "Sale"
+    ],
+    "Order Win/Sales Achievement": [
+      "Order Win",
+      "Sales Achievement"
+    ],
+    "Order Win/Sales Update": [
+      "Order Win",
+      "Sales Update"
+    ],
+    "Order Win/Shipbuilding Milestone": [
+      "Order Win",
+      "Shipbuilding Milestone"
+    ],
+    "Order Win/Supply Agreement": [
+      "Order Win",
+      "Supply Agreement"
+    ],
+    "Order Win/Technical Achievement": [
+      "Order Win",
+      "Technical Achievement"
+    ],
+    "Order Win/Tender": [
+      "Order Win",
+      "Tender"
+    ],
+    "Order Win/Termination": [
+      "Order Win",
+      "Termination"
+    ],
+    "Order Win/Update": [
+      "Order Win",
+      "Update"
+    ],
+    "Order Withdrawal": [
+      "Order Withdrawal"
+    ],
+    "Order/Agreement": [
+      "Agreement",
+      "Order"
+    ],
+    "Order/Contract Update": [
+      "Contract Update",
+      "Order"
+    ],
+    "Other Corporate Announcement": [
+      "Other Corporate Announcement"
+    ],
+    "Overseas Expansion": [
+      "Overseas Expansion"
+    ],
+    "Partnership": [
+      "Partnership"
+    ],
+    "Partnership Agreement": [
+      "Partnership Agreement"
+    ],
+    "Partnership Announcement": [
+      "Partnership Announcement"
+    ],
+    "Partnership Expansion": [
+      "Partnership Expansion"
+    ],
+    "Partnership Milestone": [
+      "Partnership Milestone"
+    ],
+    "Partnership/Accreditation": [
+      "Accreditation",
+      "Partnership"
+    ],
+    "Partnership/Agreement": [
+      "Agreement",
+      "Partnership"
+    ],
+    "Partnership/AI-powered Innovations": [
+      "AI-powered Innovations",
+      "Partnership"
+    ],
+    "Partnership/Award": [
+      "Award",
+      "Partnership"
+    ],
+    "Partnership/Awareness Initiative": [
+      "Awareness Initiative",
+      "Partnership"
+    ],
+    "Partnership/Collaboration": [
+      "Collaboration",
+      "Partnership"
+    ],
+    "Partnership/Endorsement": [
+      "Endorsement",
+      "Partnership"
+    ],
+    "Partnership/Expansion": [
+      "Expansion",
+      "Partnership"
+    ],
+    "Personnel Change": [
+      "Personnel Change"
+    ],
+    "Philanthropic Initiative": [
+      "Philanthropic Initiative"
+    ],
+    "Portfolio Expansion": [
+      "Portfolio Expansion"
+    ],
+    "Preferential Allotment": [
+      "Preferential Allotment"
+    ],
+    "Preferential Issue": [
+      "Preferential Issue"
+    ],
+    "Preferential Issue of Equity Shares": [
+      "Preferential Issue of Equity Shares"
+    ],
+    "Price Increase": [
+      "Price Increase"
+    ],
+    "Price Revision": [
+      "Price Revision"
+    ],
+    "Pricing Update": [
+      "Pricing Update"
+    ],
+    "Product Announcement": [
+      "Product Announcement"
+    ],
+    "Product Development": [
+      "Product Development"
+    ],
+    "Product Development/Innovation": [
+      "Innovation",
+      "Product Development"
+    ],
+    "Product Enhancement": [
+      "Product Enhancement"
+    ],
+    "Product Launch": [
+      "Product Launch"
+    ],
+    "Product Launch/Agreement": [
+      "Agreement",
+      "Product Launch"
+    ],
+    "Product Launch/Brand Introduction": [
+      "Brand Introduction",
+      "Product Launch"
+    ],
+    "Product Launch/Brand Milestone": [
+      "Brand Milestone",
+      "Product Launch"
+    ],
+    "Product Launch/Community Program": [
+      "Community Program",
+      "Product Launch"
+    ],
+    "Product Launch/Event": [
+      "Event",
+      "Product Launch"
+    ],
+    "Product Launch/Expansion": [
+      "Expansion",
+      "Product Launch"
+    ],
+    "Product Launch/Initiative": [
+      "Initiative",
+      "Product Launch"
+    ],
+    "Product Launch/Innovation": [
+      "Innovation",
+      "Product Launch"
+    ],
+    "Product Launch/Manufacturing": [
+      "Manufacturing",
+      "Product Launch"
+    ],
+    "Product Launch/Milestone": [
+      "Milestone",
+      "Product Launch"
+    ],
+    "Product Launch/Order Win": [
+      "Order Win",
+      "Product Launch"
+    ],
+    "Product Launch/Partnership": [
+      "Partnership",
+      "Product Launch"
+    ],
+    "Product Launch/Rebranding": [
+      "Product Launch",
+      "Rebranding"
+    ],
+    "Product Launch/Regulatory Approval": [
+      "Product Launch",
+      "Regulatory Approval"
+    ],
+    "Product Launch/Release": [
+      "Product Launch",
+      "Release"
+    ],
+    "Product Launch/Service Announcement": [
+      "Product Launch",
+      "Service Announcement"
+    ],
+    "Product Launch/Service Enhancement": [
+      "Product Launch",
+      "Service Enhancement"
+    ],
+    "Product Launch/Showcase": [
+      "Product Launch",
+      "Showcase"
+    ],
+    "Product Launch/Technology Upgrade": [
+      "Product Launch",
+      "Technology Upgrade"
+    ],
+    "Product Launch/Update": [
+      "Product Launch",
+      "Update"
+    ],
+    "Product Launch/Upgrade": [
+      "Product Launch",
+      "Upgrade"
+    ],
+    "Product Recall": [
+      "Product Recall"
+    ],
+    "Product Showcase/Event Participation": [
+      "Event Participation",
+      "Product Showcase"
+    ],
+    "Product Showcase/Exhibition": [
+      "Exhibition",
+      "Product Showcase"
+    ],
+    "Product Showcase/Market Update": [
+      "Market Update",
+      "Product Showcase"
+    ],
+    "Product Update": [
+      "Product Update"
+    ],
+    "Product Update/Pricing": [
+      "Pricing",
+      "Product Update"
+    ],
+    "Product/Service Enhancement": [
+      "Product",
+      "Service Enhancement"
+    ],
+    "Product/Service Expansion": [
+      "Product",
+      "Service Expansion"
+    ],
+    "Product/Service Launch": [
+      "Product",
+      "Service Launch"
+    ],
+    "Production and Sales Update": [
+      "Production and Sales Update"
+    ],
+    "Production Capacity Expansion": [
+      "Production Capacity Expansion"
+    ],
+    "Production Milestone": [
+      "Production Milestone"
+    ],
+    "Production Update": [
+      "Production Update"
+    ],
+    "Project Announcement": [
+      "Project Announcement"
+    ],
+    "Project Commencement": [
+      "Project Commencement"
+    ],
+    "Project Commissioning": [
+      "Project Commissioning"
+    ],
+    "Project Completion": [
+      "Project Completion"
+    ],
+    "Project Inauguration": [
+      "Project Inauguration"
+    ],
+    "Project Launch": [
+      "Project Launch"
+    ],
+    "Project Revival/Agreement": [
+      "Agreement",
+      "Project Revival"
+    ],
+    "Project Update": [
+      "Project Update"
+    ],
+    "Project Update/Inauguration": [
+      "Inauguration",
+      "Project Update"
+    ],
+    "Project Updates": [
+      "Project Updates"
+    ],
+    "Promotion": [
+      "Promotion"
+    ],
+    "Promotional Announcement": [
+      "Promotional Announcement"
+    ],
+    "Promotional Offer": [
+      "Promotional Offer"
+    ],
+    "Public Issue": [
+      "Public Issue"
+    ],
+    "Ranking/Award": [
+      "Award",
+      "Ranking"
+    ],
+    "Rating Action": [
+      "Rating Action"
+    ],
+    "Rating Announcement": [
+      "Rating Announcement"
+    ],
+    "Rating Downgrade": [
+      "Rating Downgrade"
+    ],
+    "Rating Reaffirmation": [
+      "Rating Reaffirmation"
+    ],
+    "Rating Reaffirmation/Upgradation": [
+      "Rating Reaffirmation",
+      "Upgradation"
+    ],
+    "Rating Reaffirmation/Withdrawal": [
+      "Rating Reaffirmation",
+      "Withdrawal"
+    ],
+    "Rating Revision": [
+      "Rating Revision"
+    ],
+    "Rating Update": [
+      "Rating Update"
+    ],
+    "Rating Upgrade": [
+      "Rating Upgrade"
+    ],
+    "Rebranding": [
+      "Rebranding"
+    ],
+    "Rebranding/Upgrade": [
+      "Rebranding",
+      "Upgrade"
+    ],
+    "Recognition/Award": [
+      "Award",
+      "Recognition"
+    ],
+    "Recruitment/Job Opening": [
+      "Job Opening",
+      "Recruitment"
+    ],
+    "Regulatory": [
+      "Regulatory"
+    ],
+    "Regulatory Action": [
+      "Regulatory Action"
+    ],
+    "Regulatory Advisory": [
+      "Regulatory Advisory"
+    ],
+    "Regulatory Announcement": [
+      "Regulatory Announcement"
+    ],
+    "Regulatory Appointment": [
+      "Regulatory Appointment"
+    ],
+    "Regulatory Approval": [
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval, Agreement": [
+      "Agreement",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval, Board Meeting": [
+      "Board Meeting",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Agreement": [
+      "Agreement",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Announcement": [
+      "Announcement",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Award": [
+      "Award",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Clinical Trials": [
+      "Clinical Trials",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Commercial Launch": [
+      "Commercial Launch",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Commissioning": [
+      "Commissioning",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Compliance": [
+      "Compliance",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Corporate Restructuring": [
+      "Corporate Restructuring",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Development": [
+      "Development",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Discovery": [
+      "Discovery",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/ESG Rating": [
+      "ESG Rating",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Expansion": [
+      "Expansion",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Incentives": [
+      "Incentives",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Innovation": [
+      "Innovation",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Investment Agreement": [
+      "Investment Agreement",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Legal": [
+      "Legal",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Milestone Achievement": [
+      "Milestone Achievement",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Order Win": [
+      "Order Win",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Partnership": [
+      "Partnership",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Plant Commissioning": [
+      "Plant Commissioning",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Product Launch": [
+      "Product Launch",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Production Update": [
+      "Production Update",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Project Announcement": [
+      "Project Announcement",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Project Commissioning": [
+      "Project Commissioning",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Project Completion": [
+      "Project Completion",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Project Update": [
+      "Project Update",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Quality Assurance": [
+      "Quality Assurance",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Recognition": [
+      "Recognition",
+      "Regulatory Approval"
+    ],
+    "Regulatory Approval/Research Findings": [
+      "Regulatory Approval",
+      "Research Findings"
+    ],
+    "Regulatory Approval/Settlement": [
+      "Regulatory Approval",
+      "Settlement"
+    ],
+    "Regulatory Approval/Shareholder Update": [
+      "Regulatory Approval",
+      "Shareholder Update"
+    ],
+    "Regulatory Approval/Technology Adoption": [
+      "Regulatory Approval",
+      "Technology Adoption"
+    ],
+    "Regulatory Approval/Technology Demonstration": [
+      "Regulatory Approval",
+      "Technology Demonstration"
+    ],
+    "Regulatory Approval/Technology Development": [
+      "Regulatory Approval",
+      "Technology Development"
+    ],
+    "Regulatory Approval/Transfer of Business": [
+      "Regulatory Approval",
+      "Transfer of Business"
+    ],
+    "Regulatory Approval/Update": [
+      "Regulatory Approval",
+      "Update"
+    ],
+    "Regulatory Clarification": [
+      "Regulatory Clarification"
+    ],
+    "Regulatory Clearance": [
+      "Regulatory Clearance"
+    ],
+    "Regulatory Compliance": [
+      "Regulatory Compliance"
+    ],
+    "Regulatory Correspondence": [
+      "Regulatory Correspondence"
+    ],
+    "Regulatory Disclosure": [
+      "Regulatory Disclosure"
+    ],
+    "Regulatory Dispute": [
+      "Regulatory Dispute"
+    ],
+    "Regulatory Enquiry": [
+      "Regulatory Enquiry"
+    ],
+    "Regulatory Examination": [
+      "Regulatory Examination"
+    ],
+    "Regulatory Filing": [
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing - Business Expansion": [
+      "Regulatory Filing - Business Expansion"
+    ],
+    "Regulatory Filing - Change in Management": [
+      "Regulatory Filing - Change in Management"
+    ],
+    "Regulatory Filing Correction": [
+      "Regulatory Filing Correction"
+    ],
+    "Regulatory Filing/Acquisition": [
+      "Acquisition",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/AGM": [
+      "AGM",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/AGM Update": [
+      "AGM Update",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Compliance": [
+      "Compliance",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Corporate Update": [
+      "Corporate Update",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Earnings": [
+      "Earnings",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Earnings Call": [
+      "Earnings Call",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/ESOP Scheme": [
+      "ESOP Scheme",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Investment": [
+      "Investment",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Investor Update": [
+      "Investor Update",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Litigation": [
+      "Litigation",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Patent Application": [
+      "Patent Application",
+      "Regulatory Filing"
+    ],
+    "Regulatory Filing/Update": [
+      "Regulatory Filing",
+      "Update"
+    ],
+    "Regulatory Filings": [
+      "Regulatory Filings"
+    ],
+    "Regulatory Inspection": [
+      "Regulatory Inspection"
+    ],
+    "Regulatory Investigation": [
+      "Regulatory Investigation"
+    ],
+    "Regulatory Non-Compliance": [
+      "Regulatory Non-Compliance"
+    ],
+    "Regulatory Notice": [
+      "Regulatory Notice"
+    ],
+    "Regulatory Order": [
+      "Regulatory Order"
+    ],
+    "Regulatory Penalty": [
+      "Regulatory Penalty"
+    ],
+    "Regulatory Proceedings": [
+      "Regulatory Proceedings"
+    ],
+    "Regulatory Recognition": [
+      "Regulatory Recognition"
+    ],
+    "Regulatory Recognition/Award": [
+      "Award",
+      "Regulatory Recognition"
+    ],
+    "Regulatory Refund": [
+      "Regulatory Refund"
+    ],
+    "Regulatory Relief": [
+      "Regulatory Relief"
+    ],
+    "Regulatory Settlement": [
+      "Regulatory Settlement"
+    ],
+    "Regulatory Update": [
+      "Regulatory Update"
+    ],
+    "Regulatory Warning": [
+      "Regulatory Warning"
+    ],
+    "Regulatory/Compliance": [
+      "Compliance",
+      "Regulatory"
+    ],
+    "Regulatory/Compliance Announcement": [
+      "Compliance Announcement",
+      "Regulatory"
+    ],
+    "Regulatory/Governance Announcement": [
+      "Governance Announcement",
+      "Regulatory"
+    ],
+    "Regulatory/Investigation": [
+      "Investigation",
+      "Regulatory"
+    ],
+    "Regulatory/Investigation Update": [
+      "Investigation Update",
+      "Regulatory"
+    ],
+    "Regulatory/Legal": [
+      "Legal",
+      "Regulatory"
+    ],
+    "Regulatory/Legal Issue": [
+      "Legal Issue",
+      "Regulatory"
+    ],
+    "Regulatory/Legal Proceedings": [
+      "Legal Proceedings",
+      "Regulatory"
+    ],
+    "Regulatory/Legal Update": [
+      "Legal Update",
+      "Regulatory"
+    ],
+    "Renewable Energy Expansion": [
+      "Renewable Energy Expansion"
+    ],
+    "Report Release": [
+      "Report Release"
+    ],
+    "Report/Study Findings": [
+      "Report",
+      "Study Findings"
+    ],
+    "Report/Study Release": [
+      "Report",
+      "Study Release"
+    ],
+    "Research & Development": [
+      "Research & Development"
+    ],
+    "Research & Development Agreement": [
+      "Research & Development Agreement"
+    ],
+    "Research and Development": [
+      "Research and Development"
+    ],
+    "Research Report": [
+      "Research Report"
+    ],
+    "Research Report/Study": [
+      "Research Report",
+      "Study"
+    ],
+    "Research Update": [
+      "Research Update"
+    ],
+    "Research/Report Release": [
+      "Report Release",
+      "Research"
+    ],
+    "Research/Study Announcement": [
+      "Research",
+      "Study Announcement"
+    ],
+    "Research/Study Findings": [
+      "Research",
+      "Study Findings"
+    ],
+    "Resignation": [
+      "Resignation"
+    ],
+    "Resignation and Appointment": [
+      "Resignation and Appointment"
+    ],
+    "Resignation of Auditor": [
+      "Resignation of Auditor"
+    ],
+    "Resignation of Key Managerial Personnel": [
+      "Resignation of Key Managerial Personnel"
+    ],
+    "Resignation of Senior Management Personnel": [
+      "Resignation of Senior Management Personnel"
+    ],
+    "Resignation of Senior Managerial Personnel": [
+      "Resignation of Senior Managerial Personnel"
+    ],
+    "Resignation of Statutory Auditor": [
+      "Resignation of Statutory Auditor"
+    ],
+    "Resignation/Apointment": [
+      "Apointment",
+      "Resignation"
+    ],
+    "Resignation/Appointment": [
+      "Appointment",
+      "Resignation"
+    ],
+    "Resignation/Appt of Senior Management Personnel": [
+      "Appt of Senior Management Personnel",
+      "Resignation"
+    ],
+    "Resignation/Audit": [
+      "Audit",
+      "Resignation"
+    ],
+    "Resignation/Audit Committee": [
+      "Audit Committee",
+      "Resignation"
+    ],
+    "Resignation/Change in Key Managerial Personnel": [
+      "Change in Key Managerial Personnel",
+      "Resignation"
+    ],
+    "Resignation/Change in Management": [
+      "Change in Management",
+      "Resignation"
+    ],
+    "Resignation/Change in Senior Management Personnel": [
+      "Change in Senior Management Personnel",
+      "Resignation"
+    ],
+    "Resignation/Personnel Change": [
+      "Personnel Change",
+      "Resignation"
+    ],
+    "Resignation/Withdrawal": [
+      "Resignation",
+      "Withdrawal"
+    ],
+    "Restructuring": [
+      "Restructuring"
+    ],
+    "Restructuring/Agreement": [
+      "Agreement",
+      "Restructuring"
+    ],
+    "Restructuring/Dilution of Stake": [
+      "Dilution of Stake",
+      "Restructuring"
+    ],
+    "Restructuring/Ownership Change": [
+      "Ownership Change",
+      "Restructuring"
+    ],
+    "Restructuring/Portfolio Realignment": [
+      "Portfolio Realignment",
+      "Restructuring"
+    ],
+    "Restructuring/Reorganization": [
+      "Reorganization",
+      "Restructuring"
+    ],
+    "Retail Expansion": [
+      "Retail Expansion"
+    ],
+    "Rights Issue": [
+      "Rights Issue"
+    ],
+    "Rights Issue Allotment": [
+      "Rights Issue Allotment"
+    ],
+    "Rights Issue Completion": [
+      "Rights Issue Completion"
+    ],
+    "Rights Issue Update": [
+      "Rights Issue Update"
+    ],
+    "Rights Issue/Share Capital Reorganization": [
+      "Rights Issue",
+      "Share Capital Reorganization"
+    ],
+    "Sale of Assets": [
+      "Sale of Assets"
+    ],
+    "Sales Milestone": [
+      "Sales Milestone"
+    ],
+    "Sales Performance": [
+      "Sales Performance"
+    ],
+    "Sales Report": [
+      "Sales Report"
+    ],
+    "Sales Update": [
+      "Sales Update"
+    ],
+    "Scheme of Amalgamation": [
+      "Scheme of Amalgamation"
+    ],
+    "Securitization": [
+      "Securitization"
+    ],
+    "Securitization Transaction": [
+      "Securitization Transaction"
+    ],
+    "Securitization/Debt Raising": [
+      "Debt Raising",
+      "Securitization"
+    ],
+    "Senior Management Change": [
+      "Senior Management Change"
+    ],
+    "Share Acquisition": [
+      "Share Acquisition"
+    ],
+    "Share Allotment": [
+      "Share Allotment"
+    ],
+    "Share Allotment/Conversion": [
+      "Conversion",
+      "Share Allotment"
+    ],
+    "Share Allotment/Debt Issuance": [
+      "Debt Issuance",
+      "Share Allotment"
+    ],
+    "Share Allotment/Employee Benefits": [
+      "Employee Benefits",
+      "Share Allotment"
+    ],
+    "Share Allotment/Employee Stock Option Plan": [
+      "Employee Stock Option Plan",
+      "Share Allotment"
+    ],
+    "Share Allotment/Employee Stock Options": [
+      "Employee Stock Options",
+      "Share Allotment"
+    ],
+    "Share Allotment/ESOP": [
+      "ESOP",
+      "Share Allotment"
+    ],
+    "Share Allotment/Grant": [
+      "Grant",
+      "Share Allotment"
+    ],
+    "Share Allotment/Investment": [
+      "Investment",
+      "Share Allotment"
+    ],
+    "Share Allotment/Investment Agreement": [
+      "Investment Agreement",
+      "Share Allotment"
+    ],
+    "Share Allotment/Transfer": [
+      "Share Allotment",
+      "Transfer"
+    ],
+    "Share Buyback": [
+      "Share Buyback"
+    ],
+    "Share Buyback Approval": [
+      "Share Buyback Approval"
+    ],
+    "Share Capital Increase": [
+      "Share Capital Increase"
+    ],
+    "Share Capital Reorganization": [
+      "Share Capital Reorganization"
+    ],
+    "Share Capital Update": [
+      "Share Capital Update"
+    ],
+    "Share Conversion": [
+      "Share Conversion"
+    ],
+    "Share Conversion/Allotment": [
+      "Allotment",
+      "Share Conversion"
+    ],
+    "Share Disposal": [
+      "Share Disposal"
+    ],
+    "Share Incentive Plan": [
+      "Share Incentive Plan"
+    ],
+    "Share Issuance": [
+      "Share Issuance"
+    ],
+    "Share Issuance/Conversion": [
+      "Conversion",
+      "Share Issuance"
+    ],
+    "Share Issuance/Investment": [
+      "Investment",
+      "Share Issuance"
+    ],
+    "Share Issuance/Investment Agreement": [
+      "Investment Agreement",
+      "Share Issuance"
+    ],
+    "Share Issue": [
+      "Share Issue"
+    ],
+    "Share Redemption": [
+      "Share Redemption"
+    ],
+    "Share Sale": [
+      "Share Sale"
+    ],
+    "Share Sale Disclosure": [
+      "Share Sale Disclosure"
+    ],
+    "Share Sale/Disposal": [
+      "Disposal",
+      "Share Sale"
+    ],
+    "Share Sale/Investment": [
+      "Investment",
+      "Share Sale"
+    ],
+    "Share Sale/Offer": [
+      "Offer",
+      "Share Sale"
+    ],
+    "Share Sale/Offer for Sale": [
+      "Offer for Sale",
+      "Share Sale"
+    ],
+    "Share Sale/Promoter Stake Rationalisation": [
+      "Promoter Stake Rationalisation",
+      "Share Sale"
+    ],
+    "Share Sale/Promoter Transaction": [
+      "Promoter Transaction",
+      "Share Sale"
+    ],
+    "Share Sale/Purchase Agreement": [
+      "Purchase Agreement",
+      "Share Sale"
+    ],
+    "Share Split": [
+      "Share Split"
+    ],
+    "Share Subscription/Investment Agreement": [
+      "Investment Agreement",
+      "Share Subscription"
+    ],
+    "Share Transaction": [
+      "Share Transaction"
+    ],
+    "Share Transfer": [
+      "Share Transfer"
+    ],
+    "Share Transfer/ESOP": [
+      "ESOP",
+      "Share Transfer"
+    ],
+    "Share Transfer/ESOPs": [
+      "ESOPs",
+      "Share Transfer"
+    ],
+    "Share Transfer/Exercise of Options": [
+      "Exercise of Options",
+      "Share Transfer"
+    ],
+    "Share Transfer/Investment": [
+      "Investment",
+      "Share Transfer"
+    ],
+    "Share Transfer/Investment Agreement": [
+      "Investment Agreement",
+      "Share Transfer"
+    ],
+    "Share-based Long Term Incentive Scheme": [
+      "Share-based Long Term Incentive Scheme"
+    ],
+    "Share/Investment Deal": [
+      "Investment Deal",
+      "Share"
+    ],
+    "Shareholder Information": [
+      "Shareholder Information"
+    ],
+    "Shareholder Meeting": [
+      "Shareholder Meeting"
+    ],
+    "Shareholder Update": [
+      "Shareholder Update"
+    ],
+    "Shareholders' Meeting": [
+      "Shareholders' Meeting"
+    ],
+    "Shareholding Disclosure": [
+      "Shareholding Disclosure"
+    ],
+    "Shareholding Pattern": [
+      "Shareholding Pattern"
+    ],
+    "Shareholding Update": [
+      "Shareholding Update"
+    ],
+    "Statement/Clarification": [
+      "Clarification",
+      "Statement"
+    ],
+    "Store Expansion": [
+      "Store Expansion"
+    ],
+    "Store Launch/Expansion": [
+      "Expansion",
+      "Store Launch"
+    ],
+    "Store Opening": [
+      "Store Opening"
+    ],
+    "Strategic Expansion": [
+      "Strategic Expansion"
+    ],
+    "Strategic Initiative": [
+      "Strategic Initiative"
+    ],
+    "Strategic Move": [
+      "Strategic Move"
+    ],
+    "Strategic Partnership": [
+      "Strategic Partnership"
+    ],
+    "Strategic Plan/Initiative": [
+      "Initiative",
+      "Strategic Plan"
+    ],
+    "Strategic Realignment": [
+      "Strategic Realignment"
+    ],
+    "Strategy Update": [
+      "Strategy Update"
+    ],
+    "Sustainability Award": [
+      "Sustainability Award"
+    ],
+    "Sustainability Initiative": [
+      "Sustainability Initiative"
+    ],
+    "Sustainability Milestone": [
+      "Sustainability Milestone"
+    ],
+    "Sustainability Recognition": [
+      "Sustainability Recognition"
+    ],
+    "Sustainability Report": [
+      "Sustainability Report"
+    ],
+    "Sustainability Update": [
+      "Sustainability Update"
+    ],
+    "Sustainability/CSR": [
+      "CSR",
+      "Sustainability"
+    ],
+    "Sustainability/Environmental Initiative": [
+      "Environmental Initiative",
+      "Sustainability"
+    ],
+    "Sustainability/Environmental Update": [
+      "Environmental Update",
+      "Sustainability"
+    ],
+    "Sustainability/ESG": [
+      "ESG",
+      "Sustainability"
+    ],
+    "Sustainability/Infrastructure Update": [
+      "Infrastructure Update",
+      "Sustainability"
+    ],
+    "Technology Adoption": [
+      "Technology Adoption"
+    ],
+    "Technology Adoption/Platform Launch": [
+      "Platform Launch",
+      "Technology Adoption"
+    ],
+    "Technology Advancement": [
+      "Technology Advancement"
+    ],
+    "Technology Development": [
+      "Technology Development"
+    ],
+    "Technology Integration": [
+      "Technology Integration"
+    ],
+    "Technology Partnership/Accreditation": [
+      "Accreditation",
+      "Technology Partnership"
+    ],
+    "Technology Partnership/Innovation": [
+      "Innovation",
+      "Technology Partnership"
+    ],
+    "Technology Update": [
+      "Technology Update"
+    ],
+    "Technology Upgrade": [
+      "Technology Upgrade"
+    ],
+    "Technology Upgrade/Adoption": [
+      "Adoption",
+      "Technology Upgrade"
+    ],
+    "Technology/Innovation": [
+      "Innovation",
+      "Technology"
+    ],
+    "Tender": [
+      "Tender"
+    ],
+    "Tender Notice": [
+      "Tender Notice"
+    ],
+    "Tenders": [
+      "Tenders"
+    ],
+    "Travel Trends": [
+      "Travel Trends"
+    ],
+    "Uncategorizable": [
+      "Uncategorizable"
+    ],
+    "Uncategorized": [
+      "Uncategorized"
+    ],
+    "UNCERTAIN": [
+      "UNCERTAIN"
+    ],
+    "Unknown": [
+      "Unknown"
+    ],
+    "Vessel Acquisition": [
+      "Vessel Acquisition"
+    ],
+    "Vessel Sale": [
+      "Vessel Sale"
+    ]
+  }
+}
