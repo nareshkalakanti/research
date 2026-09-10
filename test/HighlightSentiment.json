@@ -1,0 +1,218 @@
+{
+    "metadata": {
+        "company": "EPACK Prefab Technologies Limited",
+        "event_date": "03 Aug 2026, 4:00 PM",
+        "reporting_period": "Q1 FY27",
+        "total_highlights": 12,
+        "positive_count": 7,
+        "negative_count": 3,
+        "neutral_count": 2,
+        "overall_sentiment": "POSITIVE",
+        "overall_score": 7.2
+    },
+    "highlights": [
+        {
+            "id": 1,
+            "category": "Order Book",
+            "sentiment": "POSITIVE",
+            "headline": "Record ₹580cr order inflow in Q1, 147% YoY growth",
+            "quote": "We booked about INR580 crores of orders last quarter as compared to just INR240 in the same quarter last financial year",
+            "quantified_impact": {
+                "metric": "Order inflow growth",
+                "value": 146.4,
+                "unit": "%",
+                "impact_level": "HIGH"
+            },
+            "forward_indicator": true,
+            "score": 9
+        },
+        {
+            "id": 2,
+            "category": "Margin Pressure",
+            "sentiment": "NEGATIVE",
+            "headline": "EBITDA margin compression: 110 bps YoY due to steel price spike",
+            "quote": "EBITDA margin in the first quarter last year was 10.5 which stands at 9.4%",
+            "quantified_impact": {
+                "metric": "Margin compression",
+                "value": 110,
+                "unit": "bps",
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": true,
+            "management_guidance": "Expects normalization to 10.5-11.5% from Q2",
+            "score": 4
+        },
+        {
+            "id": 3,
+            "category": "Capacity Ramp",
+            "sentiment": "POSITIVE",
+            "headline": "Sandwich panel utilization surge: 44% in Q1 vs 25% prior year",
+            "quote": "Good part has been the ramp up in the capacity utilization of the sandwich panel line... almost 45% as compared to the utilization of 25%",
+            "quantified_impact": {
+                "metric": "Sandwich panel utilization improvement",
+                "value": 1925,
+                "unit": "bps",
+                "annualized_%": 70.0,
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": true,
+            "score": 8
+        },
+        {
+            "id": 4,
+            "category": "New Business Vertical",
+            "sentiment": "POSITIVE",
+            "headline": "Data Center subsidiary launched with ₹75cr capex",
+            "quote": "To tap into that opportunity, we have floated this separate subsidiary, which will focus on developing the products suitable for the data center market",
+            "quantified_impact": {
+                "metric": "New capex allocation",
+                "value": 75,
+                "unit": "₹cr",
+                "expected_timeline_years": "2-3",
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": true,
+            "risk_note": "Early stage, no revenue yet, 2 bids lost on design/pricing",
+            "score": 6
+        },
+        {
+            "id": 5,
+            "category": "Revenue Growth",
+            "sentiment": "POSITIVE",
+            "headline": "Q1 revenue +24% YoY; FY27 guidance 30% maintained",
+            "quote": "Revenue growth of the company is about 25%... we have guided the market towards a revenue growth of almost 30%",
+            "quantified_impact": {
+                "metric": "YoY revenue growth",
+                "value": 23.9,
+                "unit": "%",
+                "fy27_target_%": 30.0,
+                "impact_level": "HIGH"
+            },
+            "forward_indicator": true,
+            "score": 8
+        },
+        {
+            "id": 6,
+            "category": "Market Share",
+            "sentiment": "POSITIVE",
+            "headline": "Market share expansion: 5-6% FY26 → 7-7.5% FY27 target",
+            "quote": "By the end of this financial year our total market share would be around 7% to 7.5% and the market leader has around 12%",
+            "quantified_impact": {
+                "metric": "Market share growth",
+                "value": 150,
+                "unit": "bps",
+                "market_leader_share_%": 12.0,
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": true,
+            "score": 7
+        },
+        {
+            "id": 7,
+            "category": "Execution Speed",
+            "sentiment": "POSITIVE",
+            "headline": "₹165cr solar order executed in 4.5 months vs 6-8 month standard",
+            "quote": "As far as EPACK Prefab is concerned, 4.5 months is a good time for us to design, manufacture and execute at the site level",
+            "quantified_impact": {
+                "metric": "Timeline compression",
+                "value": -43.75,
+                "unit": "%",
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": true,
+            "score": 8
+        },
+        {
+            "id": 8,
+            "category": "Win Rate / Competition",
+            "sentiment": "NEGATIVE",
+            "headline": "Low pipeline conversion: 20% win rate signals competitive intensity",
+            "quote": "Your win rate is definitely yes, you're right, it is 20%, close to 20%",
+            "quantified_impact": {
+                "metric": "Win rate",
+                "value": 20.0,
+                "unit": "%",
+                "industry_benchmark_%": 10.0,
+                "gap_%": 10.0,
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": false,
+            "context": "Selective bidding + capacity constraints",
+            "score": 5
+        },
+        {
+            "id": 9,
+            "category": "Working Capital",
+            "sentiment": "NEUTRAL",
+            "headline": "Working capital cycle guidance: 35-38 days (FY27)",
+            "quote": "Management targets... Working Capital 35-38 days",
+            "quantified_impact": {
+                "metric": "Days working capital",
+                "value": 36.5,
+                "unit": "days",
+                "trend": "Stable",
+                "impact_level": "LOW"
+            },
+            "forward_indicator": false,
+            "score": 6
+        },
+        {
+            "id": 10,
+            "category": "Balance Sheet",
+            "sentiment": "POSITIVE",
+            "headline": "Net cash ₹103.2cr; ₹700cr debt prepayment from IPO",
+            "quote": "Repayment and/or pre-payment of certain borrowings - Paid INR 700 Mn",
+            "quantified_impact": {
+                "metric": "Net cash position",
+                "value": 103.2,
+                "unit": "₹cr",
+                "debt_reduction_₹cr": 700.0,
+                "impact_level": "HIGH"
+            },
+            "forward_indicator": true,
+            "score": 8
+        },
+        {
+            "id": 11,
+            "category": "Export",
+            "sentiment": "NEUTRAL",
+            "headline": "Export orders minimal: ₹2.5cr in Q1 (0.4% of total)",
+            "quote": "We have exported sandwich panels... insulated sandwich panels we exported to Africa",
+            "quantified_impact": {
+                "metric": "Export orders",
+                "value": 2.5,
+                "unit": "₹cr",
+                "pct_of_total_%": 0.4,
+                "timeline_to_scale_years": "2-3",
+                "impact_level": "LOW"
+            },
+            "forward_indicator": true,
+            "score": 5
+        },
+        {
+            "id": 12,
+            "category": "Capex Returns",
+            "sentiment": "POSITIVE",
+            "headline": "Peak revenue potential ₹2,700-2,900cr post-capex (vs ₹1,525cr FY26)",
+            "quote": "The total revenue potential would be close to INR2700 crores to INR2900 crores",
+            "quantified_impact": {
+                "metric": "Peak revenue uplift",
+                "value": 1300.0,
+                "unit": "₹cr",
+                "capex_required_₹cr": 734.7,
+                "implied_roic_%": 44.0,
+                "timeline_years": "2-3",
+                "impact_level": "HIGH"
+            },
+            "forward_indicator": true,
+            "score": 9
+        }
+    ],
+    "sentiment_summary": {
+        "positive_avg_score": 7.9,
+        "negative_avg_score": 4.3,
+        "neutral_avg_score": 5.5,
+        "portfolio_score": 7.2,
+        "portfolio_sentiment": "POSITIVE"
+    }
+}

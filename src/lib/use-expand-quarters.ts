@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PanelYoY, QuarterExtraMetrics, QuarterPanel } from "@/lib/quarter-panel";
 
 export type ExpandQuarterData = {
@@ -13,6 +13,10 @@ export type ExpandQuarterData = {
   error: string | null;
 };
 
+/**
+ * Loads quarters when expanded. Collapse must not cancel or clear — task keeps
+ * running in the background and results apply when ready.
+ */
 export function useExpandQuarters(
   ticker: string,
   market: string | null | undefined,
@@ -26,9 +30,20 @@ export function useExpandQuarters(
   const [source, setSource] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const genRef = useRef(0);
+  const paramsRef = useRef({ ticker, market, price });
 
+  // Invalidate in-flight work only when identity params change (not on minimise)
   useEffect(() => {
-    if (!enabled || !ticker) {
+    const prev = paramsRef.current;
+    const changed =
+      prev.ticker !== ticker ||
+      prev.market !== market ||
+      prev.price !== price;
+    paramsRef.current = { ticker, market, price };
+    if (!changed) return;
+    genRef.current += 1;
+    if (!ticker) {
       setPanel(null);
       setForwardPe(null);
       setYoy(null);
@@ -36,10 +51,13 @@ export function useExpandQuarters(
       setSource(null);
       setLoading(false);
       setError(null);
-      return;
     }
+  }, [ticker, market, price]);
 
-    let cancelled = false;
+  useEffect(() => {
+    if (!enabled || !ticker) return;
+
+    const gen = ++genRef.current;
     setLoading(true);
     setError(null);
 
@@ -60,7 +78,7 @@ export function useExpandQuarters(
           source?: string;
           error?: string;
         };
-        if (cancelled) return;
+        if (gen !== genRef.current) return;
         if (!r.ok || j.ok === false) {
           setPanel(null);
           setForwardPe(null);
@@ -86,22 +104,13 @@ export function useExpandQuarters(
         setSource(j.source ?? null);
       })
       .catch(() => {
-        if (!cancelled) {
-          setPanel(null);
-          setForwardPe(null);
-          setYoy(null);
-          setExtras(null);
-          setSource(null);
+        if (gen === genRef.current) {
           setError("Could not load quarters");
         }
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (gen === genRef.current) setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [ticker, market, price, enabled]);
 
   return {

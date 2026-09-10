@@ -23,12 +23,14 @@ All research data lives in `data/` and is committed (SQLite DBs, notes). Clone o
 Copy [`.env.example`](.env.example) to `.env.local`. **Do not commit `.env.local`** — it holds API keys.
 
 ```bash
-# LLM — local Ollama is the usual setup
+# LLM — cheapest default: local Ollama 3B (no API cost)
 LLM_PROVIDER=ollama
-LLM_MODEL=qwen2.5:7b-instruct
+LLM_MODEL=qwen2.5:3b-instruct
+LLM_MODEL_OCR=qwen2.5vl:3b
 # OLLAMA_BASE_URL=http://127.0.0.1:11434
 
-# Cloud LLMs (optional; used when LLM_PROVIDER=openai|anthropic|auto)
+# Cloud LLMs (optional; only when LLM_PROVIDER=openai|anthropic)
+# Prefer gpt-4o-mini / claude-haiku if you must use cloud
 # OPENAI_API_KEY=
 # ANTHROPIC_API_KEY=
 
@@ -44,7 +46,7 @@ FIRECRAWL_API_KEY=
 # PORT=3000
 ```
 
-`LLM_PROVIDER` can be `ollama`, `openai`, `anthropic`, `auto`, `claude_code`, or `none`. With Ollama: `ollama serve` then `ollama pull qwen2.5:7b-instruct`.
+`LLM_PROVIDER` can be `ollama`, `openai`, `anthropic`, `auto`, `claude_code`, or `none`. Default is **ollama** with **3B** models. Pull: `ollama pull qwen2.5:3b-instruct` and `ollama pull qwen2.5vl:3b`. Concall dual Extract is lexical-first (no LLM). `auto` prefers Ollama before paid APIs.
 
 With `FIRECRAWL_API_KEY`, Strategy concall **Documents** / **Get highlights** use Firecrawl AnyDoc (OCR for scanned PDFs). Without a key, local `pdf-parse` is used (text PDFs only).
 
@@ -74,3 +76,9 @@ npm run scan:concall-drift
 Edit system prompts in [`prompts/`](prompts/) — Business, Concall drift, call review, and PPT distill. See [`prompts/README.md`](prompts/README.md).
 
 "award of order" OR "Notification of Award" OR "letter of intent" OR "large order" OR "Order for Procurement" OR "Awarding of order" OR "bagged an order"
+
+"transcript" OR "conference call transcript" OR "earnings call transcript" OR "investor presentation" OR "earnings presentation" OR "analyst presentation" OR "investor/analyst call"
+
+"Transcript of" OR "Earnings Presentation" OR "Investor Presentation" OR "Analyst Presentation" OR "conference call" OR "Investor/Analyst Call"
+
+HAPPSTMNDS ("Transcript of" OR "Earnings Presentation" OR "Investor Presentation" OR "Investor/Analyst Call")

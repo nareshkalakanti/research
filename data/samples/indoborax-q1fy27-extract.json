@@ -1,20 +1,19 @@
 {
   "metadata": {
-    "source": "Q1 FY '27 Indo Borax Q&A session",
-    "speaker": "Suresh Kalra",
-    "questioner": "Dhruv Bajaj",
+    "company": "Indo Borax",
+    "quarter": "Q1 FY '27",
+    "event": "Acquisition of Kronox",
+    "company_name": "Indo Borax & Chemicals Limited",
     "nse_symbol": "INDOBORAX",
     "bse_code": "524342",
     "call_date": "2026-09-02",
-    "quarter": "Q1",
-    "fiscal_year": "FY27",
-    "company_name": "Indo Borax & Chemicals Limited"
+    "fiscal_year": "FY27"
   },
   "reported_financials": {
     "revenue": {
       "current_qtr": 70.36,
       "yoy_qtr": 53.57,
-      "pct_change": 31.34,
+      "pct_change": 31.3,
       "unit": "INR cr"
     },
     "ebitda": {
@@ -79,13 +78,12 @@
       "deal_value": null
     }
   ],
-  "risk_governance_flags": [
-    "risk of raw material prices increasing",
-    "risk of low-volume monsoon quarter",
-    "risk of not being able to pass on all increased costs to the market",
-    "risk of not achieving the same level of EBITDA percentage and revenue as in Q1",
-    "risk of not being able to add capacities as planned due to financial constraints"
-  ],
+  "risk_governance_flags": {
+    "pledged_shares": null,
+    "debt_disclosed": [],
+    "related_party_transactions": [],
+    "deflected_or_vague_topics": []
+  },
   "management_tone": {
     "overall_tone": "bullish",
     "justification": null,
@@ -97,5 +95,29 @@
     "net_sentiment_score": null,
     "sentiment_rationale": null
   },
-  "key_catalysts": []
+  "card": {
+    "result_quality": "Strong",
+    "mgmt_sentiment": "bullish",
+    "highlights": [
+      {
+        "text": "Chavan acquisition completed",
+        "polarity": "neutral"
+      },
+      {
+        "text": "Kronox Lab Sciences acquisition completed",
+        "polarity": "neutral"
+      }
+    ],
+    "sector": "Materials",
+    "industry": "Commodity Chemicals"
+  },
+  "key_catalysts": [
+    "Successful integration of Kronox",
+    "Operational efficiencies from the integration",
+    "Entry into newer geographies and markets",
+    "Focus on organic and inorganic growth strategies"
+  ],
+  "ltp": 510.95,
+  "baseline_close": 516.0499877929688,
+  "drift_pct": -1
 }

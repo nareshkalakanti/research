@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ConcallDriftContext,
   ConcallDriftReview,
@@ -13,6 +13,10 @@ export type ExpandConcallDriftData = {
   setupHint: string | null;
 };
 
+/**
+ * Loads concall-drift review when expanded. Minimise must not cancel or clear —
+ * the request keeps running and results land when ready.
+ */
 export function useExpandConcallDrift(
   ticker: string,
   price: number | null | undefined,
@@ -24,17 +28,67 @@ export function useExpandConcallDrift(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setupHint, setSetupHint] = useState<string | null>(null);
+  const genRef = useRef(0);
+  const paramsRef = useRef({
+    ticker,
+    price,
+    materialsRev,
+    earn_at: drift?.earn_at,
+    concall_at: drift?.concall_at,
+    drift_pct: drift?.drift_pct,
+    baseline_close: drift?.baseline_close,
+    earn_subject: drift?.earn_subject,
+    quarter_fy: drift?.quarter_fy,
+  });
 
   useEffect(() => {
-    if (!enabled || !ticker || !drift?.earn_at) {
+    const next = {
+      ticker,
+      price,
+      materialsRev,
+      earn_at: drift?.earn_at,
+      concall_at: drift?.concall_at,
+      drift_pct: drift?.drift_pct,
+      baseline_close: drift?.baseline_close,
+      earn_subject: drift?.earn_subject,
+      quarter_fy: drift?.quarter_fy,
+    };
+    const prev = paramsRef.current;
+    const changed =
+      prev.ticker !== next.ticker ||
+      prev.price !== next.price ||
+      prev.materialsRev !== next.materialsRev ||
+      prev.earn_at !== next.earn_at ||
+      prev.concall_at !== next.concall_at ||
+      prev.drift_pct !== next.drift_pct ||
+      prev.baseline_close !== next.baseline_close ||
+      prev.earn_subject !== next.earn_subject ||
+      prev.quarter_fy !== next.quarter_fy;
+    paramsRef.current = next;
+    if (!changed) return;
+    genRef.current += 1;
+    if (!ticker || !drift?.earn_at) {
       setReview(null);
       setLoading(false);
       setError(null);
       setSetupHint(null);
-      return;
     }
+  }, [
+    ticker,
+    price,
+    materialsRev,
+    drift?.earn_at,
+    drift?.concall_at,
+    drift?.drift_pct,
+    drift?.baseline_close,
+    drift?.earn_subject,
+    drift?.quarter_fy,
+  ]);
 
-    let cancelled = false;
+  useEffect(() => {
+    if (!enabled || !ticker || !drift?.earn_at) return;
+
+    const gen = ++genRef.current;
     setLoading(true);
     setError(null);
     setSetupHint(null);
@@ -51,9 +105,8 @@ export function useExpandConcallDrift(
     })
       .then(async (r) => {
         const text = await r.text();
-        if (cancelled) return;
+        if (gen !== genRef.current) return;
         if (!text.trim()) {
-          setReview(null);
           setError("Empty response from server — try again");
           return;
         }
@@ -66,12 +119,10 @@ export function useExpandConcallDrift(
         try {
           j = JSON.parse(text) as typeof j;
         } catch {
-          setReview(null);
           setError("Invalid server response — try again");
           return;
         }
         if (!r.ok || !j.ok || !j.review) {
-          setReview(null);
           const msg = j.error || "Could not analyze concall";
           setError(
             /unexpected end|incomplete json/i.test(msg)
@@ -84,22 +135,16 @@ export function useExpandConcallDrift(
         setReview(j.review);
       })
       .catch((err) => {
-        if (!cancelled) {
-          setReview(null);
-          setError(
-            err instanceof Error && /timeout|aborted/i.test(err.message)
-              ? "Concall analysis timed out — try again"
-              : "Network error — could not load concall review",
-          );
-        }
+        if (gen !== genRef.current) return;
+        setError(
+          err instanceof Error && /timeout|aborted/i.test(err.message)
+            ? "Concall analysis timed out — try again"
+            : "Network error — could not load concall review",
+        );
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (gen === genRef.current) setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [
     enabled,
     ticker,

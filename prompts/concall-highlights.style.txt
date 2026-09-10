@@ -1,0 +1,65 @@
+StockScans Concall Highlights — style spec (reverse-engineered)
+
+SOURCE CARD (Fortis Healthcare Ltd · Hospitals · 4 Sept · 1:00 PM)
+  Highlights:
+    • Court-ordered forensic audit, 6-month timeline   ← grey / neutral
+    • IHH 50%+ stake increase reaffirmed               ← green / positive
+    • Legal appeal decision, 5–10 days                 ← grey / neutral
+  Tags: » Average   » Neutral
+
+SOURCE CARD (Happiest Minds · IT Enabled Services · 1 Sept · 9:00 AM)
+  Highlights:
+    • ITC Infotech merger announced                    ← grey / neutral
+    • $1bn revenue target FY28                         ← green / positive
+    • Promoter 22.1% stake divestment                  ← red / negative
+  Tags: » Average   » Optimistic
+
+PURPOSE
+  Three scanlines a PM can skim in <3 seconds. Not a summary paragraph.
+  Prefer corporate / legal / stake catalysts over plain YoY print.
+
+LINE TEMPLATE
+  [Named actor|Topic] [state noun-phrase], [metric|timeline]
+
+  Named actor   IHH, Court, promoter, target company, ITC Infotech
+  State phrase  forensic audit | stake increase reaffirmed |
+                acquisition completed | margin reset |
+                legal appeal decision | merger announced |
+                revenue target | stake divestment
+  Tail          6-month timeline | 5–10 days | 50%+ | ~800bps |
+                3–4x scale | ₹250–260 Cr | $1bn | FY28 | 22.1%
+
+HARD RULES
+  - Exactly 3 bullets
+  - ≤10 words each
+  - Comma before the metric/timeline when present
+  - No "will / expects / management said / the company"
+  - No full sentences; no Revenue prose ("grew 17% to Rs…")
+  - En-dash in ranges (5–10, 3–4x)
+
+PRIORITY (fill top-down)
+  1 Court / forensic / regulatory + deadline
+  2 Strategic stake % + reaffirm/raise / promoter divestment
+  3 Near-term appeal / hearing window
+  4 Named merger / M&A announced or closed
+  5 Named investment / capex commitment with ₹/$ amount
+  6 PE / valuation gap deflection when mgmt declines detail
+  7 Margin reset / guidance step-change
+  8 FY scale / revenue target ($1bn / multiple)
+  9 LAST: Revenue +X% YoY · PAT +X% YoY · margin ±bps YoY
+
+POLARITY → bullet color
+  positive  green   stake raise, growth reaffirm, beat, investment commitment, named M&A closed, $bn revenue target
+  negative  red     margin reset, miss, cut, promoter stake divestment
+  neutral   grey    audit, appeal, process, PE explanation declined, merger announced
+
+CARD LABELS (StockScans)
+  result_quality   Excellent | Strong | Average
+  mgmt_sentiment   bullish | optimistic | neutral | cautious | bearish
+
+  Fortis (legal/process, 1 green + 2 grey) → Average + neutral
+  Happiest Minds (merger + $bn target + divestment) → Average + optimistic
+  RPG (₹700cr commitment + M&A closed, 2 green + 1 grey) → Strong + bullish
+  legal/M&A-process-heavy with ≤1 positive → Average + neutral
+  ≥2 positive catalysts (investment / M&A closed / stake raise) and 0 negative → Strong + bullish
+  1 positive growth target + mixed grey/red → Average + optimistic

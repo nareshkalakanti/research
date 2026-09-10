@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "purpose": "Research · Investor Presentation — structured deck extract (see prompts/investor-presentation-extract.system.txt)",
+  "updated_at": "2026-09-09",
+  "prompt_file": "prompts/investor-presentation-extract.system.txt",
+  "document_type": "investor_presentation",
+  "routing": "Separate from concall-transcript extract — do not merge schemas; route by document type",
+  "top_level_keys": [
+    "metadata",
+    "business_overview",
+    "leadership",
+    "chairman_commentary",
+    "q1_fy27_financials",
+    "revenue_mix",
+    "multi_year_consolidated_financials",
+    "balance_sheet_consolidated",
+    "shareholding_and_share_price",
+    "risk_disclosures",
+    "sentiment_assessment"
+  ],
+  "validation_fixture": "data/investor-presentation-expected-krn.json",
+  "sample_pdf": "data/samples/krn-q1fy27-investor-presentation.pdf"
+}

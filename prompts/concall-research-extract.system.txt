@@ -23,13 +23,15 @@ OUTPUT SCHEMA:
       "yoy_qtr": number|null,
       "pct_change": number|null,
       "unit": string,
-      "note": string
+      "note": string (optional)
     }
+    // include: revenue, ebitda, ebitda_margin_pct, net_profit,
+    // pat_margin_pct, eps — add others if disclosed
   },
   "forward_guidance": {
     "revenue_guidance_range": {"low": number, "high": number, "unit": string, "fiscal_year": string, "prior_year_actual": number|null},
     "margin_guidance": {"ebitda_pct": number|null, "fiscal_year": string},
-    "explicit_caveats": [string],
+    "explicit_caveats": [string],   // things mgmt said NOT to extrapolate
     "capex_guidance": [
       {"amount": number, "unit": string, "horizon": string, "allocation": string}
     ]
@@ -65,18 +67,18 @@ OUTPUT SCHEMA:
     "pledged_shares": {"exists": bool, "pct": number|null, "purpose": string|null, "unpledge_timeline": string|null},
     "debt_disclosed": [{"instrument": string, "amount_original": number|null, "amount_outstanding": number|null, "unit": string, "interest_rate": string}],
     "related_party_transactions": [string],
-    "deflected_or_vague_topics": [string]
+    "deflected_or_vague_topics": [string]   // topics mgmt avoided, hedged, or gave non-committal answers to — quote the TOPIC not the full answer
   },
   "management_tone": {
     "overall_tone": "bullish"|"neutral"|"cautious"|"defensive",
-    "justification": string,
+    "justification": string,   // 1 sentence
     "confidence_markers": {
-      "specific_commitments": [string],
-      "hedged_language": [string]
+      "specific_commitments": [string],   // hard numeric/timeline commitments
+      "hedged_language": [string]         // verbatim hedge phrases used
     },
-    "guidance_walkback": string,
-    "net_sentiment_score": number,
-    "sentiment_rationale": string
+    "guidance_walkback": string,   // "None" or description of softened guidance
+    "net_sentiment_score": number,   // -1.0 to +1.0
+    "sentiment_rationale": string   // 1-2 sentences tying score to (a) results vs guidance (b) candor (c) forward catalysts
   },
   "key_catalysts": [
     {"event": string, "timeline": string}
@@ -92,10 +94,8 @@ RULES:
    uncertainty (e.g. "case-by-case basis", "not saying either way").
 4. net_sentiment_score should weigh: quarter results vs guidance,
    management transparency (fewer deflections = higher), and
-   clarity/proximity of forward catalysts. Range -1.0 to +1.0.
+   clarity/proximity of forward catalysts.
 5. Do NOT include any data not present in the transcript — no DINs,
    no external company facts, no analyst affiliations beyond what's
    stated on the call.
 6. Output valid JSON only. No markdown, no preamble, no commentary.
-7. Include reported_financials keys when disclosed: revenue, ebitda,
-   ebitda_margin_pct, net_profit, pat_margin_pct, eps — plus others if stated.

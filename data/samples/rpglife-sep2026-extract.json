@@ -1,0 +1,121 @@
+{
+  "metadata": {
+    "company": "RPG Life Sciences Ltd",
+    "conference_date": "3 Sep 2026",
+    "conference_time": "4:00 PM IST",
+    "conference_type": "Analyst / Investor Conference",
+    "company_name": "RPG Life Sciences Ltd",
+    "call_date": "2026-09-03",
+    "call_time": "4:00 PM",
+    "nse_symbol": "RPGLIFE"
+  },
+  "reported_financials": {},
+  "forward_guidance": {
+    "revenue_guidance_range": null,
+    "margin_guidance": null,
+    "explicit_caveats": [],
+    "capex_guidance": []
+  },
+  "segment_data": [],
+  "corporate_actions": [
+    {
+      "type": "acquisition",
+      "target_counterparty": "Actis",
+      "stake_pct": null,
+      "deal_value": null
+    },
+    {
+      "type": "acquisition",
+      "target_counterparty": "Raghava Life Sciences",
+      "stake_pct": null,
+      "deal_value": {
+        "amount": 135,
+        "unit": "INR cr",
+        "component": "BTA"
+      }
+    }
+  ],
+  "risk_governance_flags": [],
+  "management_tone": {
+    "overall_tone": "neutral",
+    "justification": null,
+    "confidence_markers": {
+      "specific_commitments": [],
+      "hedged_language": []
+    },
+    "guidance_walkback": null,
+    "net_sentiment_score": null,
+    "sentiment_rationale": null
+  },
+  "card": {
+    "result_quality": "Average",
+    "mgmt_sentiment": "neutral",
+    "highlights": [
+      {
+        "text": "₹700cr API investment commitment",
+        "polarity": "positive"
+      },
+      {
+        "text": "Actis and Raghava acquisitions closed",
+        "polarity": "positive"
+      },
+      {
+        "text": "PE valuation gap explanation declined",
+        "polarity": "neutral"
+      }
+    ],
+    "sector": "Health Care",
+    "industry": "Pharmaceuticals"
+  },
+  "key_catalysts": [
+    "Strategic partnership with Invasant for API business",
+    "Investment of 700 crores in API business",
+    "Leveraging existing franchises in therapy such as nephrology and other chronic segments",
+    "Potential for new product introductions and disciplined inorganic growth opportunities"
+  ],
+  "ltp": 2812,
+  "baseline_close": 2564.89990234375,
+  "drift_pct": 9.6,
+  "transcript_notes": {
+    "company_name": "RPG Life Sciences Ltd",
+    "industry": "Pharmaceuticals",
+    "period_label": "Transcript",
+    "title": "RPG Life Sciences Ltd:  Transcript Notes",
+    "key_takeaways": [
+      "Acquisition defines the quarter, execution defines the future: Actis is the call’s strategic focus alongside the print.",
+      "Catalyst: ₹700cr API investment commitment.",
+      "Catalyst: Actis and Raghava acquisitions closed.",
+      "Catalyst: PE valuation gap explanation declined.",
+      "What to watch next quarter: Delivery vs guidance, integration/legal timelines, and whether margin/ops commentary holds."
+    ],
+    "sections": [
+      {
+        "heading": "The Actis Acquisition",
+        "bullets": [
+          "Deal structure: Stake.",
+          "Status: acquisition as disclosed on the call."
+        ],
+        "quote": null
+      }
+    ],
+    "guidance_commitments": [
+      {
+        "commitment": "₹700cr API investment commitment",
+        "specifics": "₹700cr API investment commitment",
+        "timeline": "As disclosed"
+      },
+      {
+        "commitment": "Actis and Raghava acquisitions closed",
+        "specifics": "Actis and Raghava acquisitions closed",
+        "timeline": "As disclosed"
+      },
+      {
+        "commitment": "PE valuation gap explanation declined",
+        "specifics": "PE valuation gap explanation declined",
+        "timeline": "As disclosed"
+      }
+    ]
+  },
+  "transcript_notes_markdown": "RPG Life Sciences Ltd\nPharmaceuticals\nTranscript Notes · Transcript\n\nRPG Life Sciences Ltd:  Transcript Notes\n\nKey Takeaways\n• Acquisition defines the quarter, execution defines the future: Actis is the call’s strategic focus alongside the print.\n• Catalyst: ₹700cr API investment commitment.\n• Catalyst: Actis and Raghava acquisitions closed.\n• Catalyst: PE valuation gap explanation declined.\n• What to watch next quarter: Delivery vs guidance, integration/legal timelines, and whether margin/ops commentary holds.\n\nThe Actis Acquisition\n• Deal structure: Stake.\n• Status: acquisition as disclosed on the call.\n\nGuidance & Commitments\nCommitment | Specifics | Timeline\n₹700cr API investment commitment | ₹700cr API investment commitment | As disclosed\nActis and Raghava acquisitions closed | Actis and Raghava acquisitions closed | As disclosed\nPE valuation gap explanation declined | PE valuation gap explanation declined | As disclosed",
+  "transcript_notes_engine": "extract-fallback"
+}

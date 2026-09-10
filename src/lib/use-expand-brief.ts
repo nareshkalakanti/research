@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CompanyBrief, CompanyBriefContext } from "@/lib/company-brief";
 import { formatQuarterBriefBlock } from "@/lib/quarter-panel";
 import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
@@ -14,6 +14,10 @@ export type ExpandBriefData = {
   setupHint: string | null;
 };
 
+/**
+ * Loads business brief when expanded. Minimise must not cancel or clear —
+ * the request keeps running and results land when ready.
+ */
 export function useExpandBrief(
   ticker: string,
   market: string | null | undefined,
@@ -27,6 +31,8 @@ export function useExpandBrief(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [setupHint, setSetupHint] = useState<string | null>(null);
+  const genRef = useRef(0);
+  const paramsRef = useRef({ ticker, market, price, materialsRev });
 
   const quarterBlock = useMemo(() => {
     if (!quarters.panel) return null;
@@ -45,16 +51,28 @@ export function useExpandBrief(
   ]);
 
   useEffect(() => {
-    if (!enabled || !ticker) {
+    const prev = paramsRef.current;
+    const changed =
+      prev.ticker !== ticker ||
+      prev.market !== market ||
+      prev.price !== price ||
+      prev.materialsRev !== materialsRev;
+    paramsRef.current = { ticker, market, price, materialsRev };
+    if (!changed) return;
+    genRef.current += 1;
+    if (!ticker) {
       setBrief(null);
       setContext(null);
       setLoading(false);
       setError(null);
       setSetupHint(null);
-      return;
     }
+  }, [ticker, market, price, materialsRev]);
 
-    let cancelled = false;
+  useEffect(() => {
+    if (!enabled || !ticker) return;
+
+    const gen = ++genRef.current;
     setLoading(true);
     setError(null);
     setSetupHint(null);
@@ -81,7 +99,7 @@ export function useExpandBrief(
           error?: string;
           hint?: string;
         };
-        if (cancelled) return;
+        if (gen !== genRef.current) return;
         setContext(j.context ?? null);
         if (!r.ok || j.ok === false) {
           setBrief(null);
@@ -92,22 +110,16 @@ export function useExpandBrief(
         setBrief(j.brief ?? null);
       })
       .catch((err) => {
-        if (!cancelled) {
-          setBrief(null);
-          const msg =
-            err instanceof Error && /timeout|aborted/i.test(err.message)
-              ? "Business brief timed out — try again or check Ollama is running"
-              : "Network error — could not load business brief";
-          setError(msg);
-        }
+        if (gen !== genRef.current) return;
+        const msg =
+          err instanceof Error && /timeout|aborted/i.test(err.message)
+            ? "Business brief timed out — try again or check Ollama is running"
+            : "Network error — could not load business brief";
+        setError(msg);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (gen === genRef.current) setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [enabled, ticker, market, price, quarterBlock, materialsRev]);
 
   return {

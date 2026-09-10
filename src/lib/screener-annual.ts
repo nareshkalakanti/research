@@ -256,9 +256,14 @@ export async function fetchScreenerAnnual(
     if (cached === "blocked") {
       return { dates: [], sales: [], eps: [], roce: [] };
     }
-    if (cached) return cached;
+    // Ignore empty / sales-less cache so we can retry parse / standalone
+    if (cached && cached.sales.some((s) => s != null && s > 0)) {
+      return cached;
+    }
     if (opts?.cacheOnly) {
-      return { dates: [], sales: [], eps: [], roce: [] };
+      return cached && cached !== "blocked"
+        ? cached
+        : { dates: [], sales: [], eps: [], roce: [] };
     }
   }
 
@@ -266,8 +271,26 @@ export async function fetchScreenerAnnual(
     const html = await fetchScreenerCompanyHtml(key, {
       consolidated: opts?.consolidated !== false,
     });
-    const series = parseScreenerAnnualHtml(html);
-    writeCache(key, series);
+    let series = parseScreenerAnnualHtml(html);
+    // Some SME / young listings only populate standalone
+    if (
+      !series.sales.some((s) => s != null && s > 0) &&
+      opts?.consolidated !== false
+    ) {
+      try {
+        const standHtml = await fetchScreenerCompanyHtml(key, {
+          consolidated: false,
+        });
+        const stand = parseScreenerAnnualHtml(standHtml);
+        if (stand.sales.some((s) => s != null && s > 0)) series = stand;
+      } catch {
+        /* keep consolidated parse */
+      }
+    }
+    // Only cache useful series — empty miss should not poison for 14 days
+    if (series.sales.some((s) => s != null && s > 0)) {
+      writeCache(key, series);
+    }
     return series;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

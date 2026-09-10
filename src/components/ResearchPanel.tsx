@@ -36,7 +36,14 @@ function ResearchSection({
           {open ? "Minimise" : "Expand"}
         </span>
       </button>
-      {open ? <div className="research-block-body">{children}</div> : null}
+      {/* Keep mounted when minimised so Find latest / Analyze / Run keep going */}
+      <div
+        className="research-block-body"
+        hidden={!open}
+        inert={!open ? true : undefined}
+      >
+        {children}
+      </div>
     </section>
   );
 }

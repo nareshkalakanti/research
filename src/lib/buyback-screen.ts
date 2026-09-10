@@ -210,7 +210,10 @@ export function sharesToCrore(shares: number | null | undefined): number | null 
 }
 
 /** Fetch BSE/NSE PDF bytes (server-side — exchanges block iframe embeds). */
-export async function downloadBuybackPdf(url: string): Promise<Buffer | null> {
+export async function downloadBuybackPdf(
+  url: string,
+  opts?: { timeoutMs?: number },
+): Promise<Buffer | null> {
   try {
     const res = await fetch(url, {
       headers: {
@@ -221,7 +224,7 @@ export async function downloadBuybackPdf(url: string): Promise<Buffer | null> {
           ? "https://www.bseindia.com/"
           : "https://www.nseindia.com/",
       },
-      signal: AbortSignal.timeout(90_000),
+      signal: AbortSignal.timeout(opts?.timeoutMs ?? 90_000),
       redirect: "follow",
     });
     if (!res.ok) return null;

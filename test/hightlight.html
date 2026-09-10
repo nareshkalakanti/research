@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Earnings Highlights Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #f8f9fa;
+            color: #333;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        /* Header with columns */
+        .header {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 20px;
+            padding: 20px 30px;
+            background: #f5f7fa;
+            border-bottom: 1px solid #e0e6ed;
+            align-items: center;
+        }
+
+        .header-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #8694a6;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .header-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-icon {
+            width: 18px;
+            height: 18px;
+            border: 1px solid #8694a6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #8694a6;
+            cursor: help;
+        }
+
+        /* Highlights section */
+        .content {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 20px;
+            padding: 30px;
+            align-items: start;
+        }
+
+        .highlights-list {
+            list-style: none;
+        }
+
+        .highlight-item {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+            align-items: flex-start;
+        }
+
+        .highlight-bullet {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 6px;
+        }
+
+        .highlight-bullet.positive {
+            background: #10b981;
+        }
+
+        .highlight-bullet.negative {
+            background: #ef4444;
+        }
+
+        .highlight-bullet.neutral {
+            background: #8694a6;
+        }
+
+        .highlight-text {
+            font-size: 15px;
+            color: #1f2937;
+            line-height: 1.4;
+            font-weight: 500;
+        }
+
+        /* Metrics boxes */
+        .metric-box {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            min-height: 100px;
+            justify-content: center;
+        }
+
+        .metric-value {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .metric-text {
+            font-size: 16px;
+            font-weight: 700;
+            color: #1f2937;
+        }
+
+        .metric-arrow {
+            font-size: 14px;
+        }
+
+        .arrow-up {
+            color: #10b981;
+        }
+
+        .arrow-down {
+            color: #ef4444;
+        }
+
+        .metric-label {
+            font-size: 11px;
+            color: #8694a6;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-weight: 600;
+        }
+
+        /* Lock icon */
+        .lock-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
+            background: #e0e6ed;
+            border-radius: 4px;
+            color: #8694a6;
+            font-size: 12px;
+            cursor: not-allowed;
+        }
+
+        /* Dropdown selector */
+        .selector-box {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            min-height: 100px;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .selector-value {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #1f2937;
+        }
+
+        .selector-value.positive {
+            color: #10b981;
+        }
+
+        .selector-value.negative {
+            color: #ef4444;
+        }
+
+        .selector-value.neutral {
+            color: #8694a6;
+        }
+
+        .selector-label {
+            font-size: 11px;
+            color: #8694a6;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            font-weight: 600;
+        }
+
+        .chevron {
+            margin-left: auto;
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+
+            .header,
+            .content {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+
+            .header {
+                padding: 16px 20px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: #fff;
+                padding: 0;
+            }
+
+            .container {
+                box-shadow: none;
+                border: 1px solid #e0e6ed;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <!-- Header Row -->
+        <div class="header">
+            <div>
+                <div class="header-label">Highlights</div>
+            </div>
+            <div class="header-info">
+                <span class="header-label">Congrats Index</span>
+                <div class="info-icon">i</div>
+            </div>
+            <div>
+                <div class="header-label">Result Quality</div>
+            </div>
+            <div>
+                <div class="header-label">Mgmt Sentiment</div>
+            </div>
+        </div>
+
+        <!-- Content Row (Dynamic) -->
+        <div class="content">
+            <!-- Highlights List (Left Column) -->
+            <div>
+                <ul class="highlights-list" id="highlightsList">
+                    <!-- Populated by JavaScript -->
+                </ul>
+            </div>
+
+            <!-- Congrats Index (Column 2) -->
+            <div class="metric-box">
+                <div class="metric-label">Score</div>
+                <div class="metric-value">
+                    <span class="metric-text" id="congratsScore">7.3</span>
+                    <span class="metric-arrow arrow-up">↑</span>
+                </div>
+                <div style="font-size: 12px; color: #8694a6;">/ 10</div>
+            </div>
+
+            <!-- Result Quality (Column 3) -->
+            <div class="selector-box" id="resultQualityBox">
+                <div class="selector-label">Rating</div>
+                <div class="selector-value positive" id="resultQualityValue">
+                    Strong
+                    <span class="chevron">↑</span>
+                </div>
+            </div>
+
+            <!-- Mgmt Sentiment (Column 4) -->
+            <div class="selector-box" id="mgmtSentimentBox">
+                <div class="selector-label">Tone</div>
+                <div class="selector-value positive" id="mgmtSentimentValue">
+                    Optimistic
+                    <span class="chevron">↑</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data (replace with API call or JSON input)
+        const earningsData = {
+            highlights: [
+                {
+                    text: "Record ₹580cr order inflow",
+                    sentiment: "positive",
+                    category: "Order Book"
+                },
+                {
+                    text: "EPack Data Center Solutions subsidiary",
+                    sentiment: "neutral",
+                    category: "New Business"
+                },
+                {
+                    text: "Steel prices → 100bps margin hit",
+                    sentiment: "negative",
+                    category: "Margin Headwind"
+                }
+            ],
+            congratsScore: 7.3,
+            resultQuality: "Strong",
+            mgmtSentiment: "Optimistic"
+        };
+
+        // Populate highlights
+        function populateHighlights() {
+            const list = document.getElementById('highlightsList');
+            earningsData.highlights.forEach(highlight => {
+                const li = document.createElement('li');
+                li.className = 'highlight-item';
+                li.innerHTML = `
+                    <div class="highlight-bullet ${highlight.sentiment}"></div>
+                    <div class="highlight-text">${highlight.text}</div>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // Set congratsScore
+        document.getElementById('congratsScore').textContent = earningsData.congratsScore;
+
+        // Set result quality
+        const resultQuality = earningsData.resultQuality.toLowerCase();
+        const resultBox = document.getElementById('resultQualityValue');
+        resultBox.textContent = earningsData.resultQuality;
+        resultBox.className = `selector-value ${resultQuality.includes('strong') ? 'positive' : resultQuality.includes('weak') ? 'negative' : 'neutral'}`;
+
+        // Set mgmt sentiment
+        const mgmtSentiment = earningsData.mgmtSentiment.toLowerCase();
+        const mgmtBox = document.getElementById('mgmtSentimentValue');
+        mgmtBox.textContent = earningsData.mgmtSentiment;
+        mgmtBox.className = `selector-value ${mgmtSentiment.includes('optimistic') ? 'positive' : mgmtSentiment.includes('cautious') ? 'negative' : 'neutral'}`;
+
+        // Initialize
+        populateHighlights();
+
+        // Add click handlers for dropdowns (future enhancement)
+        document.getElementById('resultQualityBox').addEventListener('click', function () {
+            console.log('Result Quality selector clicked');
+        });
+
+        document.getElementById('mgmtSentimentBox').addEventListener('click', function () {
+            console.log('Mgmt Sentiment selector clicked');
+        });
+    </script>
+</body>
+
+</html>

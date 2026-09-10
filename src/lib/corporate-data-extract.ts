@@ -122,7 +122,9 @@ function qianfanConfig(): { base: string; model: string } | null {
   const base = (process.env.QIANFAN_OCR_BASE_URL || "").trim().replace(/\/$/, "");
   if (!base) return null;
   const model =
-    (process.env.QIANFAN_OCR_MODEL || "baidu/Qianfan-OCR").trim() ||
+    (process.env.LLM_MODEL_OCR ||
+      process.env.QIANFAN_OCR_MODEL ||
+      "baidu/Qianfan-OCR").trim() ||
     "baidu/Qianfan-OCR";
   return { base, model };
 }
@@ -137,6 +139,15 @@ export async function ocrImageWithQianfan(
       "Set QIANFAN_OCR_BASE_URL (Ollama vision or vLLM OpenAI-compatible)",
     );
   }
+  const { shrinkImageDataUrlForOcr } = await import("./pdf-rasterize");
+  const image = await shrinkImageDataUrlForOcr(imageDataUrl, 1280);
+  // Keep prompt short — image tokens dominate context
+  const shortPrompt =
+    prompt.length > 280 ? `${prompt.slice(0, 280)}…` : prompt;
+  const numCtx = Math.max(
+    8192,
+    Number(process.env.OLLAMA_OCR_NUM_CTX || 16384) || 16384,
+  );
   const res = await fetch(`${cfg.base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -146,19 +157,22 @@ export async function ocrImageWithQianfan(
         {
           role: "user",
           content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: imageDataUrl } },
+            { type: "text", text: shortPrompt },
+            { type: "image_url", image_url: { url: image } },
           ],
         },
       ],
-      max_tokens: 4096,
+      // Completion budget — do not set near full context (Ollama counts both)
+      max_tokens: 1536,
       temperature: 0,
+      // Ollama OpenAI-compat: raise context above default 4096
+      options: { num_ctx: numCtx },
     }),
     signal: AbortSignal.timeout(180_000),
   });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
-    throw new Error(`Vision OCR ${res.status}: ${t.slice(0, 200)}`);
+    throw new Error(`Vision OCR ${res.status}: ${t.slice(0, 280)}`);
   }
   const json = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;

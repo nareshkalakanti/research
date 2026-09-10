@@ -53,3 +53,6 @@ next-env.d.ts
 # corrupt SQLite backups
 **/*.corrupt*
 *.corrupt*
+
+# Local PDF uploads for Concall Research
+/data/concall-uploads/
