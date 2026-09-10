@@ -345,6 +345,135 @@ async function collectBoardHits(
   return hits;
 }
 
+function toAnyPdfHit(row: NseAnnRow): CorporateDocHit | null {
+  const url = safeStr(row.attchmntFile);
+  if (!url.startsWith("http") || url.endsWith("/-")) return null;
+  // NSE often packs resignation / KMP filings as .zip containing a PDF
+  if (!/\.(pdf|zip)($|\?)/i.test(url)) return null;
+  const rawDate = safeStr(row.an_dt) || safeStr(row.date) || null;
+  const date =
+    normalizeAnnouncementDate(rawDate) || dateFromNseArchiveUrl(url) || rawDate;
+  return {
+    url,
+    title: safeStr(row.desc) || safeStr(row.attchmntText) || "Announcement",
+    date,
+  };
+}
+
+/**
+ * Prefer material corp filings for research auto-pick.
+ * People-change (resignation / management) and General Updates rank above allotment noise.
+ */
+export function announcementResearchScore(hit: CorporateDocHit): number {
+  const t = hit.title.toLowerCase();
+  let s = 0;
+  // Board / KMP people moves — often titled "Change in Management" on NSE
+  if (
+    /resign|cessation|change\s+in\s+management|change\s+in\s+(?:key\s+)?(?:managerial\s+)?personnel|\bkmp\b|\bsmp\b|board\s+resignation|appointment\s+of\s+(?:director|independent)|retirement\s+of|resignation\s+of\s+director/i.test(
+      t,
+    )
+  ) {
+    s += 110;
+  }
+  if (/general\s+updates?/i.test(t)) s += 100;
+  if (
+    /capital\s+raise|preferential|qip|rights\s+issue|fund\s+rais|warrant|buy\s*back|dividend|acquisition|order\s+win|credit\s+rating|demerger|merger|debt\s+repay|loan\s+repay|repayment\s+of\s+debt/i.test(
+      t,
+    )
+  ) {
+    s += 80;
+  }
+  // Allotment / issue of securities — material but often routine follow-ups
+  if (/allotment\s+of\s+securities|issue\s+of\s+securities/i.test(t)) s += 35;
+  if (
+    /board\s+meeting|outcome\s+of\s+board|appointment|resignation|retirement|director/i.test(
+      t,
+    )
+  ) {
+    s += 40;
+  }
+  if (/press\s+release|intimation|regulation\s*30|reg\.?\s*30/i.test(t)) s += 25;
+  if (
+    /analysts?\/institutional|investor\s+meet|con\.?\s*call|conference\s+call|earnings\s+call|transcript|investor\s+presentation|monitoring\s+agency|statement\s+of\s+deviation/i.test(
+      t,
+    )
+  ) {
+    s -= 80;
+  }
+  if (/newspaper|corrigendum|clarification\s+only|compliance\s+report/i.test(t)) {
+    s -= 30;
+  }
+  const days =
+    dateSortKey(hit.date) > 0
+      ? (Date.now() - dateSortKey(hit.date)) / 86_400_000
+      : 365;
+  s += Math.max(0, 20 - days * 0.5);
+  return s;
+}
+
+/**
+ * Recent NSE announcement PDFs for a ticker.
+ * Sorted for research: General Updates / material events first, then date.
+ */
+export async function listRecentCorporateAnnouncementPdfs(
+  ticker: string,
+  market = "NSE",
+  opts?: { jar?: NseCookieJar; limit?: number; lookbackYears?: number },
+): Promise<CorporateDocHit[]> {
+  const symbol = ticker.trim().toUpperCase();
+  if (!symbol) return [];
+  if (isNseCircuitOpen()) {
+    throw new NseAnnouncementsBlockedError(
+      "NSE circuit open (Akamai) — skipped for a few minutes",
+    );
+  }
+  let jar: NseCookieJar;
+  try {
+    jar = await getSharedJar(opts?.jar);
+  } catch (err) {
+    if (isNseTransportFailure(err)) {
+      markNseBlocked();
+      throw new NseAnnouncementsBlockedError(
+        "NSE session warm failed (Akamai/HTTP2)",
+      );
+    }
+    throw err;
+  }
+
+  const primary: "sme" | "equities" = /SME/i.test(market) ? "sme" : "equities";
+  const indexes: Array<"sme" | "equities"> = [
+    primary,
+    primary === "sme" ? "equities" : "sme",
+  ];
+  const limit = opts?.limit ?? 15;
+  const years = opts?.lookbackYears ?? 1;
+  const hits: CorporateDocHit[] = [];
+  const seen = new Set<string>();
+
+  for (const index of indexes) {
+    for (const { from, to } of dateWindows(years, WINDOW_DAYS)) {
+      if (isNseCircuitOpen()) break;
+      const rows = await fetchAnn(symbol, index, from, to, jar);
+      for (const row of rows) {
+        const hit = toAnyPdfHit(row);
+        if (!hit || seen.has(hit.url)) continue;
+        seen.add(hit.url);
+        hits.push(hit);
+      }
+      await sleep(160);
+    }
+    if (hits.length) break;
+    await sleep(200);
+  }
+
+  hits.sort((a, b) => {
+    const scoreDiff = announcementResearchScore(b) - announcementResearchScore(a);
+    if (scoreDiff) return scoreDiff;
+    return dateSortKey(b.date) - dateSortKey(a.date);
+  });
+  return hits.slice(0, limit);
+}
+
 export async function findCorporateBoardDocument(
   ticker: string,
   market: string,

@@ -1,0 +1,173 @@
+{
+  "metadata": {
+    "company": "EPACK Prefab Technologies Limited",
+    "event_date": "03 Aug 2026, 4:00 PM",
+    "reporting_period": "Q1 FY27",
+    "analyst_type": "Equity Research - Quant",
+    "data_sources": ["Earnings Call Transcript", "Investor Presentation"]
+  },
+  "financial_snapshot": {
+    "revenue": {
+      "q1_fy27_₹cr": 365.8,
+      "q1_fy26_₹cr": 295.3,
+      "yoy_growth_%": 23.9,
+      "prefab_segment_₹cr": 314.2,
+      "prefab_yoy_growth_%": 24.7,
+      "fy27_guidance_₹cr_low": 1900,
+      "fy27_guidance_₹cr_high": 1950,
+      "fy27_guidance_growth_%": 30.0
+    },
+    "ebitda": {
+      "q1_fy27_₹cr": 34.5,
+      "q1_fy26_₹cr": 30.9,
+      "yoy_growth_%": 11.7,
+      "q1_fy27_margin_%": 9.4,
+      "q1_fy26_margin_%": 10.5,
+      "margin_change_bps": -110,
+      "fy27_margin_guidance_%_low": 10.5,
+      "fy27_margin_guidance_%_high": 11.5,
+      "margin_normalization_timeline": "Q2 onwards"
+    },
+    "pat": {
+      "q1_fy27_₹cr": 18.2,
+      "q1_fy26_₹cr": 16.0,
+      "yoy_growth_%": 13.8,
+      "q1_fy27_margin_%": 5.0,
+      "q1_fy26_margin_%": 5.4,
+      "margin_change_bps": -40
+    },
+    "order_book": {
+      "pending_₹cr": 1376.4,
+      "as_on_date": "30-Jun-2026",
+      "q1_inflow_₹cr": 578.1,
+      "q1_fy26_inflow_₹cr": 234.6,
+      "q1_inflow_growth_%": 146.4,
+      "largest_order_₹cr": 165.0,
+      "largest_order_sector": "Renewable Energy",
+      "ob_to_revenue_ratio": 1.0,
+      "visibility_months": "6-8",
+      "fy27_order_target_₹cr": 2000.0,
+      "q1_achievement_of_target_%": 28.9,
+      "remaining_quarters_target_₹cr": 1421.9
+    }
+  },
+  "operational_metrics": {
+    "capacity_utilization": {
+      "peb_capacity_mtpa": 147.2,
+      "peb_utilization_q1_%": 75.15,
+      "peb_utilization_target_%": 80,
+      "sandwich_panel_capacity_sqm_lakh": 130.0,
+      "sandwich_panel_q1_utilization_%": 44.25,
+      "sandwich_panel_fy26_utilization_%": 25.0,
+      "sandwich_panel_yoy_improvement_bps": 1925,
+      "sandwich_panel_fy27_target_%": 70.0
+    },
+    "execution": {
+      "largest_order_execution_months": 4.5,
+      "standard_execution_months_low": 6,
+      "standard_execution_months_high": 8,
+      "timeline_compression_%": -43.75,
+      "win_rate_%": 20.0,
+      "industry_benchmark_win_rate_%": 10,
+      "existing_customer_repeat_win_rate_%_low": 30,
+      "existing_customer_repeat_win_rate_%_high": 40,
+      "avg_order_size_q1_₹cr": 12.0,
+      "avg_order_size_fy26_₹cr": 6.5,
+      "order_size_growth_%": 84.6
+    }
+  },
+  "segment_analysis": {
+    "order_book_by_sector_q1": {
+      "renewable_energy_%": 41.5,
+      "logistics_warehousing_%": 24.8,
+      "industrials_%": 21.7,
+      "automotive_%": 5.0,
+      "others_%": 6.6,
+      "data_centers_%": 4.0,
+      "export_%": 0.4
+    },
+    "revenue_by_geography_fy26": {
+      "south_india_%": 43,
+      "north_central_%": 12,
+      "south_geographic_driver": "Mambattu facility expansion"
+    }
+  },
+  "capex_and_returns": {
+    "capex_allocation": {
+      "ghiloth_sandwich_line_₹cr": 101.6,
+      "ghiloth_commissioning_timeline": "Q2 end FY27",
+      "ghiloth_production_start": "Q3 FY27",
+      "mambattu_expansion_₹cr": 58.1,
+      "mambattu_line1_status": "Production started",
+      "mambattu_line2_timeline": "Q3 FY27",
+      "gujarat_phase1_₹cr": 500.0,
+      "gujarat_status": "Civil work in progress",
+      "gujarat_commissioning": "Q4 FY27",
+      "gujarat_production_start": "Apr 2027",
+      "data_center_subsidiary_₹cr": 75.0,
+      "data_center_status": "Early stage, no concrete plan",
+      "total_planned_capex_₹cr": 734.7,
+      "capex_spent_to_q1_₹cr": 176.2,
+      "fy27_capex_guidance_₹cr": 150.0
+    },
+    "peak_revenue_potential": {
+      "post_expansion_peak_₹cr_low": 2700,
+      "post_expansion_peak_₹cr_high": 2900,
+      "peak_timeline": "FY28-FY29",
+      "implied_capacity_utilization_%_low": 80,
+      "implied_capacity_utilization_%_high": 85,
+      "fy27_target_₹cr_low": 1900,
+      "fy27_target_₹cr_high": 1950,
+      "cagr_to_peak_%_low": 30,
+      "cagr_to_peak_%_high": 35
+    },
+    "cash_and_debt": {
+      "net_cash_₹cr": 103.2,
+      "debt_prepaid_from_ipo_₹cr": 700.0,
+      "credit_rating": "A+",
+      "credit_rating_status": "Reaffirmed"
+    }
+  },
+  "risk_factors": {
+    "margin_headwinds": {
+      "steel_price_sensitivity_bps": 100,
+      "q1_actual_impact_bps": 100,
+      "mitigation_strategy": "Weekly order repricing, long-term sourcing",
+      "expected_normalization": "Q2 onwards",
+      "management_confidence_level": "High"
+    },
+    "operational_risks": {
+      "execution_risk": "Monsoon delays in civil works",
+      "affected_quarters": "Q1-Q2",
+      "order_concentration_renewable_%": 41.5,
+      "win_rate_concern": "20% vs 10-12% industry benchmark"
+    },
+    "market_risks": {
+      "peb_market_penetration_%": 3.0,
+      "peb_market_penetration_high_%": 5.0,
+      "organized_sector_share_%": 50,
+      "domestic_revenue_%": 99.6,
+      "export_revenue_%": 0.4,
+      "export_traction_status": "Nascent"
+    }
+  },
+  "near_term_catalysts_6m": [
+    "Ghiloth continuous sandwich panel line commissioning (Q2 FY27 end)",
+    "Mambattu sandwich panel utilization ramp from 44% to 70%+",
+    "EBITDA margin recovery to 10.5%+ from Q2 FY27",
+    "Data center first turnkey order booking",
+    "Q2 earnings validation of margin recovery guidance"
+  ],
+  "medium_term_catalysts_12m": [
+    "Gujarat facility capex execution and production start (Apr 2027)",
+    "Peak capacity utilization achieved across PEB and sandwich segments",
+    "FY28 revenue guidance: ₹2,300-2,400cr",
+    "Market share expansion: 7-7.5% (from 5-6% FY26)",
+    "Order book replenishment: ₹2,000cr FY27 target validation"
+  ],
+  "investment_summary": {
+    "bull_case": "Strong order book momentum (₹1,376cr pending, 146% Q1 growth), 30% revenue growth guidance on track, capacity expanding ahead of demand, sector tailwinds (renewables 41.5% of order book), improving unit economics (avg order size +85%), peak revenue potential ₹2,700-2,900cr with 30-35% CAGR.",
+    "bear_case": "Transient margin compression (100bps from commodity cycle) with recovery visibility Q2+. Low win rate (20% vs 10-12% industry) limits market share upside. Export nascent at 0.4% of orders. Data center subsidiary early stage with no revenue yet. Order book coverage declining (1.5x → 1.0x).",
+    "valuation_anchors": "Order book coverage 1.0x revenue (6-8 month visibility). Peak CAGR 30-35% to ₹2,700-2,900cr. Capex payoff timeline FY28-FY29. ROIC on capex ~44%. Market share expansion 150bps (5-6% → 7-7.5% FY27)."
+  }
+}

@@ -1,0 +1,120 @@
+SYSTEM — Earnings materials extract (Transcript + optional Results PPT)
+
+Extract from the provided earnings call transcript and, when present, the results / investor presentation.
+
+Return ONE JSON object only. No markdown. No commentary outside JSON.
+
+OUTPUT SCHEMA (all keys required; use null / [] when unknown):
+{
+  "company": string|null,
+  "nse_symbol": string|null,
+  "quarter": string|null,
+  "fiscal_year": string|null,
+  "call_date": "YYYY-MM-DD"|null,
+  "result_quality": {
+    "rating": "Excellent"|"Strong"|"Average"|"Weak",
+    "strengths": string[],
+    "weaknesses": string[]
+  },
+  "sentiment": {
+    "score": number,
+    "label": "Optimistic"|"Bullish"|"Neutral"|"Cautious"|"Bearish",
+    "tone": string,
+    "quote": string|null,
+    "conviction": string|null,
+    "emotions": string[]
+  },
+  "highlights": [
+    { "text": string, "polarity": "positive"|"neutral"|"negative" }
+  ],
+  "kpi_cards": [
+    { "label": string, "value": string, "subtext": string }
+  ],
+  "financials": {
+    "revenue_cr": number|null,
+    "yoy_revenue_pct": number|null,
+    "ebitda_cr": number|null,
+    "yoy_ebitda_pct": number|null,
+    "ebitda_margin_pct": number|null,
+    "pat_cr": number|null,
+    "yoy_pat_pct": number|null,
+    "eps": number|null
+  },
+  "guidance": {
+    "revenue_fy_cr_low": number|null,
+    "revenue_fy_cr_high": number|null,
+    "ebitda_margin_fy_pct": number|null,
+    "notes": string[]
+  },
+  "catalysts": [
+    { "event": string, "timeline": string|null }
+  ],
+  "corporate_actions": [
+    {
+      "type": "acquisition"|"merger"|"stake"|"capex"|"other",
+      "counterparty": string|null,
+      "stake_pct": number|null,
+      "deal_value_cr": number|null,
+      "status": string|null
+    }
+  ]
+}
+
+CARD LAYOUT (structure only — do NOT copy these words/numbers into the output):
+  Result Quality → rating + strengths (✓) + weaknesses (⚠)
+  Sentiment → label (score/10) + Tone + Quote + Conviction
+  Key Highlights → 3–5 short bullets
+  KPI cards → up to 4 × {label, value, subtext}
+
+FIELD RULES
+
+1) RESULT_QUALITY
+   - rating: Excellent|Strong|Average|Weak
+     Excellent: exceptional beat + catalyst; Strong: solid print/execution;
+     Average: mixed/process-heavy; Weak: clear miss/cut
+   - strengths: 2–4 bullets ONLY from stated facts (orders, revenue, capacity, M&A).
+     Do NOT prefix with ✓ — UI adds it.
+   - weaknesses: 0–4 bullets ONLY if the materials state a risk / miss / pressure.
+     If none stated → []. Never invent war/margin/order-loss risks.
+     Do NOT prefix with ⚠ — UI adds it.
+
+2) SENTIMENT — only from real management commentary in the materials
+   - score: 1–10, one decimal allowed; null if no mgmt voice (cover letter only)
+   - label: Optimistic|Bullish|Neutral|Cautious|Bearish
+   - tone: short phrase grounded in the materials, or null
+   - quote: ONE verbatim management quote ≤30 words from the text, else null
+   - conviction: one line only if materials support it, else null
+   - emotions: up to 4 short tags, or []
+   If transcript is only an audio-recording intimation (no Q&A), derive tone only from
+   PPT management commentary; leave quote/conviction null unless a real quote exists.
+
+3) HIGHLIGHTS — 3–5 StockScans-style scanlines from THIS document only
+   Shape: { "text": "≤12 words", "polarity": "positive"|"neutral"|"negative" }
+   Prefer: named M&A / amalgamation, capacity, YoY prints, market share if stated.
+   Polarity (dot color in UI):
+     positive = green  beat/raise/closed M&A/investment/target/wins
+     negative = red    cut/reset/miss/delay/destock/promoter divestment
+     neutral  = gray   audit/appeal/process/announced/CEO change
+   Never invent orders, win rates, OEM wins, data-center deals, or market-share paths
+   that are not in the text.
+
+4) KPI_CARDS — up to 4 cards; only when value is stated
+   Prefer labels present in the materials (e.g. Revenue, EBITDA, PAT, Capacity).
+   Skip a card rather than inventing Growth / Order Book / Execution figures.
+   Money: keep the unit from the materials (Mn or Cr). Do not mix YoY % into a ₹ amount.
+
+5) FINANCIALS — absolute amounts vs growth (do not mix)
+   - revenue_cr / ebitda_cr / pat_cr = absolute INR crore only.
+     If materials say Rs 3,658 Mn → revenue_cr = 365.8 (Mn ÷ 10). Never put 3658 or 23.9 here.
+   - yoy_revenue_pct / yoy_ebitda_pct / yoy_pat_pct = growth % only (e.g. 23.9).
+   - Never put a YoY % into *_cr fields.
+
+HARD ANTI-HALLUCINATION
+- Numbers, counterparties, quotes, orders, margins, win rates: ONLY if present in the text.
+- Do not reuse examples from training or from this prompt.
+- Audio-intimation / cover-letter pages are NOT a transcript — ignore them for sentiment quotes.
+- Prefer PPT financials + management commentary + corporate actions when the transcript is thin.
+
+Also fill financials / guidance / catalysts / corporate_actions when stated.
+Skip cover letters, safe harbour, board bios, thank-you pages for highlights.
+If transcript is only an audio-recording intimation, rely on the PPT for prints and actions.

@@ -1,0 +1,43 @@
+{
+  "metadata": {
+    "company_name": "Ram Ratna Wires Limited",
+    "nse_symbol": "RAMRAT",
+    "bse_code": "522281",
+    "quarter": "Q1",
+    "fiscal_year": "FY27",
+    "document_type": "Earnings call transcript"
+  },
+  "reported_financials": {},
+  "management_tone": {
+    "overall_tone": "optimistic",
+    "net_sentiment_score": 0.7
+  },
+  "card": {
+    "highlights": [
+      { "text": "Revenue from Operations up 89%", "polarity": "positive" },
+      { "text": "Operating EBITDA & EBITDA Margin up 109%", "polarity": "positive" },
+      { "text": "PAT & PAT Margin up 121%", "polarity": "positive" }
+    ]
+  },
+  "quant": {
+    "executive_summary": {
+      "financial_snapshot": {
+        "revenue": {
+          "q1_fy27_₹cr": 185.33,
+          "q1_fy26_₹cr": 982.5,
+          "yoy_growth_%": 0
+        },
+        "ebitda": {
+          "q1_fy27_₹cr": 89.6,
+          "yoy_growth_%": 109
+        },
+        "pat": {
+          "q1_fy27_₹cr": 35.2,
+          "yoy_growth_%": 121
+        }
+      }
+    }
+  },
+  "corporate_actions": [],
+  "key_catalysts": []
+}

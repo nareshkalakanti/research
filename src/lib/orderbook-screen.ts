@@ -13,6 +13,23 @@ import {
   baselineCloseBefore,
   computeDriftPct,
 } from "./strategy/concall-drift-math";
+import {
+  cacheBseScripCode,
+  discoverBseAnnouncedOrders,
+  discoverBseOrderAnnouncements,
+  extractBseScripCode,
+  resolveBseScripCode,
+} from "./bse-investor-discover";
+import {
+  discoverNseAnnouncedOrders,
+  discoverNseOrderAnnouncements,
+} from "./nse-investor-discover";
+import { loadAllCompanies } from "./db";
+import { screenerUrl } from "./links";
+import { checkLlmStatus, completeJson } from "./llm-client";
+import { loadLlmConfig } from "./llm-config";
+import fs from "fs";
+import path from "path";
 
 export type FxCurrency = "USD" | "EUR" | "GBP";
 
@@ -393,6 +410,233 @@ export function isOrderbookPdfProxyUrl(url: string): boolean {
   }
 }
 
+export type OrderbookDiscoverHit = {
+  title: string;
+  url: string;
+  period: string | null;
+  announced_at: string | null;
+  provider: string;
+};
+
+/**
+ * Ticker → latest Reg-30 order / LOI PDF (BSE + NSE), like concall Find latest.
+ */
+export async function discoverOrderbookPdfSources(tickerRaw: string): Promise<{
+  ok: true;
+  ticker: string;
+  sources: OrderbookDiscoverHit[];
+  latest: OrderbookDiscoverHit | null;
+  note?: string;
+}> {
+  const ticker = tickerRaw.trim().toUpperCase().replace(/[^A-Z0-9.&-]/g, "");
+  if (!ticker) {
+    throw new Error("Enter an NSE ticker (e.g. AFCONS)");
+  }
+
+  const company = loadAllCompanies().find(
+    (c) => c.ticker.toUpperCase() === ticker,
+  );
+  const market = company?.market ?? null;
+
+  let scrip = resolveBseScripCode(ticker, null);
+  const notes: string[] = [];
+
+  if (!scrip) {
+    try {
+      const res = await fetch(screenerUrl(ticker), {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        },
+        signal: AbortSignal.timeout(25_000),
+      });
+      if (res.ok) {
+        const html = await res.text();
+        const fromHtml = extractBseScripCode(html);
+        if (fromHtml) {
+          cacheBseScripCode(ticker, fromHtml);
+          scrip = fromHtml;
+        }
+      }
+    } catch {
+      notes.push("Screener scrip lookup failed");
+    }
+  }
+
+  const hits: OrderbookDiscoverHit[] = [];
+  const [bse, nse] = await Promise.allSettled([
+    scrip
+      ? discoverBseOrderAnnouncements(scrip)
+      : Promise.resolve([] as Awaited<
+          ReturnType<typeof discoverBseOrderAnnouncements>
+        >),
+    discoverNseOrderAnnouncements(ticker, market),
+  ]);
+
+  if (bse.status === "fulfilled") {
+    for (const h of bse.value) hits.push(h);
+  } else {
+    notes.push(
+      bse.reason instanceof Error ? bse.reason.message : "BSE discover failed",
+    );
+  }
+  if (nse.status === "fulfilled") {
+    for (const h of nse.value) hits.push(h);
+  } else {
+    notes.push(
+      nse.reason instanceof Error ? nse.reason.message : "NSE discover failed",
+    );
+  }
+
+  if (!scrip) notes.push("No BSE scrip cached");
+
+  hits.sort((a, b) => {
+    const at = a.announced_at ? Date.parse(a.announced_at) : 0;
+    const bt = b.announced_at ? Date.parse(b.announced_at) : 0;
+    return bt - at;
+  });
+
+  const seen = new Set<string>();
+  const sources = hits.filter((h) => {
+    const k = h.url.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  }).slice(0, 20);
+
+  return {
+    ok: true,
+    ticker,
+    sources,
+    latest: sources[0] || null,
+    note: sources.length
+      ? notes.length
+        ? notes.join(" · ")
+        : undefined
+      : notes.join(" · ") || "No Reg-30 order PDF found for this ticker",
+  };
+}
+
+export type OrderbookAnnouncedHit = {
+  ticker: string;
+  company: string | null;
+  title: string;
+  url: string | null;
+  announced_at: string | null;
+  period: string | null;
+  provider: string;
+};
+
+/**
+ * Market-wide Reg-30 order / LOI filings (NSE + BSE) for the last `daysBack` days.
+ * Like Strategy “Get announced”, but filtered to order-win announcements.
+ */
+export async function discoverOrderbookAnnounced(
+  daysBack = 1,
+): Promise<{
+  ok: true;
+  days: number;
+  count: number;
+  tickers: string[];
+  sources: OrderbookAnnouncedHit[];
+  note?: string;
+}> {
+  const days = Math.min(7, Math.max(1, daysBack));
+  const notes: string[] = [];
+  const [nse, bse] = await Promise.allSettled([
+    discoverNseAnnouncedOrders(days),
+    Promise.race([
+      discoverBseAnnouncedOrders(days),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("BSE announced timeout")), 50_000),
+      ),
+    ]),
+  ]);
+
+  const sources: OrderbookAnnouncedHit[] = [];
+  const seenUrl = new Set<string>();
+  const seenTicker = new Set<string>();
+
+  if (nse.status === "fulfilled") {
+    for (const h of nse.value) {
+      const urlKey = (h.url || "").toLowerCase();
+      if (urlKey && seenUrl.has(urlKey)) continue;
+      if (urlKey) seenUrl.add(urlKey);
+      sources.push({
+        ticker: h.ticker,
+        company: h.company,
+        title: h.title,
+        url: h.url,
+        announced_at: h.announced_at,
+        period: h.period,
+        provider: h.provider,
+      });
+      seenTicker.add(h.ticker);
+    }
+  } else {
+    notes.push(
+      nse.reason instanceof Error ? nse.reason.message : "NSE announced failed",
+    );
+  }
+
+  if (bse.status === "fulfilled") {
+    for (const h of bse.value) {
+      const urlKey = h.url.toLowerCase();
+      if (seenUrl.has(urlKey)) continue;
+      seenUrl.add(urlKey);
+      let ticker = (h.ticker || "").toUpperCase();
+      // Prefer NSE ticker already seen for same company name
+      if ((!ticker || ticker.startsWith("BSE")) && h.company) {
+        const co = h.company.toLowerCase().replace(/[^a-z0-9]+/g, "");
+        const match = sources.find((s) => {
+          const sc = (s.company || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+          return sc && co && (sc.includes(co) || co.includes(sc));
+        });
+        if (match) ticker = match.ticker;
+      }
+      if (!ticker) {
+        const placeholder = h.scrip_code ? `BSE${h.scrip_code}` : "";
+        if (!placeholder) continue;
+        ticker = placeholder;
+      }
+      sources.push({
+        ticker,
+        company: h.company,
+        title: h.title,
+        url: h.url,
+        announced_at: h.announced_at,
+        period: h.period,
+        provider: h.provider,
+      });
+      if (!ticker.startsWith("BSE")) seenTicker.add(ticker);
+    }
+  } else {
+    notes.push(
+      bse.reason instanceof Error ? bse.reason.message : "BSE announced failed",
+    );
+  }
+
+  sources.sort((a, b) => {
+    const at = a.announced_at ? Date.parse(a.announced_at) : 0;
+    const bt = b.announced_at ? Date.parse(b.announced_at) : 0;
+    return bt - at;
+  });
+
+  const tickers = [...seenTicker].sort();
+  return {
+    ok: true,
+    days,
+    count: sources.length,
+    tickers,
+    sources,
+    note: notes.length
+      ? notes.join(" · ")
+      : sources.length
+        ? undefined
+        : `No Reg-30 order PDFs in the last ${days} day(s)`,
+  };
+}
+
 export const AFCONS_ORDER_SAMPLE_URL =
   "https://afcons.com/wp-content/uploads/2026/01/Afcons-Corrgindedum-Revised-Letter-For-DRDO-Order-dated-08.01.2025-1.pdf";
 
@@ -495,6 +739,15 @@ export type OrderbookScreenResult = {
   }>;
   /** Claude-style extract JSON (+ Size ₹ Cr / sales when available). */
   extract_json?: Record<string, string | number | null>;
+  /** Pre-save gaps still missing after repair. */
+  save_gaps?: OrderbookSaveGap[];
+  /** Fields repaired in the missing-data step. */
+  repaired?: string[];
+};
+
+export type OrderbookSaveGap = {
+  field: string;
+  reason: string;
 };
 
 function emptyExtract(): OrderbookExtract {
@@ -524,6 +777,372 @@ function emptyExtract(): OrderbookExtract {
     drift_pct: null,
     confidence: 0,
   };
+}
+
+function loadOrderbookExtractSystem(): string {
+  try {
+    return fs
+      .readFileSync(
+        path.join(process.cwd(), "prompts", "orderbook-extract.system.txt"),
+        "utf8",
+      )
+      .trim();
+  } catch {
+    return `Extract Reg-30 order/LOI fields as JSON: ticker, company, subject, order_date (YYYY-MM-DD), orders[{awarding_entity,order_size,execution,contractor}], order_size_cr, nature, domestic_or_international, confidence. Return ONLY JSON.`;
+  }
+}
+
+function asStr(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s ? s : null;
+}
+
+function asFinite(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim()) {
+    const n = Number(v.replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function isBlankField(v: string | null | undefined): boolean {
+  const s = (v || "").trim();
+  return (
+    !s ||
+    /^not\s+disclosed$/i.test(s) ||
+    /^not\s+specified$/i.test(s) ||
+    /^n\/?a$/i.test(s) ||
+    s === "—" ||
+    s === "-"
+  );
+}
+
+/**
+ * Pre-save checklist — core Reg-30 fields needed before PASS persist / Δ order.
+ */
+export function orderbookSaveReadiness(extract: OrderbookExtract): {
+  ready: boolean;
+  gaps: OrderbookSaveGap[];
+} {
+  const gaps: OrderbookSaveGap[] = [];
+  if (isBlankField(extract.awarding_entity)) {
+    gaps.push({
+      field: "awarding_entity",
+      reason: "Need awarding entity",
+    });
+  }
+  if (isBlankField(extract.order_size)) {
+    gaps.push({
+      field: "order_size",
+      reason: "Need order size as stated",
+    });
+  }
+  if (isBlankField(extract.execution)) {
+    gaps.push({
+      field: "execution",
+      reason: "Need execution / duration",
+    });
+  }
+  if (!extract.order_date) {
+    gaps.push({
+      field: "order_date",
+      reason: "Need announcement date (for Δ order)",
+    });
+  }
+  if (extract.order_size_cr == null || extract.order_size_cr <= 0) {
+    gaps.push({
+      field: "order_size_cr",
+      reason: "Need size as ₹ Cr",
+    });
+  }
+  if (!extract.ticker) {
+    gaps.push({
+      field: "ticker",
+      reason: "Need NSE ticker",
+    });
+  }
+  return { ready: gaps.length === 0, gaps };
+}
+
+function syncPrimaryFromOrders(extract: OrderbookExtract): OrderbookExtract {
+  const out = { ...extract, orders: [...extract.orders] };
+  const primary = out.orders[0];
+  if (!primary) return out;
+  out.awarding_entity = primary.awarding_entity;
+  out.order_size = primary.order_size;
+  out.execution = primary.execution;
+  out.execution_period =
+    isBlankField(primary.execution) ? null : primary.execution;
+  out.order_size_note =
+    primary.size_cr_label ||
+    (isBlankField(primary.order_size) ? null : primary.order_size);
+  if (out.order_size_cr == null && primary.size_cr != null) {
+    out.order_size_cr = primary.size_cr;
+  }
+  return out;
+}
+
+/**
+ * Identify missing fields and attempt fixes (LLM fill, date fallback, ₹ Cr parse).
+ */
+export async function repairOrderbookGaps(
+  extract: OrderbookExtract,
+  text: string,
+  opts?: {
+    announced_at?: string | null;
+    alreadyUsedLlm?: boolean;
+  },
+): Promise<{
+  extract: OrderbookExtract;
+  gaps_before: OrderbookSaveGap[];
+  gaps_after: OrderbookSaveGap[];
+  fixed: string[];
+  engine_extra: string;
+}> {
+  let out = syncPrimaryFromOrders({ ...extract, orders: [...extract.orders] });
+  const before = orderbookSaveReadiness(out);
+  const fixed: string[] = [];
+  let engine_extra = "";
+
+  // Normalize blank-ish execution/size so pass checks treat them as missing
+  if (isBlankField(out.execution)) {
+    out.execution = NOT_DISCLOSED;
+    if (out.orders[0]) out.orders[0] = { ...out.orders[0], execution: NOT_DISCLOSED };
+  }
+  if (isBlankField(out.order_size)) {
+    out.order_size = NOT_DISCLOSED;
+    if (out.orders[0]) out.orders[0] = { ...out.orders[0], order_size: NOT_DISCLOSED };
+  }
+  if (isBlankField(out.awarding_entity)) {
+    out.awarding_entity = NOT_DISCLOSED;
+    if (out.orders[0]) {
+      out.orders[0] = { ...out.orders[0], awarding_entity: NOT_DISCLOSED };
+    }
+  }
+
+  if (!out.order_date) {
+    const fromText = extractOrderDate(text.replace(/\s+/g, " "));
+    const fromAnn = coerceOrderDateIso(opts?.announced_at);
+    if (fromText) {
+      out.order_date = fromText;
+      fixed.push("order_date:text");
+    } else if (fromAnn) {
+      out.order_date = fromAnn;
+      fixed.push("order_date:announced_at");
+    }
+  }
+
+  if (
+    (out.order_size_cr == null || out.order_size_cr <= 0) &&
+    !isBlankField(out.order_size)
+  ) {
+    const cr = parseOrderSizeToCr(out.order_size);
+    if (cr != null && cr > 0) {
+      out.order_size_cr = cr;
+      if (out.orders[0]) {
+        out.orders[0] = {
+          ...out.orders[0],
+          size_cr: cr,
+          size_cr_label: `₹${cr} Cr`,
+        };
+      }
+      fixed.push("order_size_cr:parse");
+    }
+  }
+
+  const needsCore =
+    isBlankField(out.awarding_entity) ||
+    isBlankField(out.order_size) ||
+    isBlankField(out.execution) ||
+    !out.order_date ||
+    out.order_size_cr == null;
+
+  if (needsCore && !opts?.alreadyUsedLlm) {
+    const llm = await enrichOrderbookWithLlm(text, out);
+    if (llm.usedLlm) {
+      const mid = orderbookSaveReadiness(out);
+      out = llm.extract;
+      engine_extra = "+repair-llm";
+      const afterLlm = orderbookSaveReadiness(out);
+      for (const g of mid.gaps) {
+        if (!afterLlm.gaps.some((x) => x.field === g.field)) {
+          fixed.push(`${g.field}:llm`);
+        }
+      }
+    } else if (llm.detail) {
+      engine_extra = "+repair-llm-skip";
+    }
+  }
+
+  // Re-parse ₹ Cr after LLM may have filled order_size wording
+  if (
+    (out.order_size_cr == null || out.order_size_cr <= 0) &&
+    !isBlankField(out.order_size)
+  ) {
+    const cr = parseOrderSizeToCr(out.order_size);
+    if (cr != null && cr > 0) {
+      out.order_size_cr = cr;
+      fixed.push("order_size_cr:parse");
+    }
+  }
+
+  out = syncPrimaryFromOrders(out);
+  const after = orderbookSaveReadiness(out);
+  return {
+    extract: out,
+    gaps_before: before.gaps,
+    gaps_after: after.gaps,
+    fixed,
+    engine_extra,
+  };
+}
+
+/** Merge LLM JSON onto a lexical base (LLM fills gaps; keeps lexical when stronger). */
+function mergeOrderbookLlm(
+  base: OrderbookExtract,
+  raw: Record<string, unknown>,
+): OrderbookExtract {
+  const out: OrderbookExtract = { ...base, orders: [...base.orders] };
+  const ticker = asStr(raw.ticker)?.toUpperCase() || null;
+  const company = asStr(raw.company);
+  const subject = asStr(raw.subject);
+  const orderDate = coerceOrderDateIso(asStr(raw.order_date));
+  if (ticker && !out.ticker) out.ticker = ticker;
+  if (company && !out.company) out.company = company;
+  if (subject && !out.subject) out.subject = subject;
+  if (orderDate && !out.order_date) {
+    out.order_date = orderDate;
+  }
+  if (asStr(raw.nature) && !out.nature) out.nature = asStr(raw.nature);
+  if (asStr(raw.domestic_or_international) && !out.domestic_or_international) {
+    out.domestic_or_international = asStr(raw.domestic_or_international);
+  }
+
+  const llmOrders: OrderWinRow[] = [];
+  const arr = Array.isArray(raw.orders) ? raw.orders : [];
+  for (const item of arr) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const awarding = asStr(o.awarding_entity) || NOT_DISCLOSED;
+    const size = asStr(o.order_size) || NOT_DISCLOSED;
+    const execution = asStr(o.execution) || NOT_DISCLOSED;
+    const contractor = asStr(o.contractor);
+    if (
+      awarding === NOT_DISCLOSED &&
+      size === NOT_DISCLOSED &&
+      execution === NOT_DISCLOSED
+    ) {
+      continue;
+    }
+    const sizeCr =
+      asFinite(o.order_size_cr) ??
+      (size !== NOT_DISCLOSED ? parseOrderSizeToCr(size) : null);
+    llmOrders.push({
+      awarding_entity: awarding,
+      order_size: size,
+      execution,
+      size_cr: sizeCr,
+      size_cr_label: sizeCr != null ? `₹${sizeCr} Cr` : null,
+      contractor,
+    });
+  }
+
+  if (llmOrders.length) {
+    // Prefer LLM rows when lexical left core blank
+    const lexWeak =
+      out.orders.length === 0 ||
+      out.orders.every(
+        (r) =>
+          isBlankField(r.awarding_entity) &&
+          isBlankField(r.order_size) &&
+          isBlankField(r.execution),
+      );
+    if (lexWeak || isBlankField(out.awarding_entity)) {
+      out.orders = llmOrders;
+    } else {
+      // Fill missing slots on primary from LLM primary
+      const p = out.orders[0]!;
+      const l = llmOrders[0]!;
+      if (isBlankField(p.awarding_entity) && !isBlankField(l.awarding_entity)) {
+        p.awarding_entity = l.awarding_entity;
+      }
+      if (isBlankField(p.order_size) && !isBlankField(l.order_size)) {
+        p.order_size = l.order_size;
+        p.size_cr = l.size_cr;
+        p.size_cr_label = l.size_cr_label;
+      }
+      if (isBlankField(p.execution) && !isBlankField(l.execution)) {
+        p.execution = l.execution;
+      }
+      if (!p.contractor && l.contractor) p.contractor = l.contractor;
+    }
+  }
+
+  const primary = out.orders[0];
+  if (primary) {
+    out.awarding_entity = primary.awarding_entity;
+    out.order_size = primary.order_size;
+    out.execution = primary.execution;
+    out.execution_period =
+      primary.execution === NOT_DISCLOSED ? null : primary.execution;
+    out.order_size_note =
+      primary.size_cr_label ||
+      (primary.order_size === NOT_DISCLOSED ? null : primary.order_size);
+  }
+
+  const llmCr = asFinite(raw.order_size_cr);
+  const sumCr = out.orders.reduce(
+    (a, r) => a + (r.size_cr != null && Number.isFinite(r.size_cr) ? r.size_cr : 0),
+    0,
+  );
+  if (out.order_size_cr == null) {
+    if (llmCr != null && llmCr > 0) out.order_size_cr = llmCr;
+    else if (sumCr > 0) out.order_size_cr = Math.round(sumCr * 100) / 100;
+  }
+
+  const conf = asFinite(raw.confidence);
+  if (conf != null) {
+    out.confidence = Math.max(out.confidence, Math.min(1, conf));
+  } else if (!isBlankField(out.awarding_entity)) {
+    out.confidence = Math.max(out.confidence, 0.7);
+  }
+
+  return out;
+}
+
+async function enrichOrderbookWithLlm(
+  text: string,
+  lexical: OrderbookExtract,
+): Promise<{ extract: OrderbookExtract; usedLlm: boolean; detail?: string }> {
+  const cfg = loadLlmConfig();
+  const status = await checkLlmStatus(cfg);
+  if (!status.available) {
+    return {
+      extract: lexical,
+      usedLlm: false,
+      detail: status.detail || "LLM unavailable",
+    };
+  }
+  try {
+    const parsed = (await completeJson(
+      cfg,
+      loadOrderbookExtractSystem(),
+      `Reg-30 order filing text (truncated):\n${text.slice(0, 16_000)}`,
+      { skipStatusCheck: true, numPredict: 1200 },
+    )) as Record<string, unknown>;
+    return {
+      extract: mergeOrderbookLlm(lexical, parsed),
+      usedLlm: true,
+    };
+  } catch (e) {
+    return {
+      extract: lexical,
+      usedLlm: false,
+      detail: e instanceof Error ? e.message.slice(0, 160) : "LLM extract failed",
+    };
+  }
 }
 
 function ensureDb() {
@@ -750,6 +1369,17 @@ const MONTHS: Record<string, string> = {
   dec: "12",
 };
 
+/** Coerce ISO datetime / filing date strings → YYYY-MM-DD. */
+export function coerceOrderDateIso(
+  raw: string | null | undefined,
+): string | null {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  return normalizeOrderDate(s);
+}
+
 /** Normalize common Indian filing dates → YYYY-MM-DD. */
 export function normalizeOrderDate(raw: string): string | null {
   const s = raw.replace(/\s+/g, " ").trim();
@@ -784,7 +1414,7 @@ export function normalizeOrderDate(raw: string): string | null {
 }
 
 const NAMED_DATE_RE =
-  /\b((?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?,?\s+\d{4})\b/i;
+  /\b((?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\.?,?\s+\d{4})\b/i;
 
 function letterheadSlice(flat: string): string {
   const markers = [
@@ -793,7 +1423,7 @@ function letterheadSlice(flat: string): string {
     /\bPursuant\s+to\s+Regulation/i,
     /\bThe details as required/i,
   ];
-  let end = Math.min(flat.length, 1400);
+  let end = Math.min(flat.length, 1800);
   for (const re of markers) {
     const m = flat.match(re);
     if (m?.index != null && m.index > 60) end = Math.min(end, m.index);
@@ -810,9 +1440,18 @@ function isCircularDatedContext(before: string): boolean {
 function extractOrderDate(flat: string): string | null {
   // 1) Letterhead / filing date above Subject / Dear Sir (HFCL: September 01, 2026)
   const head = letterheadSlice(flat);
+  const headIso = head.match(/\b(20\d{2}-\d{2}-\d{2})\b/);
+  if (headIso?.[1]) return headIso[1];
   const headDate = head.match(NAMED_DATE_RE);
   if (headDate?.[1]) {
     const iso = normalizeOrderDate(headDate[1]);
+    if (iso) return iso;
+  }
+  const headDateLabel = head.match(
+    /\bDate\s*[:\-]\s*([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?,?\s+\d{4}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|20\d{2}-\d{2}-\d{2})/i,
+  );
+  if (headDateLabel?.[1]) {
+    const iso = coerceOrderDateIso(headDateLabel[1]);
     if (iso) return iso;
   }
   const headNum = head.match(/\bDate\s*:\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i);
@@ -823,31 +1462,40 @@ function extractOrderDate(flat: string): string | null {
 
   // 2) LOA / PO / contract dated …
   const awardDated = flat.match(
-    /(?:Letter of Acceptance|Letter of Award|Purchase Order|LOA|LOI|Work Order|Purchase\s+Order)\s+dated\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i,
+    /(?:Letter of Acceptance|Letter of Award|Purchase Order|LOA|LOI|Work Order|Purchase\s+Order)\s+dated\s+([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?,?\s+\d{4}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|20\d{2}-\d{2}-\d{2})/i,
   );
   if (awardDated?.[1]) {
-    const iso = normalizeOrderDate(awardDated[1]);
+    const iso = coerceOrderDateIso(awardDated[1]);
     if (iso) return iso;
   }
 
   // 3) Generic "dated …" — skip SEBI / Master Circular references (HFCL false Jan 30)
   for (const m of flat.matchAll(
-    /\bdated\s+([A-Za-z]+\s+\d{1,2},?\s+\d{4}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/gi,
+    /\bdated\s+([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?,?\s+\d{4}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|20\d{2}-\d{2}-\d{2})/gi,
   )) {
     if (!m[1] || m.index == null) continue;
     const before = flat.slice(Math.max(0, m.index - 100), m.index);
     if (isCircularDatedContext(before)) continue;
-    const iso = normalizeOrderDate(m[1]);
+    const iso = coerceOrderDateIso(m[1]);
     if (iso) return iso;
   }
 
-  const dateColon = flat.match(/\bDate\s*:\s*(\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4})/i);
+  const dateColon = flat.match(
+    /\bDate\s*[:\-]\s*([A-Za-z]+\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\.?,?\s+\d{4}|\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}|20\d{2}-\d{2}-\d{2})/i,
+  );
   if (dateColon?.[1]) {
-    const iso = normalizeOrderDate(dateColon[1]);
+    const iso = coerceOrderDateIso(dateColon[1]);
     if (iso) return iso;
   }
 
-  // 4) First named date in letterhead-length window only (avoid annexure circular dates)
+  // 4) First named / numeric date in letterhead window
+  const early = flat.slice(0, 2200);
+  const earlyNamed = early.match(NAMED_DATE_RE);
+  if (earlyNamed?.[1]) {
+    const iso = normalizeOrderDate(earlyNamed[1]);
+    if (iso) return iso;
+  }
+
   return null;
 }
 
@@ -883,10 +1531,10 @@ export function isOrderbookPass(extract: OrderbookExtract): boolean {
   const awarding = extract.awarding_entity || NOT_DISCLOSED;
   const size = extract.order_size || NOT_DISCLOSED;
   const exec = extract.execution || NOT_DISCLOSED;
-  if (awarding === NOT_DISCLOSED) return false;
+  if (isBlankField(awarding) || awarding === NOT_DISCLOSED) return false;
   if (awarding.length > 120) return false;
-  if (size === NOT_DISCLOSED) return false;
-  if (exec === NOT_DISCLOSED) return false;
+  if (isBlankField(size) || size === NOT_DISCLOSED) return false;
+  if (isBlankField(exec) || exec === NOT_DISCLOSED) return false;
   if (extract.order_size_cr == null || extract.order_size_cr <= 0) return false;
   if (extract.order_to_sales_pct == null) return false;
   return extract.order_to_sales_pct >= ORDERBOOK_PASS_MIN_PCT;
@@ -1446,9 +2094,6 @@ function extractFilingCompany(flat: string): string | null {
       /\b((?:[A-Z][A-Za-z0-9.&'-]+(?:\s+[A-Z][A-Za-z0-9.&'-]+){0,5})\s+Limited)\s+(?:secures|receives|bagged|won|has\s+received)/i,
     )?.[1],
     flat.match(
-      /\b((?:Afcons|Rajputana|Cosmic|Deep|K\.?\s*P\.?|Time)\s+[A-Za-z0-9 .&'-]{2,50}(?:Limited|Ltd\.?))/i,
-    )?.[1],
-    flat.match(
       /\b([A-Z][A-Za-z0-9 .&'-]{2,60}(?:Limited|Ltd\.?))\s+CIN\s*:/i,
     )?.[1],
   ];
@@ -1456,14 +2101,6 @@ function extractFilingCompany(flat: string): string | null {
     const name = raw?.replace(/\s+/g, " ").trim() || null;
     if (name && !isExchangeOrCounterpartyName(name)) return name;
   }
-  return null;
-}
-
-/** NSE/BSE symbol when the PDF only has company name / scrip code. */
-function inferTickerFromCompany(flat: string, company: string | null): string | null {
-  if (/Afcons\s+Infrastructure/i.test(flat)) return "AFCONS";
-  if (/Rajputana\s+Stainless/i.test(flat)) return "RSL";
-  if (/K\.?\s*P\.?\s+Energy/i.test(flat)) return "KPEL";
   return null;
 }
 
@@ -1590,10 +2227,7 @@ export function resolveTickerCompanyFromDb(
     /* db optional */
   }
 
-  // Last-resort lexical map when DB miss
-  if (!extract.ticker) {
-    extract.ticker = inferTickerFromCompany(flat, extract.company);
-  }
+  // Preferred ticker from caller / Symbol line only — no per-issuer hardcoding
   return extract;
 }
 
@@ -2030,27 +2664,48 @@ async function attachSales(
   const ticker = extract.ticker;
   if (!ticker) return extract;
   try {
-    const annual = await fetchScreenerAnnual(ticker, { consolidated: true });
-    let sales: number | null = null;
-    let year: string | null = null;
-    for (let i = annual.sales.length - 1; i >= 0; i--) {
-      const s = annual.sales[i];
-      if (s != null && Number.isFinite(s) && s > 0) {
-        sales = s;
-        year = annual.dates[i] || null;
-        break;
+    const pickSales = (annual: {
+      dates: string[];
+      sales: Array<number | null>;
+    }): { sales: number | null; year: string | null } => {
+      for (let i = annual.sales.length - 1; i >= 0; i--) {
+        const s = annual.sales[i];
+        if (s != null && Number.isFinite(s) && s > 0) {
+          return { sales: s, year: annual.dates[i] || null };
+        }
       }
+      return { sales: null, year: null };
+    };
+
+    // Prefer consolidated; if empty (common for some SME pages / bad cache), force
+    // refresh then try standalone — never keep a permanently empty miss.
+    let annual = await fetchScreenerAnnual(ticker, { consolidated: true });
+    let picked = pickSales(annual);
+    if (picked.sales == null) {
+      annual = await fetchScreenerAnnual(ticker, {
+        consolidated: true,
+        force: true,
+      });
+      picked = pickSales(annual);
     }
-    extract.sales_cr = sales;
-    extract.sales_year = year;
+    if (picked.sales == null) {
+      annual = await fetchScreenerAnnual(ticker, {
+        consolidated: false,
+        force: true,
+      });
+      picked = pickSales(annual);
+    }
+
+    extract.sales_cr = picked.sales;
+    extract.sales_year = picked.year;
     const orderCr =
       extract.order_size_cr ??
       sumOrderSizeCr(extract.orders) ??
       extract.order_book_cr;
-    if (orderCr != null && sales != null && sales > 0) {
+    if (orderCr != null && picked.sales != null && picked.sales > 0) {
       extract.order_size_cr = orderCr;
       extract.order_to_sales_pct =
-        Math.round((orderCr / sales) * 10000) / 100;
+        Math.round((orderCr / picked.sales) * 10000) / 100;
     } else if (orderCr != null) {
       extract.order_size_cr = orderCr;
     }
@@ -2303,11 +2958,97 @@ export async function refreshOrderbookHistoryPrices(
   return out;
 }
 
+/**
+ * Discover latest Reg-30 order PDF for ticker, then screen it.
+ * Forces ticker (and company name when known) onto the extract.
+ */
+export async function screenOrderbookForTicker(
+  tickerRaw: string,
+  opts?: { mode?: "lexical" | "llm" | null },
+): Promise<
+  OrderbookScreenResult & {
+    ticker: string;
+    discovered?: OrderbookDiscoverHit | null;
+    discover_note?: string;
+  }
+> {
+  const ticker = tickerRaw.trim().toUpperCase().replace(/[^A-Z0-9.&-]/g, "");
+  if (!ticker) {
+    const extract = emptyExtract();
+    return {
+      ok: false,
+      decision: "fail",
+      extract,
+      engine: "none",
+      text_chars: 0,
+      text_excerpt: "",
+      source_url: null,
+      pending_fields: false,
+      why: "Enter an NSE ticker",
+      core: toCoreOrderFields(extract),
+      error: "Enter an NSE ticker",
+      ticker: "",
+    };
+  }
+
+  const found = await discoverOrderbookPdfSources(ticker);
+  const latest = found.latest;
+  if (!latest?.url) {
+    const extract = emptyExtract();
+    extract.ticker = ticker;
+    const company = loadAllCompanies().find(
+      (c) => c.ticker.toUpperCase() === ticker,
+    );
+    if (company?.name) extract.company = company.name;
+    return {
+      ok: false,
+      decision: "fail",
+      extract,
+      engine: "none",
+      text_chars: 0,
+      text_excerpt: "",
+      source_url: null,
+      pending_fields: false,
+      why: found.note || `No Reg-30 order PDF for ${ticker}`,
+      core: toCoreOrderFields(extract),
+      error: found.note || `No Reg-30 order PDF for ${ticker}`,
+      ticker,
+      discovered: null,
+      discover_note: found.note,
+    };
+  }
+
+  const result = await screenOrderbookPdf({
+    url: latest.url,
+    ticker,
+    mode: opts?.mode,
+    announced_at: latest.announced_at,
+  });
+  return {
+    ...result,
+    ticker,
+    discovered: latest,
+    discover_note: found.note,
+  };
+}
+
 export async function screenOrderbookPdf(opts: {
   url?: string | null;
   pdfBuffer?: Buffer | null;
+  /** Prefer this ticker when PDF text is ambiguous / missing symbol. */
+  ticker?: string | null;
+  /**
+   * lexical (default) = rules only.
+   * llm = LLM JSON extract + lexical fill (like buyback / concall).
+   */
+  mode?: "lexical" | "llm" | null;
+  /** BSE/NSE exchange announcement date fallback when PDF omits filing date. */
+  announced_at?: string | null;
 }): Promise<OrderbookScreenResult> {
   const source_url = opts.url?.trim() || null;
+  const preferredTicker = opts.ticker?.trim().toUpperCase() || null;
+  const useLlm = opts.mode === "llm";
+  const announcedFallback = coerceOrderDateIso(opts.announced_at);
   let buf = opts.pdfBuffer ?? null;
   let engine = "none";
 
@@ -2389,7 +3130,36 @@ export async function screenOrderbookPdf(opts: {
   }
 
   let extract = enrichOrderbookLexical(text);
+  let usedLlm = false;
+  if (useLlm) {
+    const llm = await enrichOrderbookWithLlm(text, extract);
+    extract = llm.extract;
+    usedLlm = llm.usedLlm;
+    if (llm.usedLlm) engine = `${engine}+llm`;
+    else if (llm.detail) engine = `${engine}+llm-skip`;
+  }
   extract = resolveTickerCompanyFromDb(extract, text);
+  if (!extract.order_date && announcedFallback) {
+    extract.order_date = announcedFallback;
+  }
+  if (preferredTicker) {
+    extract.ticker = preferredTicker;
+    if (!extract.company) {
+      const company = loadAllCompanies().find(
+        (c) => c.ticker.toUpperCase() === preferredTicker,
+      );
+      if (company?.name) extract.company = company.name;
+    }
+  }
+
+  // Step: identify missing fields and repair when possible
+  const repair = await repairOrderbookGaps(extract, text, {
+    announced_at: announcedFallback || opts.announced_at,
+    alreadyUsedLlm: usedLlm,
+  });
+  extract = repair.extract;
+  if (repair.engine_extra) engine = `${engine}${repair.engine_extra}`;
+
   try {
     const liveFx = await fetchInrFxMarketRates();
     if (Object.keys(liveFx).length) {
@@ -2413,15 +3183,21 @@ export async function screenOrderbookPdf(opts: {
       Math.round((extract.order_size_cr / extract.sales_cr) * 10000) / 100;
   }
   extract = await attachOrderbookPrices(extract);
+  const readiness = orderbookSaveReadiness(extract);
   const core = toCoreOrderFields(extract);
   const extract_json = toOrderbookExtractJson(extract);
   const pass = isOrderbookPass(extract);
-  const why = decideWhy(extract, core);
+  let why = decideWhy(extract, core);
+  if (readiness.gaps.length) {
+    why = `${why} · Need: ${readiness.gaps.map((g) => g.field).join(", ")}`;
+  } else if (repair.fixed.length) {
+    why = `${why} · Repaired: ${repair.fixed.join(", ")}`;
+  }
   const ok = core.some(
     (c) =>
-      c["Awarding entity"] !== NOT_DISCLOSED ||
-      c["Order size"] !== NOT_DISCLOSED ||
-      c.Execution !== NOT_DISCLOSED,
+      !isBlankField(c["Awarding entity"]) ||
+      !isBlankField(c["Order size"]) ||
+      !isBlankField(c.Execution),
   );
 
   const id = saveRow({
@@ -2441,14 +3217,18 @@ export async function screenOrderbookPdf(opts: {
     source_url,
     id: id ?? undefined,
     screened_at: new Date().toISOString(),
-    pending_fields: false,
+    pending_fields: readiness.gaps.length > 0,
     why,
     core,
     extract_json,
+    save_gaps: readiness.gaps.length ? readiness.gaps : undefined,
+    repaired: repair.fixed.length ? repair.fixed : undefined,
     error: ok
       ? pass
         ? undefined
-        : `Not saved — need Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}% with awarding / size / execution`
+        : readiness.gaps.length
+          ? `Not saved — missing ${readiness.gaps.map((g) => g.field).join(", ")}`
+          : `Not saved — need Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}% with awarding / size / execution`
       : "No awarding entity / order size / execution found",
   };
 }

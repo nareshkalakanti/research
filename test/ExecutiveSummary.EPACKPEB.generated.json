@@ -1,0 +1,58 @@
+{
+  "metadata": {
+    "company": "EPACK Prefab Technologies Limited",
+    "reporting_period": "Q1 FY27",
+    "analyst_type": "Equity Research - Quant",
+    "event_date": "DD MMM YYYY, HH:MM"
+  },
+  "financial_snapshot": {
+    "revenue": {
+      "q1_fy27_₹cr": 365.8,
+      "q1_fy26_₹cr": 295.3,
+      "q1_fy27_yoy_growth_": 23.9,
+      "q1_fy27_margin_": 9.4,
+      "q1_fy26_margin_": 10.4,
+      "q1_fy27_ebitda_": 345,
+      "q1_fy26_ebitda_": 309,
+      "q1_fy27_margin_%": 5,
+      "q1_fy26_margin_%": 5.4,
+      "q1_fy27_pat_": 182,
+      "q1_fy26_pat_": 160
+    },
+    "ebitda": {
+      "q1_fy27_₹cr": 345,
+      "q1_fy26_₹cr": 309,
+      "q1_fy27_margin_": 9.4,
+      "q1_fy26_margin_": 10.5,
+      "q1_fy27_margin_%": 9.4,
+      "q1_fy26_margin_%": 10.5
+    },
+    "pat": {
+      "q1_fy27_₹cr": 182,
+      "q1_fy26_₹cr": 160,
+      "q1_fy27_margin_": 5,
+      "q1_fy26_margin_": 5.4,
+      "q1_fy27_margin_%": 5,
+      "q1_fy26_margin_%": 5.4
+    },
+    "order_book": {
+      "q1_fy26_₹cr": 2346,
+      "q1_fy27_yoy_growth_": 146.4,
+      "q1_fy27_pending_": 1376.4,
+      "q1_fy26_pending_": 980,
+      "q1_fy27_order_book_pending_": 40.4,
+      "pending_₹cr": 578.1
+    }
+  },
+  "near_term_catalysts_6m": [
+    "Strong Proven Financial Excellence...led by strong revenue growth of Prefab at 24.7% and EBITDA Margin at 9.4% and PAT at -5.0% and reaffirmed A+ Rating"
+  ],
+  "medium_term_catalysts_12m": [
+    "Demonstrated Superior Financial Performance over Years"
+  ],
+  "investment_summary": {
+    "bull_case": "EPACK Prefab Technologies Limited is expected to continue its strong financial performance, driven by its superior execution in the Prefab segment, which is expected to contribute to a positive outlook for the company.",
+    "bear_case": "EPACK Prefab Technologies Limited may face challenges in maintaining its current financial performance, particularly if there are disruptions in the supply chain or if the market for Prefab segments experiences a downturn.",
+    "valuation_anchors": "EPACK Prefab Technologies Limited is currently valued at a multiple of 15x forward earnings, with a potential upside of 20% based on its superior financial performance and strong market position."
+  }
+}

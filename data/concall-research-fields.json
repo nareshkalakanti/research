@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "purpose": "Research · Concall — structured earnings-call extract schema (see prompts/concall-research-extract.system.txt)",
   "updated_at": "2026-09-09",
   "pass_rule": "TBD — save successful extracts; PASS criteria after schema stabilizes",
@@ -14,6 +14,9 @@
     "management_tone",
     "key_catalysts"
   ],
+  "app_only_keys": {
+    "card": "StockScans PASS-list card (result_quality, mgmt_sentiment, highlights) — filled by a separate LLM pass + enrichCard, not by the extract system prompt"
+  },
   "metadata_fields": [
     "company_name",
     "nse_symbol",

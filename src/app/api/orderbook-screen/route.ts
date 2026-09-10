@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { loadHoldings } from "@/lib/holdings";
 import {
+  discoverOrderbookAnnounced,
+  discoverOrderbookPdfSources,
   downloadOrderbookPdf,
   isOrderbookPdfProxyUrl,
   listOrderbookHistory,
   refreshOrderbookHistoryPrices,
+  screenOrderbookForTicker,
   screenOrderbookPdf,
 } from "@/lib/orderbook-screen";
 
@@ -11,6 +15,55 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
+  const announced = req.nextUrl.searchParams.get("announced");
+  if (announced === "1" || announced === "today") {
+    const days = Math.min(
+      7,
+      Math.max(1, Number(req.nextUrl.searchParams.get("days") || 1) || 1),
+    );
+    try {
+      const found = await discoverOrderbookAnnounced(days);
+      return NextResponse.json(found);
+    } catch (e) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: e instanceof Error ? e.message : "Announced scan failed",
+        },
+        { status: 422 },
+      );
+    }
+  }
+
+  const discoverTicker = req.nextUrl.searchParams.get("discover")?.trim() || "";
+  if (discoverTicker) {
+    try {
+      const found = await discoverOrderbookPdfSources(discoverTicker);
+      return NextResponse.json(found);
+    } catch (e) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: e instanceof Error ? e.message : "Discover failed",
+        },
+        { status: 422 },
+      );
+    }
+  }
+
+  if (req.nextUrl.searchParams.get("holdings") === "1") {
+    const holdings = loadHoldings().map((h) => ({
+      ticker: h.ticker.toUpperCase(),
+      name: h.name,
+      market: h.market,
+    }));
+    return NextResponse.json({
+      ok: true,
+      holdings,
+      count: holdings.length,
+    });
+  }
+
   const pdfUrl = req.nextUrl.searchParams.get("pdf")?.trim() || "";
   if (pdfUrl) {
     if (!isOrderbookPdfProxyUrl(pdfUrl)) {
@@ -84,24 +137,66 @@ export async function POST(req: NextRequest) {
     if (contentType.includes("multipart/form-data")) {
       const form = await req.formData();
       const url = String(form.get("url") || "").trim() || null;
+      const ticker = String(form.get("ticker") || "").trim() || null;
+      const announced_at =
+        String(form.get("announced_at") || "").trim() || null;
+      const modeRaw = String(form.get("mode") || "").trim().toLowerCase();
+      const mode = modeRaw === "llm" ? "llm" : "lexical";
       const file = form.get("file");
       let pdfBuffer: Buffer | null = null;
       if (file && typeof file === "object" && "arrayBuffer" in file) {
         const ab = await (file as File).arrayBuffer();
         pdfBuffer = Buffer.from(ab);
       }
-      const result = await screenOrderbookPdf({ url, pdfBuffer });
+      const result = await screenOrderbookPdf({
+        url,
+        pdfBuffer,
+        ticker,
+        mode,
+        announced_at,
+      });
       return NextResponse.json(result, {
         status: result.ok ? 200 : 422,
       });
     }
 
-    let body: { url?: string } = {};
+    let body: {
+      url?: string;
+      action?: string;
+      ticker?: string;
+      mode?: string;
+      announced_at?: string;
+    } = {};
     try {
-      body = (await req.json()) as { url?: string };
+      body = (await req.json()) as typeof body;
     } catch {
       body = {};
     }
+
+    const mode =
+      String(body.mode || "").trim().toLowerCase() === "llm" ? "llm" : "lexical";
+
+    if (body.action === "discover") {
+      const found = await discoverOrderbookPdfSources(
+        body.ticker || body.url || "",
+      );
+      return NextResponse.json(found);
+    }
+
+    if (body.action === "screen-ticker") {
+      const ticker = (body.ticker || "").trim();
+      if (!ticker) {
+        return NextResponse.json(
+          { ok: false, error: "Provide ticker" },
+          { status: 400 },
+        );
+      }
+      const result = await screenOrderbookForTicker(ticker, { mode });
+      return NextResponse.json(result, {
+        status: result.ok || result.decision === "fail" ? 200 : 422,
+      });
+    }
+
     const url = body.url?.trim() || null;
     if (!url) {
       return NextResponse.json(
@@ -109,7 +204,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const result = await screenOrderbookPdf({ url });
+    const result = await screenOrderbookPdf({
+      url,
+      ticker: body.ticker || null,
+      mode,
+      announced_at: body.announced_at || null,
+    });
     return NextResponse.json(result, {
       status: result.ok ? 200 : 422,
     });

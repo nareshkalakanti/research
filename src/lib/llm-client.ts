@@ -154,27 +154,7 @@ export async function checkLlmStatus(cfg: AgentConfig): Promise<LlmStatus> {
     };
   }
 
-  // auto — prefer cloud keys, then Ollama, then Claude CLI
-  if (cfg.anthropicApiKey) {
-    return {
-      available: true,
-      provider: "auto",
-      model: cfg.llmModel,
-      engine: "llm",
-      detail: "Auto → Anthropic API",
-      hint: "",
-    };
-  }
-  if (cfg.openaiApiKey) {
-    return {
-      available: true,
-      provider: "auto",
-      model: cfg.llmModel,
-      engine: "llm",
-      detail: "Auto → OpenAI API",
-      hint: "",
-    };
-  }
+  // auto — prefer free local Ollama, then paid APIs (cost last)
   const ollama = await ollamaReachable(cfg);
   if (ollama.reachable && modelMatches(ollama.models, cfg.llmModel)) {
     return {
@@ -194,6 +174,26 @@ export async function checkLlmStatus(cfg: AgentConfig): Promise<LlmStatus> {
       engine: "offline",
       detail: `Ollama running but model "${cfg.llmModel}" not pulled`,
       hint: `Run: ollama pull ${cfg.llmModel}`,
+    };
+  }
+  if (cfg.openaiApiKey) {
+    return {
+      available: true,
+      provider: "auto",
+      model: cfg.llmModel.includes("gpt") ? cfg.llmModel : "gpt-4o-mini",
+      engine: "llm",
+      detail: "Auto → OpenAI API (gpt-4o-mini fallback)",
+      hint: "",
+    };
+  }
+  if (cfg.anthropicApiKey) {
+    return {
+      available: true,
+      provider: "auto",
+      model: cfg.llmModel.includes("claude") ? cfg.llmModel : "claude-haiku-4-5",
+      engine: "llm",
+      detail: "Auto → Anthropic API (haiku fallback)",
+      hint: "",
     };
   }
   if (await claudeCodeAvailable()) {
@@ -290,41 +290,105 @@ function repairJsonText(s: string): string {
       .replace(/^\uFEFF/, "")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2018\u2019]/g, "'")
-      .replace(/,\s*([}\]])/g, "$1"),
+      // Python-ish literals some local models emit
+      .replace(/\bTrue\b/g, "true")
+      .replace(/\bFalse\b/g, "false")
+      .replace(/\bNone\b/g, "null")
+      // Trailing commas
+      .replace(/,\s*([}\]])/g, "$1")
+      // Bare newlines between values (rare)
+      .replace(/\}\s*\{/g, "},{"),
   );
+}
+
+/** Pull the largest {...} / [...] block that still parses. */
+function extractBalancedJson(text: string): string | null {
+  const startObj = text.indexOf("{");
+  const startArr = text.indexOf("[");
+  let start = -1;
+  let open = "";
+  let close = "";
+  if (startObj >= 0 && (startArr < 0 || startObj < startArr)) {
+    start = startObj;
+    open = "{";
+    close = "}";
+  } else if (startArr >= 0) {
+    start = startArr;
+    open = "[";
+    close = "]";
+  } else return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (ch === "\\" && inString) {
+      escape = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === open) depth += 1;
+    else if (ch === close) {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  // Truncated — close it
+  return closeTruncatedJson(text.slice(start));
 }
 
 function parseJsonBlock(raw: string): Record<string, unknown> {
   const trimmed = raw.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const body = fenced?.[1]?.trim() || trimmed;
-  const start = body.indexOf("{");
-  if (start < 0) throw new Error("invalid JSON in LLM output");
 
-  const end = body.lastIndexOf("}");
   const candidates: string[] = [];
-  if (end > start) {
-    const slice = body.slice(start, end + 1);
-    candidates.push(slice, repairJsonText(slice));
+  const balanced = extractBalancedJson(body);
+  if (balanced) {
+    candidates.push(balanced, repairJsonText(balanced));
   }
-  const truncated = closeTruncatedJson(body.slice(start));
-  candidates.push(truncated, repairJsonText(truncated));
-  // Last resort: strip trailing non-JSON after final brace.
-  const repairedBody = repairJsonText(body.slice(start));
-  const repairedEnd = repairedBody.lastIndexOf("}");
-  if (repairedEnd > 0) {
-    candidates.push(repairedBody.slice(0, repairedEnd + 1));
+  const start = body.indexOf("{");
+  if (start >= 0) {
+    const end = body.lastIndexOf("}");
+    if (end > start) {
+      const slice = body.slice(start, end + 1);
+      candidates.push(slice, repairJsonText(slice));
+    }
+    const truncated = closeTruncatedJson(body.slice(start));
+    candidates.push(truncated, repairJsonText(truncated));
+  }
+  // Strip leading prose before first {
+  const proseStripped = body.replace(/^[^{[]+/, "");
+  if (proseStripped && proseStripped !== body) {
+    const b = extractBalancedJson(proseStripped);
+    if (b) candidates.push(b, repairJsonText(b));
   }
 
   let lastErr: Error | null = null;
   const seen = new Set<string>();
   for (const candidate of candidates) {
-    const key = candidate.slice(0, 160);
+    if (!candidate || candidate.length < 2) continue;
+    const key = candidate.slice(0, 200);
     if (seen.has(key)) continue;
     seen.add(key);
     try {
-      const parsed = JSON.parse(candidate) as Record<string, unknown>;
-      if (candidate.replace(/\s/g, "").length > 2) return parsed;
+      const parsed = JSON.parse(candidate) as unknown;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+      // Array root → wrap so callers still get an object
+      if (Array.isArray(parsed)) {
+        return { items: parsed };
+      }
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
     }
@@ -342,7 +406,15 @@ export type LlmJsonOpts = {
   temperature?: number;
   skipStatusCheck?: boolean;
   maxTokens?: number;
+  model?: string;
+  /** Ollama structured output / OpenAI json_schema when supported. */
+  jsonSchema?: Record<string, unknown>;
 };
+
+function withModel(cfg: AgentConfig, model?: string): AgentConfig {
+  if (!model?.trim()) return cfg;
+  return { ...cfg, llmModel: model.trim() };
+}
 
 async function callOllama(
   system: string,
@@ -351,17 +423,36 @@ async function callOllama(
   opts?: LlmJsonOpts,
 ): Promise<string> {
   const base = cfg.ollamaBaseUrl.replace(/\/$/, "");
+  // Vision models (…vl…) often break JSON; prefer text instruct twin when present
+  let model = (opts?.model || cfg.llmModel).trim();
+  if (/vl/i.test(model)) {
+    try {
+      const tags = await ollamaReachable(cfg);
+      const twin =
+        model.replace(/vl:/i, ":").replace(/:(\d+)b$/i, ":$1b-instruct") ||
+        "";
+      const alt = twin.replace(/-instruct-instruct$/i, "-instruct");
+      if (alt && modelMatches(tags.models, alt)) model = alt;
+      else if (
+        tags.models.some((n) => /qwen2\.5:7b-instruct/i.test(n))
+      ) {
+        model = tags.models.find((n) => /qwen2\.5:7b-instruct/i.test(n))!;
+      }
+    } catch {
+      /* keep cfg.llmModel */
+    }
+  }
   const res = await fetch(`${base}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
-      model: cfg.llmModel,
+      model,
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
       ],
       stream: false,
-      format: "json",
+      format: opts?.jsonSchema ?? "json",
       options: {
         num_predict: opts?.maxTokens ?? opts?.numPredict ?? 720,
         temperature: opts?.temperature ?? 0.15,
@@ -475,37 +566,79 @@ export async function completeJson(
   user: string,
   opts?: LlmJsonOpts,
 ): Promise<Record<string, unknown>> {
+  const effectiveCfg = withModel(cfg, opts?.model);
   if (!opts?.skipStatusCheck) {
-    const status = await checkLlmStatus(cfg);
+    const status = await checkLlmStatus(effectiveCfg);
     if (!status.available) {
       throw new Error(status.detail || "LLM unavailable");
     }
   }
 
-  let raw: string;
-  if (cfg.llmProvider === "ollama") {
-    raw = await callOllama(system, user, cfg, opts);
-  } else if (
-    cfg.llmProvider === "openai" ||
-    (cfg.llmProvider === "auto" && cfg.openaiApiKey && !cfg.anthropicApiKey)
-  ) {
-    raw = await callOpenAI(system, user, cfg, opts);
-  } else if (cfg.llmProvider === "anthropic" || cfg.anthropicApiKey) {
-    raw = await callAnthropic(system, user, cfg, opts);
-  } else if (cfg.llmProvider === "claude_code") {
-    raw = await callClaudeCode(system, user, cfg);
-  } else if (cfg.llmProvider === "auto") {
-    const ollama = await ollamaReachable(cfg);
-    if (ollama.reachable && modelMatches(ollama.models, cfg.llmModel)) {
-      raw = await callOllama(system, user, cfg, opts);
-    } else if (await claudeCodeAvailable()) {
-      raw = await callClaudeCode(system, user, cfg);
+  const runOnce = async (sys: string, usr: string) => {
+    let raw: string;
+    if (effectiveCfg.llmProvider === "ollama") {
+      raw = await callOllama(sys, usr, effectiveCfg, opts);
+    } else if (effectiveCfg.llmProvider === "openai") {
+      raw = await callOpenAI(sys, usr, effectiveCfg, opts);
+    } else if (effectiveCfg.llmProvider === "anthropic") {
+      raw = await callAnthropic(sys, usr, effectiveCfg, opts);
+    } else if (effectiveCfg.llmProvider === "claude_code") {
+      raw = await callClaudeCode(sys, usr, effectiveCfg);
+    } else if (effectiveCfg.llmProvider === "auto") {
+      // Cost: local Ollama first, then cheapest cloud
+      const ollama = await ollamaReachable(effectiveCfg);
+      if (ollama.reachable && modelMatches(ollama.models, effectiveCfg.llmModel)) {
+        raw = await callOllama(sys, usr, effectiveCfg, opts);
+      } else if (effectiveCfg.openaiApiKey) {
+        raw = await callOpenAI(
+          sys,
+          usr,
+          {
+            ...effectiveCfg,
+            llmModel: effectiveCfg.llmModel.includes("gpt")
+              ? effectiveCfg.llmModel
+              : "gpt-4o-mini",
+          },
+          opts,
+        );
+      } else if (effectiveCfg.anthropicApiKey) {
+        raw = await callAnthropic(
+          sys,
+          usr,
+          {
+            ...effectiveCfg,
+            llmModel: effectiveCfg.llmModel.includes("claude")
+              ? effectiveCfg.llmModel
+              : "claude-haiku-4-5",
+          },
+          opts,
+        );
+      } else if (await claudeCodeAvailable()) {
+        raw = await callClaudeCode(sys, usr, effectiveCfg);
+      } else {
+        throw new Error("No LLM backend available");
+      }
     } else {
-      throw new Error("No LLM backend available");
+      throw new Error("LLM disabled");
     }
-  } else {
-    throw new Error("LLM disabled");
-  }
+    return parseJsonBlock(raw);
+  };
 
-  return parseJsonBlock(raw);
+  try {
+    return await runOnce(system, user);
+  } catch (firstErr) {
+    const msg = firstErr instanceof Error ? firstErr.message : String(firstErr);
+    if (!/invalid JSON|incomplete JSON/i.test(msg)) throw firstErr;
+    // One repair pass — ask model to re-emit valid JSON only
+    try {
+      return await runOnce(
+        "You fix broken JSON. Return ONLY a valid JSON object. No markdown, no commentary.",
+        `The previous reply was not valid JSON (${msg}). Re-output the same content as a single valid JSON object.\n\nOriginal task (for context):\n${user.slice(0, 6000)}`,
+      );
+    } catch {
+      throw firstErr instanceof Error
+        ? firstErr
+        : new Error("invalid JSON in LLM output");
+    }
+  }
 }

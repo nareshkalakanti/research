@@ -1,0 +1,95 @@
+{
+  "decision": "pass",
+  "why": "Merged transcript events + PPT financials",
+  "engine": "pdf-parse+lexical-scanlines+pdf-parse+lexical+investor-presentation+merged",
+  "extract": {
+    "metadata": {
+      "company_name": "Epack Prefab Technologies Limited",
+      "nse_symbol": "EPACKPEB",
+      "bse_code": "544540",
+      "call_date": "2026-08-03",
+      "call_time": null,
+      "quarter": "Q1",
+      "fiscal_year": "FY27",
+      "speakers": [],
+      "document_type": "Investor Presentation",
+      "document_kind": "investor_presentation",
+      "document_note": "Investor presentation / earnings deck.",
+      "isin": "INE0MLS01022",
+      "cin": null,
+      "presentation_period": "Q1 FY27"
+    },
+    "reported_financials": {
+      "revenue": {
+        "current_qtr": 366,
+        "yoy_qtr": null,
+        "pct_change": null,
+        "unit": "INR cr"
+      },
+      "ebitda_margin_pct": {
+        "current_qtr": 10.5,
+        "yoy_qtr": null,
+        "pct_change": null
+      },
+      "eps": {
+        "current_qtr": 8,
+        "yoy_qtr": null,
+        "unit": "INR"
+      }
+    },
+    "forward_guidance": {
+      "revenue_guidance_range": null,
+      "margin_guidance": null,
+      "explicit_caveats": [],
+      "capex_guidance": []
+    },
+    "segment_data": [],
+    "corporate_actions": [],
+    "risk_governance_flags": {
+      "pledged_shares": null,
+      "debt_disclosed": [],
+      "related_party_transactions": [],
+      "deflected_or_vague_topics": []
+    },
+    "management_tone": {
+      "overall_tone": "optimistic",
+      "justification": null,
+      "confidence_markers": {
+        "specific_commitments": [],
+        "hedged_language": []
+      },
+      "guidance_walkback": null,
+      "net_sentiment_score": null,
+      "sentiment_rationale": null
+    },
+    "card": {
+      "result_quality": "Strong",
+      "mgmt_sentiment": "optimistic",
+      "highlights": [
+        {
+          "text": "Record ₹580cr order inflow",
+          "polarity": "positive"
+        },
+        {
+          "text": "Steel prices → 100bps margin hit",
+          "polarity": "negative"
+        },
+        {
+          "text": "Epack Data Center Solutions subsidiary",
+          "polarity": "neutral"
+        }
+      ],
+      "sector": "Industrials",
+      "industry": "Building Products - Prefab Structures"
+    },
+    "key_catalysts": [],
+    "ltp": 248.14,
+    "baseline_close": 267.30999755859375,
+    "drift_pct": -7.2,
+    "docs": {
+      "summary": null,
+      "transcript": "local:EPACKPEB-Q1FY27-43d665ce70.pdf",
+      "ppt": "local:EPACKPEB-Q1FY27-9be5f0600c.pdf"
+    }
+  }
+}

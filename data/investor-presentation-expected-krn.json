@@ -1,0 +1,246 @@
+{
+  "metadata": {
+    "company_name": "KRN Heat Exchanger and Refrigeration Limited",
+    "nse_symbol": "KRN",
+    "bse_code": "544263",
+    "isin": "INE0Q3J01015",
+    "cin": "L29309RJ2017PLC058905",
+    "document_type": "Investor Presentation",
+    "quarter": "Q1",
+    "fiscal_year": "FY27",
+    "filing_date": "2026-08-13",
+    "registered_office": "Plot No. F-46,47,48,49, EPIP, RIICO Industrial Area, Neemrana, Rajasthan - 301705",
+    "listing_date": "2024-10",
+    "incorporation_year": 2017,
+    "headquarters": "Neemrana, Rajasthan",
+    "wholly_owned_subsidiary": "KRN HVAC Products Private Limited"
+  },
+  "business_overview": {
+    "industry": "HVAC & Refrigeration - Heat Exchangers",
+    "core_segments": ["Fin & Tube", "Bar & Plate", "Refrigerator Components", "Complete HVAC System", "Railway", "Bus AC"],
+    "end_use_industries": ["HVAC", "refrigeration", "data centers", "automotive", "railways", "industrial cooling", "process applications", "power", "marine", "aerospace", "agriculture", "mining"],
+    "manufacturing_facilities": [
+      {"unit": "KRN Heat Exchanger and Refrigeration Limited (Unit-I)", "location": "Neemrana, Rajasthan", "land_area_sqft": 104948.13},
+      {"unit": "KRN HVAC Products Private Limited (Unit-II)", "location": "Neemrana, Rajasthan", "land_area_sqft": 840127.97}
+    ],
+    "export_countries": ["UAE", "USA", "Italy", "Canada", "France", "Sri Lanka", "Vietnam", "Nepal", "UK", "Hungary", "Germany", "Ireland", "Sweden", "Belgium", "Netherlands", "Brazil", "Croatia", "Bolivia", "China"],
+    "workforce": "1,500+",
+    "recent_corporate_actions": [
+      "Established KRN HVAC Products Pvt. Ltd. (2025-2026)",
+      "Acquired Bus AC Division of Sphere Refrigeration Systems (2025-2026)"
+    ]
+  },
+  "leadership": {
+    "founder_chairman_md": {"name": "Santosh Kumar Yadav", "experience_years": 19, "background": "Diploma in Mechanical Engineering (Board of Technical Education, Rajasthan), Diploma in Business Management (IMT Ghaziabad); previously at Lloyd Electric & Engineering Limited"},
+    "board_of_directors": [
+      {"name": "Santosh Kumar Yadav", "role": "Chairman & Managing Director"},
+      {"name": "Anju Devi", "role": "Whole Time Director", "experience_years": 8},
+      {"name": "Manoharlal", "role": "Non-Executive Director"},
+      {"name": "Srinivasa Rao Anasingaraju", "role": "Independent Director", "experience_years": 22, "qualifications": "Cost Accountant, Company Secretary, Insolvency Professional"},
+      {"name": "Deepak Batheja", "role": "Independent Director", "experience_years": 17, "qualifications": "Chartered Accountant (Dr.)"},
+      {"name": "Ketan Sharma", "role": "Independent Director", "experience_years": 10, "qualifications": "Chartered Accountant"},
+      {"name": "Meenakshi Sharma", "role": "Independent Director", "qualifications": "PG Commerce, MBA Finance"}
+    ],
+    "key_managerial_personnel": [
+      {"name": "Pawan Nawal", "role": "Chief Financial Officer"},
+      {"name": "Jitendra Kumar Sharma", "role": "Company Secretary and Compliance Officer", "qualifications": "Law graduate, University of Rajasthan; All India Rank 9 in CS Final exam"}
+    ]
+  },
+  "chairman_commentary": {
+    "quote_summary": "Consolidated revenue grew 119% YoY in Q1 FY27, driven by strong domestic demand and export growth. Overseas revenue increased 177% YoY, reaching customers in 14 countries. Focus remains on building scale, manufacturing capability, capacity, localisation, and backward integration.",
+    "key_stats_cited": {
+      "consolidated_revenue_growth_yoy_pct": 119,
+      "export_revenue_growth_yoy_pct": 177,
+      "countries_served_this_quarter": 14
+    }
+  },
+  "q1_fy27_financials": {
+    "standalone": {
+      "revenue_from_operations": {"q1_fy27": 181.97, "q1_fy26": 114.40, "yoy_growth_pct": 59.07, "unit": "INR cr"},
+      "raw_material": {"q1_fy27": 147.25, "q1_fy26": 84.88, "unit": "INR cr"},
+      "employee_costs": {"q1_fy27": 4.46, "q1_fy26": 5.33, "unit": "INR cr"},
+      "other_expenses": {"q1_fy27": 5.59, "q1_fy26": 4.40, "unit": "INR cr"},
+      "total_expenditure": {"q1_fy27": 157.30, "q1_fy26": 94.61, "unit": "INR cr"},
+      "ebitda": {"q1_fy27": 24.67, "q1_fy26": 19.79, "yoy_growth_pct": 24.67, "unit": "INR cr"},
+      "ebitda_margin_pct": {"q1_fy27": 13.56, "q1_fy26": 17.30, "change_bps": -374},
+      "finance_costs": {"q1_fy27": 1.33, "q1_fy26": 0.63, "unit": "INR cr"},
+      "depreciation": {"q1_fy27": 0.72, "q1_fy26": 0.94, "unit": "INR cr"},
+      "pbt": {"q1_fy27": 22.62, "q1_fy26": 18.22, "unit": "INR cr"},
+      "exceptional_item_other_income": {"q1_fy27": 2.42, "q1_fy26": 2.74, "unit": "INR cr"},
+      "pbt_after_exceptional_item": {"q1_fy27": 25.04, "q1_fy26": 20.96, "unit": "INR cr"},
+      "tax_expense": {"q1_fy27": 6.38, "q1_fy26": 5.28, "unit": "INR cr"},
+      "net_profit": {"q1_fy27": 18.67, "q1_fy26": 15.69, "yoy_growth_pct": 19.02, "unit": "INR cr"},
+      "net_profit_margin_pct": {"q1_fy27": 10.26, "q1_fy26": 13.71, "change_bps": -345},
+      "eps": {"q1_fy27": 2.95, "q1_fy26": 2.52, "yoy_growth_pct": 17.06, "unit": "INR"}
+    },
+    "consolidated": {
+      "revenue_from_operations": {"q1_fy27": 252.32, "q1_fy26": 115.28, "yoy_growth_pct": 118.87, "unit": "INR cr"},
+      "raw_material": {"q1_fy27": 171.03, "q1_fy26": 85.72, "unit": "INR cr"},
+      "employee_costs": {"q1_fy27": 18.19, "q1_fy26": 6.65, "unit": "INR cr"},
+      "other_expenses": {"q1_fy27": 14.04, "q1_fy26": 5.31, "unit": "INR cr"},
+      "total_expenditure": {"q1_fy27": 203.26, "q1_fy26": 97.69, "unit": "INR cr"},
+      "ebitda": {"q1_fy27": 49.06, "q1_fy26": 17.59, "yoy_growth_pct": 178.85, "unit": "INR cr"},
+      "ebitda_margin_pct": {"q1_fy27": 19.44, "q1_fy26": 15.26, "change_bps": 418},
+      "finance_costs": {"q1_fy27": 3.04, "q1_fy26": 0.70, "unit": "INR cr"},
+      "depreciation": {"q1_fy27": 6.47, "q1_fy26": 2.19, "unit": "INR cr"},
+      "pbt": {"q1_fy27": 39.55, "q1_fy26": 14.71, "unit": "INR cr"},
+      "exceptional_item_other_income": {"q1_fy27": 2.78, "q1_fy26": 3.58, "unit": "INR cr"},
+      "pbt_after_exceptional_item": {"q1_fy27": 42.33, "q1_fy26": 18.29, "unit": "INR cr"},
+      "tax_expense": {"q1_fy27": 9.44, "q1_fy26": 5.87, "unit": "INR cr"},
+      "net_profit": {"q1_fy27": 32.90, "q1_fy26": 12.42, "yoy_growth_pct": 164.84, "unit": "INR cr"},
+      "net_profit_margin_pct": {"q1_fy27": 13.04, "q1_fy26": 10.77, "change_bps": 226},
+      "eps": {"q1_fy27": 5.20, "q1_fy26": 2.00, "yoy_growth_pct": 160.00, "unit": "INR"}
+    },
+    "note": "EBITDA and EBITDA Margin computed based on Revenue from Operations"
+  },
+  "revenue_mix": {
+    "q1_fy27_domestic_vs_export": {"domestic_pct": 79.24, "export_pct": 20.76},
+    "q1_fy27_export_country_distribution": {"USA": 32.59, "France": 11.34, "UAE": 19.81, "Italy": 10.78, "Canada": 5.64, "Others": 19.85},
+    "annual_domestic_vs_export": [
+      {"fiscal_year": "FY24", "domestic_pct": 85.26, "export_pct": 14.68},
+      {"fiscal_year": "FY25", "domestic_pct": 84.31, "export_pct": 15.69},
+      {"fiscal_year": "FY26", "domestic_pct": 83.43, "export_pct": 16.57}
+    ],
+    "annual_export_market_distribution": [
+      {"fiscal_year": "FY24", "top_markets": {"UAE": 57.17, "USA": 23.51, "Italy": 15.94, "Saudi Arabia": 1.72, "Norway": 0.62, "Germany": 0.27, "France": 0.01}},
+      {"fiscal_year": "FY25", "top_markets": {"UAE": 51.70, "Canada": 20.32, "Italy": 13.40, "American Samoa": 12.84, "USA": 1.27, "Germany": 0.16, "Others": 0.48}},
+      {"fiscal_year": "FY26", "top_markets": {"UAE": 37.94, "USA": 31.10, "Italy": 13.29, "Canada": 6.98, "France": 4.85, "Sri Lanka": 4.06, "Vietnam": 1.13, "Others": 0.65}}
+    ]
+  },
+  "multi_year_consolidated_financials": {
+    "revenue_from_operations": [
+      {"fiscal_year": "FY24", "value": 308.28, "yoy_growth_pct": 39.43},
+      {"fiscal_year": "FY25", "value": 429.85, "yoy_growth_pct": 39.60},
+      {"fiscal_year": "FY26", "value": 600.06, "yoy_growth_pct": null}
+    ],
+    "ebitda": [
+      {"fiscal_year": "FY24", "value": 58.45, "margin_pct": 18.96, "yoy_growth_pct": 20.63},
+      {"fiscal_year": "FY25", "value": 70.51, "margin_pct": 16.40, "yoy_growth_pct": 59.52},
+      {"fiscal_year": "FY26", "value": 112.48, "margin_pct": 18.74, "yoy_growth_pct": null}
+    ],
+    "pbt": [
+      {"fiscal_year": "FY24", "value": 55.93, "margin_pct": 18.14, "yoy_growth_pct": 32.88},
+      {"fiscal_year": "FY25", "value": 74.32, "margin_pct": 17.28, "yoy_growth_pct": 31.81},
+      {"fiscal_year": "FY26", "value": 97.96, "margin_pct": 16.32, "yoy_growth_pct": null}
+    ],
+    "pat": [
+      {"fiscal_year": "FY24", "value": 39.39, "margin_pct": 12.78, "yoy_growth_pct": 34.24},
+      {"fiscal_year": "FY25", "value": 52.88, "margin_pct": 12.30, "yoy_growth_pct": 44.62},
+      {"fiscal_year": "FY26", "value": 76.47, "margin_pct": 12.74, "yoy_growth_pct": null}
+    ],
+    "full_pnl": [
+      {
+        "fiscal_year": "FY24",
+        "revenues": 308.28, "raw_material": 222.26, "employee_costs": 13.10, "other_expenses": 14.47,
+        "total_expenditure": 249.83, "ebitda": 58.45, "ebitda_margin_pct": 18.96,
+        "finance_costs": 3.99, "depreciation": 3.99, "pbt": 50.48,
+        "exceptional_item_other_income": 5.46, "pbt_after_exceptional": 55.93,
+        "tax": 16.54, "net_profit": 39.39, "net_profit_margin_pct": 12.78
+      },
+      {
+        "fiscal_year": "FY25",
+        "revenues": 429.85, "raw_material": 318.94, "employee_costs": 21.09, "other_expenses": 19.31,
+        "total_expenditure": 359.34, "ebitda": 70.51, "ebitda_margin_pct": 16.40,
+        "finance_costs": 3.41, "depreciation": 4.63, "pbt": 62.46,
+        "exceptional_item_other_income": 11.86, "pbt_after_exceptional": 74.32,
+        "tax": 21.45, "net_profit": 52.88, "net_profit_margin_pct": 12.30
+      },
+      {
+        "fiscal_year": "FY26",
+        "revenues": 600.06, "raw_material": 411.79, "employee_costs": 41.56, "other_expenses": 34.23,
+        "total_expenditure": 487.58, "ebitda": 112.48, "ebitda_margin_pct": 18.74,
+        "finance_costs": 5.90, "depreciation": 18.76, "pbt": 87.81,
+        "exceptional_item_other_income": 10.15, "pbt_after_exceptional": 97.96,
+        "tax": 21.49, "net_profit": 76.47, "net_profit_margin_pct": 12.74
+      }
+    ],
+    "cash_flow": [
+      {"fiscal_year": "FY24", "operating": 16.92, "investing": -64.17, "financing": 50.10, "net_change_in_cash": 2.85},
+      {"fiscal_year": "FY25", "operating": 21.44, "investing": -279.3, "financing": 257.77, "net_change_in_cash": -0.04},
+      {"fiscal_year": "FY26", "operating": -113.80, "investing": -34.16, "financing": 147.69, "net_change_in_cash": -0.28}
+    ],
+    "unit": "INR cr"
+  },
+  "balance_sheet_consolidated": {
+    "FY24": {
+      "fixed_assets": 86.15, "other_non_current_financial_assets": 1.49, "deferred_tax_assets": 0.00, "other_non_current_assets": 0.00,
+      "inventories": 84.41, "trade_receivables": 52.44, "cash_and_bank": 16.00, "other_current_financial_assets": 0.67,
+      "current_tax_assets": 0.00, "other_current_assets": 16.27, "total_assets": 257.42,
+      "equity_share_capital": 46.14, "reserves_and_surplus": 84.15, "minorities_interest": 0.00,
+      "non_current_borrowings": 7.97, "lease_liabilities_non_current": 16.36, "deferred_tax_liability": 0.13, "long_term_provision": 0.69,
+      "current_borrowings": 51.72, "lease_liabilities_current": 10.91, "trade_payables": 36.60,
+      "current_tax_liabilities": 0.39, "short_term_provisions": 1.25, "other_current_liabilities": 1.11,
+      "total_equity_and_liabilities": 257.42
+    },
+    "FY25": {
+      "fixed_assets": 167.47, "other_non_current_financial_assets": 1.79, "deferred_tax_assets": 0.31, "other_non_current_assets": 0.00,
+      "inventories": 95.85, "trade_receivables": 92.96, "cash_and_bank": 151.16, "other_current_financial_assets": 1.83,
+      "current_tax_assets": 0.62, "other_current_assets": 83.11, "total_assets": 595.11,
+      "equity_share_capital": 62.16, "reserves_and_surplus": 436.48, "minorities_interest": 0.00,
+      "non_current_borrowings": 1.43, "lease_liabilities_non_current": 0.00, "deferred_tax_liability": 0.00, "long_term_provision": 1.01,
+      "current_borrowings": 32.04, "lease_liabilities_current": 0.00, "trade_payables": 55.32,
+      "current_tax_liabilities": 1.29, "short_term_provisions": 2.03, "other_current_liabilities": 3.36,
+      "total_equity_and_liabilities": 595.11
+    },
+    "FY26": {
+      "fixed_assets": 347.17, "other_non_current_financial_assets": 1.51, "deferred_tax_assets": 0.00, "other_non_current_assets": 0.00,
+      "inventories": 272.91, "trade_receivables": 174.71, "cash_and_bank": 46.44, "other_current_financial_assets": 0.86,
+      "current_tax_assets": 2.62, "other_current_assets": 85.58, "total_assets": 931.82,
+      "equity_share_capital": 62.16, "reserves_and_surplus": 511.84, "minorities_interest": 0.00,
+      "non_current_borrowings": 0.21, "lease_liabilities_non_current": 0.00, "deferred_tax_liability": 0.42, "long_term_provision": 1.60,
+      "current_borrowings": 187.10, "lease_liabilities_current": 0.00, "trade_payables": 158.23,
+      "current_tax_liabilities": 2.94, "short_term_provisions": 3.50, "other_current_liabilities": 3.81,
+      "total_equity_and_liabilities": 931.82
+    },
+    "unit": "INR cr"
+  },
+  "shareholding_and_share_price": {
+    "as_of_date": "2026-08-13",
+    "share_price_inr": 1398.40,
+    "market_cap_inr_cr": 9153.71,
+    "shares_outstanding": 65458486,
+    "face_value_inr": 10.00,
+    "52_week_high_inr": 1405.00,
+    "52_week_low_inr": 589.80,
+    "shareholding_pattern_as_of_2026_06_30": {
+      "promoter_and_promoter_group_pct": 65.69,
+      "institutions_pct": 17.19,
+      "non_institutions_pct": 17.13
+    },
+    "top_public_shareholders": [
+      "Whiteoak Capital Mutual Fund",
+      "Mukul Mahavir Agrawal",
+      "Holani Venture Capital Fund - Holani Venture Capital Fund-i",
+      "VQ Fastercap Fund",
+      "Los Angeles City Employees Retirement System",
+      "ITI Mutual Fund",
+      "Bandhan Mutual Fund",
+      "Motilal Oswal Mutual Fund",
+      "Samco Mutual Fund",
+      "Bank Of India Mutual Fund"
+    ],
+    "share_performance_period": "2024-10-04 to 2026-08-12",
+    "share_performance_return_pct": 209,
+    "benchmark_comparison": {
+      "nifty_50_return_pct": -2.5,
+      "nifty_consumer_durables_return_pct": -5.56
+    }
+  },
+  "risk_disclosures": {
+    "safe_harbour_note": "Presentation contains forward-looking statements not guaranteed; company assumes no obligation to update projections; standard disclaimer language present",
+    "reliability_caveat": "Company makes no representation or warranty on accuracy/completeness of presentation content"
+  },
+  "sentiment_assessment": {
+    "overall_tone": "strongly bullish",
+    "justification": "Triple-digit YoY consolidated revenue/EBITDA/PAT growth, strong export momentum (177% YoY), expanding geographic footprint (14 countries), and share price up 209% since listing vs. negative benchmark returns",
+    "watch_points": [
+      "Standalone EBITDA margin compressed -374 bps YoY (17.30% to 13.56%) despite strong revenue growth — raw material cost pressure visible (raw material as % of standalone revenue rose from 74.2% to 80.9% YoY)",
+      "Consolidated margin expansion (+418 bps) driven by subsidiary/HVAC Products contribution — gap between standalone and consolidated performance worth monitoring",
+      "FY26 operating cash flow was negative (-₹113.80 cr) despite strong profit growth — working capital buildup (inventories nearly tripled YoY: ₹95.85cr to ₹272.91cr; trade receivables nearly doubled) is a red flag for cash conversion",
+      "Current borrowings jumped sharply (₹32.04cr to ₹187.10cr) in FY26, funding the working capital build",
+      "High promoter holding (65.69%) limits free float; stock already trading near 52-week high"
+    ],
+    "net_sentiment_score": 0.6,
+    "sentiment_rationale": "Headline growth is exceptional, but the disconnect between profit growth and cash generation (negative FY26 operating cash flow, ballooning inventory/receivables funded by short-term debt) tempers the bullish P&L narrative and warrants scrutiny before treating this as an unambiguous positive signal."
+  }
+}

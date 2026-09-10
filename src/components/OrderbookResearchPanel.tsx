@@ -48,6 +48,9 @@ type ScreenResult = {
   source_url?: string | null;
   error?: string;
   why?: string;
+  pending_fields?: boolean;
+  save_gaps?: Array<{ field: string; reason: string }>;
+  repaired?: string[];
 };
 
 type HistoryRow = {
@@ -75,7 +78,8 @@ const PROGRESS_STEPS = [
   { id: "fetch", label: "Download / read PDF" },
   { id: "text", label: "Extract text (pdf-parse / OCR)" },
   { id: "fields", label: "Parse awarding entity, size, execution" },
-  { id: "ticker", label: "Resolve ticker (PDF + company DB) + sales" },
+  { id: "repair", label: "Find missing fields + repair" },
+  { id: "ticker", label: "Resolve ticker + sales + Δ order" },
 ] as const;
 
 function fmtCr(n: number | null | undefined): string {
@@ -149,12 +153,115 @@ function decisionClass(d: string | null | undefined): string {
   return "buyback-decision review";
 }
 
+type BatchLogKind =
+  | "pass"
+  | "no_pdf"
+  | "fail_fields"
+  | "fail_ratio"
+  | "error"
+  | "running";
+
+type AnnouncedHit = {
+  ticker: string;
+  company: string | null;
+  title: string;
+  url: string | null;
+  announced_at: string | null;
+  period: string | null;
+  provider: string;
+};
+
+type BatchLogRow = {
+  ticker: string;
+  name: string | null;
+  kind: BatchLogKind;
+  detail: string;
+  title?: string | null;
+  url?: string | null;
+  order_to_sales_pct?: number | null;
+};
+
+const HOLD_PAUSE_AFTER_DISCOVER_MS = 1800;
+const HOLD_PAUSE_AFTER_SCREEN_MS = 2800;
+const HOLD_PAUSE_BETWEEN_MS = 2200;
+
+function sleep(ms: number, shouldAbort: () => boolean): Promise<void> {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const tick = () => {
+      if (shouldAbort() || Date.now() - started >= ms) {
+        resolve();
+        return;
+      }
+      window.setTimeout(tick, 200);
+    };
+    window.setTimeout(tick, Math.min(200, ms));
+  });
+}
+
+function classifyBatchFail(json: ScreenResult & { error?: string }): {
+  kind: BatchLogKind;
+  detail: string;
+} {
+  const why = json.why || json.error || "FAIL";
+  if (/no reg-30|no .*order pdf/i.test(why)) {
+    return { kind: "no_pdf", detail: why };
+  }
+  if (
+    /order\/sales|need ≥|need ₹ size|need sales|not saved/i.test(why) ||
+    (json.extract?.order_to_sales_pct != null &&
+      json.extract.order_to_sales_pct < 50)
+  ) {
+    const pct = json.extract?.order_to_sales_pct;
+    return {
+      kind: "fail_ratio",
+      detail:
+        pct != null
+          ? `Order/Sales ${pct.toFixed(1)}% (<50%) — ${why}`
+          : why,
+    };
+  }
+  if (
+    /no awarding|no order|little text|could not|ocr|download/i.test(why) ||
+    !json.ok
+  ) {
+    return { kind: "fail_fields", detail: why };
+  }
+  return { kind: "fail_fields", detail: why };
+}
+
 export function OrderbookResearchPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [url, setUrl] = useState(AFCONS_SAMPLE);
+  const batchAbortRef = useRef(false);
+  const [url, setUrl] = useState("");
+  const [tickerInput, setTickerInput] = useState("");
+  const [announcedAt, setAnnouncedAt] = useState<string | null>(null);
+  const [announcedBusy, setAnnouncedBusy] = useState(false);
+  const [announcedHits, setAnnouncedHits] = useState<AnnouncedHit[]>([]);
+  const [announcedNote, setAnnouncedNote] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [useLlm, setUseLlm] = useState(true);
+  const [holdOn, setHoldOn] = useState(false);
+  const [holdings, setHoldings] = useState<
+    Array<{ ticker: string; name: string | null; market: string }>
+  >([]);
+  const [batchProgress, setBatchProgress] = useState<{
+    i: number;
+    total: number;
+    ticker: string;
+    step: string;
+    pass: number;
+    fail: number;
+    skip: number;
+    label?: string;
+  } | null>(null);
+  const [batchLog, setBatchLog] = useState<BatchLogRow[]>([]);
+  const [batchLogKind, setBatchLogKind] = useState<"holdings" | "announced">(
+    "holdings",
+  );
   const [status, setStatus] = useState<string | null>(null);
   const [progressStep, setProgressStep] = useState(0);
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -165,9 +272,24 @@ export function OrderbookResearchPanel() {
   const [showText, setShowText] = useState(false);
   const [showJson, setShowJson] = useState(true);
 
+  const loadHoldingsList = useCallback(async () => {
+    try {
+      const res = await fetch("/api/orderbook-screen?holdings=1", {
+        signal: AbortSignal.timeout(10_000),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        holdings?: Array<{ ticker: string; name: string | null; market: string }>;
+      };
+      if (res.ok && json.holdings) setHoldings(json.holdings);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   const loadHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/orderbook-screen?limit=40", {
+      const res = await fetch("/api/orderbook-screen?limit=200", {
         signal: AbortSignal.timeout(15_000),
       });
       const json = (await res.json()) as {
@@ -180,9 +302,46 @@ export function OrderbookResearchPanel() {
     }
   }, []);
 
+  const loadAnnouncedToday = useCallback(async () => {
+    setAnnouncedBusy(true);
+    setError(null);
+    setStatus("Scanning NSE/BSE for Reg-30 order PDFs (last 7 days)…");
+    try {
+      const res = await fetch("/api/orderbook-screen?announced=1&days=7", {
+        signal: AbortSignal.timeout(180_000),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        count?: number;
+        tickers?: string[];
+        sources?: AnnouncedHit[];
+        note?: string;
+        error?: string;
+      };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Announced scan failed");
+      }
+      setAnnouncedHits(json.sources || []);
+      setAnnouncedNote(json.note || null);
+      const n = json.count ?? json.sources?.length ?? 0;
+      const t = json.tickers?.length ?? 0;
+      setStatus(
+        n
+          ? `Last 7d · ${n} order filing(s) · ${t} compan${t === 1 ? "y" : "ies"}`
+          : json.note || "No Reg-30 order PDFs in the last 7 days",
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Announced scan failed");
+      setStatus(null);
+    } finally {
+      setAnnouncedBusy(false);
+    }
+  }, []);
+
   useEffect(() => {
     void loadHistory();
-  }, [loadHistory]);
+    void loadHoldingsList();
+  }, [loadHistory, loadHoldingsList]);
 
   useEffect(() => {
     if (!file) {
@@ -195,12 +354,12 @@ export function OrderbookResearchPanel() {
   }, [file]);
 
   useEffect(() => {
-    if (!busy || startedAt == null) return;
+    if ((!busy && !batchBusy) || startedAt == null) return;
     const tick = window.setInterval(() => {
       setElapsedMs(Date.now() - startedAt);
     }, 250);
     return () => window.clearInterval(tick);
-  }, [busy, startedAt]);
+  }, [busy, batchBusy, startedAt]);
 
   useEffect(() => {
     if (!busy) return;
@@ -208,9 +367,22 @@ export function OrderbookResearchPanel() {
       window.setTimeout(() => setProgressStep(1), 400),
       window.setTimeout(() => setProgressStep(2), 1600),
       window.setTimeout(() => setProgressStep(3), 2800),
+      window.setTimeout(() => setProgressStep(4), 4200),
     ];
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [busy]);
+
+  const holdSet = useMemo(
+    () => new Set(holdings.map((h) => h.ticker.toUpperCase())),
+    [holdings],
+  );
+
+  const visibleHistory = useMemo(() => {
+    if (!holdOn) return history;
+    return history.filter(
+      (h) => h.ticker && holdSet.has(h.ticker.toUpperCase()),
+    );
+  }, [history, holdOn, holdSet]);
 
   const pdfSrc = useMemo(() => {
     if (fileUrl) return fileUrl;
@@ -232,8 +404,447 @@ export function OrderbookResearchPanel() {
     return u || null;
   }, [fileUrl, url]);
 
-  const run = useCallback(async () => {
-    const trimmed = url.trim();
+  const stopBatch = useCallback(() => {
+    batchAbortRef.current = true;
+  }, []);
+
+  const runHoldings = useCallback(async () => {
+    if (!holdings.length) {
+      setError("No holdings in holdings.db");
+      return;
+    }
+    batchAbortRef.current = false;
+    setHoldOn(true);
+    setBatchBusy(true);
+    setBusy(false);
+    setError(null);
+    setResult(null);
+    setBatchLog([]);
+    setBatchLogKind("holdings");
+    setStartedAt(Date.now());
+    setElapsedMs(0);
+    let pass = 0;
+    let fail = 0;
+    let skip = 0;
+    const total = holdings.length;
+    const aborted = () => batchAbortRef.current;
+
+    const pushLog = (row: BatchLogRow) => {
+      setBatchLog((prev) => [row, ...prev].slice(0, 120));
+    };
+
+    for (let i = 0; i < holdings.length; i++) {
+      if (aborted()) {
+        setStatus(
+          `Stopped · ${i}/${total} · PASS ${pass} · FAIL ${fail} · no PDF ${skip}`,
+        );
+        break;
+      }
+
+      const row = holdings[i]!;
+      const ticker = row.ticker.toUpperCase();
+      const name = row.name;
+      setTickerInput(ticker);
+      setUrl("");
+      setAnnouncedAt(null);
+      setFile(null);
+      setResult(null);
+      setBatchProgress({
+        i: i + 1,
+        total,
+        ticker,
+        step: "1/2 Discover Reg-30 PDF",
+        pass,
+        fail,
+        skip,
+        label: "Holdings",
+      });
+      setStatus(
+        `${i + 1}/${total} · ${ticker}${name ? ` · ${name}` : ""} · finding Reg-30 order PDF…`,
+      );
+      pushLog({
+        ticker,
+        name,
+        kind: "running",
+        detail: "Discovering Reg-30 order PDF on BSE/NSE…",
+      });
+
+      let latestUrl = "";
+      let latestTitle: string | null = null;
+      let latestAnnounced: string | null = null;
+      try {
+        const discRes = await fetch(
+          `/api/orderbook-screen?discover=${encodeURIComponent(ticker)}`,
+          { signal: AbortSignal.timeout(60_000) },
+        );
+        const disc = (await discRes.json()) as {
+          ok?: boolean;
+          latest?: {
+            url?: string;
+            title?: string;
+            period?: string | null;
+            announced_at?: string | null;
+          } | null;
+          note?: string;
+          error?: string;
+        };
+        if (!discRes.ok || !disc.ok) {
+          throw new Error(disc.error || "Discover failed");
+        }
+        latestUrl = disc.latest?.url?.trim() || "";
+        latestTitle = disc.latest?.title || null;
+        latestAnnounced = disc.latest?.announced_at?.trim() || null;
+        if (!latestUrl) {
+          skip += 1;
+          const detail =
+            disc.note ||
+            "No Reg-30 order / LOI PDF on BSE or NSE — missing for us to fix discover filters or paste URL";
+          pushLog({
+            ticker,
+            name,
+            kind: "no_pdf",
+            detail,
+            title: null,
+            url: null,
+          });
+          setStatus(`${i + 1}/${total} · ${ticker} · NO PDF — ${detail}`);
+          setBatchProgress({
+            i: i + 1,
+            total,
+            ticker,
+            step: "No PDF found",
+            pass,
+            fail,
+            skip,
+          });
+          setError(null);
+          await sleep(HOLD_PAUSE_BETWEEN_MS, aborted);
+          continue;
+        }
+
+        setUrl(latestUrl);
+        setAnnouncedAt(latestAnnounced);
+        setStatus(
+          `${i + 1}/${total} · ${ticker} · found · ${latestTitle || "Order PDF"}` +
+            (disc.latest?.period ? ` · ${disc.latest.period}` : "") +
+            " — pausing so you can see it…",
+        );
+        pushLog({
+          ticker,
+          name,
+          kind: "running",
+          detail: `Found PDF · ${latestTitle || "Order PDF"}`,
+          title: latestTitle,
+          url: latestUrl,
+        });
+        setBatchProgress({
+          i: i + 1,
+          total,
+          ticker,
+          step: "Pause · review PDF URL",
+          pass,
+          fail,
+          skip,
+        });
+        await sleep(HOLD_PAUSE_AFTER_DISCOVER_MS, aborted);
+        if (aborted()) break;
+
+        setBatchProgress({
+          i: i + 1,
+          total,
+          ticker,
+          step: "2/2 Analyse PDF",
+          pass,
+          fail,
+          skip,
+        });
+        setStatus(
+          `${i + 1}/${total} · ${ticker} · analysing awarding / size / sales…`,
+        );
+        pushLog({
+          ticker,
+          name,
+          kind: "running",
+          detail: "Analysing PDF (text → fields → sales)…",
+          title: latestTitle,
+          url: latestUrl,
+        });
+
+        const res = await fetch("/api/orderbook-screen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: latestUrl,
+            ticker,
+            mode: useLlm ? "llm" : "lexical",
+            announced_at: latestAnnounced || undefined,
+          }),
+          signal: AbortSignal.timeout(240_000),
+        });
+        const json = (await res.json()) as ScreenResult & { error?: string };
+        setResult(json);
+
+        if (json.decision === "pass") {
+          pass += 1;
+          const pct = json.extract?.order_to_sales_pct;
+          const detail =
+            (json.why || "PASS") +
+            (pct != null ? ` · Order/Sales ${pct.toFixed(1)}%` : "");
+          pushLog({
+            ticker,
+            name,
+            kind: "pass",
+            detail,
+            title: latestTitle,
+            url: latestUrl,
+            order_to_sales_pct: pct ?? null,
+          });
+          setStatus(`${i + 1}/${total} · ${ticker} · PASS`);
+          setError(null);
+        } else {
+          fail += 1;
+          const classified = classifyBatchFail(json);
+          pushLog({
+            ticker,
+            name,
+            kind: classified.kind,
+            detail: classified.detail,
+            title: latestTitle,
+            url: latestUrl,
+            order_to_sales_pct: json.extract?.order_to_sales_pct ?? null,
+          });
+          setStatus(
+            `${i + 1}/${total} · ${ticker} · ${classified.kind.toUpperCase()} — ${classified.detail}`,
+          );
+          setError(classified.detail);
+        }
+
+        setBatchProgress({
+          i: i + 1,
+          total,
+          ticker,
+          step: "Done · pause before next",
+          pass,
+          fail,
+          skip,
+        });
+        await loadHistory();
+        await sleep(HOLD_PAUSE_AFTER_SCREEN_MS, aborted);
+      } catch (e) {
+        fail += 1;
+        const detail = e instanceof Error ? e.message : "failed";
+        pushLog({
+          ticker,
+          name,
+          kind: "error",
+          detail,
+          title: latestTitle,
+          url: latestUrl || null,
+        });
+        setStatus(`${i + 1}/${total} · ${ticker} · ERROR — ${detail}`);
+        setError(detail);
+        setBatchProgress({
+          i: i + 1,
+          total,
+          ticker,
+          step: "Error",
+          pass,
+          fail,
+          skip,
+        });
+        await sleep(HOLD_PAUSE_BETWEEN_MS, aborted);
+      }
+    }
+
+    if (!batchAbortRef.current) {
+      setStatus(
+        `Holdings done · ${total} · PASS ${pass} · FAIL ${fail} · no PDF ${skip}`,
+      );
+    }
+    setBatchBusy(false);
+    setBatchProgress(null);
+    await loadHistory();
+  }, [holdings, useLlm, loadHistory]);
+
+  const runAnnouncedBulk = useCallback(async () => {
+    const queue = announcedHits.filter((h) => h.url?.trim());
+    if (!queue.length) {
+      setError(
+        announcedHits.length
+          ? "No PDF URLs in today’s list — reload Today’s orders"
+          : "Load Today’s orders first",
+      );
+      return;
+    }
+    batchAbortRef.current = false;
+    setBatchBusy(true);
+    setBusy(false);
+    setError(null);
+    setResult(null);
+    setBatchLog([]);
+    setBatchLogKind("announced");
+    setStartedAt(Date.now());
+    setElapsedMs(0);
+    let pass = 0;
+    let fail = 0;
+    let skip = 0;
+    const total = queue.length;
+    const aborted = () => batchAbortRef.current;
+    const pushLog = (row: BatchLogRow) => {
+      setBatchLog((prev) => [row, ...prev].slice(0, 120));
+    };
+
+    for (let i = 0; i < queue.length; i++) {
+      if (aborted()) {
+        setStatus(
+          `Stopped · ${i}/${total} · PASS ${pass} · FAIL ${fail} · no PDF ${skip}`,
+        );
+        break;
+      }
+
+      const h = queue[i]!;
+      const ticker = h.ticker.toUpperCase();
+      const name = h.company;
+      const latestUrl = h.url!.trim();
+      const latestTitle = h.title || null;
+      const latestAnnounced = h.announced_at?.trim() || null;
+
+      setTickerInput(ticker);
+      setUrl(latestUrl);
+      setAnnouncedAt(latestAnnounced);
+      setFile(null);
+      setResult(null);
+      setBatchProgress({
+        i: i + 1,
+        total,
+        ticker,
+        step: "Analyse PDF",
+        pass,
+        fail,
+        skip,
+        label: "Today’s orders",
+      });
+      setStatus(
+        `${i + 1}/${total} · ${ticker}${name ? ` · ${name}` : ""} · analysing…`,
+      );
+      pushLog({
+        ticker,
+        name,
+        kind: "running",
+        detail: `Analysing · ${latestTitle || "Order PDF"}`,
+        title: latestTitle,
+        url: latestUrl,
+      });
+
+      try {
+        const res = await fetch("/api/orderbook-screen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: latestUrl,
+            ticker,
+            mode: useLlm ? "llm" : "lexical",
+            announced_at: latestAnnounced || undefined,
+          }),
+          signal: AbortSignal.timeout(240_000),
+        });
+        const json = (await res.json()) as ScreenResult & { error?: string };
+        setResult(json);
+
+        if (json.decision === "pass") {
+          pass += 1;
+          const pct = json.extract?.order_to_sales_pct;
+          const detail =
+            (json.why || "PASS") +
+            (pct != null ? ` · Order/Sales ${pct.toFixed(1)}%` : "");
+          pushLog({
+            ticker,
+            name,
+            kind: "pass",
+            detail,
+            title: latestTitle,
+            url: latestUrl,
+            order_to_sales_pct: pct ?? null,
+          });
+          setStatus(`${i + 1}/${total} · ${ticker} · PASS`);
+          setError(null);
+        } else {
+          fail += 1;
+          const classified = classifyBatchFail(json);
+          pushLog({
+            ticker,
+            name,
+            kind: classified.kind,
+            detail: classified.detail,
+            title: latestTitle,
+            url: latestUrl,
+            order_to_sales_pct: json.extract?.order_to_sales_pct ?? null,
+          });
+          setStatus(
+            `${i + 1}/${total} · ${ticker} · ${classified.kind.toUpperCase()} — ${classified.detail}`,
+          );
+          setError(classified.detail);
+        }
+
+        setBatchProgress({
+          i: i + 1,
+          total,
+          ticker,
+          step: "Done · pause before next",
+          pass,
+          fail,
+          skip,
+          label: "Today’s orders",
+        });
+        await loadHistory();
+        await sleep(HOLD_PAUSE_AFTER_SCREEN_MS, aborted);
+      } catch (e) {
+        fail += 1;
+        const detail = e instanceof Error ? e.message : "failed";
+        pushLog({
+          ticker,
+          name,
+          kind: "error",
+          detail,
+          title: latestTitle,
+          url: latestUrl,
+        });
+        setStatus(`${i + 1}/${total} · ${ticker} · ERROR — ${detail}`);
+        setError(detail);
+        setBatchProgress({
+          i: i + 1,
+          total,
+          ticker,
+          step: "Error",
+          pass,
+          fail,
+          skip,
+          label: "Today’s orders",
+        });
+        await sleep(HOLD_PAUSE_BETWEEN_MS, aborted);
+      }
+    }
+
+    if (!batchAbortRef.current) {
+      setStatus(
+        `Today’s orders done · ${total} · PASS ${pass} · FAIL ${fail} · no PDF ${skip}`,
+      );
+    }
+    setBatchBusy(false);
+    setBatchProgress(null);
+    await loadHistory();
+  }, [announcedHits, useLlm, loadHistory]);
+
+  const run = useCallback(async (opts?: {
+    url?: string;
+    ticker?: string;
+    announced_at?: string | null;
+  }) => {
+    const trimmed = (opts?.url ?? url).trim();
+    const ticker =
+      (opts?.ticker ?? tickerInput).trim().toUpperCase() || undefined;
+    const annAt =
+      opts && "announced_at" in opts ? opts.announced_at : announcedAt;
     if (!trimmed && !file) {
       setError("Paste a PDF URL or upload a file");
       return;
@@ -246,48 +857,83 @@ export function OrderbookResearchPanel() {
     setStartedAt(Date.now());
     setElapsedMs(0);
     setStatus(
-      file
-        ? "Step 1/4 · Reading uploaded PDF…"
-        : "Step 1/4 · Downloading PDF…",
+      file && !opts?.url
+        ? `Step 1/4 · Reading uploaded PDF${useLlm ? " (LLM)" : ""}…`
+        : `Step 1/4 · Downloading PDF${useLlm ? " (LLM)" : ""}…`,
     );
     try {
       let res: Response;
-      if (file) {
+      if (file && !opts?.url) {
         const form = new FormData();
         if (trimmed) form.set("url", trimmed);
         form.set("file", file);
-        setStatus("Step 2–4 · Text, fields, ticker DB + sales…");
+        if (ticker) form.set("ticker", ticker);
+        form.set("mode", useLlm ? "llm" : "lexical");
+        if (annAt) form.set("announced_at", annAt);
+        setStatus(
+          useLlm
+            ? "Step 2–4 · Text + LLM fields + sales…"
+            : "Step 2–4 · Text, fields, ticker DB + sales…",
+        );
         res = await fetch("/api/orderbook-screen", {
           method: "POST",
           body: form,
           signal: AbortSignal.timeout(240_000),
         });
       } else {
-        setStatus("Step 2–4 · Text, fields, ticker DB + sales…");
+        setStatus(
+          useLlm
+            ? "Step 2–4 · Text + LLM fields + sales…"
+            : "Step 2–4 · Text, fields, ticker DB + sales…",
+        );
         res = await fetch("/api/orderbook-screen", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: trimmed }),
+          body: JSON.stringify({
+            url: trimmed,
+            ticker,
+            mode: useLlm ? "llm" : "lexical",
+            announced_at: annAt || undefined,
+          }),
           signal: AbortSignal.timeout(240_000),
         });
       }
-      setProgressStep(PROGRESS_STEPS.length);
-      setStatus("Done — filling table…");
-      const json = (await res.json()) as ScreenResult & { error?: string };
-      if (!res.ok && !json.extract && !json.core) {
-        throw new Error(json.error || `HTTP ${res.status}`);
-      }
+      const json = (await res.json()) as ScreenResult;
       setResult(json);
-      if (!json.ok && json.error) setError(json.error);
+      if (!res.ok || json.error) {
+        setError(json.error || "Analyse failed");
+      } else {
+        setStatus(json.why || (json.decision === "pass" ? "PASS" : "Done"));
+      }
       await loadHistory();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Extract failed");
+      setError(e instanceof Error ? e.message : "Analyse failed");
+      setStatus(null);
     } finally {
       setBusy(false);
-      setStatus(null);
-      setStartedAt(null);
+      setProgressStep(PROGRESS_STEPS.length);
     }
-  }, [url, file, loadHistory]);
+  }, [url, file, tickerInput, useLlm, announcedAt, loadHistory]);
+
+  const scanAnnounced = useCallback(
+    (h: AnnouncedHit) => {
+      if (!h.url) {
+        setError("No PDF URL for this filing");
+        return;
+      }
+      setTickerInput(h.ticker);
+      setUrl(h.url);
+      setAnnouncedAt(h.announced_at);
+      setFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      void run({
+        url: h.url,
+        ticker: h.ticker,
+        announced_at: h.announced_at,
+      });
+    },
+    [run],
+  );
 
   const ex = result?.extract;
   const core = result?.core?.length
@@ -305,21 +951,84 @@ export function OrderbookResearchPanel() {
   return (
     <section className="panel scan-panel buyback-research-panel buyback-research-panel--split">
       <p className="panel-lead">
-        <strong>Research · Order book.</strong> Required:{" "}
-        <strong>Awarding entity</strong>, <strong>Order size</strong>,{" "}
-        <strong>Execution</strong>, <strong>order date</strong>. List saves{" "}
-        <strong>PASS only</strong> (Order/Sales ≥ 50%, Zen-style). Failures are
-        not stored.
+        <strong>Research · Order book.</strong>{" "}
+        <strong>Today’s orders</strong> lists Reg-30 filings → row{" "}
+        <strong>Scan</strong> or <strong>Bulk scan</strong>. Or turn on{" "}
+        <strong>Hold</strong> and <strong>Run holdings</strong>. PASS only when
+        Order/Sales ≥ 50%.
       </p>
+
+      <div className="concall-dual-row" style={{ marginBottom: 10 }}>
+        <button
+          type="button"
+          className={`chip tag-chip ${announcedBusy ? "busy on" : ""}`}
+          disabled={busy || batchBusy || announcedBusy}
+          onClick={() => void loadAnnouncedToday()}
+          title="List companies with Reg-30 order / LOI PDFs (NSE + BSE)"
+        >
+          {announcedBusy ? "Scanning…" : "Today’s orders"}
+        </button>
+        {announcedHits.some((h) => h.url?.trim()) ? (
+          batchBusy && batchProgress?.label === "Today’s orders" ? null : (
+            <button
+              type="button"
+              className="chip chip-scan tag-chip"
+              disabled={busy || batchBusy || announcedBusy}
+              onClick={() => void runAnnouncedBulk()}
+              title={`Analyse every PDF in today’s list (${announcedHits.filter((h) => h.url?.trim()).length})`}
+            >
+              Bulk scan (
+              {announcedHits.filter((h) => h.url?.trim()).length})
+            </button>
+          )
+        ) : null}
+        <button
+          type="button"
+          className={`chip tag-chip tag-hold ${holdOn ? "on" : ""}`}
+          disabled={batchBusy}
+          onClick={() => {
+            const next = !holdOn;
+            setHoldOn(next);
+            if (next && holdings.length === 0) void loadHoldingsList();
+          }}
+          title="Your holdings — filter PASS list + enable Run holdings"
+        >
+          Hold
+          <span className="chip-count">{holdings.length}</span>
+        </button>
+        {batchBusy ? (
+          <button
+            type="button"
+            className="chip tag-chip"
+            onClick={stopBatch}
+            title="Stop after current ticker"
+          >
+            Stop
+          </button>
+        ) : holdOn ? (
+          <button
+            type="button"
+            className="chip chip-scan tag-chip"
+            disabled={busy || holdings.length === 0}
+            onClick={() => void runHoldings()}
+            title={`Slow run: discover → pause → analyse → pause for each of ${holdings.length} holdings`}
+          >
+            Run holdings ({holdings.length})
+          </button>
+        ) : null}
+      </div>
 
       <div className="buyback-input-row">
         <input
           type="url"
           className="buyback-url-input"
-          placeholder="Paste BSE/NSE PDF URL…"
+          placeholder="Reg-30 order PDF URL (from Today’s orders / Scan)…"
           value={url}
-          disabled={busy}
-          onChange={(e) => setUrl(e.target.value)}
+          disabled={busy || batchBusy}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setAnnouncedAt(null);
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -329,11 +1038,20 @@ export function OrderbookResearchPanel() {
         />
         <button
           type="button"
+          className={`chip tag-chip ${useLlm ? "on" : ""}`}
+          disabled={busy || batchBusy}
+          onClick={() => setUseLlm((v) => !v)}
+          title="Off = lexical rules only. On = LLM JSON extract (prompts/orderbook-extract.system.txt) then lexical fill — like Concall Analyze"
+        >
+          LLM
+        </button>
+        <button
+          type="button"
           className={`chip chip-scan tag-chip ${busy ? "busy on" : ""}`}
-          disabled={busy}
+          disabled={busy || batchBusy || (!url.trim() && !file)}
           onClick={() => void run()}
         >
-          {busy ? "Working…" : "Extract"}
+          {busy ? "Analysing…" : useLlm ? "Analyse · LLM" : "Analyse"}
         </button>
         {downloadPdfHref ? (
           <a
@@ -403,6 +1121,7 @@ export function OrderbookResearchPanel() {
           disabled={busy}
           onClick={() => {
             setUrl(AFCONS_SAMPLE);
+            setAnnouncedAt(null);
             setFile(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
           }}
@@ -411,10 +1130,94 @@ export function OrderbookResearchPanel() {
         </button>
       </div>
 
-      {status && !busy ? (
+      {status && !busy && !batchBusy ? (
         <p className="buyback-status" role="status">
           {status}
         </p>
+      ) : null}
+      {batchBusy && batchProgress ? (
+        <div className="buyback-progress" role="status" aria-live="polite">
+          <p className="buyback-progress-title">
+            {batchProgress.label || "Holdings"} {batchProgress.i}/
+            {batchProgress.total} · {batchProgress.ticker}
+            <span className="buyback-progress-elapsed">
+              {fmtElapsed(elapsedMs)}
+            </span>
+          </p>
+          <p className="buyback-progress-hint">
+            <strong>{batchProgress.step}</strong>
+            {" · "}
+            PASS {batchProgress.pass} · FAIL {batchProgress.fail} · no PDF{" "}
+            {batchProgress.skip}
+          </p>
+          {status ? (
+            <p className="buyback-progress-hint" style={{ marginTop: 4 }}>
+              {status}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+      {batchLog.length > 0 ? (
+        <div className="orderbook-batch-log">
+          <div className="orderbook-batch-log-head">
+            <h3 className="buyback-history-title">
+              {batchLogKind === "announced"
+                ? "Today’s orders run log"
+                : "Holdings run log"}
+              <span className="buyback-history-count">{batchLog.length}</span>
+            </h3>
+            <p className="buyback-history-empty" style={{ margin: 0 }}>
+              Watch missing PDF / weak Order-Sales / parse gaps — newest first
+            </p>
+          </div>
+          <ul className="orderbook-batch-log-list">
+            {batchLog.map((row, idx) => (
+              <li
+                key={`${row.ticker}-${idx}-${row.kind}`}
+                className={`orderbook-batch-log-item kind-${row.kind}`}
+              >
+                <div className="orderbook-batch-log-top">
+                  <span className={`orderbook-batch-pill kind-${row.kind}`}>
+                    {row.kind === "no_pdf"
+                      ? "NO PDF"
+                      : row.kind === "fail_ratio"
+                        ? "LOW %"
+                        : row.kind === "fail_fields"
+                          ? "PARSE"
+                          : row.kind === "running"
+                            ? "…"
+                            : row.kind.toUpperCase()}
+                  </span>
+                  <strong>{row.ticker}</strong>
+                  {row.name ? (
+                    <span className="orderbook-batch-name">{row.name}</span>
+                  ) : null}
+                  {row.order_to_sales_pct != null ? (
+                    <span className="orderbook-batch-pct">
+                      {row.order_to_sales_pct.toFixed(1)}%
+                    </span>
+                  ) : null}
+                </div>
+                <p className="orderbook-batch-detail">{row.detail}</p>
+                {row.url ? (
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setTickerInput(row.ticker);
+                      setUrl(row.url || "");
+                      setAnnouncedAt(null);
+                      setFile(null);
+                      setHoldOn(true);
+                    }}
+                  >
+                    Open PDF URL
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
       {error ? <p className="buyback-error">{error}</p> : null}
 
@@ -511,6 +1314,20 @@ export function OrderbookResearchPanel() {
               <div className={decisionClass(result.decision)}>
                 {result.why || "Order extract"}
               </div>
+              {result.repaired && result.repaired.length > 0 ? (
+                <p className="buyback-history-empty" style={{ marginTop: 8 }}>
+                  Repaired: {result.repaired.join(", ")}
+                </p>
+              ) : null}
+              {result.save_gaps && result.save_gaps.length > 0 ? (
+                <ul className="buyback-history-empty" style={{ marginTop: 8 }}>
+                  {result.save_gaps.map((g) => (
+                    <li key={g.field}>
+                      <strong>{g.field}</strong> — {g.reason}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
 
               <table className="buyback-out-table">
                 <thead>
@@ -664,22 +1481,145 @@ export function OrderbookResearchPanel() {
         </div>
       </div>
 
+      {announcedHits.length > 0 || announcedNote ? (
+        <div className="buyback-history" style={{ marginBottom: 16 }}>
+          <div className="orderbook-batch-log-head">
+            <h3 className="buyback-history-title">
+              Today’s Reg-30 orders
+              <span className="buyback-history-count">
+                {announcedHits.length}
+              </span>
+            </h3>
+            {announcedHits.some((h) => h.url?.trim()) && !batchBusy ? (
+              <button
+                type="button"
+                className="chip chip-scan tag-chip"
+                disabled={busy || announcedBusy}
+                onClick={() => void runAnnouncedBulk()}
+                title="Run Analyse on every row with a PDF"
+              >
+                Bulk scan (
+                {announcedHits.filter((h) => h.url?.trim()).length})
+              </button>
+            ) : null}
+          </div>
+          <p className="buyback-history-empty" style={{ marginBottom: 8 }}>
+            NSE + BSE · row <strong>Scan</strong> or <strong>Bulk scan</strong>{" "}
+            all PDFs
+            {announcedNote ? ` · ${announcedNote}` : ""}
+          </p>
+          {announcedHits.length === 0 ? (
+            <p className="buyback-history-empty">
+              {announcedNote || "No order filings today."}
+            </p>
+          ) : (
+            <div className="buyback-pass-table-wrap">
+              <table className="buyback-pass-table orderbook-pass-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Title</th>
+                    <th>Source</th>
+                    <th>PDF</th>
+                    <th>Scan</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {announcedHits.map((h, i) => (
+                    <tr
+                      key={`${h.ticker}-${h.url || h.title}-${i}`}
+                      className="buyback-pass-row"
+                    >
+                      <td>
+                        <button
+                          type="button"
+                          className="link-btn buyback-pass-company"
+                          disabled={busy || announcedBusy || batchBusy}
+                          onClick={() => {
+                            setTickerInput(h.ticker);
+                            if (h.url) {
+                              setUrl(h.url);
+                              setAnnouncedAt(h.announced_at);
+                              setFile(null);
+                            }
+                          }}
+                          title="Load ticker + PDF URL"
+                        >
+                          {h.company || h.ticker}
+                        </button>
+                        <span className="buyback-pass-co">{h.ticker}</span>
+                      </td>
+                      <td>{h.title}</td>
+                      <td>{h.provider.replace(/_/g, " ")}</td>
+                      <td>
+                        {h.url ? (
+                          <button
+                            type="button"
+                            className="link-btn"
+                            disabled={busy || announcedBusy || batchBusy}
+                            onClick={() => {
+                              setTickerInput(h.ticker);
+                              setUrl(h.url!);
+                              setAnnouncedAt(h.announced_at);
+                              setFile(null);
+                              setStatus(
+                                `Loaded ${h.ticker} · click Analyse`,
+                              );
+                            }}
+                          >
+                            Use PDF
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td>
+                        {h.url ? (
+                          <button
+                            type="button"
+                            className={`chip chip-scan tag-chip ${busy ? "busy on" : ""}`}
+                            disabled={busy || announcedBusy || batchBusy}
+                            onClick={() => scanAnnounced(h)}
+                            title="Select this filing and run Analyse"
+                          >
+                            {busy ? "…" : "Scan"}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       <div className="buyback-history">
         <h3 className="buyback-history-title">
           Order book list (PASS)
-          <span className="buyback-history-count">{history.length}</span>
+          <span className="buyback-history-count">
+            {holdOn
+              ? `${visibleHistory.length}/${history.length}`
+              : history.length}
+          </span>
         </h3>
         <p className="buyback-history-empty" style={{ marginBottom: 8 }}>
           PASS only · Order/Sales ≥ 50% · Awarding · Size · Execution ·
           Announcement date
+          {holdOn ? " · filtered to Hold" : ""}
         </p>
-        {history.length === 0 ? (
+        {visibleHistory.length === 0 ? (
           <p className="buyback-history-empty">
-            No PASS screens yet (need Order/Sales ≥ 50%).
+            {holdOn
+              ? "No PASS rows in your holdings yet — Run holdings."
+              : "No PASS screens yet (need Order/Sales ≥ 50%)."}
           </p>
         ) : (
           <div className="buyback-pass-table-wrap">
-            <table className="buyback-pass-table">
+            <table className="buyback-pass-table orderbook-pass-table">
               <thead>
                 <tr>
                   <th>Company</th>
@@ -701,7 +1641,7 @@ export function OrderbookResearchPanel() {
                 </tr>
               </thead>
               <tbody>
-                {history.map((h) => (
+                {visibleHistory.map((h) => (
                   <tr key={h.id} className="buyback-pass-row">
                     <td>
                       {h.ticker ? (
