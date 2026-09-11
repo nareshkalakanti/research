@@ -21,6 +21,7 @@ import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { discoverNseMarketAnnouncements } from "./nse-investor-discover";
 import { rasterizePdfPages } from "./pdf-rasterize";
+import { marketIqDbFile } from "./iq-dbs";
 import { openSqliteNamed } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -149,7 +150,7 @@ function loadSystemPrompt(): string {
 }
 
 function ensureHistorySchema(): void {
-  const db = openSqliteNamed("announcement_screen.db", { wal: true });
+  const db = openSqliteNamed(marketIqDbFile(), { wal: true });
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS announcement_screens (
@@ -275,7 +276,7 @@ export async function discoverMarketIqAnnounced(
 export function saveMarketIqHits(hits: MarketIqHit[]): number {
   if (!hits.length) return 0;
   ensureHistorySchema();
-  const db = openSqliteNamed("announcement_screen.db", { wal: true });
+  const db = openSqliteNamed(marketIqDbFile(), { wal: true });
   try {
     const now = new Date().toISOString();
     const stmt = db.prepare(`
@@ -341,7 +342,7 @@ function confidenceFromExtractJson(raw: string | null): number | null {
 
 export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
   ensureHistorySchema();
-  const db = openSqliteNamed("announcement_screen.db", {
+  const db = openSqliteNamed(marketIqDbFile(), {
     readonly: true,
     wal: true,
   });
@@ -395,7 +396,7 @@ export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
 /** PDF URLs already analysed (not raw NSE fetch stubs). */
 export function listScoredMarketIqUrls(): Set<string> {
   ensureHistorySchema();
-  const db = openSqliteNamed("announcement_screen.db", {
+  const db = openSqliteNamed(marketIqDbFile(), {
     readonly: true,
     wal: true,
   });
@@ -1016,7 +1017,7 @@ function saveAnalysed(opts: {
   replaceId?: number | null;
 }): number {
   ensureHistorySchema();
-  const db = openSqliteNamed("announcement_screen.db", { wal: true });
+  const db = openSqliteNamed(marketIqDbFile(), { wal: true });
   try {
     const screened_at = new Date().toISOString();
     if (opts.replaceId != null) {

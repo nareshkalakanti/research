@@ -71,6 +71,11 @@ npm run scan:concall-drift
 
 `npm run dev` runs `db:prepare-dev` first (auto-fix). Keep `data/` out of iCloud/Dropbox.
 
+Dedicated save/reuse DBs (auto-migrated from legacy names once):
+
+- `data/marketiq.db` — MarketIQ analysed announcements
+- `data/orderbookiq.db` — OrderBookIQ PASS/FAIL screens (Scan skips known PDF URLs)
+
 ### LLM prompts
 
 Edit system prompts in [`prompts/`](prompts/) — Business, Concall drift, call review, and PPT distill. See [`prompts/README.md`](prompts/README.md).
@@ -81,4 +86,4 @@ Edit system prompts in [`prompts/`](prompts/) — Business, Concall drift, call 
 
 "Transcript of" OR "Earnings Presentation" OR "Investor Presentation" OR "Analyst Presentation" OR "conference call" OR "Investor/Analyst Call"
 
-HAPPSTMNDS ("Transcript of" OR "Earnings Presentation" OR "Investor Presentation" OR "Investor/Analyst Call")
+MONARCH("Transcript of" OR "Earnings Presentation" OR "Investor Presentation" OR "Investor/Analyst Call")

@@ -7,6 +7,7 @@ import {
   extractOrderbookPdf,
   isOrderbookPdfProxyUrl,
   listOrderbookHistory,
+  listOrderbookScreenedUrls,
   ORDERBOOK_PASS_MIN_PCT,
   refreshOrderbookHistoryPrices,
   scanOrderbookAnnouncements,
@@ -14,6 +15,7 @@ import {
   screenOrderbookPdf,
   type OrderbookAnnouncedHit,
 } from "@/lib/orderbook-screen";
+import { ORDERBOOKIQ_DB_FILE } from "@/lib/iq-dbs";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -78,6 +80,16 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (req.nextUrl.searchParams.get("screened") === "1") {
+    const urls = [...listOrderbookScreenedUrls()];
+    return NextResponse.json({
+      ok: true,
+      db: ORDERBOOKIQ_DB_FILE,
+      urls,
+      count: urls.length,
+    });
+  }
+
   const pdfUrl = req.nextUrl.searchParams.get("pdf")?.trim() || "";
   if (pdfUrl) {
     if (!isOrderbookPdfProxyUrl(pdfUrl)) {
@@ -129,6 +141,7 @@ export async function GET(req: NextRequest) {
   }
   return NextResponse.json({
     ok: true,
+    db: ORDERBOOKIQ_DB_FILE,
     history,
     pass_min_pct: ORDERBOOK_PASS_MIN_PCT,
     required_fields: [
@@ -179,12 +192,14 @@ export async function POST(req: NextRequest) {
       url?: string;
       action?: string;
       ticker?: string;
+      company?: string;
       mode?: string;
       announced_at?: string;
       days?: number;
       limit?: number;
       pendingOnly?: boolean;
       sources?: OrderbookAnnouncedHit[] | null;
+      skipUrls?: string[] | null;
       bufferBase64?: string | null;
       skipOcr?: boolean;
     } = {};
@@ -239,6 +254,7 @@ export async function POST(req: NextRequest) {
         pendingOnly: body.pendingOnly,
         sources: body.sources ?? null,
         mode,
+        skipUrls: Array.isArray(body.skipUrls) ? body.skipUrls : null,
       });
       return NextResponse.json(result);
     }
@@ -256,6 +272,7 @@ export async function POST(req: NextRequest) {
         url,
         pdfBuffer,
         ticker: body.ticker || null,
+        company: body.company || null,
         mode,
         announced_at: body.announced_at || null,
       });
@@ -280,6 +297,7 @@ export async function POST(req: NextRequest) {
     const result = await screenOrderbookPdf({
       url,
       ticker: body.ticker || null,
+      company: body.company || null,
       mode,
       announced_at: body.announced_at || null,
     });
