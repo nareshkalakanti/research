@@ -7,6 +7,7 @@ import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
 import { MarketIqPanel } from "@/components/MarketIqPanel";
 import { OrderBookIqPanel } from "@/components/OrderBookIqPanel";
+import { BoardRoomIqPanel } from "@/components/BoardRoomIqPanel";
 import { ScanPanel } from "@/components/ScanPanel";
 import { StrategyPanel } from "@/components/StrategyPanel";
 import { ThemeScanner } from "@/components/ThemeScanner";
@@ -19,6 +20,7 @@ type Tab =
   | "concall"
   | "marketiq"
   | "orderbookiq"
+  | "boardroomiq"
   | "missing"
   | "research";
 
@@ -29,6 +31,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "concall", label: "Concall" },
   { id: "marketiq", label: "MarketIQ" },
   { id: "orderbookiq", label: "OrderBookIQ" },
+  { id: "boardroomiq", label: "BoardRoomIQ" },
   { id: "research", label: "Research" },
   { id: "missing", label: "Missing data" },
 ];
@@ -154,6 +157,8 @@ export function AppShell() {
           <MarketIqPanel />
         ) : tab === "orderbookiq" ? (
           <OrderBookIqPanel />
+        ) : tab === "boardroomiq" ? (
+          <BoardRoomIqPanel />
         ) : tab === "research" ? (
           <ResearchPanel />
         ) : (

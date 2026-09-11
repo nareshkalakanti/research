@@ -1,0 +1,153 @@
+Articles Amendment
+Asset Acquisition Approval
+Asset Lease Approval
+Asset Purchase Approval
+Asset Sale Approval
+Auditors Appointment
+Auditors Reappointment
+Auditors Remuneration
+Board Reconstitution
+Board Report Adoption
+Bonus Share Issuance
+Borrowing Authorization
+Budget Approval
+Business Acquisition Approval
+Business Approval
+Business Closure
+CSR Approval
+Capital Allocation Revision
+Capital Increase
+Capital Increase Cancellation
+Capital Reallocation
+Capital Reduction
+Capital Restructuring
+Chairman Appointment
+Charge Creation
+Committee Appointment
+Committee Reappointment
+Compliance Ratification
+Contract Approval
+Corporate Guarantee Approval
+Council Election
+Debenture Delisting
+Debt Delisting
+Debt Equity Conversion
+Debt Issuance
+Debt Redemption
+Demerger Approval
+Deposit Acceptance
+Deposit Scheme Closure
+Designation Change
+Director Appointment
+Director Appointment Variation
+Director Compensation
+Director Continuation
+Director Designation
+Director Designation Change
+Director Reappointment
+Director Reclassification
+Director Redesignation
+Director Removal
+Director Retirement
+Director Terms Variation
+Dividend Approval
+Document Fee Approval
+ESG Commitment
+ESOP Approval
+Executive Appointment
+Executive Compensation
+Executive Director Appointment
+Executive Reappointment
+Fee Approval
+Financial Limit Enhancement
+Financial Statement Adoption
+Financial Statement Approval
+Foreign Ownership Cap
+Forfeited Share Cancellation
+Fund Reallocation
+Fund Utilization Change
+Fund Utilization Extension
+Fundraising Authorization
+Fundraising Increase
+Funds Utilization Variation
+General Business
+Governance Rights Grant
+Grant Acceptance
+Guarantee Authorization
+Independent Director Appointment
+Independent Director Compensation
+Independent Director Reappointment
+Insolvency Approval
+Insolvency Initiation
+Internal Audit Appointment
+Investment Approval
+Issue Object Modification
+Issue Object Variation
+Liquidator Appointment
+Listing Approval
+Loan Authorization
+Manager Appointment
+Manager Reappointment
+Managing Director Appointment
+Meeting Adjournment
+Meeting Rescheduling
+Memorandum Adoption
+Memorandum Amendment
+Merger Approval
+Name Change Approval
+Not specified
+Notice Amendment
+Object Amendment
+Object Clause Amendment
+Objects Amendment
+Objects Clause Amendment
+Philanthropy Authorization
+Policy Adoption
+Power Delegation
+Preference Share Redemption
+Proceeds Reallocation
+Proceeds Utilisation Revision
+Proceeds Utilization Amendment
+Promoter Reclassification
+Redemption Terms Amendment
+Register Location Approval
+Register Maintenance
+Register Maintenance Approval
+Registered Address Change
+Registered Office Change
+Registered Office Relocation
+Registered Office Shift
+Regulation Amendment
+Related Party Approval
+Remuneration Confirmation
+Remuneration Revision
+Remuneration Waiver
+Report Adoption
+Resolution Ratification
+Resolution Rescission
+Resolution Revocation
+Rights Issue Variation
+Royalty Approval
+Securities Issuance
+Share Buyback
+Share Issuance
+Share Reclassification
+Share Split
+Share Split Approval
+Share Subdivision
+Shareholder Reclassification
+Shareholder Rights Variation
+Shareholding Reclassification
+Special Rights Approval
+Stock Option Approval
+Stock Option Cancellation
+Stock Split
+Subsidiary Divestment
+Subsidiary Establishment
+Tariff Approval
+Valuation Report Adoption
+Valuation Report Approval
+Valuer Appointment
+Voluntary Delisting
+Voting Authorization
+Welfare Scheme Approval

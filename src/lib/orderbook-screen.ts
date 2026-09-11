@@ -8,6 +8,7 @@ import { rasterizePdfPages } from "./pdf-rasterize";
 import { fetchScreenerAnnual } from "./screener-annual";
 import { openSqliteNamed } from "./sqlite-utils";
 import { orderBookIqDbFile } from "./iq-dbs";
+import { announcementDedupeKey } from "./announcement-dedupe";
 import { fetchDailyBars } from "./ohlc";
 import { fetchQuoteDetailed } from "./yfinance";
 import {
@@ -664,14 +665,12 @@ export async function discoverOrderbookAnnounced(
     return a;
   };
   for (const s of sources) {
-    const day = (s.announced_at || "").slice(0, 10);
-    const co = normalizeCompanyKey(s.company || s.ticker || "");
-    const title = (s.title || "")
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 72);
-    const key = `${co}|${day}|${title}`;
+    const key = announcementDedupeKey({
+      ticker: s.ticker,
+      company: s.company,
+      title: s.title,
+      day: s.announced_at,
+    });
     const idx = byIdentity.get(key);
     if (idx == null) {
       byIdentity.set(key, collapsed.length);
@@ -754,6 +753,12 @@ export type OrderbookExtract = {
   subject: string | null;
   /** Announcement / LOA / order date (YYYY-MM-DD when parsed). */
   order_date: string | null;
+  /**
+   * Exchange filing / dissemination day (YYYY-MM-DD).
+   * Drift baseline uses this — not the contractual order_date — so we measure
+   * what the stock did after the news hit.
+   */
+  news_date: string | null;
   /** All contracts found (multi-annexure). */
   orders: OrderWinRow[];
   /** Convenience = orders[0] or Not disclosed. */
@@ -821,6 +826,7 @@ function emptyExtract(): OrderbookExtract {
     company: null,
     subject: null,
     order_date: null,
+    news_date: null,
     orders: [],
     awarding_entity: NOT_DISCLOSED,
     order_size: NOT_DISCLOSED,
@@ -2859,14 +2865,14 @@ async function attachSales(
   return extract;
 }
 
-/** LTP + post-announcement drift (vs last close before order_date). */
+/** LTP + post-news drift (vs last close before exchange filing day). */
 export async function attachOrderbookPrices(
   extract: OrderbookExtract,
 ): Promise<OrderbookExtract> {
   const ticker = extract.ticker;
   if (!ticker || isBsePlaceholderTicker(ticker)) return extract;
   try {
-    // 1y of daily bars is enough for baseline-before-order_date.
+    // 1y of daily bars is enough for baseline-before-news_date.
     const [quote, bars] = await Promise.all([
       fetchQuoteDetailed(ticker, "NSE", { skipSummary: true }),
       fetchDailyBars(ticker, "NSE", 1),
@@ -2874,7 +2880,9 @@ export async function attachOrderbookPrices(
     const ltp =
       quote.price != null && Number.isFinite(quote.price) ? quote.price : null;
     extract.ltp = ltp;
-    const day = extract.order_date?.slice(0, 10) || null;
+    // Prefer exchange news day over contractual order_date in the PDF.
+    const day =
+      (extract.news_date || extract.order_date)?.slice(0, 10) || null;
     if (day && bars.length) {
       const baseline = baselineCloseBefore(
         bars.map((b) => ({ date: b.date, close: b.close })),
@@ -3051,6 +3059,8 @@ export type OrderbookHistoryRow = {
   ticker: string | null;
   company: string | null;
   order_date: string | null;
+  /** Exchange filing day used for post-news drift (falls back to order_date). */
+  news_date: string | null;
   awarding_entity: string;
   order_size: string;
   execution: string;
@@ -3102,6 +3112,7 @@ export function listOrderbookHistory(limit = 40): OrderbookHistoryRow[] {
         ticker: r.ticker || extract.ticker,
         company: r.company || extract.company,
         order_date: extract.order_date,
+        news_date: extract.news_date || extract.order_date,
         awarding_entity: extract.awarding_entity || NOT_DISCLOSED,
         order_size: extract.order_size || NOT_DISCLOSED,
         execution: extract.execution || NOT_DISCLOSED,
@@ -3142,7 +3153,7 @@ export function listOrderbookScreenedUrls(): Set<string> {
   return urls;
 }
 
-/** Refresh LTP + post-announcement drift for PASS list rows. */
+/** Refresh LTP + post-news drift for PASS list rows. */
 export async function refreshOrderbookHistoryPrices(
   rows: OrderbookHistoryRow[],
 ): Promise<OrderbookHistoryRow[]> {
@@ -3157,6 +3168,7 @@ export async function refreshOrderbookHistoryPrices(
         ...emptyExtract(),
         ticker: row.ticker,
         order_date: row.order_date,
+        news_date: row.news_date || row.order_date,
       });
       out.push({
         ...row,
@@ -3419,8 +3431,14 @@ export async function screenOrderbookPdf(opts: {
   extract = repair.extract;
   if (repair.engine_extra) engine = `${engine}${repair.engine_extra}`;
 
-  // Sales + LTP/Δ in parallel. Live FX only when filing has foreign currency
-  // (otherwise DEFAULT_FX_INR already applied in lexical expand).
+  // Drift = price reaction after the exchange news hit.
+  // Anchor on filing/dissemination day — never the contractual order_date alone
+  // when we know when the exchange published the filing.
+  extract.news_date =
+    announcedFallback ||
+    coerceOrderDateIso(opts.announced_at) ||
+    extract.news_date ||
+    extract.order_date;
   const flatText = text.replace(/\s+/g, " ");
   const needFx = orderbookNeedsLiveFx(flatText, extract);
   const [liveFx, withSales, withPrices] = await Promise.all([

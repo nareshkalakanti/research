@@ -1,0 +1,571 @@
+{
+  "timestamp": "2026-09-11T18:30:02.342170",
+  "source": "https://api.lotusdew.in/evoting/results/summary",
+  "sources": [
+    "https://api.lotusdew.in/evoting/results/summary",
+    "https://api.lotusdew.in/categories"
+  ],
+  "page": "https://www.ldr.one/governance",
+  "total": 153,
+  "meta": {
+    "total_resolutions": 31935,
+    "open_resolutions": 3669,
+    "total_tags_reported": 153
+  },
+  "categories": [
+    "Articles Amendment",
+    "Asset Acquisition Approval",
+    "Asset Lease Approval",
+    "Asset Purchase Approval",
+    "Asset Sale Approval",
+    "Auditors Appointment",
+    "Auditors Reappointment",
+    "Auditors Remuneration",
+    "Board Reconstitution",
+    "Board Report Adoption",
+    "Bonus Share Issuance",
+    "Borrowing Authorization",
+    "Budget Approval",
+    "Business Acquisition Approval",
+    "Business Approval",
+    "Business Closure",
+    "CSR Approval",
+    "Capital Allocation Revision",
+    "Capital Increase",
+    "Capital Increase Cancellation",
+    "Capital Reallocation",
+    "Capital Reduction",
+    "Capital Restructuring",
+    "Chairman Appointment",
+    "Charge Creation",
+    "Committee Appointment",
+    "Committee Reappointment",
+    "Compliance Ratification",
+    "Contract Approval",
+    "Corporate Guarantee Approval",
+    "Council Election",
+    "Debenture Delisting",
+    "Debt Delisting",
+    "Debt Equity Conversion",
+    "Debt Issuance",
+    "Debt Redemption",
+    "Demerger Approval",
+    "Deposit Acceptance",
+    "Deposit Scheme Closure",
+    "Designation Change",
+    "Director Appointment",
+    "Director Appointment Variation",
+    "Director Compensation",
+    "Director Continuation",
+    "Director Designation",
+    "Director Designation Change",
+    "Director Reappointment",
+    "Director Reclassification",
+    "Director Redesignation",
+    "Director Removal",
+    "Director Retirement",
+    "Director Terms Variation",
+    "Dividend Approval",
+    "Document Fee Approval",
+    "ESG Commitment",
+    "ESOP Approval",
+    "Executive Appointment",
+    "Executive Compensation",
+    "Executive Director Appointment",
+    "Executive Reappointment",
+    "Fee Approval",
+    "Financial Limit Enhancement",
+    "Financial Statement Adoption",
+    "Financial Statement Approval",
+    "Foreign Ownership Cap",
+    "Forfeited Share Cancellation",
+    "Fund Reallocation",
+    "Fund Utilization Change",
+    "Fund Utilization Extension",
+    "Fundraising Authorization",
+    "Fundraising Increase",
+    "Funds Utilization Variation",
+    "General Business",
+    "Governance Rights Grant",
+    "Grant Acceptance",
+    "Guarantee Authorization",
+    "Independent Director Appointment",
+    "Independent Director Compensation",
+    "Independent Director Reappointment",
+    "Insolvency Approval",
+    "Insolvency Initiation",
+    "Internal Audit Appointment",
+    "Investment Approval",
+    "Issue Object Modification",
+    "Issue Object Variation",
+    "Liquidator Appointment",
+    "Listing Approval",
+    "Loan Authorization",
+    "Manager Appointment",
+    "Manager Reappointment",
+    "Managing Director Appointment",
+    "Meeting Adjournment",
+    "Meeting Rescheduling",
+    "Memorandum Adoption",
+    "Memorandum Amendment",
+    "Merger Approval",
+    "Name Change Approval",
+    "Not specified",
+    "Notice Amendment",
+    "Object Amendment",
+    "Object Clause Amendment",
+    "Objects Amendment",
+    "Objects Clause Amendment",
+    "Philanthropy Authorization",
+    "Policy Adoption",
+    "Power Delegation",
+    "Preference Share Redemption",
+    "Proceeds Reallocation",
+    "Proceeds Utilisation Revision",
+    "Proceeds Utilization Amendment",
+    "Promoter Reclassification",
+    "Redemption Terms Amendment",
+    "Register Location Approval",
+    "Register Maintenance",
+    "Register Maintenance Approval",
+    "Registered Address Change",
+    "Registered Office Change",
+    "Registered Office Relocation",
+    "Registered Office Shift",
+    "Regulation Amendment",
+    "Related Party Approval",
+    "Remuneration Confirmation",
+    "Remuneration Revision",
+    "Remuneration Waiver",
+    "Report Adoption",
+    "Resolution Ratification",
+    "Resolution Rescission",
+    "Resolution Revocation",
+    "Rights Issue Variation",
+    "Royalty Approval",
+    "Securities Issuance",
+    "Share Buyback",
+    "Share Issuance",
+    "Share Reclassification",
+    "Share Split",
+    "Share Split Approval",
+    "Share Subdivision",
+    "Shareholder Reclassification",
+    "Shareholder Rights Variation",
+    "Shareholding Reclassification",
+    "Special Rights Approval",
+    "Stock Option Approval",
+    "Stock Option Cancellation",
+    "Stock Split",
+    "Subsidiary Divestment",
+    "Subsidiary Establishment",
+    "Tariff Approval",
+    "Valuation Report Adoption",
+    "Valuation Report Approval",
+    "Valuer Appointment",
+    "Voluntary Delisting",
+    "Voting Authorization",
+    "Welfare Scheme Approval"
+  ],
+  "grouped": {
+    "Articles": [
+      "Articles Amendment"
+    ],
+    "Asset": [
+      "Asset Acquisition Approval",
+      "Asset Lease Approval",
+      "Asset Purchase Approval",
+      "Asset Sale Approval"
+    ],
+    "Auditors": [
+      "Auditors Appointment",
+      "Auditors Reappointment",
+      "Auditors Remuneration"
+    ],
+    "Board": [
+      "Board Reconstitution",
+      "Board Report Adoption"
+    ],
+    "Bonus": [
+      "Bonus Share Issuance"
+    ],
+    "Borrowing": [
+      "Borrowing Authorization"
+    ],
+    "Budget": [
+      "Budget Approval"
+    ],
+    "Business": [
+      "Business Acquisition Approval",
+      "Business Approval",
+      "Business Closure"
+    ],
+    "CSR": [
+      "CSR Approval"
+    ],
+    "Capital": [
+      "Capital Allocation Revision",
+      "Capital Increase",
+      "Capital Increase Cancellation",
+      "Capital Reallocation",
+      "Capital Reduction",
+      "Capital Restructuring"
+    ],
+    "Chairman": [
+      "Chairman Appointment"
+    ],
+    "Charge": [
+      "Charge Creation"
+    ],
+    "Committee": [
+      "Committee Appointment",
+      "Committee Reappointment"
+    ],
+    "Compliance": [
+      "Compliance Ratification"
+    ],
+    "Contract": [
+      "Contract Approval"
+    ],
+    "Corporate": [
+      "Corporate Guarantee Approval"
+    ],
+    "Council": [
+      "Council Election"
+    ],
+    "Debenture": [
+      "Debenture Delisting"
+    ],
+    "Debt": [
+      "Debt Delisting",
+      "Debt Equity Conversion",
+      "Debt Issuance",
+      "Debt Redemption"
+    ],
+    "Demerger": [
+      "Demerger Approval"
+    ],
+    "Deposit": [
+      "Deposit Acceptance",
+      "Deposit Scheme Closure"
+    ],
+    "Designation": [
+      "Designation Change"
+    ],
+    "Director": [
+      "Director Appointment",
+      "Director Appointment Variation",
+      "Director Compensation",
+      "Director Continuation",
+      "Director Designation",
+      "Director Designation Change",
+      "Director Reappointment",
+      "Director Reclassification",
+      "Director Redesignation",
+      "Director Removal",
+      "Director Retirement",
+      "Director Terms Variation"
+    ],
+    "Dividend": [
+      "Dividend Approval"
+    ],
+    "Document": [
+      "Document Fee Approval"
+    ],
+    "ESG": [
+      "ESG Commitment"
+    ],
+    "ESOP": [
+      "ESOP Approval"
+    ],
+    "Executive": [
+      "Executive Appointment",
+      "Executive Compensation",
+      "Executive Director Appointment",
+      "Executive Reappointment"
+    ],
+    "Fee": [
+      "Fee Approval"
+    ],
+    "Financial": [
+      "Financial Limit Enhancement",
+      "Financial Statement Adoption",
+      "Financial Statement Approval"
+    ],
+    "Foreign": [
+      "Foreign Ownership Cap"
+    ],
+    "Forfeited": [
+      "Forfeited Share Cancellation"
+    ],
+    "Fund": [
+      "Fund Reallocation",
+      "Fund Utilization Change",
+      "Fund Utilization Extension"
+    ],
+    "Fundraising": [
+      "Fundraising Authorization",
+      "Fundraising Increase"
+    ],
+    "Funds": [
+      "Funds Utilization Variation"
+    ],
+    "General": [
+      "General Business"
+    ],
+    "Governance": [
+      "Governance Rights Grant"
+    ],
+    "Grant": [
+      "Grant Acceptance"
+    ],
+    "Guarantee": [
+      "Guarantee Authorization"
+    ],
+    "Independent": [
+      "Independent Director Appointment",
+      "Independent Director Compensation",
+      "Independent Director Reappointment"
+    ],
+    "Insolvency": [
+      "Insolvency Approval",
+      "Insolvency Initiation"
+    ],
+    "Internal": [
+      "Internal Audit Appointment"
+    ],
+    "Investment": [
+      "Investment Approval"
+    ],
+    "Issue": [
+      "Issue Object Modification",
+      "Issue Object Variation"
+    ],
+    "Liquidator": [
+      "Liquidator Appointment"
+    ],
+    "Listing": [
+      "Listing Approval"
+    ],
+    "Loan": [
+      "Loan Authorization"
+    ],
+    "Manager": [
+      "Manager Appointment",
+      "Manager Reappointment"
+    ],
+    "Managing": [
+      "Managing Director Appointment"
+    ],
+    "Meeting": [
+      "Meeting Adjournment",
+      "Meeting Rescheduling"
+    ],
+    "Memorandum": [
+      "Memorandum Adoption",
+      "Memorandum Amendment"
+    ],
+    "Merger": [
+      "Merger Approval"
+    ],
+    "Name": [
+      "Name Change Approval"
+    ],
+    "Not": [
+      "Not specified"
+    ],
+    "Notice": [
+      "Notice Amendment"
+    ],
+    "Object": [
+      "Object Amendment",
+      "Object Clause Amendment"
+    ],
+    "Objects": [
+      "Objects Amendment",
+      "Objects Clause Amendment"
+    ],
+    "Philanthropy": [
+      "Philanthropy Authorization"
+    ],
+    "Policy": [
+      "Policy Adoption"
+    ],
+    "Power": [
+      "Power Delegation"
+    ],
+    "Preference": [
+      "Preference Share Redemption"
+    ],
+    "Proceeds": [
+      "Proceeds Reallocation",
+      "Proceeds Utilisation Revision",
+      "Proceeds Utilization Amendment"
+    ],
+    "Promoter": [
+      "Promoter Reclassification"
+    ],
+    "Redemption": [
+      "Redemption Terms Amendment"
+    ],
+    "Register": [
+      "Register Location Approval",
+      "Register Maintenance",
+      "Register Maintenance Approval"
+    ],
+    "Registered": [
+      "Registered Address Change",
+      "Registered Office Change",
+      "Registered Office Relocation",
+      "Registered Office Shift"
+    ],
+    "Regulation": [
+      "Regulation Amendment"
+    ],
+    "Related": [
+      "Related Party Approval"
+    ],
+    "Remuneration": [
+      "Remuneration Confirmation",
+      "Remuneration Revision",
+      "Remuneration Waiver"
+    ],
+    "Report": [
+      "Report Adoption"
+    ],
+    "Resolution": [
+      "Resolution Ratification",
+      "Resolution Rescission",
+      "Resolution Revocation"
+    ],
+    "Rights": [
+      "Rights Issue Variation"
+    ],
+    "Royalty": [
+      "Royalty Approval"
+    ],
+    "Securities": [
+      "Securities Issuance"
+    ],
+    "Share": [
+      "Share Buyback",
+      "Share Issuance",
+      "Share Reclassification",
+      "Share Split",
+      "Share Split Approval",
+      "Share Subdivision"
+    ],
+    "Shareholder": [
+      "Shareholder Reclassification",
+      "Shareholder Rights Variation"
+    ],
+    "Shareholding": [
+      "Shareholding Reclassification"
+    ],
+    "Special": [
+      "Special Rights Approval"
+    ],
+    "Stock": [
+      "Stock Option Approval",
+      "Stock Option Cancellation",
+      "Stock Split"
+    ],
+    "Subsidiary": [
+      "Subsidiary Divestment",
+      "Subsidiary Establishment"
+    ],
+    "Tariff": [
+      "Tariff Approval"
+    ],
+    "Valuation": [
+      "Valuation Report Adoption",
+      "Valuation Report Approval"
+    ],
+    "Valuer": [
+      "Valuer Appointment"
+    ],
+    "Voluntary": [
+      "Voluntary Delisting"
+    ],
+    "Voting": [
+      "Voting Authorization"
+    ],
+    "Welfare": [
+      "Welfare Scheme Approval"
+    ]
+  },
+  "from_summary_only": [
+    "Asset Lease Approval",
+    "Board Report Adoption",
+    "Budget Approval",
+    "Business Closure",
+    "Capital Allocation Revision",
+    "Capital Increase Cancellation",
+    "Capital Reallocation",
+    "Committee Reappointment",
+    "Corporate Guarantee Approval",
+    "Council Election",
+    "Debenture Delisting",
+    "Debt Delisting",
+    "Debt Equity Conversion",
+    "Debt Redemption",
+    "Deposit Acceptance",
+    "Deposit Scheme Closure",
+    "Director Appointment Variation",
+    "Director Continuation",
+    "Director Reclassification",
+    "Director Terms Variation",
+    "Document Fee Approval",
+    "Fee Approval",
+    "Financial Limit Enhancement",
+    "Foreign Ownership Cap",
+    "Fund Reallocation",
+    "Fund Utilization Change",
+    "Fund Utilization Extension",
+    "Fundraising Authorization",
+    "Fundraising Increase",
+    "Funds Utilization Variation",
+    "Grant Acceptance",
+    "Guarantee Authorization",
+    "Independent Director Reappointment",
+    "Insolvency Approval",
+    "Insolvency Initiation",
+    "Issue Object Modification",
+    "Liquidator Appointment",
+    "Manager Reappointment",
+    "Managing Director Appointment",
+    "Meeting Adjournment",
+    "Memorandum Adoption",
+    "Notice Amendment",
+    "Object Amendment",
+    "Objects Clause Amendment",
+    "Preference Share Redemption",
+    "Proceeds Reallocation",
+    "Proceeds Utilisation Revision",
+    "Proceeds Utilization Amendment",
+    "Promoter Reclassification",
+    "Redemption Terms Amendment",
+    "Register Location Approval",
+    "Register Maintenance",
+    "Register Maintenance Approval",
+    "Remuneration Confirmation",
+    "Remuneration Waiver",
+    "Resolution Revocation",
+    "Rights Issue Variation",
+    "Royalty Approval",
+    "Share Split",
+    "Share Split Approval",
+    "Shareholder Rights Variation",
+    "Shareholding Reclassification",
+    "Special Rights Approval",
+    "Stock Option Cancellation",
+    "Stock Split",
+    "Subsidiary Divestment",
+    "Tariff Approval",
+    "Valuation Report Adoption",
+    "Valuation Report Approval",
+    "Voluntary Delisting",
+    "Welfare Scheme Approval"
+  ],
+  "from_categories_endpoint_only": []
+}

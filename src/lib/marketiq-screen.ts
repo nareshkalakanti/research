@@ -21,6 +21,7 @@ import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { discoverNseMarketAnnouncements } from "./nse-investor-discover";
 import { rasterizePdfPages } from "./pdf-rasterize";
+import { announcementDedupeKey } from "./announcement-dedupe";
 import { marketIqDbFile } from "./iq-dbs";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -347,7 +348,7 @@ export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
     wal: true,
   });
   try {
-    const n = Math.min(200, Math.max(1, limit));
+    const n = Math.min(400, Math.max(1, limit * 3));
     const rows = db
       .prepare(
         `SELECT id, ticker, company, headline, summary, category, sentiment,
@@ -363,7 +364,7 @@ export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
         sentiment_confidence?: number | null;
       }
     >;
-    return rows.map((r) => {
+    const mapped = rows.map((r) => {
       const fromCol =
         typeof r.sentiment_confidence === "number" &&
         Number.isFinite(r.sentiment_confidence)
@@ -388,6 +389,37 @@ export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
         engine: r.engine,
       };
     });
+
+    // One row per issuer + day + title (keep newest / scored over pending).
+    const byKey = new Map<string, MarketIqHistoryRow>();
+    const rank = (r: MarketIqHistoryRow) => {
+      let s = 0;
+      const sent = (r.sentiment || "").toLowerCase();
+      if (sent && sent !== "pending") s += 30;
+      if ((r.impact || 0) > 0) s += 10;
+      if (r.engine && r.engine !== "nse-came-fetch") s += 5;
+      return s;
+    };
+    for (const r of mapped) {
+      const key = announcementDedupeKey({
+        ticker: r.ticker,
+        company: r.company,
+        title: r.headline,
+        day: r.announcement_date || r.screened_at,
+      });
+      if (!key.replace(/\|/g, "")) continue;
+      const prev = byKey.get(key);
+      if (!prev || rank(r) > rank(prev) || (rank(r) === rank(prev) && r.id > prev.id)) {
+        byKey.set(key, r);
+      }
+    }
+    return [...byKey.values()]
+      .sort((a, b) => {
+        const at = Date.parse(a.screened_at || a.announcement_date || "") || 0;
+        const bt = Date.parse(b.screened_at || b.announcement_date || "") || 0;
+        return bt - at;
+      })
+      .slice(0, limit);
   } finally {
     db.close();
   }
@@ -1057,6 +1089,42 @@ function saveAnalysed(opts: {
       db.prepare(
         `DELETE FROM announcement_screens WHERE source_url = ?`,
       ).run(opts.source_url);
+    }
+
+    // Drop older duplicates of the same issuer + day + title (different PDF URLs).
+    const identity = announcementDedupeKey({
+      ticker: opts.extract.ticker,
+      company: opts.extract.company,
+      title: opts.extract.headline,
+      day: opts.extract.announcement_date,
+    });
+    if (identity.replace(/\|/g, "")) {
+      const siblings = db
+        .prepare(
+          `SELECT id, ticker, company, headline, announcement_date, screened_at
+           FROM announcement_screens
+           WHERE UPPER(COALESCE(ticker, '')) = UPPER(COALESCE(?, ''))
+           ORDER BY id DESC
+           LIMIT 40`,
+        )
+        .all(opts.extract.ticker || "") as Array<{
+        id: number;
+        ticker: string | null;
+        company: string | null;
+        headline: string;
+        announcement_date: string | null;
+        screened_at: string;
+      }>;
+      const del = db.prepare(`DELETE FROM announcement_screens WHERE id = ?`);
+      for (const s of siblings) {
+        const k = announcementDedupeKey({
+          ticker: s.ticker,
+          company: s.company,
+          title: s.headline,
+          day: s.announcement_date || s.screened_at,
+        });
+        if (k === identity) del.run(s.id);
+      }
     }
 
     const info = db
