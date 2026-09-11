@@ -7,6 +7,7 @@ import { downloadBuybackPdf } from "./buyback-screen";
 import { rasterizePdfPages } from "./pdf-rasterize";
 import { fetchScreenerAnnual } from "./screener-annual";
 import { openSqliteNamed } from "./sqlite-utils";
+import { orderBookIqDbFile } from "./iq-dbs";
 import { fetchDailyBars } from "./ohlc";
 import { fetchQuoteDetailed } from "./yfinance";
 import {
@@ -592,12 +593,34 @@ export async function discoverOrderbookAnnounced(
           const sc = (s.company || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
           return sc && co && (sc.includes(co) || co.includes(sc));
         });
-        if (match) ticker = match.ticker;
+        if (match && !match.ticker.startsWith("BSE")) ticker = match.ticker;
       }
-      if (!ticker) {
-        const placeholder = h.scrip_code ? `BSE${h.scrip_code}` : "";
+      if (!ticker || ticker.startsWith("BSE")) {
+        const placeholder = h.scrip_code ? `BSE${h.scrip_code}` : ticker;
         if (!placeholder) continue;
         ticker = placeholder;
+        // Resolve BSE###### → real symbol via company_about (generic name match)
+        if (h.company) {
+          try {
+            const db = openSqliteNamed("company_about.db", {
+              readonly: true,
+              wal: true,
+            });
+            const resolved = lookupTickerByCompanyName(db, h.company);
+            if (resolved) {
+              ticker = resolved;
+              if (h.scrip_code) {
+                try {
+                  cacheBseScripCode(resolved, h.scrip_code);
+                } catch {
+                  /* ignore */
+                }
+              }
+            }
+          } catch {
+            /* keep placeholder */
+          }
+        }
       }
       sources.push({
         ticker,
@@ -622,16 +645,58 @@ export async function discoverOrderbookAnnounced(
     return bt - at;
   });
 
-  const tickers = [...seenTicker].sort();
+  // Collapse NSE+BSE doubles (different PDF URLs, same company + day + title).
+  const collapsed: OrderbookAnnouncedHit[] = [];
+  const byIdentity = new Map<string, number>();
+  const preferAnnounced = (
+    a: OrderbookAnnouncedHit,
+    b: OrderbookAnnouncedHit,
+  ): OrderbookAnnouncedHit => {
+    const aBse = /^BSE\d+/i.test(a.ticker);
+    const bBse = /^BSE\d+/i.test(b.ticker);
+    if (aBse !== bBse) return aBse ? b : a;
+    if ((a.url || "") && !(b.url || "")) return a;
+    if ((b.url || "") && !(a.url || "")) return b;
+    // Prefer longer legal name when tickers match
+    if ((b.company || "").length > (a.company || "").length) {
+      return { ...a, company: b.company };
+    }
+    return a;
+  };
+  for (const s of sources) {
+    const day = (s.announced_at || "").slice(0, 10);
+    const co = normalizeCompanyKey(s.company || s.ticker || "");
+    const title = (s.title || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 72);
+    const key = `${co}|${day}|${title}`;
+    const idx = byIdentity.get(key);
+    if (idx == null) {
+      byIdentity.set(key, collapsed.length);
+      collapsed.push(s);
+    } else {
+      collapsed[idx] = preferAnnounced(collapsed[idx]!, s);
+    }
+  }
+
+  const tickers = [
+    ...new Set(
+      collapsed
+        .map((s) => s.ticker)
+        .filter((t) => t && !/^BSE\d+/i.test(t)),
+    ),
+  ].sort();
   return {
     ok: true,
     days,
-    count: sources.length,
+    count: collapsed.length,
     tickers,
-    sources,
+    sources: collapsed,
     note: notes.length
       ? notes.join(" · ")
-      : sources.length
+      : collapsed.length
         ? undefined
         : `No Reg-30 order PDFs in the last ${days} day(s)`,
   };
@@ -1181,7 +1246,7 @@ async function enrichOrderbookWithLlm(
 }
 
 function ensureDb() {
-  const db = openSqliteNamed("orderbook_screen.db", { wal: true });
+  const db = openSqliteNamed(orderBookIqDbFile(), { wal: true });
   db.exec(`
     CREATE TABLE IF NOT EXISTS orderbook_screens (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1195,6 +1260,8 @@ function ensureDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_orderbook_screened
       ON orderbook_screens(screened_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_orderbook_source_url
+      ON orderbook_screens(source_url);
   `);
   return db;
 }
@@ -2178,6 +2245,30 @@ function extractScripCode(flat: string): string | null {
   );
 }
 
+/** Announced feed placeholder when BSE scrip is known but NSE symbol is not. */
+function isBsePlaceholderTicker(ticker: string | null | undefined): boolean {
+  return !!ticker && /^BSE\d{5,6}$/i.test(ticker.trim());
+}
+
+function scripFromBsePlaceholder(ticker: string | null | undefined): string | null {
+  if (!isBsePlaceholderTicker(ticker)) return null;
+  const m = ticker!.trim().match(/^BSE(\d{5,6})$/i);
+  return m?.[1] || null;
+}
+
+function lookupTickerByScripCode(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  scrip: string,
+): string | null {
+  const row = db
+    .prepare(
+      `SELECT ticker FROM company_bse_scrip WHERE scrip_code = ? LIMIT 1`,
+    )
+    .get(scrip) as { ticker: string } | undefined;
+  return row?.ticker?.trim().toUpperCase() || null;
+}
+
 function lookupTickerByCompanyName(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
@@ -2235,6 +2326,7 @@ function lookupTickerByCompanyName(
 /**
  * Fill ticker/company from company_about.db + company_bse_scrip when the PDF
  * has no Symbol: line (common on BSE-only filings).
+ * Also replaces announced-feed placeholders like BSE544598.
  */
 export function resolveTickerCompanyFromDb(
   extract: OrderbookExtract,
@@ -2247,25 +2339,39 @@ export function resolveTickerCompanyFromDb(
       wal: true,
     });
 
-    if (!extract.ticker) {
-      const scrip = extractScripCode(flat);
-      if (scrip) {
-        const row = db
-          .prepare(
-            `SELECT ticker FROM company_bse_scrip WHERE scrip_code = ? LIMIT 1`,
-          )
-          .get(scrip) as { ticker: string } | undefined;
-        if (row?.ticker) extract.ticker = row.ticker.toUpperCase();
+    const scripHint =
+      scripFromBsePlaceholder(extract.ticker) || extractScripCode(flat);
+
+    // Placeholder or missing ticker → resolve via scrip cache / PDF scrip line
+    if (!extract.ticker || isBsePlaceholderTicker(extract.ticker)) {
+      if (scripHint) {
+        const fromScrip = lookupTickerByScripCode(db, scripHint);
+        if (fromScrip) extract.ticker = fromScrip;
       }
     }
 
-    if (!extract.ticker && extract.company) {
-      const t = lookupTickerByCompanyName(db, extract.company);
-      if (t) extract.ticker = t;
+    if (!extract.ticker || isBsePlaceholderTicker(extract.ticker)) {
+      if (extract.company) {
+        const t = lookupTickerByCompanyName(db, extract.company);
+        if (t) {
+          extract.ticker = t;
+          if (scripHint) {
+            try {
+              cacheBseScripCode(t, scripHint);
+            } catch {
+              /* cache best-effort */
+            }
+          }
+        }
+      }
     }
 
     // Company missing but ticker known (Symbol: line) → fill legal name
-    if (extract.ticker && !extract.company) {
+    if (
+      extract.ticker &&
+      !isBsePlaceholderTicker(extract.ticker) &&
+      !extract.company
+    ) {
       const row = db
         .prepare(
           `SELECT name FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
@@ -2714,7 +2820,7 @@ async function attachSales(
   extract: OrderbookExtract,
 ): Promise<OrderbookExtract> {
   const ticker = extract.ticker;
-  if (!ticker) return extract;
+  if (!ticker || isBsePlaceholderTicker(ticker)) return extract;
   try {
     const pickSales = (annual: {
       dates: string[];
@@ -2758,7 +2864,7 @@ export async function attachOrderbookPrices(
   extract: OrderbookExtract,
 ): Promise<OrderbookExtract> {
   const ticker = extract.ticker;
-  if (!ticker) return extract;
+  if (!ticker || isBsePlaceholderTicker(ticker)) return extract;
   try {
     // 1y of daily bars is enough for baseline-before-order_date.
     const [quote, bars] = await Promise.all([
@@ -2819,7 +2925,13 @@ function decideWhy(extract: OrderbookExtract, core: ReturnType<typeof toCoreOrde
     const pass = isOrderbookPass(extract);
     return `${pass ? "PASS" : "FAIL"} · ${parts.join(" | ")}${dateBit} → Order/Sales ${pct}% (${label}${pass ? "" : ` — need ≥${ORDERBOOK_PASS_MIN_PCT}%`}).`;
   }
-  return `FAIL · ${parts.join(" | ")}${dateBit} — need ₹ size + sales for Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%.`;
+  if (extract.order_size_cr != null && extract.sales_cr == null) {
+    return `FAIL · ${parts.join(" | ")}${dateBit} — order ₹${extract.order_size_cr} Cr found but annual sales missing (resolve ticker for Screener).`;
+  }
+  if (extract.order_size_cr == null) {
+    return `FAIL · ${parts.join(" | ")}${dateBit} — need parseable order ₹ Cr for Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%.`;
+  }
+  return `FAIL · ${parts.join(" | ")}${dateBit} — need Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%.`;
 }
 
 function saveRow(row: {
@@ -2827,13 +2939,45 @@ function saveRow(row: {
   extract: OrderbookExtract;
   engine: string;
   text_chars: number;
+  decision: "pass" | "fail";
 }): number | null {
-  // List is pass-only — never persist junk / small-vs-sales screens.
-  if (!isOrderbookPass(row.extract)) return null;
+  // Persist PASS (list) and FAIL (skip on next Scan) when we have a PDF URL.
+  if (!row.source_url?.trim()) return null;
+  if (row.decision === "fail" && row.text_chars < 40) return null;
+
   const db = ensureDb();
   try {
     const at = new Date().toISOString();
-    if (row.extract.ticker) {
+    const url = row.source_url.trim();
+    const payload = JSON.stringify({
+      ...row.extract,
+      _decision: row.decision,
+    });
+
+    const byUrl = db
+      .prepare(
+        `SELECT id FROM orderbook_screens WHERE source_url = ? ORDER BY id DESC LIMIT 1`,
+      )
+      .get(url) as { id: number } | undefined;
+    if (byUrl) {
+      db.prepare(
+        `UPDATE orderbook_screens SET
+          ticker=?, company=?, extract_json=?, engine=?, text_chars=?, screened_at=?
+         WHERE id=?`,
+      ).run(
+        row.extract.ticker,
+        row.extract.company,
+        payload,
+        row.engine,
+        row.text_chars,
+        at,
+        byUrl.id,
+      );
+      return byUrl.id;
+    }
+
+    // PASS: also update latest row for same ticker (list UX).
+    if (row.decision === "pass" && row.extract.ticker) {
       const hit = db
         .prepare(
           `SELECT id FROM orderbook_screens WHERE upper(ticker) = ? ORDER BY id DESC LIMIT 1`,
@@ -2845,9 +2989,9 @@ function saveRow(row: {
             source_url=?, company=?, extract_json=?, engine=?, text_chars=?, screened_at=?
            WHERE id=?`,
         ).run(
-          row.source_url,
+          url,
           row.extract.company,
-          JSON.stringify(row.extract),
+          payload,
           row.engine,
           row.text_chars,
           at,
@@ -2856,6 +3000,7 @@ function saveRow(row: {
         return hit.id;
       }
     }
+
     const info = db
       .prepare(
         `INSERT INTO orderbook_screens (
@@ -2863,10 +3008,10 @@ function saveRow(row: {
         ) VALUES (?,?,?,?,?,?,?)`,
       )
       .run(
-        row.source_url,
+        url,
         row.extract.ticker,
         row.extract.company,
-        JSON.stringify(row.extract),
+        payload,
         row.engine,
         row.text_chars,
         at,
@@ -2877,8 +3022,8 @@ function saveRow(row: {
   }
 }
 
-/** Drop non-pass rows left from earlier junk saves. */
-function purgeNonPassHistory(): void {
+/** Drop corrupt rows only (FAIL rows are kept so Scan can skip them). */
+function purgeCorruptHistory(): void {
   const db = ensureDb();
   try {
     const rows = db
@@ -2887,17 +3032,11 @@ function purgeNonPassHistory(): void {
     const del = db.prepare(`DELETE FROM orderbook_screens WHERE id = ?`);
     const tx = db.transaction(() => {
       for (const r of rows) {
-        let extract: OrderbookExtract = emptyExtract();
         try {
-          extract = {
-            ...emptyExtract(),
-            ...(JSON.parse(r.extract_json) as Partial<OrderbookExtract>),
-          };
+          JSON.parse(r.extract_json);
         } catch {
           del.run(r.id);
-          continue;
         }
-        if (!isOrderbookPass(extract)) del.run(r.id);
       }
     });
     tx();
@@ -2926,7 +3065,7 @@ export type OrderbookHistoryRow = {
 
 /** Pass-only screens for the Order book list. */
 export function listOrderbookHistory(limit = 40): OrderbookHistoryRow[] {
-  purgeNonPassHistory();
+  purgeCorruptHistory();
   const db = ensureDb();
   try {
     const rows = db
@@ -2936,7 +3075,7 @@ export function listOrderbookHistory(limit = 40): OrderbookHistoryRow[] {
          ORDER BY screened_at DESC
          LIMIT ?`,
       )
-      .all(Math.min(200, Math.max(1, limit))) as Array<{
+      .all(Math.min(400, Math.max(1, limit * 2))) as Array<{
       id: number;
       source_url: string | null;
       ticker: string | null;
@@ -2974,11 +3113,33 @@ export function listOrderbookHistory(limit = 40): OrderbookHistoryRow[] {
         drift_pct: extract.drift_pct,
         screened_at: r.screened_at,
       });
+      if (out.length >= limit) break;
     }
     return out;
   } finally {
     db.close();
   }
+}
+
+/** Every PDF URL already screened (PASS or FAIL) — Scan skips these. */
+export function listOrderbookScreenedUrls(): Set<string> {
+  const urls = new Set<string>();
+  const db = ensureDb();
+  try {
+    const rows = db
+      .prepare(
+        `SELECT source_url FROM orderbook_screens
+         WHERE source_url IS NOT NULL AND TRIM(source_url) != ''`,
+      )
+      .all() as Array<{ source_url: string }>;
+    for (const r of rows) {
+      const u = r.source_url?.trim();
+      if (u) urls.add(u);
+    }
+  } finally {
+    db.close();
+  }
+  return urls;
 }
 
 /** Refresh LTP + post-announcement drift for PASS list rows. */
@@ -3089,6 +3250,8 @@ export async function screenOrderbookPdf(opts: {
   pdfBuffer?: Buffer | null;
   /** Prefer this ticker when PDF text is ambiguous / missing symbol. */
   ticker?: string | null;
+  /** Company name hint (helps resolve BSE###### placeholders). */
+  company?: string | null;
   /**
    * lexical = rules only.
    * llm = OCR extract (when configured) + Mistral JSON analyse + lexical fill.
@@ -3099,6 +3262,7 @@ export async function screenOrderbookPdf(opts: {
 }): Promise<OrderbookScreenResult> {
   const source_url = opts.url?.trim() || null;
   const preferredTicker = opts.ticker?.trim().toUpperCase() || null;
+  const companyHint = opts.company?.trim() || null;
   const useLlm = opts.mode === "llm";
   const announcedFallback = coerceOrderDateIso(opts.announced_at);
   let buf = opts.pdfBuffer ?? null;
@@ -3214,6 +3378,9 @@ export async function screenOrderbookPdf(opts: {
   }
 
   let extract = enrichOrderbookLexical(text);
+  if (companyHint && !extract.company) {
+    extract.company = companyHint;
+  }
   let usedLlm = false;
   if (useLlm) {
     const llm = await enrichOrderbookWithLlm(text, extract);
@@ -3226,7 +3393,9 @@ export async function screenOrderbookPdf(opts: {
   if (!extract.order_date && announcedFallback) {
     extract.order_date = announcedFallback;
   }
-  if (preferredTicker) {
+  // Real exchange tickers from the client win; BSE###### placeholders must not
+  // overwrite a name/scrip resolution (they break Screener sales + LTP).
+  if (preferredTicker && !isBsePlaceholderTicker(preferredTicker)) {
     extract.ticker = preferredTicker;
     if (!extract.company) {
       const company = loadAllCompanies().find(
@@ -3234,6 +3403,12 @@ export async function screenOrderbookPdf(opts: {
       );
       if (company?.name) extract.company = company.name;
     }
+  } else if (preferredTicker && isBsePlaceholderTicker(preferredTicker)) {
+    if (!extract.ticker || isBsePlaceholderTicker(extract.ticker)) {
+      extract.ticker = preferredTicker;
+    }
+    // Resolve placeholder → real symbol (company name / scrip cache)
+    extract = resolveTickerCompanyFromDb(extract, text);
   }
 
   // Step: identify missing fields and repair when possible
@@ -3311,6 +3486,7 @@ export async function screenOrderbookPdf(opts: {
     extract,
     engine,
     text_chars: text.length,
+    decision: pass ? "pass" : "fail",
   });
 
   return {
@@ -3333,20 +3509,15 @@ export async function screenOrderbookPdf(opts: {
       ? pass
         ? undefined
         : readiness.gaps.length
-          ? `Not saved — missing ${readiness.gaps.map((g) => g.field).join(", ")}`
-          : `Not saved — need Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}% with awarding / size / execution`
+          ? `FAIL saved · missing ${readiness.gaps.map((g) => g.field).join(", ")}`
+          : `FAIL saved · Order/Sales below ${ORDERBOOK_PASS_MIN_PCT}% (or incomplete fields)`
       : "No awarding entity / order size / execution found",
   };
 }
 
-/** Source URLs already saved as PASS (for scan skip). */
+/** @deprecated alias — Scan skips all screened URLs (PASS + FAIL). */
 export function listOrderbookPassUrls(): Set<string> {
-  const urls = new Set<string>();
-  for (const row of listOrderbookHistory(200)) {
-    const u = row.source_url?.trim();
-    if (u) urls.add(u);
-  }
-  return urls;
+  return listOrderbookScreenedUrls();
 }
 
 /**
@@ -3422,7 +3593,7 @@ export async function extractOrderbookPdf(opts: {
 
 /**
  * Batch-analyse announced order filings (MarketIQ-style scan loop).
- * PASS rows auto-save; FAIL returns in results but is not persisted.
+ * PASS + FAIL are persisted; next Scan skips those PDF URLs.
  */
 export async function scanOrderbookAnnouncements(opts: {
   days?: number;
@@ -3430,6 +3601,8 @@ export async function scanOrderbookAnnouncements(opts: {
   pendingOnly?: boolean;
   sources?: OrderbookAnnouncedHit[] | null;
   mode?: "lexical" | "llm" | null;
+  /** URLs already attempted this session (PASS or FAIL) — skip so scan advances. */
+  skipUrls?: string[] | null;
 }): Promise<{
   ok: true;
   days: number;
@@ -3442,6 +3615,7 @@ export async function scanOrderbookAnnouncements(opts: {
   remaining: number;
   results: OrderbookScreenResult[];
   history: OrderbookHistoryRow[];
+  attempted_urls: string[];
   note?: string;
 }> {
   const days = Math.min(7, Math.max(1, opts.days ?? 1));
@@ -3457,17 +3631,26 @@ export async function scanOrderbookAnnouncements(opts: {
     sources = found.sources;
   }
 
-  const scored = listOrderbookPassUrls();
+  const scored = listOrderbookScreenedUrls();
+  const skipExtra = new Set(
+    (opts.skipUrls || [])
+      .map((u) => u.trim())
+      .filter(Boolean),
+  );
   let skipped = 0;
-  if (pendingOnly) {
+  if (pendingOnly || skipExtra.size) {
     const pending: OrderbookAnnouncedHit[] = [];
     for (const s of sources) {
       const u = s.url?.trim();
-      if (u && scored.has(u)) {
+      if (!u) {
         skipped += 1;
         continue;
       }
-      if (!u) {
+      if (pendingOnly && scored.has(u)) {
+        skipped += 1;
+        continue;
+      }
+      if (skipExtra.has(u)) {
         skipped += 1;
         continue;
       }
@@ -3487,6 +3670,7 @@ export async function scanOrderbookAnnouncements(opts: {
     const r = await screenOrderbookPdf({
       url: s.url,
       ticker: s.ticker,
+      company: s.company,
       announced_at: s.announced_at,
       mode,
     });
@@ -3500,6 +3684,10 @@ export async function scanOrderbookAnnouncements(opts: {
     }
   }
 
+  const attempted_urls = batch
+    .map((s) => s.url?.trim() || "")
+    .filter(Boolean);
+
   return {
     ok: true,
     days,
@@ -3512,6 +3700,7 @@ export async function scanOrderbookAnnouncements(opts: {
     remaining: Math.max(0, total_candidates - batch.length),
     results,
     history: listOrderbookHistory(200),
-    note: `PASS needs awarding / size / execution + Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%`,
+    attempted_urls,
+    note: `Skips ${scored.size} already-screened PDF(s) in DB · PASS needs Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%`,
   };
 }

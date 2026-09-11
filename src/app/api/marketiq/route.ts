@@ -5,11 +5,13 @@ import {
   discoverMarketIqAnnounced,
   extractMarketIqPdf,
   listMarketIqHistory,
+  listScoredMarketIqUrls,
   loadLdrAnnouncementCategories,
   saveMarketIqHits,
   scanMarketIqAnnouncements,
   type MarketIqHit,
 } from "@/lib/marketiq-screen";
+import { MARKETIQ_DB_FILE } from "@/lib/iq-dbs";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -29,7 +31,18 @@ export async function GET(req: NextRequest) {
     );
     return NextResponse.json({
       ok: true,
+      db: MARKETIQ_DB_FILE,
       history: listMarketIqHistory(limit),
+    });
+  }
+
+  if (sp.get("screened") === "1") {
+    const urls = [...listScoredMarketIqUrls()];
+    return NextResponse.json({
+      ok: true,
+      db: MARKETIQ_DB_FILE,
+      urls,
+      count: urls.length,
     });
   }
 

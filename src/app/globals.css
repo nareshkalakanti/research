@@ -16239,3 +16239,11 @@ a.miq-co-name:hover {
 .obiq-td-drift .mom-tag {
   margin-bottom: 2px;
 }
+
+.obiq-scan-progress {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--border, #d8dde6) 80%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface, #f7f8fa) 92%, transparent);
+}

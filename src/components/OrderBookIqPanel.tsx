@@ -105,6 +105,63 @@ function fmtDrift(n: number | null | undefined): string {
   return `${sign}${n.toFixed(1)}%`;
 }
 
+function feedIdentityKey(row: {
+  company: string;
+  ticker: string;
+  dateIso: string | null;
+  headline: string;
+}): string {
+  const day = (row.dateIso || "").slice(0, 10);
+  const ticker = (row.ticker || "").trim();
+  const rawCo =
+    row.company?.trim() ||
+    (/^BSE\d+/i.test(ticker) ? "" : ticker) ||
+    ticker;
+  const co = rawCo
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(
+      /\b(limited|ltd\.?|private|pvt\.?|llp|corporation|corp\.?)\b/gi,
+      "",
+    )
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const title = (row.headline || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 72);
+  return `${co}|${day}|${title}`;
+}
+
+function preferFeedRow(a: FeedRow, b: FeedRow): FeedRow {
+  const rank = (r: FeedRow) => {
+    let s = 0;
+    if (r.decision === "pass") s += 40;
+    else if (r.decision === "fail") s += 20;
+    if (r.historyId != null) s += 15;
+    if (!/^BSE\d+/i.test(r.ticker)) s += 10;
+    if (r.order_to_sales_pct != null) s += 8;
+    if (r.order_size_cr != null) s += 5;
+    if (r.url) s += 2;
+    if ((r.company || "").length > 8) s += 1;
+    return s;
+  };
+  if (rank(b) > rank(a)) {
+    return {
+      ...b,
+      url: b.url || a.url,
+      hit: b.hit || a.hit,
+    };
+  }
+  return {
+    ...a,
+    url: a.url || b.url,
+    hit: a.hit || b.hit,
+  };
+}
+
 function DriftTag({ pct }: { pct: number | null | undefined }) {
   if (pct == null || !Number.isFinite(pct)) {
     return <span className="mom-tag mom-tag--empty">—</span>;
@@ -341,6 +398,11 @@ export function OrderBookIqPanel() {
     skipped: number;
     remaining: number;
     round: number;
+    total: number;
+    done: number;
+    pct: number;
+    finished?: boolean;
+    errored?: boolean;
   } | null>(null);
 
   const loadHistory = useCallback(async (opts?: { prices?: boolean }) => {
@@ -503,6 +565,7 @@ export function OrderBookIqPanel() {
           action: "analyse",
           url: row.hit?.url || row.url,
           ticker: row.hit?.ticker || row.ticker,
+          company: row.hit?.company || row.company,
           announced_at: row.hit?.announced_at || row.dateIso,
           mode: "llm",
         };
@@ -559,14 +622,88 @@ export function OrderBookIqPanel() {
     scanStopRef.current = false;
     setScanRunning(true);
     setError(null);
-    setScanStats({ ok: 0, pass: 0, fail: 0, skipped: 0, remaining: 0, round: 0 });
+    setScanStats({
+      ok: 0,
+      pass: 0,
+      fail: 0,
+      skipped: 0,
+      remaining: 0,
+      round: 0,
+      total: 0,
+      done: 0,
+      pct: 0,
+    });
+    setStatusNote("Loading already-screened PDFs…");
 
-    const sources = hits.filter((h) => h.url?.trim());
+    const queue = hits.filter((h) => h.url?.trim());
+    const doneUrls = new Set<string>();
+
+    try {
+      const scr = await fetch("/api/orderbook-screen?screened=1");
+      const scrJson = (await scr.json()) as { urls?: string[] };
+      for (const u of scrJson.urls ?? []) {
+        if (u.trim()) doneUrls.add(u.trim());
+      }
+    } catch {
+      /* fall back to PASS history only */
+      for (const h of history) {
+        const u = h.source_url?.trim();
+        if (u) doneUrls.add(u);
+      }
+    }
+
+    const pendingQueue = queue.filter((h) => {
+      const u = h.url?.trim() || "";
+      return u && !doneUrls.has(u);
+    });
+    const already = Math.max(0, queue.length - pendingQueue.length);
+
+    if (pendingQueue.length === 0) {
+      setScanStats({
+        ok: 0,
+        pass: 0,
+        fail: 0,
+        skipped: already || doneUrls.size,
+        remaining: 0,
+        round: 0,
+        total: already || queue.length || doneUrls.size,
+        done: already || queue.length || doneUrls.size,
+        pct: 100,
+        finished: true,
+      });
+      setStatusNote(
+        already || doneUrls.size
+          ? `Nothing pending — ${already || doneUrls.size} already screened in DB`
+          : "No order PDFs to scan — Refresh orders first",
+      );
+      setScanRunning(false);
+      scanStopRef.current = false;
+      return;
+    }
+
+    setScanStats({
+      ok: 0,
+      pass: 0,
+      fail: 0,
+      skipped: already,
+      remaining: pendingQueue.length,
+      round: 0,
+      total: pendingQueue.length,
+      done: 0,
+      pct: 0,
+    });
+    setStatusNote(
+      `Scanning ${pendingQueue.length} pending · skipped ${already} already in DB`,
+    );
+
     let ok = 0;
     let pass = 0;
     let fail = 0;
-    let skipped = 0;
+    let skipped = already;
     let round = 0;
+    let total = pendingQueue.length;
+    let doneCount = 0;
+    let errored = false;
 
     try {
       for (;;) {
@@ -580,8 +717,9 @@ export function OrderBookIqPanel() {
             days,
             limit: 3,
             pendingOnly: true,
-            mode: "llm",
-            sources: sources.length ? sources : null,
+            mode: "lexical",
+            sources: pendingQueue,
+            skipUrls: [...doneUrls],
           }),
         });
         const json = (await res.json()) as {
@@ -593,6 +731,8 @@ export function OrderBookIqPanel() {
           failed?: number;
           skipped?: number;
           remaining?: number;
+          attempted_urls?: string[];
+          note?: string;
           results?: Array<{
             ok?: boolean;
             decision?: string;
@@ -605,6 +745,7 @@ export function OrderBookIqPanel() {
               sales_cr?: number | null;
               order_to_sales_pct?: number | null;
               ltp?: number | null;
+              baseline_close?: number | null;
               drift_pct?: number | null;
               subject?: string | null;
             };
@@ -616,14 +757,27 @@ export function OrderBookIqPanel() {
 
         if (!res.ok || json.ok === false) {
           setError(json.error || "Scan batch failed");
+          errored = true;
           break;
         }
 
-        skipped = Math.max(skipped, json.skipped ?? skipped);
+        skipped = Math.max(skipped, already + (json.skipped ?? 0));
         ok += json.analysed ?? 0;
         pass += json.passed ?? 0;
         fail += json.failed ?? 0;
         const remaining = json.remaining ?? 0;
+        const attempted = json.attempted ?? 0;
+        if (round === 1 && total <= 0) {
+          total = attempted + remaining;
+        }
+        doneCount += attempted;
+        const pct =
+          total > 0
+            ? Math.min(100, Math.round((100 * doneCount) / total))
+            : attempted === 0
+              ? 100
+              : 0;
+
         setScanStats({
           ok,
           pass,
@@ -631,9 +785,17 @@ export function OrderBookIqPanel() {
           skipped,
           remaining,
           round,
+          total,
+          done: doneCount,
+          pct,
         });
 
+        for (const u of json.attempted_urls ?? []) {
+          if (u.trim()) doneUrls.add(u.trim());
+        }
         for (const r of json.results ?? []) {
+          const u = r.source_url?.trim();
+          if (u) doneUrls.add(u);
           ingestAnalyseResult(r, {
             url: r.source_url,
             historyId: r.id ?? null,
@@ -641,33 +803,50 @@ export function OrderBookIqPanel() {
         }
         if (json.history) setHistory(json.history);
 
-        if ((json.attempted ?? 0) === 0 || remaining === 0) {
+        if (attempted === 0 || remaining === 0) {
           setStatusNote(
             scanStopRef.current
-              ? `Scan stopped · ${pass} PASS · ${fail} FAIL · ${skipped} already saved`
-              : `Scan complete · ${pass} PASS · ${fail} FAIL · ${skipped} already saved`,
+              ? `Scan stopped · ${pass} PASS · ${fail} FAIL · ${skipped} skipped`
+              : `Scan complete · ${pass} PASS · ${fail} FAIL · ${skipped} skipped`,
           );
           break;
         }
 
         setStatusNote(
-          `Scanned ${ok} · ${pass} PASS · ${remaining} remaining · batch ${round}`,
+          `Scanned ${doneCount}/${total} · ${pass} PASS · ${fail} FAIL · ${remaining} left · batch ${round}`,
         );
       }
 
       if (scanStopRef.current) {
         setStatusNote(
-          `Scan stopped · ${pass} PASS · ${fail} FAIL · ${skipped} already saved`,
+          `Scan stopped · ${pass} PASS · ${fail} FAIL · ${skipped} skipped`,
         );
       }
-      void loadHistory();
+      void loadHistory({ prices: true });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed");
+      errored = true;
     } finally {
+      setScanStats((prev) =>
+        prev
+          ? {
+              ...prev,
+              pct: errored ? prev.pct : 100,
+              finished: !errored,
+              errored,
+            }
+          : prev,
+      );
       setScanRunning(false);
       scanStopRef.current = false;
     }
-  }, [scanRunning, hits, days, ingestAnalyseResult, loadHistory]);
+  }, [scanRunning, hits, history, days, ingestAnalyseResult, loadHistory]);
+
+  useEffect(() => {
+    if (scanRunning || !scanStats?.finished) return;
+    const t = window.setTimeout(() => setScanStats(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [scanRunning, scanStats?.finished]);
 
   const runLabExtract = useCallback(async () => {
     setLabBusy("extract");
@@ -729,6 +908,7 @@ export function OrderBookIqPanel() {
           url: labUrl.trim() || null,
           bufferBase64: bufferBase64 || null,
           ticker: labTicker.trim() || null,
+          company: null,
           mode: "llm",
         }),
       });
@@ -795,8 +975,17 @@ export function OrderBookIqPanel() {
       return applyOverlay(row, ov);
     });
 
+    // Collapse NSE/BSE doubles (Ltd vs Limited, BSE###### vs ACCURACY).
+    const byIdentity = new Map<string, FeedRow>();
+    for (const row of withOverlay) {
+      const key = feedIdentityKey(row);
+      const prev = byIdentity.get(key);
+      byIdentity.set(key, prev ? preferFeedRow(prev, row) : row);
+    }
+    const deduped = [...byIdentity.values()];
+
     const qLower = q.trim().toLowerCase();
-    return withOverlay.filter((row) => {
+    return deduped.filter((row) => {
       if (decisionFilter !== "all" && row.decision !== decisionFilter) {
         return false;
       }
@@ -879,19 +1068,53 @@ export function OrderBookIqPanel() {
             title={
               scanRunning
                 ? "Stop after the current batch"
-                : "Scan & analyse pending order filings (batches of 3)"
+                : "Scan & analyse all pending order filings (lexical batches of 3)"
             }
           >
             {scanRunning
-              ? `Stop · ${scanStats?.pass ?? 0} PASS${
-                  scanStats?.remaining != null
-                    ? ` · ${scanStats.remaining} left`
-                    : ""
-                }`
+              ? `Stop · ${scanStats?.pct ?? 0}% · ${scanStats?.pass ?? 0} PASS`
               : "Scan & Analyse"}
           </button>
         </div>
       </header>
+
+      {scanRunning || scanStats ? (
+        <div
+          className={`fill-progress obiq-scan-progress ${
+            scanStats?.errored ? "is-error" : ""
+          } ${scanStats?.finished ? "is-done" : ""}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="fill-progress-meta">
+            <span className="fill-progress-label">
+              {scanStats?.errored
+                ? "Scan failed"
+                : scanStats?.finished
+                  ? "Scan complete"
+                  : scanRunning
+                    ? "Scanning order filings…"
+                    : "Scan"}
+            </span>
+            <span className="fill-progress-pct">
+              {scanStats?.pct ?? 0}%
+            </span>
+          </div>
+          <div className="fill-progress-track">
+            <div
+              className="fill-progress-bar"
+              style={{ width: `${scanStats?.pct ?? 0}%` }}
+            />
+          </div>
+          <p className="fill-progress-detail">
+            {scanStats
+              ? `${scanStats.done}/${scanStats.total || 0} pending · ${scanStats.pass} PASS · ${scanStats.fail} FAIL · skipped ${scanStats.skipped} in DB${
+                  scanStats.round ? ` · batch ${scanStats.round}` : ""
+                }`
+              : "Starting…"}
+          </p>
+        </div>
+      ) : null}
 
       <section className="obiq-rec" aria-label="How to use">
         <h2 className="obiq-rec-title">Recommendation</h2>
