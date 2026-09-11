@@ -1,0 +1,344 @@
+{
+  "updated_at": "2026-09-11",
+  "source": "Listed CPSUs/SPSUs from 2026 NSE/BSE lists + PSU banks/insurers/other listed CPSUs (company_about only); state SPSUs expanded beyond TN-only source rows (Gujarat SPSUs + TNTELE + J&KBANK in company_about)",
+  "tiers": {
+    "maharatna": {
+      "label": "Maharatna",
+      "short": "Maha",
+      "companies": [
+        {
+          "name": "Bharat Heavy Electricals Limited",
+          "ticker": "BHEL"
+        },
+        {
+          "name": "Bharat Petroleum Corporation Limited",
+          "ticker": "BPCL"
+        },
+        {
+          "name": "Coal India Limited",
+          "ticker": "COALINDIA"
+        },
+        {
+          "name": "GAIL (India) Limited",
+          "ticker": "GAIL"
+        },
+        {
+          "name": "Hindustan Petroleum Corporation Limited",
+          "ticker": "HINDPETRO"
+        },
+        {
+          "name": "Indian Oil Corporation Limited",
+          "ticker": "IOC"
+        },
+        {
+          "name": "NTPC Limited",
+          "ticker": "NTPC"
+        },
+        {
+          "name": "Oil & Natural Gas Corporation Limited",
+          "ticker": "ONGC"
+        },
+        {
+          "name": "Power Finance Corporation Limited",
+          "ticker": "PFC"
+        },
+        {
+          "name": "Power Grid Corporation of India Limited",
+          "ticker": "POWERGRID"
+        },
+        {
+          "name": "REC Limited",
+          "ticker": "RECLTD"
+        },
+        {
+          "name": "Steel Authority of India Limited",
+          "ticker": "SAIL"
+        }
+      ]
+    },
+    "navratna": {
+      "label": "Navratna",
+      "short": "Nav",
+      "companies": [
+        {
+          "name": "Bharat Electronics Limited",
+          "ticker": "BEL"
+        },
+        {
+          "name": "Container Corporation of India Limited",
+          "ticker": "CONCOR"
+        },
+        {
+          "name": "Engineers India Limited",
+          "ticker": "ENGINERSIN"
+        },
+        {
+          "name": "Hindustan Aeronautics Limited",
+          "ticker": "HAL"
+        },
+        {
+          "name": "Mahanagar Telephone Nigam Limited",
+          "ticker": "MTNL"
+        },
+        {
+          "name": "National Aluminium Company Limited",
+          "ticker": "NATIONALUM"
+        },
+        {
+          "name": "NBCC (India) Limited",
+          "ticker": "NBCC"
+        },
+        {
+          "name": "NMDC Limited",
+          "ticker": "NMDC"
+        },
+        {
+          "name": "Oil India Limited",
+          "ticker": "OIL"
+        },
+        {
+          "name": "Shipping Corporation Of India Limited",
+          "ticker": "SCI"
+        }
+      ]
+    },
+    "miniratna_i": {
+      "label": "Miniratna I",
+      "short": "Mini-I",
+      "companies": [
+        {
+          "name": "Balmer Lawrie & Company Limited",
+          "ticker": "BALMLAWRIE"
+        },
+        {
+          "name": "Bharat Dynamics Limited",
+          "ticker": "BDL"
+        },
+        {
+          "name": "Garden Reach Shipbuilders & Engineers Limited",
+          "ticker": "GRSE"
+        },
+        {
+          "name": "Hindustan Copper Limited",
+          "ticker": "HINDCOPPER"
+        },
+        {
+          "name": "Ircon International Limited",
+          "ticker": "IRCON"
+        },
+        {
+          "name": "Mazagon Dock Shipbuilders Limited",
+          "ticker": "MAZDOCK"
+        },
+        {
+          "name": "Mishra Dhatu Nigam Limited",
+          "ticker": "MIDHANI"
+        },
+        {
+          "name": "MMTC Limited",
+          "ticker": "MMTC"
+        },
+        {
+          "name": "MOIL Limited",
+          "ticker": "MOIL"
+        },
+        {
+          "name": "Mangalore Refinery and Petrochemicals Limited",
+          "ticker": "MRPL"
+        },
+        {
+          "name": "National Fertilizers Limited",
+          "ticker": "NFL"
+        },
+        {
+          "name": "NHPC Limited",
+          "ticker": "NHPC"
+        },
+        {
+          "name": "Railtel Corporation Of India Limited",
+          "ticker": "RAILTEL"
+        },
+        {
+          "name": "Rashtriya Chemicals and Fertilizers Limited",
+          "ticker": "RCF"
+        },
+        {
+          "name": "SJVN Limited",
+          "ticker": "SJVN"
+        }
+      ]
+    },
+    "miniratna_ii": {
+      "label": "Miniratna II",
+      "short": "Mini-II",
+      "companies": [
+        {
+          "name": "India Tourism Development Corporation Limited",
+          "ticker": "ITDC"
+        }
+      ]
+    },
+    "non_ratna": {
+      "label": "Non-Ratna",
+      "short": "Non-R",
+      "companies": [
+        {
+          "name": "BEML Limited",
+          "ticker": "BEML"
+        },
+        {
+          "name": "Cochin Shipyard Limited",
+          "ticker": "COCHINSHIP"
+        },
+        {
+          "name": "General Insurance Corporation of India",
+          "ticker": "GICRE"
+        },
+        {
+          "name": "HMT Ltd.",
+          "ticker": "HMT"
+        },
+        {
+          "name": "Housing & Urban Development Corporation Limited",
+          "ticker": "HUDCO"
+        },
+        {
+          "name": "Indian Railway Catering And Tourism Corporation Limited",
+          "ticker": "IRCTC"
+        },
+        {
+          "name": "Indian Renewable Energy Development Agency Limited",
+          "ticker": "IREDA"
+        },
+        {
+          "name": "Indian Railway Finance Corporation Limited",
+          "ticker": "IRFC"
+        },
+        {
+          "name": "ITI Limited",
+          "ticker": "ITI"
+        },
+        {
+          "name": "Life Insurance Corporation Of India",
+          "ticker": "LICI"
+        },
+        {
+          "name": "The New India Assurance Company Limited",
+          "ticker": "NIACL"
+        },
+        {
+          "name": "NLC India Limited",
+          "ticker": "NLCINDIA"
+        },
+        {
+          "name": "Rail Vikas Nigam Limited",
+          "ticker": "RVNL"
+        },
+        {
+          "name": "The State Trading Corporation of India Limited",
+          "ticker": "STCINDIA"
+        }
+      ]
+    },
+    "state_psu": {
+      "label": "State PSU",
+      "short": "State",
+      "companies": [
+        {
+          "name": "Gujarat Industries Power Company Limited",
+          "ticker": "GIPCL"
+        },
+        {
+          "name": "Gujarat Mineral Development Corporation Limited",
+          "ticker": "GMDCLTD"
+        },
+        {
+          "name": "Gujarat Narmada Valley Fertilizers and Chemicals Limited",
+          "ticker": "GNFC"
+        },
+        {
+          "name": "Gujarat State Fertilizers & Chemicals Limited",
+          "ticker": "GSFC"
+        },
+        {
+          "name": "Gujarat Alkalies and Chemicals Limited",
+          "ticker": "GUJALKALI"
+        },
+        {
+          "name": "The Jammu & Kashmir Bank Limited",
+          "ticker": "J&KBANK"
+        },
+        {
+          "name": "Tamilnadu PetroProducts Limited",
+          "ticker": "TNPETRO"
+        },
+        {
+          "name": "Tamil Nadu Newsprint & Papers Limited",
+          "ticker": "TNPL"
+        },
+        {
+          "name": "Tamilnadu Telecommunication Limited",
+          "ticker": "TNTELE"
+        }
+      ]
+    },
+    "psu_bank": {
+      "label": "PSU Bank",
+      "short": "Bank",
+      "companies": [
+        {
+          "name": "Bank of Baroda",
+          "ticker": "BANKBARODA"
+        },
+        {
+          "name": "Bank of India",
+          "ticker": "BANKINDIA"
+        },
+        {
+          "name": "Canara Bank",
+          "ticker": "CANBK"
+        },
+        {
+          "name": "Central Bank of India",
+          "ticker": "CENTRALBK"
+        },
+        {
+          "name": "IDBI Bank Limited",
+          "ticker": "IDBI"
+        },
+        {
+          "name": "Indian Bank",
+          "ticker": "INDIANB"
+        },
+        {
+          "name": "Indian Overseas Bank",
+          "ticker": "IOB"
+        },
+        {
+          "name": "Bank of Maharashtra",
+          "ticker": "MAHABANK"
+        },
+        {
+          "name": "Punjab National Bank",
+          "ticker": "PNB"
+        },
+        {
+          "name": "Punjab & Sind Bank",
+          "ticker": "PSB"
+        },
+        {
+          "name": "State Bank of India",
+          "ticker": "SBIN"
+        },
+        {
+          "name": "UCO Bank",
+          "ticker": "UCOBANK"
+        },
+        {
+          "name": "Union Bank of India",
+          "ticker": "UNIONBANK"
+        }
+      ]
+    }
+  }
+}

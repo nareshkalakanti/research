@@ -81,6 +81,22 @@ export const FUND_WATCHLIST_SOURCES: Record<
     label: "Manohar Devabhaktuni",
     query: "MANOHAR DEVABHAKTUNI",
   },
+  lucky: {
+    label: "Lucky Investment Managers",
+    query: "LUCKY INVESTMENT MANAGERS",
+  },
+  abbakus: {
+    label: "Abbakus Asset Managers",
+    query: "ABBAKUS ASSET MANAGERS",
+  },
+  porinju: {
+    label: "Porinju Veliyath",
+    query: "PORINJU VELIYATH",
+  },
+  sageone: {
+    label: "SageOne Investment Managers",
+    query: "SAGEONE",
+  },
 };
 
 const FUND_INVESTOR_KEYS: Record<FundWatchlistKey, string> = {
@@ -92,6 +108,10 @@ const FUND_INVESTOR_KEYS: Record<FundWatchlistKey, string> = {
   singhania: "Sunil Singhania",
   kela: "Madhusudan Kela",
   manohar: "Manohar Devabhaktuni",
+  lucky: "Lucky Investment Managers",
+  abbakus: "Abbakus Asset Managers",
+  porinju: "Porinju Veliyath",
+  sageone: "SageOne Investment Managers",
 };
 
 /** When Trendlyne custom search is fuzzy, keep only matching holder names. */

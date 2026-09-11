@@ -10,6 +10,7 @@ import { ExpandExtraMetrics } from "@/components/ExpandExtraMetrics";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
+import { GOV_RATNA_LABELS } from "@/lib/gov-psu-meta";
 import type { Company } from "@/lib/types";
 import { matchTagSource } from "@/lib/pattern";
 import { useExpandBrief } from "@/lib/use-expand-brief";
@@ -93,6 +94,18 @@ function SignalTags({ company }: { company: Company }) {
       {company.has_edge ? (
         <span className="result-tag tag-edge" title="Early Edge watchlist">
           Edge
+        </span>
+      ) : null}
+      {company.has_gov && company.gov_ratna ? (
+        <span
+          className={`result-tag tag-gov tag-gov-${company.gov_ratna}`}
+          title={`CPSU · ${GOV_RATNA_LABELS[company.gov_ratna]}`}
+        >
+          {GOV_RATNA_LABELS[company.gov_ratna]}
+        </span>
+      ) : company.has_gov ? (
+        <span className="result-tag tag-gov" title="CPSU / Gov watchlist">
+          Gov
         </span>
       ) : null}
       <FundWatchlistTags
@@ -665,8 +678,9 @@ function CompanyRows({
   const short = about.length > 320 && !showMore;
   const text = short ? `${about.slice(0, 320).trim()}…` : about;
 
-  /** One chip per term: About (or both) → blue; scrape-only → orange. */
+  /** One chip per term: About (or both) → blue; scrape-only → orange. Theme scan only. */
   const displayMatchTags = useMemo(() => {
+    if (!showMatched) return [];
     const aboutNorm = new Set(
       highlights.map((t) => t.trim().toLowerCase()).filter(Boolean),
     );
@@ -685,7 +699,7 @@ function CompanyRows({
       tags.push({ term: t, source: "scrape" });
     }
     return tags.slice(0, 6);
-  }, [highlights, scrapeHighlights]);
+  }, [showMatched, highlights, scrapeHighlights]);
 
   const quarterData = useExpandQuarters(
     r.ticker,
@@ -1002,7 +1016,7 @@ function CompanyRows({
                       </div>
                     );
                   })()}
-                  {highlights.length > 0 ? (
+                  {showMatched && highlights.length > 0 ? (
                     <div className="matched-tags about-match-tags">
                       {highlights.map((t) => (
                         <span key={t} className="tag tag-about-hit">
@@ -1017,7 +1031,7 @@ function CompanyRows({
                       <p>
                         <HighlightedText
                           text={text}
-                          keywords={highlights}
+                          keywords={showMatched ? highlights : []}
                           source="about"
                         />
                       </p>

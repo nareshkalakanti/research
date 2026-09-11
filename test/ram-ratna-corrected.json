@@ -1,0 +1,67 @@
+{
+    "metadata": {
+        "company": "Ram Ratna Wires Limited",
+        "event_date": "27 Aug 2026",
+        "reporting_period": "Q1 FY27",
+        "total_highlights": 3,
+        "positive_count": 1,
+        "negative_count": 1,
+        "neutral_count": 1,
+        "overall_sentiment": "POSITIVE",
+        "overall_score": 6.5
+    },
+    "highlights": [
+        {
+            "id": 1,
+            "category": "BIGGEST WIN",
+            "sentiment": "POSITIVE",
+            "headline": "Revenue surged 89% YoY to ₹1,853cr",
+            "quote": "Revenue from Operations grew by 89% YoY",
+            "quantified_impact": {
+                "metric": "Revenue YoY growth",
+                "value": 89,
+                "unit": "%",
+                "impact_level": "HIGH"
+            },
+            "forward_indicator": false,
+            "score": 9
+        },
+        {
+            "id": 2,
+            "category": "BIGGEST RISK",
+            "sentiment": "NEGATIVE",
+            "headline": "EBITDA margin at 9.3% (compression vs prior)",
+            "quote": "EBITDA margin 9.3% vs prior year",
+            "quantified_impact": {
+                "metric": "EBITDA margin compression",
+                "value": null,
+                "unit": null,
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": true,
+            "score": 4
+        },
+        {
+            "id": 3,
+            "category": "STRATEGIC",
+            "sentiment": "NEUTRAL",
+            "headline": "3,600 MTPA capacity expansion at Silvassa",
+            "quote": "Capex for adding 3,600 MTPA, March 2027",
+            "quantified_impact": {
+                "metric": "Capex capacity",
+                "value": 3600,
+                "unit": "MTPA",
+                "impact_level": "MEDIUM"
+            },
+            "forward_indicator": true,
+            "score": 6
+        }
+    ],
+    "sentiment_summary": {
+        "positive_avg_score": 9.0,
+        "negative_avg_score": 4.0,
+        "neutral_avg_score": 6.0,
+        "portfolio_score": 6.5,
+        "portfolio_sentiment": "POSITIVE"
+    }
+}

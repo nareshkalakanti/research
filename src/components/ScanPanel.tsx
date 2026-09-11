@@ -17,6 +17,7 @@ import { WatchlistFilterBar, FundsFilterBar } from "@/components/WatchlistFilter
 import { scanListLabel, type ScanList } from "@/lib/scan-lists";
 import {
   appendFundParams,
+  clearFundFilters,
   FUND_WATCHLIST_KEYS,
   FUND_WATCHLIST_LABELS,
   type FundCountState,
@@ -54,9 +55,13 @@ export function ScanPanel() {
   const [cap, setCap] = useState<CapFilter>("All");
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [filterGov, setFilterGov] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
     setFundFilters((prev) => ({ ...prev, [key]: on }));
+  }, []);
+  const clearFunds = useCallback(() => {
+    setFundFilters(clearFundFilters());
   }, []);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
@@ -74,6 +79,7 @@ export function ScanPanel() {
   const [listCounts, setListCounts] = useState<Record<string, number>>({
     hold: 0,
     edge: 0,
+    gov: 0,
     sme: 0,
     note: 0,
     age25: 0,
@@ -96,6 +102,7 @@ export function ScanPanel() {
     view,
     filterHold,
     filterEdge,
+    filterGov,
     filterSme,
     filterNote,
     ageMin,
@@ -135,6 +142,7 @@ export function ScanPanel() {
       if (view === "brutal") params.set("brutal", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
+      if (filterGov) params.set("gov", "1");
       appendFundParams(params, fundFilters);
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
@@ -151,6 +159,7 @@ export function ScanPanel() {
           setListCounts({
             hold: json.signals.hold ?? 0,
             edge: json.signals.edge ?? 0,
+            gov: json.signals.gov ?? 0,
             sme: json.signals.sme ?? 0,
             note: json.signals.note ?? 0,
             age25: json.signals.age25 ?? 0,
@@ -182,6 +191,7 @@ export function ScanPanel() {
       dir,
       filterHold,
       filterEdge,
+      filterGov,
       fundFilters,
       filterSme,
       filterNote,
@@ -232,6 +242,7 @@ export function ScanPanel() {
     if (cap !== "All") parts.push(cap);
     if (filterNote) parts.push("Note");
     if (filterEdge) parts.push("Edge");
+    if (filterGov) parts.push("Gov");
     for (const key of FUND_WATCHLIST_KEYS) {
       if (fundFilters[key]) parts.push(FUND_WATCHLIST_LABELS[key]);
     }
@@ -240,11 +251,12 @@ export function ScanPanel() {
     if (ageMin != null) parts.push(`Age ≥${ageMin}`);
     const base = scanListLabel(list);
     return parts.length ? `${base} · ${parts.join(" · ")}` : base;
-  }, [list, cap, filterNote, filterEdge, fundFilters, filterSme, filterHold, ageMin]);
+  }, [list, cap, filterNote, filterEdge, filterGov, fundFilters, filterSme, filterHold, ageMin]);
   const selectionActive = hasScanSelection({
     cap,
     hold: filterHold,
     edge: filterEdge,
+    gov: filterGov,
     sme: filterSme,
     note: filterNote,
     ageMin,
@@ -279,6 +291,7 @@ export function ScanPanel() {
               setCap("All");
               setFilterHold(false);
               setFilterEdge(false);
+              setFilterGov(false);
               setFilterSme(false);
               setFilterNote(false);
               setFundFilters(EMPTY_FUNDS);
@@ -341,13 +354,17 @@ export function ScanPanel() {
           <FundsFilterBar
             hold={filterHold}
             edge={filterEdge}
+            gov={filterGov}
             onHold={setFilterHold}
             onEdge={setFilterEdge}
+            onGov={setFilterGov}
             holdCount={data?.signals?.hold ?? listCounts.hold}
             distressCount={data?.signals?.distress ?? listCounts.distress}
             edgeCount={data?.signals?.edge ?? listCounts.edge}
+            govCount={data?.signals?.gov ?? listCounts.gov}
             funds={fundFilters}
             onFund={setFund}
+            onClearFunds={clearFunds}
             fundCounts={
               Object.fromEntries(
                 FUND_WATCHLIST_KEYS.map((k) => [
@@ -373,6 +390,7 @@ export function ScanPanel() {
           cap={cap}
           hold={filterHold}
           edge={filterEdge}
+          gov={filterGov}
           sme={filterSme}
           note={filterNote}
           ageMin={ageMin}
@@ -431,6 +449,7 @@ export function ScanPanel() {
                   setFilterSme(false);
                   setFilterHold(false);
                   setFilterEdge(false);
+                  setFilterGov(false);
                   setFilterNote(false);
                   setAgeMin(null);
                   setFundFilters(EMPTY_FUNDS);

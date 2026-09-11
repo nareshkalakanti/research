@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ResearchPanel } from "@/components/ResearchPanel";
 import { GovernanceMapPanel } from "@/components/GovernanceMapPanel";
 import { MissingDataPanel } from "@/components/MissingDataPanel";
+import { MarketIqPanel } from "@/components/MarketIqPanel";
+import { OrderBookIqPanel } from "@/components/OrderBookIqPanel";
 import { ScanPanel } from "@/components/ScanPanel";
 import { StrategyPanel } from "@/components/StrategyPanel";
 import { ThemeScanner } from "@/components/ThemeScanner";
@@ -15,6 +17,8 @@ type Tab =
   | "theme-scanner"
   | "governance"
   | "concall"
+  | "marketiq"
+  | "orderbookiq"
   | "missing"
   | "research";
 
@@ -23,6 +27,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "scan", label: "Scan" },
   { id: "governance", label: "Governance" },
   { id: "concall", label: "Concall" },
+  { id: "marketiq", label: "MarketIQ" },
+  { id: "orderbookiq", label: "OrderBookIQ" },
   { id: "research", label: "Research" },
   { id: "missing", label: "Missing data" },
 ];
@@ -144,6 +150,10 @@ export function AppShell() {
           <GovernanceMapPanel />
         ) : tab === "concall" ? (
           <StrategyPanel />
+        ) : tab === "marketiq" ? (
+          <MarketIqPanel />
+        ) : tab === "orderbookiq" ? (
+          <OrderBookIqPanel />
         ) : tab === "research" ? (
           <ResearchPanel />
         ) : (

@@ -42,6 +42,7 @@ type Props = {
   cap?: CapFilter;
   hold?: boolean;
   edge?: boolean;
+  gov?: boolean;
   sme?: boolean;
   note?: boolean;
   ageMin?: number | null;
@@ -219,6 +220,7 @@ export function hasScanSelection(opts: {
   cap?: CapFilter;
   hold?: boolean;
   edge?: boolean;
+  gov?: boolean;
   sme?: boolean;
   note?: boolean;
   ageMin?: number | null;
@@ -228,6 +230,7 @@ export function hasScanSelection(opts: {
   if (
     opts.hold ||
     opts.edge ||
+    opts.gov ||
     opts.sme ||
     opts.note ||
     opts.ageMin != null
@@ -249,6 +252,7 @@ export function SignalScanBar({
   cap,
   hold,
   edge,
+  gov,
   sme,
   note,
   ageMin,
@@ -345,6 +349,7 @@ export function SignalScanBar({
               cap: cap ?? "All",
               hold: !!hold,
               edge: !!edge,
+              gov: !!gov,
               sme: !!sme,
               note: !!note,
               ageMin: ageMin ?? null,
@@ -535,13 +540,14 @@ export function SignalScanBar({
             cap: cap ?? "All",
             hold: !!hold,
             edge: !!edge,
+            gov: !!gov,
             sme: !!sme,
             note: !!note,
             ageMin: ageMin ?? null,
             funds: funds ?? {},
           }
         : { scope: "list" as const },
-    [scope, cap, hold, edge, sme, note, ageMin, funds],
+    [scope, cap, hold, edge, gov, sme, note, ageMin, funds],
   );
 
   const runQuartersFill = useCallback(async () => {

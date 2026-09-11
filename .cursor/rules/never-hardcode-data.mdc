@@ -1,0 +1,17 @@
+---
+description: Never hardcode data for anything — always apply across this repo.
+alwaysApply: true
+---
+
+# never hardcode data
+
+**never hardcode data**
+
+**for anything dont hardcode**
+
+- No issuer/ticker/person special-cases in code or prompts.
+- No pasting desired highlights/scores/names into DB or source as the fix.
+- Fix the generic path; read facts from inputs/materials only.
+- Test gold under `test/` is OK; production logic must stay generic.
+
+Full skill: `.cursor/skills/never-hardcode-data/SKILL.md`

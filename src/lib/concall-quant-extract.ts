@@ -7,7 +7,22 @@ import path from "path";
 import { completeJson, checkLlmStatus } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { clipMaterialForScanlines } from "./unified-earnings-extract";
+import {
+  enforceSlotSemantics,
+} from "./highlight-slot-enforce";
+import {
+  groundHighlightSentimentInMaterials,
+  cardHighlightsFromGroundedQuant,
+} from "./highlight-material-ground";
 export { formatExecutiveSummaryText } from "./concall-quant-format";
+export {
+  enforceSlotSemantics,
+  validateHighlightSchema,
+} from "./highlight-slot-enforce";
+export {
+  extractMaterialHighlightCandidates,
+  groundHighlightSentimentInMaterials,
+} from "./highlight-material-ground";
 
 export type QuantKind = "executive" | "highlights";
 
@@ -213,8 +228,8 @@ const HL_SCHEMA: Record<string, unknown> = {
     metadata: { type: "object" },
     highlights: {
       type: "array",
-      minItems: 5,
-      maxItems: 12,
+      minItems: 3,
+      maxItems: 3,
       items: {
         type: "object",
         properties: {
@@ -378,7 +393,12 @@ export async function extractQuantFromTexts(opts: {
     )) as Record<string, unknown>;
 
     const json =
-      opts.kind === "executive" ? normalizeExecutiveSummaryJson(raw) : raw;
+      opts.kind === "executive"
+        ? normalizeExecutiveSummaryJson(raw)
+        : (groundHighlightSentimentInMaterials(
+            enforceSlotSemantics(raw) as Record<string, unknown>,
+            `${tx}\n${ppt}`,
+          ) as Record<string, unknown>);
 
     let gold: Record<string, unknown> | null = null;
     try {
@@ -406,12 +426,71 @@ export async function extractQuantFromTexts(opts: {
   }
 }
 
+/** Collapse exact + near-duplicate scanlines (LLM often repeats one risk 3×). */
+export function dedupeHighlightScanlines(
+  items: Array<{ text: string; polarity: string }>,
+  max = 5,
+): Array<{ text: string; polarity: string }> {
+  /** Drop "Issuer Name Limited:" so shared prefixes don't fake-duplicate. */
+  const stripIssuerPrefix = (text: string): string =>
+    text
+      .replace(
+        /^[A-Z][A-Za-z0-9&.\-,' ]{2,60}?\b(?:Limited|Ltd\.?|PLC|Private Limited)\s*[:\-–]\s*/i,
+        "",
+      )
+      .replace(/^[A-Z]{2,15}\s*[:\-–]\s*/, "")
+      .trim();
+
+  const keyOf = (text: string): string =>
+    stripIssuerPrefix(text)
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(
+        /\b(managements?|management|view|response|impact|growth|on|the|a|an|to|of|for|and|with|regarding|about|limited|ltd|technologies|technology|company|prefab)\b/g,
+        " ",
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const out: Array<{ text: string; polarity: string }> = [];
+  const seenExact = new Set<string>();
+  const seenKeys: string[] = [];
+  const overlaps = (a: string, b: string): boolean => {
+    if (!a || !b) return false;
+    if (a === b || a.includes(b) || b.includes(a)) return true;
+    const wa = a.split(" ").filter((w) => w.length > 2);
+    const wb = b.split(" ").filter((w) => w.length > 2);
+    if (wa.length < 2 || wb.length < 2) return false;
+    const setB = new Set(wb);
+    const hit = wa.filter((w) => setB.has(w)).length;
+    // Require stricter overlap so distinct facts under one issuer stay
+    const need = Math.max(3, Math.ceil(Math.min(wa.length, wb.length) * 0.6));
+    return hit >= need;
+  };
+  for (const h of items) {
+    const raw = h.text.replace(/\s+/g, " ").trim();
+    if (!raw) continue;
+    const text = stripIssuerPrefix(raw) || raw;
+    const exact = text.toLowerCase();
+    if (seenExact.has(exact)) continue;
+    const key = keyOf(text);
+    if (key && seenKeys.some((k) => overlaps(k, key))) continue;
+    seenExact.add(exact);
+    if (key) seenKeys.push(key);
+    out.push({ text: text.slice(0, 120), polarity: h.polarity });
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 /** Map quant highlights → PASS card scanlines. */
 export function cardHighlightsFromQuant(
   quantHl: Record<string, unknown> | null | undefined,
 ): Array<{ text: string; polarity: string }> {
+  const grounded = cardHighlightsFromGroundedQuant(quantHl);
+  if (grounded?.length) return dedupeHighlightScanlines(grounded, 5);
   const list = Array.isArray(quantHl?.highlights) ? quantHl!.highlights : [];
-  return list
+  const mapped = list
     .map((h) => {
       const o = asObj(h);
       if (!o || typeof o.headline !== "string") return null;
@@ -424,8 +503,8 @@ export function cardHighlightsFromQuant(
             : "neutral";
       return { text: o.headline.trim().slice(0, 120), polarity };
     })
-    .filter(Boolean)
-    .slice(0, 5) as Array<{ text: string; polarity: string }>;
+    .filter(Boolean) as Array<{ text: string; polarity: string }>;
+  return dedupeHighlightScanlines(mapped, 5);
 }
 
 /**

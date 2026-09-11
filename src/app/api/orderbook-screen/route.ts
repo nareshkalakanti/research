@@ -4,15 +4,29 @@ import {
   discoverOrderbookAnnounced,
   discoverOrderbookPdfSources,
   downloadOrderbookPdf,
+  extractOrderbookPdf,
   isOrderbookPdfProxyUrl,
   listOrderbookHistory,
+  ORDERBOOK_PASS_MIN_PCT,
   refreshOrderbookHistoryPrices,
+  scanOrderbookAnnouncements,
   screenOrderbookForTicker,
   screenOrderbookPdf,
+  type OrderbookAnnouncedHit,
 } from "@/lib/orderbook-screen";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
+
+function bufferFromBase64(raw: string | null | undefined): Buffer | null {
+  const s = (raw || "").trim();
+  if (!s) return null;
+  try {
+    return Buffer.from(s, "base64");
+  } catch {
+    return null;
+  }
+}
 
 export async function GET(req: NextRequest) {
   const announced = req.nextUrl.searchParams.get("announced");
@@ -116,6 +130,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     history,
+    pass_min_pct: ORDERBOOK_PASS_MIN_PCT,
     required_fields: [
       "Ticker / Company",
       "Announcement date",
@@ -124,7 +139,7 @@ export async function GET(req: NextRequest) {
       "Execution",
       "Order ₹ Cr",
       "Annual sales",
-      "Order / Sales % (≥50% PASS)",
+      `Order / Sales % (≥${ORDERBOOK_PASS_MIN_PCT}% PASS)`,
       "LTP",
       "Δ order % (post announcement)",
     ],
@@ -166,6 +181,12 @@ export async function POST(req: NextRequest) {
       ticker?: string;
       mode?: string;
       announced_at?: string;
+      days?: number;
+      limit?: number;
+      pendingOnly?: boolean;
+      sources?: OrderbookAnnouncedHit[] | null;
+      bufferBase64?: string | null;
+      skipOcr?: boolean;
     } = {};
     try {
       body = (await req.json()) as typeof body;
@@ -174,7 +195,9 @@ export async function POST(req: NextRequest) {
     }
 
     const mode =
-      String(body.mode || "").trim().toLowerCase() === "llm" ? "llm" : "lexical";
+      String(body.mode || "").trim().toLowerCase() === "lexical"
+        ? "lexical"
+        : "llm";
 
     if (body.action === "discover") {
       const found = await discoverOrderbookPdfSources(
@@ -195,6 +218,56 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(result, {
         status: result.ok || result.decision === "fail" ? 200 : 422,
       });
+    }
+
+    if (body.action === "extract") {
+      const pdfBuffer = bufferFromBase64(body.bufferBase64);
+      const result = await extractOrderbookPdf({
+        url: body.url?.trim() || null,
+        pdfBuffer,
+        skipOcr: body.skipOcr !== false,
+      });
+      return NextResponse.json(result, {
+        status: result.ok ? 200 : 422,
+      });
+    }
+
+    if (body.action === "scan") {
+      const result = await scanOrderbookAnnouncements({
+        days: body.days,
+        limit: body.limit,
+        pendingOnly: body.pendingOnly,
+        sources: body.sources ?? null,
+        mode,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (body.action === "analyse") {
+      const pdfBuffer = bufferFromBase64(body.bufferBase64);
+      const url = body.url?.trim() || null;
+      if (!url && !pdfBuffer) {
+        return NextResponse.json(
+          { ok: false, error: "Provide url or bufferBase64" },
+          { status: 400 },
+        );
+      }
+      const result = await screenOrderbookPdf({
+        url,
+        pdfBuffer,
+        ticker: body.ticker || null,
+        mode,
+        announced_at: body.announced_at || null,
+      });
+      return NextResponse.json(
+        {
+          ...result,
+          history: listOrderbookHistory(200),
+        },
+        {
+          status: result.ok || result.decision === "fail" ? 200 : 422,
+        },
+      );
     }
 
     const url = body.url?.trim() || null;

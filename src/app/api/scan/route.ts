@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadAllCompanies } from "@/lib/db";
 import { edgeTickerSet } from "@/lib/edge";
+import { govPsuTickerSet } from "@/lib/gov-psu";
 import {
   FUND_WATCHLIST_KEYS,
   type FundFilterState,
@@ -54,6 +55,7 @@ type Body = {
   cap?: CapTier | "All";
   hold?: boolean;
   edge?: boolean;
+  gov?: boolean;
   sme?: boolean;
   note?: boolean;
   ageMin?: number | null;
@@ -88,6 +90,7 @@ function applySelectionFilters<
     cap: CapTier | "All";
     hold: boolean;
     edge: boolean;
+    gov: boolean;
     sme: boolean;
     note: boolean;
     ageMin: number | null;
@@ -112,6 +115,10 @@ function applySelectionFilters<
     const edge = edgeTickerSet();
     out = out.filter((c) => edge.has(c.ticker.toUpperCase()));
   }
+  if (opts.gov) {
+    const gov = govPsuTickerSet();
+    out = out.filter((c) => gov.has(c.ticker.toUpperCase()));
+  }
   const fundFilter = activeFundFilterSet(opts.funds);
   if (fundFilter) {
     out = out.filter((c) => fundFilter.has(c.ticker.toUpperCase()));
@@ -127,6 +134,7 @@ function hasSelectionFilters(opts: {
   cap: CapTier | "All";
   hold: boolean;
   edge: boolean;
+  gov: boolean;
   sme: boolean;
   note: boolean;
   ageMin: number | null;
@@ -136,6 +144,7 @@ function hasSelectionFilters(opts: {
   if (
     opts.hold ||
     opts.edge ||
+    opts.gov ||
     opts.sme ||
     opts.note ||
     opts.ageMin != null
@@ -191,6 +200,7 @@ export async function POST(req: NextRequest) {
     cap: (body.cap || "All") as CapTier | "All",
     hold: body.hold === true,
     edge: body.edge === true,
+    gov: body.gov === true,
     sme: body.sme === true,
     note: body.note === true,
     ageMin:

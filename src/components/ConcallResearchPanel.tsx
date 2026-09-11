@@ -203,11 +203,25 @@ function ToneTag({ tone }: { tone: string | null | undefined }) {
 }
 
 function QualityTag({ q }: { q: string | null | undefined }) {
-  return <MetricSelectorBox label="Rating" value={q} kind="quality" />;
+  return (
+    <MetricSelectorBox
+      label="Result quality"
+      value={q}
+      kind="quality"
+      showLabel={false}
+    />
+  );
 }
 
 function SentimentTag({ s }: { s: string | null | undefined }) {
-  return <MetricSelectorBox label="Tone" value={s} kind="sentiment" />;
+  return (
+    <MetricSelectorBox
+      label="Tone"
+      value={s}
+      kind="sentiment"
+      showLabel={false}
+    />
+  );
 }
 
 function HighlightList({
@@ -702,6 +716,7 @@ export function ConcallResearchPanel() {
       }
       const hits = Array.isArray(json.sources) ? json.sources : [];
       setDiscoverHits(hits);
+      setResult(null);
       const txUrl = json.latest_transcript?.url?.trim() || "";
       const pptUrl = json.latest_ppt?.url?.trim() || "";
       if (txUrl) {
@@ -1058,6 +1073,7 @@ export function ConcallResearchPanel() {
         setBusy(true);
         setError(null);
         setShowJson(false);
+        setResult(null);
         setProgressMode("analyze");
         setProgressStep(0);
         setStartedAt(Date.now());
@@ -1078,10 +1094,12 @@ export function ConcallResearchPanel() {
           body: JSON.stringify({
             action: "from_combined",
             id: id ?? undefined,
-            combined_text: text || undefined,
+            // Row Analyze: never send shared textarea (may be another company's text).
+            // Server loads docs.combined for that id. Pipeline/top Run still sends text.
+            combined_text: id ? undefined : text || undefined,
             limit: 40,
           }),
-          signal: AbortSignal.timeout(180_000),
+          signal: AbortSignal.timeout(480_000),
         });
         if (nested) {
           setProgressStep(2);
@@ -1151,6 +1169,8 @@ export function ConcallResearchPanel() {
     setBusy(true);
     setError(null);
     setShowJson(false);
+    // Drop prior Analyze panel so a failed/timed-out Run can't show another issuer
+    setResult(null);
     setProgressMode("pipeline");
     setProgressStep(0);
     setStartedAt(Date.now());
@@ -1174,6 +1194,7 @@ export function ConcallResearchPanel() {
         /timed out|aborted/i.test(msg)
       ) {
         setError("Timed out during extract/analyze — retry Run");
+        setResult(null);
       } else {
         setError(msg);
       }
@@ -1408,7 +1429,11 @@ export function ConcallResearchPanel() {
             placeholder="Transcript PDF URL (BSE/NSE call)…"
             value={urlTranscript}
             disabled={busy || textBusy}
-            onChange={(e) => setUrlTranscript(e.target.value)}
+            onChange={(e) => {
+              setUrlTranscript(e.target.value);
+              setResult(null);
+              setError(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -1453,7 +1478,11 @@ export function ConcallResearchPanel() {
             placeholder="Earnings / investor presentation PDF URL…"
             value={urlPpt}
             disabled={busy || textBusy}
-            onChange={(e) => setUrlPpt(e.target.value)}
+            onChange={(e) => {
+              setUrlPpt(e.target.value);
+              setResult(null);
+              setError(null);
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -1879,24 +1908,25 @@ export function ConcallResearchPanel() {
                     </td>
                   </tr>
                   <tr>
-                    <th scope="row">Tone</th>
-                    <td>
-                      <ToneTag tone={tone.overall_tone} />
-                      {tone.net_sentiment_score != null
-                        ? ` · score ${fmtScore(tone.net_sentiment_score)}`
-                        : ""}
-                    </td>
-                  </tr>
-                  <tr>
                     <th scope="row">Result quality</th>
                     <td>
                       <QualityTag q={card.result_quality} />
                     </td>
                   </tr>
                   <tr>
-                    <th scope="row">Mgmt sentiment</th>
+                    <th scope="row">Tone</th>
                     <td>
-                      <SentimentTag s={card.mgmt_sentiment} />
+                      <SentimentTag
+                        s={
+                          card.mgmt_sentiment ||
+                          (typeof tone.overall_tone === "string"
+                            ? tone.overall_tone
+                            : null)
+                        }
+                      />
+                      {tone.net_sentiment_score != null
+                        ? ` · score ${fmtScore(tone.net_sentiment_score)}`
+                        : ""}
                     </td>
                   </tr>
                   <tr>
@@ -2045,7 +2075,7 @@ export function ConcallResearchPanel() {
         </h3>
         <p className="buyback-history-empty" style={{ marginBottom: 8 }}>
           PASS only · Docs: Summary · Text · Analyze (quant HL → Highlights /
-          Result / Sentiment).
+          Result quality / Tone).
         </p>
         {history.length === 0 ? (
           <p className="buyback-history-empty">
@@ -2075,8 +2105,8 @@ export function ConcallResearchPanel() {
                   <th>Call</th>
                   <th>Period</th>
                   <th>Highlights</th>
-                  <th>Result</th>
-                  <th>Sentiment</th>
+                  <th>Result quality</th>
+                  <th>Tone</th>
                   <th>Revenue ₹ Cr</th>
                   <th className="num">LTP</th>
                   <th

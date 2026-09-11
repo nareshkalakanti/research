@@ -33,6 +33,7 @@ import {
   applyExecutiveSnapshotToFinancials,
   applyHighlightSentimentToCard,
   cardHighlightsFromQuant,
+  dedupeHighlightScanlines,
   extractQuantFromTexts,
   formatExecutiveSummaryText,
   loadQuantGold,
@@ -1013,6 +1014,115 @@ function asObj(v: unknown): Record<string, unknown> | null {
     : null;
 }
 
+/** Pull earnings-call / meet date from filing text. Never invents "today". */
+function extractCallDateFromText(text: string): string | null {
+  const months: Record<string, string> = {
+    jan: "01",
+    january: "01",
+    feb: "02",
+    february: "02",
+    mar: "03",
+    march: "03",
+    apr: "04",
+    april: "04",
+    may: "05",
+    jun: "06",
+    june: "06",
+    jul: "07",
+    july: "07",
+    aug: "08",
+    august: "08",
+    sep: "09",
+    sept: "09",
+    september: "09",
+    oct: "10",
+    october: "10",
+    nov: "11",
+    november: "11",
+    dec: "12",
+    december: "12",
+  };
+  const fromParts = (mon: string, day: string, year: string): string | null => {
+    const mm = months[mon.toLowerCase()] || months[mon.toLowerCase().slice(0, 3)];
+    if (!mm) return null;
+    const y = year.length === 2 ? `20${year}` : year;
+    const d = Number(day);
+    if (!Number.isFinite(d) || d < 1 || d > 31) return null;
+    return `${y}-${mm}-${String(d).padStart(2, "0")}`;
+  };
+  // PDF text often breaks "28th\nJuly,\n2026"
+  const t = text.replace(/\r/g, "").replace(/[ \t\u00a0]+/g, " ").replace(/\n+/g, " ");
+  const head = t.slice(0, 4_000);
+
+  const tryMatch = (
+    re: RegExp,
+    pick: (m: RegExpMatchArray) => string | null,
+  ): string | null => {
+    const m = t.match(re) || head.match(re);
+    return m ? pick(m) : null;
+  };
+
+  // 1) "held on, 28th July 2026" / "held on August 3, 2026"
+  const held =
+    tryMatch(
+      /held\s+on,?\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?,?\s+(\d{4})/i,
+      (m) => fromParts(m[2], m[1], m[3]),
+    ) ||
+    tryMatch(
+      /held\s+on,?\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),?\s*([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i,
+      (m) => fromParts(m[1], m[2], m[3]),
+    ) ||
+    tryMatch(
+      /held\s+on,?\s*(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?,?\s+(\d{4})/i,
+      (m) => fromParts(m[2], m[1], m[3]),
+    ) ||
+    tryMatch(
+      /held\s+on,?\s*([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i,
+      (m) => fromParts(m[1], m[2], m[3]),
+    );
+  if (held) return held;
+
+  // 2) Conference / earnings / analyst meet cues
+  const cued =
+    tryMatch(
+      /(?:conference\s+call|earnings\s+call|analyst(?:\/institutional)?(?:\s+investor)?\s+meet|investor(?:s)?\s*(?:&|and)\s*analyst\s*meet)[^\n.]{0,80}?(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?,?\s+(\d{4})/i,
+      (m) => fromParts(m[2], m[1], m[3]),
+    ) ||
+    tryMatch(
+      /(?:conference\s+call|earnings\s+call|analyst(?:\/institutional)?(?:\s+investor)?\s+meet|investor(?:s)?\s*(?:&|and)\s*analyst\s*meet)[^\n.]{0,80}?([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})/i,
+      (m) => fromParts(m[1], m[2], m[3]),
+    );
+  if (cued) return cued;
+
+  // 3) Letter / filing date in the opening block (e.g. "August 27, 2026 Corporate…")
+  const letter = head.match(
+    /\b([A-Za-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/,
+  );
+  if (letter) {
+    const iso = fromParts(letter[1], letter[2], letter[3]);
+    if (iso) return iso;
+  }
+  const letterDmy = head.match(
+    /\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+)\.?,?\s+(\d{4})\b/,
+  );
+  if (letterDmy) {
+    const iso = fromParts(letterDmy[2], letterDmy[1], letterDmy[3]);
+    if (iso) return iso;
+  }
+
+  // 4) StockScans / short month
+  const short = tryMatch(
+    /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})\b/i,
+    (m) => fromParts(m[2], m[1], m[3]),
+  );
+  if (short) return short;
+
+  const iso = t.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  return null;
+}
+
 function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
   // pdf-parse often injects double spaces between words
   text = text.replace(/[ \t\u00a0]+/g, " ");
@@ -1086,23 +1196,36 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
   };
 
   if (!meta.nse_symbol) {
-    const sym =
-      text.match(/\bNSE\s+Scrip\s+Symbol\s*:\s*([A-Z0-9.&-]+)/i)?.[1] ||
-      text.match(/\bScrip\s+Symbol\s*:\s*([A-Z0-9.&-]+)/i)?.[1] ||
-      text.match(/\bSymbol\s*:\s*([A-Z0-9.&-]+)/i)?.[1] ||
-      text.match(/\bNSE\s+(?:Symbol|Code)\s*:\s*([A-Z0-9.&-]+)/i)?.[1];
-    if (sym) meta.nse_symbol = sym.toUpperCase();
+    const sym = resolveListedTicker(extractNseSymbolFromText(text));
+    if (sym) meta.nse_symbol = sym;
   } else {
-    // If LLM shortened a longer exchange symbol present in the PDF, keep the PDF one
-    const fromText =
-      text.match(/\bNSE\s+Scrip\s+Symbol\s*:\s*([A-Z0-9.&-]+)/i)?.[1] ||
-      text.match(/\bScrip\s+Symbol\s*:\s*([A-Z0-9.&-]+)/i)?.[1];
-    if (
+    // Prefer a clearly printed filing symbol when it disagrees with a wrong seed
+    const fromText = resolveListedTicker(extractNseSymbolFromText(text));
+    const locked = String(meta.nse_symbol).toUpperCase();
+    if (fromText && fromText !== locked) {
+      const lockedName = lookupCompanyName(locked);
+      const textName = lookupCompanyName(fromText);
+      // Upgrade short aliases (EPACK → EPACKPEB) or replace mismatched seed
+      if (
+        fromText.startsWith(locked) &&
+        fromText.length > locked.length
+      ) {
+        meta.nse_symbol = fromText;
+      } else if (
+        textName &&
+        lockedName &&
+        !issuerNamesCompatible(textName, lockedName)
+      ) {
+        meta.nse_symbol = fromText;
+      } else if (textName && !lockedName) {
+        meta.nse_symbol = fromText;
+      }
+    } else if (
       fromText &&
-      fromText.toUpperCase().startsWith(String(meta.nse_symbol).toUpperCase()) &&
-      fromText.length > String(meta.nse_symbol).length
+      fromText.startsWith(locked) &&
+      fromText.length > locked.length
     ) {
-      meta.nse_symbol = fromText.toUpperCase();
+      meta.nse_symbol = fromText;
     }
   }
   if (!meta.bse_code) {
@@ -1113,44 +1236,23 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
       text.match(/\bBSE\s+Code\s*:\s*(\d{4,8})/i)?.[1];
     if (code) meta.bse_code = code;
   }
-  if (!meta.call_date) {
-    const m =
-      text.match(
-        /(?:held on|Conference Call\s*|Investor(?:s)?\s*(?:&|and)\s*Analyst\s*Meet)\s*(?:Wednesday,?\s*|Monday,?\s*|Tuesday,?\s*|Thursday,?\s*|Friday,?\s*)?([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i,
-      ) ||
-      text.match(
-        /(?:results|earnings|financial\s+results|board\s+meeting|published\s+on|dated)[^.\n]{0,40}?([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})/i,
-      );
-    if (m) {
-      const iso = fromParts(m[1], m[2], m[3]);
-      if (iso) meta.call_date = iso;
-    }
-    // StockScans header: "3 Sep 2026 · 4:00 PM IST"
-    if (!meta.call_date) {
-      const dMonY = text.match(
-        /\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?\s+(\d{4})\b/i,
-      );
-      if (dMonY) {
-        const iso = fromParts(dMonY[2], dMonY[1], dMonY[3]);
-        if (iso) meta.call_date = iso;
+  // Prefer date printed on the filing over a prior "today" seed / empty
+  {
+    const fromText = extractCallDateFromText(text);
+    if (fromText) {
+      const cur =
+        typeof meta.call_date === "string" ? meta.call_date.slice(0, 10) : "";
+      if (!cur || cur !== fromText) {
+        meta.call_date = fromText;
       }
-    }
-    if (!meta.call_date) {
-      const dmy = text.match(
-        /(?:dated|on|as\s+on)\s+(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})\b/i,
-      );
-      if (dmy) {
-        const y = dmy[3].length === 2 ? `20${dmy[3]}` : dmy[3];
-        meta.call_date = `${y}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-      }
-    }
-    if (!meta.call_date) {
-      const iso = text.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
-      if (iso) meta.call_date = `${iso[1]}-${iso[2]}-${iso[3]}`;
-    }
-    // LLM sometimes puts a real date in report_date / date
-    if (!meta.call_date) {
-      for (const key of ["report_date", "date", "result_date", "filing_date", "call_date"]) {
+    } else if (!meta.call_date) {
+      for (const key of [
+        "report_date",
+        "date",
+        "result_date",
+        "filing_date",
+        "call_date",
+      ]) {
         const v = meta[key];
         if (typeof v === "string") {
           const iso = parseLooseDate(v);
@@ -1195,27 +1297,26 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
     }
   }
   if (!meta.company_name) {
-    const co =
-      text.match(
-        /(?:for|of)\s+(Indo Borax[^.\n]{0,40}Limited)/i,
-      )?.[1] ||
-      text.match(
-        /\b(Happiest Minds Technologies\s+(?:Limited|Ltd\.?))\b/i,
-      )?.[1] ||
-      text.match(
-        /\b([A-Z][A-Za-z0-9 &.'-]{2,60}?\s+(?:Life Sciences|Healthcare|Chemicals|Industries|Pharmaceuticals?|Technologies|Labs?|Limited|Ltd\.?))\b/,
-      )?.[1] ||
-      text.match(
-        /^[\s\S]{0,200}?\b([A-Z][A-Z0-9 &.'-]{4,50}?\s+(?:LTD\.?|LIMITED))\b/,
-      )?.[1] ||
-      (typeof meta.source === "string" &&
+    const co = extractFilingCompanyName(text);
+    if (co) meta.company_name = co;
+    else if (
+      typeof meta.source === "string" &&
       /limited|ltd\.?|healthcare|chemicals|industries|sciences|technologies/i.test(
         meta.source,
-      )
-        ? meta.source.trim()
-        : null);
-    if (co && typeof co === "string" && !isMarketInfrastructureName(co)) {
-      meta.company_name = co.trim();
+      ) &&
+      !isMarketInfrastructureName(meta.source) &&
+      distinctiveNameTokens(meta.source).length > 0
+    ) {
+      meta.company_name = meta.source.trim();
+    }
+  } else {
+    // Locked/seeded name may be wrong (3MINDIA row + Bhagyanagar PDFs) — prefer letterhead
+    const fromText = extractFilingCompanyName(text);
+    if (
+      fromText &&
+      !issuerNamesCompatible(fromText, String(meta.company_name))
+    ) {
+      meta.company_name = fromText;
     }
   }
   if (!meta.company_name && typeof meta.nse_symbol === "string") {
@@ -1224,6 +1325,8 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
   }
   // Prefer DB legal name when ticker is known. Drop venue / mismatched issuer names
   // (e.g. transcript "National Stock Exchange…" while symbol is the listed company).
+  // If PDF names a *different* issuer than the ticker, reticker from the PDF name —
+  // never overwrite Bhagyanagar with 3M India just because the row was seeded wrong.
   if (typeof meta.nse_symbol === "string") {
     const sym = meta.nse_symbol.toUpperCase().trim();
     const fromDb = lookupCompanyName(sym);
@@ -1232,24 +1335,16 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
     if (fromDb) {
       if (!current || isMarketInfrastructureName(current)) {
         meta.company_name = fromDb;
+      } else if (issuerNamesCompatible(current, fromDb)) {
+        meta.company_name = fromDb;
       } else {
-        const cur = current.toLowerCase();
-        const dbn = fromDb.toLowerCase();
-        const compatible =
-          cur.includes(dbn) ||
-          dbn.includes(cur) ||
-          cur
-            .split(/\s+/)
-            .filter((w) => w.length > 3)
-            .every((w) => dbn.includes(w));
-        if (compatible) {
-          meta.company_name = fromDb;
-        } else {
-          const resolved = lookupTickerByCompanyName(current);
-          if (!resolved || resolved !== sym) {
-            meta.company_name = fromDb;
-          }
+        const resolved = lookupTickerByCompanyName(current);
+        if (resolved && resolved !== sym) {
+          meta.nse_symbol = resolved;
+          const better = lookupCompanyName(resolved);
+          meta.company_name = better || current;
         }
+        // else keep PDF/LLM company_name; do not force wrong fromDb
       }
     } else if (current && isMarketInfrastructureName(current)) {
       meta.company_name = null;
@@ -1307,11 +1402,7 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
       if (!meta.fiscal_year) meta.fiscal_year = m[1];
     }
   }
-  // Call date missing → use today (extract / screen day)
-  if (!meta.call_date) {
-    const now = new Date();
-    meta.call_date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  }
+  // Do not invent today's date as call_date — leave null if filing has none
   extract.metadata = meta;
 
   // Label document kind so UI / PASS row explain missing deck-style prints
@@ -1786,12 +1877,163 @@ function isMarketInfrastructureName(name: string | null | undefined): boolean {
   );
 }
 
+const COMPANY_NAME_STOP = new Set([
+  "india",
+  "limited",
+  "ltd",
+  "ltd.",
+  "private",
+  "pvt",
+  "pvt.",
+  "company",
+  "the",
+  "and",
+  "of",
+  "for",
+]);
+
+function distinctiveNameTokens(name: string): string[] {
+  return name
+    .replace(/\s+/g, " ")
+    .replace(/\b(ltd\.?|limited|private|pvt\.?)\b/gi, " ")
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-zA-Z0-9]/g, ""))
+    .filter(
+      (t) =>
+        !COMPANY_NAME_STOP.has(t.toLowerCase()) &&
+        (t.length > 3 || (t.length >= 2 && /\d/.test(t))),
+    );
+}
+
+/** Whether two issuer strings refer to the same listed company. */
+function issuerNamesCompatible(a: string, b: string): boolean {
+  const ca = a.replace(/\s+/g, " ").trim().toLowerCase();
+  const cb = b.replace(/\s+/g, " ").trim().toLowerCase();
+  if (!ca || !cb) return false;
+  if (ca === cb || ca.includes(cb) || cb.includes(ca)) return true;
+  const ta = distinctiveNameTokens(a);
+  const tb = distinctiveNameTokens(b);
+  if (!ta.length && !tb.length) {
+    // Both only generic words — treat equal only if near-identical shells
+    return ca.replace(/\b(india|limited|ltd\.?)\b/g, "").trim() ===
+      cb.replace(/\b(india|limited|ltd\.?)\b/g, "").trim();
+  }
+  if (!ta.length || !tb.length) return false;
+  // Require distinctive tokens to overlap (Bhagyanagar ≠ 3M even though both say India)
+  return ta.every((w) =>
+    tb.some(
+      (x) =>
+        x.toLowerCase() === w.toLowerCase() ||
+        x.toLowerCase().includes(w.toLowerCase()) ||
+        w.toLowerCase().includes(x.toLowerCase()),
+    ),
+  );
+}
+
+/** NSE / BSE scrip symbol printed on filings (NSE: BHAGYANGR, Symbol: …). */
+function extractNseSymbolFromText(text: string): string | null {
+  const raw =
+    text.match(/\bNSE\s+Scrip\s+Symbol\s*:\s*([A-Z0-9.&-]+)/i)?.[1] ||
+    text.match(/\bScrip\s+Symbol\s*:\s*([A-Z0-9.&-]+)/i)?.[1] ||
+    text.match(/\bNSE\s*(?:Symbol|Code)\s*:\s*([A-Z0-9.&-]+)/i)?.[1] ||
+    text.match(/\bSymbol\s*:\s*([A-Z0-9.&-]{2,20})\b/i)?.[1] ||
+    text.match(/\bNSE\s*:\s*([A-Z][A-Z0-9.&-]{1,19})\b/i)?.[1] ||
+    text.match(/\bBSE\s*:\s*\d{4,8}\s*\/\s*NSE\s*:\s*([A-Z][A-Z0-9.&-]{1,19})\b/i)?.[1];
+  return raw ? raw.toUpperCase().trim() : null;
+}
+
+/** Letterhead / subject company — prefer full legal name from PDF text. */
+function extractFilingCompanyName(text: string): string | null {
+  const candidates = [
+    text.match(
+      /(?:for|of)\s+(Indo Borax[^.\n]{0,40}Limited)/i,
+    )?.[1],
+    text.match(
+      /\b(Happiest Minds Technologies\s+(?:Limited|Ltd\.?))\b/i,
+    )?.[1],
+    // ALL-CAPS letterhead (common on NSE cover letters)
+    text.match(
+      /\b([A-Z][A-Z0-9 &.'-]{4,70}?\s+(?:LIMITED|LTD\.?))\b/,
+    )?.[1],
+    text.match(
+      /\b([A-Z][A-Za-z0-9 &.'-]{2,60}?\s+(?:Life Sciences|Healthcare|Chemicals|Industries|Pharmaceuticals?|Technologies|Labs?|Limited|Ltd\.?))\b/,
+    )?.[1],
+  ];
+  for (const co of candidates) {
+    if (co && typeof co === "string" && !isMarketInfrastructureName(co)) {
+      const t = co.replace(/\s+/g, " ").trim();
+      // Reject tiny / generic shells like "INDIA LIMITED"
+      if (distinctiveNameTokens(t).length === 0) continue;
+      return t;
+    }
+  }
+  return null;
+}
+
+/** Map a printed symbol to a known NSE ticker (BHAGYANGIR → BHAGYANGR). */
+function resolveListedTicker(sym: string | null | undefined): string | null {
+  if (!sym) return null;
+  const u = sym.toUpperCase().trim();
+  if (!u || u.length < 2) return null;
+  if (lookupCompanyName(u)) return u;
+  const prefix = u.slice(0, Math.min(6, u.length));
+  if (prefix.length < 4) return null;
+  try {
+    const db = openSqliteNamed("company_about.db", {
+      readonly: true,
+      wal: true,
+    });
+    const rows = db
+      .prepare(
+        `SELECT ticker FROM company_about WHERE UPPER(ticker) LIKE ? LIMIT 40`,
+      )
+      .all(`${prefix}%`) as Array<{ ticker: string | null }>;
+    let best: string | null = null;
+    let bestDist = Infinity;
+    for (const r of rows) {
+      const t = r.ticker?.trim()?.toUpperCase();
+      if (!t) continue;
+      const dist = tickerEditDistance(u, t);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = t;
+      }
+    }
+    // Allow 1–2 char typos on medium/long symbols
+    if (best && bestDist <= (u.length >= 8 ? 2 : 1)) return best;
+  } catch {
+    /* optional */
+  }
+  return null;
+}
+
+function tickerEditDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  const m = a.length;
+  const n = b.length;
+  if (Math.abs(m - n) > 3) return 99;
+  const dp = Array.from({ length: m + 1 }, () =>
+    Array.from({ length: n + 1 }, () => 0),
+  );
+  for (let i = 0; i <= m; i++) dp[i]![0] = i;
+  for (let j = 0; j <= n; j++) dp[0]![j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i]![j] = Math.min(
+        dp[i - 1]![j]! + 1,
+        dp[i]![j - 1]! + 1,
+        dp[i - 1]![j - 1]! + cost,
+      );
+    }
+  }
+  return dp[m]![n]!;
+}
+
 function lookupTickerByCompanyName(name: string | null): string | null {
   if (!name) return null;
-  const cleaned = name
-    .replace(/\s+/g, " ")
-    .replace(/\b(ltd\.?|limited|private|pvt\.?)\b/gi, "")
-    .trim();
+  const cleaned = name.replace(/\s+/g, " ").trim();
   if (cleaned.length < 4) return null;
   const tryDb = (sql: string, arg: string): string | null => {
     try {
@@ -1805,15 +2047,23 @@ function lookupTickerByCompanyName(name: string | null): string | null {
       return null;
     }
   };
-  return (
+  const exact =
     tryDb(
       `SELECT ticker FROM company_about WHERE LOWER(name) = LOWER(?) LIMIT 1`,
-      name.trim(),
+      cleaned,
     ) ||
     tryDb(
-      `SELECT ticker FROM company_about WHERE LOWER(name) LIKE LOWER(?) LIMIT 1`,
-      `%${cleaned}%`,
-    )
+      `SELECT ticker FROM company_about WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+      `${cleaned.replace(/\b(ltd\.?|limited)\b/gi, "").trim()} Limited`,
+    );
+  if (exact) return exact;
+  const tokens = distinctiveNameTokens(cleaned);
+  // Never fuzzy-match on generic "India" alone (that wrongly hits 3MINDIA first)
+  if (!tokens.length) return null;
+  const primary = tokens.sort((a, b) => b.length - a.length)[0]!;
+  return tryDb(
+    `SELECT ticker FROM company_about WHERE LOWER(name) LIKE LOWER(?) ORDER BY LENGTH(name) ASC LIMIT 1`,
+    `%${primary}%`,
   );
 }
 
@@ -2054,7 +2304,7 @@ function normalizeHighlightList(
     /^q\d\s*fy\s*[\d-]+\s*results?,/i.test(text) ||
     /presentation for the investor conference call/i.test(text);
 
-  return raw
+  const mapped = raw
     .map((h) => {
       if (typeof h === "string" && h.trim()) {
         return { text: h.trim().slice(0, 100), polarity: "neutral" };
@@ -2088,6 +2338,7 @@ function normalizeHighlightList(
       };
     })
     .filter(Boolean) as Array<{ text: string; polarity: string }>;
+  return dedupeHighlightScanlines(mapped, 5);
 }
 
 /**
@@ -2795,31 +3046,52 @@ export function ensureFinancialsFromQuantSnapshot(
 
 /**
  * If card.highlights is empty but quant.highlight_sentiment has headlines,
- * map them onto the PASS card (same shape as Analyze). Returns true when mutated.
+ * map them onto the PASS card (same shape as Analyze). Also collapse duplicate
+ * scanlines left by the LLM. Returns true when mutated.
  */
 export function ensureHighlightsFromQuant(
   extract: ConcallExtract,
 ): boolean {
   const card = asObj(extract.card) || {};
   const existing = Array.isArray(card.highlights) ? card.highlights : [];
-  const hasText = existing.some((h) => {
-    if (typeof h === "string") return h.trim().length > 0;
-    const o = asObj(h);
-    return Boolean(
-      o &&
-        (typeof o.text === "string"
-          ? o.text.trim()
-          : typeof o.headline === "string"
-            ? o.headline.trim()
-            : ""),
-    );
-  });
-  if (hasText) return false;
+  const normalizedExisting = normalizeHighlightList(existing);
+  let dirty = false;
+
+  if (
+    JSON.stringify(existing) !== JSON.stringify(normalizedExisting) &&
+    (existing.length > 0 || normalizedExisting.length > 0)
+  ) {
+    card.highlights = normalizedExisting;
+    extract.card = card;
+    dirty = true;
+  }
+
+  const hasText = normalizedExisting.some((h) => h.text.trim().length > 0);
+  if (hasText) return dirty;
+
   const quantHl = asObj(asObj(extract.quant)?.highlight_sentiment);
-  if (!quantHl) return false;
+  if (!quantHl) return dirty;
   const mapped = cardHighlightsFromQuant(quantHl);
-  if (!mapped.length) return false;
+  if (!mapped.length) return dirty;
   applyHighlightSentimentToCard(extract, quantHl);
+  return true;
+}
+
+/** Re-parse call_date from saved combined PDF text when missing or clearly wrong. */
+export function ensureCallDateFromCombined(
+  extract: ConcallExtract,
+): boolean {
+  const docs = asDocs(extract.docs);
+  const combined = docs.combined?.trim() || "";
+  if (combined.length < 40) return false;
+  const fromText = extractCallDateFromText(combined);
+  if (!fromText) return false;
+  const meta = asObj(extract.metadata) || {};
+  const cur =
+    typeof meta.call_date === "string" ? meta.call_date.slice(0, 10) : "";
+  if (cur === fromText) return false;
+  meta.call_date = fromText;
+  extract.metadata = meta;
   return true;
 }
 
@@ -2837,26 +3109,9 @@ function historyFromExtract(
   const rev = fin.revenue;
   const ebitdaM = fin.ebitda_margin_pct ?? fin.margin;
   const period = formatPeriodLabel(meta);
-  const highlights = Array.isArray(card.highlights)
-    ? card.highlights
-        .map((h) => {
-          if (typeof h === "string") return { text: h, polarity: "neutral" };
-          const o = asObj(h);
-          if (!o || typeof o.text !== "string") return null;
-          return {
-            text: o.text,
-            polarity: String(o.polarity || "neutral"),
-          };
-        })
-        .filter((h): h is { text: string; polarity: string } => {
-          if (!h?.text?.trim()) return false;
-          const t = h.text;
-          if (/results?,?\s*tuesday/i.test(t)) return false;
-          if (/scheduled to be held/i.test(t)) return false;
-          if (/^q\d\s*fy\s*[\d-]+\s*results?,/i.test(t)) return false;
-          return true;
-        })
-    : [];
+  const highlights = normalizeHighlightList(
+    Array.isArray(card.highlights) ? card.highlights : [],
+  );
   let call_date = typeof meta.call_date === "string" ? meta.call_date : null;
   if (!call_date) {
     for (const key of ["report_date", "date", "result_date", "filing_date"]) {
@@ -2867,13 +3122,7 @@ function historyFromExtract(
       }
     }
   }
-  if (!call_date && screened_at) {
-    call_date = screened_at.slice(0, 10);
-  }
-  if (!call_date) {
-    const now = new Date();
-    call_date = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  }
+  // Do not fall back to screened_at / today — that was showing 10 Sep as the call day
 
   let company =
     typeof meta.company_name === "string" ? meta.company_name : null;
@@ -3128,25 +3377,90 @@ function saveHistory(row: {
   extract: ConcallExtract;
   decision: string;
   engine: string;
+  /** When set (row Analyze), update this id in place — never retarget another ticker. */
+  existingId?: number | null;
 }): number | null {
   // Pass-only list (same idea as Order book)
   if (row.decision !== "pass") return null;
   const db = openDb();
   const meta = asObj(row.extract.metadata) || {};
   const tone = asObj(row.extract.management_tone) || {};
-  const ticker =
+  let ticker =
     typeof meta.nse_symbol === "string" ? meta.nse_symbol.toUpperCase() : null;
   const screened_at = new Date().toISOString();
+
+  const existingId =
+    row.existingId != null &&
+    Number.isInteger(row.existingId) &&
+    row.existingId > 0
+      ? row.existingId
+      : null;
+
+  // Row-scoped Analyze: keep the PASS row's ticker/company so a stale textarea
+  // (e.g. EPACK text while clicking Bhagya Analyze) cannot retarget the save.
+  if (existingId != null) {
+    const prev = db
+      .prepare(
+        `SELECT ticker, company, source_url FROM concall_screens WHERE id = ?`,
+      )
+      .get(existingId) as
+      | { ticker: string | null; company: string | null; source_url: string | null }
+      | undefined;
+    if (!prev) return null;
+    if (prev.ticker?.trim()) {
+      ticker = prev.ticker.trim().toUpperCase();
+      meta.nse_symbol = ticker;
+    }
+    if (
+      prev.company?.trim() &&
+      !isMarketInfrastructureName(prev.company)
+    ) {
+      meta.company_name = prev.company.trim();
+    }
+    if (!row.source_url && prev.source_url) {
+      row.source_url = prev.source_url;
+    }
+  }
+
   if (!meta.company_name && ticker) {
     const n = lookupCompanyName(ticker);
     if (n) meta.company_name = n;
   }
-  if (!meta.call_date) {
-    meta.call_date = screened_at.slice(0, 10);
-  }
+  // Keep call_date null when unknown — never stamp screened_at as the call day
   row.extract.metadata = meta;
   const period = formatPeriodLabel(meta);
-  // Upsert: one row per ticker + period
+  const company =
+    typeof meta.company_name === "string" ? meta.company_name : null;
+  const sentiment =
+    typeof tone.overall_tone === "string" ? tone.overall_tone : null;
+
+  if (existingId != null) {
+    db.prepare(
+      `UPDATE concall_screens SET
+         source_url = COALESCE(?, source_url),
+         ticker = COALESCE(?, ticker),
+         company = COALESCE(?, company),
+         period = COALESCE(?, period),
+         sentiment = ?,
+         decision = ?,
+         extract_json = ?,
+         screened_at = ?
+       WHERE id = ?`,
+    ).run(
+      row.source_url,
+      ticker,
+      company,
+      period || null,
+      sentiment,
+      row.decision,
+      JSON.stringify(row.extract),
+      screened_at,
+      existingId,
+    );
+    return existingId;
+  }
+
+  // Upsert: one row per ticker + period (fresh dual-upload / Run)
   if (ticker && period) {
     db.prepare(
       `DELETE FROM concall_screens WHERE upper(ticker) = ? AND period = ?`,
@@ -3162,9 +3476,9 @@ function saveHistory(row: {
     .run(
       row.source_url,
       ticker,
-      typeof meta.company_name === "string" ? meta.company_name : null,
+      company,
       period || null,
-      typeof tone.overall_tone === "string" ? tone.overall_tone : null,
+      sentiment,
       row.decision,
       JSON.stringify(row.extract),
       screened_at,
@@ -3277,6 +3591,15 @@ export function listConcallHistory(limit = 40): ConcallHistoryRow[] {
       }
     }
     if (ensureHighlightsFromQuant(extract)) {
+      try {
+        db.prepare(
+          `UPDATE concall_screens SET extract_json = ? WHERE id = ?`,
+        ).run(JSON.stringify(extract), r.id);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (ensureCallDateFromCombined(extract)) {
       try {
         db.prepare(
           `UPDATE concall_screens SET extract_json = ? WHERE id = ?`,
@@ -4435,6 +4758,8 @@ async function finalizeMergedMaterials(opts: {
   source_url: string | null;
   materials?: ConcallScreenResult["materials"];
   combined_text?: string;
+  /** PASS row Analyze — update in place */
+  existingId?: number | null;
 }): Promise<ConcallScreenResult> {
   let extract = await attachConcallPrices(opts.extract);
   extract = setDocsCombined(extract, opts.combined_text);
@@ -4444,6 +4769,7 @@ async function finalizeMergedMaterials(opts: {
     extract,
     decision,
     engine: opts.engine,
+    existingId: opts.existingId ?? null,
   });
   const passWhy =
     opts.decisionHint === "pass" && decision === "pass"
@@ -4540,10 +4866,15 @@ export async function screenConcallFromCombinedText(opts: {
   let base: ConcallExtract = emptyExtract();
   let source_url: string | null = opts.sourceUrl?.trim() || null;
   let combined = (opts.combinedText || "").trim();
+  const existingId =
+    opts.id != null && Number.isInteger(opts.id) && opts.id > 0
+      ? opts.id
+      : null;
 
-  if (opts.id != null && Number.isInteger(opts.id) && opts.id > 0) {
-    const saved = getConcallCombinedText(opts.id);
-    if (!combined && saved.combined_text) combined = saved.combined_text;
+  if (existingId != null) {
+    const saved = getConcallCombinedText(existingId);
+    // Always prefer this row's saved materials — ignore shared textarea from another company
+    if (saved.combined_text) combined = saved.combined_text;
     if (saved.extract) {
       base = { ...saved.extract };
       // Fresh Analyze must not keep prior card lines (old regex / failed LLM leftovers)
@@ -4562,22 +4893,19 @@ export async function screenConcallFromCombinedText(opts: {
       delete card.mgmt_sentiment;
       base.card = card;
     }
-    // Lock ticker from the PASS row — never let LLM rename EPACKPEB → EPACK
+    // Seed ticker from PASS row as a hint only — materials beat a mismatched seed
+    // (e.g. Bhagyanagar PDFs attached under a 3MINDIA row).
     try {
       const db = openDb();
       const r = db
         .prepare(`SELECT ticker, company, source_url FROM concall_screens WHERE id = ?`)
-        .get(opts.id) as
+        .get(existingId) as
         | { ticker: string | null; company: string | null; source_url: string | null }
         | undefined;
       if (r?.ticker?.trim()) {
         const meta = asObj(base.metadata) || {};
-        const sym = r.ticker.trim().toUpperCase();
-        meta.nse_symbol = sym;
-        const fromDb = lookupCompanyName(sym);
-        if (fromDb) {
-          meta.company_name = fromDb;
-        } else if (
+        meta.nse_symbol = r.ticker.trim().toUpperCase();
+        if (
           r.company?.trim() &&
           !isMarketInfrastructureName(r.company)
         ) {
@@ -4691,6 +5019,7 @@ export async function screenConcallFromCombinedText(opts: {
     text_excerpt: combined.slice(0, EXCERPT_MAX),
     source_url,
     combined_text: combined,
+    existingId,
     materials: {
       ...(tx
         ? {
