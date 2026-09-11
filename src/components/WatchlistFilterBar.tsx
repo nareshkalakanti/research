@@ -189,31 +189,40 @@ type FundsProps = {
   distressCount?: number;
   edge?: boolean;
   onEdge?: (on: boolean) => void;
+  gov?: boolean;
+  onGov?: (on: boolean) => void;
   holdCount?: number;
   edgeCount?: number;
+  govCount?: number;
   funds?: FundFilterState;
   onFund?: (key: FundWatchlistKey, on: boolean) => void;
+  /** Single-shot clear (avoids N partial setStates / stale chip counts). */
+  onClearFunds?: () => void;
   fundKeys?: FundWatchlistKey[];
   fundCounts?: FundCountState;
 };
 
-/** Hold / Edge + ace-investor fund watchlist chips. */
+/** Hold / Edge / Gov + ace-investor fund watchlist chips. */
 export function FundsFilterBar({
   hold = false,
   onHold,
   edge = false,
   onEdge,
+  gov = false,
+  onGov,
   holdCount,
   distressCount,
   edgeCount,
+  govCount,
   funds = {},
   onFund,
+  onClearFunds,
   fundKeys,
   fundCounts = {},
 }: FundsProps) {
   const visibleFundKeys = fundKeys ?? FUND_WATCHLIST_KEYS;
   const hasFunds = Boolean(onFund);
-  const hasHoldEdge = Boolean(onHold || onEdge);
+  const hasHoldEdge = Boolean(onHold || onEdge || onGov);
   if (!hasFunds && !hasHoldEdge) return null;
 
   const holdTitle =
@@ -222,7 +231,7 @@ export function FundsFilterBar({
       : "Your holdings";
 
   const fundActive = hasFunds && visibleFundKeys.some((k) => funds[k]);
-  const filtersActive = hold || edge || fundActive;
+  const filtersActive = hold || edge || gov || fundActive;
 
   return (
     <div className="filter-bar">
@@ -249,6 +258,17 @@ export function FundsFilterBar({
             <Count n={edgeCount} />
           </button>
         ) : null}
+        {onGov ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-gov ${gov ? "on" : ""}`}
+            onClick={() => onGov(!gov)}
+            title="CPSU / Gov — Maharatna, Navratna, Miniratna, Non-Ratna"
+          >
+            Gov
+            <Count n={govCount} />
+          </button>
+        ) : null}
         {hasHoldEdge && hasFunds ? (
           <span className="filter-sep" aria-hidden />
         ) : null}
@@ -273,7 +293,9 @@ export function FundsFilterBar({
             onClick={() => {
               onHold?.(false);
               onEdge?.(false);
-              if (onFund) {
+              onGov?.(false);
+              if (onClearFunds) onClearFunds();
+              else if (onFund) {
                 for (const key of visibleFundKeys) onFund(key, false);
               }
             }}

@@ -1480,7 +1480,55 @@ a {
   color: #fff;
 }
 
+.tag-gov {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+.tag-gov.on,
+.result-tag.tag-gov {
+  background: #d97706;
+  border-color: #b45309;
+  color: #fff;
+}
+.result-tag.tag-gov-maharatna {
+  background: #b45309;
+  border-color: #92400e;
+  color: #fff;
+}
+.result-tag.tag-gov-navratna {
+  background: #d97706;
+  border-color: #b45309;
+  color: #fff;
+}
+.result-tag.tag-gov-miniratna_i {
+  background: #f59e0b;
+  border-color: #d97706;
+  color: #1f2937;
+}
+.result-tag.tag-gov-miniratna_ii {
+  background: #fde68a;
+  border-color: #fbbf24;
+  color: #78350f;
+}
+.result-tag.tag-gov-state_psu {
+  background: #e8eef5;
+  color: #334155;
+  border-color: #94a3b8;
+}
+.result-tag.tag-gov-psu_bank {
+  background: #dbeafe;
+  border-color: #60a5fa;
+  color: #1e3a8a;
+}
+.result-tag.tag-gov-non_ratna {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #92400e;
+}
 
+
+/* Fund chips — one distinct hue each (no shared greens / blues / purples) */
 .tag-niveshaay {
   background: #ecfdf5;
   border-color: #6ee7b7;
@@ -1508,24 +1556,24 @@ a {
 .tag-kacholia {
   background: #eff6ff;
   border-color: #93c5fd;
-  color: var(--accent-ink);
+  color: #1e3a8a;
 }
 .tag-kacholia.on,
 .result-tag.tag-kacholia {
-  background: #1e40af;
-  border-color: var(--accent-ink);
+  background: #1d4ed8;
+  border-color: #1e40af;
   color: #fff;
 }
 
 .tag-mukul {
-  background: #ecfeff;
-  border-color: #67e8f9;
-  color: #155e75;
+  background: #f0fdfa;
+  border-color: #5eead4;
+  color: #115e59;
 }
 .tag-mukul.on,
 .result-tag.tag-mukul {
-  background: #0891b2;
-  border-color: #0e7490;
+  background: #0f766e;
+  border-color: #0d9488;
   color: #fff;
 }
 
@@ -1544,12 +1592,12 @@ a {
 .tag-singhania {
   background: #f0f9ff;
   border-color: #7dd3fc;
-  color: #075985;
+  color: #0c4a6e;
 }
 .tag-singhania.on,
 .result-tag.tag-singhania {
-  background: #0284c7;
-  border-color: #0369a1;
+  background: #0369a1;
+  border-color: #075985;
   color: #fff;
 }
 
@@ -1572,8 +1620,56 @@ a {
 }
 .tag-manohar.on,
 .result-tag.tag-manohar {
-  background: #c2410c;
-  border-color: #9a3412;
+  background: #ea580c;
+  border-color: #c2410c;
+  color: #fff;
+}
+
+.tag-lucky {
+  background: #f7fee7;
+  border-color: #bef264;
+  color: #3f6212;
+}
+.tag-lucky.on,
+.result-tag.tag-lucky {
+  background: #65a30d;
+  border-color: #4d7c0f;
+  color: #fff;
+}
+
+.tag-abbakus {
+  background: #fdf4ff;
+  border-color: #f0abfc;
+  color: #86198f;
+}
+.tag-abbakus.on,
+.result-tag.tag-abbakus {
+  background: #c026d3;
+  border-color: #a21caf;
+  color: #fff;
+}
+
+.tag-porinju {
+  background: #fefce8;
+  border-color: #fde047;
+  color: #854d0e;
+}
+.tag-porinju.on,
+.result-tag.tag-porinju {
+  background: #a16207;
+  border-color: #854d0e;
+  color: #fff;
+}
+
+.tag-sageone {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+.tag-sageone.on,
+.result-tag.tag-sageone {
+  background: #475569;
+  border-color: #334155;
   color: #fff;
 }
 
@@ -2939,9 +3035,9 @@ a {
 
 .q-ltp {
   font-size: 0.82rem;
-  font-weight: 650;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: var(--ink);
+  color: #98a2b3;
 }
 
 .q-overall-trend {
@@ -3654,8 +3750,8 @@ a {
 .data-table td.col-price {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: #1f2933;
+  font-weight: 500;
+  color: #98a2b3;
 }
 
 .data-table th.col-mcap_cr,
@@ -3864,12 +3960,12 @@ a {
   font: inherit;
   font-variant-numeric: tabular-nums;
   padding: 0;
-  font-weight: 700;
-  color: #1f2933;
+  font-weight: 500;
+  color: #98a2b3;
 }
 
 .price-btn:hover {
-  color: #101828;
+  color: #667085;
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -5741,12 +5837,12 @@ a {
 
 .gov-focus-seg button.kacholia.on {
   background: #dbeafe;
-  color: var(--accent-ink);
+  color: #1e3a8a;
 }
 
 .gov-focus-seg button.mukul.on {
-  background: #cffafe;
-  color: #155e75;
+  background: #ccfbf1;
+  color: #115e59;
 }
 
 .gov-focus-seg button.kedia.on {
@@ -5756,7 +5852,7 @@ a {
 
 .gov-focus-seg button.singhania.on {
   background: #e0f2fe;
-  color: #075985;
+  color: #0c4a6e;
 }
 
 .gov-focus-seg button.kela.on {
@@ -5767,6 +5863,26 @@ a {
 .gov-focus-seg button.manohar.on {
   background: #ffedd5;
   color: #9a3412;
+}
+
+.gov-focus-seg button.lucky.on {
+  background: #ecfccb;
+  color: #3f6212;
+}
+
+.gov-focus-seg button.abbakus.on {
+  background: #fae8ff;
+  color: #86198f;
+}
+
+.gov-focus-seg button.porinju.on {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.gov-focus-seg button.sageone.on {
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .gov-funds-bar {
@@ -6376,8 +6492,8 @@ a {
 }
 
 .gov-tag-kacholia {
-  color: #4338ca;
-  background: #eef2ff;
+  color: #1d4ed8;
+  background: #eff6ff;
 }
 
 .gov-tag-mukul {
@@ -6396,13 +6512,33 @@ a {
 }
 
 .gov-tag-kela {
-  color: #7e22ce;
-  background: #faf5ff;
+  color: #6d28d9;
+  background: #f5f3ff;
 }
 
 .gov-tag-manohar {
   color: #c2410c;
   background: #fff7ed;
+}
+
+.gov-tag-lucky {
+  color: #4d7c0f;
+  background: #f7fee7;
+}
+
+.gov-tag-abbakus {
+  color: #a21caf;
+  background: #fdf4ff;
+}
+
+.gov-tag-porinju {
+  color: #854d0e;
+  background: #fefce8;
+}
+
+.gov-tag-sageone {
+  color: #334155;
+  background: #f8fafc;
 }
 
 .gov-cos {
@@ -9206,8 +9342,8 @@ tr.sm-row-sme-hit td {
 }
 
 .ag-tag-kacholia {
-  background: #eef2ff;
-  color: #4338ca;
+  background: #eff6ff;
+  color: #1d4ed8;
 }
 
 .ag-tag-mukul {
@@ -9226,13 +9362,33 @@ tr.sm-row-sme-hit td {
 }
 
 .ag-tag-kela {
-  background: #faf5ff;
-  color: #7e22ce;
+  background: #f5f3ff;
+  color: #6d28d9;
 }
 
 .ag-tag-manohar {
   background: #fff7ed;
   color: #c2410c;
+}
+
+.ag-tag-lucky {
+  background: #f7fee7;
+  color: #4d7c0f;
+}
+
+.ag-tag-abbakus {
+  background: #fdf4ff;
+  color: #a21caf;
+}
+
+.ag-tag-porinju {
+  background: #fefce8;
+  color: #854d0e;
+}
+
+.ag-tag-sageone {
+  background: #f8fafc;
+  color: #334155;
 }
 
 .ag-fired {
@@ -11397,11 +11553,11 @@ tr.sm-row-sme-hit td {
 
 .cd-ltp {
   font-size: 0.9rem;
-  font-weight: 650;
+  font-weight: 500;
   font-variant-numeric: tabular-nums;
   font-family: inherit;
   white-space: nowrap;
-  color: var(--ink);
+  color: #98a2b3;
 }
 
 .cd-tone {
@@ -15407,6 +15563,12 @@ tr.sm-row-sme-hit td {
   justify-content: center;
 }
 
+.ehc-selector--compact {
+  min-height: 0;
+  padding: 8px 10px;
+  gap: 0;
+}
+
 .ehc-metric-label,
 .ehc-selector-label {
   font-size: 0.68rem;
@@ -15461,4 +15623,619 @@ tr.sm-row-sme-hit td {
   .ehc-card-body {
     grid-template-columns: 1fr;
   }
+}
+
+/* MarketIQ — Corporate Announcements (app chips + table) */
+.miq.panel {
+  max-width: none;
+  width: 100%;
+}
+
+.miq-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.miq-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: -0.02em;
+}
+
+.miq-sub {
+  margin: 2px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.miq-head-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.miq-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  border: 1px solid var(--line);
+}
+
+.miq-live.on {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.miq-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9ca3af;
+}
+
+.miq-live.on .miq-live-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.5);
+  animation: miq-pulse 1.6s ease-out infinite;
+}
+
+@keyframes miq-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.45); }
+  70% { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+.miq-days select {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+}
+
+.miq-search-row {
+  margin-bottom: 10px;
+}
+
+.miq-search {
+  width: 100%;
+}
+
+.miq-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.miq-date-chip {
+  color: var(--accent-ink);
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.miq-cats {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.miq-cat-search {
+  max-width: 280px;
+  margin-bottom: 8px;
+}
+
+.miq-cat-chips {
+  max-height: 6.5rem;
+  overflow: auto;
+}
+
+.miq-cat-chips .chip {
+  max-width: 13rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.miq-show-all {
+  display: block;
+  margin: 8px 0 0 auto;
+}
+
+.miq-table-wrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  overflow: auto;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.miq-table {
+  width: 100%;
+  margin: 0;
+  border-collapse: collapse;
+  font-family: var(--font-sans), Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.92rem;
+  color: #111827;
+}
+
+.miq-table thead th {
+  text-align: left;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ca3af;
+  background: #f9fafb;
+  border-bottom: 1px solid #eef0f3;
+  padding: 12px 14px;
+  white-space: nowrap;
+}
+
+.miq-table tbody td {
+  vertical-align: top;
+  padding: 16px 14px;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.miq-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.miq-td-co {
+  min-width: 11rem;
+  max-width: 15rem;
+}
+
+.miq-co-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #111827;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+}
+
+a.miq-co-name {
+  color: #111827;
+  text-decoration: none;
+}
+
+a.miq-co-name:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.miq-co-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.miq-co-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.miq-dot {
+  opacity: 0.7;
+}
+
+.miq-row-analyse {
+  margin-top: 10px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+
+.miq-row-analyse:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.miq-td-details {
+  min-width: 18rem;
+  max-width: 36rem;
+}
+
+.miq-headline {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #111827;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.miq-summary {
+  margin-top: 6px;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: #6b7280;
+  font-weight: 450;
+}
+
+.miq-readmore {
+  margin-top: 6px;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0;
+  cursor: pointer;
+}
+
+.miq-cat-pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 11rem;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.miq-sent-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.miq-sent-pill.miq-sent-bullish {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.miq-sent-pill.miq-sent-bearish {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.miq-sent-pill.miq-sent-neutral {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
+  color: #4b5563;
+}
+
+.miq-sent-pill.miq-sent-pending {
+  background: #fff7ed;
+  border-color: #fed7aa;
+  color: #9a3412;
+}
+
+.miq-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+  background: #fff;
+  text-decoration: none;
+}
+
+.miq-icon-btn:hover {
+  border-color: #cbd5e1;
+  color: #111827;
+  background: #f8fafc;
+}
+
+.miq-icon-btn.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.miq-td-impact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.miq-impact-ring {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  border: 1.5px solid #93c5fd;
+  color: #2563eb;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.miq-impact-ring.is-empty {
+  border-color: #e5e7eb;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.miq-why {
+  margin-top: 0.35rem;
+  color: #9ca3af;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.miq-lab {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fcfcfd 0%, #fff 48%);
+  padding: 14px 16px 16px;
+  margin-bottom: 14px;
+}
+
+.miq-lab-head {
+  margin-bottom: 12px;
+}
+
+.miq-lab-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #111827;
+}
+
+.miq-lab-sub {
+  margin: 3px 0 0;
+  font-size: 0.82rem;
+  color: #6b7280;
+}
+
+.miq-lab-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
+}
+
+@media (max-width: 720px) {
+  .miq-lab-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.miq-lab-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #9ca3af;
+}
+
+.miq-lab-field input[type="file"] {
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.85rem;
+}
+
+.miq-lab-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.miq-lab-upload-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.miq-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.miq-upload-btn:hover:not(:disabled) {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.miq-upload-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.miq-lab-fname {
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.miq-lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.miq-lab-out,
+.miq-lab-result {
+  margin-top: 12px;
+  border: 1px solid #eef0f3;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.miq-lab-out-meta {
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #6b7280;
+  background: #f9fafb;
+  border-bottom: 1px solid #eef0f3;
+}
+
+.miq-lab-text,
+.miq-lab-trace {
+  margin: 0;
+  padding: 12px;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #374151;
+  background: #fff;
+}
+
+.miq-lab-preview-table {
+  border: 0;
+}
+
+.miq-lab-preview-table thead th {
+  background: #fff;
+}
+
+.miq-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 4px;
+}
+
+.obiq-rec {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--border, #d8dde6) 80%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface, #f7f8fa) 88%, transparent);
+}
+
+.obiq-rec-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.obiq-rec-list {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 4px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--text, #1a1d24) 78%, transparent);
+}
+
+.obiq-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.obiq-pill.obiq-pass {
+  background: #e7f7ec;
+  color: #146c36;
+}
+
+.obiq-pill.obiq-fail {
+  background: #fdeceb;
+  color: #a12622;
+}
+
+.obiq-pill.obiq-pending {
+  background: #eef1f5;
+  color: #5b6575;
+}
+
+.obiq-ratio {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.obiq-td-drift {
+  white-space: nowrap;
+  vertical-align: top;
+}
+
+.obiq-td-drift .mom-tag {
+  margin-bottom: 2px;
 }

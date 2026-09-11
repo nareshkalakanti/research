@@ -88,15 +88,18 @@ export function HighlightsBulletList({
   );
 }
 
-/** Result Quality / Mgmt Sentiment selector-style box. */
+/** Result Quality / Tone selector-style box. */
 export function MetricSelectorBox({
   label,
   value,
   kind,
+  showLabel = true,
 }: {
   label: string;
   value: string | null | undefined;
   kind: "quality" | "sentiment";
+  /** When false (PASS table), column header already names the field. */
+  showLabel?: boolean;
 }) {
   if (!value) return <span className="ehc-empty">—</span>;
   const tone = toneClass(value, kind);
@@ -107,8 +110,11 @@ export function MetricSelectorBox({
   const arrow =
     tone === "positive" ? "↑" : tone === "negative" ? "↓" : "→";
   return (
-    <div className="ehc-selector" title={label}>
-      <div className="ehc-selector-label">{label}</div>
+    <div
+      className={`ehc-selector${showLabel ? "" : " ehc-selector--compact"}`}
+      title={label}
+    >
+      {showLabel ? <div className="ehc-selector-label">{label}</div> : null}
       <div className={`ehc-selector-value ehc-selector-value--${tone}`}>
         <span>{display}</span>
         <span className="ehc-chevron" aria-hidden>

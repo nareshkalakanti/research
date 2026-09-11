@@ -366,6 +366,100 @@ export async function discoverNseAnnouncedOrders(
   return out;
 }
 
+export type NseMarketAnnouncementHit = {
+  ticker: string;
+  company: string | null;
+  title: string;
+  url: string | null;
+  announced_at: string | null;
+  period: string | null;
+  provider: "nse_announcements";
+  index: "equities" | "sme";
+};
+
+/**
+ * Market-wide NSE corporate announcements (CAME feed via corporate-announcements API).
+ * Order / LOI / PO wins are excluded — those belong on the Orderbook screen.
+ * Optional `q` filters title text.
+ */
+export async function discoverNseMarketAnnouncements(
+  daysBack = 1,
+  opts?: { q?: string | null },
+): Promise<NseMarketAnnouncementHit[]> {
+  const days = Math.min(7, Math.max(1, daysBack));
+  const q = (opts?.q || "").trim().toLowerCase();
+  const jar = await createNseBuybackSession();
+  const out: NseMarketAnnouncementHit[] = [];
+  const seen = new Set<string>();
+
+  const ingest = (rows: NseAnnRow[], index: "equities" | "sme") => {
+    for (const row of rows) {
+      const ticker = safeStr(row.symbol).toUpperCase();
+      if (!ticker) continue;
+      const desc = safeStr(row.desc) || safeStr(row.attchmntText);
+      if (!desc) continue;
+      if (q && !desc.toLowerCase().includes(q)) continue;
+      // Keep order-win filings off MarketIQ (Orderbook owns that lane).
+      const blob = `${desc} ${safeStr(row.attchmntText)}`;
+      if (isOrderWinAnnouncementBlob(blob)) continue;
+      const urlRaw = safeStr(row.attchmntFile);
+      const url =
+        urlRaw.startsWith("http") && !urlRaw.endsWith("/-") ? urlRaw : null;
+      const rawDt = row.an_dt || row.sort_date || row.dt;
+      const announced_at =
+        parseNseDateTime(rawDt) ||
+        parseNseDateTime(row.sort_date) ||
+        parseNseDateTime(row.dt);
+      // Dedupe same ticker + title + calendar day (NSE often posts 2 PDFs).
+      const day =
+        (announced_at && announced_at.slice(0, 10)) ||
+        safeStr(rawDt).slice(0, 10);
+      const normTitle = desc.toLowerCase().replace(/\s+/g, " ").trim();
+      const key = `${ticker}|${normTitle}|${day}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        ticker,
+        company: safeStr(row.sm_name) || safeStr(row.companyName) || null,
+        title: desc,
+        url,
+        announced_at,
+        period: formatPeriod(rawDt),
+        provider: "nse_announcements",
+        index,
+      });
+    }
+  };
+
+  for (let offset = 0; offset < days; offset += 1) {
+    const { from, to } = dayWindowLocal(offset);
+    const windows = await Promise.all(
+      (["equities", "sme"] as const).map(async (index) => {
+        try {
+          const rows = await fetchNseAnnouncementWindowsForRange(
+            "",
+            index,
+            from,
+            to,
+            jar,
+          );
+          return { index, rows };
+        } catch {
+          return { index, rows: [] as NseAnnRow[] };
+        }
+      }),
+    );
+    for (const w of windows) ingest(w.rows, w.index);
+  }
+
+  out.sort((a, b) => {
+    const at = a.announced_at ? Date.parse(a.announced_at) : 0;
+    const bt = b.announced_at ? Date.parse(b.announced_at) : 0;
+    return bt - at;
+  });
+  return out;
+}
+
 async function fetchNseAnnouncementWindowsForRange(
   symbol: string,
   index: "sme" | "equities",

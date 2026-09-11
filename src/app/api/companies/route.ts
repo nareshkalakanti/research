@@ -17,12 +17,13 @@ import {
   textHasTerm,
   tickerMatchesSearch,
 } from "@/lib/pattern";
-import { matchThemesForRow, mergeThemePortfolioRows } from "@/lib/theme-match";
+import { matchThemesForRow, mergeThemePortfolioRows, themeMatchPattern } from "@/lib/theme-match";
 import {
   invalidateThemeLlmScanCache,
   runThemeLlmScan,
   type ThemeLlmScanResult,
 } from "@/lib/theme-llm-scan";
+import { loadThemes, themesByIds } from "@/lib/themes";
 import {
   invalidateBreakoutCache,
   latestSignalDates,
@@ -33,6 +34,11 @@ import {
   invalidateHoldingsCache,
 } from "@/lib/holdings";
 import { edgeTickerSet, invalidateEdgeCache } from "@/lib/edge";
+import {
+  govPsuTickerSet,
+  govRatnaForTicker,
+  invalidateGovPsuCache,
+} from "@/lib/gov-psu";
 import {
   activeFundFilterSet,
   anyFundFilterActive,
@@ -55,7 +61,7 @@ import {
   matchesMissingGap,
 } from "@/lib/missing-data";
 import { dinBoardTickerSet } from "@/lib/governance-write";
-import { capTier, type CapTier } from "@/lib/types";
+import { capTier, type CapTier, type MatchedThemeTag } from "@/lib/types";
 import {
   isScanWatchlist,
 } from "@/lib/scan-lists";
@@ -149,12 +155,14 @@ function applyWatchlistFilters(
     filterHold: boolean;
     filterDistress: boolean;
     filterEdge: boolean;
+    filterGov: boolean;
     filterAgeMin?: number | null;
     fundActive: Partial<Record<(typeof FUND_WATCHLIST_KEYS)[number], boolean>>;
     filterNote: boolean;
     holdings: Set<string>;
     distressSet: Set<string>;
     edge: Set<string>;
+    gov: Set<string>;
     notes: Set<string>;
     allCompanies: CompanyRow[];
     themeScanActive?: boolean;
@@ -190,6 +198,10 @@ function applyWatchlistFilters(
     companies = companies.filter((c) => opts.edge.has(c.ticker.toUpperCase()));
   }
 
+  if (opts.filterGov) {
+    companies = companies.filter((c) => opts.gov.has(c.ticker.toUpperCase()));
+  }
+
   const fundFilter = activeFundFilterSet(opts.fundActive);
   if (fundFilter) {
     companies = companies.filter((c) =>
@@ -197,16 +209,18 @@ function applyWatchlistFilters(
     );
     // Stubs fill fund-only names missing from the company DB. Skip when another
     // Tags chip is ANDed (Hold / Edge / …) — stubs would re-widen past that chip.
+    // Theme scan still injects stubs when a fund chip is on so the fund list appears.
     const andedWithOtherTag =
       opts.filterHold ||
       opts.filterDistress ||
       opts.filterEdge ||
+      opts.filterGov ||
       opts.filterNote ||
       (opts.filterAgeMin != null && opts.filterAgeMin > 0);
     if (
-      !opts.themeScanActive &&
       !opts.skipFundStubInject &&
-      !andedWithOtherTag
+      !andedWithOtherTag &&
+      (!opts.themeScanActive || Boolean(fundFilter))
     ) {
       companies = appendFundWatchlistStubs(
         companies,
@@ -246,6 +260,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     invalidateBreakoutCache();
     invalidateHoldingsCache();
     invalidateEdgeCache();
+    invalidateGovPsuCache();
     invalidateFundWatchlistCache();
     invalidateNotesCache();
     invalidateThemeLlmScanCache();
@@ -281,11 +296,16 @@ async function buildCompaniesResponse(req: NextRequest) {
   const filterHold = sp.get("hold") === "1";
   const filterDistress = sp.get("distress") === "1";
   const filterEdge = sp.get("edge") === "1";
+  const filterGov = sp.get("gov") === "1";
   const fundActive = parseFundFiltersFromSearchParams(sp);
   const filterNote = sp.get("note") === "1";
   const fundListMode = anyFundFilterActive(fundActive);
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
   const preferBreakouts = sp.get("preferBreakouts") === "1";
+  const themeIds = (sp.get("themes") || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const custom = (sp.get("custom") || "").trim();
   const ask = (sp.get("ask") || "").trim();
   const tokenOverride = (sp.get("tokens") || "")
@@ -293,7 +313,9 @@ async function buildCompaniesResponse(req: NextRequest) {
     .map((s) => s.trim())
     .filter((s) => s.length >= 2)
     .slice(0, 24);
-  let scanPattern = combinePatterns([custom]);
+  const selectedThemes = themesByIds(themeIds);
+  const themePatterns = selectedThemes.map((t) => themeMatchPattern(t));
+  let scanPattern = combinePatterns([...themePatterns, custom]);
   const page = Math.max(1, Number(sp.get("page") || 1));
   const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") || 100)));
   const sort = sp.get("sort") || "sector";
@@ -312,6 +334,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const holdings = holdingsTickerSet();
   const distressSet = distressSeedSet();
   const edge = edgeTickerSet();
+  const gov = govPsuTickerSet();
   const fundSets = fundWatchlistSets();
   const notes = notesTickerSet();
 
@@ -357,6 +380,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterHold ||
     filterDistress ||
     filterEdge ||
+    filterGov ||
     filterAgeMin != null ||
     anyFundFilterActive(fundActive) ||
     filterSme ||
@@ -423,10 +447,10 @@ async function buildCompaniesResponse(req: NextRequest) {
       fullHighlightsByTicker[c.ticker] = h.terms;
       highlightsByTicker[c.ticker] = aboutHighlightsForRow(c.about, h.terms);
     }
-  } else if (scan && custom.trim()) {
+  } else if (scan && (selectedThemes.length > 0 || custom.trim())) {
     const hits = [];
     for (const c of companies) {
-      const result = matchThemesForRow(c, [], {
+      const result = matchThemesForRow(c, selectedThemes, {
         customPattern: custom.trim() || null,
       });
       if (!result.matched) continue;
@@ -481,12 +505,14 @@ async function buildCompaniesResponse(req: NextRequest) {
       filterHold,
       filterDistress,
       filterEdge,
+      filterGov,
       filterAgeMin: null,
       fundActive,
       filterNote,
       holdings,
       distressSet,
       edge,
+      gov,
       notes,
       allCompanies,
       themeScanActive: false,
@@ -514,6 +540,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     let age_min = 0;
     let hold = 0;
     let edgeCount = 0;
+    let govCount = 0;
     let smeCount = 0;
     let note = 0;
     let distressCount = 0;
@@ -530,7 +557,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     ) as Record<(typeof FUND_WATCHLIST_KEYS)[number], number>;
     const themeScanActive =
       llmScanActive ||
-      (scan && custom.trim());
+      (scan && (selectedThemes.length > 0 || custom.trim()));
     const llmKeep = llmScan
       ? new Set(llmScan.hits.map((h) => h.ticker.toUpperCase()))
       : null;
@@ -539,7 +566,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         if (!llmKeep.has(c.ticker.toUpperCase())) continue;
       } else if (themeScanActive) {
         if (
-          !matchThemesForRow(c, [], {
+          !matchThemesForRow(c, selectedThemes, {
             customPattern: custom.trim() || null,
           }).matched
         ) {
@@ -561,7 +588,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         if (!llmKeep.has(c.ticker.toUpperCase())) continue;
       } else if (themeScanActive) {
         if (
-          !matchThemesForRow(c, [], {
+          !matchThemesForRow(c, selectedThemes, {
             customPattern: custom.trim() || null,
           }).matched
         ) {
@@ -586,13 +613,16 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (brutalPass.has(t)) brutal += 1;
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
+      if (gov.has(t)) govCount += 1;
       if (/\bSME\b/i.test(c.market)) smeCount += 1;
       if (notes.has(t)) note += 1;
       if (distressSet.has(t)) distressCount += 1;
       capPoolCounts[capTier(c.mcap_cr)] += 1;
-      for (const key of FUND_WATCHLIST_KEYS) {
-        if (fundSets[key].has(t)) fundPoolCounts[key] += 1;
-      }
+    }
+    // Fund chip badges = full watchlist sizes (not theme/fund-filter scoped),
+    // so selecting/clearing one chip does not zero the others.
+    for (const key of FUND_WATCHLIST_KEYS) {
+      fundPoolCounts[key] = fundSets[key].size;
     }
     const fundSignals = Object.fromEntries(
       FUND_WATCHLIST_KEYS.map((k) => [k, fundPoolCounts[k]]),
@@ -617,6 +647,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       age_min,
       hold,
       edge: edgeCount,
+      gov: govCount,
       ...fundSignals,
       sme: smeCount,
       note,
@@ -695,7 +726,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     }
   }
 
-  if (scan && !llmScanActive && custom.trim()) {
+  if (scan && !llmScanActive && (selectedThemes.length > 0 || custom.trim())) {
     let themePool = allCompanies;
     if (!watchlistMode && market && market !== "All") {
       if (market === "NSE") {
@@ -706,7 +737,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         themePool = themePool.filter((c) => c.market === market);
       }
     }
-    companies = mergeThemePortfolioRows(companies, themePool, [], {
+    companies = mergeThemePortfolioRows(companies, themePool, selectedThemes, {
       customPattern: custom,
       holdings,
       matchedByTheme,
@@ -718,19 +749,21 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const themeScanActive =
     llmScanActive ||
-    (scan && custom.trim().length > 0);
+    (scan && (selectedThemes.length > 0 || custom.trim().length > 0));
 
   companies = applyWatchlistFilters(companies, {
     filterSme,
     filterHold,
     filterDistress,
     filterEdge,
+    filterGov,
     filterAgeMin,
     fundActive,
     filterNote,
     holdings,
     distressSet,
     edge,
+    gov,
     notes,
     allCompanies,
     themeScanActive,
@@ -889,6 +922,10 @@ async function buildCompaniesResponse(req: NextRequest) {
     }
   }
   const metricsMap = loadMetricsMap();
+  const allThemes = loadThemes().themes;
+  const themeById = new Map(allThemes.map((t) => [t.id, t]));
+  const annotateThemes =
+    themeScanActive && selectedThemes.length > 0 ? selectedThemes : allThemes;
 
   const slice = pageItems.map((c) => {
     const m = metricsMap.get(c.ticker.toUpperCase());
@@ -898,14 +935,25 @@ async function buildCompaniesResponse(req: NextRequest) {
       mcap_cr: m?.market_cap_cr ?? c.mcap_cr,
     };
 
+    let rowThemeIds = llmScanActive
+      ? []
+      : matchedThemeIdsByTicker[row.ticker] ?? [];
     let fullHits = fullHighlightsByTicker[row.ticker] ?? [];
     let aboutHits = highlightsByTicker[row.ticker] ?? [];
 
-    if (!llmScanActive && !fullHits.length && themeScanActive && custom.trim()) {
-      const result = matchThemesForRow(row, [], {
-        customPattern: custom.trim(),
+    if (
+      !llmScanActive &&
+      (!rowThemeIds.length || (!fullHits.length && annotateThemes.length > 0))
+    ) {
+      const result = matchThemesForRow(row, annotateThemes, {
+        customPattern:
+          themeScanActive && custom.trim() ? custom.trim() : null,
       });
-      if (result.highlights.length) {
+      if (result.matchedThemeIds.length) {
+        rowThemeIds = result.matchedThemeIds;
+        matchedThemeIdsByTicker[row.ticker] = rowThemeIds;
+      }
+      if (result.highlights.length && !fullHits.length) {
         fullHits = result.highlights;
         fullHighlightsByTicker[row.ticker] = fullHits;
         aboutHits = aboutHighlightsForRow(row.about, fullHits);
@@ -915,6 +963,18 @@ async function buildCompaniesResponse(req: NextRequest) {
         }
       }
     }
+
+    const matched_themes: MatchedThemeTag[] = rowThemeIds
+      .map((id) => {
+        const t = themeById.get(id);
+        if (!t) return null;
+        return {
+          id: t.id,
+          tag: t.tag?.trim() || t.name,
+          name: t.name,
+        };
+      })
+      .filter((x): x is MatchedThemeTag => !!x);
 
     const {
       search_text: _st,
@@ -929,7 +989,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     return {
       ...rest,
       matched: matchedByTheme[row.ticker] ?? [],
-      matched_themes: [],
+      matched_themes,
       highlights: aboutHits,
       scrape_highlights: scrapeHighlightsForRow(row.scraped_about, fullHits),
       has_bb: !!flags?.has_bb,
@@ -958,6 +1018,8 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_hold: holdings.has(row.ticker.toUpperCase()),
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
+      has_gov: gov.has(row.ticker.toUpperCase()),
+      gov_ratna: govRatnaForTicker(row.ticker),
       fund_tags: fundTagsForTicker(row.ticker),
       fund_changes: fundChangesForTicker(row.ticker),
       has_note: notes.has(row.ticker.toUpperCase()),

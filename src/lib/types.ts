@@ -68,6 +68,10 @@ export type Company = {
   has_distress?: boolean;
   /** In Early Edge watchlist (data/edge.db). */
   has_edge?: boolean;
+  /** CPSU / Gov ratna watchlist (data/gov_psu.json). */
+  has_gov?: boolean;
+  /** Ratna tier when has_gov. */
+  gov_ratna?: import("@/lib/gov-psu-meta").GovRatnaTier | null;
   /** Trendlyne fund watchlist tags (Niveshaay, Negen, Kacholia, …). */
   fund_tags?: FundWatchlistKey[];
   /** QoQ change per fund tag (new / inc / dec from Trendlyne). */
@@ -170,6 +174,11 @@ export type Theme = {
   display_pattern: string;
   keywords: string[];
   keyword_definitions?: Record<string, string>;
+};
+
+export type ThemeGroup = {
+  blog_theme: string;
+  themes: Theme[];
 };
 
 /** Theme chip shown next to BB / 52W on company rows. */

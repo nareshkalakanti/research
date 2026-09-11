@@ -55,6 +55,11 @@ export function strategyTagCounts(
     kedia: 0,
     singhania: 0,
     kela: 0,
+    manohar: 0,
+    lucky: 0,
+    abbakus: 0,
+    porinju: 0,
+    sageone: 0,
   };
 
   for (const row of rows) {

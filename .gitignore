@@ -50,9 +50,26 @@ next-env.d.ts
 *.db-wal
 *.db-shm
 
+# Accidental SQLite opens without .db suffix
+/data/companies
+/data/companies-shm
+/data/companies-wal
+
+# Local empty / timestamped DB backups
+**/*.empty-bak*
+**/data/*.empty-bak*
+
 # corrupt SQLite backups
 **/*.corrupt*
 *.corrupt*
 
 # Local PDF uploads for Concall Research
 /data/concall-uploads/
+
+# Large local sample PDFs / scratch extracts (keep out of git)
+/data/samples/*.pdf
+/data/samples/*.extract-draft.md
+/data/samples/*-combined.txt
+
+# Cursor local (rules/skills may be committed selectively)
+# /.cursor/

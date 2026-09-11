@@ -76,8 +76,8 @@ const AFCONS_SAMPLE =
 
 const PROGRESS_STEPS = [
   { id: "fetch", label: "Download / read PDF" },
-  { id: "text", label: "Extract text (pdf-parse / OCR)" },
-  { id: "fields", label: "Parse awarding entity, size, execution" },
+  { id: "text", label: "Extract text (OCR model)" },
+  { id: "fields", label: "Analyse fields with Mistral" },
   { id: "repair", label: "Find missing fields + repair" },
   { id: "ticker", label: "Resolve ticker + sales + Δ order" },
 ] as const;
@@ -363,11 +363,13 @@ export function OrderbookResearchPanel() {
 
   useEffect(() => {
     if (!busy) return;
+    // OCR + Mistral dominate wall time — keep progress on those steps longer
+    // so "Resolve ticker + sales" is not blamed for the wait.
     const timers = [
       window.setTimeout(() => setProgressStep(1), 400),
-      window.setTimeout(() => setProgressStep(2), 1600),
-      window.setTimeout(() => setProgressStep(3), 2800),
-      window.setTimeout(() => setProgressStep(4), 4200),
+      window.setTimeout(() => setProgressStep(2), 2_500),
+      window.setTimeout(() => setProgressStep(3), 12_000),
+      window.setTimeout(() => setProgressStep(4), 22_000),
     ];
     return () => timers.forEach((t) => window.clearTimeout(t));
   }, [busy]);
@@ -858,8 +860,8 @@ export function OrderbookResearchPanel() {
     setElapsedMs(0);
     setStatus(
       file && !opts?.url
-        ? `Step 1/4 · Reading uploaded PDF${useLlm ? " (LLM)" : ""}…`
-        : `Step 1/4 · Downloading PDF${useLlm ? " (LLM)" : ""}…`,
+        ? `Step 1/4 · Reading uploaded PDF${useLlm ? " (OCR → Mistral)" : " (OCR)"}…`
+        : `Step 1/4 · Downloading PDF${useLlm ? " (OCR → Mistral)" : " (OCR)"}…`,
     );
     try {
       let res: Response;
@@ -872,7 +874,7 @@ export function OrderbookResearchPanel() {
         if (annAt) form.set("announced_at", annAt);
         setStatus(
           useLlm
-            ? "Step 2–4 · Text + LLM fields + sales…"
+            ? "Step 2–4 · OCR text + Mistral fields + sales…"
             : "Step 2–4 · Text, fields, ticker DB + sales…",
         );
         res = await fetch("/api/orderbook-screen", {
@@ -883,7 +885,7 @@ export function OrderbookResearchPanel() {
       } else {
         setStatus(
           useLlm
-            ? "Step 2–4 · Text + LLM fields + sales…"
+            ? "Step 2–4 · OCR text + Mistral fields + sales…"
             : "Step 2–4 · Text, fields, ticker DB + sales…",
         );
         res = await fetch("/api/orderbook-screen", {
@@ -1041,9 +1043,9 @@ export function OrderbookResearchPanel() {
           className={`chip tag-chip ${useLlm ? "on" : ""}`}
           disabled={busy || batchBusy}
           onClick={() => setUseLlm((v) => !v)}
-          title="Off = lexical rules only. On = LLM JSON extract (prompts/orderbook-extract.system.txt) then lexical fill — like Concall Analyze"
+          title="Off = lexical rules only. On = OCR extract (glm-ocr) then Mistral analyse (LLM_MODEL_HIGHLIGHTS / LLM_MODEL_ORDERBOOK)"
         >
-          LLM
+          Mistral
         </button>
         <button
           type="button"
@@ -1051,7 +1053,7 @@ export function OrderbookResearchPanel() {
           disabled={busy || batchBusy || (!url.trim() && !file)}
           onClick={() => void run()}
         >
-          {busy ? "Analysing…" : useLlm ? "Analyse · LLM" : "Analyse"}
+          {busy ? "Analysing…" : useLlm ? "Analyse · OCR + Mistral" : "Analyse"}
         </button>
         {downloadPdfHref ? (
           <a
@@ -1300,8 +1302,8 @@ export function OrderbookResearchPanel() {
                 })}
               </ul>
               <p className="buyback-progress-hint">
-                Scanned PDFs may take longer (OCR). Ticker from Symbol, BSE
-                scrip, or company name in DB.
+                Extract uses the OCR model (glm-ocr); Analyse uses Mistral.
+                Ticker from Symbol, BSE scrip, or company name in DB.
               </p>
             </div>
           ) : !result ? (

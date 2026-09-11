@@ -964,7 +964,7 @@ export async function repairOrderbookGaps(
     if (llm.usedLlm) {
       const mid = orderbookSaveReadiness(out);
       out = llm.extract;
-      engine_extra = "+repair-llm";
+      engine_extra = llmEngineTag(llm.model).replace(/^\+/, "+repair-");
       const afterLlm = orderbookSaveReadiness(out);
       for (const g of mid.gaps) {
         if (!afterLlm.gaps.some((x) => x.field === g.field)) {
@@ -1112,35 +1112,70 @@ function mergeOrderbookLlm(
   return out;
 }
 
+/** Analyse model: Mistral by default (same as concall highlights). */
+function orderbookAnalyzeModel(
+  cfg: ReturnType<typeof loadLlmConfig>,
+): string {
+  return (
+    process.env.LLM_MODEL_ORDERBOOK?.trim() ||
+    process.env.LLM_MODEL_HIGHLIGHTS?.trim() ||
+    cfg.taskModels.highlightsAndShortSummaries ||
+    cfg.llmModel
+  );
+}
+
+function orderbookOcrPreferred(): boolean {
+  const off = (process.env.ORDERBOOK_OCR || "").trim().toLowerCase();
+  if (["0", "false", "off", "no"].includes(off)) return false;
+  return qianfanConfigured();
+}
+
+function orderbookOcrMaxPages(): number {
+  const n = Number(
+    process.env.ORDERBOOK_OCR_MAX_PAGES || process.env.CONCALL_OCR_MAX_PAGES,
+  );
+  if (Number.isFinite(n) && n > 0) return Math.min(40, Math.floor(n));
+  return 12;
+}
+
 async function enrichOrderbookWithLlm(
   text: string,
   lexical: OrderbookExtract,
-): Promise<{ extract: OrderbookExtract; usedLlm: boolean; detail?: string }> {
+): Promise<{
+  extract: OrderbookExtract;
+  usedLlm: boolean;
+  detail?: string;
+  model?: string;
+}> {
   const cfg = loadLlmConfig();
-  const status = await checkLlmStatus(cfg);
+  const model = orderbookAnalyzeModel(cfg);
+  const status = await checkLlmStatus({ ...cfg, llmModel: model });
   if (!status.available) {
     return {
       extract: lexical,
       usedLlm: false,
       detail: status.detail || "LLM unavailable",
+      model,
     };
   }
   try {
     const parsed = (await completeJson(
-      cfg,
+      { ...cfg, llmModel: model },
       loadOrderbookExtractSystem(),
       `Reg-30 order filing text (truncated):\n${text.slice(0, 16_000)}`,
-      { skipStatusCheck: true, numPredict: 1200 },
+      { model, skipStatusCheck: true, numPredict: 1200 },
     )) as Record<string, unknown>;
     return {
       extract: mergeOrderbookLlm(lexical, parsed),
       usedLlm: true,
+      model,
     };
   } catch (e) {
     return {
       extract: lexical,
       usedLlm: false,
       detail: e instanceof Error ? e.message.slice(0, 160) : "LLM extract failed",
+      model,
     };
   }
 }
@@ -1179,7 +1214,10 @@ function qianfanConfigured(): boolean {
 
 async function ocrPdf(buf: Buffer): Promise<string> {
   if (!qianfanConfigured()) return "";
-  const pages = await rasterizePdfPages(buf, { maxPages: 8, dpi: 144 });
+  const pages = await rasterizePdfPages(buf, {
+    maxPages: orderbookOcrMaxPages(),
+    dpi: 144,
+  });
   const chunks: string[] = [];
   for (const page of pages) {
     const t = await ocrImageWithQianfan(
@@ -1189,6 +1227,20 @@ async function ocrPdf(buf: Buffer): Promise<string> {
     if (t.trim()) chunks.push(`--- page ${page.page} ---\n${t.trim()}`);
   }
   return chunks.join("\n\n").trim();
+}
+
+function ocrEngineTag(): string {
+  const m = (
+    process.env.LLM_MODEL_OCR ||
+    process.env.QIANFAN_OCR_MODEL ||
+    "ocr"
+  ).trim();
+  return `vision-ocr:${m}`;
+}
+
+function llmEngineTag(model: string | undefined): string {
+  const short = (model || "llm").split(":")[0] || "llm";
+  return `+${short}`;
 }
 
 function cleanCell(s: string | null | undefined): string {
@@ -2677,24 +2729,10 @@ async function attachSales(
       return { sales: null, year: null };
     };
 
-    // Prefer consolidated; if empty (common for some SME pages / bad cache), force
-    // refresh then try standalone — never keep a permanently empty miss.
-    let annual = await fetchScreenerAnnual(ticker, { consolidated: true });
-    let picked = pickSales(annual);
-    if (picked.sales == null) {
-      annual = await fetchScreenerAnnual(ticker, {
-        consolidated: true,
-        force: true,
-      });
-      picked = pickSales(annual);
-    }
-    if (picked.sales == null) {
-      annual = await fetchScreenerAnnual(ticker, {
-        consolidated: false,
-        force: true,
-      });
-      picked = pickSales(annual);
-    }
+    // Single lookup: cache hit is instant; live fetch already tries standalone.
+    // Avoid force:true retries (45s Screener timeouts each) — they made this step crawl.
+    const annual = await fetchScreenerAnnual(ticker, { consolidated: true });
+    const picked = pickSales(annual);
 
     extract.sales_cr = picked.sales;
     extract.sales_year = picked.year;
@@ -2722,9 +2760,10 @@ export async function attachOrderbookPrices(
   const ticker = extract.ticker;
   if (!ticker) return extract;
   try {
+    // 1y of daily bars is enough for baseline-before-order_date.
     const [quote, bars] = await Promise.all([
       fetchQuoteDetailed(ticker, "NSE", { skipSummary: true }),
-      fetchDailyBars(ticker, "NSE", 2),
+      fetchDailyBars(ticker, "NSE", 1),
     ]);
     const ltp =
       quote.price != null && Number.isFinite(quote.price) ? quote.price : null;
@@ -2745,6 +2784,19 @@ export async function attachOrderbookPrices(
     /* ignore */
   }
   return extract;
+}
+
+function orderbookNeedsLiveFx(flat: string, extract: OrderbookExtract): boolean {
+  const blob = [
+    flat,
+    extract.order_size,
+    ...extract.orders.map((o) => o.order_size),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return /(?:\bUSD\b|US\$|(?:^|[\s(])\$(?=\s*\d)|\bEUR\b|\bEuro\b|€|\bGBP\b|£)/i.test(
+    blob,
+  );
 }
 
 function decideWhy(extract: OrderbookExtract, core: ReturnType<typeof toCoreOrderFields>): string {
@@ -3038,8 +3090,8 @@ export async function screenOrderbookPdf(opts: {
   /** Prefer this ticker when PDF text is ambiguous / missing symbol. */
   ticker?: string | null;
   /**
-   * lexical (default) = rules only.
-   * llm = LLM JSON extract + lexical fill (like buyback / concall).
+   * lexical = rules only.
+   * llm = OCR extract (when configured) + Mistral JSON analyse + lexical fill.
    */
   mode?: "lexical" | "llm" | null;
   /** BSE/NSE exchange announcement date fallback when PDF omits filing date. */
@@ -3074,20 +3126,52 @@ export async function screenOrderbookPdf(opts: {
     };
   }
 
+  // Extract: prefer vision OCR when QIANFAN is set (ORDERBOOK_OCR=0 → pdf-parse first).
   let text = "";
-  try {
-    text = await extractPdfText(buf);
-    engine = "pdf-parse";
-  } catch {
-    text = "";
-  }
-
-  if (text.length < 120) {
+  const preferOcr = orderbookOcrPreferred();
+  if (preferOcr) {
     try {
       const ocr = await ocrPdf(buf);
       if (ocr.length >= 40) {
         text = ocr;
-        engine = "vision-ocr";
+        engine = ocrEngineTag();
+      }
+    } catch {
+      engine = "ocr-failed";
+    }
+  }
+
+  if (text.length < 80) {
+    try {
+      const parsed = await extractPdfText(buf);
+      if (parsed.length > text.length) {
+        text = parsed;
+        engine =
+          preferOcr && engine.startsWith("vision-ocr")
+            ? `${engine}+pdf-parse`
+            : "pdf-parse";
+      } else if (!text && parsed) {
+        text = parsed;
+        engine = "pdf-parse";
+      } else if (!engine || engine === "none" || engine === "ocr-failed") {
+        engine = "pdf-parse";
+      }
+    } catch {
+      if (!text) engine = engine === "ocr-failed" ? "ocr-failed" : "none";
+    }
+  }
+
+  // Thin pdf-parse → OCR fallback when OCR was not preferred (or preferred OCR failed).
+  if (
+    text.length < 120 &&
+    qianfanConfigured() &&
+    !engine.startsWith("vision-ocr")
+  ) {
+    try {
+      const ocr = await ocrPdf(buf);
+      if (ocr.length >= 40) {
+        text = ocr;
+        engine = ocrEngineTag();
       }
     } catch (e) {
       if (text.length < 80) {
@@ -3135,7 +3219,7 @@ export async function screenOrderbookPdf(opts: {
     const llm = await enrichOrderbookWithLlm(text, extract);
     extract = llm.extract;
     usedLlm = llm.usedLlm;
-    if (llm.usedLlm) engine = `${engine}+llm`;
+    if (llm.usedLlm) engine = `${engine}${llmEngineTag(llm.model)}`;
     else if (llm.detail) engine = `${engine}+llm-skip`;
   }
   extract = resolveTickerCompanyFromDb(extract, text);
@@ -3160,20 +3244,41 @@ export async function screenOrderbookPdf(opts: {
   extract = repair.extract;
   if (repair.engine_extra) engine = `${engine}${repair.engine_extra}`;
 
-  try {
-    const liveFx = await fetchInrFxMarketRates();
-    if (Object.keys(liveFx).length) {
-      extract = applyOrderbookMarketFx(
-        extract,
-        text.replace(/\s+/g, " "),
-        liveFx,
-      );
+  // Sales + LTP/Δ in parallel. Live FX only when filing has foreign currency
+  // (otherwise DEFAULT_FX_INR already applied in lexical expand).
+  const flatText = text.replace(/\s+/g, " ");
+  const needFx = orderbookNeedsLiveFx(flatText, extract);
+  const [liveFx, withSales, withPrices] = await Promise.all([
+    needFx
+      ? fetchInrFxMarketRates().catch(
+          () => ({} as Partial<Record<FxCurrency, number>>),
+        )
+      : Promise.resolve({} as Partial<Record<FxCurrency, number>>),
+    attachSales({ ...extract, orders: [...extract.orders] }),
+    attachOrderbookPrices({ ...extract, orders: [...extract.orders] }),
+  ]);
+
+  if (Object.keys(liveFx).length) {
+    try {
+      extract = applyOrderbookMarketFx(extract, flatText, liveFx);
+    } catch {
+      /* keep DEFAULT_FX_INR from lexical expand */
     }
-  } catch {
-    /* keep DEFAULT_FX_INR from lexical expand */
   }
-  extract = await attachSales(extract);
+
+  extract.sales_cr = withSales.sales_cr;
+  extract.sales_year = withSales.sales_year;
+  extract.ltp = withPrices.ltp;
+  extract.baseline_close = withPrices.baseline_close;
+  extract.drift_pct = withPrices.drift_pct;
+
   // Recompute Order/Sales after FX may have filled order_size_cr
+  const orderCr =
+    extract.order_size_cr ??
+    sumOrderSizeCr(extract.orders) ??
+    extract.order_book_cr ??
+    withSales.order_size_cr;
+  if (orderCr != null) extract.order_size_cr = orderCr;
   if (
     extract.order_size_cr != null &&
     extract.sales_cr != null &&
@@ -3181,8 +3286,9 @@ export async function screenOrderbookPdf(opts: {
   ) {
     extract.order_to_sales_pct =
       Math.round((extract.order_size_cr / extract.sales_cr) * 10000) / 100;
+  } else {
+    extract.order_to_sales_pct = withSales.order_to_sales_pct;
   }
-  extract = await attachOrderbookPrices(extract);
   const readiness = orderbookSaveReadiness(extract);
   const core = toCoreOrderFields(extract);
   const extract_json = toOrderbookExtractJson(extract);
@@ -3230,5 +3336,182 @@ export async function screenOrderbookPdf(opts: {
           ? `Not saved — missing ${readiness.gaps.map((g) => g.field).join(", ")}`
           : `Not saved — need Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}% with awarding / size / execution`
       : "No awarding entity / order size / execution found",
+  };
+}
+
+/** Source URLs already saved as PASS (for scan skip). */
+export function listOrderbookPassUrls(): Set<string> {
+  const urls = new Set<string>();
+  for (const row of listOrderbookHistory(200)) {
+    const u = row.source_url?.trim();
+    if (u) urls.add(u);
+  }
+  return urls;
+}
+
+/**
+ * PDF text only (pdf-parse first; OCR only if thin) — no analyse / DB write.
+ */
+export async function extractOrderbookPdf(opts: {
+  url?: string | null;
+  pdfBuffer?: Buffer | null;
+  skipOcr?: boolean;
+}): Promise<{
+  ok: boolean;
+  engine: string;
+  text_chars: number;
+  text_excerpt: string;
+  error?: string;
+}> {
+  const source_url = opts.url?.trim() || null;
+  const skipOcr = opts.skipOcr !== false;
+  let buf = opts.pdfBuffer ?? null;
+  if (!buf && source_url) {
+    buf = await downloadOrderbookPdf(source_url);
+  }
+  if (!buf) {
+    return {
+      ok: false,
+      engine: "none",
+      text_chars: 0,
+      text_excerpt: "",
+      error: source_url
+        ? "Could not download PDF (try upload)"
+        : "Provide a PDF URL or upload",
+    };
+  }
+
+  let text = "";
+  let engine = "none";
+  try {
+    text = await extractPdfText(buf);
+    engine = opts.pdfBuffer ? "upload+pdf-parse" : "pdf-parse";
+  } catch {
+    engine = "pdf-parse-failed";
+  }
+
+  if (!skipOcr && text.length < 120 && qianfanConfigured()) {
+    try {
+      const ocr = await ocrPdf(buf);
+      if (ocr.length > text.length) {
+        text = ocr;
+        engine = ocrEngineTag();
+      }
+    } catch {
+      /* keep pdf-parse */
+    }
+  }
+
+  if (text.length < 40) {
+    return {
+      ok: false,
+      engine,
+      text_chars: text.length,
+      text_excerpt: text.slice(0, 4000),
+      error: "Too little text extracted from PDF",
+    };
+  }
+
+  return {
+    ok: true,
+    engine,
+    text_chars: text.length,
+    text_excerpt: text.slice(0, 8000),
+  };
+}
+
+/**
+ * Batch-analyse announced order filings (MarketIQ-style scan loop).
+ * PASS rows auto-save; FAIL returns in results but is not persisted.
+ */
+export async function scanOrderbookAnnouncements(opts: {
+  days?: number;
+  limit?: number;
+  pendingOnly?: boolean;
+  sources?: OrderbookAnnouncedHit[] | null;
+  mode?: "lexical" | "llm" | null;
+}): Promise<{
+  ok: true;
+  days: number;
+  total_candidates: number;
+  attempted: number;
+  analysed: number;
+  passed: number;
+  failed: number;
+  skipped: number;
+  remaining: number;
+  results: OrderbookScreenResult[];
+  history: OrderbookHistoryRow[];
+  note?: string;
+}> {
+  const days = Math.min(7, Math.max(1, opts.days ?? 1));
+  const limit = Math.min(15, Math.max(1, opts.limit ?? 3));
+  const pendingOnly = opts.pendingOnly !== false;
+  const mode = opts.mode === "lexical" ? "lexical" : "llm";
+
+  let sources: OrderbookAnnouncedHit[] = Array.isArray(opts.sources)
+    ? opts.sources
+    : [];
+  if (!sources.length) {
+    const found = await discoverOrderbookAnnounced(days);
+    sources = found.sources;
+  }
+
+  const scored = listOrderbookPassUrls();
+  let skipped = 0;
+  if (pendingOnly) {
+    const pending: OrderbookAnnouncedHit[] = [];
+    for (const s of sources) {
+      const u = s.url?.trim();
+      if (u && scored.has(u)) {
+        skipped += 1;
+        continue;
+      }
+      if (!u) {
+        skipped += 1;
+        continue;
+      }
+      pending.push(s);
+    }
+    sources = pending;
+  }
+
+  const total_candidates = sources.length;
+  const batch = sources.slice(0, limit);
+  const results: OrderbookScreenResult[] = [];
+  let analysed = 0;
+  let passed = 0;
+  let failed = 0;
+
+  for (const s of batch) {
+    const r = await screenOrderbookPdf({
+      url: s.url,
+      ticker: s.ticker,
+      announced_at: s.announced_at,
+      mode,
+    });
+    results.push(r);
+    if (r.ok) {
+      analysed += 1;
+      if (r.decision === "pass") passed += 1;
+      else failed += 1;
+    } else {
+      failed += 1;
+    }
+  }
+
+  return {
+    ok: true,
+    days,
+    total_candidates,
+    attempted: batch.length,
+    analysed,
+    passed,
+    failed,
+    skipped,
+    remaining: Math.max(0, total_candidates - batch.length),
+    results,
+    history: listOrderbookHistory(200),
+    note: `PASS needs awarding / size / execution + Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%`,
   };
 }

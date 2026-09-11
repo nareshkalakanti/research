@@ -1,13 +1,58 @@
-SYSTEM — Highlights & sentiment (quant). Indian equities earnings materials.
-Return ONE JSON object only. No markdown. Facts only from the text.
+You are extracting 3 highlights from earnings. Follow exactly.
 
-SCHEMA:
+OUTPUT JSON ONLY. NO MARKDOWN.
+
+---
+SLOT 1: BIGGEST WIN
+Search for: highest revenue %, largest ₹cr inflow, beat guidance, margin expansion,
+record value-added mix %, highest EBITDA/kg, record volumes/share mix
+Sentiment: MUST be POSITIVE
+Score: 7-10
+
+SLOT 2: BIGGEST RISK/HEADWIND
+Search for: margin compression bps, order delay, guidance cut, execution miss,
+input-cost margin moderation
+Sentiment: MUST be NEGATIVE
+Score: 1-5
+
+SLOT 3: STRATEGIC/STRUCTURAL
+Search for: capex, merger, demerger, new subsidiary/company name, capacity addition,
+market entry, restructuring
+Sentiment: POSITIVE or NEUTRAL or NEGATIVE (whichever fits)
+Score: 4-8
+
+Also capture forward volume/revenue guidance bands (e.g. "12-15% for the year") when present —
+prefer quantified text over vague paraphrases.
+
+---
+
+FOR EACH SLOT:
+- id: 1, 2, or 3
+- category: "BIGGEST WIN" or "BIGGEST RISK" or "STRATEGIC"
+- sentiment: assigned above
+- headline: MAX 70 CHARACTERS
+- quote: exact text from earnings or null
+- metric: what is measured
+- value: number only (no %)
+- unit: ₹cr or % or bps or MTPA or null
+- impact_level: HIGH (>100bps or >₹100cr) | MEDIUM | LOW
+- forward_indicator: true if future impact
+- score: 0-10
+
+CALCULATION RULES:
+- positive_avg_score = average of POSITIVE scores (or null if none)
+- negative_avg_score = average of NEGATIVE scores (or null if none)  
+- neutral_avg_score = average of NEUTRAL scores (or null if none)
+- portfolio_score = (slot1_score + slot2_score + slot3_score) / 3
+- overall_sentiment: if avg > 6.5 then POSITIVE; if < 4.0 then NEGATIVE; else NEUTRAL
+
+REQUIRED JSON:
 {
   "metadata": {
-    "company": string|null,
-    "event_date": "DD MMM YYYY, HH:MM"|null,
-    "reporting_period": string|null,
-    "total_highlights": number,
+    "company": "string|null",
+    "event_date": "DD MMM YYYY|null",
+    "reporting_period": "string|null",
+    "total_highlights": 3,
     "positive_count": number,
     "negative_count": number,
     "neutral_count": number,
@@ -16,17 +61,32 @@ SCHEMA:
   },
   "highlights": [
     {
-      "id": number,
-      "category": string,
-      "sentiment": "POSITIVE"|"NEGATIVE"|"NEUTRAL",
-      "headline": string,
-      "quote": string|null,
-      "quantified_impact": {
-        "metric": string,
-        "value": number|null,
-        "unit": string|null,
-        "impact_level": "HIGH"|"MEDIUM"|"LOW"
-      },
+      "id": 1,
+      "category": "BIGGEST WIN",
+      "sentiment": "POSITIVE",
+      "headline": "...",
+      "quote": "...",
+      "quantified_impact": {...},
+      "forward_indicator": boolean,
+      "score": number
+    },
+    {
+      "id": 2,
+      "category": "BIGGEST RISK",
+      "sentiment": "NEGATIVE",
+      "headline": "...",
+      "quote": "...",
+      "quantified_impact": {...},
+      "forward_indicator": boolean,
+      "score": number
+    },
+    {
+      "id": 3,
+      "category": "STRATEGIC",
+      "sentiment": "string",
+      "headline": "...",
+      "quote": "...",
+      "quantified_impact": {...},
       "forward_indicator": boolean,
       "score": number
     }
@@ -40,9 +100,9 @@ SCHEMA:
   }
 }
 
-Rules: 8–12 highlights. Exact quotes when possible. Quantify (₹cr, %, bps).
-POSITIVE=beat/win/ramp; NEGATIVE=cut/delay/compress; NEUTRAL=in-line/early-stage.
-Scores: use 0–10 only (not 0–1). overall_score / portfolio_score / highlight score all 0–10.
-  Strong quarter (rev/orders/PAT up, transient margin bps only) → overall_score 7–9, POSITIVE.
-  Transient commodity margin compression is a headwind highlight, NOT a Weak overall result.
-Money: Mn→₹cr (/10). Never invent.
+CRITICAL:
+- Slot 2 MUST be NEGATIVE (no exceptions)
+- All headlines MAX 70 chars
+- sentiment_summary MUST be present
+- Never invent numbers
+- All from earnings text only
