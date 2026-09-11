@@ -5,6 +5,7 @@
 import { createNseBuybackSession } from "./nse-buybacks";
 import { parseNseDateTime } from "./nse-corp-events";
 import { isOrderWinAnnouncementBlob, isOrderWinMarketHit } from "./bse-investor-discover";
+import { announcementDedupeKey } from "./announcement-dedupe";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
 
 const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
@@ -319,13 +320,21 @@ export async function discoverNseAnnouncedOrders(
       const urlRaw = safeStr(row.attchmntFile);
       const url =
         urlRaw.startsWith("http") && !urlRaw.endsWith("/-") ? urlRaw : null;
-      const key = `${ticker}|${url || desc}|${safeStr(row.an_dt)}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
       const announced_at =
         parseNseDateTime(row.an_dt) ||
         parseNseDateTime(row.sort_date) ||
         parseNseDateTime(row.dt);
+      const day =
+        (announced_at && announced_at.slice(0, 10)) ||
+        safeStr(row.an_dt || row.sort_date || row.dt).slice(0, 10);
+      const key = announcementDedupeKey({
+        ticker,
+        company: safeStr(row.sm_name) || safeStr(row.companyName),
+        title: desc || attachmentText || "Order announcement",
+        day,
+      });
+      if (seen.has(key)) continue;
+      seen.add(key);
       out.push({
         ticker,
         title: desc || "Order announcement",
@@ -410,12 +419,16 @@ export async function discoverNseMarketAnnouncements(
         parseNseDateTime(rawDt) ||
         parseNseDateTime(row.sort_date) ||
         parseNseDateTime(row.dt);
-      // Dedupe same ticker + title + calendar day (NSE often posts 2 PDFs).
+      // Dedupe same issuer + title + calendar day (NSE often posts 2 PDFs).
       const day =
         (announced_at && announced_at.slice(0, 10)) ||
         safeStr(rawDt).slice(0, 10);
-      const normTitle = desc.toLowerCase().replace(/\s+/g, " ").trim();
-      const key = `${ticker}|${normTitle}|${day}`;
+      const key = announcementDedupeKey({
+        ticker,
+        company: safeStr(row.sm_name) || safeStr(row.companyName),
+        title: desc,
+        day,
+      });
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({

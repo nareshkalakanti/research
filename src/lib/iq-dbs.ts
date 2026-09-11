@@ -1,5 +1,5 @@
 /**
- * Dedicated SQLite files for MarketIQ / OrderBookIQ (save + reuse across runs).
+ * Dedicated SQLite files for MarketIQ / OrderBookIQ / BoardRoomIQ (save + reuse).
  * One-time copy from legacy filenames when the new DB is missing.
  */
 import fs from "fs";
@@ -8,6 +8,7 @@ import { DATA_DIR } from "./sqlite-utils";
 
 export const MARKETIQ_DB_FILE = "marketiq.db";
 export const ORDERBOOKIQ_DB_FILE = "orderbookiq.db";
+export const BOARDROOMIQ_DB_FILE = "boardroomiq.db";
 
 const LEGACY_MARKETIQ = "announcement_screen.db";
 const LEGACY_ORDERBOOK = "orderbook_screen.db";
@@ -24,7 +25,6 @@ function migrateOnce(canonical: string, legacy: string): void {
   if (!fs.existsSync(src)) return;
 
   try {
-    // Prefer a clean main file (ignore WAL/SHM — caller should checkpoint first).
     fs.copyFileSync(src, dest);
   } catch (err) {
     console.error(
@@ -44,4 +44,9 @@ export function marketIqDbFile(): string {
 export function orderBookIqDbFile(): string {
   migrateOnce(ORDERBOOKIQ_DB_FILE, LEGACY_ORDERBOOK);
   return ORDERBOOKIQ_DB_FILE;
+}
+
+/** BoardRoomIQ persistence (`data/boardroomiq.db`). */
+export function boardRoomIqDbFile(): string {
+  return BOARDROOMIQ_DB_FILE;
 }

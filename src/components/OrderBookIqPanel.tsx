@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { announcementDedupeKey } from "@/lib/announcement-dedupe";
 import { tradingviewUrl } from "@/lib/links";
 
 type OrderHit = {
@@ -19,6 +20,7 @@ type HistoryRow = {
   ticker: string | null;
   company: string | null;
   order_date: string | null;
+  news_date: string | null;
   awarding_entity: string;
   order_size: string;
   execution: string;
@@ -103,36 +105,6 @@ function fmtDrift(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   const sign = n >= 0 ? "+" : "";
   return `${sign}${n.toFixed(1)}%`;
-}
-
-function feedIdentityKey(row: {
-  company: string;
-  ticker: string;
-  dateIso: string | null;
-  headline: string;
-}): string {
-  const day = (row.dateIso || "").slice(0, 10);
-  const ticker = (row.ticker || "").trim();
-  const rawCo =
-    row.company?.trim() ||
-    (/^BSE\d+/i.test(ticker) ? "" : ticker) ||
-    ticker;
-  const co = rawCo
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(
-      /\b(limited|ltd\.?|private|pvt\.?|llp|corporation|corp\.?)\b/gi,
-      "",
-    )
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const title = (row.headline || "")
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 72);
-  return `${co}|${day}|${title}`;
 }
 
 function preferFeedRow(a: FeedRow, b: FeedRow): FeedRow {
@@ -250,7 +222,7 @@ function hitToFeed(h: OrderHit, i: number): FeedRow {
 }
 
 function histToFeed(h: HistoryRow): FeedRow {
-  const iso = h.order_date || h.screened_at;
+  const iso = h.news_date || h.order_date || h.screened_at;
   return {
     key: `hist-${h.id}`,
     historyId: h.id,
@@ -279,7 +251,7 @@ function histToFeed(h: HistoryRow): FeedRow {
           company: h.company,
           title: h.awarding_entity || "Order",
           url: h.source_url,
-          announced_at: h.order_date,
+          announced_at: h.news_date || h.order_date,
           period: null,
           provider: "history",
         }
@@ -361,6 +333,7 @@ type LabResult = {
     sales_cr: number | null;
     order_to_sales_pct: number | null;
     order_date: string | null;
+    news_date: string | null;
     ltp: number | null;
     baseline_close: number | null;
     drift_pct: number | null;
@@ -433,7 +406,7 @@ export function OrderBookIqPanel() {
     setStatusNote("Refreshing post-announcement drift…");
     try {
       await loadHistory({ prices: true });
-      setStatusNote("Drift refreshed from LTP vs pre-announcement close");
+      setStatusNote("Drift refreshed from LTP vs close before news day");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Drift refresh failed");
     } finally {
@@ -975,10 +948,15 @@ export function OrderBookIqPanel() {
       return applyOverlay(row, ov);
     });
 
-    // Collapse NSE/BSE doubles (Ltd vs Limited, BSE###### vs ACCURACY).
+    // Collapse NSE/BSE doubles (Ltd vs Limited, BSE###### vs real ticker).
     const byIdentity = new Map<string, FeedRow>();
     for (const row of withOverlay) {
-      const key = feedIdentityKey(row);
+      const key = announcementDedupeKey({
+        ticker: row.ticker,
+        company: row.company,
+        title: row.headline,
+        day: row.dateIso,
+      });
       const prev = byIdentity.get(key);
       byIdentity.set(key, prev ? preferFeedRow(prev, row) : row);
     }
@@ -1050,7 +1028,7 @@ export function OrderBookIqPanel() {
             className="chip tag-chip"
             disabled={busy || analysing || history.length === 0}
             onClick={() => void refreshDrift()}
-            title="Refresh LTP and Δ vs close before announcement"
+            title="Refresh LTP and Δ vs close before the exchange news day"
           >
             Refresh drift
           </button>
@@ -1136,8 +1114,9 @@ export function OrderBookIqPanel() {
             single filing.
           </li>
           <li>
-            <strong>Δ drift</strong> = (LTP − close before announcement) /
-            baseline — track post-order price move; use Refresh drift to update.
+            <strong>Δ drift</strong> = price reaction after the news: LTP vs last
+            close before the exchange filing day. Shows how the stock moved once
+            the order hit the tape. Refresh drift to update.
           </li>
         </ul>
       </section>
@@ -1320,7 +1299,7 @@ export function OrderBookIqPanel() {
                     <div className="miq-co-meta">
                       LTP {fmtNum(labResult.extract.ltp, 2)}
                       {labResult.extract.baseline_close != null
-                        ? ` · base ${fmtNum(labResult.extract.baseline_close, 2)}`
+                        ? ` · pre-news ${fmtNum(labResult.extract.baseline_close, 2)}`
                         : ""}
                     </div>
                   </td>
@@ -1476,7 +1455,7 @@ export function OrderBookIqPanel() {
                       <div className="miq-co-meta">
                         LTP {fmtNum(row.ltp, 2)}
                         {row.baseline_close != null
-                          ? ` · base ${fmtNum(row.baseline_close, 2)}`
+                          ? ` · pre-news ${fmtNum(row.baseline_close, 2)}`
                           : ""}
                       </div>
                     </td>

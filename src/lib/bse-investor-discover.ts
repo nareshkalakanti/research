@@ -40,18 +40,22 @@ const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title?:
 
 /** Reg-30 order / LOI / PO win announcements */
 const ORDER_WIN_RE =
-  /award(?:ing)?\s+of\s+(?:an?\s+)?order\b|notification\s+of\s+award\b|order\s+for\s+procurement\b|\blarge\s+order\b|\bbagging\s*\/\s*receiving\s+of\s+orders?(?:\s*\/\s*contracts?)?\b|\bbagg(?:ed|ing)\b.{0,40}\borders?\b|\breceiving\s+of\s+orders?(?:\s*\/\s*contracts?)?\b|(?:receives?|secured?|bagged?|won|awarded|gets?)\s+(?:an?\s+)?(?:export\s+)?(?:purchase\s+)?order\b|\border\s+(?:from|worth|valued|for\s+supply|received|secured|bagged)\b|\bletter\s+of\s+intent\b|\bLOI\b|\bpurchase\s+order\b|\bwork\s+order\b|\bcontract\s+(?:awarded|received|secured)\b|Reg(?:ulation)?\.?\s*30.{0,40}\border\b/i;
+  /award(?:ing)?\s+of\s+(?:an?\s+)?order\b|notification\s+of\s+award\b|order\s+for\s+procurement\b|\blarge\s+order\b|\bbagging\s*\/\s*receiving\s+of\s+orders?(?:\s*\/\s*contracts?)?\b|\bbagg(?:ed|ing)\b.{0,40}\borders?\b|\breceiving\s+of\s+orders?(?:\s*\/\s*contracts?)?\b|(?:receives?|secured?|bagged?|won|awarded|gets?)\s+(?:an?\s+)?(?:export\s+)?(?:purchase\s+)?order\b|\border\s+(?:from|worth|valued|for\s+supply|received|secured|bagged)\b|\bletter\s+of\s+intent\b|\bLOI\b|\bpurchase\s+order\b|\bwork\s+order\b|\bcontract\s+(?:awarded|received|secured)\b|Reg(?:ulation)?\.?\s*30.{0,40}\border\b|receipt\s+of\s+(?:an?\s+)?(?:work\s+|purchase\s+)?order\b/i;
 
 const ORDER_WIN_EXCLUDE_RE =
-  /financial\s+results|board\s+meeting|dividend|AGM|EGM|transcript|investor\s+presentation|buy\s*-?\s*back|preferential\s+issue|postal\s+ballot|newspaper\s+publication|credit\s+rating|related\s+party|scheme\s+of\s+arrangement|amalgamation|forensic\s+audit/i;
+  /financial\s+results|board\s+meeting|dividend|AGM|EGM|transcript|investor\s+presentation|buy\s*-?\s*back|preferential\s+issue|postal\s+ballot|newspaper\s+publication|credit\s+rating|related\s+party|scheme\s+of\s+arrangement|amalgamation|forensic\s+audit|shareholders?\s+meeting|court\s+convened|pursuant\s+to\s+the\s+order\s+of\s+NCLT|\bpress\s*release\b/i;
 
 export function isOrderWinAnnouncementBlob(blob: string): boolean {
   const t = blob.trim();
   if (!t) return false;
+  // Press releases are PR chatter — OrderBook only wants Reg-30 order/LOI filings.
+  if (/^press\s*release\b/i.test(t)) return false;
   if (ORDER_WIN_EXCLUDE_RE.test(t) && !ORDER_WIN_RE.test(t)) return false;
   if (
     ORDER_WIN_EXCLUDE_RE.test(t) &&
-    /financial\s+results|transcript|investor\s+presentation/i.test(t)
+    /financial\s+results|transcript|investor\s+presentation|\bpress\s*release\b|shareholders?\s+meeting|court\s+convened/i.test(
+      t,
+    )
   ) {
     return false;
   }
@@ -61,21 +65,15 @@ export function isOrderWinAnnouncementBlob(blob: string): boolean {
 /**
  * Stricter filter for market-wide “today’s orders” lists.
  * Drops bare “Announcement under Regulation 30 …” without clear order-win language.
+ * Press releases are never OrderBook hits (even if the PR title says “order win”).
  */
 export function isOrderWinMarketHit(blob: string): boolean {
   const t = blob.trim();
   if (!t) return false;
+  if (/^press\s*release\b/i.test(t)) return false;
   if (
     /^announcement under regulation\s*30\b/i.test(t) &&
-    !/bagging|letter of intent|\bLOI\b|purchase order|work order|order worth|order valued|secured.{0,30}order|received.{0,30}order|awarded.{0,30}(order|contract)/i.test(
-      t,
-    )
-  ) {
-    return false;
-  }
-  if (
-    /^press release\b/i.test(t) &&
-    !/bagging|order|LOI|contract|purchase order|work order/i.test(t)
+    !ORDER_WIN_RE.test(t)
   ) {
     return false;
   }

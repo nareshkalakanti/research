@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tradingviewUrl } from "@/lib/links";
+import { announcementDedupeKey } from "@/lib/announcement-dedupe";
 
 type MarketIqHit = {
   ticker: string;
@@ -613,25 +614,59 @@ export function MarketIqPanel() {
           })
         : history.map(histToFeed);
 
+    const withOverlay = rows.map((r) => {
+      const keys = overlayKeysFor({
+        url: r.url,
+        ticker: r.ticker,
+        title: r.headline,
+        historyId: r.historyId,
+      });
+      let o: AnalysedOverlay | undefined;
+      for (const k of keys) {
+        if (overlay[k]) {
+          o = overlay[k];
+          break;
+        }
+      }
+      return applyOverlay(r, o);
+    });
+
+    const prefer = (a: FeedRow, b: FeedRow): FeedRow => {
+      const rank = (r: FeedRow) => {
+        let s = 0;
+        if (r.sentiment !== "pending") s += 30;
+        if ((r.impact ?? 0) > 0) s += 10;
+        if (r.historyId != null) s += 5;
+        if (r.url) s += 2;
+        s += Math.min(3, Math.floor((r.summary || "").length / 80));
+        return s;
+      };
+      const rb = rank(b);
+      const ra = rank(a);
+      if (rb > ra) return { ...b, url: b.url || a.url, hit: b.hit || a.hit };
+      if (ra > rb) return { ...a, url: a.url || b.url, hit: a.hit || b.hit };
+      // Tie: keep longer summary text
+      const pick =
+        (b.summary || "").length > (a.summary || "").length ? b : a;
+      const other = pick === a ? b : a;
+      return { ...pick, url: pick.url || other.url, hit: pick.hit || other.hit };
+    };
+
+    const byIdentity = new Map<string, FeedRow>();
+    for (const r of withOverlay) {
+      const key = announcementDedupeKey({
+        ticker: r.ticker,
+        company: r.company,
+        title: r.headline,
+        day: r.dateIso,
+      });
+      const prev = byIdentity.get(key);
+      byIdentity.set(key, prev ? prefer(prev, r) : r);
+    }
+
     const qn = q.trim().toLowerCase();
     const cat = category.trim().toLowerCase();
-    return rows
-      .map((r) => {
-        const keys = overlayKeysFor({
-          url: r.url,
-          ticker: r.ticker,
-          title: r.headline,
-          historyId: r.historyId,
-        });
-        let o: AnalysedOverlay | undefined;
-        for (const k of keys) {
-          if (overlay[k]) {
-            o = overlay[k];
-            break;
-          }
-        }
-        return applyOverlay(r, o);
-      })
+    return [...byIdentity.values()]
       .filter((r) => {
         if (sentiment !== "all" && r.sentiment !== sentiment) {
           return false;
