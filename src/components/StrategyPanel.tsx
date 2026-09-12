@@ -506,8 +506,6 @@ export function StrategyPanel() {
                 <col className="cd-col-sec" />
                 <col className="cd-col-ltp" />
                 <col className="cd-col-drift" />
-                <col className="cd-col-tone" />
-                <col className="cd-col-din" />
                 <col className="cd-col-kw" />
                 <col className="cd-col-links" />
               </colgroup>
@@ -524,11 +522,7 @@ export function StrategyPanel() {
                   <th className="num" title="LTP vs last close before concall announcement">
                     Δ call
                   </th>
-                  <th title="Management tone from corporate concall extract">
-                    Tone
-                  </th>
-                  <th title="Board DIN extract vs Expected governance">DIN</th>
-                  <th title="Matched corporate-event keyword (same pills as Corporate extract)">
+                  <th title="Matched corporate-event keyword">
                     Keyword
                   </th>
                   <th className="col-links">Links</th>
