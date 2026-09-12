@@ -76,25 +76,7 @@ function fmtMcap(n: number | null): string {
   return `₹${Math.round(n).toLocaleString("en-IN")} Cr`;
 }
 
-const COL_SPAN = 11;
-
-function toneClass(sentiment: string | null | undefined): string {
-  const s = (sentiment || "").toLowerCase();
-  if (s === "bullish" || s === "optimistic") return "ann-sent-pill--bullish";
-  if (s === "bearish" || s === "cautious") return "ann-sent-pill--bearish";
-  if (s) return "ann-sent-pill--neutral";
-  return "";
-}
-
-function dinShort(corp: StrategyCorpEnrichment | null | undefined): string {
-  if (!corp?.has_extract) return "—";
-  const flags = corp.din_flags || [];
-  if (flags.includes("din_ok")) return "DIN ok";
-  if (flags.includes("din_off_board")) return "New DIN";
-  if (flags.includes("names_no_din")) return "No DIN";
-  if (flags.includes("empty")) return "Empty";
-  return corp.din_summary?.slice(0, 18) || "…";
-}
+const COL_SPAN = 9;
 
 type Props = {
   index: number;
@@ -248,56 +230,36 @@ export function StrategyConcallDriftRow({
           )}
         </td>
         <td
-          className="cd-tone"
-          title={r.corp?.sentiment_why || r.corp?.summary || undefined}
-        >
-          {r.corp?.sentiment ? (
-            <span className={`ann-sent-pill ${toneClass(r.corp.sentiment)}`}>
-              {r.corp.sentiment}
-            </span>
-          ) : (
-            <span className="mom-tag mom-tag--empty">—</span>
-          )}
-        </td>
-        <td
-          className="cd-din"
-          title={r.corp?.din_summary || undefined}
-        >
-          {dinShort(r.corp)}
-        </td>
-        <td
           className="cd-kw"
           title={r.keyword || r.corp?.keyword || r.earn_subject || undefined}
         >
           {r.keyword || r.corp?.keyword ? (
-            <div className="ann-cat">
-              <span className="ann-cat-pill">
-                {r.keyword || r.corp?.keyword}
-              </span>
-            </div>
+            <span className="cd-kw-pill">
+              {r.keyword || r.corp?.keyword}
+            </span>
           ) : (
             <span className="ann-muted">—</span>
           )}
         </td>
-        <td className="col-links">
-          <div className="link-row link-row--compact">
+        <td className="col-links cd-links">
+          <div className="cd-link-row">
             {r.web ? (
               <a
                 href={r.web}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="link-chip"
+                className="cd-link"
               >
                 Web
               </a>
             ) : (
-              <span className="link-chip disabled">Web</span>
+              <span className="cd-link is-off">Web</span>
             )}
             <a
               href={r.sc}
               target="_blank"
               rel="noopener noreferrer"
-              className="link-chip"
+              className="cd-link"
             >
               SC
             </a>
@@ -305,7 +267,7 @@ export function StrategyConcallDriftRow({
               href={r.tv}
               target="_blank"
               rel="noopener noreferrer"
-              className="link-chip"
+              className="cd-link"
             >
               TV
             </a>

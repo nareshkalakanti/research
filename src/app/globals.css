@@ -11214,42 +11214,76 @@ tr.sm-row-sme-hit td {
   --ann-amber-soft: #fef3c7;
 }
 
-.strategy-data-table col.cd-col-tone,
-.strategy-data-table col.cd-col-din {
-  width: 88px;
-}
-
 .strategy-data-table col.cd-col-kw {
-  width: 160px;
+  width: 200px;
 }
 
-.strategy-data-table td.cd-tone,
-.strategy-data-table td.cd-din {
-  font-size: 0.72rem;
-  color: var(--muted);
-  white-space: nowrap;
+.strategy-data-table col.cd-col-links {
+  width: 6.5rem;
 }
 
 .strategy-data-table td.cd-kw {
   vertical-align: middle;
-  max-width: 200px;
+  max-width: 240px;
 }
 
-.strategy-data-table td.cd-kw .ann-cat {
-  display: block;
+.strategy-data-table td.cd-kw .cd-kw-pill {
+  display: inline-block;
   max-width: 100%;
-}
-
-.strategy-data-table td.cd-kw .ann-cat-pill {
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1.25;
-  color: #475569;
-  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--ann-blue, #2563eb) 22%, var(--ann-line, #e2e8f0));
+  background: var(--ann-blue-soft, #eff6ff);
+  color: #1e3a8a;
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
   white-space: normal;
-  text-overflow: unset;
-  overflow: visible;
   word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+.strategy-data-table td.cd-links {
+  white-space: nowrap;
+  vertical-align: middle;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+.strategy-data-table .cd-link-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.strategy-data-table .cd-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent, #2563eb) 28%, var(--line, #e2e8f0));
+  background: #fff;
+  color: var(--accent, #2563eb);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.strategy-data-table .cd-link:hover {
+  background: var(--accent-soft, #eff6ff);
+  border-color: var(--accent, #2563eb);
+}
+
+.strategy-data-table .cd-link.is-off {
+  border-color: var(--line, #e2e8f0);
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: default;
 }
 
 .strategy-corp-detail {
