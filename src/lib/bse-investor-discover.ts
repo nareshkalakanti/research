@@ -1,3 +1,4 @@
+import { clampAnnouncedDays } from "./announced-lookback";
 import { BSE_HEADERS } from "./bse-sme";
 import { loadBseSmeCacheMap } from "./bse-sme";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
@@ -265,15 +266,21 @@ function tickerFromBseScrip(scrip: string): string | null {
  */
 export async function discoverBseAnnouncedOrders(
   daysBack = 1,
+  opts?: { fromOffset?: number; hardTimeoutMs?: number },
 ): Promise<BseMarketOrderHit[]> {
-  const days = Math.min(7, Math.max(1, daysBack));
+  const days = clampAnnouncedDays(daysBack);
+  const fromOffset = Math.max(0, Math.floor(opts?.fromOffset ?? 0));
   const started = Date.now();
-  const HARD_MS = 45_000;
+  // Scale with lookback; short interactive pulls stay snappy.
+  const HARD_MS =
+    opts?.hardTimeoutMs ??
+    Math.min(900_000, Math.max(45_000, days * 12_000));
   const out: BseMarketOrderHit[] = [];
   const seen = new Set<string>();
 
-  for (let offset = 0; offset < days; offset += 1) {
+  for (let i = 0; i < days; i += 1) {
     if (Date.now() - started > HARD_MS) break;
+    const offset = fromOffset + i;
     const { from, to } = dayWindowLocal(offset);
     const dayFrom = fmtBseDay(from);
     const dayTo = fmtBseDay(to);

@@ -1,8 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { announcementDedupeKey } from "@/lib/announcement-dedupe";
-import { tradingviewUrl } from "@/lib/links";
+import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
+import { IqHintPanel } from "@/components/IqHintPanel";
+import { CompanyWatchCell } from "@/components/CompanyWatchCell";
 
 type OrderHit = {
   ticker: string;
@@ -101,6 +104,14 @@ function fmtPct(n: number | null | undefined): string {
   return `${n.toFixed(1)}%`;
 }
 
+function blankLabel(v: string | null | undefined): string {
+  const s = (v || "").trim();
+  if (!s || s === "—" || /^not\s+(disclosed|mentioned)/i.test(s)) {
+    return "Not mentioned";
+  }
+  return s;
+}
+
 function fmtDrift(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   const sign = n >= 0 ? "+" : "";
@@ -153,32 +164,6 @@ function orderbookTvMarket(ticker: string | null | undefined): string {
   const t = (ticker || "").trim().toUpperCase();
   if (t.startsWith("BSE") || /^\d{6}$/.test(t)) return "BSE";
   return "NSE";
-}
-
-function CompanyTvLink({
-  ticker,
-  company,
-}: {
-  ticker: string | null | undefined;
-  company: string | null | undefined;
-}) {
-  const label = (company || ticker || "—").trim() || "—";
-  const sym = (ticker || "").trim().toUpperCase();
-  // Placeholder BSE###### codes are not TradingView symbols.
-  if (!sym || sym === "—" || /^BSE\d+$/i.test(sym)) {
-    return <div className="miq-co-name">{label}</div>;
-  }
-  return (
-    <a
-      className="miq-co-name"
-      href={tradingviewUrl(sym, orderbookTvMarket(sym))}
-      target="_blank"
-      rel="noreferrer"
-      title={`${label} — TradingView`}
-    >
-      {label}
-    </a>
-  );
 }
 
 function overlayKeysFor(opts: {
@@ -341,7 +326,8 @@ type LabResult = {
 };
 
 export function OrderBookIqPanel() {
-  const [days, setDays] = useState(1);
+  const [days, setDays] = useState(2);
+  const [useOcr, setUseOcr] = useState(false);
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState(false);
   const [analyseBusyKey, setAnalyseBusyKey] = useState<string | null>(null);
@@ -353,6 +339,7 @@ export function OrderBookIqPanel() {
   const [overlay, setOverlay] = useState<Record<string, AnalysedOverlay>>({});
   const [decisionFilter, setDecisionFilter] = useState<DecisionFilter>("all");
   const [page, setPage] = useState(1);
+  const [labOpen, setLabOpen] = useState(false);
   const [labFile, setLabFile] = useState<File | null>(null);
   const [labUrl, setLabUrl] = useState("");
   const [labTicker, setLabTicker] = useState("");
@@ -364,6 +351,7 @@ export function OrderBookIqPanel() {
   const labFileRef = useRef<HTMLInputElement | null>(null);
   const scanStopRef = useRef(false);
   const [scanRunning, setScanRunning] = useState(false);
+  const [scanningUrls, setScanningUrls] = useState<string[]>([]);
   const [scanStats, setScanStats] = useState<{
     ok: number;
     pass: number;
@@ -374,6 +362,7 @@ export function OrderBookIqPanel() {
     total: number;
     done: number;
     pct: number;
+    current: string[];
     finished?: boolean;
     errored?: boolean;
   } | null>(null);
@@ -414,23 +403,32 @@ export function OrderBookIqPanel() {
     }
   }, [loadHistory]);
 
+  const announcedAbortRef = useRef<AbortController | null>(null);
+
   const fetchAnnounced = useCallback(async () => {
+    announcedAbortRef.current?.abort();
+    const ac = new AbortController();
+    announcedAbortRef.current = ac;
     setBusy(true);
     setError(null);
-    setStatusNote(null);
+    setStatusNote("Refreshing live order filings…");
     try {
       const params = new URLSearchParams({
         announced: "1",
         days: String(days),
       });
-      const res = await fetch(`/api/orderbook-screen?${params}`);
+      const res = await fetch(`/api/orderbook-screen?${params}`, {
+        signal: ac.signal,
+      });
       const json = (await res.json()) as {
         ok?: boolean;
         sources?: OrderHit[];
         count?: number;
         note?: string;
         error?: string;
+        cached?: boolean;
       };
+      if (ac.signal.aborted) return;
       if (!res.ok || json.ok === false) {
         setError(json.error || "Fetch failed");
         setHits([]);
@@ -440,19 +438,39 @@ export function OrderBookIqPanel() {
       setHits(json.sources ?? []);
       setLive(true);
       setPage(1);
-      if (json.note) setStatusNote(json.note);
+      setStatusNote(
+        json.note ||
+          `${json.sources?.length ?? 0} live order filings${json.cached ? " (cache)" : ""}`,
+      );
+      if (json.sources?.length) {
+        await fetch("/api/orderbook-screen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "save", sources: json.sources }),
+          signal: ac.signal,
+        });
+        if (!ac.signal.aborted) await loadHistory({ prices: false });
+      }
     } catch (e) {
+      if (ac.signal.aborted) return;
       setError(e instanceof Error ? e.message : "Fetch failed");
       setHits([]);
       setLive(false);
     } finally {
-      setBusy(false);
+      if (!ac.signal.aborted) setBusy(false);
     }
   }, [days]);
 
   useEffect(() => {
-    void loadHistory();
-    void fetchAnnounced();
+    void loadHistory({ prices: false });
+    setStatusNote("Showing saved screens — Refresh orders for live NSE/BSE");
+    const t = window.setTimeout(() => {
+      void loadHistory({ prices: true });
+    }, 400);
+    return () => {
+      announcedAbortRef.current?.abort();
+      window.clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -595,6 +613,7 @@ export function OrderBookIqPanel() {
     scanStopRef.current = false;
     setScanRunning(true);
     setError(null);
+    setScanningUrls([]);
     setScanStats({
       ok: 0,
       pass: 0,
@@ -605,6 +624,7 @@ export function OrderBookIqPanel() {
       total: 0,
       done: 0,
       pct: 0,
+      current: [],
     });
     setStatusNote("Loading already-screened PDFs…");
 
@@ -642,8 +662,10 @@ export function OrderBookIqPanel() {
         total: already || queue.length || doneUrls.size,
         done: already || queue.length || doneUrls.size,
         pct: 100,
+        current: [],
         finished: true,
       });
+      setScanningUrls([]);
       setStatusNote(
         already || doneUrls.size
           ? `Nothing pending — ${already || doneUrls.size} already screened in DB`
@@ -664,6 +686,7 @@ export function OrderBookIqPanel() {
       total: pendingQueue.length,
       done: 0,
       pct: 0,
+      current: [],
     });
     setStatusNote(
       `Scanning ${pendingQueue.length} pending · skipped ${already} already in DB`,
@@ -682,6 +705,39 @@ export function OrderBookIqPanel() {
       for (;;) {
         if (scanStopRef.current) break;
         round += 1;
+        const nextBatch = pendingQueue
+          .filter((h) => {
+            const u = h.url?.trim() || "";
+            return u && !doneUrls.has(u);
+          })
+          .slice(0, 3);
+        const current = nextBatch
+          .map((h) => (h.ticker || "").toUpperCase())
+          .filter(Boolean);
+        const batchUrls = nextBatch
+          .map((h) => h.url?.trim() || "")
+          .filter(Boolean);
+        setScanningUrls(batchUrls);
+        setScanStats({
+          ok,
+          pass,
+          fail,
+          skipped,
+          remaining: Math.max(0, total - doneCount),
+          round,
+          total,
+          done: doneCount,
+          pct:
+            total > 0
+              ? Math.min(100, Math.round((100 * doneCount) / total))
+              : 0,
+          current,
+        });
+        setStatusNote(
+          current.length
+            ? `Analysing ${current.join(", ")}… · ${doneCount}/${total}`
+            : `Scanning batch ${round}… · ${doneCount}/${total}`,
+        );
         const res = await fetch("/api/orderbook-screen", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -691,6 +747,7 @@ export function OrderBookIqPanel() {
             limit: 3,
             pendingOnly: true,
             mode: "lexical",
+            skipOcr: !useOcr,
             sources: pendingQueue,
             skipUrls: [...doneUrls],
           }),
@@ -761,11 +818,13 @@ export function OrderBookIqPanel() {
           total,
           done: doneCount,
           pct,
+          current,
         });
 
         for (const u of json.attempted_urls ?? []) {
           if (u.trim()) doneUrls.add(u.trim());
         }
+        for (const u of batchUrls) doneUrls.add(u);
         for (const r of json.results ?? []) {
           const u = r.source_url?.trim();
           if (u) doneUrls.add(u);
@@ -786,7 +845,7 @@ export function OrderBookIqPanel() {
         }
 
         setStatusNote(
-          `Scanned ${doneCount}/${total} · ${pass} PASS · ${fail} FAIL · ${remaining} left · batch ${round}`,
+          `Scanned ${doneCount}/${total} · ${pass} PASS · ${fail} FAIL · ${remaining} left · last ${current.join(", ") || "batch"}`,
         );
       }
 
@@ -800,10 +859,12 @@ export function OrderBookIqPanel() {
       setError(e instanceof Error ? e.message : "Scan failed");
       errored = true;
     } finally {
+      setScanningUrls([]);
       setScanStats((prev) =>
         prev
           ? {
               ...prev,
+              current: [],
               pct: errored ? prev.pct : 100,
               finished: !errored,
               errored,
@@ -813,7 +874,7 @@ export function OrderBookIqPanel() {
       setScanRunning(false);
       scanStopRef.current = false;
     }
-  }, [scanRunning, hits, history, days, ingestAnalyseResult, loadHistory]);
+  }, [scanRunning, hits, history, days, useOcr, ingestAnalyseResult, loadHistory]);
 
   useEffect(() => {
     if (scanRunning || !scanStats?.finished) return;
@@ -997,6 +1058,9 @@ export function OrderBookIqPanel() {
           </p>
         </div>
         <div className="miq-head-actions">
+          <Link href="/order-tracker" className="chip tag-chip">
+            Order Tracker →
+          </Link>
           <span className={live ? "miq-live on" : "miq-live"}>
             <span className="miq-live-dot" />
             {live ? "Live" : "Cached"}
@@ -1016,12 +1080,24 @@ export function OrderBookIqPanel() {
               disabled={busy || analysing}
               onChange={(e) => setDays(Number(e.target.value) || 1)}
             >
-              {[1, 2, 3, 5, 7].map((d) => (
+              {[...ANNOUNCED_DAY_OPTIONS].map((d) => (
                 <option key={d} value={d}>
-                  {d}
+                  {d === 90 ? "90 (3mo)" : d === 180 ? "180 (6mo)" : d}
                 </option>
               ))}
             </select>
+          </label>
+          <label
+            className={`chip tag-chip miq-ocr${useOcr ? " on" : ""}`}
+            title="Off = pdf-parse only (fast). On = vision OCR for scanned/thin PDFs (slower)"
+          >
+            <input
+              type="checkbox"
+              checked={useOcr}
+              disabled={busy || analysing || scanRunning}
+              onChange={(e) => setUseOcr(e.target.checked)}
+            />
+            OCR
           </label>
           <button
             type="button"
@@ -1046,11 +1122,17 @@ export function OrderBookIqPanel() {
             title={
               scanRunning
                 ? "Stop after the current batch"
-                : "Scan & analyse all pending order filings (lexical batches of 3)"
+                : useOcr
+                  ? "Scan pending filings with vision OCR (slower)"
+                  : "Scan pending filings (pdf-parse first, 3 in parallel)"
             }
           >
             {scanRunning
-              ? `Stop · ${scanStats?.pct ?? 0}% · ${scanStats?.pass ?? 0} PASS`
+              ? `Stop · ${scanStats?.pct ?? 0}%${
+                  scanStats?.current?.length
+                    ? ` · ${scanStats.current.join(", ")}`
+                    : ` · ${scanStats?.pass ?? 0} PASS`
+                }`
               : "Scan & Analyse"}
           </button>
         </div>
@@ -1070,9 +1152,11 @@ export function OrderBookIqPanel() {
                 ? "Scan failed"
                 : scanStats?.finished
                   ? "Scan complete"
-                  : scanRunning
-                    ? "Scanning order filings…"
-                    : "Scan"}
+                  : scanStats?.current?.length
+                    ? `Analysing ${scanStats.current.join(", ")}…`
+                    : scanRunning
+                      ? "Scanning order filings…"
+                      : "Scan"}
             </span>
             <span className="fill-progress-pct">
               {scanStats?.pct ?? 0}%
@@ -1087,15 +1171,18 @@ export function OrderBookIqPanel() {
           <p className="fill-progress-detail">
             {scanStats
               ? `${scanStats.done}/${scanStats.total || 0} pending · ${scanStats.pass} PASS · ${scanStats.fail} FAIL · skipped ${scanStats.skipped} in DB${
-                  scanStats.round ? ` · batch ${scanStats.round}` : ""
+                  scanStats.current?.length
+                    ? ` · now ${scanStats.current.join(", ")}`
+                    : scanStats.round
+                      ? ` · batch ${scanStats.round}`
+                      : ""
                 }`
               : "Starting…"}
           </p>
         </div>
       ) : null}
 
-      <section className="obiq-rec" aria-label="How to use">
-        <h2 className="obiq-rec-title">Recommendation</h2>
+      <IqHintPanel title="Recommendation" aria-label="How to use">
         <ul className="obiq-rec-list">
           <li>
             This lane owns <strong>order wins</strong> (MarketIQ excludes them).
@@ -1119,16 +1206,44 @@ export function OrderBookIqPanel() {
             the order hit the tape. Refresh drift to update.
           </li>
         </ul>
-      </section>
+      </IqHintPanel>
 
-      <section className="miq-lab" aria-label="PDF test lab">
-        <div className="miq-lab-head">
-          <h2 className="miq-lab-title">PDF test lab</h2>
-          <p className="miq-lab-sub">
-            Upload or paste an order-win PDF → Extract → Analyse for PASS / FAIL
-            (Order/Sales ≥ {passMinPct}%).
-          </p>
-        </div>
+      <section
+        className={`miq-lab${labOpen ? "" : " is-collapsed"}`}
+        aria-label="PDF test lab"
+      >
+        <button
+          type="button"
+          className="miq-lab-toggle"
+          aria-expanded={labOpen}
+          onClick={() => setLabOpen((v) => !v)}
+        >
+          <div className="miq-lab-head">
+            <h2 className="miq-lab-title">PDF test lab</h2>
+            <span className="miq-lab-chevron" aria-hidden>
+              {labOpen ? "▾" : "▸"}
+            </span>
+            {labBusy ? (
+              <span className="miq-lab-busy-hint">
+                {labBusy === "extract" ? "Extracting…" : "Analysing…"}
+              </span>
+            ) : null}
+            <span className="miq-lab-hint">
+              {labOpen ? "Minimise" : "Expand"}
+            </span>
+          </div>
+          {labOpen ? (
+            <p className="miq-lab-sub">
+              Upload or paste an order-win PDF → Extract → Analyse for PASS / FAIL
+              (Order/Sales ≥ {passMinPct}%).
+            </p>
+          ) : null}
+        </button>
+        <div
+          className="miq-lab-body"
+          hidden={!labOpen}
+          inert={!labOpen ? true : undefined}
+        >
         <div className="miq-lab-grid">
           <div className="miq-lab-field miq-lab-file">
             <span>PDF file</span>
@@ -1257,13 +1372,16 @@ export function OrderBookIqPanel() {
               <tbody>
                 <tr>
                   <td className="miq-td-co">
-                    <CompanyTvLink
+                    <CompanyWatchCell
                       ticker={labResult.extract.ticker || labTicker}
                       company={
                         labResult.extract.company ||
                         labResult.extract.ticker ||
                         labTicker
                       }
+                      market={orderbookTvMarket(
+                        labResult.extract.ticker || labTicker,
+                      )}
                     />
                     <div className="miq-co-meta">
                       <span>
@@ -1313,6 +1431,7 @@ export function OrderBookIqPanel() {
             </table>
           </div>
         ) : null}
+        </div>
       </section>
 
       <div className="miq-search-row">
@@ -1401,12 +1520,19 @@ export function OrderBookIqPanel() {
               pageRows.map((row) => {
                 const href = pdfHref(row.url);
                 const busyRow = analyseBusyKey === row.key;
+                const rowScanning =
+                  busyRow ||
+                  (!!row.url?.trim() && scanningUrls.includes(row.url.trim()));
                 return (
-                  <tr key={row.key}>
+                  <tr
+                    key={row.key}
+                    className={rowScanning ? "is-scanning" : undefined}
+                  >
                     <td className="miq-td-co">
-                      <CompanyTvLink
+                      <CompanyWatchCell
                         ticker={row.ticker}
                         company={row.company}
+                        market={orderbookTvMarket(row.ticker)}
                       />
                       <div className="miq-co-meta">
                         <span>{row.ticker}</span>
@@ -1423,31 +1549,35 @@ export function OrderBookIqPanel() {
                           disabled={analysing || !row.url}
                           onClick={() => void analyseRow(row)}
                         >
-                          {busyRow ? "Analysing…" : "Analyse"}
+                          {rowScanning ? "Analysing…" : "Analyse"}
                         </button>
                       ) : null}
                     </td>
                     <td className="miq-td-details">
                       <div className="miq-headline">{row.headline}</div>
                       <div className="miq-summary">
-                        Size {row.order_size}
+                        Size {blankLabel(row.order_size)}
                         {row.order_size_cr != null
                           ? ` · ₹${fmtNum(row.order_size_cr)} Cr`
                           : ""}
                         {" · "}
-                        Exec {row.execution}
+                        Exec {blankLabel(row.execution)}
                       </div>
                       {row.why ? <div className="miq-why">{row.why}</div> : null}
                     </td>
                     <td>
-                      <span className="miq-cat-pill">{row.awarding_entity}</span>
+                      <span className="miq-cat-pill">
+                        {blankLabel(row.awarding_entity)}
+                      </span>
                     </td>
                     <td>
                       <div className="obiq-ratio">
                         {fmtPct(row.order_to_sales_pct)}
                       </div>
                       <div className="miq-co-meta">
-                        sales ₹{fmtNum(row.sales_cr)} Cr
+                        {row.sales_cr != null
+                          ? `sales ₹${fmtNum(row.sales_cr)} Cr`
+                          : "sales —"}
                       </div>
                     </td>
                     <td className="obiq-td-drift">

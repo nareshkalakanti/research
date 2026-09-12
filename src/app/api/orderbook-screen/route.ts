@@ -8,14 +8,22 @@ import {
   isOrderbookPdfProxyUrl,
   listOrderbookHistory,
   listOrderbookScreenedUrls,
+  listOrderbookTracker,
   ORDERBOOK_PASS_MIN_PCT,
   refreshOrderbookHistoryPrices,
+  saveOrderbookHits,
   scanOrderbookAnnouncements,
   screenOrderbookForTicker,
   screenOrderbookPdf,
   type OrderbookAnnouncedHit,
 } from "@/lib/orderbook-screen";
 import { ORDERBOOKIQ_DB_FILE } from "@/lib/iq-dbs";
+import {
+  announcedCacheGet,
+  announcedCacheKey,
+  announcedCacheSet,
+} from "@/lib/announced-cache";
+import { clampAnnouncedDays } from "@/lib/announced-lookback";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -33,13 +41,21 @@ function bufferFromBase64(raw: string | null | undefined): Buffer | null {
 export async function GET(req: NextRequest) {
   const announced = req.nextUrl.searchParams.get("announced");
   if (announced === "1" || announced === "today") {
-    const days = Math.min(
-      7,
-      Math.max(1, Number(req.nextUrl.searchParams.get("days") || 1) || 1),
+    const days = clampAnnouncedDays(
+      Number(req.nextUrl.searchParams.get("days") || 1) || 1,
     );
+    const bust = req.nextUrl.searchParams.get("fresh") === "1";
+    const cacheKey = announcedCacheKey("orderbook", days, null);
+    if (!bust) {
+      const cached = announcedCacheGet<Record<string, unknown>>(cacheKey);
+      if (cached) {
+        return NextResponse.json({ ...cached, cached: true });
+      }
+    }
     try {
       const found = await discoverOrderbookAnnounced(days);
-      return NextResponse.json(found);
+      announcedCacheSet(cacheKey, found);
+      return NextResponse.json({ ...found, cached: false });
     } catch (e) {
       return NextResponse.json(
         {
@@ -87,6 +103,37 @@ export async function GET(req: NextRequest) {
       db: ORDERBOOKIQ_DB_FILE,
       urls,
       count: urls.length,
+    });
+  }
+
+  if (req.nextUrl.searchParams.get("tracker") === "1") {
+    const sp = req.nextUrl.searchParams;
+    const minPctRaw = sp.get("minPct");
+    const minPct =
+      minPctRaw != null && minPctRaw !== ""
+        ? Number(minPctRaw)
+        : null;
+    const monthsRaw = sp.get("months");
+    const monthsBack =
+      monthsRaw != null && monthsRaw !== "" ? Number(monthsRaw) : null;
+    const minMcapRaw = sp.get("minMcap");
+    const minMcapCr =
+      minMcapRaw != null && minMcapRaw !== "" ? Number(minMcapRaw) : null;
+    const data = listOrderbookTracker({
+      limit: Math.min(500, Math.max(1, Number(sp.get("limit") || 200) || 200)),
+      passOnly: sp.get("passOnly") === "1",
+      minPct: Number.isFinite(minPct as number) ? minPct : null,
+      q: sp.get("q"),
+      customer: sp.get("customer"),
+      ticker: sp.get("ticker"),
+      monthsBack: Number.isFinite(monthsBack as number) ? monthsBack : null,
+      minMcapCr: Number.isFinite(minMcapCr as number) ? minMcapCr : null,
+    });
+    return NextResponse.json({
+      ok: true,
+      db: ORDERBOOKIQ_DB_FILE,
+      pass_min_pct: ORDERBOOK_PASS_MIN_PCT,
+      ...data,
     });
   }
 
@@ -221,6 +268,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(found);
     }
 
+    if (body.action === "save") {
+      const sources = Array.isArray(body.sources) ? body.sources : [];
+      const saved = saveOrderbookHits(sources);
+      return NextResponse.json({
+        ok: true,
+        saved,
+        history: listOrderbookHistory(200),
+      });
+    }
+
     if (body.action === "screen-ticker") {
       const ticker = (body.ticker || "").trim();
       if (!ticker) {
@@ -255,6 +312,7 @@ export async function POST(req: NextRequest) {
         sources: body.sources ?? null,
         mode,
         skipUrls: Array.isArray(body.skipUrls) ? body.skipUrls : null,
+        skipOcr: body.skipOcr,
       });
       return NextResponse.json(result);
     }

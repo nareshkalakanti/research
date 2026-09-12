@@ -268,6 +268,9 @@ export function pushExtractToGovernance(opts: {
   market: string;
   name?: string | null;
   extracted?: CorporateExtractPayload | null;
+  /** Seat source label stored on board_seats (default corporate_pdf). */
+  source?: string | null;
+  notes?: string | null;
 }): PushGovResult {
   const ticker = opts.ticker.trim().toUpperCase();
   if (!ticker) {
@@ -286,6 +289,7 @@ export function pushExtractToGovernance(opts: {
     return { ok: false, ticker, pushed: 0, reason: "No extract stored" };
   }
 
+  const source = (opts.source || "corporate_pdf").trim() || "corporate_pdf";
   const byDin = new Map<string, BoardSeat>();
   for (const d of extracted.directors || []) {
     const din = normDin(d.din);
@@ -297,8 +301,23 @@ export function pushExtractToGovernance(opts: {
       name,
       designation: (d.designation || "").trim() || "Director",
       category: (d.category || "").trim(),
-      source: "corporate_pdf",
+      source,
       as_of: (d.as_of || "").trim(),
+    });
+  }
+  // KMP with DIN also map into governance (appointment filings often list CS/CFO).
+  for (const k of extracted.kmp || []) {
+    const din = normDin(k.din);
+    if (!din || din.length !== 8) continue;
+    const name = (k.name || "").trim();
+    if (!name || byDin.has(din)) continue;
+    byDin.set(din, {
+      din,
+      name,
+      designation: (k.role || "").trim() || "KMP",
+      category: "KMP",
+      source,
+      as_of: "",
     });
   }
   if (!byDin.size) {
@@ -319,7 +338,9 @@ export function pushExtractToGovernance(opts: {
       market: opts.market,
       seats,
       replaceSeats: false,
-      notes: "Additive seats from Corporate Data PDF extract",
+      notes:
+        (opts.notes || "").trim() ||
+        `Additive seats from ${source} extract`,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -339,7 +360,7 @@ export function pushExtractToGovernance(opts: {
   recordScanAttempt(
     ticker,
     "ok",
-    `corporate_pdf additive ${seats.length} DIN seat(s)`,
+    `${source} additive ${seats.length} DIN seat(s)`,
   );
 
   return {

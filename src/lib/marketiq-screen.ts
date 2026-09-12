@@ -20,6 +20,7 @@ import { loadAllCompanies } from "./db";
 import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { discoverNseMarketAnnouncements } from "./nse-investor-discover";
+import { clampAnnouncedDays } from "./announced-lookback";
 import { rasterizePdfPages } from "./pdf-rasterize";
 import { announcementDedupeKey } from "./announcement-dedupe";
 import { marketIqDbFile } from "./iq-dbs";
@@ -227,7 +228,7 @@ export function loadLdrAnnouncementCategories(): {
  */
 export async function discoverMarketIqAnnounced(
   daysBack = 1,
-  opts?: { q?: string | null },
+  opts?: { q?: string | null; fromOffset?: number },
 ): Promise<{
   ok: true;
   days: number;
@@ -236,10 +237,13 @@ export async function discoverMarketIqAnnounced(
   sources: MarketIqHit[];
   note?: string;
 }> {
-  const days = Math.min(7, Math.max(1, daysBack));
+  const days = clampAnnouncedDays(daysBack);
   const q = opts?.q?.trim() || null;
   try {
-    const hits = await discoverNseMarketAnnouncements(days, { q });
+    const hits = await discoverNseMarketAnnouncements(days, {
+      q,
+      fromOffset: opts?.fromOffset,
+    });
     const sources: MarketIqHit[] = hits.map((h) => ({
       ticker: h.ticker,
       company: h.company,
@@ -298,8 +302,17 @@ export function saveMarketIqHits(hits: MarketIqHit[]): number {
       for (const h of hits) {
         const headline = (h.title || "").trim();
         if (!headline) continue;
+        const url = h.url?.trim() || null;
+        if (url) {
+          const exists = db
+            .prepare(
+              `SELECT id FROM announcement_screens WHERE source_url = ? LIMIT 1`,
+            )
+            .get(url) as { id: number } | undefined;
+          if (exists) continue;
+        }
         stmt.run({
-          source_url: h.url,
+          source_url: url,
           ticker: h.ticker || null,
           company: h.company,
           headline,
@@ -314,6 +327,7 @@ export function saveMarketIqHits(hits: MarketIqHit[]): number {
             announced_at: h.announced_at,
             provider: h.provider,
             index: h.index ?? null,
+            pending: true,
           }),
           screened_at: now,
         });
@@ -449,6 +463,78 @@ export function listScoredMarketIqUrls(): Set<string> {
   }
 }
 
+/** Pending stub rows (saved announced, not yet analysed). */
+export function listMarketIqPendingHits(): MarketIqHit[] {
+  ensureHistorySchema();
+  const scored = listScoredMarketIqUrls();
+  const db = openSqliteNamed(marketIqDbFile(), {
+    readonly: true,
+    wal: true,
+  });
+  try {
+    const rows = db
+      .prepare(
+        `SELECT source_url, ticker, company, headline, announcement_date,
+                extract_json, engine, sentiment
+         FROM announcement_screens
+         WHERE source_url IS NOT NULL AND TRIM(source_url) != ''
+         ORDER BY id DESC
+         LIMIT 8000`,
+      )
+      .all() as Array<{
+      source_url: string;
+      ticker: string | null;
+      company: string | null;
+      headline: string | null;
+      announcement_date: string | null;
+      extract_json: string | null;
+      engine: string | null;
+      sentiment: string | null;
+    }>;
+    const out: MarketIqHit[] = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const url = r.source_url.trim();
+      if (!url || seen.has(url) || scored.has(url)) continue;
+      const eng = (r.engine || "").trim();
+      const sent = (r.sentiment || "pending").toLowerCase();
+      let pending =
+        sent === "pending" || eng === "nse-came-fetch" || eng === "exchange-fetch";
+      let title = (r.headline || "").trim() || "Announcement";
+      let announced_at: string | null = r.announcement_date;
+      let period: string | null = null;
+      let provider = "db";
+      let index: string | undefined;
+      try {
+        const j = r.extract_json ? JSON.parse(r.extract_json) : null;
+        if (j && j.pending === true) pending = true;
+        if (j && typeof j.title === "string" && j.title.trim()) title = j.title.trim();
+        if (j && typeof j.announced_at === "string") announced_at = j.announced_at;
+        if (j && typeof j.period === "string") period = j.period;
+        if (j && typeof j.provider === "string") provider = j.provider;
+        if (j && typeof j.index === "string") index = j.index;
+      } catch {
+        /* ignore */
+      }
+      if (!pending) continue;
+      seen.add(url);
+      out.push({
+        ticker: (r.ticker || "").toUpperCase() || "UNKNOWN",
+        company: r.company,
+        title,
+        url,
+        announced_at,
+        period,
+        provider,
+        index,
+      });
+    }
+    return out;
+  } finally {
+    db.close();
+  }
+}
+
 /**
  * Analyse a batch of announcements (pending-first).
  * Call repeatedly until remaining === 0.
@@ -473,7 +559,7 @@ export async function scanMarketIqAnnouncements(opts: {
   results: MarketIqScreenResult[];
   note?: string;
 }> {
-  const days = Math.min(7, Math.max(1, opts.days ?? 1));
+  const days = clampAnnouncedDays(opts.days ?? 1);
   const limit = Math.min(15, Math.max(1, opts.limit ?? 3));
   const pendingOnly = opts.pendingOnly !== false;
   const skipOcr = opts.skipOcr !== false;
@@ -800,6 +886,8 @@ function normalizeSentiment(
 
 function applyScoreFormula(opts: {
   text: string;
+  /** Lexicon sentiment on headline/summary — not full transcript body. */
+  sentimentText?: string;
   category: string;
   extraPositive?: string[];
   extraNegative?: string[];
@@ -810,8 +898,9 @@ function applyScoreFormula(opts: {
   "sentiment" | "confidence" | "impact" | "score_trace"
 > {
   const scoring = loadScoring();
-  const posLex = countLexiconHits(opts.text, scoring.positive_words);
-  const negLex = countLexiconHits(opts.text, scoring.negative_words);
+  const sentimentBlob = (opts.sentimentText || opts.text).slice(0, 1800);
+  const posLex = countLexiconHits(sentimentBlob, scoring.positive_words);
+  const negLex = countLexiconHits(sentimentBlob, scoring.negative_words);
   const extraPos = (opts.extraPositive || [])
     .map((w) => w.toLowerCase().trim())
     .filter(Boolean);
@@ -868,8 +957,14 @@ function categoryFromScoringText(text: string): string | null {
   const lower = text.toLowerCase();
   let best: { match: string; base: number; len: number } | null = null;
   for (const rule of scoring.category_rules) {
-    const m = rule.match.toLowerCase();
-    if (!lower.includes(m)) continue;
+    const m = rule.match.toLowerCase().trim();
+    if (m.length < 3) continue;
+    // Word-boundary match — avoids random "fraud"/"order" hits inside long PDFs.
+    const re = new RegExp(
+      `\\b${m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}\\b`,
+      "i",
+    );
+    if (!re.test(lower)) continue;
     if (
       !best ||
       rule.base > best.base ||
@@ -881,9 +976,23 @@ function categoryFromScoringText(text: string): string | null {
   return best?.match ?? null;
 }
 
+/** Severe labels must appear in title/lead — not only deep in a transcript body. */
+function isSevereCategoryLabel(category: string): boolean {
+  return /fraud|default|insolvency|bankruptcy|investigation|suspension|delisting/i.test(
+    category,
+  );
+}
+
+function isRoutineDisclosureTitle(title: string): boolean {
+  return /transcript|earnings?\s+call|con\.?\s*call|concall|investor\s+meet|analysts?\/|institutional\s+investor\s+meet|financial\s+results|board\s+meeting|agm|egm|investor\s+presentation/i.test(
+    title,
+  );
+}
+
 function resolveCategory(
   preferred: string | null | undefined,
   text: string,
+  titleHint?: string | null,
 ): { category: string; categories: string[] } {
   const keywords = listCorporateEventKeywords();
   const keywordSet = new Set(keywords.map((k) => k.toLowerCase()));
@@ -898,6 +1007,10 @@ function resolveCategory(
     return raw;
   };
 
+  const title = (titleHint || text.split("\n")[0] || "").trim();
+  // Lead = exchange title + early filing letter only (not deep transcript Q&A).
+  const lead = text.slice(0, 900);
+
   let fromLlm = (preferred || "").trim();
   if (fromLlm) {
     fromLlm = canonicalize(fromLlm);
@@ -905,31 +1018,113 @@ function resolveCategory(
       !keywordSet.has(fromLlm.toLowerCase()) &&
       !ldrSet.has(fromLlm.toLowerCase())
     ) {
-      // Keep free-form labels from scoring rules (e.g. QIP) when LLM invents nothing better.
       if (!categoryPriors(fromLlm).base || fromLlm.length < 2) fromLlm = "";
     }
   }
 
-  const fromText =
+  const fromTitleText =
+    primaryCorporateEventKeyword(title) ||
+    matchCorporateEventKeywords(title, { limit: 1 })[0]?.keyword ||
+    categoryFromScoringText(title) ||
+    "";
+  const fromLeadRules =
+    categoryFromScoringText(`${title}\n${lead}`) ||
+    primaryCorporateEventKeyword(`${title}\n${lead}`) ||
+    "";
+  const fromBodyText =
     primaryCorporateEventKeyword(text.slice(0, 6000)) ||
     matchCorporateEventKeywords(text, { limit: 1 })[0]?.keyword ||
     "";
-  const fromRules = categoryFromScoringText(text);
+  const fromBodyRules = categoryFromScoringText(text.slice(0, 6000));
 
-  const candidates = [fromLlm, fromText, fromRules].filter(Boolean) as string[];
-  let category = candidates[0] || "Unclassified";
-  let bestBase = categoryPriors(category).base;
-  for (const c of candidates.slice(1)) {
-    const b = categoryPriors(c).base;
-    if (b > bestBase + 0.25) {
-      category = c;
-      bestBase = b;
-    }
+  // Drop severe body-only labels when title is routine / already classified non-severe.
+  let bodyCat = fromBodyRules || fromBodyText || "";
+  const titleSevere =
+    isSevereCategoryLabel(title) || isSevereCategoryLabel(fromTitleText);
+  if (
+    bodyCat &&
+    isSevereCategoryLabel(bodyCat) &&
+    !titleSevere &&
+    (isRoutineDisclosureTitle(title) || Boolean(fromTitleText))
+  ) {
+    bodyCat = "";
+  }
+  // Lead-only severe hit also dropped for routine titles (e.g. risk boilerplate).
+  let leadCat = fromLeadRules;
+  if (
+    leadCat &&
+    isSevereCategoryLabel(leadCat) &&
+    isRoutineDisclosureTitle(title) &&
+    !isSevereCategoryLabel(title) &&
+    !isSevereCategoryLabel(fromTitleText)
+  ) {
+    leadCat = "";
+  }
+  if (
+    fromLlm &&
+    isSevereCategoryLabel(fromLlm) &&
+    isRoutineDisclosureTitle(title) &&
+    !isSevereCategoryLabel(title)
+  ) {
+    fromLlm = "";
   }
 
-  const hits = matchCorporateEventKeywords(text, { limit: 6 });
+  const candidates = [
+    fromTitleText,
+    leadCat,
+    fromLlm,
+    bodyCat,
+  ].filter(Boolean) as string[];
+
+  let category: string;
+  // Routine exchange titles: keep the title tag (don't let body/LLM "Earnings" steal it).
+  if (fromTitleText && isRoutineDisclosureTitle(title)) {
+    category = fromTitleText;
+  } else {
+    let categoryPick = candidates[0] || "Unclassified";
+    let bestBase = categoryPriors(categoryPick).base;
+    const titleSide = new Set(
+      [fromTitleText, leadCat].filter(Boolean).map((c) => c.toLowerCase()),
+    );
+    for (const c of candidates.slice(1)) {
+      const b = categoryPriors(c).base;
+      const isTitleSide = titleSide.has(c.toLowerCase());
+      const margin = isTitleSide ? 0.1 : 1.1;
+      if (b > bestBase + margin) {
+        categoryPick = c;
+        bestBase = b;
+      }
+    }
+    category = categoryPick;
+  }
+  // If title itself scores a non-severe category, keep it over a severe body label.
+  if (
+    fromTitleText &&
+    !isSevereCategoryLabel(fromTitleText) &&
+    isSevereCategoryLabel(category)
+  ) {
+    category = fromTitleText;
+  } else if (
+    leadCat &&
+    !isSevereCategoryLabel(leadCat) &&
+    isSevereCategoryLabel(category) &&
+    !isSevereCategoryLabel(title)
+  ) {
+    category = leadCat;
+  }
+
+  const hits = matchCorporateEventKeywords(`${title}\n${lead}`, { limit: 6 }).filter(
+    (h) =>
+      !(
+        isSevereCategoryLabel(h.keyword) &&
+        isRoutineDisclosureTitle(title) &&
+        !isSevereCategoryLabel(title)
+      ),
+  );
   const categories = hits.map((h) => h.keyword);
-  if (fromRules && !categories.includes(fromRules)) categories.unshift(fromRules);
+  if (leadCat && !categories.includes(leadCat)) {
+    categories.unshift(leadCat);
+  }
   if (category && !categories.includes(category)) categories.unshift(category);
   return { category, categories: categories.slice(0, 6) };
 }
@@ -947,18 +1142,23 @@ function mergeLlmExtract(
   raw: Record<string, unknown>,
   text: string,
   sourceUrl: string | null,
+  opts?: { titleHint?: string | null },
 ): MarketIqExtract {
   const headline =
     String(raw.headline ?? "").trim() || lexical.headline || lexicalHeadline(text);
   const summary =
     String(raw.summary ?? "").trim() || lexical.summary || lexicalSummary(text);
+  const categoryTitle =
+    (opts?.titleHint || "").trim() || lexical.headline || headline;
   const { category, categories } = resolveCategory(
     raw.category != null ? String(raw.category) : lexical.category,
     `${headline}\n${summary}\n${text.slice(0, 6000)}`,
+    categoryTitle,
   );
 
   const scored = applyScoreFormula({
     text: `${headline}\n${summary}\n${text}`,
+    sentimentText: `${headline}\n${summary}`,
     category,
     extraPositive: asStringArray(raw.positive_words_found),
     extraNegative: asStringArray(raw.negative_words_found),
@@ -1014,9 +1214,11 @@ function lexicalExtract(
   const { category, categories } = resolveCategory(
     null,
     `${headline}\n${summary}\n${text.slice(0, 6000)}`,
+    headline,
   );
   const scored = applyScoreFormula({
     text: `${headline}\n${summary}\n${text}`,
+    sentimentText: `${headline}\n${summary}`,
     category,
   });
   const meta = resolveCompanyMeta(
@@ -1342,7 +1544,9 @@ export async function analyseMarketIqAnnouncement(opts: {
         ].join("\n\n"),
         { model, skipStatusCheck: true, numPredict: 1200 },
       )) as Record<string, unknown>;
-      extract = mergeLlmExtract(extract, parsed, text, source_url);
+      extract = mergeLlmExtract(extract, parsed, text, source_url, {
+        titleHint: opts.titleHint,
+      });
       if (opts.tickerHint?.trim()) {
         extract.ticker = opts.tickerHint.trim().toUpperCase();
       }

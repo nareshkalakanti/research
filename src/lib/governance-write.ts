@@ -286,8 +286,10 @@ function recordSeatDiffs(opts: {
     as_of: string;
   }>;
   detectedAt: string;
+  /** When true, emit "joined" for new DINs even if the company had no prior seats (PDF additive). */
+  emitSeedJoins?: boolean;
 }): number {
-  if (!opts.oldSeats.length) return 0;
+  if (!opts.oldSeats.length && !opts.emitSeedJoins) return 0;
 
   const oldByPerson = new Map(opts.oldSeats.map((s) => [s.person_id, s]));
   const newByPerson = new Map(opts.newSeats.map((s) => [s.person_id, s]));
@@ -305,6 +307,8 @@ function recordSeatDiffs(opts: {
   for (const [personId, oldSeat] of oldByPerson) {
     const next = newByPerson.get(personId);
     if (!next) {
+      // Additive PDF pushes must not invent resignations for seats they didn't send.
+      if (opts.emitSeedJoins) continue;
       insert.run(
         opts.ticker,
         personId,
@@ -454,6 +458,7 @@ export function saveCompanyBoard(opts: {
       oldSeats,
       newSeats: cleanSeats,
       detectedAt: now,
+      emitSeedJoins: !replaceSeats,
     });
 
     if (replaceSeats) {

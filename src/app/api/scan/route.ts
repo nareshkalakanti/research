@@ -218,19 +218,22 @@ export async function POST(req: NextRequest) {
 
   if (clearFirst) {
     clearAllWeeklySignals();
-  } else if (
-    body.clearEmptyMrsi === true &&
-    (kind === "mrsi" || kind === "all" || body.emptyMrsi === true)
-  ) {
-    // Drop null RSI rows so Empty / Scan RSI M can refill (Yahoo misses, SME, etc.).
-    clearEmptyMrsiSignals();
-    invalidateBreakoutCache();
-  } else if (
-    (kind === "mom" || kind === "all") &&
-    body.clearEmptyMom === true
-  ) {
-    clearEmptyMomSignals();
-    invalidateBreakoutCache();
+  } else {
+    if (
+      body.clearEmptyMrsi === true &&
+      (kind === "mrsi" || kind === "all" || body.emptyMrsi === true)
+    ) {
+      // Drop null RSI rows so Empty / Scan RSI M can refill (Yahoo misses, SME, etc.).
+      clearEmptyMrsiSignals();
+      invalidateBreakoutCache();
+    }
+    if (
+      (kind === "mom" || kind === "all") &&
+      body.clearEmptyMom === true
+    ) {
+      clearEmptyMomSignals();
+      invalidateBreakoutCache();
+    }
   }
 
   const allCompanies = loadAllCompanies();

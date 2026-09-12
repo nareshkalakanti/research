@@ -17,6 +17,7 @@ import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap, formatMomPct, formatRsiM } from "@/lib/types";
 import { SecCell } from "@/components/SecCell";
+import { WatchButton } from "@/components/WatchButton";
 
 export type SortKey =
   | "name"
@@ -757,25 +758,28 @@ function CompanyRows({
           </td>
         ) : null}
         <td className="col-name">
-          <button type="button" className="company-cell" onClick={onToggleAbout}>
-            <span className="company-name">{r.name}</span>
-            {!open ? (
-              <span className="company-meta">
-                <span className="ticker">{r.ticker}</span>
-                {r.headquarters ? (
-                  <>
-                    <span className="meta-sep" aria-hidden>
-                      ·
-                    </span>
-                    <span className="hq-line" title="Headquarters">
-                      {r.headquarters}
-                    </span>
-                  </>
-                ) : null}
-              </span>
-            ) : null}
-            <SignalTags company={r} />
-          </button>
+          <div className="company-watch-row">
+            <WatchButton ticker={r.ticker} />
+            <button type="button" className="company-cell" onClick={onToggleAbout}>
+              <span className="company-name">{r.name}</span>
+              {!open ? (
+                <span className="company-meta">
+                  <span className="ticker">{r.ticker}</span>
+                  {r.headquarters ? (
+                    <>
+                      <span className="meta-sep" aria-hidden>
+                        ·
+                      </span>
+                      <span className="hq-line" title="Headquarters">
+                        {r.headquarters}
+                      </span>
+                    </>
+                  ) : null}
+                </span>
+              ) : null}
+              <SignalTags company={r} />
+            </button>
+          </div>
           {missingTags.length > 0 ? (
             <div className="matched-tags">
               {missingTags.map((t) => (

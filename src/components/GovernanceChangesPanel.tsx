@@ -87,7 +87,7 @@ export function GovernanceChangesPanel({
         limit: corpPushes ? "80" : "25",
       });
       if (corpPushes) {
-        params.set("source", "corporate_pdf");
+        params.set("sources", "corporate_pdf,boardroomiq_pdf");
         params.set("eventType", "joined");
       } else if (watchOnly) {
         params.set("watchOnly", "1");
@@ -114,7 +114,7 @@ export function GovernanceChangesPanel({
           <h3 className="gov-changes-title">Recent board changes</h3>
           <p className="gov-changes-sub">
             {corpPushes
-              ? "DINs newly pushed from corporate PDF extract (corporate_pdf)."
+              ? "DINs newly pushed from PDF extract (corporate_pdf + boardroomiq_pdf)."
               : "Detected when NSE boards are refreshed (join / exit / role change)."}
           </p>
         </div>
@@ -129,7 +129,7 @@ export function GovernanceChangesPanel({
                 if (on) setWatchOnly(false);
               }}
             />
-            Corp PDF pushes
+            PDF DIN pushes
           </label>
           <label className="gov-changes-toggle">
             <input
@@ -169,8 +169,8 @@ export function GovernanceChangesPanel({
         <p className="gov-changes-empty">
           {corpPushes ? (
             <>
-              No corp PDF joins yet. Run corporate PDF extract scan /{" "}
-              <strong>Push DINs to gov</strong> via the corporate-data API.
+              No PDF DIN joins yet. Analyse BoardRoom filings or run corporate
+              extract push — then enable this filter.
             </>
           ) : (
             <>
@@ -208,6 +208,14 @@ export function GovernanceChangesPanel({
                       title="Pushed from Corporate extract"
                     >
                       corp
+                    </span>
+                  ) : null}
+                  {e.source === "boardroomiq_pdf" ? (
+                    <span
+                      className="gov-badge boardroom"
+                      title="Pushed from BoardRoomIQ"
+                    >
+                      boardroom
                     </span>
                   ) : null}
                 </button>

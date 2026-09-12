@@ -370,12 +370,15 @@ export function SignalScanBar({
                 limit: batchLimit,
                 bbTimeframe: effectiveKind === "bb" ? tf : bbTimeframe,
                 clearEmptyMrsi:
-                  effectiveKind === "mrsi" && !clearedEmptyMrsi,
+                  (effectiveKind === "mrsi" || effectiveKind === "all") &&
+                  !clearedEmptyMrsi,
                 clearEmptyMom:
                   (effectiveKind === "mom" || effectiveKind === "all") &&
                   !clearedEmptyMom,
               });
-              if (effectiveKind === "mrsi") clearedEmptyMrsi = true;
+              if (effectiveKind === "mrsi" || effectiveKind === "all") {
+                clearedEmptyMrsi = true;
+              }
               if (effectiveKind === "mom" || effectiveKind === "all") {
                 clearedEmptyMom = true;
               }
@@ -386,7 +389,7 @@ export function SignalScanBar({
                 e instanceof Error ? e : new Error("Scan failed");
               if (
                 attempt < 3 &&
-                /network dropped|failed to fetch|fetch failed/i.test(
+                /network dropped|failed to fetch|fetch failed|timed out|timeout|abort/i.test(
                   attemptError.message,
                 )
               ) {
@@ -522,6 +525,7 @@ export function SignalScanBar({
       cap,
       hold,
       edge,
+      gov,
       sme,
       note,
       ageMin,

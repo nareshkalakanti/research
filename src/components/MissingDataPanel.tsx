@@ -134,15 +134,15 @@ export function MissingDataPanel() {
   const gaps = data?.gaps;
   const start = data ? (data.page - 1) * 100 + 1 : 0;
   const end = data ? Math.min(data.page * 100, data.total) : 0;
-  const pageTickers = data?.rows.map((r) => r.ticker) ?? [];
-  const fillableGaps = data?.rows.filter(
+  const pageTickers = (data?.rows ?? []).map((r) => r.ticker);
+  const fillableGaps = (data?.rows ?? []).filter(
     (r) => r.missing?.price || r.missing?.mcap,
   ).length;
   const mcapGapRows =
-    data?.rows.filter((r) => r.missing?.mcap).length ?? 0;
+    (data?.rows ?? []).filter((r) => r.missing?.mcap).length ?? 0;
   const totalMcapGaps = gaps?.missingMcap ?? 0;
   const sectorGapRows =
-    data?.rows.filter((r) => r.missing?.sector || r.missing?.sub_sector)
+    (data?.rows ?? []).filter((r) => r.missing?.sector || r.missing?.sub_sector)
       .length ?? 0;
   const totalSectorGaps = gaps?.missingSector ?? 0;
   const totalMetricsGaps = gaps?.metrics ?? 0;

@@ -12,6 +12,12 @@ import {
   type MarketIqHit,
 } from "@/lib/marketiq-screen";
 import { MARKETIQ_DB_FILE } from "@/lib/iq-dbs";
+import {
+  announcedCacheGet,
+  announcedCacheKey,
+  announcedCacheSet,
+} from "@/lib/announced-cache";
+import { clampAnnouncedDays } from "@/lib/announced-lookback";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -47,14 +53,20 @@ export async function GET(req: NextRequest) {
   }
 
   if (sp.get("announced") === "1" || sp.get("announced") === "today") {
-    const days = Math.min(
-      7,
-      Math.max(1, Number(sp.get("days") || 1) || 1),
-    );
+    const days = clampAnnouncedDays(Number(sp.get("days") || 1) || 1);
     const q = sp.get("q")?.trim() || null;
+    const bust = sp.get("fresh") === "1";
+    const cacheKey = announcedCacheKey("marketiq", days, q);
+    if (!bust) {
+      const cached = announcedCacheGet<Record<string, unknown>>(cacheKey);
+      if (cached) {
+        return NextResponse.json({ ...cached, cached: true });
+      }
+    }
     try {
       const found = await discoverMarketIqAnnounced(days, { q });
-      return NextResponse.json(found);
+      announcedCacheSet(cacheKey, found);
+      return NextResponse.json({ ...found, cached: false });
     } catch (e) {
       return NextResponse.json(
         {

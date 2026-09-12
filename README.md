@@ -41,6 +41,12 @@ FIRECRAWL_API_KEY=
 # FIRECRAWL_MAX_PAGES=80
 # FIRECRAWL_PDF_MODE=auto   # auto | fast | ocr
 
+# OrderBook OCR (optional; default off for bulk scan)
+# ORDERBOOK_OCR=0
+# ORDERBOOK_OCR_MAX_PAGES=4
+# QIANFAN_OCR_BASE_URL=http://127.0.0.1:11434/v1
+# QIANFAN_OCR_MODEL=glm-ocr
+
 # Optional
 # BRAND=Research
 # PORT=3000
@@ -56,7 +62,95 @@ With `FIRECRAWL_API_KEY`, Strategy concall **Documents** / **Get highlights** us
 
 **Scan → Superstar**: pulls latest Trendlyne superstar holdings into `data/superstar_holdings.db` (UI **Scan Superstar**, or `npm run scan:superstar`).
 
-**Research** tab (`?tab=research`): **1 · Buyback** (tender PDF screen + pass row), **2 · Order book** (Reg-30 order PDF → awarding / size / execution + order÷sales), and **3 · Concall** (earnings-call transcript PDF → structured JSON via `prompts/concall-research-extract.system.txt`; fixture `data/concall-research-expected-indoborax.json`). Text via `pdf-parse`; thin PDFs use vision OCR when `QIANFAN_OCR_BASE_URL` is set.
+**Research** tab (`?tab=research`): **1 · Buyback**, **2 · Order book**, **3 · Concall** — all collapsed by default; expand one at a time.
+
+## IQ data: 3–6 months first, then analyse
+
+Run these in a **separate terminal** (not inside `next dev`) so the UI stays responsive.
+
+### Step 1 — Pull announcement stubs (metadata only)
+
+Saves ticker / title / PDF URL / date into SQLite as **pending**. No PDF download, OCR, or LLM.
+
+| Lane | DB |
+|------|-----|
+| MarketIQ | `data/marketiq.db` |
+| OrderBookIQ | `data/orderbookiq.db` |
+| BoardRoomIQ | `data/boardroomiq.db` |
+
+```bash
+# ~3 months (90 days) — all three lanes
+npm run backfill:announced:3m
+
+# ~6 months (180 days) — all three lanes
+npm run backfill:announced:6m
+
+# One lane only
+npm run backfill:announced -- --days 180 --lane marketiq
+npm run backfill:announced -- --days 180 --lane orderbook
+npm run backfill:announced -- --days 180 --lane boardroom
+
+# Custom chunk / pause
+npm run backfill:announced -- --days 180 --chunk 5 --pause-ms 400
+```
+
+**Resume:** if the backfill stops mid-way, run the **same command again**. It continues from `logs/announced-backfill.ckpt.json`. Use `--fresh` to ignore the checkpoint and start over (dupes are still skipped in DB).
+
+```bash
+npm run backfill:announced:6m          # resume OK
+npm run backfill:announced -- --days 180 --fresh
+```
+
+### Step 2 — Analyse PDFs in the background
+
+Skips URLs already scored / PASS / FAIL. Re-run after a crash to continue.
+
+```bash
+# All three lanes (pending stubs only)
+npm run scan:iq-bg -- --limit 40
+
+# Per lane
+npm run scan:marketiq-bg -- --pending-only --limit 40
+npm run scan:orderbook-bg -- --pending-only --limit 30 --mode lexical
+npm run scan:boardroom-bg -- --pending-only --limit 40
+
+# Discover recent days + analyse (also merges DB pending → resume-safe)
+npm run scan:marketiq-bg -- --days 7 --limit 40
+npm run scan:orderbook-bg -- --days 7 --limit 30 --mode lexical
+npm run scan:boardroom-bg -- --days 7 --limit 40
+
+# OrderBook with OCR
+npm run scan:orderbook-bg -- --pending-only --limit 30 --ocr
+```
+
+Logs: `logs/marketiq-scan-YYYYMMDD.jsonl`, `logs/orderbook-scan-YYYYMMDD.jsonl`, `logs/boardroom-scan-YYYYMMDD.jsonl`.
+
+UI **Refresh** / **Scan & Analyse** still work for short lookbacks; use these scripts for multi-month loads.
+
+### Starter goals (enough to begin investing use)
+
+You do **not** need every pending PDF analysed. Aim for:
+
+| Lane | Starter target | Then |
+|------|----------------|------|
+| **OrderBookIQ** | ≥ **20 PASS** (or pending queue empty) | Use Orders / OrderBookIQ list |
+| **BoardRoomIQ** | ≥ **200** analysed | Use BoardRoom history |
+| **MarketIQ** | ≥ **500** analysed | Use MarketIQ history + Watch |
+
+```bash
+# Check progress
+npm run scan:iq-starter -- --status
+
+# Analyse until starter targets are met (resume-safe)
+npm run scan:iq-starter
+
+# One lane only
+npm run scan:iq-starter -- --lane boardroom
+npm run scan:iq-starter -- --lane marketiq
+npm run scan:iq-starter -- --lane orderbook
+```
+
+Keep running `scan:iq-starter` (or the per-lane `scan:*-bg` commands) until status shows targets met. After that, optional deeper backfill is nice-to-have, not required to start.
 
 ## SQLite health
 
@@ -71,10 +165,13 @@ npm run scan:concall-drift
 
 `npm run dev` runs `db:prepare-dev` first (auto-fix). Keep `data/` out of iCloud/Dropbox.
 
-Dedicated save/reuse DBs (auto-migrated from legacy names once):
+Dedicated save/reuse DBs (created locally; **gitignored** — not shipped between machines):
 
 - `data/marketiq.db` — MarketIQ analysed announcements
 - `data/orderbookiq.db` — OrderBookIQ PASS/FAIL screens (Scan skips known PDF URLs)
+- `data/boardroomiq.db` — BoardRoomIQ board / director / AGM screens
+
+Scan logs live under `logs/` (also gitignored). Re-run Refresh / `scan:*-bg` on each machine.
 
 ### LLM prompts
 

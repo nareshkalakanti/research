@@ -5,11 +5,18 @@ import {
   listBoardRoomHistory,
   listScreenedBoardRoomUrls,
   loadLdrGovernanceCategories,
+  pushBoardRoomHistoryToGovernance,
   saveBoardRoomHits,
   scanBoardRoomAnnouncements,
   type BoardRoomHit,
 } from "@/lib/boardroom-screen";
 import { BOARDROOMIQ_DB_FILE } from "@/lib/iq-dbs";
+import {
+  announcedCacheGet,
+  announcedCacheKey,
+  announcedCacheSet,
+} from "@/lib/announced-cache";
+import { clampAnnouncedDays } from "@/lib/announced-lookback";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -45,14 +52,20 @@ export async function GET(req: NextRequest) {
   }
 
   if (sp.get("announced") === "1" || sp.get("announced") === "today") {
-    const days = Math.min(
-      7,
-      Math.max(1, Number(sp.get("days") || 1) || 1),
-    );
+    const days = clampAnnouncedDays(Number(sp.get("days") || 1) || 1);
     const q = sp.get("q")?.trim() || null;
+    const bust = sp.get("fresh") === "1";
+    const cacheKey = announcedCacheKey("boardroom", days, q);
+    if (!bust) {
+      const cached = announcedCacheGet<Record<string, unknown>>(cacheKey);
+      if (cached) {
+        return NextResponse.json({ ...cached, cached: true });
+      }
+    }
     try {
       const found = await discoverBoardRoomAnnounced(days, { q });
-      return NextResponse.json(found);
+      announcedCacheSet(cacheKey, found);
+      return NextResponse.json({ ...found, cached: false });
     } catch (e) {
       return NextResponse.json(
         {
@@ -74,7 +87,9 @@ export async function GET(req: NextRequest) {
       save: "POST { action: 'save', sources: [...] }",
       analyse:
         "POST { action: 'analyse', url?, ticker?, company?, title?, announced_at?, historyId? }",
-      scan: "POST { action: 'scan', days?, limit?, pendingOnly?, sources? }",
+      scan: "POST { action: 'scan', days?, limit?, pendingOnly?, sources?, q?, skipOcr? }",
+      push_gov:
+        "POST { action: 'push_gov', limit?, unclassifiedOnly? } — push saved DINs into governance.db",
     },
   });
 }
@@ -93,6 +108,8 @@ export async function POST(req: NextRequest) {
     limit?: number;
     pendingOnly?: boolean;
     q?: string | null;
+    unclassifiedOnly?: boolean;
+    skipOcr?: boolean;
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -120,6 +137,7 @@ export async function POST(req: NextRequest) {
         pendingOnly: body.pendingOnly,
         sources: body.sources ?? null,
         q: body.q,
+        skipOcr: body.skipOcr === true,
       });
       return NextResponse.json(result);
     } catch (e) {
@@ -151,6 +169,24 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           error: e instanceof Error ? e.message : "Analyse failed",
+        },
+        { status: 422 },
+      );
+    }
+  }
+
+  if (action === "push_gov") {
+    try {
+      const result = pushBoardRoomHistoryToGovernance({
+        limit: body.limit,
+        unclassifiedOnly: body.unclassifiedOnly === true,
+      });
+      return NextResponse.json(result);
+    } catch (e) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: e instanceof Error ? e.message : "Push to governance failed",
         },
         { status: 422 },
       );

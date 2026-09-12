@@ -44,6 +44,8 @@ export function listRecentSeatEvents(opts?: {
   ticker?: string | null;
   /** e.g. corporate_pdf — DINs pushed from Concall extract */
   source?: string | null;
+  /** Comma-separated sources (OR). Takes precedence over source when set. */
+  sources?: string[] | null;
   eventType?: SeatEventType | null;
 }): BoardSeatEvent[] {
   const db = openGovDb();
@@ -53,6 +55,9 @@ export function listRecentSeatEvents(opts?: {
   const watchOnly = opts?.watchOnly === true;
   const personId = opts?.personId?.trim() || null;
   const ticker = opts?.ticker?.trim().toUpperCase() || null;
+  const sources = (opts?.sources || [])
+    .map((s) => s.trim())
+    .filter(Boolean);
   const source = opts?.source?.trim() || null;
   const eventType = opts?.eventType || null;
 
@@ -86,7 +91,10 @@ export function listRecentSeatEvents(opts?: {
     sql += ` AND e.ticker = ?`;
     params.push(ticker);
   }
-  if (source) {
+  if (sources.length) {
+    sql += ` AND e.source IN (${sources.map(() => "?").join(",")})`;
+    params.push(...sources);
+  } else if (source) {
     sql += ` AND e.source = ?`;
     params.push(source);
   }

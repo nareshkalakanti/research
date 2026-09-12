@@ -7,9 +7,13 @@ import path from "path";
 import { announcementDedupeKey } from "./announcement-dedupe";
 import { isOrderWinAnnouncementBlob } from "./bse-investor-discover";
 import { extractCorporateFromPdfUrl } from "./corporate-data-extract";
-import type { CorporateExtractPayload } from "./corporate-data";
+import {
+  pushExtractToGovernance,
+  type CorporateExtractPayload,
+} from "./corporate-data";
 import { boardRoomIqDbFile } from "./iq-dbs";
 import { discoverNseMarketAnnouncements } from "./nse-investor-discover";
+import { clampAnnouncedDays } from "./announced-lookback";
 import { openSqliteNamed } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -126,6 +130,7 @@ export function loadLdrGovernanceCategories(): {
 /**
  * Lexical match of title+text against scraped governance tags.
  * Prefers longer / more specific tags on ties; action-word aware.
+ * Vague NSE subjects ("Outcome of Board Meeting") rely on role/action in body.
  */
 export function classifyGovernanceTag(
   title: string,
@@ -137,6 +142,47 @@ export function classifyGovernanceTag(
     .replace(/\s+/g, " ")
     .trim();
   const cats = loadLdrGovernanceCategories().categories;
+
+  // Weak title-only tokens — alone they should not pick a category.
+  const GENERIC = new Set([
+    "board",
+    "meeting",
+    "outcome",
+    "intimation",
+    "update",
+    "updates",
+    "disclosure",
+    "regulation",
+    "securities",
+    "exchange",
+    "stock",
+    "limited",
+    "company",
+    "change",
+    "management",
+  ]);
+
+  const hayResign = /\bresign|\bcessation|\bretir|\brelinquish|\bvaca/.test(hay);
+  const hayReappoint = /\bre appoint|\breappoint/.test(hay);
+  const hayAppoint =
+    /\bappoint|\bnominat|\belect/.test(hay) && !hayReappoint && !hayResign;
+  const hayChange =
+    /\bchange in (?:designation|management|kmp)|designation change|\breclassif/.test(
+      hay,
+    );
+  const hayInd = /\bindependent\b/.test(hay);
+  const hayNonInd = /\bnon independent\b/.test(hay);
+  const hayMd = /\bmanaging director\b|(?:^|\s)md(?:\s|$)/.test(hay);
+  const hayEd = /\bexecutive director\b/.test(hay);
+  const hayExec =
+    /\bexecutive\b/.test(hay) && !hayEd && !/\bnon executive\b/.test(hay);
+  const hayNonExec = /\bnon executive\b/.test(hay);
+  const hayKmp =
+    /\bchief financial|\bcfo\b|\bcompany secretary|\bcompliance officer|\bkmp\b|\bchief executive|\bceo\b|\bcoo\b/.test(
+      hay,
+    );
+  const hayDirector = /\bdirector\b/.test(hay);
+
   let best = { category: "Unclassified", score: 0 };
   for (const cat of cats) {
     const full = cat
@@ -147,39 +193,93 @@ export function classifyGovernanceTag(
     if (!full) continue;
     const tokens = full.split(" ").filter((t) => t.length > 2);
     if (!tokens.length) continue;
-    const hits = tokens.filter((t) => {
+    const hitTokens = tokens.filter((t) => {
       const re = new RegExp(`(?:^|\\s)${t}(?:\\s|$)`);
       return re.test(hay);
-    }).length;
+    });
+    const hits = hitTokens.length;
     let score = hits / tokens.length;
     if (hay.includes(full)) score += 0.55;
     score += Math.min(0.15, tokens.length * 0.02);
 
-    // Action / polarity guards (generic, not issuer-specific)
-    const hayResign = /\bresign|\bcessation|\bretir/.test(hay);
+    // Only matched generic title words → almost no signal.
+    const specificHits = hitTokens.filter((t) => !GENERIC.has(t));
+    if (hits > 0 && specificHits.length === 0) {
+      score *= 0.35;
+    }
+
     const catResign = /\bresign|\bcessation|\bretir|\bremoval/.test(full);
-    const hayReappoint = /\bre appoint|\breappoint/.test(hay);
     const catReappoint = /\bre appoint|\breappoint/.test(full);
-    const hayAppoint =
-      /\bappoint/.test(hay) && !hayReappoint && !hayResign;
     const catAppoint =
       /\bappoint/.test(full) && !catReappoint && !catResign;
+    const catChange = /\bdesignation change|\bchange\b/.test(full);
+    const catInd =
+      /\bindependent\b/.test(full) && !/\bnon independent\b/.test(full);
+    const catMd = /\bmanaging director\b/.test(full);
+    const catEd = /\bexecutive director\b/.test(full);
+    const catExec =
+      /\bexecutive\b/.test(full) &&
+      !catEd &&
+      !/\bnon executive\b/.test(full) &&
+      !catInd;
+    const catRemoval = /\bremoval\b|\bretirement\b/.test(full);
+
     if (hayResign && catAppoint) score -= 0.55;
     if (hayResign && catReappoint) score -= 0.45;
-    if (hayResign && catResign) score += 0.35;
+    if (hayResign && (catResign || catRemoval)) score += 0.4;
     if (hayReappoint && catReappoint) score += 0.35;
     if (hayReappoint && catAppoint && !catReappoint) score -= 0.25;
     if (hayAppoint && catResign) score -= 0.45;
+    if (hayAppoint && catAppoint) score += 0.2;
+    if (hayChange && catChange) score += 0.35;
 
-    const hayNonInd = /\bnon independent\b/.test(hay);
-    const catInd =
-      /\bindependent\b/.test(full) && !/\bnon independent\b/.test(full);
     if (hayNonInd && catInd) score -= 0.45;
-
-    const hayNonExec = /\bnon executive\b/.test(hay);
-    const catExec =
-      /\bexecutive\b/.test(full) && !/\bnon executive\b/.test(full);
     if (hayNonExec && catExec) score -= 0.45;
+
+    // Role boosts from extract designations / body (generic).
+    if (hayInd && !hayNonInd && catInd && (hayAppoint || hayReappoint || !hayResign)) {
+      score += hayAppoint || hayReappoint ? 0.35 : 0.22;
+    }
+    if (hayMd && catMd) score += 0.35;
+    if (hayEd && catEd) score += 0.3;
+    if (hayKmp && catExec && catAppoint) score += 0.38;
+    if (hayKmp && catExec && hayChange) score += 0.3;
+    // Vague board/outcome titles: KMP roles still map to Executive Appointment.
+    if (
+      hayKmp &&
+      /\bexecutive appointment\b/.test(full) &&
+      !hayResign &&
+      !hayReappoint
+    ) {
+      score += 0.42;
+    }
+    if (
+      hayChange &&
+      hayKmp &&
+      /\bdesignation change\b/.test(full)
+    ) {
+      score += 0.4;
+    }
+    // Independent on vague board outcome → Independent Director Appointment.
+    if (
+      hayInd &&
+      !hayNonInd &&
+      !hayResign &&
+      /\bindependent director appointment\b/.test(full)
+    ) {
+      score += hayAppoint || hayReappoint ? 0.15 : 0.32;
+    }
+    if (
+      hayDirector &&
+      !hayInd &&
+      !hayMd &&
+      !hayEd &&
+      catAppoint &&
+      /\bdirector appointment\b/.test(full) &&
+      !catInd
+    ) {
+      score += hayAppoint ? 0.28 : 0.12;
+    }
 
     // Taxonomy has Removal / Retirement, not Resignation
     if (hayResign && /\bremoval\b/.test(full)) score += 0.4;
@@ -195,7 +295,18 @@ export function classifyGovernanceTag(
       best = { category: cat, score };
     }
   }
-  return best.score >= 0.55
+
+  // Soft floor when we have a clear role+action but taxonomy match is partial.
+  const roleFloor =
+    hayKmp && (hayAppoint || hayChange)
+      ? 0.5
+      : hayInd && (hayAppoint || hayReappoint)
+        ? 0.5
+        : hayMd && hayAppoint
+          ? 0.5
+          : 0.55;
+
+  return best.score >= roleFloor
     ? best
     : { category: "Unclassified", score: best.score };
 }
@@ -308,7 +419,7 @@ function proposalFromText(title: string, text: string): string {
 
 export async function discoverBoardRoomAnnounced(
   daysBack = 1,
-  opts?: { q?: string | null },
+  opts?: { q?: string | null; fromOffset?: number },
 ): Promise<{
   ok: true;
   days: number;
@@ -317,8 +428,11 @@ export async function discoverBoardRoomAnnounced(
   sources: BoardRoomHit[];
   note?: string;
 }> {
-  const days = Math.min(7, Math.max(1, daysBack));
-  const raw = await discoverNseMarketAnnouncements(days, { q: opts?.q });
+  const days = clampAnnouncedDays(daysBack);
+  const raw = await discoverNseMarketAnnouncements(days, {
+    q: opts?.q,
+    fromOffset: opts?.fromOffset,
+  });
   const seen = new Set<string>();
   const sources: BoardRoomHit[] = [];
   for (const h of raw) {
@@ -522,6 +636,72 @@ export function listScreenedBoardRoomUrls(): Set<string> {
   }
 }
 
+/** Pending stub rows (saved announced, not yet analysed). */
+export function listBoardRoomPendingHits(): BoardRoomHit[] {
+  ensureSchema();
+  const screened = listScreenedBoardRoomUrls();
+  const db = openSqliteNamed(boardRoomIqDbFile(), {
+    readonly: true,
+    wal: true,
+  });
+  try {
+    const rows = db
+      .prepare(
+        `SELECT source_url, ticker, company, headline, announcement_date,
+                extract_json, engine, status, category
+         FROM boardroom_screens
+         WHERE source_url IS NOT NULL AND TRIM(source_url) != ''
+         ORDER BY id DESC
+         LIMIT 8000`,
+      )
+      .all() as Array<{
+      source_url: string;
+      ticker: string | null;
+      company: string | null;
+      headline: string | null;
+      announcement_date: string | null;
+      extract_json: string | null;
+      engine: string | null;
+      status: string | null;
+      category: string | null;
+    }>;
+    const out: BoardRoomHit[] = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const url = r.source_url.trim();
+      if (!url || seen.has(url) || screened.has(url)) continue;
+      const status = (r.status || "pending").toLowerCase();
+      const eng = (r.engine || "").trim();
+      let pending =
+        status === "pending" ||
+        eng === "nse-came-fetch" ||
+        eng === "exchange-fetch";
+      try {
+        const j = r.extract_json ? JSON.parse(r.extract_json) : null;
+        if (j && j.pending === true) pending = true;
+      } catch {
+        /* ignore */
+      }
+      if (!pending) continue;
+      seen.add(url);
+      out.push({
+        ticker: (r.ticker || "").toUpperCase() || "UNKNOWN",
+        company: r.company,
+        title: (r.headline || "").trim() || "Board filing",
+        url,
+        announced_at: r.announcement_date,
+        period: null,
+        provider: "db",
+        category_hint:
+          r.category && r.category !== "Unclassified" ? r.category : null,
+      });
+    }
+    return out;
+  } finally {
+    db.close();
+  }
+}
+
 function saveAnalysed(opts: {
   source_url: string | null;
   extract: BoardRoomExtract;
@@ -631,6 +811,116 @@ function saveAnalysed(opts: {
   }
 }
 
+function pushBoardRoomDinsToGov(opts: {
+  ticker: string | null | undefined;
+  company: string | null | undefined;
+  dins: BoardRoomDin[];
+  extracted?: CorporateExtractPayload | null;
+  sourceUrl?: string | null;
+}): { pushed: number; reason?: string } {
+  const ticker = (opts.ticker || "").trim().toUpperCase();
+  if (!ticker) return { pushed: 0, reason: "no ticker" };
+  const dins = opts.dins || [];
+  if (!dins.some((d) => (d.din || "").replace(/\D/g, "").length === 8)) {
+    return { pushed: 0, reason: "no 8-digit DINs" };
+  }
+  try {
+    const payload: CorporateExtractPayload =
+      opts.extracted || {
+        directors: dins.map((d) => {
+          const digits = (d.din || "").replace(/\D/g, "");
+          let name = (d.name || "").trim();
+          if (!name || /^din\s*\d{6,8}$/i.test(name)) {
+            name = digits.length === 8 ? `Director ${digits}` : "Director";
+          }
+          return {
+            name,
+            din: digits.length === 8 ? digits : d.din,
+            designation: d.designation,
+            category: d.category,
+            as_of: null,
+            tenure_end: null,
+            committees: null,
+            age: null,
+            dob: null,
+            shareholding_pct: null,
+            promoter: null,
+            related_party: null,
+            qualification: null,
+          };
+        }),
+        kmp: [],
+        company: { cin: null, isin: null },
+        extras: {
+          earnings_snip: null,
+          order_wins: null,
+          credit_rating: null,
+          buyback: null,
+          clarification: null,
+        },
+        concall: null,
+        source_url: opts.sourceUrl || null,
+        notes: "boardroomiq",
+      };
+    const out = pushExtractToGovernance({
+      ticker,
+      market: "NSE",
+      name: opts.company,
+      extracted: payload,
+      source: "boardroomiq_pdf",
+      notes: "Additive seats from BoardRoomIQ PDF extract",
+    });
+    return {
+      pushed: out.ok ? out.pushed : 0,
+      reason: out.ok ? undefined : out.reason,
+    };
+  } catch (err) {
+    return {
+      pushed: 0,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+/** Re-push DINs from saved BoardRoom history into governance (additive). */
+export function pushBoardRoomHistoryToGovernance(opts?: {
+  limit?: number;
+  unclassifiedOnly?: boolean;
+}): {
+  ok: true;
+  attempted: number;
+  pushed_rows: number;
+  pushed_seats: number;
+  skipped: number;
+} {
+  const rows = listBoardRoomHistory(opts?.limit ?? 200);
+  let attempted = 0;
+  let pushed_rows = 0;
+  let pushed_seats = 0;
+  let skipped = 0;
+  for (const r of rows) {
+    if (opts?.unclassifiedOnly && r.category !== "Unclassified") continue;
+    if (!r.dins.some((d) => (d.din || "").replace(/\D/g, "").length === 8)) {
+      skipped += 1;
+      continue;
+    }
+    attempted += 1;
+    const out = pushBoardRoomDinsToGov({
+      ticker: r.ticker,
+      company: r.company,
+      dins: r.dins,
+      sourceUrl: r.source_url,
+    });
+    if (out.pushed > 0) {
+      pushed_rows += 1;
+      pushed_seats += out.pushed;
+    } else {
+      skipped += 1;
+    }
+  }
+  return { ok: true, attempted, pushed_rows, pushed_seats, skipped };
+}
+
 export async function analyseBoardRoomAnnouncement(opts: {
   url?: string | null;
   ticker?: string | null;
@@ -638,6 +928,8 @@ export async function analyseBoardRoomAnnouncement(opts: {
   title?: string | null;
   announced_at?: string | null;
   historyId?: number | null;
+  /** true = pdf-parse only; omit/false = OCR thin PDFs when configured. */
+  skipOcr?: boolean;
 }): Promise<BoardRoomScreenResult> {
   const url = opts.url?.trim() || null;
   const title = (opts.title || "").trim() || "Board filing";
@@ -690,17 +982,25 @@ export async function analyseBoardRoomAnnouncement(opts: {
           }
         | undefined;
       if (row) {
+        const extract = emptyExtract({
+          ticker: row.ticker,
+          company: row.company,
+          headline: row.headline,
+          proposal: row.proposal || row.headline,
+          category: row.category,
+          dins: parseDins(row.dins_json),
+          announcement_date: row.announcement_date,
+        });
+        // Cache hit still pushes DINs (additive) so gov stays in sync.
+        pushBoardRoomDinsToGov({
+          ticker: extract.ticker,
+          company: extract.company,
+          dins: extract.dins,
+          sourceUrl: url,
+        });
         return {
           ok: true,
-          extract: emptyExtract({
-            ticker: row.ticker,
-            company: row.company,
-            headline: row.headline,
-            proposal: row.proposal || row.headline,
-            category: row.category,
-            dins: parseDins(row.dins_json),
-            announcement_date: row.announcement_date,
-          }),
+          extract,
           engine: row.engine || "cache",
           text_chars: 0,
           source_url: url,
@@ -713,7 +1013,9 @@ export async function analyseBoardRoomAnnouncement(opts: {
     }
   }
 
-  const corp = await extractCorporateFromPdfUrl(url);
+  const corp = await extractCorporateFromPdfUrl(url, {
+    skipOcr: opts.skipOcr === true,
+  });
   const dins = corp.ok ? dinsFromCorporate(corp.extracted) : [];
   // Corporate extract doesn't always return full text — use title + DIN names for tag
   const tagHay = [
@@ -765,6 +1067,15 @@ export async function analyseBoardRoomAnnouncement(opts: {
     replaceId: opts.historyId ?? null,
   });
 
+  // Additive push of newly seen DINs into governance.db (does not wipe NSE boards).
+  pushBoardRoomDinsToGov({
+    ticker: extract.ticker || opts.ticker,
+    company: extract.company || company,
+    dins,
+    extracted: corp.ok ? corp.extracted : null,
+    sourceUrl: url,
+  });
+
   return {
     ok: corp.ok || dins.length > 0,
     extract,
@@ -783,6 +1094,7 @@ export async function scanBoardRoomAnnouncements(opts: {
   limit?: number;
   pendingOnly?: boolean;
   sources?: BoardRoomHit[] | null;
+  skipOcr?: boolean;
 }): Promise<{
   ok: true;
   days: number;
@@ -797,9 +1109,10 @@ export async function scanBoardRoomAnnouncements(opts: {
   attempted_urls: string[];
   note?: string;
 }> {
-  const days = Math.min(7, Math.max(1, opts.days ?? 1));
+  const days = clampAnnouncedDays(opts.days ?? 1);
   const limit = Math.min(12, Math.max(1, opts.limit ?? 3));
   const screened = listScreenedBoardRoomUrls();
+  const skipOcr = opts.skipOcr === true;
 
   let sources = opts.sources?.length
     ? opts.sources
@@ -833,6 +1146,7 @@ export async function scanBoardRoomAnnouncements(opts: {
         company: s.company,
         title: s.title,
         announced_at: s.announced_at,
+        skipOcr,
       });
       results.push(r);
       // Completed screen (saved) counts as analysed; hard fail only when nothing useful saved

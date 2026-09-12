@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { tradingviewUrl } from "@/lib/links";
 import { announcementDedupeKey } from "@/lib/announcement-dedupe";
+import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
+import { IqHintPanel } from "@/components/IqHintPanel";
+import { CompanyWatchCell } from "@/components/CompanyWatchCell";
 
 type MarketIqHit = {
   ticker: string;
@@ -269,40 +271,6 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function CompanyTvLink({
-  ticker,
-  company,
-  market,
-}: {
-  ticker: string | null | undefined;
-  company: string | null | undefined;
-  market?: string | null;
-}) {
-  const label = (company || ticker || "—").trim() || "—";
-  const sym = (ticker || "").trim().toUpperCase();
-  if (!sym || sym === "—") {
-    return <div className="miq-co-name">{label}</div>;
-  }
-  const idx = (market || "").trim().toLowerCase();
-  const mk =
-    idx === "sme" || idx.includes("bse")
-      ? idx.includes("bse")
-        ? "BSE"
-        : "NSE SME"
-      : "NSE";
-  return (
-    <a
-      className="miq-co-name"
-      href={tradingviewUrl(sym, mk)}
-      target="_blank"
-      rel="noreferrer"
-      title={`${label} — TradingView`}
-    >
-      {label}
-    </a>
-  );
-}
-
 function applyOverlay(
   row: FeedRow,
   overlay: AnalysedOverlay | undefined,
@@ -346,7 +314,8 @@ type LabResult = {
 };
 
 export function MarketIqPanel() {
-  const [days, setDays] = useState(1);
+  const [days, setDays] = useState(2);
+  const [useOcr, setUseOcr] = useState(false);
   const [q, setQ] = useState("");
   const [catQ, setCatQ] = useState("");
   const [busy, setBusy] = useState(false);
@@ -364,6 +333,7 @@ export function MarketIqPanel() {
   const [showAllCats, setShowAllCats] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
+  const [labOpen, setLabOpen] = useState(false);
   const [labFile, setLabFile] = useState<File | null>(null);
   const [labUrl, setLabUrl] = useState("");
   const [labTicker, setLabTicker] = useState("");
@@ -375,13 +345,22 @@ export function MarketIqPanel() {
   const labFileRef = useRef<HTMLInputElement | null>(null);
   const scanStopRef = useRef(false);
   const [scanRunning, setScanRunning] = useState(false);
+  const [scanningUrls, setScanningUrls] = useState<string[]>([]);
   const [scanStats, setScanStats] = useState<{
     ok: number;
     fail: number;
     skipped: number;
     remaining: number;
     round: number;
+    total: number;
+    done: number;
+    pct: number;
+    current: string[];
+    finished?: boolean;
+    errored?: boolean;
   } | null>(null);
+
+  const announcedAbortRef = useRef<AbortController | null>(null);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -394,21 +373,28 @@ export function MarketIqPanel() {
   }, []);
 
   const fetchAnnounced = useCallback(async () => {
+    announcedAbortRef.current?.abort();
+    const ac = new AbortController();
+    announcedAbortRef.current = ac;
     setBusy(true);
     setError(null);
-    setStatusNote(null);
+    setStatusNote("Refreshing live NSE/BSE…");
     try {
       const params = new URLSearchParams({
         announced: "1",
         days: String(days),
       });
       if (q.trim()) params.set("q", q.trim());
-      const res = await fetch(`/api/marketiq?${params}`);
+      const res = await fetch(`/api/marketiq?${params}`, {
+        signal: ac.signal,
+      });
       const json = (await res.json()) as {
         ok?: boolean;
         sources?: MarketIqHit[];
         error?: string;
+        cached?: boolean;
       };
+      if (ac.signal.aborted) return;
       if (!res.ok || json.ok === false) {
         setError(json.error || "Fetch failed");
         setHits([]);
@@ -418,24 +404,34 @@ export function MarketIqPanel() {
       setHits(json.sources ?? []);
       setLive(true);
       setPage(1);
+      setStatusNote(
+        `${json.sources?.length ?? 0} live filings${json.cached ? " (cache)" : ""}`,
+      );
     } catch (e) {
+      if (ac.signal.aborted) return;
       setError(e instanceof Error ? e.message : "Fetch failed");
       setHits([]);
       setLive(false);
     } finally {
-      setBusy(false);
+      if (!ac.signal.aborted) setBusy(false);
     }
   }, [days, q]);
 
   useEffect(() => {
     void loadHistory();
-    void fetch("/api/marketiq?categories=1")
-      .then((r) => r.json())
-      .then((j: { categories?: string[] }) => {
-        setCategories(j.categories ?? []);
-      })
-      .catch(() => setCategories([]));
-    void fetchAnnounced();
+    setStatusNote("Showing saved screens — Refresh NSE for live filings");
+    const t = window.setTimeout(() => {
+      void fetch("/api/marketiq?categories=1")
+        .then((r) => r.json())
+        .then((j: { categories?: string[] }) => {
+          setCategories(j.categories ?? []);
+        })
+        .catch(() => setCategories([]));
+    }, 200);
+    return () => {
+      announcedAbortRef.current?.abort();
+      window.clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -730,13 +726,33 @@ export function MarketIqPanel() {
     scanStopRef.current = false;
     setScanRunning(true);
     setError(null);
-    setScanStats({ ok: 0, fail: 0, skipped: 0, remaining: 0, round: 0 });
+    setScanningUrls([]);
+    setScanStats({
+      ok: 0,
+      fail: 0,
+      skipped: 0,
+      remaining: 0,
+      round: 0,
+      total: 0,
+      done: 0,
+      pct: 0,
+      current: [],
+    });
     setStatusNote("Starting scan of all announcements…");
 
     let ok = 0;
     let fail = 0;
     let skipped = 0;
     let round = 0;
+    let total = 0;
+    let doneCount = 0;
+    let errored = false;
+
+    const doneUrls = new Set<string>();
+    for (const h of history) {
+      const u = h.source_url?.trim();
+      if (u) doneUrls.add(u);
+    }
 
     try {
       // Prefer live NSE list; else server rediscovers for selected days.
@@ -757,8 +773,40 @@ export function MarketIqPanel() {
 
       while (!scanStopRef.current) {
         round += 1;
+        const pending = sources.filter((s) => {
+          const u = s.url?.trim();
+          return u && !doneUrls.has(u);
+        });
+        const batch = pending.slice(0, 3);
+        if (round === 1) {
+          total = pending.length;
+          skipped = Math.max(0, sources.filter((s) => s.url?.trim()).length - total);
+        }
+        const current = batch
+          .map((s) => (s.ticker || "").toUpperCase())
+          .filter(Boolean);
+        const batchUrls = batch
+          .map((s) => s.url?.trim() || "")
+          .filter(Boolean);
+        setScanningUrls(batchUrls);
+        setScanStats({
+          ok,
+          fail,
+          skipped,
+          remaining: pending.length,
+          round,
+          total,
+          done: doneCount,
+          pct:
+            total > 0
+              ? Math.min(100, Math.round((100 * doneCount) / total))
+              : 0,
+          current,
+        });
         setStatusNote(
-          `Scanning batch ${round}… (${ok} ok · ${fail} fail · ${skipped} skipped)`,
+          batch.length
+            ? `Analysing ${current.join(", ") || "batch"}… (${ok} ok · ${fail} fail)`
+            : `Scanning… (${ok} ok · ${fail} fail · ${skipped} skipped)`,
         );
         const res = await fetch("/api/marketiq", {
           method: "POST",
@@ -769,7 +817,7 @@ export function MarketIqPanel() {
             q: q.trim() || null,
             limit: 3,
             pendingOnly: true,
-            skipOcr: true,
+            skipOcr: !useOcr,
             sources: sources.length ? sources : null,
           }),
         });
@@ -803,6 +851,7 @@ export function MarketIqPanel() {
 
         if (!res.ok || json.ok === false) {
           setError(json.error || "Scan batch failed");
+          errored = true;
           break;
         }
 
@@ -810,12 +859,32 @@ export function MarketIqPanel() {
         ok += json.analysed ?? 0;
         fail += json.failed ?? 0;
         const remaining = json.remaining ?? 0;
+        const attempted = json.attempted ?? 0;
+        doneCount += attempted;
+        if (round === 1 && total <= 0) {
+          total = attempted + remaining;
+        }
+        for (const u of batchUrls) doneUrls.add(u);
+        for (const r of json.results ?? []) {
+          const u = r.source_url?.trim();
+          if (u) doneUrls.add(u);
+        }
+
         setScanStats({
           ok,
           fail,
           skipped,
           remaining,
           round,
+          total,
+          done: doneCount,
+          pct:
+            total > 0
+              ? Math.min(100, Math.round((100 * doneCount) / total))
+              : attempted === 0
+                ? 100
+                : 0,
+          current,
         });
 
         for (const r of json.results ?? []) {
@@ -827,7 +896,7 @@ export function MarketIqPanel() {
         }
         if (json.history) setHistory(json.history);
 
-        if ((json.attempted ?? 0) === 0 || remaining === 0) {
+        if (attempted === 0 || remaining === 0) {
           setStatusNote(
             scanStopRef.current
               ? `Scan stopped · ${ok} analysed · ${fail} failed · ${skipped} already scored`
@@ -837,7 +906,7 @@ export function MarketIqPanel() {
         }
 
         setStatusNote(
-          `Scanned ${ok + fail} · ${remaining} remaining · batch ${round}`,
+          `Scanned ${doneCount}/${total || doneCount} · ${remaining} remaining · last ${current.join(", ") || "batch"}`,
         );
       }
 
@@ -849,11 +918,30 @@ export function MarketIqPanel() {
       void loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed");
+      errored = true;
     } finally {
+      setScanningUrls([]);
+      setScanStats((prev) =>
+        prev
+          ? {
+              ...prev,
+              current: [],
+              pct: errored ? prev.pct : 100,
+              finished: !errored,
+              errored,
+            }
+          : prev,
+      );
       setScanRunning(false);
       scanStopRef.current = false;
     }
-  }, [scanRunning, hits, history, days, q, ingestAnalyseResult, loadHistory]);
+  }, [scanRunning, hits, history, days, q, useOcr, ingestAnalyseResult, loadHistory]);
+
+  useEffect(() => {
+    if (scanRunning || !scanStats?.finished) return;
+    const t = window.setTimeout(() => setScanStats(null), 4000);
+    return () => window.clearTimeout(t);
+  }, [scanRunning, scanStats?.finished]);
 
   const runLabExtract = useCallback(async () => {
     setLabBusy("extract");
@@ -978,12 +1066,24 @@ export function MarketIqPanel() {
               disabled={busy || analysing}
               onChange={(e) => setDays(Number(e.target.value) || 1)}
             >
-              {[1, 2, 3, 5, 7].map((d) => (
+              {[...ANNOUNCED_DAY_OPTIONS].map((d) => (
                 <option key={d} value={d}>
-                  {d}
+                  {d === 90 ? "90 (3mo)" : d === 180 ? "180 (6mo)" : d}
                 </option>
               ))}
             </select>
+          </label>
+          <label
+            className={`chip tag-chip miq-ocr${useOcr ? " on" : ""}`}
+            title="Off = pdf-parse only (fast). On = vision OCR for scanned/thin PDFs (slower)"
+          >
+            <input
+              type="checkbox"
+              checked={useOcr}
+              disabled={busy || analysing || scanRunning}
+              onChange={(e) => setUseOcr(e.target.checked)}
+            />
+            OCR
           </label>
           {hits.length > 0 ? (
             <button
@@ -1009,28 +1109,119 @@ export function MarketIqPanel() {
             title={
               scanRunning
                 ? "Stop after the current batch"
-                : "Scan & analyse all pending announcements (batches of 3)"
+                : useOcr
+                  ? "Scan & analyse pending (OCR on · last selected days)"
+                  : "Scan & analyse pending (pdf-parse · last selected days)"
             }
           >
             {scanRunning
-              ? `Stop · ${scanStats?.ok ?? 0} ok${
-                  scanStats?.remaining != null
-                    ? ` · ${scanStats.remaining} left`
-                    : ""
+              ? `Stop · ${scanStats?.pct ?? 0}%${
+                  scanStats?.current?.length
+                    ? ` · ${scanStats.current.join(", ")}`
+                    : scanStats?.remaining != null
+                      ? ` · ${scanStats.remaining} left`
+                      : ""
                 }`
               : "Scan & Analyse"}
           </button>
         </div>
       </header>
 
-      <section className="miq-lab" aria-label="PDF test lab">
-        <div className="miq-lab-head">
-          <h2 className="miq-lab-title">PDF test lab</h2>
-          <p className="miq-lab-sub">
-            Upload a filing → Extract text → Analyse for Bullish / Bearish /
-            Neutral + impact.
+      {scanRunning || scanStats ? (
+        <div
+          className={`fill-progress ${scanStats?.errored ? "is-error" : ""} ${
+            scanStats?.finished ? "is-done" : ""
+          }`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="fill-progress-meta">
+            <span className="fill-progress-label">
+              {scanStats?.errored
+                ? "Scan failed"
+                : scanStats?.finished
+                  ? "Scan complete"
+                  : scanStats?.current?.length
+                    ? `Analysing ${scanStats.current.join(", ")}…`
+                    : "Scanning announcements…"}
+            </span>
+            <span className="fill-progress-pct">{scanStats?.pct ?? 0}%</span>
+          </div>
+          <div className="fill-progress-track">
+            <div
+              className="fill-progress-bar"
+              style={{ width: `${scanStats?.pct ?? 0}%` }}
+            />
+          </div>
+          <p className="fill-progress-detail">
+            {scanStats
+              ? `${scanStats.done}/${scanStats.total || "…"} · ${scanStats.ok} ok · ${scanStats.fail} fail · skipped ${scanStats.skipped}${
+                  scanStats.current?.length
+                    ? ` · now ${scanStats.current.join(", ")}`
+                    : ""
+                }`
+              : "…"}
           </p>
         </div>
+      ) : null}
+
+      <IqHintPanel title="Recommendation" aria-label="How MarketIQ works">
+        <ul className="obiq-rec-list">
+          <li>
+            This lane covers <strong>corporate announcements</strong> (order wins
+            go to OrderBookIQ).
+          </li>
+          <li>
+            Refresh NSE → <strong>Scan &amp; Analyse</strong> pending PDFs for
+            category, sentiment, and impact.
+          </li>
+          <li>
+            Expand <strong>PDF test lab</strong> to try one filing (upload or
+            URL) without waiting on the full scan.
+          </li>
+          <li>
+            During a bulk scan, the progress bar and list highlight show which
+            ticker(s) are analysing.
+          </li>
+        </ul>
+      </IqHintPanel>
+
+      <section
+        className={`miq-lab${labOpen ? "" : " is-collapsed"}`}
+        aria-label="PDF test lab"
+      >
+        <button
+          type="button"
+          className="miq-lab-toggle"
+          aria-expanded={labOpen}
+          onClick={() => setLabOpen((v) => !v)}
+        >
+          <div className="miq-lab-head">
+            <h2 className="miq-lab-title">PDF test lab</h2>
+            <span className="miq-lab-chevron" aria-hidden>
+              {labOpen ? "▾" : "▸"}
+            </span>
+            {labBusy ? (
+              <span className="miq-lab-busy-hint">
+                {labBusy === "extract" ? "Extracting…" : "Analysing…"}
+              </span>
+            ) : null}
+            <span className="miq-lab-hint">
+              {labOpen ? "Minimise" : "Expand"}
+            </span>
+          </div>
+          {labOpen ? (
+            <p className="miq-lab-sub">
+              Upload a filing → Extract text → Analyse for Bullish / Bearish /
+              Neutral + impact.
+            </p>
+          ) : null}
+        </button>
+        <div
+          className="miq-lab-body"
+          hidden={!labOpen}
+          inert={!labOpen ? true : undefined}
+        >
         <div className="miq-lab-grid">
           <div className="miq-lab-field miq-lab-file">
             <span>PDF file</span>
@@ -1160,7 +1351,7 @@ export function MarketIqPanel() {
               <tbody>
                 <tr>
                   <td className="miq-td-co">
-                    <CompanyTvLink
+                    <CompanyWatchCell
                       ticker={labResult.extract.ticker || labTicker}
                       company={
                         labResult.extract.company ||
@@ -1247,6 +1438,7 @@ export function MarketIqPanel() {
             ) : null}
           </div>
         ) : null}
+        </div>
       </section>
 
       <div className="miq-search-row">
@@ -1386,10 +1578,16 @@ export function MarketIqPanel() {
                     ? r.summary
                     : `${r.summary.slice(0, 160).trim()}…`;
                 const rowBusy = analyseBusyKey === r.key;
+                const rowScanning =
+                  rowBusy ||
+                  (!!r.url?.trim() && scanningUrls.includes(r.url.trim()));
                 return (
-                  <tr key={r.key}>
+                  <tr
+                    key={r.key}
+                    className={rowScanning ? "is-scanning" : undefined}
+                  >
                     <td className="miq-td-co">
-                      <CompanyTvLink
+                      <CompanyWatchCell
                         ticker={r.ticker}
                         company={r.company}
                         market={r.hit?.index}
@@ -1408,7 +1606,7 @@ export function MarketIqPanel() {
                         disabled={analysing}
                         onClick={() => void analyseRow(r)}
                       >
-                        {rowBusy ? "Analysing…" : "Analyse"}
+                        {rowScanning ? "Analysing…" : "Analyse"}
                       </button>
                     </td>
                     <td className="miq-td-details">

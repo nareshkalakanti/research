@@ -27,6 +27,13 @@ function clean(value: string | null | undefined): string {
   return (value ?? "").trim();
 }
 
+/** Deep-link into Governance map for an 8-digit DIN (person_id). */
+export function governanceDinUrl(din: string): string | null {
+  const digits = (din || "").replace(/\D/g, "");
+  if (digits.length !== 8) return null;
+  return `/?tab=governance&personId=${encodeURIComponent(digits)}`;
+}
+
 export function tradingviewUrl(
   ticker: string,
   market?: string | null,

@@ -15,6 +15,11 @@ export async function GET(req: NextRequest) {
   const personId = sp.get("personId") || null;
   const ticker = sp.get("ticker") || null;
   const source = sp.get("source") || null;
+  const sourcesRaw = sp.get("sources") || "";
+  const sources = sourcesRaw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const eventTypeRaw = sp.get("eventType");
   const eventType =
     eventTypeRaw === "joined" ||
@@ -28,7 +33,8 @@ export async function GET(req: NextRequest) {
     watchOnly,
     personId,
     ticker,
-    source,
+    source: sources.length ? null : source,
+    sources: sources.length ? sources : null,
     eventType,
   });
 
