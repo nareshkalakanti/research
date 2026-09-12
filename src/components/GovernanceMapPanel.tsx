@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   CapMarketFilters,
   type CapFilter,
@@ -219,11 +220,24 @@ const EMPTY_FUNDS = Object.fromEntries(
 ) as FundFilterState;
 
 export function GovernanceMapPanel() {
-  const [view, setView] = useState<View>("company");
-  const [q, setQ] = useState("");
-  const [debouncedQ, setDebouncedQ] = useState("");
+  const searchParams = useSearchParams();
+  const deepPersonId = useMemo(() => {
+    const raw =
+      searchParams.get("personId") ||
+      searchParams.get("din") ||
+      "";
+    const digits = raw.replace(/\D/g, "");
+    return digits.length === 8 ? digits : raw.trim() || null;
+  }, [searchParams]);
+  const deepQ = searchParams.get("q")?.trim() || "";
+
+  const [view, setView] = useState<View>(() =>
+    deepPersonId ? "director" : "company",
+  );
+  const [q, setQ] = useState(() => deepPersonId || deepQ || "");
+  const [debouncedQ, setDebouncedQ] = useState(() => deepPersonId || deepQ || "");
   const [page, setPage] = useState(1);
-  const [minBoards, setMinBoards] = useState(2);
+  const [minBoards, setMinBoards] = useState(() => (deepPersonId ? 1 : 2));
   const [bridgeMode, setBridgeMode] = useState<BridgeMode>("off");
   const [filterMultiLc, setFilterMultiLc] = useState(false);
   const [filterSmeCross, setFilterSmeCross] = useState(false);
@@ -238,6 +252,7 @@ export function GovernanceMapPanel() {
   const [openId, setOpenId] = useState<string | null>(null);
   const pendingOpenRef = useRef<string | null>(null);
   const pendingScrollRef = useRef<number | null>(null);
+  const deepDrillDoneRef = useRef<string | null>(null);
   const [stack, setStack] = useState<DrillFrame[]>([]);
   const [drillData, setDrillData] = useState<ApiResponse | null>(null);
   const [drillLoading, setDrillLoading] = useState(false);
@@ -447,6 +462,32 @@ export function GovernanceMapPanel() {
       },
     ]);
   }
+
+  // Deep-link: /?tab=governance&personId=<DIN> (from BoardRoomIQ etc.)
+  useEffect(() => {
+    if (!deepPersonId) return;
+    setView("director");
+    setMinBoards(1);
+    setQ(deepPersonId);
+    setDebouncedQ(deepPersonId);
+    deepDrillDoneRef.current = null;
+  }, [deepPersonId]);
+
+  useEffect(() => {
+    if (!deepPersonId || loading || !data || data.view !== "director") return;
+    if (deepDrillDoneRef.current === deepPersonId) return;
+    const rows = data.rows as DirectorRow[];
+    const hit =
+      rows.find((r) => r.person_id === deepPersonId) ||
+      rows.find((r) => (r.din || "") === deepPersonId);
+    deepDrillDoneRef.current = deepPersonId;
+    if (hit) {
+      drillDirector(hit.person_id, hit.name, "DIN link");
+      return;
+    }
+    pendingOpenRef.current = deepPersonId;
+    setOpenId(deepPersonId);
+  }, [deepPersonId, loading, data]);
 
   function bumpChanges() {
     setChangesRefreshKey((k) => k + 1);

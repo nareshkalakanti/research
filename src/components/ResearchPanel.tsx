@@ -68,7 +68,7 @@ export function ResearchPanel() {
       <ResearchSection
         id="research-concall"
         title="3 · Concall"
-        defaultOpen
+        defaultOpen={false}
       >
         <ConcallResearchPanel />
       </ResearchSection>

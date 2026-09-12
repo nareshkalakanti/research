@@ -2,6 +2,7 @@
  * NSE corporate announcements — concall transcripts, PPTs, financial results.
  * Official exchange source (no Screener).
  */
+import { clampAnnouncedDays } from "./announced-lookback";
 import { createNseBuybackSession } from "./nse-buybacks";
 import { parseNseDateTime } from "./nse-corp-events";
 import { isOrderWinAnnouncementBlob, isOrderWinMarketHit } from "./bse-investor-discover";
@@ -303,8 +304,10 @@ function dayWindowLocal(offset: number): { from: Date; to: Date } {
  */
 export async function discoverNseAnnouncedOrders(
   daysBack = 1,
+  opts?: { fromOffset?: number },
 ): Promise<NseMarketOrderHit[]> {
-  const days = Math.min(7, Math.max(1, daysBack));
+  const days = clampAnnouncedDays(daysBack);
+  const fromOffset = Math.max(0, Math.floor(opts?.fromOffset ?? 0));
   const jar = await createNseBuybackSession();
   const out: NseMarketOrderHit[] = [];
   const seen = new Set<string>();
@@ -347,7 +350,8 @@ export async function discoverNseAnnouncedOrders(
     }
   };
 
-  for (let offset = 0; offset < days; offset += 1) {
+  for (let i = 0; i < days; i += 1) {
+    const offset = fromOffset + i;
     const { from, to } = dayWindowLocal(offset);
     const windows = await Promise.all(
       (["equities", "sme"] as const).map(async (index) => {
@@ -393,9 +397,10 @@ export type NseMarketAnnouncementHit = {
  */
 export async function discoverNseMarketAnnouncements(
   daysBack = 1,
-  opts?: { q?: string | null },
+  opts?: { q?: string | null; fromOffset?: number },
 ): Promise<NseMarketAnnouncementHit[]> {
-  const days = Math.min(7, Math.max(1, daysBack));
+  const days = clampAnnouncedDays(daysBack);
+  const fromOffset = Math.max(0, Math.floor(opts?.fromOffset ?? 0));
   const q = (opts?.q || "").trim().toLowerCase();
   const jar = await createNseBuybackSession();
   const out: NseMarketAnnouncementHit[] = [];
@@ -444,7 +449,8 @@ export async function discoverNseMarketAnnouncements(
     }
   };
 
-  for (let offset = 0; offset < days; offset += 1) {
+  for (let i = 0; i < days; i += 1) {
+    const offset = fromOffset + i;
     const { from, to } = dayWindowLocal(offset);
     const windows = await Promise.all(
       (["equities", "sme"] as const).map(async (index) => {

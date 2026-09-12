@@ -1804,14 +1804,9 @@ export async function runSignalBatch(
 
   // 52W / ATH / EMA still run off each name's own last daily bar if Nifty
   // session is missing (Yahoo ^NSEI often 422s). MOM already did this.
-
-  if (doBb) clearBbForTickers(tickers.map((t) => t.ticker), bbTf);
-  if (doTq) clearTqForTickers(tickers.map((t) => t.ticker));
-  if (doEma) clearEmaForTickers(tickers.map((t) => t.ticker));
-  if (doAth) clearAthForTickers(tickers.map((t) => t.ticker));
-  if (doHigh52) clearHigh52ForTickers(tickers.map((t) => t.ticker));
-  // MOM: do not clear before fetch — a failed Yahoo/SME pull would wipe good
-  // 12−1 rows. Upsert overwrites on success; leave prior values on failure.
+  // Do not clear BB/TQ/EMA/ATH/52W before fetch — Yahoo misses would wipe
+  // good rows and (previously) also mark them checked. Clear happens only
+  // for tickers we successfully evaluated.
 
   const bbRows: Array<{
     ticker: string;
@@ -1873,6 +1868,12 @@ export async function runSignalBatch(
     signal_date: string | null;
   }> = [];
   const mrsiResolved = new Set<string>();
+  /** Only mark scan_checked for names we actually evaluated (not Yahoo misses). */
+  const bbResolved = new Set<string>();
+  const tqResolved = new Set<string>();
+  const emaResolved = new Set<string>();
+  const athResolved = new Set<string>();
+  const high52Resolved = new Set<string>();
   let failed = 0;
 
   for (let i = 0; i < tickers.length; i += concurrency) {
@@ -1897,6 +1898,7 @@ export async function runSignalBatch(
               );
               if (!sessionDate || lastDate === sessionDate) {
                 any = true;
+                tqResolved.add(ticker);
                 const hit = analyzeTqWeekly(bars, nifty);
                 if (
                   hit &&
@@ -1912,6 +1914,9 @@ export async function runSignalBatch(
                   });
                 }
               }
+            } else if (bars.length > 0) {
+              // Confirmed short history — don't keep retrying forever.
+              tqResolved.add(ticker);
             }
           }
 
@@ -1931,6 +1936,7 @@ export async function runSignalBatch(
                 lastDate === sessionDate;
               if (sessionOk) {
                 any = true;
+                bbResolved.add(ticker);
                 const hit = analyzeBbNewBreakout(bars, bbTf);
                 if (hit && hit.signal_date?.slice(0, 10) === lastDate) {
                   bbRows.push({
@@ -1943,6 +1949,8 @@ export async function runSignalBatch(
                   });
                 }
               }
+            } else if (bars.length > 0) {
+              bbResolved.add(ticker);
             }
           }
 
@@ -1969,10 +1977,8 @@ export async function runSignalBatch(
                 mrsiRows.push(mrsiSentinel(ticker, market, monthlyBars));
               }
               mrsiResolved.add(ticker);
-            } else {
-              mrsiRows.push(mrsiSentinel(ticker, market));
-              mrsiResolved.add(ticker);
             }
+            // Empty bars (Yahoo miss / throw path) — leave unchecked for retry.
           }
 
           if (needDaily) {
@@ -2004,25 +2010,29 @@ export async function runSignalBatch(
               }
               if (!dailySession || lastDay === dailySession) {
                 any = true;
-                if (doEma && dailyBars.length >= 200) {
-                  const hit = analyzeEmaDaily(dailyBars);
-                  if (
-                    hit &&
-                    hit.signal_date.slice(0, 10) === (dailySession || lastDay)
-                  ) {
-                    emaRows.push({
-                      ticker,
-                      market,
-                      price: hit.price,
-                      ema10: hit.ema10,
-                      ema20: hit.ema20,
-                      ema50: hit.ema50,
-                      ema200: hit.ema200,
-                      signal_date: hit.signal_date,
-                    });
+                if (doEma) {
+                  emaResolved.add(ticker);
+                  if (dailyBars.length >= 200) {
+                    const hit = analyzeEmaDaily(dailyBars);
+                    if (
+                      hit &&
+                      hit.signal_date.slice(0, 10) === (dailySession || lastDay)
+                    ) {
+                      emaRows.push({
+                        ticker,
+                        market,
+                        price: hit.price,
+                        ema10: hit.ema10,
+                        ema20: hit.ema20,
+                        ema50: hit.ema50,
+                        ema200: hit.ema200,
+                        signal_date: hit.signal_date,
+                      });
+                    }
                   }
                 }
                 if (doAth) {
+                  athResolved.add(ticker);
                   const hit = analyzeAthNew(dailyBars);
                   if (
                     hit &&
@@ -2038,6 +2048,7 @@ export async function runSignalBatch(
                   }
                 }
                 if (doHigh52) {
+                  high52Resolved.add(ticker);
                   const hit = analyzeHigh52New(dailyBars);
                   if (
                     hit &&
@@ -2057,6 +2068,11 @@ export async function runSignalBatch(
               // Enough to try later, but short of 12−1 lookback — mark scanned.
               momRows.push(momSentinel(ticker, market, dailyBars));
               momResolved.add(ticker);
+            } else if (dailyBars.length > 0) {
+              // Confirmed thin daily history for EMA/ATH/52W.
+              if (doEma) emaResolved.add(ticker);
+              if (doAth) athResolved.add(ticker);
+              if (doHigh52) high52Resolved.add(ticker);
             }
             // 0 / tiny bars: Yahoo miss — leave unchecked so the next batch retries.
           }
@@ -2065,31 +2081,64 @@ export async function runSignalBatch(
         } catch {
           failed += 1;
           // Don't persist empty MOM/MRSI on throw — rate-limits would block refill.
-          if (doMrsi) {
-            mrsiRows.push(mrsiSentinel(ticker, market));
-            mrsiResolved.add(ticker);
-          }
         }
       }),
     );
   }
 
-  if (doBb) upsertBb(bbRows, bbTf);
-  if (doTq) upsertTq(tqRows);
-  if (doEma) upsertEma(emaRows);
-  if (doAth) upsertAth(athRows);
-  if (doHigh52) upsertHigh52(high52Rows);
+  // Clear only names we successfully evaluated (Yahoo misses keep prior rows
+  // and stay unchecked for retry — same idea as MOM).
+  if (doBb && bbResolved.size) {
+    clearBbForTickers([...bbResolved], bbTf);
+    upsertBb(bbRows, bbTf);
+  }
+  if (doTq && tqResolved.size) {
+    clearTqForTickers([...tqResolved]);
+    upsertTq(tqRows);
+  }
+  if (doEma && emaResolved.size) {
+    clearEmaForTickers([...emaResolved]);
+    upsertEma(emaRows);
+  }
+  if (doAth && athResolved.size) {
+    clearAthForTickers([...athResolved]);
+    upsertAth(athRows);
+  }
+  if (doHigh52 && high52Resolved.size) {
+    clearHigh52ForTickers([...high52Resolved]);
+    upsertHigh52(high52Rows);
+  }
   if (doMom) upsertMom(momRows);
   if (doMrsi) upsertMrsi(mrsiRows);
 
-  const otherKinds = scanKinds(kind).filter((k) => k !== "mom" && k !== "mrsi");
-  if (otherKinds.length) {
+  if (doBb && bbResolved.size) {
     markChecked(
-      tickers.map((t) => t.ticker),
-      otherKinds.map((k) => ({
-        kind: k,
-        timeframe: kindTimeframe(k, bbTf),
-      })),
+      [...bbResolved],
+      [{ kind: "bb", timeframe: kindTimeframe("bb", bbTf) }],
+    );
+  }
+  if (doTq && tqResolved.size) {
+    markChecked(
+      [...tqResolved],
+      [{ kind: "tq", timeframe: kindTimeframe("tq", bbTf) }],
+    );
+  }
+  if (doEma && emaResolved.size) {
+    markChecked(
+      [...emaResolved],
+      [{ kind: "ema", timeframe: kindTimeframe("ema", bbTf) }],
+    );
+  }
+  if (doAth && athResolved.size) {
+    markChecked(
+      [...athResolved],
+      [{ kind: "ath", timeframe: kindTimeframe("ath", bbTf) }],
+    );
+  }
+  if (doHigh52 && high52Resolved.size) {
+    markChecked(
+      [...high52Resolved],
+      [{ kind: "high52", timeframe: kindTimeframe("high52", bbTf) }],
     );
   }
   if (doMom && momResolved.size) {

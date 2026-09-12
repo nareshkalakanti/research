@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { announcementDedupeKey } from "@/lib/announcement-dedupe";
-import { tradingviewUrl } from "@/lib/links";
+import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
+import { governanceDinUrl } from "@/lib/links";
+import { IqHintPanel } from "@/components/IqHintPanel";
+import { CompanyWatchCell } from "@/components/CompanyWatchCell";
 
 type BoardHit = {
   ticker: string;
@@ -73,27 +76,6 @@ function fmtDate(iso: string | null | undefined): string {
   });
 }
 
-function CompanyTvLink({
-  ticker,
-  company,
-}: {
-  ticker: string;
-  company: string;
-}) {
-  const href = tradingviewUrl(ticker, "NSE");
-  if (!href) return <strong className="miq-co-name">{company}</strong>;
-  return (
-    <a
-      className="miq-co-name miq-tv-link"
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-    >
-      {company}
-    </a>
-  );
-}
-
 function preferFeedRow(a: FeedRow, b: FeedRow): FeedRow {
   const rank = (r: FeedRow) => {
     let s = 0;
@@ -145,19 +127,43 @@ function histToFeed(h: HistoryRow): FeedRow {
   };
 }
 
-function fmtDins(dins: BoardDin[]): string {
-  if (!dins.length) return "—";
-  return dins
-    .slice(0, 4)
-    .map((d) => {
-      const din = d.din ? ` · DIN ${d.din}` : "";
-      return `${d.name}${din}`;
-    })
-    .join("; ");
+function DinCell({ dins }: { dins: BoardDin[] }) {
+  if (!dins.length) return <>—</>;
+  return (
+    <>
+      {dins.slice(0, 4).map((d, i) => {
+        const digits = (d.din || "").replace(/\D/g, "");
+        const href = digits.length === 8 ? governanceDinUrl(digits) : null;
+        return (
+          <span key={`${digits || d.name}-${i}`}>
+            {i > 0 ? "; " : null}
+            <span>{d.name}</span>
+            {href ? (
+              <>
+                {" · "}
+                <a
+                  className="briq-din-link"
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Open in Governance"
+                >
+                  DIN {digits}
+                </a>
+              </>
+            ) : d.din ? (
+              ` · DIN ${d.din}`
+            ) : null}
+          </span>
+        );
+      })}
+    </>
+  );
 }
 
 export function BoardRoomIqPanel() {
-  const [days, setDays] = useState(1);
+  const [days, setDays] = useState(2);
+  const [useOcr, setUseOcr] = useState(false);
   const [q, setQ] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tagsExpanded, setTagsExpanded] = useState(false);
@@ -179,6 +185,7 @@ export function BoardRoomIqPanel() {
   const [overlay, setOverlay] = useState<Record<string, Overlay>>({});
   const [page, setPage] = useState(1);
   const [scanRunning, setScanRunning] = useState(false);
+  const [scanningUrls, setScanningUrls] = useState<string[]>([]);
   const [scanStats, setScanStats] = useState<{
     pct: number;
     done: number;
@@ -186,6 +193,7 @@ export function BoardRoomIqPanel() {
     ok: number;
     fail: number;
     skipped: number;
+    current: string[];
     finished?: boolean;
     errored?: boolean;
   } | null>(null);
@@ -209,22 +217,32 @@ export function BoardRoomIqPanel() {
     if (Array.isArray(json.categories)) setCategories(json.categories);
   }, []);
 
+  const announcedAbortRef = useRef<AbortController | null>(null);
+
   const fetchAnnounced = useCallback(async () => {
+    announcedAbortRef.current?.abort();
+    const ac = new AbortController();
+    announcedAbortRef.current = ac;
     setBusy(true);
     setError(null);
+    setStatusNote("Refreshing live board filings…");
     try {
       const params = new URLSearchParams({
         announced: "1",
         days: String(days),
       });
       if (q.trim()) params.set("q", q.trim());
-      const res = await fetch(`/api/boardroomiq?${params}`);
+      const res = await fetch(`/api/boardroomiq?${params}`, {
+        signal: ac.signal,
+      });
       const json = (await res.json()) as {
         ok?: boolean;
         sources?: BoardHit[];
         note?: string;
         error?: string;
+        cached?: boolean;
       };
+      if (ac.signal.aborted) return;
       if (!res.ok || json.ok === false) {
         throw new Error(json.error || "Refresh failed");
       }
@@ -232,29 +250,36 @@ export function BoardRoomIqPanel() {
       setLive(true);
       setStatusNote(
         json.note ||
-          `${json.sources?.length ?? 0} board / director / AGM filings`,
+          `${json.sources?.length ?? 0} board / director / AGM filings${json.cached ? " (cache)" : ""}`,
       );
       setPage(1);
-      // Persist stubs for scan reuse
       if (json.sources?.length) {
         await fetch("/api/boardroomiq", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action: "save", sources: json.sources }),
+          signal: ac.signal,
         });
-        await loadHistory();
+        if (!ac.signal.aborted) await loadHistory();
       }
     } catch (e) {
+      if (ac.signal.aborted) return;
       setError(e instanceof Error ? e.message : "Refresh failed");
     } finally {
-      setBusy(false);
+      if (!ac.signal.aborted) setBusy(false);
     }
   }, [days, q, loadHistory]);
 
   useEffect(() => {
     void loadHistory();
-    void loadCategories();
-    void fetchAnnounced();
+    setStatusNote("Showing saved screens — Refresh board for live NSE");
+    const t = window.setTimeout(() => {
+      void loadCategories();
+    }, 200);
+    return () => {
+      announcedAbortRef.current?.abort();
+      window.clearTimeout(t);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -329,6 +354,7 @@ export function BoardRoomIqPanel() {
     stopRef.current = false;
     setScanRunning(true);
     setError(null);
+    setScanningUrls([]);
     let done = 0;
     let ok = 0;
     let fail = 0;
@@ -336,7 +362,15 @@ export function BoardRoomIqPanel() {
     const queue = hits.filter((h) => h.url?.trim());
     let total = Math.max(queue.length, 1);
     const skipUrls = new Set<string>();
-    setScanStats({ pct: 0, done: 0, total, ok: 0, fail: 0, skipped: 0 });
+    setScanStats({
+      pct: 0,
+      done: 0,
+      total,
+      ok: 0,
+      fail: 0,
+      skipped: 0,
+      current: [],
+    });
     try {
       // Prefetch already-screened URLs so progress reflects pending only
       try {
@@ -356,10 +390,33 @@ export function BoardRoomIqPanel() {
         ok: 0,
         fail: 0,
         skipped,
+        current: [],
+        finished: pending.length === 0,
       });
 
       while (pending.length > 0 && !stopRef.current) {
         const batchSources = pending.slice(0, 3);
+        const current = batchSources
+          .map((s) => (s.ticker || "").toUpperCase())
+          .filter(Boolean);
+        const batchUrls = batchSources
+          .map((s) => s.url?.trim() || "")
+          .filter(Boolean);
+        setScanningUrls(batchUrls);
+        setScanStats({
+          pct: Math.min(100, Math.round((done / Math.max(1, total)) * 100)),
+          done,
+          total,
+          ok,
+          fail,
+          skipped,
+          current,
+        });
+        setStatusNote(
+          current.length
+            ? `Analysing ${current.join(", ")}… · ${done}/${total}`
+            : `Scanning board filings… · ${done}/${total}`,
+        );
         let json: {
           ok?: boolean;
           error?: string;
@@ -391,6 +448,7 @@ export function BoardRoomIqPanel() {
               limit: 3,
               pendingOnly: true,
               sources: batchSources,
+              skipOcr: !useOcr,
             }),
           });
           json = (await res.json()) as typeof json;
@@ -416,6 +474,7 @@ export function BoardRoomIqPanel() {
             ok,
             fail,
             skipped,
+            current,
           });
           setError(
             batchErr instanceof Error
@@ -445,6 +504,7 @@ export function BoardRoomIqPanel() {
           ok,
           fail,
           skipped,
+          current,
         });
         if (json.history) setHistory(json.history);
         for (const r of json.results || []) {
@@ -467,6 +527,7 @@ export function BoardRoomIqPanel() {
         if ((json.attempted ?? 0) === 0 && attemptedUrls.length === 0) break;
       }
 
+      setScanningUrls([]);
       setScanStats({
         pct: 100,
         done,
@@ -474,6 +535,7 @@ export function BoardRoomIqPanel() {
         ok,
         fail,
         skipped,
+        current: [],
         finished: true,
       });
       setStatusNote(
@@ -484,10 +546,12 @@ export function BoardRoomIqPanel() {
       await loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Scan failed");
+      setScanningUrls([]);
       setScanStats((s) =>
         s
           ? {
               ...s,
+              current: [],
               pct: Math.max(s.pct, done > 0 ? 100 : s.pct),
               done,
               ok,
@@ -503,6 +567,7 @@ export function BoardRoomIqPanel() {
               ok,
               fail,
               skipped,
+              current: [],
               errored: true,
             },
       );
@@ -511,8 +576,40 @@ export function BoardRoomIqPanel() {
       }
     } finally {
       setScanRunning(false);
+      setScanningUrls([]);
     }
-  }, [days, hits, loadHistory]);
+  }, [days, hits, useOcr, loadHistory]);
+
+  const pushDinsToGov = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/boardroomiq", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "push_gov", limit: 200 }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        attempted?: number;
+        pushed_rows?: number;
+        pushed_seats?: number;
+        skipped?: number;
+        error?: string;
+      };
+      if (!res.ok || json.error) {
+        setError(json.error || "Push to governance failed");
+        return;
+      }
+      setStatusNote(
+        `Pushed ${json.pushed_seats ?? 0} DIN seat(s) from ${json.pushed_rows ?? 0} filing(s) → Governance (source: boardroomiq_pdf). Open Governance → PDF DIN pushes.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Push failed");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
 
   const feed = useMemo(() => {
     const rows =
@@ -589,7 +686,9 @@ export function BoardRoomIqPanel() {
         }
         if (!qn) return true;
         const hay =
-          `${r.company} ${r.ticker} ${r.headline} ${r.proposal} ${r.category} ${fmtDins(r.dins)}`.toLowerCase();
+          `${r.company} ${r.ticker} ${r.headline} ${r.proposal} ${r.category} ${r.dins
+            .map((d) => `${d.name} ${d.din || ""}`)
+            .join(" ")}`.toLowerCase();
         return hay.includes(qn);
       })
       .sort((a, b) => {
@@ -663,12 +762,24 @@ export function BoardRoomIqPanel() {
               disabled={busy || analysing}
               onChange={(e) => setDays(Number(e.target.value) || 1)}
             >
-              {[1, 2, 3, 5, 7].map((d) => (
+              {[...ANNOUNCED_DAY_OPTIONS].map((d) => (
                 <option key={d} value={d}>
-                  {d}
+                  {d === 90 ? "90 (3mo)" : d === 180 ? "180 (6mo)" : d}
                 </option>
               ))}
             </select>
+          </label>
+          <label
+            className={`chip tag-chip miq-ocr${useOcr ? " on" : ""}`}
+            title="Off = pdf-parse only (fast). On = vision OCR for scanned/thin PDFs (slower)"
+          >
+            <input
+              type="checkbox"
+              checked={useOcr}
+              disabled={busy || analysing || scanRunning}
+              onChange={(e) => setUseOcr(e.target.checked)}
+            />
+            OCR
           </label>
           <button
             type="button"
@@ -680,8 +791,21 @@ export function BoardRoomIqPanel() {
             }}
           >
             {scanRunning
-              ? `Stop · ${scanStats?.pct ?? 0}%`
+              ? `Stop · ${scanStats?.pct ?? 0}%${
+                  scanStats?.current?.length
+                    ? ` · ${scanStats.current.join(", ")}`
+                    : ""
+                }`
               : "Scan & Analyse"}
+          </button>
+          <button
+            type="button"
+            className="chip tag-chip"
+            disabled={busy || analysing || scanRunning || history.length === 0}
+            onClick={() => void pushDinsToGov()}
+            title="Push saved BoardRoom DINs into governance.db (additive)"
+          >
+            Push DINs → Gov
           </button>
         </div>
       </header>
@@ -699,7 +823,9 @@ export function BoardRoomIqPanel() {
                 ? "Scan failed"
                 : scanStats?.finished
                   ? "Scan complete"
-                  : "Scanning board filings…"}
+                  : scanStats?.current?.length
+                    ? `Analysing ${scanStats.current.join(", ")}…`
+                    : "Scanning board filings…"}
             </span>
             <span className="fill-progress-pct">{scanStats?.pct ?? 0}%</span>
           </div>
@@ -711,14 +837,17 @@ export function BoardRoomIqPanel() {
           </div>
           <p className="fill-progress-detail">
             {scanStats
-              ? `${scanStats.done}/${scanStats.total} · ${scanStats.ok} ok · ${scanStats.fail} fail · skipped ${scanStats.skipped}`
+              ? `${scanStats.done}/${scanStats.total} · ${scanStats.ok} ok · ${scanStats.fail} fail · skipped ${scanStats.skipped}${
+                  scanStats.current?.length
+                    ? ` · now ${scanStats.current.join(", ")}`
+                    : ""
+                }`
               : "…"}
           </p>
         </div>
       ) : null}
 
-      <section className="miq-how" aria-label="How BoardRoomIQ works">
-        <h2 className="miq-how-title">How it works</h2>
+      <IqHintPanel title="How it works" aria-label="How BoardRoomIQ works">
         <ul className="miq-how-list">
           <li>
             Pulls NSE CAME board / director / AGM notices (not LotusDew live).
@@ -727,9 +856,12 @@ export function BoardRoomIqPanel() {
             Tags each filing with the scraped governance list (
             {categories.length || 153}+ labels such as Director Appointment).
           </li>
-          <li>Analyse PDF → DIN + proposal summary. No EVSN.</li>
+          <li>
+            Analyse PDF → DIN + proposal summary. DINs link to Governance and are
+            pushed into gov.
+          </li>
         </ul>
-      </section>
+      </IqHintPanel>
 
       <div className="briq-filters">
         <div className="briq-filters-row">
@@ -880,10 +1012,16 @@ export function BoardRoomIqPanel() {
             ) : (
               pageRows.map((row) => {
                 const busyRow = analyseBusyKey === row.key;
+                const rowScanning =
+                  busyRow ||
+                  (!!row.url?.trim() && scanningUrls.includes(row.url.trim()));
                 return (
-                  <tr key={row.key}>
+                  <tr
+                    key={row.key}
+                    className={rowScanning ? "is-scanning" : undefined}
+                  >
                     <td className="miq-td-co">
-                      <CompanyTvLink
+                      <CompanyWatchCell
                         ticker={row.ticker}
                         company={row.company}
                       />
@@ -901,7 +1039,9 @@ export function BoardRoomIqPanel() {
                       <span className="miq-cat-pill">{row.category}</span>
                       <div className="miq-co-meta">{row.status}</div>
                     </td>
-                    <td className="briq-dins">{fmtDins(row.dins)}</td>
+                    <td className="briq-dins">
+                      <DinCell dins={row.dins} />
+                    </td>
                     <td>
                       <div className="miq-row-actions">
                         {row.url ? (
@@ -920,7 +1060,7 @@ export function BoardRoomIqPanel() {
                           disabled={busyRow || !row.url || scanRunning}
                           onClick={() => void analyseRow(row)}
                         >
-                          {busyRow ? "…" : "Analyse"}
+                          {rowScanning ? "Analysing…" : "Analyse"}
                         </button>
                       </div>
                     </td>

@@ -1527,71 +1527,83 @@ export function OrderbookResearchPanel() {
                   </tr>
                 </thead>
                 <tbody>
-                  {announcedHits.map((h, i) => (
-                    <tr
-                      key={`${h.ticker}-${h.url || h.title}-${i}`}
-                      className="buyback-pass-row"
-                    >
-                      <td>
-                        <button
-                          type="button"
-                          className="link-btn buyback-pass-company"
-                          disabled={busy || announcedBusy || batchBusy}
-                          onClick={() => {
-                            setTickerInput(h.ticker);
-                            if (h.url) {
-                              setUrl(h.url);
-                              setAnnouncedAt(h.announced_at);
-                              setFile(null);
-                            }
-                          }}
-                          title="Load ticker + PDF URL"
-                        >
-                          {h.company || h.ticker}
-                        </button>
-                        <span className="buyback-pass-co">{h.ticker}</span>
-                      </td>
-                      <td>{h.title}</td>
-                      <td>{h.provider.replace(/_/g, " ")}</td>
-                      <td>
-                        {h.url ? (
+                  {announcedHits.map((h, i) => {
+                    const runningUrl = batchLog.find(
+                      (l) => l.kind === "running",
+                    )?.url;
+                    const isScanning =
+                      batchBusy &&
+                      batchProgress?.label === "Today’s orders" &&
+                      !!h.url?.trim() &&
+                      h.url.trim() === runningUrl;
+                    return (
+                      <tr
+                        key={`${h.ticker}-${h.url || h.title}-${i}`}
+                        className={`buyback-pass-row${isScanning ? " is-scanning" : ""}`}
+                      >
+                        <td>
                           <button
                             type="button"
-                            className="link-btn"
+                            className="link-btn buyback-pass-company"
                             disabled={busy || announcedBusy || batchBusy}
                             onClick={() => {
                               setTickerInput(h.ticker);
-                              setUrl(h.url!);
-                              setAnnouncedAt(h.announced_at);
-                              setFile(null);
-                              setStatus(
-                                `Loaded ${h.ticker} · click Analyse`,
-                              );
+                              if (h.url) {
+                                setUrl(h.url);
+                                setAnnouncedAt(h.announced_at);
+                                setFile(null);
+                              }
                             }}
+                            title="Load ticker + PDF URL"
                           >
-                            Use PDF
+                            {h.company || h.ticker}
                           </button>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td>
-                        {h.url ? (
-                          <button
-                            type="button"
-                            className={`chip chip-scan tag-chip ${busy ? "busy on" : ""}`}
-                            disabled={busy || announcedBusy || batchBusy}
-                            onClick={() => scanAnnounced(h)}
-                            title="Select this filing and run Analyse"
-                          >
-                            {busy ? "…" : "Scan"}
-                          </button>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          <span className="buyback-pass-co">{h.ticker}</span>
+                        </td>
+                        <td>{h.title}</td>
+                        <td>{h.provider.replace(/_/g, " ")}</td>
+                        <td>
+                          {h.url ? (
+                            <button
+                              type="button"
+                              className="link-btn"
+                              disabled={busy || announcedBusy || batchBusy}
+                              onClick={() => {
+                                setTickerInput(h.ticker);
+                                setUrl(h.url!);
+                                setAnnouncedAt(h.announced_at);
+                                setFile(null);
+                                setStatus(
+                                  `Loaded ${h.ticker} · click Analyse`,
+                                );
+                              }}
+                            >
+                              Use PDF
+                            </button>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td>
+                          {h.url ? (
+                            <button
+                              type="button"
+                              className={`chip chip-scan tag-chip ${
+                                isScanning || busy ? "busy on" : ""
+                              }`}
+                              disabled={busy || announcedBusy || batchBusy}
+                              onClick={() => scanAnnounced(h)}
+                              title="Select this filing and run Analyse"
+                            >
+                              {isScanning ? "Analysing…" : busy ? "…" : "Scan"}
+                            </button>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

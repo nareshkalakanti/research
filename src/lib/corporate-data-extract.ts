@@ -470,7 +470,9 @@ async function structuredExtract(
 
 export async function extractCorporateFromPdfUrl(
   sourceUrl: string,
+  opts?: { skipOcr?: boolean },
 ): Promise<CorporateExtractResult> {
+  const skipOcr = opts?.skipOcr === true;
   const raw = await downloadAttachment(sourceUrl);
   if (!raw) {
     return {
@@ -518,7 +520,7 @@ export async function extractCorporateFromPdfUrl(
 
   let engine = fromZip ? "zip+pdf-parse+llm" : "pdf-parse+llm";
 
-  if (text.length < 80) {
+  if (text.length < 80 && !skipOcr) {
     const q = qianfanConfig();
     let ocrErr: string | null = null;
 

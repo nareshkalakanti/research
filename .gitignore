@@ -50,6 +50,16 @@ next-env.d.ts
 *.db-wal
 *.db-shm
 
+# IQ scan / backfill DBs + logs — machine-local (do not ship between machines)
+/data/marketiq.db
+/data/orderbookiq.db
+/data/boardroomiq.db
+/logs/
+
+# Local LLM gold regenerations under test/ (keep curated fixtures only)
+/test/HighlightSentiment.*.generated.json
+/test/HighlightSentiment.*.mistral*.json
+
 # Accidental SQLite opens without .db suffix
 /data/companies
 /data/companies-shm

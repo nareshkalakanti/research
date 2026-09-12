@@ -26,7 +26,9 @@ import {
   discoverNseAnnouncedOrders,
   discoverNseOrderAnnouncements,
 } from "./nse-investor-discover";
+import { clampAnnouncedDays } from "./announced-lookback";
 import { loadAllCompanies } from "./db";
+import { loadMetricsMap } from "./metrics";
 import { screenerUrl } from "./links";
 import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
@@ -535,6 +537,7 @@ export type OrderbookAnnouncedHit = {
  */
 export async function discoverOrderbookAnnounced(
   daysBack = 1,
+  opts?: { fromOffset?: number },
 ): Promise<{
   ok: true;
   days: number;
@@ -543,14 +546,22 @@ export async function discoverOrderbookAnnounced(
   sources: OrderbookAnnouncedHit[];
   note?: string;
 }> {
-  const days = Math.min(7, Math.max(1, daysBack));
+  const days = clampAnnouncedDays(daysBack);
+  const fromOffset = Math.max(0, Math.floor(opts?.fromOffset ?? 0));
   const notes: string[] = [];
+  const bseBudgetMs = Math.min(900_000, Math.max(50_000, days * 12_000));
   const [nse, bse] = await Promise.allSettled([
-    discoverNseAnnouncedOrders(days),
+    discoverNseAnnouncedOrders(days, { fromOffset }),
     Promise.race([
-      discoverBseAnnouncedOrders(days),
+      discoverBseAnnouncedOrders(days, {
+        fromOffset,
+        hardTimeoutMs: bseBudgetMs,
+      }),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("BSE announced timeout")), 50_000),
+        setTimeout(
+          () => reject(new Error("BSE announced timeout")),
+          bseBudgetMs,
+        ),
       ),
     ]),
   ]);
@@ -1195,18 +1206,25 @@ function orderbookAnalyzeModel(
   );
 }
 
-function orderbookOcrPreferred(): boolean {
-  const off = (process.env.ORDERBOOK_OCR || "").trim().toLowerCase();
-  if (["0", "false", "off", "no"].includes(off)) return false;
-  return qianfanConfigured();
+function orderbookOcrPreferred(mode?: "lexical" | "llm" | null): boolean {
+  if (!qianfanConfigured()) return false;
+  const flag = (process.env.ORDERBOOK_OCR || "").trim().toLowerCase();
+  // Explicit off → never OCR-first
+  if (["0", "false", "off", "no"].includes(flag)) return false;
+  // Explicit on → OCR-first for every path
+  if (["1", "true", "on", "yes", "force"].includes(flag)) return true;
+  // Default: OCR-first only for LLM / PDF-lab analyse.
+  // Bulk Scan & Analyse uses mode=lexical → pdf-parse first (OCR only if thin).
+  return mode === "llm";
 }
 
-function orderbookOcrMaxPages(): number {
+function orderbookOcrMaxPages(mode?: "lexical" | "llm" | null): number {
   const n = Number(
     process.env.ORDERBOOK_OCR_MAX_PAGES || process.env.CONCALL_OCR_MAX_PAGES,
   );
   if (Number.isFinite(n) && n > 0) return Math.min(40, Math.floor(n));
-  return 12;
+  // Lexical/scan fallback OCR: keep short so thin PDFs don't stall the queue.
+  return mode === "llm" ? 12 : 4;
 }
 
 async function enrichOrderbookWithLlm(
@@ -1285,10 +1303,13 @@ function qianfanConfigured(): boolean {
   return !!(process.env.QIANFAN_OCR_BASE_URL || "").trim();
 }
 
-async function ocrPdf(buf: Buffer): Promise<string> {
+async function ocrPdf(
+  buf: Buffer,
+  mode?: "lexical" | "llm" | null,
+): Promise<string> {
   if (!qianfanConfigured()) return "";
   const pages = await rasterizePdfPages(buf, {
-    maxPages: orderbookOcrMaxPages(),
+    maxPages: orderbookOcrMaxPages(mode),
     dpi: 144,
   });
   const chunks: string[] = [];
@@ -2253,13 +2274,24 @@ function extractScripCode(flat: string): string | null {
 
 /** Announced feed placeholder when BSE scrip is known but NSE symbol is not. */
 function isBsePlaceholderTicker(ticker: string | null | undefined): boolean {
-  return !!ticker && /^BSE\d{5,6}$/i.test(ticker.trim());
+  const t = (ticker || "").trim();
+  // BSE508494 or bare scrip 508494 from older rows / BSE-only feeds
+  return /^BSE\d{5,6}$/i.test(t) || /^\d{5,6}$/.test(t);
 }
 
 function scripFromBsePlaceholder(ticker: string | null | undefined): string | null {
-  if (!isBsePlaceholderTicker(ticker)) return null;
-  const m = ticker!.trim().match(/^BSE(\d{5,6})$/i);
+  const t = (ticker || "").trim();
+  const m = t.match(/^(?:BSE)?(\d{5,6})$/i);
   return m?.[1] || null;
+}
+
+/** Canonical BSE###### form for unresolved numeric scrips. */
+function normalizeBsePlaceholderTicker(
+  ticker: string | null | undefined,
+): string {
+  const t = (ticker || "").trim().toUpperCase();
+  if (/^\d{5,6}$/.test(t)) return `BSE${t}`;
+  return t;
 }
 
 function lookupTickerByScripCode(
@@ -2327,6 +2359,166 @@ function lookupTickerByCompanyName(
     return null;
   }
   return scored[0]!.ticker;
+}
+
+function companyAboutName(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  ticker: string,
+): string | null {
+  const row = db
+    .prepare(
+      `SELECT name FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
+    )
+    .get(ticker.toUpperCase()) as { name?: string } | undefined;
+  const n = row?.name?.trim();
+  return n || null;
+}
+
+/**
+ * Resolve a free-text company query to a ticker using company_about names.
+ * Accepts exact ticker (HFCL), unique ticker prefix (MTAR → MTARTECH),
+ * or company name (“HFCL Limited”).
+ */
+export function resolveOrderbookCompanyQuery(
+  raw: string | null | undefined,
+): { ticker: string | null; name: string | null } {
+  const q = (raw || "").replace(/\s+/g, " ").trim();
+  if (!q) return { ticker: null, name: null };
+  try {
+    const db = openSqliteNamed("company_about.db", {
+      readonly: true,
+      wal: true,
+    });
+    const upper = q.toUpperCase();
+
+    const exact = db
+      .prepare(
+        `SELECT ticker, name FROM company_about
+         WHERE UPPER(TRIM(ticker)) = ? LIMIT 1`,
+      )
+      .get(upper) as { ticker: string; name: string | null } | undefined;
+    if (exact?.ticker) {
+      return {
+        ticker: exact.ticker.toUpperCase(),
+        name: exact.name?.trim() || null,
+      };
+    }
+
+    // Symbol-like token → unique ticker prefix (MTAR → MTARTECH).
+    if (!/\s/.test(q) && q.length >= 2 && q.length <= 12 && /^[A-Za-z0-9.-]+$/.test(q)) {
+      const prefs = db
+        .prepare(
+          `SELECT ticker, name FROM company_about
+           WHERE UPPER(TRIM(ticker)) LIKE ?
+           ORDER BY LENGTH(ticker) ASC
+           LIMIT 8`,
+        )
+        .all(`${upper}%`) as Array<{ ticker: string; name: string | null }>;
+      if (prefs.length === 1 && prefs[0]) {
+        return {
+          ticker: prefs[0].ticker.toUpperCase(),
+          name: prefs[0].name?.trim() || null,
+        };
+      }
+    }
+
+    const byName = lookupTickerByCompanyName(db, q);
+    if (byName) {
+      return {
+        ticker: byName,
+        name: companyAboutName(db, byName),
+      };
+    }
+
+    return { ticker: null, name: null };
+  } catch {
+    return { ticker: null, name: null };
+  }
+}
+
+/** Prefer company_about display name over noisy PDF/extract titles. */
+export function displayNameForTicker(
+  ticker: string | null | undefined,
+  fallback?: string | null,
+): string {
+  const sym = (ticker || "").trim().toUpperCase();
+  if (!sym) return cleanIssuerDisplayName(fallback) || "—";
+  try {
+    const db = openSqliteNamed("company_about.db", {
+      readonly: true,
+      wal: true,
+    });
+    const name = companyAboutName(db, sym);
+    if (name) return name;
+  } catch {
+    /* fall through */
+  }
+  const fb = cleanIssuerDisplayName(fallback);
+  // Drop PDF garbage titles that don't look like issuer names.
+  if (fb && fb.length < 80 && !/^your information/i.test(fb)) return fb;
+  if (/^BSE\d{5,6}$/i.test(sym)) return fb || sym;
+  return sym;
+}
+
+/** Collapse "Name Limited NAME LIMITED" PDF echoes into one Title Case name. */
+export function cleanIssuerDisplayName(
+  raw: string | null | undefined,
+): string {
+  let s = (raw || "").replace(/\s+/g, " ").trim();
+  if (!s) return "";
+  // BSE announcement feeds often append "-$" / trailing "$" (not part of the name).
+  s = s
+    .replace(/(?:\s*-\s*\$|\s+\$)$/g, "")
+    .replace(/\$$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const norm = (w: string) => w.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const words = s.split(" ").filter(Boolean);
+  if (words.length >= 4) {
+    for (let i = 1; i < words.length; i++) {
+      const left = words.slice(0, i);
+      const right = words.slice(i);
+      if (right.length !== left.length) continue;
+      if (!right.every((w) => w === w.toUpperCase() && /[A-Z]/.test(w))) {
+        continue;
+      }
+      if (left.map(norm).join(" ") === right.map(norm).join(" ")) {
+        return left.join(" ");
+      }
+    }
+  }
+  // Even-length exact duplicate halves (any case).
+  if (words.length >= 4 && words.length % 2 === 0) {
+    const mid = words.length / 2;
+    const a = words.slice(0, mid).map(norm).join(" ");
+    const b = words.slice(mid).map(norm).join(" ");
+    if (a && a === b) return words.slice(0, mid).join(" ");
+  }
+  return s;
+}
+
+function trackerBlankLabel(v: string | null | undefined): string {
+  const s = (v || "").replace(/\s+/g, " ").trim();
+  if (!s || s === NOT_DISCLOSED || /^not\s+(disclosed|mentioned)/i.test(s)) {
+    return "Not mentioned";
+  }
+  // Confidential / name-withheld boilerplate from Reg-30 filings.
+  if (
+    /commercially\s+sensitive|name\s+of\s+the\s+(?:entity|party|customer|counterparty)\s+is\s+not|not\s+specified\s+due\s+to|confidential(?:ity)?\s+(?:reasons?|grounds?)|cannot\s+be\s+disclosed/i.test(
+      s,
+    )
+  ) {
+    return "Not mentioned";
+  }
+  // Long prose is not a counterparty name.
+  if (
+    s.length > 90 &&
+    /\b(?:leading|operating|entity|information|sensitive|specified)\b/i.test(s)
+  ) {
+    return "Not mentioned";
+  }
+  return s;
 }
 
 /**
@@ -3132,25 +3324,554 @@ export function listOrderbookHistory(limit = 40): OrderbookHistoryRow[] {
   }
 }
 
-/** Every PDF URL already screened (PASS or FAIL) — Scan skips these. */
+export type OrderTrackerOrder = {
+  id: string;
+  history_id: number;
+  source_url: string | null;
+  ticker: string;
+  company: string;
+  customer: string;
+  order_type: string;
+  order_date: string | null;
+  news_date: string | null;
+  contract_value_cr: number | null;
+  duration: string;
+  duration_months: number | null;
+  annual_value_cr: number | null;
+  order_size_pct: number | null;
+  sales_cr: number | null;
+  sales_year: string | null;
+  market_cap_cr: number | null;
+  decision: "pass" | "fail" | "pending";
+  prior_count: number;
+  screened_at: string;
+};
+
+export type OrderTrackerCompany = {
+  ticker: string;
+  company: string;
+  order_count: number;
+  total_order_value_cr: number;
+  sales_cr: number | null;
+  sales_year: string | null;
+  orders_as_pct_of_revenue: number | null;
+  market_cap_cr: number | null;
+  orders: OrderTrackerOrder[];
+};
+
+/** Parse free-text execution into approximate months when possible. */
+export function parseDurationMonths(
+  raw: string | null | undefined,
+): number | null {
+  const t = (raw || "").toLowerCase().replace(/,/g, "");
+  if (!t || t === NOT_DISCLOSED.toLowerCase()) return null;
+  // "two (02) years" / "ten (10) years"
+  const wordYears = t.match(
+    /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(?:\(\s*\d+\s*\))?\s*(?:years?|yrs?)\b/,
+  );
+  if (wordYears) {
+    const w = wordYears[1];
+    const map: Record<string, number> = {
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      nine: 9,
+      ten: 10,
+    };
+    const n = map[w] ?? Number(w);
+    if (Number.isFinite(n) && n > 0) return Math.round(n * 12);
+  }
+  const years = t.match(/([\d]+(?:\.\d+)?)\s*(?:years?|yrs?)\b/);
+  if (years) {
+    const n = Number(years[1]);
+    if (Number.isFinite(n) && n > 0) return Math.round(n * 12);
+  }
+  const months = t.match(/([\d]+(?:\.\d+)?)\s*(?:months?|mos?)\b/);
+  if (months) {
+    const n = Number(months[1]);
+    if (Number.isFinite(n) && n > 0) return Math.round(n);
+  }
+  const days = t.match(/([\d]+(?:\.\d+)?)\s*(?:days?)\b/);
+  if (days) {
+    const n = Number(days[1]);
+    if (Number.isFinite(n) && n > 0) return Math.max(1, Math.round(n / 30));
+  }
+  return null;
+}
+
+function inferOrderType(extract: OrderbookExtract, subjectBlob: string): string {
+  const blob =
+    `${extract.nature || ""} ${extract.subject || ""} ${subjectBlob}`.toLowerCase();
+  if (/\bloi\b|letter of intent/.test(blob)) return "LOI";
+  if (/\bloa\b|letter of award|letter of acceptance/.test(blob)) return "LOA";
+  if (/\bpurchase order\b|(?:^|\s)po(?:\s|$)/.test(blob)) return "Purchase Order";
+  if (/\bwork order\b/.test(blob)) return "Work Order";
+  if (/\bcontract\b|\bawarded\b|\border\b/.test(blob)) return "Order";
+  if (extract.nature?.trim()) return extract.nature.trim().slice(0, 48);
+  return NOT_DISCLOSED;
+}
+
+/**
+ * Order Tracker feed — screened extracts with size (PASS + FAIL).
+ * Expands multi-contract `orders[]` when present.
+ */
+export function listOrderbookTracker(opts?: {
+  limit?: number;
+  passOnly?: boolean;
+  minPct?: number | null;
+  q?: string | null;
+  customer?: string | null;
+  ticker?: string | null;
+  monthsBack?: number | null;
+  minMcapCr?: number | null;
+}): {
+  orders: OrderTrackerOrder[];
+  companies: OrderTrackerCompany[];
+  customers: string[];
+  companies_filter: Array<{ ticker: string; company: string }>;
+} {
+  purgeCorruptHistory();
+  const limit = Math.min(500, Math.max(1, opts?.limit ?? 200));
+  const passOnly = opts?.passOnly === true;
+  const minPct =
+    opts?.minPct != null && Number.isFinite(opts.minPct) ? opts.minPct : null;
+  const qRaw = (opts?.q || "").trim();
+  const q = qRaw.toLowerCase();
+  const customerFilter = (opts?.customer || "").trim().toLowerCase();
+  const tickerResolved = resolveOrderbookCompanyQuery(opts?.ticker);
+  const tickerFilter =
+    tickerResolved.ticker ||
+    (opts?.ticker || "").trim().toUpperCase() ||
+    "";
+  const qResolved = resolveOrderbookCompanyQuery(qRaw);
+  const monthsBack =
+    opts?.monthsBack != null && opts.monthsBack > 0 ? opts.monthsBack : null;
+  const minMcap =
+    opts?.minMcapCr != null && Number.isFinite(opts.minMcapCr)
+      ? opts.minMcapCr
+      : null;
+  const cutoff = monthsBack
+    ? new Date(Date.now() - monthsBack * 30.5 * 86400000)
+        .toISOString()
+        .slice(0, 10)
+    : null;
+
+  const metrics = loadMetricsMap();
+  let aboutDb: ReturnType<typeof openSqliteNamed> | null = null;
+  try {
+    aboutDb = openSqliteNamed("company_about.db", {
+      readonly: true,
+      wal: true,
+    });
+  } catch {
+    aboutDb = null;
+  }
+  const nameCache = new Map<string, string>();
+  const niceName = (ticker: string, fallback: string | null) => {
+    if (nameCache.has(ticker)) return nameCache.get(ticker)!;
+    const name =
+      (aboutDb ? companyAboutName(aboutDb, ticker) : null) ||
+      displayNameForTicker(ticker, fallback);
+    nameCache.set(ticker, name);
+    return name;
+  };
+
+  const resolveRowTicker = (
+    rawTicker: string,
+    companyFallback: string | null,
+  ): string => {
+    let ticker = normalizeBsePlaceholderTicker(rawTicker);
+    if (!isBsePlaceholderTicker(ticker)) return ticker;
+    const cleaned = cleanIssuerDisplayName(companyFallback);
+    if (aboutDb && cleaned) {
+      const fromName = lookupTickerByCompanyName(aboutDb, cleaned);
+      if (fromName) return fromName;
+    }
+    const scrip = scripFromBsePlaceholder(ticker);
+    if (aboutDb && scrip) {
+      const fromScrip = lookupTickerByScripCode(aboutDb, scrip);
+      if (fromScrip) return fromScrip;
+    }
+    return ticker;
+  };
+
+  const db = ensureDb();
+  const rawOrders: OrderTrackerOrder[] = [];
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, source_url, ticker, company, extract_json, screened_at
+         FROM orderbook_screens
+         ORDER BY screened_at DESC
+         LIMIT ?`,
+      )
+      .all(Math.min(800, limit * 3)) as Array<{
+      id: number;
+      source_url: string | null;
+      ticker: string | null;
+      company: string | null;
+      extract_json: string;
+      screened_at: string;
+    }>;
+
+    for (const r of rows) {
+      let extract: OrderbookExtract = emptyExtract();
+      try {
+        extract = {
+          ...emptyExtract(),
+          ...(JSON.parse(r.extract_json) as Partial<OrderbookExtract>),
+        };
+      } catch {
+        continue;
+      }
+      const pass = isOrderbookPass(extract);
+      if (passOnly && !pass) continue;
+      const ticker = resolveRowTicker(
+        r.ticker || extract.ticker || "",
+        r.company || extract.company,
+      );
+      if (!ticker) continue;
+      if (tickerFilter && ticker !== tickerFilter) continue;
+      const company = niceName(ticker, r.company || extract.company);
+      const mcap = metrics.get(ticker)?.market_cap_cr ?? null;
+      if (minMcap != null && (mcap == null || mcap < minMcap)) continue;
+
+      const decision: OrderTrackerOrder["decision"] = pass
+        ? "pass"
+        : extract.order_size_cr != null && extract.order_size_cr > 0
+          ? "fail"
+          : "pending";
+
+      const lineItems =
+        extract.orders?.length > 0
+          ? extract.orders
+          : [
+              {
+                awarding_entity: extract.awarding_entity,
+                order_size: extract.order_size,
+                execution: extract.execution,
+                size_cr: extract.order_size_cr,
+                contractor: null as string | null,
+              },
+            ];
+
+      let idx = 0;
+      for (const line of lineItems) {
+        const cr =
+          line.size_cr != null && line.size_cr > 0
+            ? line.size_cr
+            : extract.order_size_cr;
+        const customer = trackerBlankLabel(line.awarding_entity);
+        if ((cr == null || cr <= 0) && customer === "Not mentioned" && !pass) {
+          idx += 1;
+          continue;
+        }
+        const duration = trackerBlankLabel(line.execution || extract.execution);
+        const months = parseDurationMonths(duration);
+        const annual =
+          cr != null && months != null && months > 0
+            ? Math.round((cr / (months / 12)) * 100) / 100
+            : cr;
+        // No sales → no % (do not fall back to a stale 0 from extract).
+        const pct =
+          extract.sales_cr != null && extract.sales_cr > 0
+            ? cr != null
+              ? Math.round((cr / extract.sales_cr) * 10000) / 100
+              : extract.order_to_sales_pct
+            : null;
+        if (minPct != null && (pct == null || pct < minPct)) {
+          idx += 1;
+          continue;
+        }
+        const day =
+          extract.order_date ||
+          extract.news_date ||
+          r.screened_at?.slice(0, 10) ||
+          null;
+        if (cutoff && day && day < cutoff) {
+          idx += 1;
+          continue;
+        }
+        if (
+          customerFilter &&
+          !customer.toLowerCase().includes(customerFilter)
+        ) {
+          idx += 1;
+          continue;
+        }
+        if (q) {
+          const blob = `${company} ${ticker} ${customer} ${duration}`.toLowerCase();
+          const hit =
+            blob.includes(q) ||
+            (qResolved.ticker != null && ticker === qResolved.ticker);
+          if (!hit) {
+            idx += 1;
+            continue;
+          }
+        }
+
+        rawOrders.push({
+          id: `${r.id}-${idx}`,
+          history_id: r.id,
+          source_url: r.source_url,
+          ticker,
+          company,
+          customer,
+          order_type: inferOrderType(
+            extract,
+            `${line.order_size} ${line.execution}`,
+          ),
+          order_date: extract.order_date,
+          news_date: extract.news_date || extract.order_date,
+          contract_value_cr: cr ?? null,
+          duration,
+          duration_months: months,
+          annual_value_cr: annual ?? null,
+          order_size_pct: pct ?? null,
+          sales_cr: extract.sales_cr,
+          sales_year: extract.sales_year,
+          market_cap_cr: mcap,
+          decision,
+          prior_count: 0,
+          screened_at: r.screened_at,
+        });
+        idx += 1;
+        if (rawOrders.length >= limit) break;
+      }
+      if (rawOrders.length >= limit) break;
+    }
+  } finally {
+    db.close();
+    try {
+      aboutDb?.close();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const byTickerDates = new Map<string, string[]>();
+  for (const o of rawOrders) {
+    const day = o.order_date || o.news_date || o.screened_at.slice(0, 10);
+    const list = byTickerDates.get(o.ticker) || [];
+    list.push(day);
+    byTickerDates.set(o.ticker, list);
+  }
+  for (const o of rawOrders) {
+    const day = o.order_date || o.news_date || o.screened_at.slice(0, 10);
+    const list = byTickerDates.get(o.ticker) || [];
+    o.prior_count = list.filter((d) => d < day).length;
+  }
+
+  rawOrders.sort((a, b) => {
+    const ad = a.order_date || a.news_date || a.screened_at;
+    const bd = b.order_date || b.news_date || b.screened_at;
+    return bd.localeCompare(ad);
+  });
+
+  const companyMap = new Map<string, OrderTrackerCompany>();
+  for (const o of rawOrders) {
+    let c = companyMap.get(o.ticker);
+    if (!c) {
+      c = {
+        ticker: o.ticker,
+        company: o.company,
+        order_count: 0,
+        total_order_value_cr: 0,
+        sales_cr: o.sales_cr,
+        sales_year: o.sales_year,
+        orders_as_pct_of_revenue: null,
+        market_cap_cr: o.market_cap_cr,
+        orders: [],
+      };
+      companyMap.set(o.ticker, c);
+    }
+    c.order_count += 1;
+    if (o.contract_value_cr != null) {
+      c.total_order_value_cr =
+        Math.round((c.total_order_value_cr + o.contract_value_cr) * 100) / 100;
+    }
+    if (c.sales_cr == null && o.sales_cr != null) c.sales_cr = o.sales_cr;
+    if (!c.sales_year && o.sales_year) c.sales_year = o.sales_year;
+    c.orders.push(o);
+  }
+  const companies = [...companyMap.values()].map((c) => {
+    if (c.sales_cr != null && c.sales_cr > 0 && c.total_order_value_cr > 0) {
+      c.orders_as_pct_of_revenue =
+        Math.round((c.total_order_value_cr / c.sales_cr) * 10000) / 100;
+    }
+    c.orders.sort((a, b) => {
+      const ad = a.order_date || a.news_date || a.screened_at;
+      const bd = b.order_date || b.news_date || b.screened_at;
+      return bd.localeCompare(ad);
+    });
+    return c;
+  });
+  companies.sort(
+    (a, b) =>
+      (b.orders_as_pct_of_revenue ?? -1) - (a.orders_as_pct_of_revenue ?? -1),
+  );
+
+  const customers = [
+    ...new Set(
+      rawOrders
+        .map((o) => o.customer)
+        .filter((c) => c && c !== "Not mentioned"),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+
+  const companies_filter = companies
+    .map((c) => ({ ticker: c.ticker, company: c.company }))
+    .sort((a, b) => a.company.localeCompare(b.company));
+
+  return { orders: rawOrders, companies, customers, companies_filter };
+}
+
+/** Every PDF URL already analysed (PASS or FAIL) — Scan skips these. Stubs stay pending. */
 export function listOrderbookScreenedUrls(): Set<string> {
   const urls = new Set<string>();
   const db = ensureDb();
   try {
     const rows = db
       .prepare(
-        `SELECT source_url FROM orderbook_screens
+        `SELECT source_url, engine, extract_json FROM orderbook_screens
          WHERE source_url IS NOT NULL AND TRIM(source_url) != ''`,
       )
-      .all() as Array<{ source_url: string }>;
+      .all() as Array<{
+      source_url: string;
+      engine: string | null;
+      extract_json: string | null;
+    }>;
     for (const r of rows) {
       const u = r.source_url?.trim();
-      if (u) urls.add(u);
+      if (!u) continue;
+      const eng = (r.engine || "").trim();
+      if (eng === "exchange-fetch" || eng === "nse-came-fetch") continue;
+      try {
+        const j = r.extract_json ? JSON.parse(r.extract_json) : null;
+        if (j && j.pending === true) continue;
+      } catch {
+        /* treat as screened */
+      }
+      urls.add(u);
     }
   } finally {
     db.close();
   }
   return urls;
+}
+
+/** Stub-save announced order rows (metadata only — no PDF download). */
+export function saveOrderbookHits(hits: OrderbookAnnouncedHit[]): number {
+  if (!hits.length) return 0;
+  const db = ensureDb();
+  try {
+    const at = new Date().toISOString();
+    const ins = db.prepare(`
+      INSERT INTO orderbook_screens (
+        source_url, ticker, company, extract_json, engine, text_chars, screened_at
+      ) VALUES (?, ?, ?, ?, 'exchange-fetch', 0, ?)
+    `);
+    let n = 0;
+    const tx = db.transaction(() => {
+      for (const h of hits) {
+        const url = h.url?.trim() || null;
+        if (!url) continue;
+        const exists = db
+          .prepare(
+            `SELECT id FROM orderbook_screens WHERE source_url = ? LIMIT 1`,
+          )
+          .get(url) as { id: number } | undefined;
+        if (exists) continue;
+        ins.run(
+          url,
+          h.ticker || null,
+          h.company || null,
+          JSON.stringify({
+            pending: true,
+            ticker: h.ticker,
+            company: h.company,
+            title: h.title,
+            url: h.url,
+            announced_at: h.announced_at,
+            period: h.period,
+            provider: h.provider,
+            order_date: h.announced_at?.slice(0, 10) || null,
+          }),
+          at,
+        );
+        n += 1;
+      }
+    });
+    tx();
+    return n;
+  } finally {
+    db.close();
+  }
+}
+
+/** Pending stub rows (saved announced, not yet analysed). */
+export function listOrderbookPendingHits(): OrderbookAnnouncedHit[] {
+  const db = ensureDb();
+  try {
+    const rows = db
+      .prepare(
+        `SELECT source_url, ticker, company, extract_json, engine
+         FROM orderbook_screens
+         WHERE source_url IS NOT NULL AND TRIM(source_url) != ''
+         ORDER BY id DESC
+         LIMIT 5000`,
+      )
+      .all() as Array<{
+      source_url: string;
+      ticker: string | null;
+      company: string | null;
+      extract_json: string | null;
+      engine: string | null;
+    }>;
+    const out: OrderbookAnnouncedHit[] = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const url = r.source_url.trim();
+      if (!url || seen.has(url)) continue;
+      const eng = (r.engine || "").trim();
+      let pending = eng === "exchange-fetch" || eng === "nse-came-fetch";
+      let title = "Order announcement";
+      let announced_at: string | null = null;
+      let period: string | null = null;
+      let provider = "db";
+      try {
+        const j = r.extract_json ? JSON.parse(r.extract_json) : null;
+        if (j && j.pending === true) pending = true;
+        if (j && typeof j.title === "string" && j.title.trim()) {
+          title = j.title.trim();
+        }
+        if (j && typeof j.announced_at === "string") announced_at = j.announced_at;
+        if (j && typeof j.period === "string") period = j.period;
+        if (j && typeof j.provider === "string") provider = j.provider;
+      } catch {
+        /* ignore */
+      }
+      if (!pending) continue;
+      seen.add(url);
+      out.push({
+        ticker: (r.ticker || "").toUpperCase() || "UNKNOWN",
+        company: r.company,
+        title,
+        url,
+        announced_at,
+        period,
+        provider,
+      });
+    }
+    return out;
+  } finally {
+    db.close();
+  }
 }
 
 /** Refresh LTP + post-news drift for PASS list rows. */
@@ -3271,6 +3992,12 @@ export async function screenOrderbookPdf(opts: {
   mode?: "lexical" | "llm" | null;
   /** BSE/NSE exchange announcement date fallback when PDF omits filing date. */
   announced_at?: string | null;
+  /**
+   * true = never OCR (fast scan).
+   * false = OCR-first when Qianfan is set (overrides ORDERBOOK_OCR=0).
+   * omit = env + mode default.
+   */
+  skipOcr?: boolean;
 }): Promise<OrderbookScreenResult> {
   const source_url = opts.url?.trim() || null;
   const preferredTicker = opts.ticker?.trim().toUpperCase() || null;
@@ -3302,12 +4029,19 @@ export async function screenOrderbookPdf(opts: {
     };
   }
 
-  // Extract: prefer vision OCR when QIANFAN is set (ORDERBOOK_OCR=0 → pdf-parse first).
+  // Extract: LLM/lab prefers vision OCR when QIANFAN is set.
+  // Bulk Scan (lexical) uses pdf-parse first — OCR only if text is thin.
   let text = "";
-  const preferOcr = orderbookOcrPreferred();
+  const preferOcr =
+    opts.skipOcr === true
+      ? false
+      : opts.skipOcr === false
+        ? qianfanConfigured()
+        : orderbookOcrPreferred(opts.mode);
+  const allowOcr = opts.skipOcr !== true && qianfanConfigured();
   if (preferOcr) {
     try {
-      const ocr = await ocrPdf(buf);
+      const ocr = await ocrPdf(buf, opts.mode);
       if (ocr.length >= 40) {
         text = ocr;
         engine = ocrEngineTag();
@@ -3340,11 +4074,11 @@ export async function screenOrderbookPdf(opts: {
   // Thin pdf-parse → OCR fallback when OCR was not preferred (or preferred OCR failed).
   if (
     text.length < 120 &&
-    qianfanConfigured() &&
+    allowOcr &&
     !engine.startsWith("vision-ocr")
   ) {
     try {
-      const ocr = await ocrPdf(buf);
+      const ocr = await ocrPdf(buf, opts.mode);
       if (ocr.length >= 40) {
         text = ocr;
         engine = ocrEngineTag();
@@ -3390,6 +4124,31 @@ export async function screenOrderbookPdf(opts: {
   }
 
   let extract = enrichOrderbookLexical(text);
+
+  // Lexical/scan path: pdf-parse often returns title boilerplate without annexure
+  // rows. If core order fields are still blank, OCR (capped pages) then re-extract.
+  if (
+    !useLlm &&
+    allowOcr &&
+    !engine.startsWith("vision-ocr") &&
+    (isBlankField(extract.awarding_entity) ||
+      isBlankField(extract.order_size) ||
+      isBlankField(extract.execution) ||
+      (extract.order_size_cr == null &&
+        isBlankField(extract.order_size)))
+  ) {
+    try {
+      const ocr = await ocrPdf(buf, opts.mode ?? "lexical");
+      if (ocr.length >= 80) {
+        text = ocr;
+        engine = `${engine}+${ocrEngineTag()}`;
+        extract = enrichOrderbookLexical(text);
+      }
+    } catch {
+      /* keep pdf-parse extract */
+    }
+  }
+
   if (companyHint && !extract.company) {
     extract.company = companyHint;
   }
@@ -3581,7 +4340,7 @@ export async function extractOrderbookPdf(opts: {
 
   if (!skipOcr && text.length < 120 && qianfanConfigured()) {
     try {
-      const ocr = await ocrPdf(buf);
+      const ocr = await ocrPdf(buf, "lexical");
       if (ocr.length > text.length) {
         text = ocr;
         engine = ocrEngineTag();
@@ -3621,6 +4380,8 @@ export async function scanOrderbookAnnouncements(opts: {
   mode?: "lexical" | "llm" | null;
   /** URLs already attempted this session (PASS or FAIL) — skip so scan advances. */
   skipUrls?: string[] | null;
+  /** true = pdf-parse only; false = OCR enabled (UI Scan OCR chip). */
+  skipOcr?: boolean;
 }): Promise<{
   ok: true;
   days: number;
@@ -3636,10 +4397,11 @@ export async function scanOrderbookAnnouncements(opts: {
   attempted_urls: string[];
   note?: string;
 }> {
-  const days = Math.min(7, Math.max(1, opts.days ?? 1));
+  const days = clampAnnouncedDays(opts.days ?? 1);
   const limit = Math.min(15, Math.max(1, opts.limit ?? 3));
   const pendingOnly = opts.pendingOnly !== false;
   const mode = opts.mode === "lexical" ? "lexical" : "llm";
+  const skipOcr = opts.skipOcr;
 
   let sources: OrderbookAnnouncedHit[] = Array.isArray(opts.sources)
     ? opts.sources
@@ -3679,20 +4441,24 @@ export async function scanOrderbookAnnouncements(opts: {
 
   const total_candidates = sources.length;
   const batch = sources.slice(0, limit);
-  const results: OrderbookScreenResult[] = [];
+  // Parallel batch — lexical scan is pdf-parse-first; running 3 at once cuts wall time ~3×.
+  const settled = await Promise.all(
+    batch.map((s) =>
+      screenOrderbookPdf({
+        url: s.url,
+        ticker: s.ticker,
+        company: s.company,
+        announced_at: s.announced_at,
+        mode,
+        skipOcr,
+      }),
+    ),
+  );
+  const results: OrderbookScreenResult[] = settled;
   let analysed = 0;
   let passed = 0;
   let failed = 0;
-
-  for (const s of batch) {
-    const r = await screenOrderbookPdf({
-      url: s.url,
-      ticker: s.ticker,
-      company: s.company,
-      announced_at: s.announced_at,
-      mode,
-    });
-    results.push(r);
+  for (const r of results) {
     if (r.ok) {
       analysed += 1;
       if (r.decision === "pass") passed += 1;
@@ -3705,6 +4471,13 @@ export async function scanOrderbookAnnouncements(opts: {
   const attempted_urls = batch
     .map((s) => s.url?.trim() || "")
     .filter(Boolean);
+
+  const ocrNote =
+    skipOcr === true
+      ? "pdf-parse only (OCR off)"
+      : skipOcr === false
+        ? "OCR on (vision when configured)"
+        : "pdf-parse first (OCR only if thin)";
 
   return {
     ok: true,
@@ -3719,6 +4492,6 @@ export async function scanOrderbookAnnouncements(opts: {
     results,
     history: listOrderbookHistory(200),
     attempted_urls,
-    note: `Skips ${scored.size} already-screened PDF(s) in DB · PASS needs Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%`,
+    note: `${ocrNote} · Skips ${scored.size} already-screened PDF(s) · PASS needs Order/Sales ≥${ORDERBOOK_PASS_MIN_PCT}%`,
   };
 }
