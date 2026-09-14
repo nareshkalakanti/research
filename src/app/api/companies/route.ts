@@ -48,6 +48,8 @@ import {
   fundWatchlistSets,
   FUND_WATCHLIST_KEYS,
   invalidateFundWatchlistCache,
+  fundTickerFrequency,
+  loadFundHoldings,
   loadFundWatchlistStubs,
   parseFundFiltersFromSearchParams,
 } from "@/lib/fund-watchlists";
@@ -147,6 +149,100 @@ function appendFundWatchlistStubs(
 
 type CompanyRow = ReturnType<typeof loadAllCompanies>[number];
 
+/** Scope a company pool to fundMode (all/unique/overlap/sme) or a single fundList. */
+function scopeByFundModeOrList(
+  input: CompanyRow[],
+  opts: {
+    fundMode: string;
+    fundModeActive: boolean;
+    fundListKey: string;
+    allCompanies: CompanyRow[];
+    /** When false, only intersect — do not re-widen after a signal filter. */
+    injectMissing?: boolean;
+  },
+): CompanyRow[] {
+  const injectMissing = opts.injectMissing !== false;
+
+  if (opts.fundModeActive) {
+    const fundFreq = fundTickerFrequency();
+    let selected = fundFreq;
+    if (opts.fundMode === "unique") {
+      selected = fundFreq.filter((f) => f.count === 1);
+    } else if (opts.fundMode === "overlap") {
+      selected = fundFreq
+        .filter((f) => f.count >= 2)
+        .sort(
+          (a, b) =>
+            b.count - a.count || a.ticker.localeCompare(b.ticker),
+        );
+    } else if (opts.fundMode === "sme") {
+      const marketByTicker = new Map(
+        opts.allCompanies.map((c) => [c.ticker.toUpperCase(), c.market]),
+      );
+      selected = fundFreq.filter((f) => {
+        const market =
+          marketByTicker.get(f.ticker.toUpperCase()) || f.market;
+        return /\bSME\b/i.test(market);
+      });
+    }
+    const fundTickers = new Set(selected.map((f) => f.ticker.toUpperCase()));
+    const have = new Set<string>();
+    const out: CompanyRow[] = [];
+    for (const c of input) {
+      const t = c.ticker.toUpperCase();
+      if (!fundTickers.has(t) || have.has(t)) continue;
+      out.push(c);
+      have.add(t);
+    }
+    if (injectMissing) {
+      const byTicker = new Map(
+        opts.allCompanies.map((c) => [c.ticker.toUpperCase(), c]),
+      );
+      for (const f of selected) {
+        const t = f.ticker.toUpperCase();
+        if (have.has(t)) continue;
+        out.push(
+          byTicker.get(t) ??
+            fundStubRow({
+              ticker: f.ticker,
+              name: f.name,
+              market: f.market,
+            }),
+        );
+        have.add(t);
+      }
+    }
+    return out;
+  }
+
+  if (opts.fundListKey) {
+    const fundTickers = new Set(
+      loadFundHoldings(opts.fundListKey).map((h) => h.ticker.toUpperCase()),
+    );
+    const have = new Set<string>();
+    const out: CompanyRow[] = [];
+    for (const c of input) {
+      const t = c.ticker.toUpperCase();
+      if (!fundTickers.has(t) || have.has(t)) continue;
+      out.push(c);
+      have.add(t);
+    }
+    if (injectMissing) {
+      const byTicker = new Map(
+        opts.allCompanies.map((c) => [c.ticker.toUpperCase(), c]),
+      );
+      for (const stub of loadFundWatchlistStubs(opts.fundListKey, have)) {
+        if (!fundTickers.has(stub.ticker.toUpperCase())) continue;
+        out.push(byTicker.get(stub.ticker.toUpperCase()) ?? fundStubRow(stub));
+        have.add(stub.ticker.toUpperCase());
+      }
+    }
+    return out;
+  }
+
+  return input;
+}
+
 /** Tag / watchlist chips — run after theme merge so injected rows respect filters. */
 function applyWatchlistFilters(
   input: CompanyRow[],
@@ -171,10 +267,6 @@ function applyWatchlistFilters(
   },
 ): CompanyRow[] {
   let companies = input;
-
-  if (opts.filterSme) {
-    companies = companies.filter((c) => /\bSME\b/i.test(c.market));
-  }
 
   if (opts.filterAgeMin != null) {
     companies = companies.filter((c) =>
@@ -208,9 +300,10 @@ function applyWatchlistFilters(
       fundFilter.has(c.ticker.toUpperCase()),
     );
     // Stubs fill fund-only names missing from the company DB. Skip when another
-    // Tags chip is ANDed (Hold / Edge / …) — stubs would re-widen past that chip.
+    // Tags chip is ANDed (Hold / Edge / SME / …) — stubs would re-widen past that chip.
     // Theme scan still injects stubs when a fund chip is on so the fund list appears.
     const andedWithOtherTag =
+      opts.filterSme ||
       opts.filterHold ||
       opts.filterDistress ||
       opts.filterEdge ||
@@ -234,6 +327,11 @@ function applyWatchlistFilters(
     companies = companies.filter((c) =>
       opts.notes.has(c.ticker.toUpperCase()),
     );
+  }
+
+  // SME last so fund stubs cannot re-widen past the SME chip.
+  if (opts.filterSme) {
+    companies = companies.filter((c) => /\bSME\b/i.test(c.market));
   }
 
   return companies;
@@ -298,8 +396,26 @@ async function buildCompaniesResponse(req: NextRequest) {
   const filterEdge = sp.get("edge") === "1";
   const filterGov = sp.get("gov") === "1";
   const fundActive = parseFundFiltersFromSearchParams(sp);
+  const fundListKey = (sp.get("fundList") || "").trim();
+  const fundMode = (sp.get("fundMode") || "").trim().toLowerCase();
+  const fundModeActive =
+    fundMode === "all" ||
+    fundMode === "unique" ||
+    fundMode === "overlap" ||
+    fundMode === "sme";
+  const mcapMinRaw = sp.get("mcapMin");
+  const mcapMaxRaw = sp.get("mcapMax");
+  const mcapMin =
+    mcapMinRaw != null && mcapMinRaw !== "" && Number.isFinite(Number(mcapMinRaw))
+      ? Number(mcapMinRaw)
+      : null;
+  const mcapMax =
+    mcapMaxRaw != null && mcapMaxRaw !== "" && Number.isFinite(Number(mcapMaxRaw))
+      ? Number(mcapMaxRaw)
+      : null;
   const filterNote = sp.get("note") === "1";
-  const fundListMode = anyFundFilterActive(fundActive);
+  const fundListMode =
+    anyFundFilterActive(fundActive) || !!fundListKey || fundModeActive;
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
   const preferBreakouts = sp.get("preferBreakouts") === "1";
   const themeIds = (sp.get("themes") || "")
@@ -375,7 +491,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     return out;
   }
 
-  // Hold / Edge / Notes are cross-market lists — don't hide SME/BSE when those chips are on.
+  // Hold / Edge / Notes / Funds are cross-market lists — don't hide SME/BSE when those chips are on.
   const watchlistMode =
     filterHold ||
     filterDistress ||
@@ -383,6 +499,8 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterGov ||
     filterAgeMin != null ||
     anyFundFilterActive(fundActive) ||
+    fundModeActive ||
+    !!fundListKey ||
     filterSme ||
     filterNote;
   const scanListMode = isScanWatchlist(market);
@@ -500,7 +618,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     }
     // Scope chip counts to Hold / Edge / SME / fund Tags (same as the table).
     // Age presets counted on pool without age filter so 25/50/100 stay comparable.
-    const poolBase = applyWatchlistFilters(pool, {
+    const poolBaseRaw = applyWatchlistFilters(pool, {
       filterSme,
       filterHold,
       filterDistress,
@@ -517,6 +635,22 @@ async function buildCompaniesResponse(req: NextRequest) {
       allCompanies,
       themeScanActive: false,
     });
+    let poolBase = scopeByFundModeOrList(poolBaseRaw, {
+      fundMode,
+      fundModeActive,
+      fundListKey,
+      allCompanies,
+    });
+    if (mcapMin != null && mcapMin > 0) {
+      poolBase = poolBase.filter(
+        (c) => c.mcap_cr != null && c.mcap_cr >= mcapMin,
+      );
+    }
+    if (mcapMax != null) {
+      poolBase = poolBase.filter(
+        (c) => c.mcap_cr != null && c.mcap_cr <= mcapMax,
+      );
+    }
     pool =
       filterAgeMin != null
         ? poolBase.filter((c) => isAgeAtLeast(c.founded_year, filterAgeMin))
@@ -661,8 +795,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     };
   })();
 
-  // Signal filters AND with List / Tags (incl. fund watchlists).
-  if (
+  const signalFilterActive =
     filterBb ||
     filterBbw ||
     filterBbm ||
@@ -675,8 +808,25 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterMrsi85 ||
     filterMrsiEmpty ||
     filterOperatingMetrics ||
-    filterBrutal
-  ) {
+    filterBrutal;
+
+  // Fund All / Unique / Overlap / list BEFORE signal filters so BB W ∩ Funds stays narrow.
+  const fundFreq = fundModeActive ? fundTickerFrequency() : [];
+  const fundCountByTicker = new Map(
+    fundFreq.map((f) => [f.ticker.toUpperCase(), f.count]),
+  );
+  if (fundModeActive || fundListKey) {
+    companies = scopeByFundModeOrList(companies, {
+      fundMode,
+      fundModeActive,
+      fundListKey,
+      allCompanies,
+      injectMissing: true,
+    });
+  }
+
+  // Signal filters AND with List / Tags (incl. fund watchlists).
+  if (signalFilterActive) {
     companies = companies.filter((c) => {
       const flags = breakouts.get(c.ticker.toUpperCase());
       const hasBb = !!flags?.has_bb;
@@ -768,21 +918,19 @@ async function buildCompaniesResponse(req: NextRequest) {
     allCompanies,
     themeScanActive,
     /** Don't re-inject full fund list after a signal filter narrowed the set. */
-    skipFundStubInject:
-      filterBb ||
-      filterBbw ||
-      filterBbm ||
-      filterTq ||
-      filterEma ||
-      filterAth ||
-      filterHigh52 ||
-      filterMom ||
-      filterMrsi ||
-      filterMrsi85 ||
-      filterMrsiEmpty ||
-      filterOperatingMetrics ||
-      filterBrutal,
+    skipFundStubInject: signalFilterActive,
   });
+
+  if (mcapMin != null && mcapMin > 0) {
+    companies = companies.filter(
+      (c) => c.mcap_cr != null && c.mcap_cr >= mcapMin,
+    );
+  }
+  if (mcapMax != null) {
+    companies = companies.filter(
+      (c) => c.mcap_cr != null && c.mcap_cr <= mcapMax,
+    );
+  }
 
   // List-relative MOM rank (1 = highest rounded 12−1 within the current filtered set).
   const listMomRank = new Map<string, number>();
@@ -804,6 +952,25 @@ async function buildCompaniesResponse(req: NextRequest) {
     scored.forEach((x, i) => {
       listMomRank.set(x.t, i + 1);
       listMomScore.set(x.t, x.score);
+    });
+  }
+
+  // List-relative RSI rank (1 = highest monthly RSI within the current filtered set).
+  const listRsiRank = new Map<string, number>();
+  {
+    const scored = companies
+      .map((c) => {
+        const t = c.ticker.toUpperCase();
+        const rsi = breakouts.get(t)?.mrsi?.rsi;
+        if (rsi == null || !Number.isFinite(rsi)) return null;
+        return { t, rsi };
+      })
+      .filter((x): x is { t: string; rsi: number } => !!x)
+      .sort(
+        (a, b) => b.rsi - a.rsi || a.t.localeCompare(b.t),
+      );
+    scored.forEach((x, i) => {
+      listRsiRank.set(x.t, i + 1);
     });
   }
 
@@ -838,6 +1005,13 @@ async function buildCompaniesResponse(req: NextRequest) {
       const bn = bm == null ? Number.POSITIVE_INFINITY : bm;
       return (an - bn) * mul;
     }
+    if (sort === "rsi_rank") {
+      const am = listRsiRank.get(a.ticker.toUpperCase()) ?? null;
+      const bm = listRsiRank.get(b.ticker.toUpperCase()) ?? null;
+      const an = am == null ? Number.POSITIVE_INFINITY : am;
+      const bn = bm == null ? Number.POSITIVE_INFINITY : bm;
+      return (an - bn) * mul;
+    }
     if (sort === "momentum_pct") {
       const am = listMomScore.get(a.ticker.toUpperCase()) ?? null;
       const bm = listMomScore.get(b.ticker.toUpperCase()) ?? null;
@@ -859,6 +1033,19 @@ async function buildCompaniesResponse(req: NextRequest) {
       const an = am == null ? Number.NEGATIVE_INFINITY : am;
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
       return (an - bn) * mul;
+    }
+    if (sort === "fund_count") {
+      const countOf = (ticker: string) => {
+        const t = ticker.toUpperCase();
+        return (
+          fundCountByTicker.get(t) ??
+          fundTagsForTicker(t).length
+        );
+      };
+      const an = countOf(a.ticker);
+      const bn = countOf(b.ticker);
+      if (an !== bn) return (an - bn) * mul;
+      return a.ticker.localeCompare(b.ticker) * mul;
     }
     const sortKey = sort as keyof (typeof companies)[number];
     const av = a[sortKey];
@@ -1015,12 +1202,20 @@ async function buildCompaniesResponse(req: NextRequest) {
       price_1y: flags?.mom?.price_1y ?? null,
       price_1m: flags?.mom?.price_1m ?? null,
       rsi_m: flags?.mrsi?.rsi ?? null,
+      rsi_rank: listRsiRank.get(row.ticker.toUpperCase()) ?? null,
       has_hold: holdings.has(row.ticker.toUpperCase()),
       has_distress: distressSet.has(row.ticker.toUpperCase()),
       has_edge: edge.has(row.ticker.toUpperCase()),
       has_gov: gov.has(row.ticker.toUpperCase()),
       gov_ratna: govRatnaForTicker(row.ticker),
       fund_tags: fundTagsForTicker(row.ticker),
+      fund_count: (() => {
+        const t = row.ticker.toUpperCase();
+        const fromFreq = fundCountByTicker.get(t);
+        if (fromFreq != null) return fromFreq;
+        const tags = fundTagsForTicker(row.ticker).length;
+        return tags > 0 ? tags : null;
+      })(),
       fund_changes: fundChangesForTicker(row.ticker),
       has_note: notes.has(row.ticker.toUpperCase()),
       bb: flags?.bb,

@@ -4,11 +4,10 @@
 
 import { openSqliteNamed } from "@/lib/sqlite-utils";
 import { getMetrics } from "@/lib/metrics";
-import { listMarketIqHistory } from "@/lib/marketiq-screen";
+import { listLatestMarketIqByTickers } from "@/lib/marketiq-screen";
 import { listBoardRoomHistory } from "@/lib/boardroom-screen";
-import { listOrderbookTracker } from "@/lib/orderbook-screen";
+import { listLatestConcallPassByTickers } from "@/lib/concall-screen";
 import { buildGovernanceBrief } from "@/lib/governance-brief";
-import { loadConcallDriftRows } from "@/lib/strategy/concall-drift-store";
 import { isEdge } from "@/lib/edge";
 import { isHolding } from "@/lib/holdings";
 import { fundTagsForTicker } from "@/lib/fund-watchlists";
@@ -21,18 +20,19 @@ export type IqMasterRow = {
   price: number | null;
   market_cap_cr: number | null;
   sector: string | null;
+  about: string | null;
+  headquarters: string | null;
+  ceo: string | null;
+  managing_director: string | null;
+  founded_year: string | null;
   tags: string[];
   marketiq: {
     headline: string;
+    summary: string;
     sentiment: string;
     impact: number;
     category: string;
     announcement_date: string | null;
-  } | null;
-  orders: {
-    order_count: number;
-    total_order_value_cr: number;
-    orders_as_pct_of_revenue: number | null;
   } | null;
   board: {
     headline: string;
@@ -44,14 +44,35 @@ export type IqMasterRow = {
     reason: string;
   };
   concall: {
-    drift_pct: number | null;
+    period: string | null;
+    call_date: string | null;
     result_quality: string | null;
     mgmt_sentiment: string | null;
-    quarter_fy: string | null;
+    revenue_cr: number | null;
+    ltp: number | null;
+    drift_pct: number | null;
+    highlights: Array<{ text: string; polarity: string }>;
   } | null;
 };
 
-function companyName(ticker: string): string {
+type CompanyProfile = {
+  name: string;
+  about: string | null;
+  headquarters: string | null;
+  ceo: string | null;
+  managing_director: string | null;
+  founded_year: string | null;
+};
+
+function companyProfile(ticker: string): CompanyProfile {
+  const empty: CompanyProfile = {
+    name: ticker,
+    about: null,
+    headquarters: null,
+    ceo: null,
+    managing_director: null,
+    founded_year: null,
+  };
   try {
     const db = openSqliteNamed("company_about.db", {
       readonly: true,
@@ -60,18 +81,34 @@ function companyName(ticker: string): string {
     try {
       const row = db
         .prepare(
-          `SELECT name FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
+          `SELECT name, about, headquarters, ceo, managing_director, founded_year
+           FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
         )
-        .get(ticker) as { name?: string } | undefined;
-      const n = row?.name?.trim();
-      if (n) return n;
+        .get(ticker) as
+        | {
+            name?: string;
+            about?: string | null;
+            headquarters?: string | null;
+            ceo?: string | null;
+            managing_director?: string | null;
+            founded_year?: string | null;
+          }
+        | undefined;
+      if (!row) return empty;
+      return {
+        name: row.name?.trim() || ticker,
+        about: row.about?.trim() || null,
+        headquarters: row.headquarters?.trim() || null,
+        ceo: row.ceo?.trim() || null,
+        managing_director: row.managing_director?.trim() || null,
+        founded_year: row.founded_year?.trim() || null,
+      };
     } finally {
       db.close();
     }
   } catch {
-    /* ignore */
+    return empty;
   }
-  return ticker;
 }
 
 function tagsFor(ticker: string): string[] {
@@ -114,11 +151,10 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     NonNullable<IqMasterRow["marketiq"]>
   >();
   try {
-    for (const h of listMarketIqHistory(400)) {
-      const t = (h.ticker || "").toUpperCase();
-      if (!t || !wanted.includes(t) || miqByTicker.has(t)) continue;
+    for (const [t, h] of listLatestMarketIqByTickers(wanted)) {
       miqByTicker.set(t, {
         headline: h.headline,
+        summary: h.summary || "",
         sentiment: h.sentiment,
         impact: h.impact,
         category: h.category,
@@ -144,36 +180,24 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     /* ignore */
   }
 
-  const orderByTicker = new Map<string, NonNullable<IqMasterRow["orders"]>>();
-  try {
-    const tracker = listOrderbookTracker({ limit: 500, monthsBack: 12 });
-    for (const c of tracker.companies) {
-      const t = c.ticker.toUpperCase();
-      if (!wanted.includes(t)) continue;
-      orderByTicker.set(t, {
-        order_count: c.order_count,
-        total_order_value_cr: c.total_order_value_cr,
-        orders_as_pct_of_revenue: c.orders_as_pct_of_revenue,
-      });
-    }
-  } catch {
-    /* ignore */
-  }
-
   const concallByTicker = new Map<
     string,
     NonNullable<IqMasterRow["concall"]>
   >();
   try {
-    const drifts = loadConcallDriftRows({ onePerTicker: true, limit: 2000 });
-    for (const d of drifts) {
-      const t = (d.ticker || "").toUpperCase();
-      if (!t || !wanted.includes(t)) continue;
+    for (const [t, c] of listLatestConcallPassByTickers(wanted)) {
       concallByTicker.set(t, {
-        drift_pct: d.drift_pct,
-        result_quality: d.result_quality ?? null,
-        mgmt_sentiment: d.mgmt_sentiment ?? null,
-        quarter_fy: d.quarter_fy ?? null,
+        period: c.period,
+        call_date: c.call_date,
+        result_quality: c.result_quality,
+        mgmt_sentiment: c.mgmt_sentiment || c.sentiment,
+        revenue_cr: c.revenue_cr,
+        ltp: c.ltp,
+        drift_pct: c.drift_pct,
+        highlights: (c.highlights || []).slice(0, 3).map((h) => ({
+          text: h.text,
+          polarity: h.polarity,
+        })),
       });
     }
   } catch {
@@ -182,6 +206,7 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
 
   return wanted.map((ticker) => {
     const m = getMetrics(ticker);
+    const profile = companyProfile(ticker);
     let governance: IqMasterRow["governance"] = {
       signal: null,
       reason: "—",
@@ -194,14 +219,18 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     }
     return {
       ticker,
-      company: companyName(ticker),
+      company: profile.name,
       market: m?.market ?? null,
       price: m?.price ?? null,
       market_cap_cr: m?.market_cap_cr ?? null,
       sector: m?.sector ?? null,
+      about: profile.about,
+      headquarters: profile.headquarters,
+      ceo: profile.ceo,
+      managing_director: profile.managing_director,
+      founded_year: profile.founded_year,
       tags: tagsFor(ticker),
       marketiq: miqByTicker.get(ticker) ?? null,
-      orders: orderByTicker.get(ticker) ?? null,
       board: boardByTicker.get(ticker) ?? null,
       governance,
       concall: concallByTicker.get(ticker) ?? null,

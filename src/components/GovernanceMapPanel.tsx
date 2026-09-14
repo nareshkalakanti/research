@@ -756,7 +756,15 @@ export function GovernanceMapPanel() {
             Edge
             {stats?.edge != null ? <i>{stats.edge}</i> : null}
           </button>
-          {FUND_WATCHLIST_KEYS.map((key) => (
+          {[...FUND_WATCHLIST_KEYS]
+            .sort((a, b) =>
+              FUND_WATCHLIST_LABELS[a].localeCompare(
+                FUND_WATCHLIST_LABELS[b],
+                "en",
+                { sensitivity: "base" },
+              ),
+            )
+            .map((key) => (
             <button
               key={key}
               type="button"

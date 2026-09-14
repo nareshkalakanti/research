@@ -208,5 +208,19 @@
     "portfolio_slug": null,
     "query": "MANOHAR DEVABHAKTUNI",
     "funds": []
+  },
+  {
+    "name": "Porinju V Veliyath",
+    "portfolio_id": "53777",
+    "portfolio_slug": "porinju-v-veliyath",
+    "query": "PORINJU V VELIYATH",
+    "funds": [
+      {
+        "label": "Equity Intelligence India Private Limited",
+        "portfolio_id": null,
+        "portfolio_slug": null,
+        "query": "EQUITY INTELLIGENCE INDIA PRIVATE LIMITED"
+      }
+    ]
   }
 ]

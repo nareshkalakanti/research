@@ -23,6 +23,7 @@ import { discoverNseMarketAnnouncements } from "./nse-investor-discover";
 import { clampAnnouncedDays } from "./announced-lookback";
 import { rasterizePdfPages } from "./pdf-rasterize";
 import { announcementDedupeKey } from "./announcement-dedupe";
+import { matchMarketIqFundsInText } from "./marketiq-fund-aliases";
 import { marketIqDbFile } from "./iq-dbs";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -51,6 +52,12 @@ export type MarketIqHit = {
 
 export type MarketIqSentiment = "Bullish" | "Bearish" | "Neutral";
 
+export type MarketIqFundChip = {
+  name: string;
+  alias: string;
+  chip_key: string;
+};
+
 export type MarketIqExtract = {
   ticker: string | null;
   company: string | null;
@@ -64,6 +71,8 @@ export type MarketIqExtract = {
   confidence: number;
   impact: number;
   announcement_date: string | null;
+  /** Catalog fund names found in extracted text (alias chips). */
+  funds_mentioned?: MarketIqFundChip[];
   score_trace: {
     positive_count: number;
     negative_count: number;
@@ -83,6 +92,8 @@ export type MarketIqScreenResult = {
   extract: MarketIqExtract;
   engine: string;
   text_chars: number;
+  /** Full PDF text when available (Extract / Copy). */
+  text?: string;
   text_excerpt: string;
   source_url: string | null;
   error?: string;
@@ -104,6 +115,7 @@ export type MarketIqHistoryRow = {
   source_url: string | null;
   screened_at: string;
   engine: string | null;
+  funds_mentioned?: MarketIqFundChip[];
 };
 
 type ScoringFile = {
@@ -355,29 +367,81 @@ function confidenceFromExtractJson(raw: string | null): number | null {
   }
 }
 
-export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
+function fundsFromExtractJson(raw: string | null): MarketIqFundChip[] {
+  if (!raw) return [];
+  try {
+    const j = JSON.parse(raw) as { funds_mentioned?: unknown };
+    if (!Array.isArray(j.funds_mentioned)) return [];
+    const out: MarketIqFundChip[] = [];
+    const seen = new Set<string>();
+    for (const item of j.funds_mentioned) {
+      if (!item || typeof item !== "object") continue;
+      const row = item as Record<string, unknown>;
+      const alias = String(row.alias || "").trim();
+      const chip_key = String(row.chip_key || "").trim().toLowerCase();
+      const name = String(row.name || "").trim();
+      if (!alias || !chip_key || seen.has(chip_key)) continue;
+      seen.add(chip_key);
+      out.push({ name: name || alias, alias, chip_key });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+export function listMarketIqHistory(
+  limit = 40,
+  opts?: { q?: string | null },
+): MarketIqHistoryRow[] {
   ensureHistorySchema();
   const db = openSqliteNamed(marketIqDbFile(), {
     readonly: true,
     wal: true,
   });
   try {
-    const n = Math.min(400, Math.max(1, limit * 3));
-    const rows = db
-      .prepare(
-        `SELECT id, ticker, company, headline, summary, category, sentiment,
-                sentiment_why, impact, announcement_date, source_url, screened_at,
-                engine, extract_json, sentiment_confidence
-         FROM announcement_screens
-         ORDER BY screened_at DESC
-         LIMIT ?`,
-      )
-      .all(n) as Array<
-      MarketIqHistoryRow & {
-        extract_json?: string;
-        sentiment_confidence?: number | null;
-      }
-    >;
+    const want = Math.min(2000, Math.max(1, limit));
+    // Pull a wider window before dedupe so older analysed rows (e.g. earlier today)
+    // are not crowded out by a flood of new screens.
+    const n = Math.min(5000, Math.max(want * 3, want));
+    const q = (opts?.q || "").trim().toLowerCase();
+    const rows = (
+      q
+        ? (db
+            .prepare(
+              `SELECT id, ticker, company, headline, summary, category, sentiment,
+                      sentiment_why, impact, announcement_date, source_url, screened_at,
+                      engine, extract_json, sentiment_confidence
+               FROM announcement_screens
+               WHERE lower(COALESCE(ticker, '')) LIKE ?
+                  OR lower(COALESCE(company, '')) LIKE ?
+                  OR lower(COALESCE(headline, '')) LIKE ?
+                  OR lower(COALESCE(summary, '')) LIKE ?
+               ORDER BY screened_at DESC
+               LIMIT ?`,
+            )
+            .all(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, n) as Array<
+            MarketIqHistoryRow & {
+              extract_json?: string;
+              sentiment_confidence?: number | null;
+            }
+          >)
+        : (db
+            .prepare(
+              `SELECT id, ticker, company, headline, summary, category, sentiment,
+                      sentiment_why, impact, announcement_date, source_url, screened_at,
+                      engine, extract_json, sentiment_confidence
+               FROM announcement_screens
+               ORDER BY screened_at DESC
+               LIMIT ?`,
+            )
+            .all(n) as Array<
+            MarketIqHistoryRow & {
+              extract_json?: string;
+              sentiment_confidence?: number | null;
+            }
+          >)
+    );
     const mapped = rows.map((r) => {
       const fromCol =
         typeof r.sentiment_confidence === "number" &&
@@ -386,6 +450,7 @@ export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
           : null;
       const confidence =
         fromCol ?? confidenceFromExtractJson(r.extract_json ?? null);
+      const funds_mentioned = fundsFromExtractJson(r.extract_json ?? null);
       return {
         id: r.id,
         ticker: r.ticker,
@@ -401,6 +466,7 @@ export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
         source_url: r.source_url,
         screened_at: r.screened_at,
         engine: r.engine,
+        funds_mentioned,
       };
     });
 
@@ -433,7 +499,98 @@ export function listMarketIqHistory(limit = 40): MarketIqHistoryRow[] {
         const bt = Date.parse(b.screened_at || b.announcement_date || "") || 0;
         return bt - at;
       })
-      .slice(0, limit);
+      .slice(0, want);
+  } finally {
+    db.close();
+  }
+}
+
+/**
+ * Latest analysed MarketIQ row per ticker (skips pending NSE stubs).
+ * Direct ticker lookup — not limited to the global history window.
+ */
+export function listLatestMarketIqByTickers(
+  tickers: string[],
+): Map<string, MarketIqHistoryRow> {
+  const wanted = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter((t) => t && !/^BSE\d{5,6}$/i.test(t)),
+    ),
+  ].slice(0, 80);
+  const out = new Map<string, MarketIqHistoryRow>();
+  if (!wanted.length) return out;
+
+  ensureHistorySchema();
+  const db = openSqliteNamed(marketIqDbFile(), {
+    readonly: true,
+    wal: true,
+  });
+  try {
+    const stmt = db.prepare(
+      `SELECT id, ticker, company, headline, summary, category, sentiment,
+              sentiment_why, impact, announcement_date, source_url, screened_at,
+              engine, extract_json, sentiment_confidence
+       FROM announcement_screens
+       WHERE UPPER(COALESCE(ticker, '')) = ?
+         AND lower(COALESCE(sentiment, 'pending')) != 'pending'
+         AND COALESCE(engine, '') != 'nse-came-fetch'
+       ORDER BY screened_at DESC, id DESC
+       LIMIT 12`,
+    );
+    for (const ticker of wanted) {
+      const rows = stmt.all(ticker) as Array<
+        MarketIqHistoryRow & {
+          extract_json?: string;
+          sentiment_confidence?: number | null;
+        }
+      >;
+      if (!rows.length) continue;
+      const ranked = [...rows].sort((a, b) => {
+        const score = (r: (typeof rows)[0]) => {
+          let s = 0;
+          const sum = (r.summary || "").trim();
+          // Prefer short scored summaries over raw letter dumps
+          if (sum.length > 40 && sum.length < 420) s += 40;
+          else if (sum.length >= 420) s -= 20;
+          if ((r.impact || 0) >= 5) s += 15;
+          if ((r.impact || 0) >= 8) s += 10;
+          const hl = (r.headline || "").toLowerCase();
+          if (/board meeting|outcome|issue of securities|preferential|fund|order|result/i.test(hl))
+            s += 25;
+          if (/trading window|certificate|depositor/i.test(hl)) s -= 30;
+          if ((r.engine || "").includes("llm")) s += 5;
+          return s;
+        };
+        return score(b) - score(a);
+      });
+      const r = ranked[0]!;
+      const fromCol =
+        typeof r.sentiment_confidence === "number" &&
+        Number.isFinite(r.sentiment_confidence)
+          ? Math.max(0, Math.min(100, Math.round(r.sentiment_confidence)))
+          : null;
+      out.set(ticker, {
+        id: r.id,
+        ticker: r.ticker,
+        company: r.company,
+        headline: r.headline,
+        summary: r.summary,
+        category: r.category,
+        sentiment: r.sentiment,
+        sentiment_why: r.sentiment_why,
+        confidence:
+          fromCol ?? confidenceFromExtractJson(r.extract_json ?? null),
+        impact: r.impact,
+        announcement_date: r.announcement_date,
+        source_url: r.source_url,
+        screened_at: r.screened_at,
+        engine: r.engine,
+        funds_mentioned: fundsFromExtractJson(r.extract_json ?? null),
+      });
+    }
+    return out;
   } finally {
     db.close();
   }
@@ -474,7 +631,7 @@ export function listMarketIqPendingHits(): MarketIqHit[] {
   try {
     const rows = db
       .prepare(
-        `SELECT source_url, ticker, company, headline, announcement_date,
+        `SELECT id, source_url, ticker, company, headline, announcement_date,
                 extract_json, engine, sentiment
          FROM announcement_screens
          WHERE source_url IS NOT NULL AND TRIM(source_url) != ''
@@ -482,6 +639,7 @@ export function listMarketIqPendingHits(): MarketIqHit[] {
          LIMIT 8000`,
       )
       .all() as Array<{
+      id: number;
       source_url: string;
       ticker: string | null;
       company: string | null;
@@ -494,45 +652,113 @@ export function listMarketIqPendingHits(): MarketIqHit[] {
     const out: MarketIqHit[] = [];
     const seen = new Set<string>();
     for (const r of rows) {
-      const url = r.source_url.trim();
-      if (!url || seen.has(url) || scored.has(url)) continue;
-      const eng = (r.engine || "").trim();
-      const sent = (r.sentiment || "pending").toLowerCase();
-      let pending =
-        sent === "pending" || eng === "nse-came-fetch" || eng === "exchange-fetch";
-      let title = (r.headline || "").trim() || "Announcement";
-      let announced_at: string | null = r.announcement_date;
-      let period: string | null = null;
-      let provider = "db";
-      let index: string | undefined;
-      try {
-        const j = r.extract_json ? JSON.parse(r.extract_json) : null;
-        if (j && j.pending === true) pending = true;
-        if (j && typeof j.title === "string" && j.title.trim()) title = j.title.trim();
-        if (j && typeof j.announced_at === "string") announced_at = j.announced_at;
-        if (j && typeof j.period === "string") period = j.period;
-        if (j && typeof j.provider === "string") provider = j.provider;
-        if (j && typeof j.index === "string") index = j.index;
-      } catch {
-        /* ignore */
-      }
-      if (!pending) continue;
-      seen.add(url);
-      out.push({
-        ticker: (r.ticker || "").toUpperCase() || "UNKNOWN",
-        company: r.company,
-        title,
-        url,
-        announced_at,
-        period,
-        provider,
-        index,
-      });
+      const hit = pendingHitFromRow(r, scored, seen);
+      if (hit) out.push(hit);
     }
     return out;
   } finally {
     db.close();
   }
+}
+
+/** Pending NSE stubs for one ticker (watchlist Get data). */
+export function listMarketIqPendingForTicker(
+  ticker: string,
+  limit = 8,
+): Array<MarketIqHit & { historyId: number }> {
+  const want = ticker.trim().toUpperCase();
+  if (!want) return [];
+  ensureHistorySchema();
+  const scored = listScoredMarketIqUrls();
+  const db = openSqliteNamed(marketIqDbFile(), {
+    readonly: true,
+    wal: true,
+  });
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, source_url, ticker, company, headline, announcement_date,
+                extract_json, engine, sentiment
+         FROM announcement_screens
+         WHERE UPPER(COALESCE(ticker, '')) = ?
+           AND source_url IS NOT NULL AND TRIM(source_url) != ''
+         ORDER BY screened_at DESC, id DESC
+         LIMIT ?`,
+      )
+      .all(want, Math.min(40, Math.max(1, limit * 3))) as Array<{
+      id: number;
+      source_url: string;
+      ticker: string | null;
+      company: string | null;
+      headline: string | null;
+      announcement_date: string | null;
+      extract_json: string | null;
+      engine: string | null;
+      sentiment: string | null;
+    }>;
+    const out: Array<MarketIqHit & { historyId: number }> = [];
+    const seen = new Set<string>();
+    for (const r of rows) {
+      const hit = pendingHitFromRow(r, scored, seen);
+      if (!hit) continue;
+      out.push({ ...hit, historyId: r.id });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } finally {
+    db.close();
+  }
+}
+
+function pendingHitFromRow(
+  r: {
+    id?: number;
+    source_url: string;
+    ticker: string | null;
+    company: string | null;
+    headline: string | null;
+    announcement_date: string | null;
+    extract_json: string | null;
+    engine: string | null;
+    sentiment: string | null;
+  },
+  scored: Set<string>,
+  seen: Set<string>,
+): MarketIqHit | null {
+  const url = r.source_url.trim();
+  if (!url || seen.has(url) || scored.has(url)) return null;
+  const eng = (r.engine || "").trim();
+  const sent = (r.sentiment || "pending").toLowerCase();
+  let pending =
+    sent === "pending" || eng === "nse-came-fetch" || eng === "exchange-fetch";
+  let title = (r.headline || "").trim() || "Announcement";
+  let announced_at: string | null = r.announcement_date;
+  let period: string | null = null;
+  let provider = "db";
+  let index: string | undefined;
+  try {
+    const j = r.extract_json ? JSON.parse(r.extract_json) : null;
+    if (j && j.pending === true) pending = true;
+    if (j && typeof j.title === "string" && j.title.trim()) title = j.title.trim();
+    if (j && typeof j.announced_at === "string") announced_at = j.announced_at;
+    if (j && typeof j.period === "string") period = j.period;
+    if (j && typeof j.provider === "string") provider = j.provider;
+    if (j && typeof j.index === "string") index = j.index;
+  } catch {
+    /* ignore */
+  }
+  if (!pending) return null;
+  seen.add(url);
+  return {
+    ticker: (r.ticker || "").toUpperCase() || "UNKNOWN",
+    company: r.company,
+    title,
+    url,
+    announced_at,
+    period,
+    provider,
+    index,
+  };
 }
 
 /**
@@ -989,6 +1215,156 @@ function isRoutineDisclosureTitle(title: string): boolean {
   );
 }
 
+/**
+ * NSE often labels capital raises as "Outcome of Board Meeting".
+ * Keep transcript/results titles sticky; allow substance categories to override
+ * bare board/AGM/EGM procedural wrappers.
+ */
+function isProceduralMeetingTitle(title: string): boolean {
+  if (
+    /transcript|earnings?\s+call|con\.?\s*call|concall|investor\s+meet|financial\s+results|investor\s+presentation/i.test(
+      title,
+    )
+  ) {
+    return false;
+  }
+  return /board\s+meeting|\bagm\b|\begm\b/i.test(title);
+}
+
+function isProceduralMeetingCategory(category: string): boolean {
+  const c = category.trim().toLowerCase();
+  if (!c) return false;
+  // Exact / leading procedural label without a substance suffix.
+  if (/^(board meeting|agm|egm)(\s*update)?$/i.test(c)) return true;
+  if (/^(board meeting|agm|egm)\s*\/\s*(update|resolution|resolutions)$/i.test(c))
+    return true;
+  return false;
+}
+
+/** Strip SEBI LODR boilerplate that false-triggers "Listing" / "Disclosure" tags. */
+function stripRegBoilerplate(text: string): string {
+  return text
+    .replace(
+      /\bSEBI\s*\([^)]*Listing Obligations[^)]*\)\s*Regulations,?\s*\d{0,4}/gi,
+      " ",
+    )
+    .replace(
+      /\bListing Obligations and Disclosure Requirements\b/gi,
+      " ",
+    )
+    .replace(/\bDisclosure under Regulation\s+\d+\b/gi, " ")
+    .replace(/\bRegulation\s+\d+\s+of\s+the\s+SEBI\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** True when category tokens actually appear in the filing (blocks invented LLM labels). */
+function categoryHasTextEvidence(category: string, blob: string): boolean {
+  const cat = category.trim().toLowerCase();
+  if (!cat) return false;
+  const lower = stripRegBoilerplate(blob).toLowerCase();
+  if (lower.includes(cat)) return true;
+  const stop =
+    /^(and|with|from|under|board|meeting|general|corporate|update|announcement|the|for|of)$/;
+  const tokens = cat
+    .split(/[^a-z0-9]+/)
+    .filter((t) => t.length >= 4 && !stop.test(t));
+  if (!tokens.length) return false;
+  let hits = 0;
+  for (const t of tokens) {
+    if (new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(lower)) {
+      hits += 1;
+    }
+  }
+  // Multi-token labels (Capital Raise): require most tokens present as whole words.
+  const need = tokens.length <= 1 ? 1 : Math.ceil(tokens.length * 0.6);
+  return hits >= need;
+}
+
+function pickHighestBaseCategory(cats: string[]): string {
+  let best = cats[0] || "Unclassified";
+  let bestBase = categoryPriors(best).base;
+  for (const c of cats.slice(1)) {
+    const b = categoryPriors(c).base;
+    if (
+      b > bestBase + 0.05 ||
+      (Math.abs(b - bestBase) <= 0.05 && c.length > best.length)
+    ) {
+      best = c;
+      bestBase = b;
+    }
+  }
+  return best;
+}
+
+/** Prefer a concrete LDR/keyword label over a short scoring stub (e.g. Preferential). */
+function refineCategoryLabel(category: string, blob: string): string {
+  const cat = category.trim();
+  if (!cat) return cat;
+  const lower = blob.toLowerCase();
+  const ldr = loadLdrAnnouncementCategories().categories;
+  const keywords = listCorporateEventKeywords();
+
+  const preferLonger = (pool: string[]): string | null => {
+    let best: string | null = null;
+    for (const c of pool) {
+      const cl = c.toLowerCase();
+      if (!cl.includes(cat.toLowerCase()) && !cat.toLowerCase().includes(cl)) {
+        continue;
+      }
+      // Every significant token of the candidate should appear in the filing blob.
+      const tokens = cl
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length >= 4 && !/^(and|with|from|under|board|meeting)$/.test(t));
+      if (!tokens.length) continue;
+      if (!tokens.every((t) => lower.includes(t))) continue;
+      if (
+        !best ||
+        categoryPriors(c).base > categoryPriors(best).base ||
+        (categoryPriors(c).base === categoryPriors(best).base &&
+          c.length > best.length)
+      ) {
+        best = c;
+      }
+    }
+    return best;
+  };
+
+  const refined =
+    preferLonger(keywords) ||
+    preferLonger(ldr) ||
+    (/^preferential$/i.test(cat) &&
+    /\ballotment\b/i.test(lower) &&
+    /\bpreferential\b/i.test(lower)
+      ? "Preferential Allotment"
+      : null) ||
+    (/^preferential$/i.test(cat) && /\bpreferential\s+issue\b/i.test(lower)
+      ? "Preferential Issue"
+      : null) ||
+    (/^allotment$/i.test(cat) && /\bshare\b/i.test(lower)
+      ? "Share Allotment"
+      : null) ||
+    (/^debt$/i.test(cat) && /\brepay(?:s|ed|ment|ments)?\b/i.test(lower)
+      ? "Debt Repayment"
+      : null) ||
+    (/^repay(?:ment|s|ed)?$/i.test(cat) && /\bdebt\b/i.test(lower)
+      ? "Debt Repayment"
+      : null) ||
+    (/^intimation$/i.test(cat) && /\bsettlement\b/i.test(lower)
+      ? "Settlement"
+      : null);
+
+  return refined || cat;
+}
+
+export function resolveMarketIqCategory(
+  preferred: string | null | undefined,
+  text: string,
+  titleHint?: string | null,
+): { category: string; categories: string[] } {
+  return resolveCategory(preferred, text, titleHint);
+}
+
 function resolveCategory(
   preferred: string | null | undefined,
   text: string,
@@ -1007,9 +1383,12 @@ function resolveCategory(
     return raw;
   };
 
-  const title = (titleHint || text.split("\n")[0] || "").trim();
+  const titleRaw = (titleHint || text.split("\n")[0] || "").trim();
+  const title = stripRegBoilerplate(titleRaw) || titleRaw;
   // Lead = exchange title + early filing letter only (not deep transcript Q&A).
-  const lead = text.slice(0, 900);
+  const leadRaw = text.slice(0, 900);
+  const lead = stripRegBoilerplate(leadRaw) || leadRaw;
+  const evidenceBlob = `${titleRaw}\n${leadRaw}`;
 
   let fromLlm = (preferred || "").trim();
   if (fromLlm) {
@@ -1018,7 +1397,17 @@ function resolveCategory(
       !keywordSet.has(fromLlm.toLowerCase()) &&
       !ldrSet.has(fromLlm.toLowerCase())
     ) {
-      if (!categoryPriors(fromLlm).base || fromLlm.length < 2) fromLlm = "";
+      const scoring = loadScoring();
+      const stub = fromLlm.toLowerCase();
+      const matchedRule = scoring.category_rules.some((r) => {
+        const m = r.match.toLowerCase();
+        return stub.includes(m) || m.includes(stub);
+      });
+      if (!matchedRule || fromLlm.length < 2) fromLlm = "";
+    }
+    // Drop invented LLM labels (e.g. Capital Raise on a debt-repayment filing).
+    if (fromLlm && !categoryHasTextEvidence(fromLlm, evidenceBlob)) {
+      fromLlm = "";
     }
   }
 
@@ -1031,11 +1420,12 @@ function resolveCategory(
     categoryFromScoringText(`${title}\n${lead}`) ||
     primaryCorporateEventKeyword(`${title}\n${lead}`) ||
     "";
+  const bodySlice = stripRegBoilerplate(text.slice(0, 6000)) || text.slice(0, 6000);
   const fromBodyText =
-    primaryCorporateEventKeyword(text.slice(0, 6000)) ||
-    matchCorporateEventKeywords(text, { limit: 1 })[0]?.keyword ||
+    primaryCorporateEventKeyword(bodySlice) ||
+    matchCorporateEventKeywords(bodySlice, { limit: 1 })[0]?.keyword ||
     "";
-  const fromBodyRules = categoryFromScoringText(text.slice(0, 6000));
+  const fromBodyRules = categoryFromScoringText(bodySlice);
 
   // Drop severe body-only labels when title is routine / already classified non-severe.
   let bodyCat = fromBodyRules || fromBodyText || "";
@@ -1077,9 +1467,21 @@ function resolveCategory(
   ].filter(Boolean) as string[];
 
   let category: string;
-  // Routine exchange titles: keep the title tag (don't let body/LLM "Earnings" steal it).
+  // Routine exchange titles: keep the title tag (don't let body/LLM "Earnings" steal it)
+  // — except procedural Board Meeting / AGM / EGM wrappers around capital raises etc.
   if (fromTitleText && isRoutineDisclosureTitle(title)) {
-    category = fromTitleText;
+    const procedural =
+      isProceduralMeetingTitle(title) ||
+      isProceduralMeetingCategory(fromTitleText);
+    if (procedural) {
+      const substance = pickHighestBaseCategory(candidates);
+      const titleBase = categoryPriors(fromTitleText).base;
+      const substanceBase = categoryPriors(substance).base;
+      category =
+        substanceBase >= titleBase + 1.5 ? substance : fromTitleText;
+    } else {
+      category = fromTitleText;
+    }
   } else {
     let categoryPick = candidates[0] || "Unclassified";
     let bestBase = categoryPriors(categoryPick).base;
@@ -1113,12 +1515,14 @@ function resolveCategory(
     category = leadCat;
   }
 
+  category = refineCategoryLabel(category, `${title}\n${lead}`);
+
   const hits = matchCorporateEventKeywords(`${title}\n${lead}`, { limit: 6 }).filter(
     (h) =>
       !(
         isSevereCategoryLabel(h.keyword) &&
-        isRoutineDisclosureTitle(title) &&
-        !isSevereCategoryLabel(title)
+        isRoutineDisclosureTitle(titleRaw) &&
+        !isSevereCategoryLabel(titleRaw)
       ),
   );
   const categories = hits.map((h) => h.keyword);
@@ -1137,6 +1541,23 @@ function asStringArray(v: unknown): string[] {
     .slice(0, 24);
 }
 
+/** Drop LLM placeholders / tokens that are not actually in the filing text. */
+function sanitizeLexiconExtras(words: string[], text: string): string[] {
+  const lower = text.toLowerCase();
+  const noise =
+    /^(none|n\.?a\.?|n\/a|nil|null|na|unknown|not\s*applicable|-|—|\.|…)$/i;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of words) {
+    const w = raw.toLowerCase().trim();
+    if (w.length < 3 || noise.test(w) || seen.has(w)) continue;
+    if (!lower.includes(w)) continue;
+    seen.add(w);
+    out.push(w);
+  }
+  return out.slice(0, 24);
+}
+
 function mergeLlmExtract(
   lexical: MarketIqExtract,
   raw: Record<string, unknown>,
@@ -1148,20 +1569,32 @@ function mergeLlmExtract(
     String(raw.headline ?? "").trim() || lexical.headline || lexicalHeadline(text);
   const summary =
     String(raw.summary ?? "").trim() || lexical.summary || lexicalSummary(text);
-  const categoryTitle =
-    (opts?.titleHint || "").trim() || lexical.headline || headline;
+  // NSE subject is often "Outcome of Board Meeting" while the filing/LLM headline
+  // carries the real event (preferential allotment, etc.) — use both.
+  const categoryTitle = [opts?.titleHint, headline, lexical.headline]
+    .map((s) => (s || "").trim())
+    .filter(Boolean)
+    .filter((s, i, arr) => arr.findIndex((x) => x.toLowerCase() === s.toLowerCase()) === i)
+    .join("\n");
   const { category, categories } = resolveCategory(
     raw.category != null ? String(raw.category) : lexical.category,
     `${headline}\n${summary}\n${text.slice(0, 6000)}`,
     categoryTitle,
   );
 
+  const sentimentText = `${headline}\n${summary}`;
   const scored = applyScoreFormula({
     text: `${headline}\n${summary}\n${text}`,
-    sentimentText: `${headline}\n${summary}`,
+    sentimentText,
     category,
-    extraPositive: asStringArray(raw.positive_words_found),
-    extraNegative: asStringArray(raw.negative_words_found),
+    extraPositive: sanitizeLexiconExtras(
+      asStringArray(raw.positive_words_found),
+      sentimentText,
+    ),
+    extraNegative: sanitizeLexiconExtras(
+      asStringArray(raw.negative_words_found),
+      sentimentText,
+    ),
     detailSignals: asStringArray(raw.detail_signals),
     specificitySignals: asStringArray(raw.specificity_signals),
   });
@@ -1459,7 +1892,8 @@ export async function extractMarketIqPdf(opts: {
     engine,
     text,
     text_chars: text.length,
-    text_excerpt: text.slice(0, 8000),
+    /** Full extracted body (UI “Extract” / Copy). */
+    text_excerpt: text,
     source_url,
   };
 }
@@ -1525,11 +1959,30 @@ export async function analyseMarketIqAnnouncement(opts: {
   const status = await checkLlmStatus({ ...cfg, llmModel: model });
   if (status.available) {
     try {
+      const titleHint = (opts.titleHint || "").trim();
+      const scoringHint =
+        categoryFromScoringText(`${titleHint}\n${text.slice(0, 1200)}`) || "";
+      const fromText = matchCorporateEventKeywords(
+        `${titleHint}\n${text.slice(0, 4000)}`,
+        { limit: 40 },
+      ).map((h) => h.keyword);
+      const ldrAll = loadLdrAnnouncementCategories().categories;
+      const fromLdrRelated = ldrAll
+        .filter((c) => {
+          const cl = c.toLowerCase();
+          return (
+            (scoringHint && cl.includes(scoringHint.toLowerCase())) ||
+            /\b(preferential|allotment|qip|rights issue|fund rais|share issue|warrant)\b/i.test(
+              c,
+            )
+          );
+        })
+        .slice(0, 40);
       const allowed = [
-        ...matchCorporateEventKeywords(text, { limit: 40 }).map(
-          (h) => h.keyword,
-        ),
-        ...loadLdrAnnouncementCategories().categories.slice(0, 40),
+        ...fromText,
+        ...(scoringHint ? [scoringHint] : []),
+        ...fromLdrRelated,
+        ...ldrAll.slice(0, 40),
       ];
       const uniqueAllowed = [...new Set(allowed)].slice(0, 80);
       const parsed = (await completeJson(
@@ -1565,6 +2018,12 @@ export async function analyseMarketIqAnnouncement(opts: {
     }
   }
 
+  extract.funds_mentioned = matchMarketIqFundsInText(text, [
+    extract.headline,
+    extract.summary,
+    opts.titleHint || "",
+  ]);
+
   const id = saveAnalysed({
     source_url,
     extract,
@@ -1578,7 +2037,8 @@ export async function analyseMarketIqAnnouncement(opts: {
     extract,
     engine,
     text_chars: text.length,
-    text_excerpt: text.slice(0, 1200),
+    text,
+    text_excerpt: text,
     source_url,
     id,
   };

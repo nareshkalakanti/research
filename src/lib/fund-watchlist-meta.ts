@@ -12,7 +12,17 @@ export type FundWatchlistKey =
   | "lucky"
   | "abbakus"
   | "porinju"
-  | "sageone";
+  | "equityint"
+  | "sageone"
+  | "greenlantern"
+  | "carnelian"
+  | "whitepine"
+  | "kriis"
+  | "alfaccurate"
+  | "moneygrow"
+  | "equirus"
+  | "stallion"
+  | "buoyant";
 
 export const FUND_WATCHLIST_KEYS: FundWatchlistKey[] = [
   "niveshaay",
@@ -26,7 +36,17 @@ export const FUND_WATCHLIST_KEYS: FundWatchlistKey[] = [
   "lucky",
   "abbakus",
   "porinju",
+  "equityint",
   "sageone",
+  "greenlantern",
+  "carnelian",
+  "whitepine",
+  "kriis",
+  "alfaccurate",
+  "moneygrow",
+  "equirus",
+  "stallion",
+  "buoyant",
 ];
 
 export const FUND_WATCHLIST_LABELS: Record<FundWatchlistKey, string> = {
@@ -41,8 +61,31 @@ export const FUND_WATCHLIST_LABELS: Record<FundWatchlistKey, string> = {
   lucky: "Lucky",
   abbakus: "Abbakus",
   porinju: "Porinju",
-  sageone: "SageOne",
+  equityint: "Equity Intelligence",
+  sageone: "Sage One",
+  greenlantern: "Green Lantern",
+  carnelian: "Carnelian",
+  whitepine: "White Pine",
+  kriis: "Kriis",
+  alfaccurate: "Alf Accurate",
+  moneygrow: "Money Grow",
+  equirus: "Equirus",
+  stallion: "Stallion",
+  buoyant: "Buoyant",
 };
+
+/** Readable fund chip label (spaces camelCase; title-cases plain lowercase). */
+export function formatFundDisplayLabel(label: string): string {
+  const t = label.trim().replace(/\s+/g, " ");
+  if (!t) return t;
+  const spaced = t
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+  if (/^[a-z0-9]+(?:\s+[a-z0-9]+)*$/.test(spaced)) {
+    return spaced.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+  }
+  return spaced;
+}
 
 export type FundFilterState = Partial<Record<FundWatchlistKey, boolean>>;
 

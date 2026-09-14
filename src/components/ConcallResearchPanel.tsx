@@ -371,7 +371,7 @@ function fmtCallDate(iso: string | null | undefined): string {
   return `${m[3]} ${months[mi]} ${m[1]}`;
 }
 
-/** Docs column icons — StockScans-style line icons (no icon lib). */
+/** Docs icons — StockScans-style line icons (no icon lib). */
 function DocIcon({
   kind,
 }: {
@@ -439,126 +439,6 @@ function DocIcon({
     <svg {...common}>
       <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
     </svg>
-  );
-}
-
-function DocsColumn({
-  docs,
-  fallbackUrl,
-  rowId,
-  onLoadText,
-  onRunText,
-  onOpenSummary,
-  busyId,
-}: {
-  docs?: HistoryRow["docs"];
-  fallbackUrl: string | null;
-  rowId: number;
-  onLoadText?: (id: number) => void;
-  onRunText?: (id: number) => void;
-  onOpenSummary?: (id: number) => void;
-  busyId?: number | null;
-}) {
-  const d = docs || {
-    summary: null,
-    transcript: fallbackUrl,
-    ppt: null,
-    has_combined: false,
-    combined_chars: 0,
-  };
-  const txUrl = d.transcript || (!d.ppt ? fallbackUrl : null);
-  const pptUrl = d.ppt;
-  const hasText = Boolean(d.has_combined);
-  const hasSummary = Boolean(
-    d.has_executive || (d.summary && d.summary.length > 40),
-  );
-  const chars = d.combined_chars || 0;
-  const rowBusy = busyId === rowId;
-  if (!txUrl && !pptUrl && !hasText && !hasSummary) {
-    return (
-      <div className="concall-docs" data-row={rowId}>
-        <span className="concall-docs-empty">—</span>
-      </div>
-    );
-  }
-  return (
-    <ul className="concall-docs concall-docs--list" data-row={rowId}>
-      {hasSummary ? (
-        <li className="concall-docs-item">
-          <button
-            type="button"
-            className="concall-docs-link concall-docs-link--btn concall-docs-link--summary"
-            title="Open executive summary"
-            disabled={rowBusy}
-            onClick={() => onOpenSummary?.(rowId)}
-          >
-            <DocIcon kind="summary" />
-            Summary
-          </button>
-        </li>
-      ) : null}
-      {txUrl ? (
-        <li className="concall-docs-item">
-          <a
-            className="concall-docs-link"
-            href={pdfHref(txUrl)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <DocIcon kind="transcript" />
-            Transcript
-          </a>
-        </li>
-      ) : null}
-      {pptUrl ? (
-        <li className="concall-docs-item">
-          <a
-            className="concall-docs-link"
-            href={pdfHref(pptUrl)}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <DocIcon kind="ppt" />
-            PPT
-          </a>
-        </li>
-      ) : null}
-      {hasText ? (
-        <>
-          <li className="concall-docs-item">
-            <button
-              type="button"
-              className="concall-docs-link concall-docs-link--btn"
-              title={`Open full text (${chars.toLocaleString()} chars)`}
-              disabled={rowBusy}
-              onClick={() => onLoadText?.(rowId)}
-            >
-              <DocIcon kind="text" />
-              Text
-              {chars > 0 ? (
-                <span className="concall-docs-chars">
-                  {chars >= 1000
-                    ? `${Math.round(chars / 1000)}k`
-                    : String(chars)}
-                </span>
-              ) : null}
-            </button>
-          </li>
-          <li className="concall-docs-item">
-            <button
-              type="button"
-              className="concall-docs-link concall-docs-link--btn concall-docs-link--analyze"
-              title="Analyze: quant summary + highlights → PASS columns"
-              disabled={rowBusy || !onRunText}
-              onClick={() => onRunText?.(rowId)}
-            >
-              <DocIcon kind="analyze" />
-              {rowBusy ? "Running…" : "Analyze"}
-            </button>
-          </li>
-        </>
-      ) : null}
-    </ul>
   );
 }
 
@@ -2074,8 +1954,7 @@ export function ConcallResearchPanel() {
           </button>
         </h3>
         <p className="buyback-history-empty" style={{ marginBottom: 8 }}>
-          PASS only · Docs: Summary · Text · Analyze (quant HL → Highlights /
-          Result quality / Tone).
+          PASS only · Highlights / Result quality / Tone from Analyze.
         </p>
         {history.length === 0 ? (
           <p className="buyback-history-empty">
@@ -2115,7 +1994,6 @@ export function ConcallResearchPanel() {
                   >
                     Δ call
                   </th>
-                  <th>Docs</th>
                 </tr>
               </thead>
               <tbody>
@@ -2187,20 +2065,6 @@ export function ConcallResearchPanel() {
                     <td className="num">{fmtLtp(h.ltp)}</td>
                     <td className="num">
                       <DriftTag pct={h.drift_pct} />
-                    </td>
-                    <td className="concall-docs-cell">
-                      <DocsColumn
-                        docs={h.docs}
-                        fallbackUrl={h.source_url}
-                        rowId={h.id}
-                        busyId={textRowBusy}
-                        onLoadText={(id) => void loadSavedCombined(id)}
-                        onOpenSummary={(id) => void openSummary(id)}
-                        onRunText={(id) => {
-                          setTextRowBusy(id);
-                          void runFromCombined({ id });
-                        }}
-                      />
                     </td>
                   </tr>
                 ))}

@@ -1,0 +1,109 @@
+{
+  "funds": [
+    {
+      "name": "Green Lantern Capital Growth Fund",
+      "alias": "Green Lantern",
+      "chip_key": "greenlantern"
+    },
+    {
+      "name": "Buoyant Opportunities PMS",
+      "alias": "Buoyant",
+      "chip_key": "buoyant"
+    },
+    {
+      "name": "Aequitas India Opportunities Product",
+      "alias": "Aequitas",
+      "chip_key": "aequitas"
+    },
+    {
+      "name": "Negen Capital PMS",
+      "alias": "Negen",
+      "chip_key": "negen"
+    },
+    {
+      "name": "Niveshaay Hedgehogs Fund",
+      "alias": "Niveshaay",
+      "chip_key": "niveshaay"
+    },
+    {
+      "name": "Niveshaay Sambhav Fund",
+      "alias": "Niveshaay",
+      "chip_key": "niveshaay"
+    },
+    {
+      "name": "Trilithon Hidden Gems Scheme",
+      "alias": "Trilithon",
+      "chip_key": "trilithon"
+    },
+    {
+      "name": "Qode Growth Fund",
+      "alias": "Qode",
+      "chip_key": "qode"
+    },
+    {
+      "name": "Hem Growth Opportunities Fund",
+      "alias": "HEM",
+      "chip_key": "hem"
+    },
+    {
+      "name": "India Rising SME Stars",
+      "alias": "India Rising",
+      "chip_key": "indiarising"
+    },
+    {
+      "name": "MoneyGrow Small Midcap Strategy",
+      "alias": "Money Grow",
+      "chip_key": "moneygrow"
+    },
+    {
+      "name": "Stallion India Focus",
+      "alias": "Stallion",
+      "chip_key": "stallion"
+    },
+    {
+      "name": "Alchemy High Growth PMS",
+      "alias": "Alchemy",
+      "chip_key": "alchemy"
+    },
+    {
+      "name": "Enam India Core Equity Portfolio",
+      "alias": "Enam",
+      "chip_key": "enam"
+    },
+    {
+      "name": "White Oak India Pioneers Equity Portfolio",
+      "alias": "White Oak",
+      "chip_key": "whiteoak"
+    },
+    {
+      "name": "Prudent Focussed Equity PMS",
+      "alias": "Prudent",
+      "chip_key": "prudent"
+    },
+    {
+      "name": "Lucky Wealth Management",
+      "alias": "Lucky",
+      "chip_key": "lucky"
+    },
+    {
+      "name": "Lucky Investments",
+      "alias": "Lucky",
+      "chip_key": "lucky"
+    },
+    {
+      "name": "Lucky Investment Managers",
+      "alias": "Lucky",
+      "chip_key": "lucky"
+    },
+    {
+      "name": "NeoAtlas Capital Advisory LLP",
+      "alias": "NeoAtlas",
+      "chip_key": "neoatlas"
+    },
+    {
+      "name": "Atlas Capital",
+      "alias": "NeoAtlas",
+      "chip_key": "neoatlas"
+    }
+  ]
+}

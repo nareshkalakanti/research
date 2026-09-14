@@ -59,7 +59,17 @@ export function strategyTagCounts(
     lucky: 0,
     abbakus: 0,
     porinju: 0,
+    equityint: 0,
     sageone: 0,
+    greenlantern: 0,
+    carnelian: 0,
+    whitepine: 0,
+    kriis: 0,
+    alfaccurate: 0,
+    moneygrow: 0,
+    equirus: 0,
+    stallion: 0,
+    buoyant: 0,
   };
 
   for (const row of rows) {

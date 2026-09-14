@@ -29,6 +29,7 @@ export const APP_TABS: { id: AppTab; label: string }[] = [
 
 const ROUTES: { href: string; label: string; match: (p: string) => boolean }[] =
   [
+    { href: "/fund", label: "Fund", match: (p) => p === "/fund" },
     { href: "/order-tracker", label: "Orders", match: (p) => p === "/order-tracker" },
     { href: "/watchlist", label: "Watchlist", match: (p) => p === "/watchlist" },
   ];

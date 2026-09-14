@@ -3516,6 +3516,70 @@ export function deleteConcallHistoryByIds(ids: number[]): {
   return { ok: true, deleted };
 }
 
+/**
+ * Latest PASS concall card per ticker (watchlist / IQ master).
+ * Direct ticker lookup — not limited to the global PASS history window.
+ */
+export function listLatestConcallPassByTickers(
+  tickers: string[],
+): Map<string, ConcallHistoryRow> {
+  const wanted = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter((t) => t && !/^BSE\d{5,6}$/i.test(t)),
+    ),
+  ].slice(0, 80);
+  const out = new Map<string, ConcallHistoryRow>();
+  if (!wanted.length) return out;
+
+  const db = openDb();
+  try {
+    const stmt = db.prepare(
+      `SELECT id, source_url, ticker, extract_json, decision, screened_at
+       FROM concall_screens
+       WHERE UPPER(COALESCE(ticker, '')) = ?
+         AND COALESCE(decision, 'review') = 'pass'
+       ORDER BY screened_at DESC, id DESC
+       LIMIT 1`,
+    );
+    for (const ticker of wanted) {
+      const r = stmt.get(ticker) as
+        | {
+            id: number;
+            source_url: string | null;
+            ticker: string | null;
+            extract_json: string;
+            decision: string | null;
+            screened_at: string;
+          }
+        | undefined;
+      if (!r) continue;
+      let extract: ConcallExtract = emptyExtract();
+      try {
+        extract = {
+          ...emptyExtract(),
+          ...(JSON.parse(r.extract_json) as ConcallExtract),
+        };
+      } catch {
+        continue;
+      }
+      const row = historyFromExtract(
+        r.id,
+        r.source_url,
+        extract,
+        r.decision || "pass",
+        r.screened_at,
+      );
+      if (!row.ticker) row.ticker = ticker;
+      out.set(ticker, row);
+    }
+    return out;
+  } finally {
+    db.close();
+  }
+}
+
 export function listConcallHistory(limit = 40): ConcallHistoryRow[] {
   const db = openDb();
   const rows = db
@@ -5047,6 +5111,137 @@ export async function screenConcallFromCombinedText(opts: {
         : {}),
     },
   });
+}
+
+/**
+ * Watchlist / Get data: discover latest TX+PPT → screen → Analyze (from_combined)
+ * so a PASS row lands without the Concall UI.
+ * Always runs highlight-sentiment Analyze when materials exist and quant HL is missing
+ * (lexical scanlines alone are not enough for the PASS highlights view).
+ */
+export async function autoScreenConcallForTicker(
+  tickerRaw: string,
+): Promise<{
+  ok: boolean;
+  skipped?: boolean;
+  ticker: string;
+  decision: "pass" | "review" | "fail";
+  why: string;
+  id?: number;
+  error?: string;
+  discovered?: {
+    transcript: string | null;
+    ppt: string | null;
+  };
+}> {
+  const ticker = tickerRaw.trim().toUpperCase().replace(/[^A-Z0-9.&-]/g, "");
+  if (!ticker) {
+    return {
+      ok: false,
+      ticker: "",
+      decision: "fail",
+      why: "Enter an NSE ticker",
+      error: "Enter an NSE ticker",
+    };
+  }
+
+  const hasQuantHighlights = (row: ConcallHistoryRow | undefined) =>
+    Boolean(row?.docs?.has_highlights_json) &&
+    (row?.highlights || []).filter((h) => h.text?.trim()).length >= 2;
+
+  const existing = listLatestConcallPassByTickers([ticker]).get(ticker);
+  if (existing && hasQuantHighlights(existing)) {
+    return {
+      ok: true,
+      skipped: true,
+      ticker,
+      decision: "pass",
+      why: "Already have PASS with Analyze highlights",
+      id: existing.id,
+    };
+  }
+
+  // Lexical-only PASS: upgrade in place with highlight-sentiment Analyze
+  if (existing?.id) {
+    try {
+      const upgraded = await screenConcallFromCombinedText({ id: existing.id });
+      const passed = upgraded.decision === "pass";
+      return {
+        ok: passed || upgraded.ok,
+        ticker,
+        decision: upgraded.decision,
+        why: upgraded.why || "Analyze upgrade",
+        id: upgraded.id ?? existing.id,
+        error: passed ? undefined : upgraded.error || upgraded.why,
+      };
+    } catch (e) {
+      return {
+        ok: true,
+        skipped: true,
+        ticker,
+        decision: "pass",
+        why:
+          e instanceof Error
+            ? `PASS kept · Analyze failed (${e.message})`
+            : "PASS kept · Analyze failed",
+        id: existing.id,
+      };
+    }
+  }
+
+  let found: Awaited<ReturnType<typeof discoverConcallPdfSources>>;
+  try {
+    found = await discoverConcallPdfSources(ticker);
+  } catch (e) {
+    return {
+      ok: false,
+      ticker,
+      decision: "fail",
+      why: e instanceof Error ? e.message : "Discover failed",
+      error: e instanceof Error ? e.message : "Discover failed",
+    };
+  }
+
+  const transcriptUrl = found.latest_transcript?.url?.trim() || null;
+  const pptUrl = found.latest_ppt?.url?.trim() || null;
+  if (!transcriptUrl && !pptUrl) {
+    return {
+      ok: false,
+      ticker,
+      decision: "fail",
+      why: found.note || "No transcript / PPT found",
+      error: found.note || "No transcript / PPT found",
+      discovered: { transcript: null, ppt: null },
+    };
+  }
+
+  let result = await screenConcallMaterials({
+    transcriptUrl,
+    pptUrl,
+  });
+
+  // Always Analyze when we have enough text — prompt HL (WIN/RISK/STRATEGIC), not lexical only
+  if (result.id != null && (result.text_chars || 0) > 200) {
+    try {
+      result = await screenConcallFromCombinedText({ id: result.id });
+    } catch (e) {
+      if (!result.why) {
+        result.why =
+          e instanceof Error ? e.message : "Analyze failed after screen";
+      }
+    }
+  }
+
+  const passed = result.decision === "pass";
+  return {
+    ok: passed || result.ok,
+    ticker,
+    decision: result.decision,
+    why: result.why || (passed ? "PASS" : "Not PASS"),
+    id: result.id,
+    error: passed ? undefined : result.error || result.why,
+    discovered: { transcript: transcriptUrl, ppt: pptUrl },
+  };
 }
 
 /** @deprecated use screenConcallPdf */

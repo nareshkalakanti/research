@@ -13,6 +13,7 @@ import {
   refreshConcallHistoryPrices,
   refreshConcallHistoryRows,
   runConcallQuantForRow,
+  autoScreenConcallForTicker,
   screenConcallFromCombinedText,
   screenConcallMaterials,
   screenConcallPdf,
@@ -299,6 +300,7 @@ export async function POST(req: NextRequest) {
       url_transcript?: string;
       url_ppt?: string;
       action?: string;
+      ticker?: string;
       limit?: number;
       reparsePdf?: boolean;
       id?: number;
@@ -315,6 +317,23 @@ export async function POST(req: NextRequest) {
       body = (await req.json()) as typeof body;
     } catch {
       body = {};
+    }
+
+    if (body.action === "auto" || body.action === "auto_screen") {
+      const ticker = body.ticker?.trim() || "";
+      if (!ticker) {
+        return NextResponse.json(
+          { ok: false, error: "ticker required" },
+          { status: 400 },
+        );
+      }
+      const result = await autoScreenConcallForTicker(ticker);
+      return NextResponse.json(result, {
+        status:
+          result.ok || result.skipped || result.decision === "pass"
+            ? 200
+            : 422,
+      });
     }
 
     if (body.action === "delete") {

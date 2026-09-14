@@ -12,11 +12,8 @@ import type { SavedSearchRow } from "@/lib/saved-searches";
 import {
   appendFundParams,
   anyFundFilterActive,
-  clearFundFilters,
   FUND_WATCHLIST_KEYS,
-  type FundCountState,
   type FundFilterState,
-  type FundWatchlistKey,
 } from "@/lib/fund-watchlist-meta";
 
 const EMPTY_FUNDS = Object.fromEntries(
@@ -60,12 +57,6 @@ export function ThemeScanner() {
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
-  const setFund = useCallback((key: FundWatchlistKey, on: boolean) => {
-    setFundFilters((prev) => ({ ...prev, [key]: on }));
-  }, []);
-  const clearFunds = useCallback(() => {
-    setFundFilters(clearFundFilters());
-  }, []);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [sector, setSector] = useState("All");
@@ -401,7 +392,7 @@ export function ThemeScanner() {
           />
         </div>
         <div className="scan-filter-row">
-          <span className="scan-filter-label">Funds</span>
+          <span className="scan-filter-label">Tags</span>
           <FundsFilterBar
             hold={filterHold}
             edge={filterEdge}
@@ -410,17 +401,6 @@ export function ThemeScanner() {
             holdCount={data?.signals?.hold ?? signalCounts.hold}
             distressCount={data?.signals?.distress ?? signalCounts.distress}
             edgeCount={data?.signals?.edge ?? signalCounts.edge}
-            funds={fundFilters}
-            onFund={setFund}
-            onClearFunds={clearFunds}
-            fundCounts={
-              Object.fromEntries(
-                FUND_WATCHLIST_KEYS.map((k) => [
-                  k,
-                  data?.signals?.[k] ?? signalCounts[k] ?? 0,
-                ]),
-              ) as FundCountState
-            }
           />
         </div>
       </div>
@@ -430,7 +410,8 @@ export function ThemeScanner() {
       ) : null}
       {!active ? (
         <div className="empty-state">
-          Select themes, keywords, or fund chips to scan
+          Select themes or keywords to scan. Manage funds on{" "}
+          <a href="/fund">Fund</a>.
         </div>
       ) : null}
       {loading && !data ? <div className="loading">Scanning…</div> : null}

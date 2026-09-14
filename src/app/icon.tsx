@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
-/** Tab / bookmark icon — dark square “R” (not the Next.js N). */
+/** Tab icon — Edge/Lotusdew-style lime→teal mark. */
 export default function Icon() {
   return new ImageResponse(
     (
@@ -14,13 +14,13 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#101828",
-          color: "#ffffff",
+          background: "linear-gradient(135deg, #c6f06c, #3dd6c6)",
+          color: "#102016",
           borderRadius: 8,
-          fontSize: 18,
-          fontWeight: 700,
-          fontFamily: "ui-sans-serif, system-ui, sans-serif",
-          letterSpacing: "-0.04em",
+          fontSize: 16,
+          fontWeight: 500,
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          letterSpacing: "0.06em",
         }}
       >
         R

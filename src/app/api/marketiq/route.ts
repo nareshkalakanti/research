@@ -5,6 +5,7 @@ import {
   discoverMarketIqAnnounced,
   extractMarketIqPdf,
   listMarketIqHistory,
+  listMarketIqPendingForTicker,
   listScoredMarketIqUrls,
   loadLdrAnnouncementCategories,
   saveMarketIqHits,
@@ -30,15 +31,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, ...cat });
   }
 
+  if (sp.get("pending") === "1") {
+    const ticker = (sp.get("ticker") || "").trim().toUpperCase();
+    if (!ticker) {
+      return NextResponse.json(
+        { ok: false, error: "ticker required" },
+        { status: 400 },
+      );
+    }
+    const limit = Math.min(20, Math.max(1, Number(sp.get("limit") || 8) || 8));
+    const pending = listMarketIqPendingForTicker(ticker, limit);
+    return NextResponse.json({
+      ok: true,
+      ticker,
+      pending,
+      count: pending.length,
+    });
+  }
+
   if (sp.get("history") === "1" || sp.get("limit")) {
     const limit = Math.min(
-      200,
+      2000,
       Math.max(1, Number(sp.get("limit") || 40) || 40),
     );
+    const q = sp.get("q")?.trim() || null;
     return NextResponse.json({
       ok: true,
       db: MARKETIQ_DB_FILE,
-      history: listMarketIqHistory(limit),
+      history: listMarketIqHistory(limit, { q }),
     });
   }
 
