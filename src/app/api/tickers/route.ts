@@ -3,9 +3,15 @@ import { loadAllCompanies } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-type Hit = { ticker: string; name: string; market: string };
+export type TickerHit = {
+  ticker: string;
+  name: string;
+  market: string;
+  sector: string | null;
+  mcap_cr: number | null;
+};
 
-function rankHit(q: string, h: Hit): number {
+function rankHit(q: string, h: TickerHit): number {
   const t = h.ticker.toUpperCase();
   const n = h.name.toUpperCase();
   if (t === q) return 0;
@@ -27,10 +33,10 @@ export async function GET(req: NextRequest) {
   );
 
   if (q.length < 1) {
-    return NextResponse.json({ ok: true, q, hits: [] as Hit[] });
+    return NextResponse.json({ ok: true, q, hits: [] as TickerHit[] });
   }
 
-  const hits: Hit[] = [];
+  const hits: TickerHit[] = [];
   for (const c of loadAllCompanies()) {
     const ticker = String(c.ticker || "").toUpperCase();
     const name = String(c.name || "").trim();
@@ -41,6 +47,9 @@ export async function GET(req: NextRequest) {
       ticker,
       name: name || ticker,
       market: String(c.market || ""),
+      sector: c.sector || null,
+      mcap_cr:
+        c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
     });
   }
 

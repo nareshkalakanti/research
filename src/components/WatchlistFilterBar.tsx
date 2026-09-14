@@ -12,7 +12,6 @@ import {
   type FundWatchlistKey,
 } from "@/lib/fund-watchlist-meta";
 import { AGE_MIN_PRESETS } from "@/lib/company-age";
-import { useEffect, useState } from "react";
 
 function Count({ n }: { n?: number }) {
   if (n == null) return null;
@@ -26,18 +25,22 @@ type ListsProps = {
   onSme?: (on: boolean) => void;
   note?: boolean;
   onNote?: (on: boolean) => void;
+  /** All fund-watchlist tickers (union). */
+  funds?: boolean;
+  onFunds?: (on: boolean) => void;
+  fundsCount?: number;
   /** Minimum company age in years; null = off. */
   ageMin?: number | null;
   onAgeMin?: (min: number | null) => void;
   smeCount?: number;
   noteCount?: number;
-  /** Counts keyed by threshold (25 / 50 / 100 / custom). */
+  /** Counts keyed by threshold (25 / 50 / 100). */
   ageCounts?: Partial<Record<number, number>>;
   capCounts?: Partial<Record<CapFilter, number>>;
   allCount?: number;
 };
 
-/** Cap + list tags (SME / Note / Age). Hold / Edge live on FundsFilterBar. */
+/** Cap + list tags (Funds / SME / Note / Age). Hold / Edge live on FundsFilterBar. */
 export function WatchlistFilterBar({
   cap,
   onCap,
@@ -45,6 +48,9 @@ export function WatchlistFilterBar({
   onSme,
   note = false,
   onNote,
+  funds = false,
+  onFunds,
+  fundsCount,
   ageMin = null,
   onAgeMin,
   smeCount,
@@ -54,31 +60,16 @@ export function WatchlistFilterBar({
   allCount,
 }: ListsProps) {
   const ageOn = ageMin != null;
-  const isCustom =
-    ageOn && !(AGE_MIN_PRESETS as readonly number[]).includes(ageMin);
-  const [draft, setDraft] = useState(String(ageMin ?? 25));
-
-  useEffect(() => {
-    if (ageMin != null) setDraft(String(ageMin));
-  }, [ageMin]);
 
   const filtersActive =
-    (cap != null && cap !== "All") || sme || note || ageOn;
+    (cap != null && cap !== "All") || sme || note || funds || ageOn;
 
   const clearFilters = () => {
     onCap?.("All");
     onSme?.(false);
     onNote?.(false);
+    onFunds?.(false);
     onAgeMin?.(null);
-  };
-
-  const applyCustom = () => {
-    const n = Math.floor(Number(draft));
-    if (!Number.isFinite(n) || n < 1 || n > 200) {
-      setDraft(String(ageMin ?? 25));
-      return;
-    }
-    onAgeMin?.(n);
   };
 
   return (
@@ -97,6 +88,17 @@ export function WatchlistFilterBar({
           </>
         ) : null}
 
+        {onFunds ? (
+          <button
+            type="button"
+            className={`chip tag-chip tag-fund-all ${funds ? "on" : ""}`}
+            onClick={() => onFunds(!funds)}
+            title="All fund-watchlist holdings"
+          >
+            Funds
+            <Count n={fundsCount} />
+          </button>
+        ) : null}
         {onSme ? (
           <button
             type="button"
@@ -138,33 +140,6 @@ export function WatchlistFilterBar({
                 <Count n={ageCounts?.[n]} />
               </button>
             ))}
-            <label
-              className={`chip tag-chip tag-scan-age25 age-min-edit ${isCustom ? "on" : ""}`}
-            >
-              <input
-                type="number"
-                min={1}
-                max={200}
-                inputMode="numeric"
-                className="age-min-input"
-                value={draft}
-                aria-label="Custom minimum age"
-                onChange={(e) => setDraft(e.target.value)}
-                onBlur={applyCustom}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    (e.target as HTMLInputElement).blur();
-                  }
-                  if (e.key === "Escape") {
-                    setDraft(String(ageMin ?? 25));
-                    (e.target as HTMLInputElement).blur();
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-              />
-              {isCustom ? <Count n={ageCounts?.[ageMin]} /> : null}
-            </label>
           </span>
         ) : null}
 

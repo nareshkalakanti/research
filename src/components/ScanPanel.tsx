@@ -17,10 +17,6 @@ import { WatchlistFilterBar, FundsFilterBar } from "@/components/WatchlistFilter
 import { scanListLabel, type ScanList } from "@/lib/scan-lists";
 import {
   FUND_WATCHLIST_KEYS,
-  FUND_WATCHLIST_LABELS,
-  appendFundParams,
-  anyFundFilterActive,
-  clearFundFilters,
   type FundFilterState,
 } from "@/lib/fund-watchlist-meta";
 import type { Company } from "@/lib/types";
@@ -55,9 +51,8 @@ export function ScanPanel() {
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [filterGov, setFilterGov] = useState(false);
-  const [fundAll, setFundAll] = useState(false);
   const [fundAllCount, setFundAllCount] = useState(0);
-  const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
+  const [filterFundAll, setFilterFundAll] = useState(false);
   const [filterSme, setFilterSme] = useState(false);
   const [filterNote, setFilterNote] = useState(false);
   const [ageMin, setAgeMin] = useState<number | null>(null);
@@ -68,6 +63,7 @@ export function ScanPanel() {
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const hasDataRef = useRef(false);
   const loadSeqRef = useRef(0);
   hasDataRef.current = !!data;
@@ -98,11 +94,10 @@ export function ScanPanel() {
     filterHold,
     filterEdge,
     filterGov,
+    filterFundAll,
     filterSme,
     filterNote,
     ageMin,
-    fundAll ? "1" : "0",
-    FUND_WATCHLIST_KEYS.map((k) => (fundFilters[k] ? "1" : "0")).join(""),
   ].join("|");
   const filtersKeyRef = useRef(filtersKey);
   const pageForLoad =
@@ -114,7 +109,9 @@ export function ScanPanel() {
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
       const seq = ++loadSeqRef.current;
-      if (!hasDataRef.current) setLoading(true);
+      const isRefresh = opts?.refresh === true;
+      if (!hasDataRef.current || isRefresh) setLoading(true);
+      if (isRefresh) setRefreshing(true);
       const params = new URLSearchParams({
         market: list,
         cap,
@@ -138,16 +135,20 @@ export function ScanPanel() {
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterGov) params.set("gov", "1");
-      if (fundAll) params.set("fundMode", "all");
-      else appendFundParams(params, fundFilters);
+      if (filterFundAll) params.set("fundMode", "all");
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
       if (ageMin != null) params.set("ageMin", String(ageMin));
-      if (opts?.refresh) params.set("refresh", "1");
+      if (isRefresh) params.set("refresh", "1");
       try {
-        const res = await fetch(`/api/companies?${params}`);
+        const res = await fetch(`/api/companies?${params}`, {
+          cache: isRefresh ? "no-store" : "default",
+        });
         if (seq !== loadSeqRef.current) return;
-        if (!res.ok) return;
+        if (!res.ok) {
+          console.warn("[ScanPanel] refresh/load failed:", res.status);
+          return;
+        }
         const json = (await res.json()) as ApiResponse;
         if (seq !== loadSeqRef.current) return;
         setData(json);
@@ -174,8 +175,13 @@ export function ScanPanel() {
             ),
           });
         }
+      } catch (err) {
+        console.warn("[ScanPanel] load error:", err);
       } finally {
-        if (seq === loadSeqRef.current) setLoading(false);
+        if (seq === loadSeqRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
     [
@@ -188,8 +194,7 @@ export function ScanPanel() {
       filterHold,
       filterEdge,
       filterGov,
-      fundAll,
-      fundFilters,
+      filterFundAll,
       filterSme,
       filterNote,
       ageMin,
@@ -287,15 +292,10 @@ export function ScanPanel() {
   const chipLabel = useMemo(() => {
     const parts: string[] = [];
     if (cap !== "All") parts.push(cap);
+    if (filterFundAll) parts.push("Funds");
     if (filterNote) parts.push("Note");
     if (filterEdge) parts.push("Edge");
     if (filterGov) parts.push("Gov");
-    if (fundAll) parts.push("All funds");
-    else {
-      for (const k of FUND_WATCHLIST_KEYS) {
-        if (fundFilters[k]) parts.push(FUND_WATCHLIST_LABELS[k]);
-      }
-    }
     if (filterSme) parts.push("SME");
     if (filterHold) parts.push("Hold");
     if (ageMin != null) parts.push(`Age ≥${ageMin}`);
@@ -304,11 +304,10 @@ export function ScanPanel() {
   }, [
     list,
     cap,
+    filterFundAll,
     filterNote,
     filterEdge,
     filterGov,
-    fundAll,
-    fundFilters,
     filterSme,
     filterHold,
     ageMin,
@@ -321,8 +320,8 @@ export function ScanPanel() {
     sme: filterSme,
     note: filterNote,
     ageMin,
-    funds: fundFilters,
-    fundAll,
+    funds: EMPTY_FUNDS,
+    fundAll: filterFundAll,
   });
   useEffect(() => {
     if (selectionActive) setScanScope("selection");
@@ -354,9 +353,10 @@ export function ScanPanel() {
               setFilterHold(false);
               setFilterEdge(false);
               setFilterGov(false);
+              setFilterFundAll(false);
               setFilterSme(false);
               setFilterNote(false);
-              setFundAll(false);
+              setAgeMin(null);
             }}
           >
             <option value="All">All ({allCount.toLocaleString()})</option>
@@ -371,7 +371,7 @@ export function ScanPanel() {
         </label>
 
         <div className="toolbar-actions">
-          <RefreshButton busy={loading} onRefresh={hardReload} />
+          <RefreshButton busy={loading || refreshing} onRefresh={hardReload} />
         </div>
       </div>
 
@@ -381,6 +381,9 @@ export function ScanPanel() {
           <WatchlistFilterBar
             cap={cap}
             onCap={setCap}
+            funds={filterFundAll}
+            onFunds={setFilterFundAll}
+            fundsCount={fundAllCount}
             sme={filterSme}
             note={filterNote}
             ageMin={ageMin}
@@ -393,12 +396,6 @@ export function ScanPanel() {
               25: data?.signals?.age25 ?? listCounts.age25,
               50: data?.signals?.age50 ?? listCounts.age50,
               100: data?.signals?.age100 ?? listCounts.age100,
-              ...(ageMin != null &&
-              ageMin !== 25 &&
-              ageMin !== 50 &&
-              ageMin !== 100
-                ? { [ageMin]: data?.signals?.age_min ?? listCounts.age_min }
-                : {}),
             }}
             allCount={allCount}
             capCounts={{
@@ -426,65 +423,6 @@ export function ScanPanel() {
             govCount={data?.signals?.gov ?? listCounts.gov}
           />
         </div>
-        <div className="scan-filter-row">
-          <span className="scan-filter-label">Funds</span>
-          <div className="filter-bar">
-            <div className="filter-bar-main fund-chip-row">
-              <button
-                type="button"
-                className={`chip tag-chip tag-fund-all ${fundAll ? "on" : ""}`}
-                onClick={() => {
-                  setFundAll((v) => !v);
-                  if (!fundAll) setFundFilters(clearFundFilters());
-                  setPage(1);
-                }}
-                title="All distinct stocks across every fund"
-              >
-                All
-                <span className="chip-count">{fundAllCount}</span>
-              </button>
-              <span className="filter-sep" aria-hidden />
-              {FUND_WATCHLIST_KEYS.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`chip tag-chip tag-fund-pick tag-${key} ${
-                    !fundAll && fundFilters[key] ? "on" : ""
-                  }`}
-                  disabled={fundAll}
-                  onClick={() => {
-                    setFundAll(false);
-                    setFundFilters((prev) => ({
-                      ...prev,
-                      [key]: !prev[key],
-                    }));
-                    setPage(1);
-                  }}
-                  title={`${FUND_WATCHLIST_LABELS[key]} fund watchlist`}
-                >
-                  {FUND_WATCHLIST_LABELS[key]}
-                  <span className="chip-count">
-                    {data?.signals?.[key] ?? listCounts[key] ?? 0}
-                  </span>
-                </button>
-              ))}
-              {fundAll || anyFundFilterActive(fundFilters) ? (
-                <button
-                  type="button"
-                  className="clear-filter"
-                  onClick={() => {
-                    setFundAll(false);
-                    setFundFilters(clearFundFilters());
-                    setPage(1);
-                  }}
-                  title="Clear fund filter"
-                >
-                  Clear
-                </button>
-              ) : null}
-            </div>
-          </div>
-        </div>
         <SignalScanBar
           listLabel={chipLabel}
           view={view}
@@ -501,8 +439,8 @@ export function ScanPanel() {
           sme={filterSme}
           note={filterNote}
           ageMin={ageMin}
-          funds={fundFilters}
-          fundAll={fundAll}
+          funds={EMPTY_FUNDS}
+          fundAll={filterFundAll}
           bbCount={data?.signals?.bb}
           bbWCount={data?.signals?.bb_w}
           bbMCount={data?.signals?.bb_m}
@@ -554,7 +492,6 @@ export function ScanPanel() {
                   setFilterGov(false);
                   setFilterNote(false);
                   setAgeMin(null);
-                  setFundAll(false);
                   setCap("All");
                   setPage(1);
                 }}

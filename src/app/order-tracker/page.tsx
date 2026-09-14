@@ -19,7 +19,7 @@ function OrderTrackerBody() {
   }
 
   return (
-    <AppChrome layout="tracker">
+    <AppChrome>
       <OrderTrackerPanel standalone />
     </AppChrome>
   );

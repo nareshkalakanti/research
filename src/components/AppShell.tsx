@@ -116,10 +116,8 @@ export function AppShell() {
     return <div className="boot">Loading…</div>;
   }
 
-  const wide = tab === "concall" || tab === "research";
-
   return (
-    <AppChrome wide={wide}>
+    <AppChrome>
       <div className="tab-panels">
         {[...visited].map((id) => {
           const Panel = PANELS[id];

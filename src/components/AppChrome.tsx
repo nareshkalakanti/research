@@ -15,16 +15,16 @@ export type AppTab =
   | "missing"
   | "research";
 
-export const APP_TABS: { id: AppTab; label: string }[] = [
+export const APP_TABS: { id: AppTab; label: string; short?: string }[] = [
   { id: "theme-scanner", label: "Theme" },
   { id: "scan", label: "Scan" },
-  { id: "governance", label: "Governance" },
+  { id: "governance", label: "Governance", short: "Gov" },
   { id: "concall", label: "Concall" },
-  { id: "marketiq", label: "MarketIQ" },
-  { id: "orderbookiq", label: "OrderBookIQ" },
-  { id: "boardroomiq", label: "BoardRoomIQ" },
+  { id: "marketiq", label: "MarketIQ", short: "Market" },
+  { id: "orderbookiq", label: "OrderBookIQ", short: "BookIQ" },
+  { id: "boardroomiq", label: "BoardRoomIQ", short: "BoardIQ" },
   { id: "research", label: "Research" },
-  { id: "missing", label: "Missing data" },
+  { id: "missing", label: "Missing data", short: "Missing" },
 ];
 
 const ROUTES: { href: string; label: string; match: (p: string) => boolean }[] =
@@ -73,16 +73,17 @@ export function useAppTab(): {
 
 /**
  * Shared topbar + footer for home tabs and standalone routes
- * (Orders / Watchlist).
+ * (Orders / Watchlist / Fund). All pages use the same wide shell.
  */
 export function AppChrome({
   children,
-  wide = false,
-  layout,
+  wide: _wide = false,
+  layout: _layout,
 }: {
   children: React.ReactNode;
-  /** @deprecated prefer `layout` — true maps to corporate width */
+  /** @deprecated all pages share the same width now */
   wide?: boolean;
+  /** @deprecated all pages share the same width now */
   layout?: "default" | "wide" | "tracker";
 }) {
   const { user, logout } = useAuth();
@@ -90,19 +91,9 @@ export function AppChrome({
   const pathname = usePathname() || "/";
   const { tab, setTab } = useAppTab();
   const onHome = pathname === "/";
-  const shell =
-    layout ?? (wide ? "wide" : "default");
-  const mainClass =
-    shell === "tracker"
-      ? "main main-tracker"
-      : shell === "wide"
-        ? "main main-corporate"
-        : "main";
-  const appClass =
-    shell === "default" ? "app" : "app app-corporate";
 
   return (
-    <div className={appClass}>
+    <div className="app">
       <header className="topbar">
         <button
           type="button"
@@ -118,33 +109,46 @@ export function AppChrome({
         </button>
 
         <nav className="tabs" aria-label="Main">
-          {APP_TABS.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              className={onHome && tab === t.id ? "tab on" : "tab"}
-              onClick={() => {
-                if (onHome) setTab(t.id);
-                else {
-                  router.push(
-                    t.id === "theme-scanner" ? "/" : `/?tab=${t.id}`,
-                  );
-                }
-              }}
-            >
-              {t.label}
-            </button>
-          ))}
-          {ROUTES.map((r) => (
-            <button
-              key={r.href}
-              type="button"
-              className={r.match(pathname) ? "tab on" : "tab"}
-              onClick={() => router.push(r.href)}
-            >
-              {r.label}
-            </button>
-          ))}
+          <div className="tabs-group" role="group" aria-label="Research">
+            {APP_TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                className={onHome && tab === t.id ? "tab on" : "tab"}
+                title={t.short ? t.label : undefined}
+                onClick={() => {
+                  if (onHome) setTab(t.id);
+                  else {
+                    router.push(
+                      t.id === "theme-scanner" ? "/" : `/?tab=${t.id}`,
+                    );
+                  }
+                }}
+              >
+                {t.short ? (
+                  <>
+                    <span className="tab-label-full">{t.label}</span>
+                    <span className="tab-label-short">{t.short}</span>
+                  </>
+                ) : (
+                  t.label
+                )}
+              </button>
+            ))}
+          </div>
+          <span className="tabs-sep" aria-hidden />
+          <div className="tabs-group tabs-group-routes" role="group" aria-label="Workspace">
+            {ROUTES.map((r) => (
+              <button
+                key={r.href}
+                type="button"
+                className={r.match(pathname) ? "tab on" : "tab"}
+                onClick={() => router.push(r.href)}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
         </nav>
 
         <div className="user-block">
@@ -157,7 +161,7 @@ export function AppChrome({
         </div>
       </header>
 
-      <main className={mainClass}>{children}</main>
+      <main className="main">{children}</main>
 
       <footer className="app-footer">
         <span>Research · local data</span>

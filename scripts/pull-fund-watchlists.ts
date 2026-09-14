@@ -13,6 +13,8 @@ import {
   FUND_WATCHLIST_LABELS,
   FUND_WATCHLIST_SOURCES,
   invalidateFundWatchlistCache,
+  isManualFundWatchlist,
+  loadFundHoldings,
   replaceFundWatchlists,
   type FundWatchlistKey,
 } from "../src/lib/fund-watchlists";
@@ -78,6 +80,10 @@ function parseListArg(): FundWatchlistKey[] {
 async function pullOne(listKey: FundWatchlistKey): Promise<number> {
   const src = FUND_WATCHLIST_SOURCES[listKey];
   const label = FUND_WATCHLIST_LABELS[listKey];
+  if (isManualFundWatchlist(listKey)) {
+    console.log(`  ${label}: skipped (manual fund — use Fund tab to add tickers)`);
+    return 0;
+  }
   console.log(`Fetching ${label} from Trendlyne…`);
 
   const sources = [
@@ -115,6 +121,19 @@ async function pullOne(listKey: FundWatchlistKey): Promise<number> {
       change_type: r.change?.change_type ?? r.change_type,
     };
   });
+
+  // Never wipe an existing list with an empty Trendlyne response.
+  if (!rows.length) {
+    const existing = loadFundHoldings(listKey).length;
+    if (existing > 0) {
+      console.log(
+        `  ${label}: Trendlyne returned 0 — kept ${existing} existing holdings`,
+      );
+      return existing;
+    }
+    console.log(`  ${label}: 0 stocks`);
+    return 0;
+  }
 
   const n = replaceFundWatchlists(listKey, rows);
   console.log(`  ${label}: ${n} stocks`);

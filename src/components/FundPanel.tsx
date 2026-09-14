@@ -49,6 +49,8 @@ export function FundPanel() {
     sme: 0,
   });
   const [q, setQ] = useState("");
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -289,6 +291,56 @@ export function FundPanel() {
       await loadTable({ kind: "fund", key: listKey });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Add failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addPastedTickers() {
+    if (!view || view.kind !== "fund") return;
+    const listKey = view.key;
+    const tickers = [
+      ...new Set(
+        pasteText
+          .split(/[\s,;|]+/)
+          .map((s) => s.trim().toUpperCase())
+          .filter((s) => /^[A-Z0-9][A-Z0-9.&-]{0,24}$/.test(s)),
+      ),
+    ];
+    if (!tickers.length) {
+      setError("Paste tickers separated by space, comma, or newline");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const res = await fetch("/api/fund-watchlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add",
+          list: listKey,
+          tickers: tickers.map((ticker) => ({ ticker, market: "NSE" })),
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        added?: number;
+        lists?: FundList[];
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error || "Paste add failed");
+      }
+      if (json.lists) setLists(json.lists);
+      else await loadLists();
+      setPasteText("");
+      setPasteOpen(false);
+      setStatus(`Added ${json.added ?? tickers.length} tickers`);
+      await loadTable({ kind: "fund", key: listKey });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Paste add failed");
     } finally {
       setBusy(false);
     }
@@ -714,6 +766,48 @@ export function FundPanel() {
                 }}
               >
                 + Add
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={busy || !canEditFund}
+                onClick={() => setPasteOpen((v) => !v)}
+                title="Paste many tickers at once"
+              >
+                Paste
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {canEditFund && pasteOpen ? (
+          <div className="fund-paste-box">
+            <textarea
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+              rows={4}
+              placeholder="Paste tickers: RELIANCE, TCS, AFFLE …"
+              disabled={busy}
+            />
+            <div className="fund-paste-actions">
+              <button
+                type="button"
+                className="token-studio-apply"
+                disabled={busy || !pasteText.trim()}
+                onClick={() => void addPastedTickers()}
+              >
+                Add pasted
+              </button>
+              <button
+                type="button"
+                className="btn-ghost"
+                disabled={busy}
+                onClick={() => {
+                  setPasteOpen(false);
+                  setPasteText("");
+                }}
+              >
+                Cancel
               </button>
             </div>
           </div>
