@@ -29,11 +29,14 @@ export type SortKey =
   | "mcap_cr"
   | "momentum_pct"
   | "momentum_rank"
-  | "rsi_m";
+  | "rsi_m"
+  | "rsi_rank"
+  | "fund_count";
 
 type ExpandPanel =
   | "about"
   | "sector"
+  | "website"
   | "notes"
   | "qtr";
 
@@ -51,11 +54,17 @@ type Props = {
   onSort: (key: SortKey) => void;
   showMatched?: boolean;
   showMissing?: boolean;
-  /** Theme/Scan/Missing — 12m momentum column is Scan-only. */
+  /** Scan signal columns: 12m mom, RSI M, fund overlap count, or none. */
+  signalMode?: "mom" | "rsi" | "overlap" | null;
+  /** @deprecated Prefer signalMode. */
   showMomentum?: boolean;
   /** Allow deleting a stock from local DBs (Missing Data). */
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
+  /** Override delete button copy (e.g. fund list remove). */
+  deleteLabel?: string;
+  deleteConfirm?: (ticker: string) => string;
+  deleteTitle?: string;
   /** @deprecated Cap tags no longer shown in results — filter still works via API. */
   capFilter?: string;
   /** Called after a note is saved/cleared so parent can refresh NOTE counts. */
@@ -80,6 +89,7 @@ function SortIcon({
 }
 
 function SignalTags({ company }: { company: Company }) {
+  const fundTags = companyFundTags(company);
   return (
     <span className="result-tags">
       {/\bSME\b/i.test(company.market) ? (
@@ -109,10 +119,6 @@ function SignalTags({ company }: { company: Company }) {
           Gov
         </span>
       ) : null}
-      <FundWatchlistTags
-        tags={companyFundTags(company)}
-        changes={company.fund_changes}
-      />
       {company.has_hold || company.has_distress ? (
         <span className="result-tag-group" title="Holdings">
           {company.has_hold ? (
@@ -156,6 +162,9 @@ function SignalTags({ company }: { company: Company }) {
           52W
         </span>
       ) : null}
+      {fundTags.length ? (
+        <FundWatchlistTags tags={fundTags} changes={company.fund_changes} />
+      ) : null}
     </span>
   );
 }
@@ -167,9 +176,13 @@ export function CompanyTable({
   onSort,
   showMatched,
   showMissing,
+  signalMode,
   showMomentum,
   allowDelete,
   onDeleteStock,
+  deleteLabel,
+  deleteConfirm,
+  deleteTitle,
   onNoteChange,
   onScrapeDone,
   toolbar,
@@ -178,9 +191,12 @@ export function CompanyTable({
   const [more, setMore] = useState<Record<string, boolean>>({});
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
-  const colSpan = showMomentum ? 10 : 5;
+  const mode: "mom" | "rsi" | "overlap" | null =
+    signalMode ?? (showMomentum ? "mom" : null);
+  const colSpan =
+    mode === "mom" ? 9 : mode === "rsi" || mode === "overlap" ? 7 : 5;
   const headers = useMemo((): HeaderDef[] => {
-    if (showMomentum) {
+    if (mode === "mom") {
       return [
         {
           key: "momentum_rank",
@@ -210,9 +226,43 @@ export function CompanyTable({
           label: "Mom",
           align: "right",
         },
+      ];
+    }
+    if (mode === "rsi") {
+      return [
+        {
+          key: "rsi_rank",
+          label: "Rank",
+          align: "left",
+        },
+        { key: "name", label: "Company", align: "left" },
+        { key: "sector", label: "Sec", align: "left" },
+        {
+          key: "mcap_cr",
+          label: "Mcap",
+          align: "right",
+        },
+        { key: "price", label: "LTP", align: "right" },
         {
           key: "rsi_m",
           label: "RSI M",
+          align: "right",
+        },
+      ];
+    }
+    if (mode === "overlap") {
+      return [
+        { key: "name", label: "Company", align: "left" },
+        { key: "sector", label: "Sec", align: "left" },
+        {
+          key: "mcap_cr",
+          label: "Mcap",
+          align: "right",
+        },
+        { key: "price", label: "Price", align: "right" },
+        {
+          key: "fund_count",
+          label: "Count",
           align: "right",
         },
       ];
@@ -231,7 +281,7 @@ export function CompanyTable({
         align: "right",
       },
     ];
-  }, [showMomentum]);
+  }, [mode]);
   const rowIdentity = useMemo(
     () => rows.map((r) => `${r.market}:${r.ticker}`).join("|"),
     [rows],
@@ -255,10 +305,10 @@ export function CompanyTable({
       {toolbar ? <div className="table-card-toolbar">{toolbar}</div> : null}
       <div className="table-wrap">
         <table
-          className={`data-table${showMomentum ? " data-table--mom" : ""}`}
+          className={`data-table${mode ? ` data-table--${mode}` : ""}`}
         >
           <colgroup>
-            {showMomentum ? (
+            {mode === "mom" ? (
               <>
                 <col className="col-rank" />
                 <col className="col-name" />
@@ -268,7 +318,25 @@ export function CompanyTable({
                 <col className="col-p1y" />
                 <col className="col-p1m" />
                 <col className="col-mom" />
+                <col className="col-links" />
+              </>
+            ) : mode === "rsi" ? (
+              <>
+                <col className="col-rank" />
+                <col className="col-name" />
+                <col className="col-sec" />
+                <col className="col-mcap_cr" />
+                <col className="col-price" />
                 <col className="col-rsi-m" />
+                <col className="col-links" />
+              </>
+            ) : mode === "overlap" ? (
+              <>
+                <col className="col-name" />
+                <col className="col-sec" />
+                <col className="col-mcap_cr" />
+                <col className="col-price" />
+                <col className="col-fund-count" />
                 <col className="col-links" />
               </>
             ) : (
@@ -289,7 +357,7 @@ export function CompanyTable({
                     ? "col-sec"
                     : h.key === "momentum_pct"
                       ? "col-mom"
-                      : h.key === "momentum_rank"
+                      : h.key === "momentum_rank" || h.key === "rsi_rank"
                         ? "col-rank"
                         : h.key === "price_1y"
                           ? "col-p1y"
@@ -297,6 +365,8 @@ export function CompanyTable({
                             ? "col-p1m"
                             : h.key === "rsi_m"
                               ? "col-rsi-m"
+                              : h.key === "fund_count"
+                                ? "col-fund-count"
                               : `col-${h.key}`;
                 const sortable = h.sortable !== false;
                 return (
@@ -315,17 +385,21 @@ export function CompanyTable({
                             ? "Rounded 12−1 momentum (price 1m vs price 1y)"
                             : h.key === "momentum_rank"
                               ? "1 = highest rounded momentum in this list"
-                              : h.key === "rsi_m"
-                                ? "Monthly RSI(14). Green = 70–90 momentum zone; red = ≥90 stretched. Filter RSI M = new cross above 70"
-                                : h.key === "price_1y"
-                                  ? "Price ~1 year ago"
-                                  : h.key === "price_1m"
-                                    ? "Price ~1 month ago"
-                                    : h.key === "price" && showMomentum
-                                      ? "Last traded price"
-                                      : h.key === "mcap_cr"
-                                        ? "Market cap in ₹ crore"
-                                        : undefined
+                              : h.key === "rsi_rank"
+                                ? "1 = highest monthly RSI in this list"
+                                : h.key === "rsi_m"
+                                  ? "Monthly RSI(14). Green = 70–90 momentum zone; red = ≥90 stretched. Filter RSI M = new cross above 70"
+                                  : h.key === "fund_count"
+                                    ? "How many fund lists hold this stock"
+                                  : h.key === "price_1y"
+                                    ? "Price ~1 year ago"
+                                    : h.key === "price_1m"
+                                      ? "Price ~1 month ago"
+                                      : h.key === "price" && mode
+                                        ? "Last traded price"
+                                        : h.key === "mcap_cr"
+                                          ? "Market cap in ₹ crore"
+                                          : undefined
                         }
                         onClick={() => onSort(h.key as SortKey)}
                       >
@@ -366,9 +440,12 @@ export function CompanyTable({
                   showMore={!!more[`${r.ticker}:${open ? panel : "about"}`]}
                   showMatched={showMatched}
                   showMissing={showMissing}
-                  showMomentum={showMomentum}
+                  signalMode={mode}
                   allowDelete={allowDelete}
                   onDeleteStock={onDeleteStock}
+                  deleteLabel={deleteLabel}
+                  deleteConfirm={deleteConfirm}
+                  deleteTitle={deleteTitle}
                   colSpan={colSpan}
                   onToggleAbout={() => {
                     setExpanded(open ? null : r.ticker);
@@ -396,6 +473,97 @@ export function CompanyTable({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function WebsiteEditPanel({
+  company,
+  onSaved,
+}: {
+  company: Company;
+  onSaved: (patch: { website: string }) => void;
+}) {
+  const [website, setWebsite] = useState(company.website || "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWebsite(company.website || "");
+    setSaved(null);
+    setErr(null);
+  }, [company.ticker, company.website]);
+
+  const save = useCallback(async () => {
+    const url = website.trim();
+    if (!url) {
+      setErr("Website URL is required");
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    setSaved(null);
+    try {
+      const res = await fetch("/api/scrapper", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "website",
+          ticker: company.ticker,
+          name: company.name,
+          market: company.market,
+          website: url,
+        }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        website?: string;
+      };
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error || "Save failed");
+      }
+      const next = (json.website || url).trim();
+      setWebsite(next);
+      setSaved("Saved");
+      onSaved({ website: next });
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }, [company, onSaved, website]);
+
+  return (
+    <div className="website-edit-panel sector-edit-panel">
+      <label className="field">
+        <span>Website</span>
+        <input
+          type="url"
+          value={website}
+          onChange={(e) => setWebsite(e.target.value)}
+          placeholder="https://example.com"
+          disabled={saving}
+          autoComplete="off"
+        />
+      </label>
+      <div className="sector-edit-actions">
+        <button
+          type="button"
+          className="token-studio-apply"
+          disabled={saving || !website.trim()}
+          onClick={() => void save()}
+        >
+          {saving ? "Saving…" : "Save website"}
+        </button>
+        {saved ? <span className="hint tight">{saved}</span> : null}
+        {err ? <span className="hint tight website-scrape-error">{err}</span> : null}
+      </div>
+      <p className="hint tight">
+        Saves to company_about and clears the Web gap. Scrape status resets so
+        you can re-run website scrape.
+      </p>
     </div>
   );
 }
@@ -584,6 +752,25 @@ function RsiMTag({ value }: { value: number | null | undefined }) {
   );
 }
 
+/** Fund overlap count — how many lists include this ticker. */
+function FundCountTag({ value }: { value: number | null | undefined }) {
+  if (value == null || !Number.isFinite(value) || value <= 0) {
+    return <span className="mom-tag mom-tag--empty">—</span>;
+  }
+  const n = Math.round(value);
+  const tone =
+    n >= 5 ? "fund-hot" : n >= 3 ? "fund-great" : n >= 2 ? "fund-ok" : "flat";
+  const title =
+    n === 1
+      ? "In 1 fund list"
+      : `In ${n} fund lists`;
+  return (
+    <span className={`mom-tag mom-tag--${tone}`} title={title}>
+      {n}
+    </span>
+  );
+}
+
 function CompanyLinks({
   web,
   sc,
@@ -634,9 +821,12 @@ function CompanyRows({
   showMore,
   showMatched,
   showMissing,
-  showMomentum,
+  signalMode,
   allowDelete,
   onDeleteStock,
+  deleteLabel,
+  deleteConfirm,
+  deleteTitle,
   colSpan,
   onToggleAbout,
   onToggleMore,
@@ -650,9 +840,12 @@ function CompanyRows({
   showMore: boolean;
   showMatched?: boolean;
   showMissing?: boolean;
-  showMomentum?: boolean;
+  signalMode?: "mom" | "rsi" | "overlap" | null;
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
+  deleteLabel?: string;
+  deleteConfirm?: (ticker: string) => string;
+  deleteTitle?: string;
   colSpan: number;
   onToggleAbout: () => void;
   onToggleMore: () => void;
@@ -752,9 +945,13 @@ function CompanyRows({
   return (
     <>
       <tr className={open ? "row-open" : undefined}>
-        {showMomentum ? (
+        {signalMode === "mom" ? (
           <td className="col-rank">
             {r.momentum_rank != null ? r.momentum_rank : "—"}
+          </td>
+        ) : signalMode === "rsi" ? (
+          <td className="col-rank">
+            {r.rsi_rank != null ? r.rsi_rank : "—"}
           </td>
         ) : null}
         <td className="col-name">
@@ -827,7 +1024,7 @@ function CompanyRows({
             </div>
           ) : null}
         </td>
-        {showMomentum ? (
+        {signalMode === "mom" ? (
           <>
             <SecCell
               className="cd-sec col-sec"
@@ -850,8 +1047,55 @@ function CompanyRows({
             <td className="num col-mom">
               <MomTag value={r.momentum_score ?? r.momentum_pct} />
             </td>
+            <td className="col-links">
+              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
+            </td>
+          </>
+        ) : signalMode === "rsi" ? (
+          <>
+            <SecCell
+              className="cd-sec col-sec"
+              sector={displaySector}
+              subSector={displaySubSector}
+            />
+            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
+            <td className="num col-price">
+              <button
+                type="button"
+                className="price-btn"
+                title="Click to show About / Notes"
+                onClick={onToggleAbout}
+              >
+                {formatInr(r.price)}
+              </button>
+            </td>
             <td className="num col-rsi-m">
               <RsiMTag value={r.rsi_m} />
+            </td>
+            <td className="col-links">
+              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
+            </td>
+          </>
+        ) : signalMode === "overlap" ? (
+          <>
+            <SecCell
+              className="cd-sec col-sec"
+              sector={displaySector}
+              subSector={displaySubSector}
+            />
+            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
+            <td className="num col-price">
+              <button
+                type="button"
+                className="price-btn"
+                title="Click to show About / Notes"
+                onClick={onToggleAbout}
+              >
+                {formatInr(r.price)}
+              </button>
+            </td>
+            <td className="num col-fund-count">
+              <FundCountTag value={r.fund_count} />
             </td>
             <td className="col-links">
               <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
@@ -931,6 +1175,23 @@ function CompanyRows({
                     ) : null}
                   </button>
                 ) : null}
+                {showMissing ? (
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={panel === "website"}
+                    className={`about-tab ${panel === "website" ? "on" : ""}`}
+                    onClick={() => onPanel("website")}
+                  >
+                    Website
+                    {r.missing?.web ? (
+                      <em
+                        className="about-tab-dot about-tab-dot--scrape"
+                        title="Website gap"
+                      />
+                    ) : null}
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   role="tab"
@@ -955,13 +1216,15 @@ function CompanyRows({
                     type="button"
                     className="about-tab about-tab-delete"
                     disabled={deleting}
-                    title="Remove this stock from local research databases"
+                    title={
+                      deleteTitle ??
+                      "Remove this stock from local research databases"
+                    }
                     onClick={() => {
-                      if (
-                        !window.confirm(
-                          `Delete ${r.ticker} from local DBs? This cannot be undone.`,
-                        )
-                      ) {
+                      const msg =
+                        deleteConfirm?.(r.ticker) ??
+                        `Delete ${r.ticker} from local DBs? This cannot be undone.`;
+                      if (!window.confirm(msg)) {
                         return;
                       }
                       setDeleting(true);
@@ -970,7 +1233,9 @@ function CompanyRows({
                       );
                     }}
                   >
-                    {deleting ? "Deleting…" : "Delete"}
+                    {deleting
+                      ? "…"
+                      : deleteLabel ?? "Delete"}
                   </button>
                 ) : null}
               </div>
@@ -986,6 +1251,13 @@ function CompanyRows({
                   }}
                   onSaved={(patch) => {
                     setSectorPatch(patch);
+                    onScrapeDone?.();
+                  }}
+                />
+              ) : panel === "website" ? (
+                <WebsiteEditPanel
+                  company={r}
+                  onSaved={() => {
                     onScrapeDone?.();
                   }}
                 />

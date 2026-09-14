@@ -8,7 +8,7 @@ import {
   type FundFilterState,
   type FundWatchlistKey,
 } from "./fund-watchlist-meta";
-import { activeFundFilterSet } from "./fund-watchlists";
+import { activeFundFilterSet, fundWatchlistAllTickers } from "./fund-watchlists";
 import { holdingsTickerSet } from "./holdings";
 import { notesTickerSet } from "./notes";
 import { invalidateOperatingMetricsCache } from "./opm-consistency";
@@ -45,6 +45,7 @@ export type QuartersFillSelection = {
   ageMin?: number | null;
   age25?: boolean;
   funds?: FundFilterState;
+  fundAll?: boolean;
 };
 
 function cachedQuartersUsableMap(): Map<
@@ -121,9 +122,14 @@ function applySelectionFilters<
     const edge = edgeTickerSet();
     out = out.filter((c) => edge.has(c.ticker.toUpperCase()));
   }
-  const fundFilter = activeFundFilterSet(opts.funds ?? {});
-  if (fundFilter) {
-    out = out.filter((c) => fundFilter.has(c.ticker.toUpperCase()));
+  if (opts.fundAll) {
+    const allFunds = fundWatchlistAllTickers();
+    out = out.filter((c) => allFunds.has(c.ticker.toUpperCase()));
+  } else {
+    const fundFilter = activeFundFilterSet(opts.funds ?? {});
+    if (fundFilter) {
+      out = out.filter((c) => fundFilter.has(c.ticker.toUpperCase()));
+    }
   }
   if (opts.note) {
     const notes = notesTickerSet();
@@ -139,7 +145,8 @@ export function hasQuartersFillSelection(opts: QuartersFillSelection): boolean {
     opts.edge ||
     opts.sme ||
     opts.note ||
-    opts.ageMin != null
+    opts.ageMin != null ||
+    opts.fundAll
   )
     return true;
   return FUND_WATCHLIST_KEYS.some(

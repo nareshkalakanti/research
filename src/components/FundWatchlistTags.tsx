@@ -9,7 +9,7 @@ import {
   type FundWatchlistKey,
 } from "@/lib/fund-watchlist-meta";
 
-type TagClass = "result-tag" | "gov-tag" | "ag-tag";
+type TagClass = "result-tag" | "gov-tag" | "ag-tag" | "fund-pill";
 
 type Props = {
   tags: FundWatchlistKey[] | undefined;
@@ -22,11 +22,12 @@ type Props = {
 export function FundWatchlistTags({
   tags,
   changes,
-  tagClass = "result-tag",
+  tagClass = "fund-pill",
   only,
 }: Props) {
   if (!tags?.length) return null;
   const allowed = only ? new Set(only) : null;
+  const useFundPill = tagClass === "fund-pill";
   const cls =
     tagClass === "result-tag"
       ? "result-tag"
@@ -34,14 +35,18 @@ export function FundWatchlistTags({
         ? "gov-tag"
         : tagClass === "ag-tag"
           ? "ag-tag"
-          : tagClass;
+          : "fund-pill";
   return (
-    <>
+    <span
+      className={useFundPill ? "fund-pill-row" : undefined}
+      aria-label="Fund books"
+    >
       {tags.map((key) => {
         if (allowed && !allowed.has(key)) return null;
         const label = FUND_WATCHLIST_LABELS[key];
-        const keyCls =
-          tagClass === "gov-tag"
+        const keyCls = useFundPill
+          ? `fund-pill--${key}`
+          : tagClass === "gov-tag"
             ? `gov-tag-${key}`
             : tagClass === "ag-tag"
               ? `ag-tag-${key}`
@@ -51,21 +56,34 @@ export function FundWatchlistTags({
         return (
           <span
             key={key}
-            className={`fund-tag-wrap${badge ? " has-chg" : ""}`}
+            className={`fund-tag-wrap${badge ? " has-chg" : ""}${
+              useFundPill ? " fund-tag-wrap--pill" : ""
+            }`}
             title={
               badge
                 ? `${label} — ${badge === "new" ? "new position" : badge}`
-                : `${label} fund watchlist`
+                : `${label} fund book`
             }
           >
-            <span className={`${cls} ${keyCls}`}>{label}</span>
+            <span className={`${cls} ${keyCls}`}>
+              {useFundPill ? (
+                <>
+                  <span className="fund-pill-mark" aria-hidden>
+                    ƒ
+                  </span>
+                  {label}
+                </>
+              ) : (
+                label
+              )}
+            </span>
             {badge ? (
               <span className={fundChangeClass(chg?.change_type)}>{badge}</span>
             ) : null}
           </span>
         );
       })}
-    </>
+    </span>
   );
 }
 

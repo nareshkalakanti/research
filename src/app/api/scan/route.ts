@@ -9,6 +9,7 @@ import {
 } from "@/lib/fund-watchlist-meta";
 import {
   activeFundFilterSet,
+  fundWatchlistAllTickers,
 } from "@/lib/fund-watchlists";
 import { holdingsTickerSet } from "@/lib/holdings";
 import { notesTickerSet } from "@/lib/notes";
@@ -61,6 +62,8 @@ type Body = {
   ageMin?: number | null;
   age25?: boolean;
   funds?: FundFilterState;
+  /** All distinct stocks across every fund list. */
+  fundAll?: boolean;
 };
 
 function parseFunds(raw: unknown): FundFilterState {
@@ -95,6 +98,7 @@ function applySelectionFilters<
     note: boolean;
     ageMin: number | null;
     funds: FundFilterState;
+    fundAll?: boolean;
   },
 ): T[] {
   let out = companies;
@@ -119,9 +123,14 @@ function applySelectionFilters<
     const gov = govPsuTickerSet();
     out = out.filter((c) => gov.has(c.ticker.toUpperCase()));
   }
-  const fundFilter = activeFundFilterSet(opts.funds);
-  if (fundFilter) {
-    out = out.filter((c) => fundFilter.has(c.ticker.toUpperCase()));
+  if (opts.fundAll) {
+    const allFunds = fundWatchlistAllTickers();
+    out = out.filter((c) => allFunds.has(c.ticker.toUpperCase()));
+  } else {
+    const fundFilter = activeFundFilterSet(opts.funds);
+    if (fundFilter) {
+      out = out.filter((c) => fundFilter.has(c.ticker.toUpperCase()));
+    }
   }
   if (opts.note) {
     const notes = notesTickerSet();
@@ -139,6 +148,7 @@ function hasSelectionFilters(opts: {
   note: boolean;
   ageMin: number | null;
   funds: FundFilterState;
+  fundAll?: boolean;
 }): boolean {
   if (opts.cap && opts.cap !== "All") return true;
   if (
@@ -147,7 +157,8 @@ function hasSelectionFilters(opts: {
     opts.gov ||
     opts.sme ||
     opts.note ||
-    opts.ageMin != null
+    opts.ageMin != null ||
+    opts.fundAll
   ) {
     return true;
   }
@@ -206,6 +217,7 @@ export async function POST(req: NextRequest) {
     ageMin:
       parseAgeMin(body.ageMin) ?? (body.age25 === true ? 25 : null),
     funds: parseFunds(body.funds),
+    fundAll: body.fundAll === true,
   };
   const scope: ScanScope =
     body.scope === "list"

@@ -56,6 +56,8 @@ export type Company = {
   price_1m?: number | null;
   /** Latest monthly RSI(14). */
   rsi_m?: number | null;
+  /** Cross-sectional rank: 1 = highest monthly RSI in the current list. */
+  rsi_rank?: number | null;
   /** Saved research note headline tags when present. */
   news?: {
     count: number;
@@ -74,6 +76,8 @@ export type Company = {
   gov_ratna?: import("@/lib/gov-psu-meta").GovRatnaTier | null;
   /** Trendlyne fund watchlist tags (Niveshaay, Negen, Kacholia, …). */
   fund_tags?: FundWatchlistKey[];
+  /** How many fund lists include this ticker (overlap / cross-fund views). */
+  fund_count?: number | null;
   /** QoQ change per fund tag (new / inc / dec from Trendlyne). */
   fund_changes?: Partial<
     Record<FundWatchlistKey, import("@/lib/fund-watchlist-meta").FundChangeInfo>

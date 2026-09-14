@@ -3,6 +3,7 @@ import { ImageResponse } from "next/og";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
+/** Apple touch icon — Edge/Lotusdew-style lime→teal mark. */
 export default function AppleIcon() {
   return new ImageResponse(
     (
@@ -13,13 +14,13 @@ export default function AppleIcon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "#101828",
-          color: "#ffffff",
+          background: "linear-gradient(135deg, #c6f06c, #3dd6c6)",
+          color: "#102016",
           borderRadius: 40,
-          fontSize: 96,
-          fontWeight: 700,
-          fontFamily: "ui-sans-serif, system-ui, sans-serif",
-          letterSpacing: "-0.04em",
+          fontSize: 92,
+          fontWeight: 500,
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          letterSpacing: "0.06em",
         }}
       >
         R

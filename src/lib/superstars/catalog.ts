@@ -49,6 +49,7 @@ const SHORT_OVERRIDES: Record<string, string> = {
   "Hitesh Ramji Javeri and Associates": "Hitesh Javeri",
   "Vanaja Sundar Iyer": "Vanaja Iyer",
   "Manohar Devabhaktuni": "Devabhaktuni",
+  "Porinju V Veliyath": "Porinju",
 };
 
 function defaultShort(name: string): string {

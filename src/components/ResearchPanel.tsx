@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AnalystResearchPanel } from "@/components/AnalystResearchPanel";
 import { BuybackResearchPanel } from "@/components/BuybackResearchPanel";
 import { ConcallResearchPanel } from "@/components/ConcallResearchPanel";
 import { OrderbookResearchPanel } from "@/components/OrderbookResearchPanel";
@@ -71,6 +72,13 @@ export function ResearchPanel() {
         defaultOpen={false}
       >
         <ConcallResearchPanel />
+      </ResearchSection>
+      <ResearchSection
+        id="research-analyst"
+        title="4 · Analyst"
+        defaultOpen={false}
+      >
+        <AnalystResearchPanel />
       </ResearchSection>
     </div>
   );

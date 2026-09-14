@@ -8,6 +8,7 @@ import path from "path";
 import {
   FUND_WATCHLIST_KEYS,
   FUND_WATCHLIST_LABELS,
+  formatFundDisplayLabel,
   isFundChangeVisible,
   type FundChangeInfo,
   type FundWatchlistKey,
@@ -17,6 +18,7 @@ import { invalidateCompanyCache } from "./db";
 export {
   FUND_WATCHLIST_KEYS,
   FUND_WATCHLIST_LABELS,
+  formatFundDisplayLabel,
   type FundChangeInfo,
   type FundWatchlistKey,
 } from "./fund-watchlist-meta";
@@ -30,6 +32,8 @@ export type FundSource = {
   portfolio_id?: string | null;
   portfolio_slug?: string | null;
   query?: string | null;
+  /** Screener people page (reference; pull uses Trendlyne until Screener scrape exists). */
+  screener_people_url?: string | null;
 };
 
 /** Trendlyne scrape sources — inc/dec/new stored on pull. */
@@ -90,12 +94,66 @@ export const FUND_WATCHLIST_SOURCES: Record<
     query: "ABBAKUS ASSET MANAGERS",
   },
   porinju: {
-    label: "Porinju Veliyath",
-    query: "PORINJU VELIYATH",
+    label: "Porinju V Veliyath",
+    portfolio_id: "53777",
+    portfolio_slug: "porinju-v-veliyath",
+    query: "PORINJU V VELIYATH",
+  },
+  equityint: {
+    label: "Equity Intelligence India Private Limited",
+    query: "EQUITY INTELLIGENCE INDIA PRIVATE LIMITED",
+    screener_people_url:
+      "https://www.screener.in/people/78278/equity-intelligence-india-private-ltd/",
   },
   sageone: {
     label: "SageOne Investment Managers",
     query: "SAGEONE",
+  },
+  greenlantern: {
+    label: "Green Lantern Capital",
+    query: "GREEN LANTERN CAPITAL",
+  },
+  carnelian: {
+    label: "Carnelian Asset Management",
+    query: "CARNELIAN ASSET MANAGEMENT",
+  },
+  whitepine: {
+    label: "White Pine Investment",
+    query: "WHITE PINE INVESTMENT",
+  },
+  kriis: {
+    label: "KRIIS Portfolio",
+    query: "KRIIS",
+  },
+  alfaccurate: {
+    label: "AlfAccurate Advisors",
+    query: "ALFACCURATE ADVISORS",
+  },
+  moneygrow: {
+    label: "MoneyGrow Asset",
+    query: "MONEYGROW ASSET",
+  },
+  equirus: {
+    label: "Equirus Wealth",
+    query: "EQUIRUS WEALTH",
+  },
+  stallion: {
+    label: "Stallion Asset",
+    query: "STALLION ASSET",
+  },
+  buoyant: {
+    label: "Buoyant Capital",
+    query: "BUOYANT CAPITAL",
+    extra_sources: [
+      {
+        label: "Buoyant Capital AIF",
+        query: "BUOYANT CAPITAL AIF",
+      },
+      {
+        label: "Buoyant Opportunities",
+        query: "BUOYANT OPPORTUNITIES",
+      },
+    ],
   },
 };
 
@@ -110,8 +168,18 @@ const FUND_INVESTOR_KEYS: Record<FundWatchlistKey, string> = {
   manohar: "Manohar Devabhaktuni",
   lucky: "Lucky Investment Managers",
   abbakus: "Abbakus Asset Managers",
-  porinju: "Porinju Veliyath",
+  porinju: "Porinju V Veliyath",
+  equityint: "Equity Intelligence India Private Limited",
   sageone: "SageOne Investment Managers",
+  greenlantern: "Green Lantern Capital",
+  carnelian: "Carnelian Asset Management",
+  whitepine: "White Pine Investment",
+  kriis: "KRIIS Portfolio",
+  alfaccurate: "AlfAccurate Advisors",
+  moneygrow: "MoneyGrow Asset",
+  equirus: "Equirus Wealth",
+  stallion: "Stallion Asset",
+  buoyant: "Buoyant Capital",
 };
 
 /** When Trendlyne custom search is fuzzy, keep only matching holder names. */
@@ -119,13 +187,23 @@ export const FUND_WATCHLIST_HOLDER_FILTER: Partial<
   Record<FundWatchlistKey, RegExp>
 > = {
   manohar: /manohar\s+devabhaktuni/i,
+  equityint: /equity\s+intelligence/i,
+  greenlantern: /green\s+lantern/i,
+  carnelian: /carnelian/i,
+  whitepine: /white\s+pine/i,
+  kriis: /kriis/i,
+  alfaccurate: /alfaccurate/i,
+  moneygrow: /moneygrow|money\s*grow/i,
+  equirus: /equirus/i,
+  stallion: /stallion/i,
+  buoyant: /buoyant/i,
 };
 
 export type FundWatchlistRow = {
   ticker: string;
   name: string | null;
   market: string;
-  list_key: FundWatchlistKey;
+  list_key: string;
 };
 
 type FundSets = Record<FundWatchlistKey, Set<string>>;
@@ -156,6 +234,11 @@ function ensureSchema(db: Database.Database): void {
       change_type TEXT,
       updated_at TEXT NOT NULL,
       PRIMARY KEY (ticker, list_key)
+    );
+    CREATE TABLE IF NOT EXISTS fund_list_meta (
+      list_key TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      created_at TEXT NOT NULL
     );
   `);
   ensureChangeColumns(db);
@@ -329,10 +412,22 @@ export function activeFundFilterSet(
 }
 
 export function fundWatchlistAllTickers(): Set<string> {
-  const sets = loadSets();
   const all = new Set<string>();
+  const sets = loadSets();
   for (const key of FUND_WATCHLIST_KEYS) {
     for (const t of sets[key]) all.add(t);
+  }
+  // Include custom fund lists (not in FUND_WATCHLIST_KEYS).
+  const db = open();
+  if (db) {
+    try {
+      const rows = db
+        .prepare(`SELECT DISTINCT UPPER(ticker) AS ticker FROM fund_watchlists`)
+        .all() as Array<{ ticker: string }>;
+      for (const r of rows) all.add(r.ticker);
+    } finally {
+      db.close();
+    }
   }
   return all;
 }
@@ -358,7 +453,7 @@ export type FundWatchlistStub = {
 };
 
 export function loadFundWatchlistStubs(
-  listKey: FundWatchlistKey,
+  listKey: string,
   exclude: Set<string>,
 ): FundWatchlistStub[] {
   const db = open();
@@ -384,7 +479,7 @@ export type FundWatchlistAboutRow = {
   ticker: string;
   name: string;
   market: string;
-  list_key: FundWatchlistKey;
+  list_key: string;
 };
 
 /** All fund watchlist rows (deduped by ticker; first list_key wins). */
@@ -495,7 +590,7 @@ export function isKacholia(ticker: string): boolean {
 }
 
 export function replaceFundWatchlists(
-  listKey: FundWatchlistKey,
+  listKey: FundWatchlistKey | string,
   rows: Array<{
     ticker: string;
     name?: string | null;
@@ -544,7 +639,7 @@ export function replaceFundWatchlists(
 }
 
 export function upsertFundWatchlistRows(
-  listKey: FundWatchlistKey,
+  listKey: FundWatchlistKey | string,
   rows: Array<{
     ticker: string;
     name?: string | null;
@@ -595,4 +690,327 @@ export function upsertFundWatchlistRows(
   } finally {
     db.close();
   }
+}
+
+export type FundCatalogEntry = {
+  key: string;
+  label: string;
+  count: number;
+  builtin: boolean;
+};
+
+function slugifyFundLabel(label: string): string {
+  const base = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .slice(0, 40);
+  return base || `fund${Date.now().toString(36)}`;
+}
+
+function openWritable(): Database.Database {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const db = new Database(DB_PATH);
+  ensureSchema(db);
+  return db;
+}
+
+/** Builtin + custom fund lists with live member counts. */
+export function listFundCatalog(): FundCatalogEntry[] {
+  const counts = new Map<string, number>();
+  const customLabels = new Map<string, string>();
+  if (fs.existsSync(DB_PATH)) {
+    const db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+    try {
+      db.pragma("query_only = ON");
+      for (const r of db
+        .prepare(
+          `SELECT list_key, COUNT(*) AS n FROM fund_watchlists GROUP BY list_key`,
+        )
+        .all() as Array<{ list_key: string; n: number }>) {
+        counts.set(r.list_key, r.n);
+      }
+      try {
+        for (const r of db
+          .prepare(`SELECT list_key, label FROM fund_list_meta`)
+          .all() as Array<{ list_key: string; label: string }>) {
+          customLabels.set(r.list_key, r.label);
+        }
+      } catch {
+        /* table may not exist yet */
+      }
+    } finally {
+      db.close();
+    }
+  }
+
+  const seen = new Set<string>();
+  const out: FundCatalogEntry[] = [];
+  for (const key of FUND_WATCHLIST_KEYS) {
+    seen.add(key);
+    out.push({
+      key,
+      label: FUND_WATCHLIST_LABELS[key],
+      count: counts.get(key) ?? 0,
+      builtin: true,
+    });
+  }
+  for (const [key, label] of customLabels) {
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      key,
+      label: formatFundDisplayLabel(label),
+      count: counts.get(key) ?? 0,
+      builtin: false,
+    });
+  }
+  for (const [key, n] of counts) {
+    if (seen.has(key)) continue;
+    out.push({
+      key,
+      label: formatFundDisplayLabel(key),
+      count: n,
+      builtin: false,
+    });
+  }
+  out.sort((a, b) =>
+    a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+  );
+  return out;
+}
+
+export function createFundList(label: string): FundCatalogEntry {
+  const trimmed = label.trim().replace(/\s+/g, " ").slice(0, 80);
+  if (trimmed.length < 2) throw new Error("Fund name too short");
+  let key = slugifyFundLabel(trimmed);
+  const db = openWritable();
+  try {
+    const existing = new Set(
+      (
+        db.prepare(`SELECT list_key FROM fund_list_meta`).all() as Array<{
+          list_key: string;
+        }>
+      ).map((r) => r.list_key),
+    );
+    for (const k of FUND_WATCHLIST_KEYS) existing.add(k);
+    if (existing.has(key)) {
+      let i = 2;
+      while (existing.has(`${key}${i}`)) i += 1;
+      key = `${key}${i}`;
+    }
+    db.prepare(
+      `INSERT INTO fund_list_meta (list_key, label, created_at) VALUES (?, ?, ?)`,
+    ).run(key, trimmed, new Date().toISOString());
+    invalidateFundWatchlistCache();
+    return { key, label: trimmed, count: 0, builtin: false };
+  } finally {
+    db.close();
+  }
+}
+
+/** Delete a custom fund list (meta + all holdings). Builtin catalog keys are blocked. */
+export function deleteFundList(listKey: string): {
+  key: string;
+  label: string;
+  cleared: number;
+} {
+  const key = listKey.trim();
+  if (!key) throw new Error("list required");
+  if ((FUND_WATCHLIST_KEYS as string[]).includes(key)) {
+    throw new Error("Builtin fund lists cannot be deleted");
+  }
+  const db = openWritable();
+  try {
+    const meta = db
+      .prepare(`SELECT label FROM fund_list_meta WHERE list_key = ?`)
+      .get(key) as { label: string } | undefined;
+    const holdingCount = (
+      db
+        .prepare(
+          `SELECT COUNT(*) AS n FROM fund_watchlists WHERE list_key = ?`,
+        )
+        .get(key) as { n: number } | undefined
+    )?.n;
+    if (!meta && !(holdingCount && holdingCount > 0)) {
+      throw new Error("Fund not found");
+    }
+    const cleared = db
+      .prepare(`DELETE FROM fund_watchlists WHERE list_key = ?`)
+      .run(key).changes;
+    db.prepare(`DELETE FROM fund_list_meta WHERE list_key = ?`).run(key);
+    invalidateFundWatchlistCache();
+    return {
+      key,
+      label: formatFundDisplayLabel(meta?.label?.trim() || key),
+      cleared,
+    };
+  } finally {
+    db.close();
+  }
+}
+
+export type FundHoldingRow = {
+  ticker: string;
+  name: string;
+  market: string;
+  change_type: string | null;
+  change_qtr: number | null;
+  updated_at: string | null;
+};
+
+export function loadFundHoldings(listKey: string): FundHoldingRow[] {
+  const db = open();
+  if (!db) return [];
+  try {
+    return db
+      .prepare(
+        `SELECT UPPER(ticker) AS ticker,
+                COALESCE(NULLIF(TRIM(name), ''), ticker) AS name,
+                COALESCE(NULLIF(TRIM(market), ''), 'NSE') AS market,
+                change_type,
+                change_qtr,
+                updated_at
+         FROM fund_watchlists
+         WHERE list_key = ?
+         ORDER BY
+           CASE LOWER(COALESCE(change_type, ''))
+             WHEN 'new' THEN 0
+             WHEN 'disclosed' THEN 1
+             WHEN 'increased' THEN 2
+             WHEN 'decreased' THEN 3
+             ELSE 4
+           END,
+           ticker`,
+      )
+      .all(listKey) as FundHoldingRow[];
+  } finally {
+    db.close();
+  }
+}
+
+export function deleteFundWatchlistTicker(
+  listKey: string,
+  ticker: string,
+): boolean {
+  const t = ticker.trim().toUpperCase();
+  if (!t) return false;
+  const db = openWritable();
+  try {
+    const info = db
+      .prepare(`DELETE FROM fund_watchlists WHERE list_key = ? AND ticker = ?`)
+      .run(listKey, t);
+    invalidateFundWatchlistCache();
+    return info.changes > 0;
+  } finally {
+    db.close();
+  }
+}
+
+export function fundLabelForKey(listKey: string): string {
+  if ((FUND_WATCHLIST_KEYS as string[]).includes(listKey)) {
+    return FUND_WATCHLIST_LABELS[listKey as FundWatchlistKey];
+  }
+  if (!fs.existsSync(DB_PATH)) return formatFundDisplayLabel(listKey);
+  const db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+  try {
+    const row = db
+      .prepare(`SELECT label FROM fund_list_meta WHERE list_key = ?`)
+      .get(listKey) as { label: string } | undefined;
+    return formatFundDisplayLabel(row?.label?.trim() || listKey);
+  } catch {
+    return formatFundDisplayLabel(listKey);
+  } finally {
+    db.close();
+  }
+}
+
+export type FundTickerFreq = {
+  ticker: string;
+  name: string;
+  market: string;
+  count: number;
+  lists: string[];
+};
+
+/** How many fund lists each ticker appears in (across all watchlists). */
+export function fundTickerFrequency(): FundTickerFreq[] {
+  const db = open();
+  if (!db) return [];
+  try {
+    const rows = db
+      .prepare(
+        `SELECT UPPER(ticker) AS ticker,
+                COALESCE(NULLIF(TRIM(name), ''), ticker) AS name,
+                COALESCE(NULLIF(TRIM(market), ''), 'NSE') AS market,
+                list_key
+         FROM fund_watchlists
+         ORDER BY ticker, list_key`,
+      )
+      .all() as Array<{
+      ticker: string;
+      name: string;
+      market: string;
+      list_key: string;
+    }>;
+    const map = new Map<string, FundTickerFreq>();
+    for (const r of rows) {
+      const cur = map.get(r.ticker);
+      if (!cur) {
+        map.set(r.ticker, {
+          ticker: r.ticker,
+          name: r.name,
+          market: r.market,
+          count: 1,
+          lists: [r.list_key],
+        });
+      } else {
+        if (!cur.lists.includes(r.list_key)) {
+          cur.lists.push(r.list_key);
+          cur.count = cur.lists.length;
+        }
+        if ((!cur.name || cur.name === cur.ticker) && r.name) cur.name = r.name;
+      }
+    }
+    return [...map.values()];
+  } finally {
+    db.close();
+  }
+}
+
+function companyMarketByTicker(): Map<string, string> {
+  try {
+    // Lazy require avoids circular init with db ↔ fund helpers.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { loadAllCompanies } = require("./db") as {
+      loadAllCompanies: () => Array<{ ticker: string; market: string }>;
+    };
+    const map = new Map<string, string>();
+    for (const c of loadAllCompanies()) {
+      map.set(c.ticker.toUpperCase(), c.market);
+    }
+    return map;
+  } catch {
+    return new Map();
+  }
+}
+
+export function fundOverlapStats(): {
+  all: number;
+  unique: number;
+  overlap: number;
+  sme: number;
+  frequency: FundTickerFreq[];
+} {
+  const frequency = fundTickerFrequency();
+  const markets = companyMarketByTicker();
+  let unique = 0;
+  let overlap = 0;
+  let sme = 0;
+  for (const f of frequency) {
+    if (f.count === 1) unique += 1;
+    if (f.count >= 2) overlap += 1;
+    const market = markets.get(f.ticker.toUpperCase()) || f.market;
+    if (/\bSME\b/i.test(market)) sme += 1;
+  }
+  return { all: frequency.length, unique, overlap, sme, frequency };
 }

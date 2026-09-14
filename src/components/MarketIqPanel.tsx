@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { announcementDedupeKey } from "@/lib/announcement-dedupe";
 import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
+import { isInvestorAnalystMeetAnnouncement } from "@/lib/investor-meet-announcement";
+import { matchMarketIqFundsInText, highlightMarketIqFundSegments } from "@/lib/marketiq-fund-aliases";
 import { IqHintPanel } from "@/components/IqHintPanel";
 import { CompanyWatchCell } from "@/components/CompanyWatchCell";
 
@@ -31,6 +33,13 @@ type HistoryRow = {
   announcement_date: string | null;
   source_url: string | null;
   screened_at: string;
+  funds_mentioned?: FundChip[];
+};
+
+type FundChip = {
+  name: string;
+  alias: string;
+  chip_key: string;
 };
 
 type SentimentLabel = "bullish" | "bearish" | "neutral" | "pending";
@@ -54,6 +63,7 @@ type AnalysedOverlay = {
   confidence: number | null;
   impact: number | null;
   sentiment_why: string | null;
+  funds_mentioned?: FundChip[];
 };
 
 type FeedRow = {
@@ -72,6 +82,7 @@ type FeedRow = {
   sentiment_why: string | null;
   url: string | null;
   hit: MarketIqHit | null;
+  funds_mentioned: FundChip[];
 };
 
 type SentimentFilter = "all" | "bullish" | "bearish" | "neutral";
@@ -156,6 +167,7 @@ function hitToFeed(h: MarketIqHit, i: number): FeedRow {
     sentiment_why: null,
     url: h.url,
     hit: h,
+    funds_mentioned: [],
   };
 }
 
@@ -194,6 +206,7 @@ function histToFeed(h: HistoryRow): FeedRow {
           provider: "history",
         }
       : null,
+    funds_mentioned: Array.isArray(h.funds_mentioned) ? h.funds_mentioned : [],
   };
 }
 
@@ -285,7 +298,78 @@ function applyOverlay(
     confidence: overlay.confidence,
     impact: overlay.impact,
     sentiment_why: overlay.sentiment_why,
+    funds_mentioned:
+      overlay.funds_mentioned && overlay.funds_mentioned.length
+        ? overlay.funds_mentioned
+        : row.funds_mentioned,
   };
+}
+
+function FundAliasChips({ funds }: { funds: FundChip[] }) {
+  if (!funds.length) return null;
+  return (
+    <div className="miq-fund-chips result-tags" aria-label="Funds mentioned">
+      {funds.map((f) => (
+        <span
+          key={f.chip_key}
+          className={`result-tag tag-${f.chip_key}`}
+          title={f.name}
+        >
+          {f.alias}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Saved chips + live catalog rematch (so new aliases show without re-analyse). */
+function resolveFundChips(row: {
+  funds_mentioned?: FundChip[];
+  headline?: string;
+  summary?: string;
+}): FundChip[] {
+  const live = matchMarketIqFundsInText(row.summary || "", [
+    row.headline || "",
+  ]);
+  const seen = new Set<string>();
+  const out: FundChip[] = [];
+  for (const f of [...(row.funds_mentioned || []), ...live]) {
+    const key = (f.chip_key || "").trim().toLowerCase();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push({
+      name: f.name,
+      alias: f.alias,
+      chip_key: key,
+    });
+  }
+  return out.sort((a, b) =>
+    a.alias.localeCompare(b.alias, undefined, { sensitivity: "base" }),
+  );
+}
+
+function FundHighlightedSummary({
+  text,
+  funds,
+}: {
+  text: string;
+  funds: FundChip[];
+}) {
+  if (!funds.length) return <>{text}</>;
+  const segs = highlightMarketIqFundSegments(text, funds);
+  return (
+    <>
+      {segs.map((s, i) =>
+        s.hit ? (
+          <mark key={i} className="miq-fund-mark" title={s.chip_key}>
+            {s.text}
+          </mark>
+        ) : (
+          <span key={i}>{s.text}</span>
+        ),
+      )}
+    </>
+  );
 }
 
 type LabExtract = {
@@ -330,6 +414,8 @@ export function MarketIqPanel() {
   const [categories, setCategories] = useState<string[]>([]);
   const [category, setCategory] = useState("");
   const [sentiment, setSentiment] = useState<SentimentFilter>("all");
+  /** Topic chip: Reg-30 investor / analyst meet & call filings. */
+  const [analystMeetOnly, setAnalystMeetOnly] = useState(false);
   const [showAllCats, setShowAllCats] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
@@ -358,31 +444,49 @@ export function MarketIqPanel() {
     current: string[];
     finished?: boolean;
     errored?: boolean;
+    partial?: boolean;
   } | null>(null);
 
   const announcedAbortRef = useRef<AbortController | null>(null);
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (search?: string) => {
     try {
-      const res = await fetch("/api/marketiq?history=1&limit=200");
+      const params = new URLSearchParams({
+        history: "1",
+        limit: "800",
+      });
+      const qq = (search ?? q).trim();
+      if (qq) params.set("q", qq);
+      const res = await fetch(`/api/marketiq?${params}`);
       const json = (await res.json()) as { history?: HistoryRow[] };
       setHistory(json.history ?? []);
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [q]);
 
-  const fetchAnnounced = useCallback(async () => {
+  // When the user searches, pull matching rows from DB (not only the newest window).
+  // Clearing search reloads the recent window.
+  useEffect(() => {
+    const qq = q.trim();
+    const t = window.setTimeout(() => {
+      void loadHistory(qq);
+    }, qq ? 280 : 0);
+    return () => window.clearTimeout(t);
+  }, [q, loadHistory]);
+
+  const fetchAnnounced = useCallback(async (): Promise<MarketIqHit[]> => {
     announcedAbortRef.current?.abort();
     const ac = new AbortController();
     announcedAbortRef.current = ac;
     setBusy(true);
     setError(null);
-    setStatusNote("Refreshing live NSE/BSE…");
+    setStatusNote("1/3 Get — fetching new announcements from NSE…");
     try {
       const params = new URLSearchParams({
         announced: "1",
         days: String(days),
+        fresh: "1",
       });
       if (q.trim()) params.set("q", q.trim());
       const res = await fetch(`/api/marketiq?${params}`, {
@@ -394,24 +498,25 @@ export function MarketIqPanel() {
         error?: string;
         cached?: boolean;
       };
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted) return [];
       if (!res.ok || json.ok === false) {
         setError(json.error || "Fetch failed");
         setHits([]);
         setLive(false);
-        return;
+        return [];
       }
-      setHits(json.sources ?? []);
+      const sources = json.sources ?? [];
+      setHits(sources);
       setLive(true);
       setPage(1);
-      setStatusNote(
-        `${json.sources?.length ?? 0} live filings${json.cached ? " (cache)" : ""}`,
-      );
+      setStatusNote(`1/3 Get — ${sources.length} announcements`);
+      return sources;
     } catch (e) {
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted) return [];
       setError(e instanceof Error ? e.message : "Fetch failed");
       setHits([]);
       setLive(false);
+      return [];
     } finally {
       if (!ac.signal.aborted) setBusy(false);
     }
@@ -419,7 +524,7 @@ export function MarketIqPanel() {
 
   useEffect(() => {
     void loadHistory();
-    setStatusNote("Showing saved screens — Refresh NSE for live filings");
+    setStatusNote("Click Run — Get → Save → Analyse (auto-saves to DB)");
     const t = window.setTimeout(() => {
       void fetch("/api/marketiq?categories=1")
         .then((r) => r.json())
@@ -435,34 +540,42 @@ export function MarketIqPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const saveHits = useCallback(async () => {
-    if (!hits.length) return;
-    setSaveBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/marketiq", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save", sources: hits }),
-      });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        history?: HistoryRow[];
-        error?: string;
-      };
-      if (!res.ok || !json.ok) {
-        setError(json.error || "Save failed");
-        return;
+  const saveHits = useCallback(
+    async (sources: MarketIqHit[]): Promise<number> => {
+      if (!sources.length) return 0;
+      setSaveBusy(true);
+      setError(null);
+      setStatusNote(`2/3 Save — writing ${sources.length} rows to DB…`);
+      try {
+        const res = await fetch("/api/marketiq", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "save", sources }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          saved?: number;
+          history?: HistoryRow[];
+          error?: string;
+        };
+        if (!res.ok || !json.ok) {
+          setError(json.error || "Save failed");
+          return 0;
+        }
+        if (json.history) setHistory(json.history);
+        else void loadHistory();
+        const n = typeof json.saved === "number" ? json.saved : sources.length;
+        setStatusNote(`2/3 Save — ${n} new row${n === 1 ? "" : "s"} in DB`);
+        return n;
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Save failed");
+        return 0;
+      } finally {
+        setSaveBusy(false);
       }
-      if (json.history) setHistory(json.history);
-      else void loadHistory();
-      setStatusNote(`Saved ${hits.length} announcements`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setSaveBusy(false);
-    }
-  }, [hits, loadHistory]);
+    },
+    [loadHistory],
+  );
 
   const ingestAnalyseResult = useCallback(
     (result: {
@@ -475,6 +588,7 @@ export function MarketIqPanel() {
         confidence?: number;
         impact?: number;
         sentiment_why?: string | null;
+        funds_mentioned?: FundChip[];
       };
       source_url?: string | null;
       id?: number;
@@ -497,6 +611,9 @@ export function MarketIqPanel() {
           typeof ex.confidence === "number" ? ex.confidence : null,
         impact: typeof ex.impact === "number" ? ex.impact : null,
         sentiment_why: ex.sentiment_why ?? null,
+        funds_mentioned: Array.isArray(ex.funds_mentioned)
+          ? ex.funds_mentioned
+          : [],
       };
       const keys = overlayKeysFor({
         url: result.source_url || seed?.url,
@@ -551,6 +668,7 @@ export function MarketIqPanel() {
             confidence?: number;
             impact?: number;
             sentiment_why?: string | null;
+            funds_mentioned?: FundChip[];
           };
           source_url?: string | null;
           id?: number;
@@ -569,8 +687,16 @@ export function MarketIqPanel() {
         });
         if (json.history) setHistory(json.history);
         else void loadHistory();
+        const funds = json.extract?.funds_mentioned ?? [];
         setStatusNote(
-          `Analysed · ${json.extract?.sentiment || "?"} · impact ${json.extract?.impact ?? "—"} · ${json.engine || "ok"}`,
+          [
+            `Analysed · ${json.extract?.sentiment || "?"}`,
+            `impact ${json.extract?.impact ?? "—"}`,
+            funds.length ? `${funds.length} funds` : null,
+            json.engine || "ok",
+          ]
+            .filter(Boolean)
+            .join(" · "),
         );
       } catch (e) {
         setError(e instanceof Error ? e.message : "Analyse failed");
@@ -591,7 +717,7 @@ export function MarketIqPanel() {
     }
 
     const rows =
-      hits.length > 0
+      hits.length > 0 && !q.trim()
         ? hits.map((h, i) => {
             const live = hitToFeed(h, i);
             const hist = h.url?.trim() ? histByUrl.get(h.url.trim()) : undefined;
@@ -608,7 +734,28 @@ export function MarketIqPanel() {
               dateIso: live.dateIso || merged.dateIso,
             };
           })
-        : history.map(histToFeed);
+        : hits.length > 0 && q.trim()
+          ? [
+              ...hits.map((h, i) => {
+                const live = hitToFeed(h, i);
+                const hist = h.url?.trim()
+                  ? histByUrl.get(h.url.trim())
+                  : undefined;
+                if (!hist) return live;
+                const sent = normSentiment(hist.sentiment);
+                if (sent === "pending") return live;
+                const merged = histToFeed(hist);
+                return {
+                  ...merged,
+                  key: live.key,
+                  hit: live.hit,
+                  dateLabel: live.dateLabel || merged.dateLabel,
+                  dateIso: live.dateIso || merged.dateIso,
+                };
+              }),
+              ...history.map(histToFeed),
+            ]
+          : history.map(histToFeed);
 
     const withOverlay = rows.map((r) => {
       const keys = overlayKeysFor({
@@ -635,17 +782,41 @@ export function MarketIqPanel() {
         if (r.historyId != null) s += 5;
         if (r.url) s += 2;
         s += Math.min(3, Math.floor((r.summary || "").length / 80));
+        s += Math.min(5, r.funds_mentioned.length);
         return s;
       };
       const rb = rank(b);
       const ra = rank(a);
-      if (rb > ra) return { ...b, url: b.url || a.url, hit: b.hit || a.hit };
-      if (ra > rb) return { ...a, url: a.url || b.url, hit: a.hit || b.hit };
+      if (rb > ra)
+        return {
+          ...b,
+          url: b.url || a.url,
+          hit: b.hit || a.hit,
+          funds_mentioned: b.funds_mentioned.length
+            ? b.funds_mentioned
+            : a.funds_mentioned,
+        };
+      if (ra > rb)
+        return {
+          ...a,
+          url: a.url || b.url,
+          hit: a.hit || b.hit,
+          funds_mentioned: a.funds_mentioned.length
+            ? a.funds_mentioned
+            : b.funds_mentioned,
+        };
       // Tie: keep longer summary text
       const pick =
         (b.summary || "").length > (a.summary || "").length ? b : a;
       const other = pick === a ? b : a;
-      return { ...pick, url: pick.url || other.url, hit: pick.hit || other.hit };
+      return {
+        ...pick,
+        url: pick.url || other.url,
+        hit: pick.hit || other.hit,
+        funds_mentioned: pick.funds_mentioned.length
+          ? pick.funds_mentioned
+          : other.funds_mentioned,
+      };
     };
 
     const byIdentity = new Map<string, FeedRow>();
@@ -667,6 +838,17 @@ export function MarketIqPanel() {
         if (sentiment !== "all" && r.sentiment !== sentiment) {
           return false;
         }
+        if (analystMeetOnly) {
+          if (
+            !isInvestorAnalystMeetAnnouncement(
+              r.category,
+              r.headline,
+              r.summary,
+            )
+          ) {
+            return false;
+          }
+        }
         if (cat) {
           if (
             !r.category.toLowerCase().includes(cat) &&
@@ -687,7 +869,7 @@ export function MarketIqPanel() {
         const bd = b.dateIso ? Date.parse(b.dateIso) : 0;
         return bd - ad;
       });
-  }, [hits, history, q, category, sentiment, overlay]);
+  }, [hits, history, q, category, sentiment, analystMeetOnly, overlay]);
 
   const pages = Math.max(1, Math.ceil(feed.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pages);
@@ -721,7 +903,8 @@ export function MarketIqPanel() {
     setStatusNote("Stopping scan after current batch…");
   }, []);
 
-  const scanAllAnnouncements = useCallback(async () => {
+  const scanAllAnnouncements = useCallback(
+    async (sourceOverride?: MarketIqHit[]) => {
     if (scanRunning) return;
     scanStopRef.current = false;
     setScanRunning(true);
@@ -738,7 +921,7 @@ export function MarketIqPanel() {
       pct: 0,
       current: [],
     });
-    setStatusNote("Starting scan of all announcements…");
+    setStatusNote("3/3 Analyse — extract PDF + score (saves as it goes)…");
 
     let ok = 0;
     let fail = 0;
@@ -746,30 +929,32 @@ export function MarketIqPanel() {
     let round = 0;
     let total = 0;
     let doneCount = 0;
-    let errored = false;
+    let lastBatchErr: string | null = null;
 
     const doneUrls = new Set<string>();
     for (const h of history) {
       const u = h.source_url?.trim();
-      if (u) doneUrls.add(u);
+      if (u && normSentiment(h.sentiment) !== "pending") doneUrls.add(u);
     }
 
     try {
       // Prefer live NSE list; else server rediscovers for selected days.
       const sources: MarketIqHit[] =
-        hits.length > 0
-          ? hits
-          : history
-              .filter((h) => h.source_url || h.headline)
-              .map((h) => ({
-                ticker: (h.ticker || "").toUpperCase(),
-                company: h.company,
-                title: h.headline,
-                url: h.source_url,
-                announced_at: h.announcement_date,
-                period: null,
-                provider: "history",
-              }));
+        sourceOverride && sourceOverride.length > 0
+          ? sourceOverride
+          : hits.length > 0
+            ? hits
+            : history
+                .filter((h) => h.source_url || h.headline)
+                .map((h) => ({
+                  ticker: (h.ticker || "").toUpperCase(),
+                  company: h.company,
+                  title: h.headline,
+                  url: h.source_url,
+                  announced_at: h.announcement_date,
+                  period: null,
+                  provider: "history",
+                }));
 
       while (!scanStopRef.current) {
         round += 1;
@@ -780,7 +965,18 @@ export function MarketIqPanel() {
         const batch = pending.slice(0, 3);
         if (round === 1) {
           total = pending.length;
-          skipped = Math.max(0, sources.filter((s) => s.url?.trim()).length - total);
+          skipped = Math.max(
+            0,
+            sources.filter((s) => s.url?.trim()).length - total,
+          );
+        }
+        if (batch.length === 0) {
+          setStatusNote(
+            scanStopRef.current
+              ? `Stopped · ${ok} analysed · ${fail} failed · saved to DB`
+              : `Done · ${ok} analysed · ${fail} failed · saved to DB`,
+          );
+          break;
         }
         const current = batch
           .map((s) => (s.ticker || "").toUpperCase())
@@ -799,29 +995,15 @@ export function MarketIqPanel() {
           done: doneCount,
           pct:
             total > 0
-              ? Math.min(100, Math.round((100 * doneCount) / total))
+              ? Math.min(99, Math.round((100 * doneCount) / total))
               : 0,
           current,
         });
         setStatusNote(
-          batch.length
-            ? `Analysing ${current.join(", ") || "batch"}… (${ok} ok · ${fail} fail)`
-            : `Scanning… (${ok} ok · ${fail} fail · ${skipped} skipped)`,
+          `3/3 Analyse — ${current.join(", ") || "batch"}… (${ok} ok · ${fail} fail)`,
         );
-        const res = await fetch("/api/marketiq", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "scan",
-            days,
-            q: q.trim() || null,
-            limit: 3,
-            pendingOnly: true,
-            skipOcr: !useOcr,
-            sources: sources.length ? sources : null,
-          }),
-        });
-        const json = (await res.json()) as {
+
+        let json: {
           ok?: boolean;
           error?: string;
           attempted?: number;
@@ -847,12 +1029,86 @@ export function MarketIqPanel() {
             error?: string;
           }>;
           history?: HistoryRow[];
-        };
+        } | null = null;
 
-        if (!res.ok || json.ok === false) {
-          setError(json.error || "Scan batch failed");
-          errored = true;
-          break;
+        try {
+          const res = await fetch("/api/marketiq", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "scan",
+              days,
+              q: q.trim() || null,
+              limit: 3,
+              pendingOnly: true,
+              skipOcr: !useOcr,
+              sources: sources.length ? sources : null,
+            }),
+            signal: AbortSignal.timeout(280_000),
+          });
+          try {
+            json = (await res.json()) as NonNullable<typeof json>;
+          } catch {
+            json = {
+              ok: false,
+              error: `Bad response (HTTP ${res.status})`,
+            };
+          }
+          if (!res.ok || json.ok === false) {
+            lastBatchErr = json.error || `Scan batch HTTP ${res.status}`;
+            // Soft-fail: skip this batch so the rest of the queue can finish
+            fail += batchUrls.length || batch.length;
+            doneCount += batchUrls.length || batch.length;
+            for (const u of batchUrls) doneUrls.add(u);
+            setScanStats({
+              ok,
+              fail,
+              skipped,
+              remaining: Math.max(
+                0,
+                pending.length - (batchUrls.length || batch.length),
+              ),
+              round,
+              total,
+              done: doneCount,
+              pct:
+                total > 0
+                  ? Math.min(99, Math.round((100 * doneCount) / total))
+                  : 0,
+              current: [],
+            });
+            setStatusNote(
+              `3/3 Analyse — batch skipped (${lastBatchErr}) · ${ok} ok · ${fail} fail`,
+            );
+            continue;
+          }
+        } catch (e) {
+          lastBatchErr =
+            e instanceof Error ? e.message : "Scan batch failed";
+          fail += batchUrls.length || batch.length;
+          doneCount += batchUrls.length || batch.length;
+          for (const u of batchUrls) doneUrls.add(u);
+          setScanStats({
+            ok,
+            fail,
+            skipped,
+            remaining: Math.max(
+              0,
+              pending.length - (batchUrls.length || batch.length),
+            ),
+            round,
+            total,
+            done: doneCount,
+            pct:
+              total > 0
+                ? Math.min(99, Math.round((100 * doneCount) / total))
+                : 0,
+            current: [],
+          });
+          setStatusNote(
+            `3/3 Analyse — batch error (${lastBatchErr}) · ${ok} ok · ${fail} fail`,
+          );
+          continue;
         }
 
         skipped = Math.max(skipped, json.skipped ?? skipped);
@@ -880,7 +1136,7 @@ export function MarketIqPanel() {
           done: doneCount,
           pct:
             total > 0
-              ? Math.min(100, Math.round((100 * doneCount) / total))
+              ? Math.min(99, Math.round((100 * doneCount) / total))
               : attempted === 0
                 ? 100
                 : 0,
@@ -899,43 +1155,79 @@ export function MarketIqPanel() {
         if (attempted === 0 || remaining === 0) {
           setStatusNote(
             scanStopRef.current
-              ? `Scan stopped · ${ok} analysed · ${fail} failed · ${skipped} already scored`
-              : `Scan complete · ${ok} analysed · ${fail} failed · ${skipped} already scored`,
+              ? `Stopped · ${ok} analysed · ${fail} failed · saved to DB`
+              : `Done · ${ok} analysed · ${fail} failed · saved to DB`,
           );
           break;
         }
 
         setStatusNote(
-          `Scanned ${doneCount}/${total || doneCount} · ${remaining} remaining · last ${current.join(", ") || "batch"}`,
+          `3/3 Analyse — ${doneCount}/${total || doneCount} · ${remaining} left`,
         );
       }
 
       if (scanStopRef.current) {
         setStatusNote(
-          `Scan stopped · ${ok} analysed · ${fail} failed · ${skipped} already scored`,
+          `Stopped · ${ok} analysed · ${fail} failed · saved to DB`,
         );
       }
       void loadHistory();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Scan failed");
-      errored = true;
+      lastBatchErr = e instanceof Error ? e.message : "Scan failed";
+      setError(lastBatchErr);
     } finally {
+      const hardFail = ok === 0 && (fail > 0 || Boolean(lastBatchErr));
+      const partial = ok > 0 && (fail > 0 || Boolean(lastBatchErr));
+      if (hardFail) setError(lastBatchErr || "Analyse failed");
+      else if (partial && lastBatchErr) {
+        setStatusNote(
+          `Done · ${ok} analysed · ${fail} failed · ${lastBatchErr}`,
+        );
+      }
       setScanningUrls([]);
       setScanStats((prev) =>
         prev
           ? {
               ...prev,
               current: [],
-              pct: errored ? prev.pct : 100,
-              finished: !errored,
-              errored,
+              ok,
+              fail,
+              skipped,
+              done: Math.max(prev.done, doneCount),
+              total: Math.max(prev.total, total),
+              pct: 100,
+              finished: true,
+              errored: hardFail,
+              partial: partial && !hardFail,
             }
           : prev,
       );
       setScanRunning(false);
       scanStopRef.current = false;
     }
-  }, [scanRunning, hits, history, days, q, useOcr, ingestAnalyseResult, loadHistory]);
+  },
+  [scanRunning, hits, history, days, q, useOcr, ingestAnalyseResult, loadHistory],
+  );
+
+  /** One click: Get new announcements → Save → Extract+Analyse (each result saved). */
+  const runPipeline = useCallback(async () => {
+    if (scanRunning || busy || saveBusy) return;
+    setError(null);
+    const sources = await fetchAnnounced();
+    if (!sources.length) {
+      setStatusNote("No new announcements in this lookback");
+      return;
+    }
+    await saveHits(sources);
+    await scanAllAnnouncements(sources);
+  }, [
+    scanRunning,
+    busy,
+    saveBusy,
+    fetchAnnounced,
+    saveHits,
+    scanAllAnnouncements,
+  ]);
 
   useEffect(() => {
     if (scanRunning || !scanStats?.finished) return;
@@ -1043,22 +1335,24 @@ export function MarketIqPanel() {
         <div>
           <h1 className="miq-title">Corporate Announcements</h1>
           <p className="miq-sub">
-            PDF extract → sentiment / impact (formula + Mistral).
+            One flow: Get → Save → Extract → Analyse (auto-saves to DB).
           </p>
         </div>
         <div className="miq-head-actions">
-          <span className={`miq-live ${live || busy ? "on" : ""}`}>
-            <i className="miq-live-dot" aria-hidden />
-            {busy ? "Fetching…" : live ? "Live Data" : "Cached"}
-          </span>
-          <button
-            type="button"
-            className="chip tag-chip"
-            disabled={busy || analysing}
-            onClick={() => void fetchAnnounced()}
+          <span
+            className={`miq-live ${live || busy || scanRunning ? "on" : ""}`}
           >
-            {busy ? "Refreshing…" : "Refresh NSE"}
-          </button>
+            <i className="miq-live-dot" aria-hidden />
+            {busy
+              ? "Getting…"
+              : saveBusy
+                ? "Saving…"
+                : scanRunning
+                  ? "Analysing…"
+                  : live
+                    ? "Live"
+                    : "Ready"}
+          </span>
           <label className="chip tag-chip miq-days">
             Days
             <select
@@ -1075,7 +1369,7 @@ export function MarketIqPanel() {
           </label>
           <label
             className={`chip tag-chip miq-ocr${useOcr ? " on" : ""}`}
-            title="Off = pdf-parse only (fast). On = vision OCR for scanned/thin PDFs (slower)"
+            title="Off = pdf-parse only (fast). On = vision OCR for scanned PDFs (slower)"
           >
             <input
               type="checkbox"
@@ -1085,33 +1379,18 @@ export function MarketIqPanel() {
             />
             OCR
           </label>
-          {hits.length > 0 ? (
-            <button
-              type="button"
-              className="chip tag-chip"
-              disabled={saveBusy || analysing}
-              onClick={() => void saveHits()}
-            >
-              {saveBusy ? "Saving…" : `Save ${hits.length}`}
-            </button>
-          ) : null}
           <button
             type="button"
             className="chip chip-scan tag-chip"
-            disabled={
-              busy ||
-              (!scanRunning && hits.length === 0 && history.length === 0)
-            }
+            disabled={busy || saveBusy || (!scanRunning && analysing)}
             onClick={() => {
               if (scanRunning) stopScan();
-              else void scanAllAnnouncements();
+              else void runPipeline();
             }}
             title={
               scanRunning
                 ? "Stop after the current batch"
-                : useOcr
-                  ? "Scan & analyse pending (OCR on · last selected days)"
-                  : "Scan & analyse pending (pdf-parse · last selected days)"
+                : "Get new announcements → save → extract & analyse"
             }
           >
             {scanRunning
@@ -1122,7 +1401,11 @@ export function MarketIqPanel() {
                       ? ` · ${scanStats.remaining} left`
                       : ""
                 }`
-              : "Scan & Analyse"}
+              : busy
+                ? "1 · Getting…"
+                : saveBusy
+                  ? "2 · Saving…"
+                  : "Run · Get → Analyse"}
           </button>
         </div>
       </header>
@@ -1130,7 +1413,7 @@ export function MarketIqPanel() {
       {scanRunning || scanStats ? (
         <div
           className={`fill-progress ${scanStats?.errored ? "is-error" : ""} ${
-            scanStats?.finished ? "is-done" : ""
+            scanStats?.finished && !scanStats?.errored ? "is-done" : ""
           }`}
           role="status"
           aria-live="polite"
@@ -1138,12 +1421,14 @@ export function MarketIqPanel() {
           <div className="fill-progress-meta">
             <span className="fill-progress-label">
               {scanStats?.errored
-                ? "Scan failed"
+                ? "Analyse failed"
                 : scanStats?.finished
-                  ? "Scan complete"
+                  ? scanStats.partial
+                    ? "Done · partial (some batches skipped)"
+                    : "Done · saved to DB"
                   : scanStats?.current?.length
-                    ? `Analysing ${scanStats.current.join(", ")}…`
-                    : "Scanning announcements…"}
+                    ? `3/3 Analyse ${scanStats.current.join(", ")}…`
+                    : "3/3 Analyse…"}
             </span>
             <span className="fill-progress-pct">{scanStats?.pct ?? 0}%</span>
           </div>
@@ -1165,23 +1450,20 @@ export function MarketIqPanel() {
         </div>
       ) : null}
 
-      <IqHintPanel title="Recommendation" aria-label="How MarketIQ works">
+      <IqHintPanel title="How it works" aria-label="How MarketIQ works">
         <ul className="obiq-rec-list">
           <li>
-            This lane covers <strong>corporate announcements</strong> (order wins
-            go to OrderBookIQ).
+            Click <strong>Run · Get → Analyse</strong> — that is the whole
+            pipeline.
           </li>
           <li>
-            Refresh NSE → <strong>Scan &amp; Analyse</strong> pending PDFs for
-            category, sentiment, and impact.
+            <strong>1 Get</strong> new NSE announcements → <strong>2 Save</strong>{" "}
+            to DB → <strong>3 Extract + Analyse</strong> each PDF (scores save
+            automatically).
           </li>
           <li>
-            Expand <strong>PDF test lab</strong> to try one filing (upload or
-            URL) without waiting on the full scan.
-          </li>
-          <li>
-            During a bulk scan, the progress bar and list highlight show which
-            ticker(s) are analysing.
+            Per-row <strong>Analyse</strong> re-runs one filing. PDF test lab is
+            for a single upload/URL.
           </li>
         </ul>
       </IqHintPanel>
@@ -1484,6 +1766,20 @@ export function MarketIqPanel() {
             </button>
           ))}
         </div>
+        <div className="filter-bar-main">
+          <span className="scan-filter-label">Topic</span>
+          <button
+            type="button"
+            className={`chip tag-chip miq-topic-analyst${analystMeetOnly ? " on" : ""}`}
+            title="Reg-30 investor / analyst meet & call schedule intimations"
+            onClick={() => {
+              setAnalystMeetOnly((v) => !v);
+              setPage(1);
+            }}
+          >
+            Analyst Meet
+          </button>
+        </div>
         <span className="chip tag-chip miq-date-chip">
           Announcement Date · last {days}d
         </span>
@@ -1566,7 +1862,7 @@ export function MarketIqPanel() {
                 <td colSpan={6} className="empty-state">
                   {busy
                     ? "Loading…"
-                    : "No announcements match these filters. Try Refresh NSE."}
+                    : "No announcements yet. Click Run · Get → Analyse."}
                 </td>
               </tr>
             ) : (
@@ -1581,6 +1877,7 @@ export function MarketIqPanel() {
                 const rowScanning =
                   rowBusy ||
                   (!!r.url?.trim() && scanningUrls.includes(r.url.trim()));
+                const fundChips = resolveFundChips(r);
                 return (
                   <tr
                     key={r.key}
@@ -1611,9 +1908,15 @@ export function MarketIqPanel() {
                     </td>
                     <td className="miq-td-details">
                       <div className="miq-headline">{r.headline}</div>
+                      <FundAliasChips funds={fundChips} />
                       {r.summary !== r.headline || long ? (
                         <>
-                          <div className="miq-summary">{body}</div>
+                          <div className="miq-summary">
+                            <FundHighlightedSummary
+                              text={body}
+                              funds={fundChips}
+                            />
+                          </div>
                           {r.sentiment_why ? (
                             <div className="miq-why">{r.sentiment_why}</div>
                           ) : null}
