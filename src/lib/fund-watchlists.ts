@@ -157,6 +157,27 @@ export const FUND_WATCHLIST_SOURCES: Record<
   },
 };
 
+/**
+ * Builtin funds maintained by hand (Fund tab Add / paste).
+ * `pull:fund-watchlists` skips these so Trendlyne never wipes manual holdings.
+ */
+export const MANUAL_FUND_WATCHLIST_KEYS: FundWatchlistKey[] = [
+  "equityint",
+  "greenlantern",
+  "carnelian",
+  "whitepine",
+  "kriis",
+  "alfaccurate",
+  "moneygrow",
+  "equirus",
+  "stallion",
+  "buoyant",
+];
+
+export function isManualFundWatchlist(key: string): boolean {
+  return (MANUAL_FUND_WATCHLIST_KEYS as string[]).includes(key);
+}
+
 const FUND_INVESTOR_KEYS: Record<FundWatchlistKey, string> = {
   niveshaay: "Niveshaay",
   negen: "Negen Capital / Negen Undiscovered Value Fund",

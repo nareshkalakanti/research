@@ -5,6 +5,7 @@ import {
 } from "@/lib/fund-watchlist-meta";
 import {
   fundTickerSet,
+  fundWatchlistAllTickers,
   loadFundWatchlistStubs,
 } from "@/lib/fund-watchlists";
 import { holdingsTickerSet } from "@/lib/holdings";
@@ -95,6 +96,14 @@ export function filterCompaniesByScanList<T extends { ticker: string; market: st
   }
   if (list === "Edge") {
     return companies.filter((c) => edge.has(c.ticker.toUpperCase()));
+  }
+  if (list === "Funds") {
+    const tickers = fundWatchlistAllTickers();
+    let rows = companies.filter((c) => tickers.has(c.ticker.toUpperCase()));
+    if (fundStubFactory) {
+      rows = appendFundStubs(rows, tickers, universe, fundStubFactory);
+    }
+    return rows;
   }
 
   const fundKey = fundKeyFromScanList(list);

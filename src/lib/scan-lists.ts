@@ -13,6 +13,7 @@ export type ScanList =
   | "BSE SME"
   | "Hold"
   | "Edge"
+  | "Funds"
   | (typeof FUND_WATCHLIST_LABELS)[FundWatchlistKey];
 
 export const SCAN_LISTS: ScanList[] = [
@@ -22,6 +23,7 @@ export const SCAN_LISTS: ScanList[] = [
   "BSE SME",
   "Hold",
   "Edge",
+  "Funds",
   ...FUND_WATCHLIST_KEYS.map((k) => FUND_WATCHLIST_LABELS[k]),
 ];
 
@@ -29,12 +31,14 @@ export function isScanWatchlist(list: string): boolean {
   return (
     list === "Hold" ||
     list === "Edge" ||
+    list === "Funds" ||
     fundKeyFromScanList(list) != null
   );
 }
 
 export function scanListLabel(list: ScanList): string {
   if (list === "Hold") return "Holdings";
+  if (list === "Funds") return "Funds";
   return list;
 }
 
