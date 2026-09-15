@@ -1,3 +1,8 @@
+import {
+  applyLlmRuntimeToEnv,
+  readLlmRuntime,
+} from "./llm-runtime";
+
 export type LlmConfig = {
   llmProvider: "auto" | "claude_code" | "anthropic" | "openai" | "ollama" | "none";
   anthropicApiKey: string | null;
@@ -23,6 +28,9 @@ function envStr(key: string): string | null {
 }
 
 export function loadLlmConfig(): LlmConfig {
+  // Apply UI picker overrides before reading env (same process + cold start).
+  applyLlmRuntimeToEnv();
+
   const provider = (envStr("LLM_PROVIDER") || "ollama").toLowerCase();
   const valid = [
     "auto",
@@ -36,10 +44,15 @@ export function loadLlmConfig(): LlmConfig {
     ? (provider as LlmConfig["llmProvider"])
     : "ollama";
 
-  // Prefer smallest local models by default (cost = $0). Override via env when needed.
+  const runtime = readLlmRuntime();
+
+  // Prefer smallest local models by default (cost = $0). Override via env / UI.
   const cheapText =
-    envStr("LLM_MODEL") || "qwen2.5:3b-instruct";
+    runtime.llmModel ||
+    envStr("LLM_MODEL") ||
+    "qwen2.5:3b-instruct";
   const cheapVision =
+    runtime.ocrModel ||
     envStr("LLM_MODEL_OCR") ||
     envStr("QIANFAN_OCR_MODEL") ||
     "qwen2.5vl:3b";
