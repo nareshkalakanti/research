@@ -262,11 +262,11 @@ export function MissingDataPanel() {
           />
           <MapGrowwDinButton onDone={() => load({ refresh: true })} />
           <p className="hint tight missing-export-hint">
-            NSE filings give DIN boards. Groww only has CEO / MD (no DIN, no
-            full board). Mapping links a Groww name to an existing DIN director
-            only when the name is unique and distinctive — common names like
-            Amit Gupta are skipped. Download CSV for names still missing a DIN
-            board.
+            NSE Scan pulls official DIN boards when available. For SME / gaps,
+            use <strong>Web DIN</strong> — fetches company + registry pages and
+            extracts Name / Designation / DIN with Qwen (progress bar while
+            running). Groww Map links a unique CEO/MD name to an existing DIN
+            director only. Download CSV for names still missing a DIN board.
           </p>
         </>
       ) : null}

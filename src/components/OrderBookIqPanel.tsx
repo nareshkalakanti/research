@@ -1602,7 +1602,7 @@ export function OrderBookIqPanel() {
                   <td>
                     {fmtPct(labResult.extract.order_to_sales_pct)}
                     {labResult.extract.sales_cr != null
-                      ? ` · sales ₹${fmtNum(labResult.extract.sales_cr)} Cr`
+                      ? ` · sales ₹${fmtNum(labResult.extract.sales_cr, 2)} Cr`
                       : ""}
                   </td>
                   <td className="obiq-td-drift">
@@ -1769,7 +1769,7 @@ export function OrderBookIqPanel() {
                       </div>
                       <div className="miq-co-meta">
                         {row.sales_cr != null
-                          ? `sales ₹${fmtNum(row.sales_cr)} Cr`
+                          ? `sales ₹${fmtNum(row.sales_cr, 2)} Cr`
                           : "sales —"}
                       </div>
                     </td>

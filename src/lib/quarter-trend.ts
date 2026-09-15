@@ -32,6 +32,16 @@ function sequentialMoves(values: Array<number | null>): {
   return { up, down, pairs: up + down };
 }
 
+/** True when the last two sequential moves are both down (recent fade). */
+function recentTwoDown(values: Array<number | null>): boolean {
+  const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
+  if (nums.length < 3) return false;
+  const a = nums[nums.length - 3]!;
+  const b = nums[nums.length - 2]!;
+  const c = nums[nums.length - 1]!;
+  return b < a && c < b;
+}
+
 function firstLast(values: Array<number | null>): [number | null, number | null] {
   const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
   if (!nums.length) return [null, null];
@@ -76,7 +86,13 @@ export function trendLabelForRow(row: {
   }
 
   if (row.good_up) {
-    if (last > first && up >= down) return { text: "Growing", tone: "good" };
+    // First→last up but last two quarters both down → Mixed, not Growing.
+    if (recentTwoDown(row.values)) {
+      return last > first
+        ? { text: "Inconsistent", tone: "neutral" }
+        : { text: "Declining", tone: "bad" };
+    }
+    if (last > first && up > down) return { text: "Growing", tone: "good" };
     if (last < first && down > up) return { text: "Declining", tone: "bad" };
     if (up > 0 && down > 0) return { text: "Inconsistent", tone: "neutral" };
     return last >= first
@@ -106,6 +122,105 @@ export function trendShortLabel(text: string): string {
   if (text === "Increasing") return "Rising";
   if (text === "Inconsistent") return "Mixed";
   return text;
+}
+
+/** Overall badge label — Inconsistent → Mixed for UI. */
+export function overallTrendLabel(signal: QtrTrendSignal): string {
+  return signal === "Inconsistent" ? "Mixed" : signal;
+}
+
+/**
+ * Plain-language read of the quarter table — what changed lately vs last year.
+ * Prefer this over raw YoY/QoQ % strips.
+ */
+export function describeQuarterTable(
+  panel: QuarterPanel,
+  yoy?: PanelYoY | null,
+): string | null {
+  const sales = rowValues(panel, "Sales");
+  const np = rowValues(panel, "Net Profit");
+  if (sales.filter((v) => v != null).length < 2) return null;
+
+  const qoq = qoqFromPanel(panel);
+  const salesQ = qoq?.sales_qoq ?? null;
+  const npQ = qoq?.np_qoq ?? null;
+  const salesY = yoy?.sales_yoy ?? null;
+  const npY = yoy?.np_yoy ?? null;
+  const salesFade = recentTwoDown(sales);
+  const npFade = recentTwoDown(np);
+  const labels = panel.labels;
+  const latest = labels[labels.length - 1] ?? "latest quarter";
+
+  const yoyBits: string[] = [];
+  if (salesY != null && npY != null) {
+    if (salesY >= 10 && npY >= 10) {
+      yoyBits.push("sales and profit are both higher than the same quarter last year");
+    } else if (salesY >= 10 && npY < 0) {
+      yoyBits.push("sales are up vs last year, but profit is down");
+    } else if (salesY < 0 && npY < 0) {
+      yoyBits.push("sales and profit are both below the same quarter last year");
+    } else if (salesY >= 10) {
+      yoyBits.push(`sales are up vs last year (${fmtYoYPct(salesY)})`);
+    } else if (npY >= 10) {
+      yoyBits.push(`profit is up vs last year (${fmtYoYPct(npY)})`);
+    } else if (salesY < 0) {
+      yoyBits.push("sales are softer than last year");
+    } else if (npY < 0) {
+      yoyBits.push("profit is softer than last year");
+    }
+  } else if (salesY != null && salesY >= 10) {
+    yoyBits.push(`sales are up vs last year (${fmtYoYPct(salesY)})`);
+  } else if (salesY != null && salesY < 0) {
+    yoyBits.push("sales are softer than last year");
+  }
+
+  const recentBits: string[] = [];
+  if (salesFade && npFade) {
+    recentBits.push("the last two quarters both slipped on sales and profit");
+  } else if (salesFade) {
+    recentBits.push("sales slipped in each of the last two quarters");
+  } else if (
+    salesQ != null &&
+    npQ != null &&
+    salesQ < 0 &&
+    npQ < 0
+  ) {
+    recentBits.push(
+      `${latest} stepped down from the prior quarter on both sales and profit`,
+    );
+  } else if (salesQ != null && salesQ < -5 && npQ != null && npQ >= 0) {
+    recentBits.push(`${latest} sales eased while profit held up`);
+  } else if (salesQ != null && salesQ >= 5 && npQ != null && npQ >= 5) {
+    recentBits.push(`${latest} improved again on sales and profit`);
+  } else if (salesQ != null && salesQ < -5) {
+    recentBits.push(`${latest} sales stepped down from the prior quarter`);
+  } else if (npQ != null && npQ < -10) {
+    recentBits.push(`${latest} profit stepped down from the prior quarter`);
+  }
+
+  if (!yoyBits.length && !recentBits.length) {
+    const [firstS, lastS] = firstLast(sales);
+    if (firstS != null && lastS != null && lastS > firstS * 1.05) {
+      return "Sales built over the span, though the path was uneven.";
+    }
+    if (firstS != null && lastS != null && lastS < firstS * 0.95) {
+      return "Sales drifted lower across the span.";
+    }
+    return "Quarterly sales and profit moved mixed — no clean one-way trend.";
+  }
+
+  if (yoyBits.length && recentBits.length) {
+    const yoyPart = yoyBits[0]!;
+    const head = yoyPart.charAt(0).toUpperCase() + yoyPart.slice(1);
+    const join = yoyPart.includes(" but ") ? ", and " : ", but ";
+    return `${head}${join}${recentBits[0]}.`;
+  }
+  if (yoyBits.length) {
+    const yoyPart = yoyBits[0]!;
+    return yoyPart.charAt(0).toUpperCase() + yoyPart.slice(1) + ".";
+  }
+  const r = recentBits[0]!;
+  return r.charAt(0).toUpperCase() + r.slice(1) + ".";
 }
 
 /** Classify 5-quarter sales/NP pattern. */
@@ -155,23 +270,37 @@ export function classifyQuarterTrend(
     salesSpike;
   const strongSalesYoy = yoy?.sales_yoy != null && yoy.sales_yoy >= 20;
   const npLatestUp = npImprovingLatest(np, npQ);
+  const salesFading = recentTwoDown(sales);
+  const npFading = recentTwoDown(np);
+  // Strong Sales YoY alone must not mask a soft latest print (QoQ red + NP YoY red).
+  const recentSoft =
+    (salesQ != null && salesQ < 0 && npQ != null && npQ < 0) ||
+    (salesFading && (yoy?.np_yoy == null || yoy.np_yoy < 0)) ||
+    (npFading && salesFading);
 
   let signal: QtrTrendSignal;
-  if (salesRecovering || strongSalesYoy) {
+  if (recentSoft && (strongSalesYoy || salesRecovering)) {
+    // Medium-term sales up, but last stretch / profits soft → Mixed.
+    signal = "Inconsistent";
+  } else if (salesRecovering || strongSalesYoy) {
     if (npLatestUp && (opUp || salesRecovering || strongSalesYoy)) {
       signal = "Growing";
-    } else if (opUp || strongSalesYoy) {
+    } else if (opUp && npLatestUp) {
+      signal = "Growing";
+    } else if (strongSalesYoy && !npFading && (npLatestUp || (yoy?.np_yoy != null && yoy.np_yoy >= 0))) {
+      signal = "Growing";
+    } else if (strongSalesYoy && opUp && !salesFading) {
       signal = "Growing";
     } else {
       signal = "Inconsistent";
     }
   } else if (latestOpp || trendSplit || bigGap) {
     signal = "Inconsistent";
-  } else if (salesUp && npUp) {
+  } else if (salesUp && npUp && !recentSoft) {
     signal = "Growing";
   } else if (salesDown && npDown) {
     signal = "Declining";
-  } else if ((salesUp || npUp) && !(salesDown && npDown)) {
+  } else if ((salesUp || npUp) && !(salesDown && npDown) && !recentSoft) {
     signal = "Growing";
   } else if ((salesDown || npDown) && !(salesUp && npUp)) {
     signal = "Declining";
@@ -179,19 +308,9 @@ export function classifyQuarterTrend(
     signal = "Inconsistent";
   }
 
-  const parts: string[] = [];
-  if (sm.pairs > 0) {
-    parts.push(`Sales up in ${sm.up} of ${sm.pairs} sequential quarters`);
-  }
-  if (nm.pairs > 0) {
-    parts.push(`NP up in ${nm.up} of ${nm.pairs}`);
-  }
-  if (salesQ != null) parts.push(`Sales QoQ ${fmtYoYPct(salesQ)}`);
-  if (npQ != null) parts.push(`NP QoQ ${fmtYoYPct(npQ)}`);
-  if (yoy?.sales_yoy != null) parts.push(`Sales YoY ${fmtYoYPct(yoy.sales_yoy)}`);
-
+  const story = describeQuarterTable(panel, yoy);
   return {
     signal,
-    reason: parts.length ? `${parts.join("; ")}.` : `${signal} trend across panel.`,
+    reason: story || `${signal} trend across the quarter table.`,
   };
 }

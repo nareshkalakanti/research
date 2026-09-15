@@ -6,7 +6,6 @@ import {
   FundWatchlistTags,
 } from "@/components/FundWatchlistTags";
 import { ExpandBusiness } from "@/components/ExpandBusiness";
-import { ExpandExtraMetrics } from "@/components/ExpandExtraMetrics";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { HighlightedText } from "@/components/HighlightedText";
@@ -1130,8 +1129,10 @@ function CompanyRows({
           <td colSpan={colSpan}>
             <div className="about-box">
               <ExpandMetricsStrip
+                panel={quarterData.panel}
                 forwardPe={quarterData.forward_pe}
-                epsYoY={quarterData.yoy?.eps_yoy}
+                yoy={quarterData.yoy}
+                extras={quarterData.extras}
                 loading={quarterData.loading}
                 empty={
                   !quarterData.loading &&
@@ -1141,7 +1142,6 @@ function CompanyRows({
                   quarterData.yoy?.eps_yoy == null
                 }
               />
-              <ExpandExtraMetrics extras={quarterData.extras} />
               <div className="about-tabs" role="tablist">
                 <button
                   type="button"
