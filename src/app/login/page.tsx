@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BrandMark } from "@/components/BrandMark";
 import { useAuth } from "@/lib/auth";
 
 export default function LoginPage() {
@@ -30,7 +31,7 @@ export default function LoginPage() {
       <div className="login-atmosphere" aria-hidden />
       <form className="login-card" onSubmit={onSubmit}>
         <div className="login-brand">
-          <span className="brand-mark lg">R</span>
+          <BrandMark large />
           <h1>Research</h1>
           <p>Demo sign-in for Theme</p>
         </div>

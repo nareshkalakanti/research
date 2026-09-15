@@ -6,6 +6,7 @@ import {
   type StrategyRowLinks,
 } from "@/components/StrategyExpandDetail";
 import { FundWatchlistTags } from "@/components/FundWatchlistTags";
+import { WatchButton } from "@/components/WatchButton";
 import { secDisplay } from "@/components/SecCell";
 import type { FundWatchlistKey } from "@/lib/fund-watchlist-meta";
 import type { ConcallDocLinks } from "@/lib/strategy/concall-drift-types";
@@ -131,23 +132,26 @@ export function StrategyConcallDriftRow({
           </a>
         </td>
         <td className="pcd-td-co">
-          <button
-            type="button"
-            className="pcd-co-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle();
-            }}
-          >
-            <span className="pcd-co-name">{r.name}</span>
-            {/\bSME\b/i.test(r.market) ? (
-              <span className="pcd-badge">SME</span>
-            ) : null}
-            {r.has_hold ? (
-              <span className="pcd-badge pcd-badge-hold">Hold</span>
-            ) : null}
-            <FundWatchlistTags tags={r.fund_tags} />
-          </button>
+          <div className="pcd-co-cell">
+            <WatchButton ticker={r.ticker} />
+            <button
+              type="button"
+              className="pcd-co-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+              }}
+            >
+              <span className="pcd-co-name">{r.name}</span>
+              {/\bSME\b/i.test(r.market) ? (
+                <span className="pcd-badge">SME</span>
+              ) : null}
+              {r.has_hold ? (
+                <span className="pcd-badge pcd-badge-hold">Hold</span>
+              ) : null}
+              <FundWatchlistTags tags={r.fund_tags} />
+            </button>
+          </div>
         </td>
         <td className="pcd-td-sec" title={sec.title}>
           <span className="pcd-sec-stack">

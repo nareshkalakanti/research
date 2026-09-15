@@ -2,8 +2,14 @@
 
 import { useEffect, useState, type ComponentType } from "react";
 import dynamic from "next/dynamic";
-import { useRouter, useSearchParams } from "next/navigation";
-import { AppChrome, useAppTab, type AppTab } from "@/components/AppChrome";
+import { useRouter } from "next/navigation";
+import { AppChrome } from "@/components/AppChrome";
+import {
+  AppTabProvider,
+  IQ_TABS,
+  useAppTab,
+  type AppTab,
+} from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 
 function PanelFallback() {
@@ -66,18 +72,18 @@ const PANELS: Record<AppTab, ComponentType> = {
   missing: MissingDataPanel,
 };
 
-export function AppShell() {
-  const { user, ready } = useAuth();
-  const router = useRouter();
-  const searchParams = useSearchParams();
+function preloadIqPanels() {
+  void import("@/components/StrategyPanel");
+  void import("@/components/MarketIqPanel");
+  void import("@/components/OrderBookIqPanel");
+  void import("@/components/BoardRoomIqPanel");
+}
+
+function AppShellPanels() {
   const { tab } = useAppTab();
   const [visited, setVisited] = useState<Set<AppTab>>(
     () => new Set<AppTab>([tab]),
   );
-
-  useEffect(() => {
-    if (ready && !user) router.replace("/login");
-  }, [ready, user, router]);
 
   useEffect(() => {
     setVisited((prev) => {
@@ -88,52 +94,92 @@ export function AppShell() {
     });
   }, [tab]);
 
-  // Legacy query redirects
+  // Keep all IQ panels mounted once any IQ tab is opened — instant IQ switching.
   useEffect(() => {
-    const t = searchParams.get("tab");
+    if (!IQ_TABS.includes(tab)) return;
+    setVisited((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of IQ_TABS) {
+        if (!next.has(id)) {
+          next.add(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    preloadIqPanels();
+  }, [tab]);
+
+  useEffect(() => {
+    const run = () => preloadIqPanels();
+    if (typeof requestIdleCallback !== "undefined") {
+      const id = requestIdleCallback(run);
+      return () => cancelIdleCallback(id);
+    }
+    const t = window.setTimeout(run, 400);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  return (
+    <div className="tab-panels">
+      {[...visited].map((id) => {
+        const Panel = PANELS[id];
+        const active = id === tab;
+        return (
+          <div
+            key={id}
+            className={active ? "tab-panel is-active" : "tab-panel"}
+            hidden={!active}
+            inert={!active ? true : undefined}
+          >
+            <Panel />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function AppShell() {
+  const { user, ready } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (ready && !user) router.replace("/login");
+  }, [ready, user, router]);
+
+  // Legacy query redirects (one-time on load).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const t = params.get("tab");
     if (t === "corporate") {
-      const params = new URLSearchParams(searchParams.toString());
       params.set("tab", "concall");
       params.delete("view");
       router.replace(`/?${params.toString()}`, { scroll: false });
       return;
     }
-    if (t === "concall" && searchParams.get("view") === "board") {
-      const params = new URLSearchParams(searchParams.toString());
+    if (t === "concall" && params.get("view") === "board") {
       params.delete("view");
       router.replace(`/?${params.toString()}`, { scroll: false });
       return;
     }
     if (t === "categories") {
-      const params = new URLSearchParams(searchParams.toString());
       params.delete("tab");
       const qs = params.toString();
       router.replace(qs ? `/?${qs}` : "/", { scroll: false });
     }
-  }, [router, searchParams]);
+  }, [router]);
 
   if (!ready || !user) {
     return <div className="boot">Loading…</div>;
   }
 
   return (
-    <AppChrome>
-      <div className="tab-panels">
-        {[...visited].map((id) => {
-          const Panel = PANELS[id];
-          const active = id === tab;
-          return (
-            <div
-              key={id}
-              className={active ? "tab-panel is-active" : "tab-panel"}
-              hidden={!active}
-              inert={!active ? true : undefined}
-            >
-              <Panel />
-            </div>
-          );
-        })}
-      </div>
-    </AppChrome>
+    <AppTabProvider>
+      <AppChrome>
+        <AppShellPanels />
+      </AppChrome>
+    </AppTabProvider>
   );
 }

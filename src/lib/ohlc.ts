@@ -233,10 +233,77 @@ function mapChartBars(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+async function fetchGrowwDailyBars(
+  ticker: string,
+  market?: string | null,
+  daysBack = 400,
+): Promise<Bar[]> {
+  const sym = ticker.trim().toUpperCase();
+  if (!sym) return [];
+  const m = (market || "NSE").toUpperCase();
+  const exchange = m.includes("BSE") ? "BSE" : "NSE";
+  const end = Date.now();
+  const start = end - Math.max(30, daysBack) * 86_400_000;
+  const url =
+    `https://groww.in/v1/api/charting_service/v2/chart/exchange/${exchange}` +
+    `/segment/CASH/${encodeURIComponent(sym)}` +
+    `?startTimeInMillis=${start}&endTimeInMillis=${end}&intervalInMinutes=1440`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        Accept: "application/json",
+        Referer: "https://groww.in/",
+        Origin: "https://groww.in",
+      },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as {
+      candles?: Array<Array<number | null>>;
+    };
+    const candles = body.candles ?? [];
+    const bars: Bar[] = [];
+    for (const row of candles) {
+      if (!Array.isArray(row) || row.length < 5) continue;
+      const epoch = Number(row[0]);
+      const open = Number(row[1]);
+      const high = Number(row[2]);
+      const low = Number(row[3]);
+      const close = Number(row[4]);
+      const volume = Number(row[5] ?? 0);
+      if (
+        !Number.isFinite(epoch) ||
+        !Number.isFinite(open) ||
+        !Number.isFinite(high) ||
+        !Number.isFinite(low) ||
+        !Number.isFinite(close)
+      ) {
+        continue;
+      }
+      // Groww may send seconds or millis.
+      const ms = epoch > 1e12 ? epoch : epoch * 1000;
+      bars.push({
+        date: toDateStr(new Date(ms)),
+        open,
+        high,
+        low,
+        close,
+        volume: Number.isFinite(volume) ? volume : 0,
+      });
+    }
+    return bars.sort((a, b) => a.date.localeCompare(b.date));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Try NSE / SME / BSE Yahoo aliases; keep the series with the most bars.
  * Prefer the primary board when it has enough history; otherwise fall through
  * to aliases (SME often needs `.BO` when `-SM.NS` is a stub / missing).
+ * Daily path: when Yahoo is thin, fall back to Groww candles (app-wide).
  */
 async function fetchBarsWithCandidates(
   ticker: string,
@@ -245,7 +312,6 @@ async function fetchBarsWithCandidates(
   yearsBack: number,
 ): Promise<Bar[]> {
   const symbols = yfSymbolCandidates(ticker, market);
-  if (!symbols.length) return [];
   const primary = toYfinanceSymbol(ticker, market);
   const period1 = periodStart(yearsBack);
   const enough =
@@ -280,30 +346,55 @@ async function fetchBarsWithCandidates(
     }
   }
 
-  if (primaryBars.length >= enough) return primaryBars;
-  // Prefer primary when it at least has something usable; else best alias.
-  if (primaryBars.length >= 5 && primaryBars.length >= best.length) {
-    return primaryBars;
+  let out: Bar[] =
+    primaryBars.length >= enough
+      ? primaryBars
+      : primaryBars.length >= 5 && primaryBars.length >= best.length
+        ? primaryBars
+        : best.length >= primaryBars.length
+          ? best
+          : primaryBars;
+
+  // App-wide: Yahoo stub / missing SME history → Groww daily candles.
+  if (interval === "1d" && out.length < enough) {
+    const groww = await fetchGrowwDailyBars(
+      ticker,
+      market,
+      Math.max(120, Math.round(yearsBack * 365)),
+    );
+    if (groww.length > out.length) out = groww;
   }
-  return best.length >= primaryBars.length ? best : primaryBars;
+
+  return out;
 }
 
+/**
+ * Weekly OHLC. Prefer Yahoo 1wk; when thin/missing, rebuild from daily
+ * (Yahoo + Groww fallback) so Scan / TQ / BB W work for SME stubs.
+ */
 export async function fetchWeeklyBars(
   ticker: string,
   market?: string | null,
   yearsBack = 2,
 ): Promise<Bar[]> {
-  const weekly = await fetchBarsWithCandidates(ticker, market, "1wk", yearsBack);
-  if (weekly.length < 2) return weekly;
-  // Short daily window — only need tip weeks Yahoo freezes mid-week.
+  const weeklyEnough = 50;
+  let weekly = await fetchBarsWithCandidates(ticker, market, "1wk", yearsBack);
+
+  // Always pull daily (Groww-backed) so we can rebuild or fix the tip week.
+  let daily: Bar[] = [];
   try {
-    const daily = await fetchRecentDailyBars(ticker, market, 120);
-    if (daily.length >= 10) {
-      return mergeWeeklyTipFromDaily(weekly, daily, 3);
-    }
+    daily = await fetchDailyBars(ticker, market, yearsBack);
   } catch {
-    /* keep Yahoo weekly */
+    daily = [];
   }
+
+  if (weekly.length < weeklyEnough) {
+    const fromDaily = weeklyBarsFromDaily(daily);
+    if (fromDaily.length > weekly.length) weekly = fromDaily;
+  } else if (daily.length >= 10) {
+    weekly = mergeWeeklyTipFromDaily(weekly, daily, 3);
+  }
+
   return weekly;
 }
 
@@ -313,36 +404,31 @@ async function fetchRecentDailyBars(
   market: string | null | undefined,
   daysBack: number,
 ): Promise<Bar[]> {
-  const symbols = yfSymbolCandidates(ticker, market);
-  if (!symbols.length) return [];
-  const primary = toYfinanceSymbol(ticker, market);
-  const period1 = periodStartDays(daysBack);
-  const ordered = [
-    primary,
-    ...symbols.filter((s) => s !== primary),
-  ].filter(Boolean) as string[];
-
-  let best: Bar[] = [];
-  for (const symbol of ordered) {
-    try {
-      const chart = await yf.chart(symbol, { period1, interval: "1d" });
-      const bars = mapChartBars(chart.quotes ?? []);
-      if (symbol === primary && bars.length >= 10) return bars;
-      if (bars.length > best.length) best = bars;
-    } catch {
-      /* next alias */
-    }
-  }
-  return best;
+  // Reuse the app-wide daily path (Yahoo aliases + Groww when thin).
+  const years = Math.max(1, Math.ceil(daysBack / 365));
+  const bars = await fetchDailyBars(ticker, market, years);
+  if (bars.length <= daysBack + 5) return bars;
+  const cut = periodStartDays(daysBack);
+  return bars.filter((b) => b.date.slice(0, 10) >= cut);
 }
 
-/** Monthly OHLC for BB NEW on 50-period band (5y history). */
+/**
+ * Monthly OHLC. Prefer Yahoo 1mo; when thin/missing, rebuild from daily
+ * (Yahoo + Groww) so BB M / RSI paths work for SME stubs.
+ */
 export async function fetchMonthlyBars(
   ticker: string,
   market?: string | null,
   yearsBack = 5,
 ): Promise<Bar[]> {
-  return fetchBarsWithCandidates(ticker, market, "1mo", yearsBack);
+  const monthlyEnough = 16;
+  let monthly = await fetchBarsWithCandidates(ticker, market, "1mo", yearsBack);
+  if (monthly.length >= monthlyEnough) return monthly;
+
+  const daily = await fetchDailyBars(ticker, market, yearsBack);
+  const built = monthlyBarsFromDaily(daily);
+  if (built.length > monthly.length) return built;
+  return monthly.length ? monthly : built;
 }
 
 /**
@@ -391,17 +477,19 @@ export async function fetchMonthlyBarsForRsi(
   yearsBack = 5,
   minBars = 16,
 ): Promise<Bar[]> {
+  // fetchMonthlyBars already rebuilds from Groww-backed daily when thin.
   const monthly = await fetchMonthlyBars(ticker, market, yearsBack);
   if (monthly.length >= minBars) return monthly;
-  // No series at all — skip expensive 5y daily (delisted / ghost SME).
-  if (monthly.length === 0) return [];
-  // Stub monthly (1–15 bars): rebuild from daily.
+  if (monthly.length === 0) {
+    const daily = await fetchDailyBars(ticker, market, Math.min(yearsBack, 3));
+    return monthlyBarsFromDaily(daily);
+  }
   const daily = await fetchDailyBars(ticker, market, Math.min(yearsBack, 3));
   const built = monthlyBarsFromDaily(daily);
   return built.length >= monthly.length ? built : monthly;
 }
 
-/** Daily OHLC for BB NEW / TQ “today / latest session” scans. */
+/** Daily OHLC — Yahoo board aliases, then Groww when history is thin (app-wide). */
 export async function fetchDailyBars(
   ticker: string,
   market?: string | null,

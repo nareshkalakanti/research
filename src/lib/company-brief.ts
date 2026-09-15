@@ -94,11 +94,11 @@ Return ONLY valid JSON (no markdown):
     "Another line — one line explanation"
   ],
   "customers": "who buys / end markets in one sentence",
-  "qtr_signal": "exactly one of: Growing, Inconsistent, Declining",
-  "qtr_reason": "One short sentence on 5-quarter pattern",
+  "qtr_signal": "Growing|Inconsistent|Declining only when quarterly data present; else null",
+  "qtr_reason": "One short sentence on 5-quarter pattern, or empty when no quarters",
   "watch": "one risk or thing to verify"
 }
-Use only facts from dossier, peer context, quarterly data, and investor materials. Read Investor materials before capex and growth_triggers. Return valid JSON only — no markdown fences.`;
+Use only facts from dossier, peer context, quarterly data, and investor materials. Read Investor materials before capex and growth_triggers. Never invent qtr_signal when quarterly data is missing. Return valid JSON only — no markdown fences.`;
 
 function briefSystemPrompt(): string {
   return loadPrompt("business-brief", BRIEF_FALLBACK);
@@ -109,7 +109,7 @@ const cache = new Map<string, CacheEntry>();
 const CACHE_MS = 60 * 60 * 1000;
 
 function corpusHash(text: string): string {
-  return `v18:${text.length}:${text.slice(0, 120)}`;
+  return `v19:${text.length}:${text.slice(0, 120)}`;
 }
 
 const BRIEF_USER_CHAR_LIMIT = 30_000;
@@ -469,9 +469,13 @@ export async function generateCompanyBrief(
   try {
     const parsed = await completeBriefJson(cfg, corpus);
     const brief = normalizeBrief(parsed, row, matchedThemes);
+    // QTR badge must come from the real panel — never keep LLM guesses.
     if (qtrTrend) {
       brief.qtr_signal = qtrTrend.signal;
-      if (!brief.qtr_reason.trim()) brief.qtr_reason = qtrTrend.reason;
+      brief.qtr_reason = qtrTrend.reason || brief.qtr_reason;
+    } else {
+      brief.qtr_signal = null;
+      brief.qtr_reason = "";
     }
     cache.set(cacheKey, { at: Date.now(), brief, corpusHash: hash });
     return { llm, context, brief, cached: false };

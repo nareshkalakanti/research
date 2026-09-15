@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { announcementDedupeKey } from "@/lib/announcement-dedupe";
 import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
 import { isInvestorAnalystMeetAnnouncement } from "@/lib/investor-meet-announcement";
+import { isPreferentialAnnouncement } from "@/lib/preferential-announcement";
 import { matchMarketIqFundsInText, highlightMarketIqFundSegments } from "@/lib/marketiq-fund-aliases";
 import { IqHintPanel } from "@/components/IqHintPanel";
 import { CompanyWatchCell } from "@/components/CompanyWatchCell";
@@ -421,6 +422,7 @@ export function MarketIqPanel() {
   const [sentiment, setSentiment] = useState<SentimentFilter>("all");
   /** Topic chip: Reg-30 investor / analyst meet & call filings. */
   const [analystMeetOnly, setAnalystMeetOnly] = useState(false);
+  const [preferentialOnly, setPreferentialOnly] = useState(false);
   const [showAllCats, setShowAllCats] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [page, setPage] = useState(1);
@@ -864,6 +866,13 @@ export function MarketIqPanel() {
             return false;
           }
         }
+        if (preferentialOnly) {
+          if (
+            !isPreferentialAnnouncement(r.category, r.headline, r.summary)
+          ) {
+            return false;
+          }
+        }
         if (cat) {
           if (
             !r.category.toLowerCase().includes(cat) &&
@@ -884,7 +893,7 @@ export function MarketIqPanel() {
         const bd = b.dateIso ? Date.parse(b.dateIso) : 0;
         return bd - ad;
       });
-  }, [hits, history, q, category, sentiment, analystMeetOnly, overlay]);
+  }, [hits, history, q, category, sentiment, analystMeetOnly, preferentialOnly, overlay]);
 
   const pages = Math.max(1, Math.ceil(feed.length / PAGE_SIZE));
   const pageSafe = Math.min(page, pages);
@@ -1791,6 +1800,17 @@ export function MarketIqPanel() {
             }}
           >
             Analyst Meet
+          </button>
+          <button
+            type="button"
+            className={`chip tag-chip miq-topic-pref${preferentialOnly ? " on" : ""}`}
+            title="Preferential allotment / issue filings"
+            onClick={() => {
+              setPreferentialOnly((v) => !v);
+              setPage(1);
+            }}
+          >
+            Preferential
           </button>
         </div>
         <span className="chip tag-chip miq-date-chip">
