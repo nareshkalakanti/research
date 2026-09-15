@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { tradingviewUrl, bseScripCodeFromTicker } from "@/lib/links";
 import { WatchButton } from "@/components/WatchButton";
 import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
@@ -20,6 +20,7 @@ type TrackerOrder = {
   order_date: string | null;
   news_date: string | null;
   contract_value_cr: number | null;
+  contract_value_note?: string | null;
   duration: string;
   duration_months: number | null;
   annual_value_cr: number | null;
@@ -37,7 +38,7 @@ type TrackerCompany = {
   company: string;
   market: string | null;
   order_count: number;
-  total_order_value_cr: number;
+  total_order_value_cr: number | null;
   sales_cr: number | null;
   sales_year: string | null;
   orders_as_pct_of_revenue: number | null;
@@ -81,21 +82,65 @@ function fmtDate(iso: string | null | undefined): string {
 
 function fmtCr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "Not mentioned";
+  // Treat explicit 0 as unknown for display — never show a fake ₹0 Cr total.
+  if (n === 0) return "—";
   const abs = Math.abs(n);
   if (abs >= 1) {
-    return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
+    // Up to 2 decimals so 8.42 Cr isn't rounded to 8.4 (breaks % checks).
+    return `₹${n.toLocaleString("en-IN", {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+    })} Cr`;
   }
   if (abs >= 0.01) {
     return `₹${(n * 100).toLocaleString("en-IN", {
       maximumFractionDigits: 1,
+      minimumFractionDigits: 0,
     })} L`;
   }
-  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })} Cr`;
+  return `₹${n.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  })} Cr`;
 }
 
 function fmtPct(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
-  return `${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}%`;
+  return `${n.toLocaleString("en-IN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  })}%`;
+}
+
+function orderPctTitle(opts: {
+  pct: number | null | undefined;
+  orderCr: number | null | undefined;
+  salesCr: number | null | undefined;
+  salesYear?: string | null;
+}): string | undefined {
+  const { pct, orderCr, salesCr, salesYear } = opts;
+  if (pct == null || orderCr == null || salesCr == null || salesCr <= 0) {
+    return undefined;
+  }
+  const yr = salesYear ? ` (${salesYear})` : "";
+  return `Order ${fmtCr(orderCr)} ÷ sales ${fmtCr(salesCr)}${yr} = ${fmtPct(pct)}`;
+}
+
+function annualValueTitle(opts: {
+  contractCr: number | null | undefined;
+  annualCr: number | null | undefined;
+  months: number | null | undefined;
+}): string | undefined {
+  const { contractCr, annualCr, months } = opts;
+  if (contractCr == null || annualCr == null) return undefined;
+  if (months == null || months <= 0) {
+    return "Annual value = contract (no usable duration)";
+  }
+  if (months <= 12) {
+    return `Duration ${months} mo ≤ 12 — annual value = full contract ${fmtCr(contractCr)} (not annualized up)`;
+  }
+  const years = Math.round((months / 12) * 100) / 100;
+  return `Duration ${months} mo (~${years}y) — annual value = ${fmtCr(contractCr)} ÷ ${years} = ${fmtCr(annualCr)}`;
 }
 
 function pctTone(n: number | null | undefined): "hi" | "mid" | "lo" | "none" {
@@ -196,22 +241,55 @@ function CompanyLink({
   );
 }
 
-function PctPill({ value }: { value: number | null }) {
+function PctPill({
+  value,
+  title,
+}: {
+  value: number | null;
+  title?: string;
+}) {
   return (
-    <span className={`otrd-pct otrd-pct-${pctTone(value)}`}>
+    <span className={`otrd-pct otrd-pct-${pctTone(value)}`} title={title}>
       {fmtPct(value)}
     </span>
   );
 }
 
 function DurationCell({ order }: { order: TrackerOrder }) {
+  const raw = (order.duration || "").trim();
+  // Prefer filing text ("2-3 months") over parsed midpoint ("3 months").
+  if (raw && raw !== "Not mentioned" && !/^not\s+disclosed$/i.test(raw)) {
+    return (
+      <span
+        title={
+          order.duration_months != null
+            ? `Parsed ~${order.duration_months} months for annualization`
+            : undefined
+        }
+      >
+        {raw}
+      </span>
+    );
+  }
   if (order.duration_months != null) {
     return <>{order.duration_months} months</>;
   }
-  if (!order.duration || order.duration === "Not mentioned") {
-    return <>Not mentioned</>;
+  return <>Not mentioned</>;
+}
+
+function salesYearLabel(year: string | null | undefined): string {
+  if (!year?.trim()) return "";
+  const y = year.trim();
+  // ISO period end → FY label (Indian FY ends Mar).
+  const m = y.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const yr = Number(m[1]);
+    const mo = Number(m[2]);
+    const fy = mo >= 4 ? yr + 1 : yr;
+    return ` (FY${fy})`;
   }
-  return <>{order.duration}</>;
+  if (/^FY/i.test(y)) return ` (${y})`;
+  return ` (${y})`;
 }
 
 function OrdersTable({
@@ -246,8 +324,8 @@ function OrdersTable({
             <th>Contract Value</th>
             <th>Duration</th>
             <th>Annual Value</th>
-            <th>{compact ? "Revenue %" : "Order Size %"}</th>
-            {!compact ? <th>Company Revenue</th> : null}
+            <th>Order Size %</th>
+            <th>Company Revenue</th>
             <th>PDF</th>
           </tr>
         </thead>
@@ -273,23 +351,55 @@ function OrdersTable({
                 {!compact ? (
                   <td>{fmtDate(o.order_date || o.news_date)}</td>
                 ) : null}
-                <td className="otrd-money">{fmtCr(o.contract_value_cr)}</td>
+                <td
+                  className="otrd-money"
+                  title={
+                    o.contract_value_note ||
+                    (o.contract_value_cr == null
+                      ? "Order value not stated in filing"
+                      : undefined)
+                  }
+                >
+                  {fmtCr(o.contract_value_cr)}
+                </td>
                 <td className="otrd-muted">
                   <DurationCell order={o} />
                 </td>
-                <td className="otrd-money">{fmtCr(o.annual_value_cr)}</td>
-                <td>
-                  <PctPill value={o.order_size_pct} />
+                <td
+                  className="otrd-money"
+                  title={annualValueTitle({
+                    contractCr: o.contract_value_cr,
+                    annualCr: o.annual_value_cr,
+                    months: o.duration_months,
+                  })}
+                >
+                  {fmtCr(o.annual_value_cr)}
                 </td>
-                {!compact ? (
-                  <td className="otrd-muted">
-                    {o.sales_cr != null
-                      ? `${fmtCr(o.sales_cr)}${
-                          o.sales_year ? ` (${o.sales_year})` : ""
+                <td>
+                  <PctPill
+                    value={o.order_size_pct}
+                    title={orderPctTitle({
+                      pct: o.order_size_pct,
+                      orderCr: o.contract_value_cr,
+                      salesCr: o.sales_cr,
+                      salesYear: o.sales_year,
+                    })}
+                  />
+                </td>
+                <td
+                  className="otrd-muted"
+                  title={
+                    o.sales_cr != null
+                      ? `Latest annual sales used for Order Size %${
+                          o.sales_year ? ` · ${o.sales_year}` : ""
                         }`
-                      : "Not mentioned"}
-                  </td>
-                ) : null}
+                      : "Company revenue not available"
+                  }
+                >
+                  {o.sales_cr != null
+                    ? `${fmtCr(o.sales_cr)}${salesYearLabel(o.sales_year)}`
+                    : "—"}
+                </td>
                 <td>
                   <div className="otrd-pdf-cell">
                     {pdf ? (
@@ -495,9 +605,14 @@ export function OrderTrackerPanel({
   }
 
   function salesLabel(c: TrackerCompany): string {
-    if (c.sales_cr == null) return "Not mentioned";
-    const yr = c.sales_year ? ` (${c.sales_year})` : "";
-    return `${fmtCr(c.sales_cr)}${yr}`;
+    if (c.sales_cr == null) return "—";
+    return `${fmtCr(c.sales_cr)}${salesYearLabel(c.sales_year)}`;
+  }
+
+  function salesTitle(c: TrackerCompany): string | undefined {
+    if (c.sales_cr == null) return "Company revenue not available";
+    const yr = c.sales_year ? ` · ${c.sales_year}` : "";
+    return `Company annual sales used for Order Size %${yr}`;
   }
 
   return (
@@ -670,66 +785,118 @@ export function OrderTrackerPanel({
             {companyStack.length === 0 ? (
               <p className="otrd-empty">No companies match these filters.</p>
             ) : (
-              companyStack.map((c) => {
-                const open = expanded.has(c.ticker);
-                return (
-                  <section
-                    key={c.ticker}
-                    className={`otrd-co-card${
-                      focusTicker === c.ticker ? " is-focus" : ""
-                    }`}
-                  >
-                    <div className="otrd-co-summary">
-                      <WatchButton ticker={c.ticker} />
-                      <button
-                        type="button"
-                        className="otrd-co-expand"
-                        onClick={() => toggleExpand(c.ticker)}
-                        aria-expanded={open}
-                      >
-                        <span className="otrd-chev">{open ? "▴" : "▾"}</span>
-                        <span className="otrd-co-link">{c.company}</span>
-                        <span
-                          className={`exch-chip exch-${exchangeLabel(c.ticker, c.market).toLowerCase()}`}
-                        >
-                          {exchangeLabel(c.ticker, c.market)}
-                        </span>
-                        <PctPill value={c.orders_as_pct_of_revenue} />
-                        <span className="otrd-co-count">
-                          {c.order_count} order{c.order_count === 1 ? "" : "s"}
-                        </span>
-                        <span className="otrd-money otrd-co-total">
-                          {fmtCr(c.total_order_value_cr)}
-                        </span>
-                        <span className="otrd-muted otrd-co-sales">
-                          {salesLabel(c)}
-                        </span>
-                      </button>
-                      <a
-                        className="otrd-tv"
-                        href={tradingviewUrl(c.ticker, c.market)}
-                        target="_blank"
-                        rel="noreferrer"
-                        title={
-                          bseScripCodeFromTicker(c.ticker)
-                            ? "BSE India quote"
-                            : "TradingView"
-                        }
-                      >
-                        {bseScripCodeFromTicker(c.ticker) ? "BSE" : "TV"}
-                      </a>
-                    </div>
-                    {open ? (
-                      <div className="otrd-co-body">
-                        <h3 className="otrd-co-orders-title">
-                          Individual Orders
-                        </h3>
-                        <OrdersTable orders={c.orders} compact />
-                      </div>
-                    ) : null}
-                  </section>
-                );
-              })
+              <div className="otrd-table-wrap otrd-co-table-wrap">
+                <table className="otrd-table otrd-co-table">
+                  <thead>
+                    <tr>
+                      <th>Company Name</th>
+                      <th>
+                        Orders as % of Revenue{" "}
+                        <span className="otrd-sort">↓</span>
+                      </th>
+                      <th>Order Count</th>
+                      <th>Total Order Value</th>
+                      <th>Company Revenue</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companyStack.map((c) => {
+                      const open = expanded.has(c.ticker);
+                      return (
+                        <Fragment key={c.ticker}>
+                          <tr
+                            className={`otrd-co-row${
+                              focusTicker === c.ticker ? " is-focus" : ""
+                            }${open ? " is-open" : ""}`}
+                          >
+                            <td>
+                              <div className="otrd-co-name">
+                                <WatchButton ticker={c.ticker} />
+                                <button
+                                  type="button"
+                                  className="otrd-co-expand-btn"
+                                  onClick={() => toggleExpand(c.ticker)}
+                                  aria-expanded={open}
+                                >
+                                  <span className="otrd-chev">
+                                    {open ? "▴" : "▾"}
+                                  </span>
+                                  <span className="otrd-co-link">
+                                    {c.company}
+                                  </span>
+                                </button>
+                                <span
+                                  className={`exch-chip exch-${exchangeLabel(c.ticker, c.market).toLowerCase()}`}
+                                >
+                                  {exchangeLabel(c.ticker, c.market)}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <PctPill
+                                value={c.orders_as_pct_of_revenue}
+                                title={orderPctTitle({
+                                  pct: c.orders_as_pct_of_revenue,
+                                  orderCr: c.total_order_value_cr,
+                                  salesCr: c.sales_cr,
+                                  salesYear: c.sales_year,
+                                })}
+                              />
+                            </td>
+                            <td className="otrd-muted">
+                              {c.order_count} order
+                              {c.order_count === 1 ? "" : "s"}
+                            </td>
+                            <td
+                              className="otrd-money"
+                              title={
+                                c.total_order_value_cr == null
+                                  ? "No stated ₹ order size in filing(s)"
+                                  : undefined
+                              }
+                            >
+                              {c.total_order_value_cr == null
+                                ? "—"
+                                : fmtCr(c.total_order_value_cr)}
+                            </td>
+                            <td className="otrd-muted" title={salesTitle(c)}>
+                              {salesLabel(c)}
+                            </td>
+                            <td>
+                              <a
+                                className="otrd-tv"
+                                href={tradingviewUrl(c.ticker, c.market)}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={
+                                  bseScripCodeFromTicker(c.ticker)
+                                    ? "BSE India quote"
+                                    : "TradingView"
+                                }
+                              >
+                                {bseScripCodeFromTicker(c.ticker) ? "BSE" : "TV"}
+                              </a>
+                            </td>
+                          </tr>
+                          {open ? (
+                            <tr className="otrd-co-detail-row">
+                              <td colSpan={6}>
+                                <div className="otrd-co-body">
+                                  <h3 className="otrd-co-orders-title">
+                                    Individual Orders
+                                  </h3>
+                                  <OrdersTable orders={c.orders} compact />
+                                </div>
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         ) : null}

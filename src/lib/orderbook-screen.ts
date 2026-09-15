@@ -1714,9 +1714,33 @@ export function parseOrderSizeToCr(raw: string): number | null {
   if (!raw || raw === NOT_DISCLOSED) return null;
   // Strip grouping commas so "1,621 Lacs" → 1621; "534,73,08,872.24" → rupees
   const t = raw.replace(/,/g, "");
+
+  // Ranges: "1000 to 2500 ₹ Cr", "₹1000–2500 Cr", "1,000-2,500 Crore"
+  const rangeCr = t.match(
+    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:to|[-–])\s*([\d]+(?:\.\d+)?)\s*(?:INR|Rs\.?|₹)?\s*(?:Crores?|Cr\.?)\b/i,
+  );
+  if (rangeCr) {
+    const a = Number(rangeCr[1]);
+    const b = Number(rangeCr[2]);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
+      return Math.round(((a + b) / 2) * 100) / 100;
+    }
+  }
+  const rangeLac = t.match(
+    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:to|[-–])\s*([\d]+(?:\.\d+)?)\s*(?:INR|Rs\.?|₹)?\s*(?:Lacs?|Lakhs?)\b/i,
+  );
+  if (rangeLac) {
+    const a = Number(rangeLac[1]);
+    const b = Number(rangeLac[2]);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
+      return Math.round((((a + b) / 2) / 100) * 100) / 100;
+    }
+  }
+
   // Prefer Crores / Cr (unit already Cr — not absolute INR)
+  // Allow "2500 ₹ Cr" / "₹ 2500 Cr" / "2500 Cr"
   const cr = t.match(
-    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:Crores?|Cr\.?)\b/i,
+    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:INR|Rs\.?|₹)?\s*(?:Crores?|Cr\.?)\b/i,
   );
   if (cr) {
     const n = Number(cr[1]);
@@ -1724,7 +1748,7 @@ export function parseOrderSizeToCr(raw: string): number | null {
   }
   // Lacs / Lakhs → Cr (/100)
   const lac = t.match(
-    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:Lacs?|Lakhs?)\b/i,
+    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:INR|Rs\.?|₹)?\s*(?:Lacs?|Lakhs?)\b/i,
   );
   if (lac) {
     const n = Number(lac[1]);
@@ -1739,7 +1763,8 @@ export function parseOrderSizeToCr(raw: string): number | null {
   if (
     abs &&
     !/(?:Million|Mn|Billion|Bn)\b/i.test(raw) &&
-    !/(?:Months?|Days?|Years?|Weeks?)\b/i.test(raw)
+    !/(?:Months?|Days?|Years?|Weeks?)\b/i.test(raw) &&
+    !/\b(?:to|[-–])\b/.test(t)
   ) {
     const n = Number(abs[1]);
     // Indian filings often write bare absolute ₹ before "(… Crore …)" words
@@ -1796,6 +1821,22 @@ export function parseOrderSizeToCr(raw: string): number | null {
     }
   }
   return null;
+}
+
+/** Human label when size text is a Cr range (for hover). */
+export function orderSizeRangeLabel(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const t = raw.replace(/,/g, "");
+  const rangeCr = t.match(
+    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:to|[-–])\s*([\d]+(?:\.\d+)?)\s*(?:INR|Rs\.?|₹)?\s*(?:Crores?|Cr\.?)\b/i,
+  );
+  if (!rangeCr) return null;
+  const a = Number(rangeCr[1]);
+  const b = Number(rangeCr[2]);
+  if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) return null;
+  const lo = Math.min(a, b);
+  const hi = Math.max(a, b);
+  return `Range ₹${lo.toLocaleString("en-IN")}–${hi.toLocaleString("en-IN")} Cr (using midpoint)`;
 }
 
 /**
@@ -3558,6 +3599,8 @@ export type OrderTrackerOrder = {
   order_date: string | null;
   news_date: string | null;
   contract_value_cr: number | null;
+  /** When size was a stated range (e.g. 1000–2500 Cr). */
+  contract_value_note: string | null;
   duration: string;
   duration_months: number | null;
   annual_value_cr: number | null;
@@ -3575,7 +3618,7 @@ export type OrderTrackerCompany = {
   company: string;
   market: string | null;
   order_count: number;
-  total_order_value_cr: number;
+  total_order_value_cr: number | null;
   sales_cr: number | null;
   sales_year: string | null;
   orders_as_pct_of_revenue: number | null;
@@ -3589,6 +3632,29 @@ export function parseDurationMonths(
 ): number | null {
   const t = (raw || "").toLowerCase().replace(/,/g, "");
   if (!t || t === NOT_DISCLOSED.toLowerCase()) return null;
+
+  // Ranges first: "2-3 months", "18–24 months", "1 to 2 years"
+  const monthRange = t.match(
+    /([\d]+(?:\.\d+)?)\s*(?:[-–]|to)\s*([\d]+(?:\.\d+)?)\s*(?:months?|mos?)\b/,
+  );
+  if (monthRange) {
+    const a = Number(monthRange[1]);
+    const b = Number(monthRange[2]);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
+      return Math.max(1, Math.round((a + b) / 2));
+    }
+  }
+  const yearRange = t.match(
+    /([\d]+(?:\.\d+)?)\s*(?:[-–]|to)\s*([\d]+(?:\.\d+)?)\s*(?:years?|yrs?)\b/,
+  );
+  if (yearRange) {
+    const a = Number(yearRange[1]);
+    const b = Number(yearRange[2]);
+    if (Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0) {
+      return Math.max(1, Math.round(((a + b) / 2) * 12));
+    }
+  }
+
   // "two (02) years" / "ten (10) years"
   const wordYears = t.match(
     /\b(one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s*(?:\(\s*\d+\s*\))?\s*(?:years?|yrs?)\b/,
@@ -3607,7 +3673,7 @@ export function parseDurationMonths(
       nine: 9,
       ten: 10,
     };
-    const n = map[w] ?? Number(w);
+    const n = map[w!] ?? Number(w);
     if (Number.isFinite(n) && n > 0) return Math.round(n * 12);
   }
   const years = t.match(/([\d]+(?:\.\d+)?)\s*(?:years?|yrs?)\b/);
@@ -3626,6 +3692,20 @@ export function parseDurationMonths(
     if (Number.isFinite(n) && n > 0) return Math.max(1, Math.round(n / 30));
   }
   return null;
+}
+
+/**
+ * Annualized contract value for tracker display.
+ * Multi-year contracts → value per year; ≤12 months → full contract (do not inflate).
+ */
+export function annualizeOrderValueCr(
+  contractCr: number,
+  durationMonths: number | null | undefined,
+): number {
+  if (!Number.isFinite(contractCr) || contractCr <= 0) return contractCr;
+  const months = durationMonths ?? null;
+  if (months == null || months <= 12) return contractCr;
+  return Math.round((contractCr / (months / 12)) * 100) / 100;
 }
 
 function inferOrderType(extract: OrderbookExtract, subjectBlob: string): string {
@@ -3789,11 +3869,12 @@ export function listOrderbookTracker(opts?: {
 
       let idx = 0;
       for (const line of lineItems) {
+        const sizeText = line.order_size || extract.order_size;
         const cr = coerceOrderSizeCr(
           line.size_cr != null && line.size_cr > 0
             ? line.size_cr
             : extract.order_size_cr,
-          line.order_size || extract.order_size,
+          sizeText,
         );
         const customer = trackerBlankLabel(line.awarding_entity);
         if ((cr == null || cr <= 0) && customer === "Not mentioned" && !pass) {
@@ -3803,9 +3884,7 @@ export function listOrderbookTracker(opts?: {
         const duration = trackerBlankLabel(line.execution || extract.execution);
         const months = parseDurationMonths(duration);
         const annual =
-          cr != null && months != null && months > 0
-            ? Math.round((cr / (months / 12)) * 100) / 100
-            : cr;
+          cr != null ? annualizeOrderValueCr(cr, months) : cr;
         // No sales → no % (do not fall back to a stale 0 from extract).
         const pct =
           extract.sales_cr != null && extract.sales_cr > 0
@@ -3864,6 +3943,7 @@ export function listOrderbookTracker(opts?: {
           order_date: extract.order_date,
           news_date: extract.news_date || extract.order_date,
           contract_value_cr: cr ?? null,
+          contract_value_note: orderSizeRangeLabel(sizeText),
           duration,
           duration_months: months,
           annual_value_cr: annual ?? null,
@@ -3917,7 +3997,7 @@ export function listOrderbookTracker(opts?: {
         company: o.company,
         market: o.market,
         order_count: 0,
-        total_order_value_cr: 0,
+        total_order_value_cr: null,
         sales_cr: o.sales_cr,
         sales_year: o.sales_year,
         orders_as_pct_of_revenue: null,
@@ -3927,18 +4007,20 @@ export function listOrderbookTracker(opts?: {
       companyMap.set(o.ticker, c);
     }
     c.order_count += 1;
-    if (o.contract_value_cr != null) {
+    if (o.contract_value_cr != null && o.contract_value_cr > 0) {
       c.total_order_value_cr =
-        Math.round((c.total_order_value_cr + o.contract_value_cr) * 100) / 100;
+        Math.round(
+          ((c.total_order_value_cr ?? 0) + o.contract_value_cr) * 100,
+        ) / 100;
     }
     if (c.sales_cr == null && o.sales_cr != null) c.sales_cr = o.sales_cr;
     if (!c.sales_year && o.sales_year) c.sales_year = o.sales_year;
     c.orders.push(o);
   }
   const companies = [...companyMap.values()].map((c) => {
-    if (c.sales_cr != null && c.sales_cr > 0 && c.total_order_value_cr > 0) {
+    if (c.sales_cr != null && c.sales_cr > 0 && (c.total_order_value_cr ?? 0) > 0) {
       c.orders_as_pct_of_revenue =
-        Math.round((c.total_order_value_cr / c.sales_cr) * 10000) / 100;
+        Math.round((c.total_order_value_cr! / c.sales_cr) * 10000) / 100;
     }
     c.orders.sort((a, b) => {
       const ad = a.order_date || a.news_date || a.screened_at;

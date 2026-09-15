@@ -71,9 +71,6 @@ export function peRowsFromPanel(
   if (!epsRow) return [];
 
   const eps = epsRow.values;
-  const forwardEps = eps.map((e) =>
-    e == null || !Number.isFinite(e) ? null : Math.round(e * 4 * 100) / 100,
-  );
   const forwardPe = eps.map((e) => {
     if (e == null || !Number.isFinite(e)) return null;
     const run = e * 4;
@@ -97,7 +94,6 @@ export function peRowsFromPanel(
   return [
     { label: "Current PE", values: trailingPe, good_up: false, decimals: 2 },
     { label: "Forward PE", values: forwardPe, good_up: false, decimals: 2 },
-    { label: "Forward EPS", values: forwardEps, good_up: true, decimals: 2 },
   ];
 }
 

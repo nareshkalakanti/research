@@ -2,14 +2,18 @@
 
 import {
   fmtQVal,
-  fmtYoYPct,
   qCellClass,
-  yoyClass,
   type PanelYoY,
   type QuarterPanel as QuarterPanelData,
   type QuarterRow,
 } from "@/lib/quarter-panel";
-import { classifyQuarterTrend, trendLabelForRow, trendShortLabel } from "@/lib/quarter-trend";
+import {
+  classifyQuarterTrend,
+  describeQuarterTable,
+  overallTrendLabel,
+  trendLabelForRow,
+  trendShortLabel,
+} from "@/lib/quarter-trend";
 import { peRowsFromPanel } from "@/lib/valuation";
 
 type Props = {
@@ -38,17 +42,12 @@ export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
   const peRows = peRowsFromPanel(panel, price);
   const displayRows = [...panel.rows, ...peRows];
   const overall = classifyQuarterTrend(panel, yoy);
+  const story = describeQuarterTable(panel, yoy) || overall?.reason || null;
 
   const salesRow = panel.rows.find((r) => r.label === "Sales");
   const allZeroSales =
     !!salesRow?.values.length &&
     salesRow.values.every((v) => v == null || Number(v) === 0);
-  const hasYoY =
-    !!yoy &&
-    (yoy.sales_yoy != null ||
-      yoy.np_yoy != null ||
-      yoy.eps_yoy != null ||
-      yoy.ebidt_yoy != null);
 
   return (
     <div className="q-expand">
@@ -57,18 +56,19 @@ export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
           <p className="q-source-note">{sourceNote}</p>
         ) : null}
         <div className="q-block-head">
-          <div className="q-block-title">Quarterly · Rs Cr</div>
+          <div className="q-block-title">Quarterly · ₹ Cr</div>
           <div className="q-block-meta">
             {overall ? (
               <span
                 className={`q-overall-trend q-overall-trend--${overall.signal.toLowerCase()}`}
                 title={overall.reason}
               >
-                {overall.signal}
+                {overallTrendLabel(overall.signal)}
               </span>
             ) : null}
           </div>
         </div>
+        {story ? <p className="q-story">{story}</p> : null}
         {allZeroSales ? (
           <div className="q-note">
             No operating sales — profit may be other income / one-offs
@@ -114,54 +114,6 @@ export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
             </tbody>
           </table>
         </div>
-        {hasYoY ? (
-          <p className="q-yoy-foot">
-            YoY vs same Q last year:{" "}
-            {yoy!.sales_yoy != null ? (
-              <>
-                Sales{" "}
-                <strong className={yoyClass(yoy!.sales_yoy)}>
-                  {fmtYoYPct(yoy!.sales_yoy)}
-                </strong>
-              </>
-            ) : null}
-            {yoy!.sales_yoy != null && yoy!.np_yoy != null ? " · " : null}
-            {yoy!.np_yoy != null ? (
-              <>
-                NP{" "}
-                <strong className={yoyClass(yoy!.np_yoy)}>
-                  {fmtYoYPct(yoy!.np_yoy)}
-                </strong>
-              </>
-            ) : null}
-            {(yoy!.sales_yoy != null || yoy!.np_yoy != null) &&
-            yoy!.eps_yoy != null
-              ? " · "
-              : null}
-            {yoy!.eps_yoy != null ? (
-              <>
-                EPS{" "}
-                <strong className={yoyClass(yoy!.eps_yoy)}>
-                  {fmtYoYPct(yoy!.eps_yoy)}
-                </strong>
-              </>
-            ) : null}
-            {(yoy!.sales_yoy != null ||
-              yoy!.np_yoy != null ||
-              yoy!.eps_yoy != null) &&
-            yoy!.ebidt_yoy != null
-              ? " · "
-              : null}
-            {yoy!.ebidt_yoy != null ? (
-              <>
-                EBIDT{" "}
-                <strong className={yoyClass(yoy!.ebidt_yoy)}>
-                  {fmtYoYPct(yoy!.ebidt_yoy)}
-                </strong>
-              </>
-            ) : null}
-          </p>
-        ) : null}
       </div>
     </div>
   );

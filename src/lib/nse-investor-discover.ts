@@ -260,8 +260,13 @@ export async function discoverNseOrderAnnouncements(
     if (!url.startsWith("http") || url.endsWith("/-")) continue;
     const desc = safeStr(row.desc);
     const attachmentText = safeStr(row.attchmntText);
-    const blob = `${desc} ${attachmentText}`;
+    const file = safeStr(row.attchmntFile);
+    const blob = `${desc} ${attachmentText} ${file}`;
     if (!isOrderWinAnnouncementBlob(blob)) continue;
+    // NCLT / court "orders" in PDF names are not commercial wins.
+    if (/nclt|scheme.?of.?arrangement|receipt.?of.?order.?by.?nclt/i.test(file)) {
+      continue;
+    }
     const id = sourceId(url);
     if (seenUrl.has(id)) continue;
     seenUrl.add(id);

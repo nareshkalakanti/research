@@ -50,10 +50,9 @@ function requireMarket(market: string | null | undefined): string {
 function inferCategory(designation: string): string {
   const text = designation.toLowerCase();
   if (text.includes("independent")) return "Independent";
+  // Word-boundary checks — plain "Director" must not match "cto" inside "direcTor".
   if (
-    ["managing", "executive", "whole-time", "whole time", "ceo", "cfo", "cto"].some(
-      (x) => text.includes(x),
-    )
+    /\b(managing|executive|whole[-\s]?time|ceo|cfo|cto|md)\b/.test(text)
   ) {
     return "Executive";
   }

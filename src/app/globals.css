@@ -3567,6 +3567,13 @@ button.brand-btn:hover .brand-name {
   line-height: 1.35;
 }
 
+.q-story {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #334155;
+}
+
 .q-empty {
   color: var(--muted);
   font-size: 0.8rem;
@@ -3588,31 +3595,31 @@ button.brand-btn:hover .brand-name {
   width: auto;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 0.84rem;
+  font-size: 0.76rem;
   font-family: inherit;
 }
 
 .q-table col.q-col-metric {
-  width: 108px;
+  width: 96px;
 }
 
 .q-table col.q-col-qtr {
-  width: 68px;
+  width: 58px;
 }
 
 .q-table col.q-col-trend {
-  width: 72px;
+  width: 64px;
 }
 
 .q-table th,
 .q-table td {
-  padding: 7px 10px;
+  padding: 5px 7px;
   border: none;
   border-bottom: 1px solid #f1f5f9;
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  line-height: 1.35;
+  line-height: 1.25;
 }
 
 .q-table tbody tr:hover td {
@@ -3642,13 +3649,13 @@ button.brand-btn:hover .brand-name {
 
 .q-table th {
   color: #64748b;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   background: #f8fafc;
-  padding-top: 8px;
-  padding-bottom: 8px;
+  padding-top: 5px;
+  padding-bottom: 5px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -3739,9 +3746,9 @@ button.brand-btn:hover .brand-name {
   align-items: center;
   justify-content: center;
   min-width: 0;
-  padding: 2px 7px;
+  padding: 1px 6px;
   border-radius: 999px;
-  font-size: 0.64rem;
+  font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.2;
@@ -11089,9 +11096,9 @@ tr.sm-row-sme-hit td {
 .expand-metrics {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  margin-bottom: 8px;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .expand-metrics--loading,
@@ -11100,8 +11107,88 @@ tr.sm-row-sme-hit td {
 }
 
 .expand-metrics-muted {
-  font-size: 13px;
+  font-size: 0.78rem;
   color: var(--muted);
+  font-weight: 500;
+}
+
+.expand-metrics-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.expand-metrics-group--stats {
+  flex-shrink: 0;
+}
+
+.expand-metrics-story {
+  flex: 1 1 220px;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.expand-metrics-signal {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.expand-metrics-signal--growing {
+  color: #0f6b3a;
+  background: #e6f6ec;
+}
+
+.expand-metrics-signal--declining {
+  color: #9b1c1c;
+  background: #fde8e8;
+}
+
+.expand-metrics-signal--inconsistent {
+  color: #6b5a1a;
+  background: #f7f0d8;
+}
+
+.expand-metrics-group-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+.expand-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.expand-stat-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.expand-stat-value strong {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
 }
 
 .expand-metrics-item {
@@ -18204,6 +18291,58 @@ a.miq-co-name:hover {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.otrd-co-table-wrap {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.otrd-co-table th:nth-child(2),
+.otrd-co-table td:nth-child(2),
+.otrd-co-table th:nth-child(3),
+.otrd-co-table td:nth-child(3),
+.otrd-co-table th:nth-child(4),
+.otrd-co-table td:nth-child(4),
+.otrd-co-table th:nth-child(5),
+.otrd-co-table td:nth-child(5) {
+  white-space: nowrap;
+}
+
+.otrd-co-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.otrd-co-expand-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+.otrd-co-row.is-focus td,
+.otrd-co-row.is-open td {
+  background: #f8fafc;
+}
+
+.otrd-co-detail-row td {
+  padding: 0 !important;
+  background: #fafbfc;
+  border-bottom: 1px solid var(--line);
 }
 
 .otrd-co-card {
