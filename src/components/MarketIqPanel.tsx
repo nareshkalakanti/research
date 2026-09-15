@@ -7,6 +7,9 @@ import { isInvestorAnalystMeetAnnouncement } from "@/lib/investor-meet-announcem
 import { matchMarketIqFundsInText, highlightMarketIqFundSegments } from "@/lib/marketiq-fund-aliases";
 import { IqHintPanel } from "@/components/IqHintPanel";
 import { CompanyWatchCell } from "@/components/CompanyWatchCell";
+import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import { LiveBseFeedBadge } from "@/components/LiveBseFeedBadge";
+import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
 
 type MarketIqHit = {
   ticker: string;
@@ -408,6 +411,8 @@ export function MarketIqPanel() {
   const [error, setError] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
   const [live, setLive] = useState(false);
+  const [nseFeed, setNseFeed] = useState<NseFeedStatus | null>(null);
+  const [bseFeed, setBseFeed] = useState<NseFeedStatus | null>(null);
   const [hits, setHits] = useState<MarketIqHit[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [overlay, setOverlay] = useState<Record<string, AnalysedOverlay>>({});
@@ -458,8 +463,14 @@ export function MarketIqPanel() {
       const qq = (search ?? q).trim();
       if (qq) params.set("q", qq);
       const res = await fetch(`/api/marketiq?${params}`);
-      const json = (await res.json()) as { history?: HistoryRow[] };
+      const json = (await res.json()) as {
+        history?: HistoryRow[];
+        nse_feed?: NseFeedStatus;
+        bse_feed?: NseFeedStatus;
+      };
       setHistory(json.history ?? []);
+      if (json.nse_feed) setNseFeed(json.nse_feed);
+      if (json.bse_feed) setBseFeed(json.bse_feed);
     } catch {
       /* ignore */
     }
@@ -497,8 +508,12 @@ export function MarketIqPanel() {
         sources?: MarketIqHit[];
         error?: string;
         cached?: boolean;
+        nse_feed?: NseFeedStatus;
+        bse_feed?: NseFeedStatus;
       };
       if (ac.signal.aborted) return [];
+      if (json.nse_feed) setNseFeed(json.nse_feed);
+      if (json.bse_feed) setBseFeed(json.bse_feed);
       if (!res.ok || json.ok === false) {
         setError(json.error || "Fetch failed");
         setHits([]);
@@ -1339,20 +1354,18 @@ export function MarketIqPanel() {
           </p>
         </div>
         <div className="miq-head-actions">
-          <span
-            className={`miq-live ${live || busy || scanRunning ? "on" : ""}`}
-          >
-            <i className="miq-live-dot" aria-hidden />
-            {busy
-              ? "Getting…"
-              : saveBusy
-                ? "Saving…"
-                : scanRunning
-                  ? "Analysing…"
-                  : live
-                    ? "Live"
-                    : "Ready"}
-          </span>
+          <LiveNseFeedBadge status={nseFeed} compact />
+          <LiveBseFeedBadge status={bseFeed} compact />
+          {busy || saveBusy || scanRunning ? (
+            <span className="miq-live on">
+              <i className="miq-live-dot" aria-hidden />
+              {busy
+                ? "Getting…"
+                : saveBusy
+                  ? "Saving…"
+                  : "Analysing…"}
+            </span>
+          ) : null}
           <label className="chip tag-chip miq-days">
             Days
             <select

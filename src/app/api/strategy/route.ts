@@ -182,6 +182,10 @@ async function getStrategyConcallDrift(req: NextRequest) {
   const window_counts = concallDriftWindowCounts({
     market,
     quarter,
+    sector,
+    subSector,
+    mcapMin: Number.isFinite(mcapMin!) ? mcapMin : null,
+    mcapMax: Number.isFinite(mcapMax!) ? mcapMax : null,
     onePerTicker: true,
   });
   const sort_counts = concallDriftSortCounts({
@@ -190,6 +194,10 @@ async function getStrategyConcallDrift(req: NextRequest) {
     window,
     from,
     to,
+    sector,
+    subSector,
+    mcapMin: Number.isFinite(mcapMin!) ? mcapMin : null,
+    mcapMax: Number.isFinite(mcapMax!) ? mcapMax : null,
     onePerTicker: true,
   });
 
@@ -199,8 +207,20 @@ async function getStrategyConcallDrift(req: NextRequest) {
     detail: "Feed status unavailable",
     last_scan_at: null as string | null,
   };
+  let bse_feed = {
+    live: false,
+    checked_at: new Date().toISOString(),
+    detail: "Feed status unavailable",
+    last_scan_at: null as string | null,
+  };
   try {
-    nse_feed = await checkNseFeedStatus({ force: refresh });
+    const { checkBseFeedStatus } = await import("@/lib/bse-feed-status");
+    const [nse, bse] = await Promise.all([
+      checkNseFeedStatus({ force: refresh }),
+      checkBseFeedStatus({ force: refresh }),
+    ]);
+    nse_feed = nse;
+    bse_feed = bse;
   } catch {
     /* best-effort — still return rows */
   }
@@ -226,6 +246,7 @@ async function getStrategyConcallDrift(req: NextRequest) {
     scan_progress: concallDriftScanProgress({ market }),
     pending: pendingConcallDriftTickers({ market }).length,
     nse_feed,
+    bse_feed,
     rows,
   });
 }

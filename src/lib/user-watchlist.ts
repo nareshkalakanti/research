@@ -76,12 +76,6 @@ export function addWatch(ticker: string): UserWatchlistState {
     updated_at: new Date().toISOString(),
   };
   writeRaw(next);
-  // Background MarketIQ + Concall as soon as it lands on the watchlist
-  if (typeof window !== "undefined") {
-    void import("@/lib/watchlist-auto-analyze")
-      .then((m) => m.enqueueWatchlistAnalyze(t))
-      .catch(() => null);
-  }
   return next;
 }
 

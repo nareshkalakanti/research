@@ -7,7 +7,7 @@ import {
   fyQuarterExplain,
   isoDate,
 } from "@/lib/strategy/concall-drift-quarters";
-import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import { istTodayParts, shiftIstCivilDay } from "@/lib/nse-time";
 import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
 
 export type ConcallDriftSort = "all" | "gainers" | "losers";
@@ -64,11 +64,16 @@ type Props = {
   onSearch: (q: string) => void;
   withBaseline?: number;
   totalEvents?: number;
+  shownCount?: number;
   windowCounts?: ConcallDriftWindowCounts | null;
   sortCounts?: ConcallDriftSortCounts | null;
   loading?: boolean;
   onClear?: () => void;
   nseFeed?: NseFeedStatus;
+  bseFeed?: NseFeedStatus;
+  density: "comfy" | "compact";
+  onDensity: (d: "comfy" | "compact") => void;
+  onExportCsv?: () => void;
 };
 
 const DATE_PRESETS: Array<{
@@ -76,12 +81,6 @@ const DATE_PRESETS: Array<{
   label: string;
   title: string;
 }> = [
-  {
-    id: "early",
-    label: "Early",
-    title:
-      "Concall in last 2 IST days — freshest post-call moves (best for spotting early drift)",
-  },
   {
     id: "yesterday",
     label: "Yesterday",
@@ -93,11 +92,6 @@ const DATE_PRESETS: Array<{
     title: "Concall announced today (IST)",
   },
   {
-    id: "last7",
-    label: "Last 7d",
-    title: "Concall announced in the last 7 IST days",
-  },
-  {
     id: "tomorrow",
     label: "Tomorrow",
     title:
@@ -105,31 +99,21 @@ const DATE_PRESETS: Array<{
   },
   {
     id: "next7",
-    label: "Next 7d",
+    label: "Next 7 days",
     title:
       "Usually empty — we only store past NSE filings, not scheduled future calls",
+  },
+  {
+    id: "last7",
+    label: "Last 7 days",
+    title: "Concall announced in the last 7 IST days",
   },
   { id: "custom", label: "Custom", title: "Pick a custom date range" },
 ];
 
-function Count({ n, loading }: { n?: number; loading?: boolean }) {
-  if (loading) {
-    return (
-      <span className="chip-count chip-count--busy" aria-busy="true">
-        …
-      </span>
-    );
-  }
-  if (n == null) return null;
-  return <span className="chip-count">{n}</span>;
-}
-
 function fmtCr(n: number): string {
-  if (n >= 100_000) return `${(n / 100_000).toFixed(1)}L Cr`;
-  if (n >= 1000) return `${Math.round(n).toLocaleString("en-IN")} Cr`;
-  if (n >= 100) return `${Math.round(n)} Cr`;
-  if (n >= 10) return `${n.toFixed(0)} Cr`;
-  return `${n.toFixed(1)} Cr`;
+  const rounded = n >= 100 ? Math.round(n) : Math.round(n * 10) / 10;
+  return `${rounded.toLocaleString("en-IN")} Cr`;
 }
 
 export function ConcallDriftFilterBar({
@@ -147,9 +131,9 @@ export function ConcallDriftFilterBar({
   sector,
   onSector,
   sectors,
-  subSector,
-  onSubSector,
-  subSectors,
+  subSector: _subSector,
+  onSubSector: _onSubSector,
+  subSectors: _subSectors,
   mcapMin,
   mcapMax,
   onMcapMin,
@@ -159,11 +143,16 @@ export function ConcallDriftFilterBar({
   onSearch,
   withBaseline,
   totalEvents,
+  shownCount,
   windowCounts,
-  sortCounts,
+  sortCounts: _sortCounts,
   loading,
   onClear,
   nseFeed,
+  bseFeed,
+  density,
+  onDensity,
+  onExportCsv,
 }: Props) {
   const bounds = mcapBounds ?? { min: 0, max: 1000 };
   const lo = Math.min(
@@ -199,248 +188,250 @@ export function ConcallDriftFilterBar({
     Boolean(datePreset) ||
     Boolean(quarter) ||
     Boolean(sector) ||
-    Boolean(subSector) ||
     Boolean(search.trim()) ||
     mcapNarrowed;
 
+  const feedLive = Boolean(nseFeed?.live || bseFeed?.live);
+  const feedLabel = feedLive ? "Feed live" : "Feed stale";
+
   return (
-    <div className="scan-filter-stack concall-filter-stack">
-      <div className="scan-filter-row">
-        <span className="scan-filter-label">Move</span>
-        <div className="chip-row">
+    <div className="pcd-chrome">
+      <div className="pcd-topbar">
+        <label className="pcd-quarter-pill">
+          <span className="pcd-sr">Quarter</span>
+          <select
+            value={quarter}
+            onChange={(e) => onQuarter(e.target.value)}
+            title={quarter ? fyQuarterExplain(quarter) : "All quarters"}
+          >
+            <option value="">All quarters</option>
+            {quarterOptions.map((q) => (
+              <option key={q} value={q}>
+                {fyQuarterChipLabel(q)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="pcd-density" role="group" aria-label="Row density">
           <button
             type="button"
-            className={`chip tag-chip tag-concall-all ${sort === "all" ? "on" : ""}`}
-            onClick={() => onSort("all")}
-            title="All names with a paired concall in this window"
+            className={density === "comfy" ? "on" : ""}
+            onClick={() => onDensity("comfy")}
           >
-            All
-            <Count n={sortCounts?.all} loading={loading} />
+            Comfy
           </button>
           <button
             type="button"
-            className={`chip tag-chip tag-concall-gainers ${sort === "gainers" ? "on" : ""}`}
-            onClick={() => onSort("gainers")}
-            title="Positive Δ call — LTP above last close before concall announcement"
+            className={density === "compact" ? "on" : ""}
+            onClick={() => onDensity("compact")}
           >
-            ↑ Gainers
-            <Count n={sortCounts?.gainers} loading={loading} />
+            Compact
           </button>
-          <button
-            type="button"
-            className={`chip tag-chip tag-concall-losers ${sort === "losers" ? "on" : ""}`}
-            onClick={() => onSort("losers")}
-            title="Negative Δ call — LTP below last close before concall announcement"
-          >
-            ↓ Losers
-            <Count n={sortCounts?.losers} loading={loading} />
+        </div>
+
+        {onExportCsv ? (
+          <button type="button" className="pcd-ghost-btn" onClick={onExportCsv}>
+            CSV
           </button>
-          {filtersActive && onClear ? (
-            <button
-              type="button"
-              className="clear-filter"
-              onClick={onClear}
-              title="Clear Move, When, Filter, and Quarter selections"
-            >
-              Clear
-            </button>
+        ) : null}
+
+        <div className="pcd-status">
+          <span className={feedLive ? "pcd-feed is-live" : "pcd-feed is-stale"}>
+            <span className="pcd-feed-dot" aria-hidden />
+            {feedLabel}
+          </span>
+          {nseFeed ? (
+            <span className="pcd-exch" title={nseFeed.detail}>
+              NSE {nseFeed.live ? "on" : "off"}
+            </span>
+          ) : null}
+          {bseFeed ? (
+            <span className="pcd-exch" title={bseFeed.detail}>
+              BSE {bseFeed.live ? "on" : "off"}
+            </span>
           ) : null}
         </div>
       </div>
 
-      <div className="scan-filter-row">
-        <span className="scan-filter-label">When</span>
-        <div className="chip-row">
+      <div className="pcd-toolbar">
+        <div className="pcd-sort">
+          <button
+            type="button"
+            className={sort === "all" ? "on" : ""}
+            onClick={() => onSort("all")}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={sort === "gainers" ? "on" : ""}
+            onClick={() => onSort("gainers")}
+            title="Positive Δ earn"
+          >
+            + Top gainers
+          </button>
+          <button
+            type="button"
+            className={sort === "losers" ? "on" : ""}
+            onClick={() => onSort("losers")}
+            title="Negative Δ earn"
+          >
+            + Top losers
+          </button>
+        </div>
+
+        <div className="pcd-presets">
           {DATE_PRESETS.map(({ id, label, title }) => {
             const countKey =
               id === "custom" || id === ""
                 ? null
                 : (id as keyof NonNullable<typeof windowCounts>);
             const n = countKey ? windowCounts?.[countKey] : undefined;
-            const emptyFuture =
-              (id === "tomorrow" || id === "next7") && n === 0;
-            const whenClass =
-              id === "early"
-                ? "tag-concall-early"
-                : id === "yesterday"
-                  ? "tag-concall-yesterday"
-                  : id === "today"
-                    ? "tag-concall-today"
-                    : id === "last7"
-                      ? "tag-concall-last7"
-                      : id === "tomorrow"
-                        ? "tag-concall-tomorrow"
-                        : id === "next7"
-                          ? "tag-concall-next7"
-                          : id === "custom"
-                            ? "tag-concall-custom"
-                            : "tag-concall-when";
             return (
               <button
-                key={id || "none"}
+                key={id}
                 type="button"
-                className={`chip tag-chip ${whenClass} ${datePreset === id ? "on" : ""}${emptyFuture ? " is-empty" : ""}`}
+                className={datePreset === id ? "on" : ""}
                 onClick={() => onDatePreset(datePreset === id ? "" : id)}
                 title={title}
               >
                 {label}
-                {countKey ? <Count n={n} loading={loading} /> : null}
+                {n != null && !loading ? (
+                  <span className="pcd-preset-n">{n}</span>
+                ) : null}
               </button>
             );
           })}
         </div>
+
+        <label className="pcd-sector">
+          <span className="pcd-sr">Sector</span>
+          <select
+            value={sector}
+            onChange={(e) => onSector(e.target.value)}
+          >
+            <option value="">Sectors…</option>
+            {sectors.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="pcd-mcap">
+          <div className="pcd-mcap-head">
+            <span className="pcd-mcap-lab">MCap</span>
+            <span className="pcd-mcap-vals">
+              {fmtCr(lo)} – {fmtCr(hi)}
+            </span>
+          </div>
+          <div className="pcd-range-wrap">
+            <div
+              className="pcd-range-fill"
+              style={{
+                left: `${sliderPct.left}%`,
+                width: `${sliderPct.width}%`,
+              }}
+            />
+            <input
+              type="range"
+              className="pcd-range pcd-range-lo"
+              min={bounds.min}
+              max={bounds.max}
+              step={1}
+              value={lo}
+              aria-label="Minimum market cap"
+              onChange={(e) => onMcapMin(Math.min(Number(e.target.value), hi))}
+            />
+            <input
+              type="range"
+              className="pcd-range pcd-range-hi"
+              min={bounds.min}
+              max={bounds.max}
+              step={1}
+              value={hi}
+              aria-label="Maximum market cap"
+              onChange={(e) => onMcapMax(Math.max(Number(e.target.value), lo))}
+            />
+          </div>
+        </div>
+
+        <label className="pcd-search">
+          <span className="pcd-sr">Search</span>
+          <input
+            type="search"
+            value={search}
+            placeholder="Search ticker or company…"
+            onChange={(e) => onSearch(e.target.value)}
+          />
+        </label>
+
+        {filtersActive && onClear ? (
+          <button type="button" className="pcd-clear" onClick={onClear}>
+            Clear
+          </button>
+        ) : null}
       </div>
 
       {datePreset === "custom" ? (
-        <div className="scan-filter-row">
-          <span className="scan-filter-label">Dates</span>
-          <div className="concall-custom-dates">
-            <label className="field">
-              <span>From</span>
-              <input
-                type="date"
-                value={customFrom}
-                onChange={(e) => onCustomFrom(e.target.value)}
-              />
-            </label>
-            <label className="field">
-              <span>To</span>
-              <input
-                type="date"
-                value={customTo}
-                onChange={(e) => onCustomTo(e.target.value)}
-              />
-            </label>
-          </div>
+        <div className="pcd-custom-dates">
+          <label>
+            From
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => onCustomFrom(e.target.value)}
+            />
+          </label>
+          <label>
+            To
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => onCustomTo(e.target.value)}
+            />
+          </label>
         </div>
       ) : null}
 
-      <div className="scan-filter-row">
-        <span className="scan-filter-label">Filter</span>
-        <div className="concall-filter-tools">
-          <label className="concall-sector-field">
-            <select
-              value={sector}
-              onChange={(e) => onSector(e.target.value)}
-              aria-label="Sector"
-            >
-              <option value="">Sectors…</option>
-              {sectors.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="concall-sector-field">
-            <select
-              value={subSector}
-              onChange={(e) => onSubSector(e.target.value)}
-              aria-label="Sub-sector"
-            >
-              <option value="">Sub-sectors…</option>
-              {subSectors.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="concall-search-field">
-            <input
-              type="search"
-              value={search}
-              placeholder="Search ticker or company…"
-              onChange={(e) => onSearch(e.target.value)}
-            />
-          </label>
-
-          <div className="concall-mcap-range">
-            <span className="concall-mcap-label">₹ CR</span>
-            <span className="concall-mcap-values">
-              {fmtCr(lo)} – {fmtCr(hi)}
-            </span>
-            <div className="concall-range-wrap">
-              <div
-                className="concall-range-fill"
-                style={{
-                  left: `${sliderPct.left}%`,
-                  width: `${sliderPct.width}%`,
-                }}
-              />
-              <input
-                type="range"
-                className="concall-range concall-range-lo"
-                min={bounds.min}
-                max={bounds.max}
-                step={1}
-                value={lo}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  onMcapMin(Math.min(v, hi));
-                }}
-              />
-              <input
-                type="range"
-                className="concall-range concall-range-hi"
-                min={bounds.min}
-                max={bounds.max}
-                step={1}
-                value={hi}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  onMcapMax(Math.max(v, lo));
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="scan-filter-row">
-        <span className="scan-filter-label">Quarter</span>
-        <div className="concall-quarter-row">
-          <button
-            type="button"
-            className={`chip concall-quarter-chip tag-concall-q ${!quarter ? "on" : ""}`}
-            onClick={() => onQuarter("")}
-          >
-            All
-          </button>
-          {quarterOptions.map((q, i) => (
-            <button
-              key={q}
-              type="button"
-              className={`chip concall-quarter-chip tag-concall-q tag-concall-q-${(i % 4) + 1} ${quarter === q ? "on" : ""}`}
-              onClick={() => onQuarter(quarter === q ? "" : q)}
-              title={fyQuarterExplain(q)}
-            >
-              {fyQuarterChipLabel(q)}
-            </button>
-          ))}
-          {typeof totalEvents === "number" ? (
-            <span className="concall-filter-meta">
-              {totalEvents.toLocaleString()} events
-              {typeof withBaseline === "number"
-                ? ` · ${withBaseline.toLocaleString()} with call baseline`
-                : null}
-              {quarter
-                ? ` · ${fyQuarterChipLabel(quarter)} · filings ${quarterWindow ? `${isoDate(quarterWindow.from)} – ${isoDate(quarterWindow.to)}` : ""}`
-                : null}
-            </span>
-          ) : null}
-          {nseFeed ? <LiveNseFeedBadge status={nseFeed} compact /> : null}
-        </div>
+      <div className="pcd-meta">
+        <span>
+          {quarter && quarterWindow ? (
+            <>
+              Events · {isoDate(quarterWindow.from)} —{" "}
+              {isoDate(quarterWindow.to)}
+            </>
+          ) : datePreset === "custom" && customFrom && customTo ? (
+            <>
+              Events · {customFrom} — {customTo}
+            </>
+          ) : (
+            <>Events · all windows</>
+          )}
+        </span>
+        <span>
+          {typeof shownCount === "number" && typeof totalEvents === "number"
+            ? `${shownCount.toLocaleString("en-IN")} of ${totalEvents.toLocaleString("en-IN")} stocks`
+            : typeof totalEvents === "number"
+              ? `${totalEvents.toLocaleString("en-IN")} stocks`
+              : null}
+          {typeof withBaseline === "number"
+            ? ` · ${withBaseline.toLocaleString("en-IN")} with baseline`
+            : null}
+        </span>
       </div>
     </div>
   );
 }
 
 export function defaultCustomDates(): { from: string; to: string } {
-  const to = new Date();
-  const from = new Date(to);
-  from.setDate(from.getDate() - 30);
-  return { from: isoDate(from), to: isoDate(to) };
+  const toDay = istTodayParts();
+  const fromDay = shiftIstCivilDay(toDay, -30);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return {
+    from: `${fromDay.year}-${pad(fromDay.month)}-${pad(fromDay.day)}`,
+    to: `${toDay.year}-${pad(toDay.month)}-${pad(toDay.day)}`,
+  };
 }

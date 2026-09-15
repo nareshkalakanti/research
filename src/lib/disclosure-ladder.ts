@@ -1,5 +1,10 @@
 import { createNseBuybackSession } from "./nse-buybacks";
 import { isFinancialEarnAnnouncement } from "./strategy/concall-drift-earn";
+import {
+  formatIstTime,
+  formatNseApiDateFromInstant,
+  parseNseDateTime,
+} from "./nse-time";
 
 const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
 const NSE_ANN_REF =
@@ -34,63 +39,12 @@ function nseAnnIndex(market: string | null | undefined): Array<"sme" | "equities
   return ["equities", "sme"];
 }
 
-function parseNseDateTime(raw: unknown): string | null {
-  const text = safeStr(raw);
-  if (!text) return null;
-  const m = text.match(
-    /^(\d{2})-([A-Za-z]{3})-(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/,
-  );
-  if (m) {
-    const months: Record<string, number> = {
-      jan: 0,
-      feb: 1,
-      mar: 2,
-      apr: 3,
-      may: 4,
-      jun: 5,
-      jul: 6,
-      aug: 7,
-      sep: 8,
-      oct: 9,
-      nov: 10,
-      dec: 11,
-    };
-    const mon = months[m[2]!.toLowerCase()];
-    if (mon == null) return null;
-    const d = new Date(
-      Number(m[3]),
-      mon,
-      Number(m[1]),
-      Number(m[4] || 0),
-      Number(m[5] || 0),
-      Number(m[6] || 0),
-    );
-    if (Number.isNaN(d.getTime())) return null;
-    return d.toISOString();
-  }
-  const d = new Date(text);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
 function formatTimeLabel(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
+  return formatIstTime(iso, { second: "2-digit" });
 }
 
 function formatShortTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleTimeString("en-IN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return formatIstTime(iso);
 }
 
 function isPureNoise(desc: string, attachmentText: string): boolean {
@@ -194,14 +148,11 @@ async function fetchNseAnnouncements(
   to: Date,
   jar: NseJar,
 ): Promise<NseAnnRow[]> {
-  const dd = (d: Date) =>
-    `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-
   const u = new URL(CORP_ANN_URL);
   u.searchParams.set("index", index);
   u.searchParams.set("symbol", symbol);
-  u.searchParams.set("from_date", dd(from));
-  u.searchParams.set("to_date", dd(to));
+  u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
+  u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
 
   const res = await fetch(u.toString(), {
     headers: {
@@ -273,9 +224,7 @@ export async function fetchDisclosureLadder(
   const windowEnd = anchorMs + 48 * 60 * 60 * 1000;
 
   const from = new Date(windowStart);
-  from.setHours(0, 0, 0, 0);
   const to = new Date(windowEnd);
-  to.setHours(23, 59, 59, 999);
 
   const jar = await createNseBuybackSession();
   const rows: NseAnnRow[] = [];

@@ -23,10 +23,10 @@ export function LiveNseFeedBadge({ status, compact }: Props) {
   const live = status.live;
   const label = live
     ? compact
-      ? "Live"
+      ? "NSE"
       : "Live NSE feed"
     : compact
-      ? "Offline"
+      ? "NSE off"
       : "NSE feed offline";
 
   return (

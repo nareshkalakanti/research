@@ -21,13 +21,14 @@ import {
   discoverBseOrderAnnouncements,
   extractBseScripCode,
   resolveBseScripCode,
+  resolveTickerFromBseScrip,
 } from "./bse-investor-discover";
 import {
   discoverNseAnnouncedOrders,
   discoverNseOrderAnnouncements,
 } from "./nse-investor-discover";
 import { clampAnnouncedDays } from "./announced-lookback";
-import { loadAllCompanies } from "./db";
+import { loadAllCompanies, lookupCompanyMarket } from "./db";
 import { loadMetricsMap } from "./metrics";
 import { screenerUrl } from "./links";
 import { checkLlmStatus, completeJson } from "./llm-client";
@@ -1058,13 +1059,24 @@ export async function repairOrderbookGaps(
     }
   }
 
-  // Re-parse ₹ Cr after LLM may have filled order_size wording
-  if (
-    (out.order_size_cr == null || out.order_size_cr <= 0) &&
-    !isBlankField(out.order_size)
-  ) {
-    const cr = parseOrderSizeToCr(out.order_size);
-    if (cr != null && cr > 0) {
+  // Re-parse ₹ Cr after LLM may have filled order_size wording / wrong INR-as-Cr
+  if (!isBlankField(out.order_size)) {
+    const cr = coerceOrderSizeCr(out.order_size_cr, out.order_size);
+    if (cr != null && cr > 0 && cr !== out.order_size_cr) {
+      out.order_size_cr = cr;
+      if (out.orders[0]) {
+        out.orders[0] = {
+          ...out.orders[0],
+          size_cr: cr,
+          size_cr_label: `₹${cr} Cr`,
+        };
+      }
+      fixed.push("order_size_cr:coerce");
+    } else if (
+      (out.order_size_cr == null || out.order_size_cr <= 0) &&
+      cr != null &&
+      cr > 0
+    ) {
       out.order_size_cr = cr;
       fixed.push("order_size_cr:parse");
     }
@@ -1118,9 +1130,10 @@ function mergeOrderbookLlm(
     ) {
       continue;
     }
-    const sizeCr =
-      asFinite(o.order_size_cr) ??
-      (size !== NOT_DISCLOSED ? parseOrderSizeToCr(size) : null);
+    const sizeCr = coerceOrderSizeCr(
+      asFinite(o.order_size_cr),
+      size !== NOT_DISCLOSED ? size : null,
+    );
     llmOrders.push({
       awarding_entity: awarding,
       order_size: size,
@@ -1174,7 +1187,10 @@ function mergeOrderbookLlm(
       (primary.order_size === NOT_DISCLOSED ? null : primary.order_size);
   }
 
-  const llmCr = asFinite(raw.order_size_cr);
+  const llmCr = coerceOrderSizeCr(
+    asFinite(raw.order_size_cr),
+    out.order_size !== NOT_DISCLOSED ? out.order_size : null,
+  );
   const sumCr = out.orders.reduce(
     (a, r) => a + (r.size_cr != null && Number.isFinite(r.size_cr) ? r.size_cr : 0),
     0,
@@ -1182,6 +1198,8 @@ function mergeOrderbookLlm(
   if (out.order_size_cr == null) {
     if (llmCr != null && llmCr > 0) out.order_size_cr = llmCr;
     else if (sumCr > 0) out.order_size_cr = Math.round(sumCr * 100) / 100;
+  } else {
+    out.order_size_cr = coerceOrderSizeCr(out.order_size_cr, out.order_size);
   }
 
   const conf = asFinite(raw.confidence);
@@ -1681,9 +1699,14 @@ export function isOrderbookPass(extract: OrderbookExtract): boolean {
   if (awarding.length > 120) return false;
   if (isBlankField(size) || size === NOT_DISCLOSED) return false;
   if (isBlankField(exec) || exec === NOT_DISCLOSED) return false;
-  if (extract.order_size_cr == null || extract.order_size_cr <= 0) return false;
-  if (extract.order_to_sales_pct == null) return false;
-  return extract.order_to_sales_pct >= ORDERBOOK_PASS_MIN_PCT;
+  const sizeCr = coerceOrderSizeCr(extract.order_size_cr, extract.order_size);
+  if (sizeCr == null || sizeCr <= 0) return false;
+  let pct = extract.order_to_sales_pct;
+  if (extract.sales_cr != null && extract.sales_cr > 0) {
+    pct = Math.round((sizeCr / extract.sales_cr) * 10000) / 100;
+  }
+  if (pct == null) return false;
+  return pct >= ORDERBOOK_PASS_MIN_PCT;
 }
 
 /** Convert stated size to ₹ Cr when possible; else null (MW-only etc.). */
@@ -1691,7 +1714,7 @@ export function parseOrderSizeToCr(raw: string): number | null {
   if (!raw || raw === NOT_DISCLOSED) return null;
   // Strip grouping commas so "1,621 Lacs" → 1621; "534,73,08,872.24" → rupees
   const t = raw.replace(/,/g, "");
-  // Prefer Crores / Cr
+  // Prefer Crores / Cr (unit already Cr — not absolute INR)
   const cr = t.match(
     /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:Crores?|Cr\.?)\b/i,
   );
@@ -1709,13 +1732,24 @@ export function parseOrderSizeToCr(raw: string): number | null {
       ? Math.round((n / 100) * 100) / 100
       : null;
   }
-  // Absolute INR: Rs. 5347308872.24/- → ÷ 1e7
+  // Absolute INR: Rs. 5347308872.24/- → ÷ 1e7 (currency optional when digits look like ₹)
   const abs = t.match(
-    /(?:INR|Rs\.?|₹)\s*([\d]+(?:\.\d+)?)\s*(?:\/\s*-)?/i,
+    /(?:INR|Rs\.?|₹)?\s*([\d]+(?:\.\d+)?)\s*(?:\/\s*-)?/i,
   );
-  if (abs && !/(?:Million|Mn|Billion|Bn)\b/i.test(raw)) {
+  if (
+    abs &&
+    !/(?:Million|Mn|Billion|Bn)\b/i.test(raw) &&
+    !/(?:Months?|Days?|Years?|Weeks?)\b/i.test(raw)
+  ) {
     const n = Number(abs[1]);
-    if (Number.isFinite(n) && n >= 100_000) {
+    // Indian filings often write bare absolute ₹ before "(… Crore …)" words
+    const looksAbsolute =
+      Number.isFinite(n) &&
+      n >= 100_000 &&
+      (/(?:INR|Rs\.?|₹)/i.test(raw) ||
+        /crores?/i.test(raw) ||
+        /\/\s*-/.test(raw));
+    if (looksAbsolute) {
       return Math.round((n / 1e7) * 100) / 100;
     }
   }
@@ -1753,11 +1787,9 @@ export function parseOrderSizeToCr(raw: string): number | null {
     /([\w\-]+(?:\s+[\w\-]+){0,12})\s+Crores?\b/i,
   );
   if (words && /hundred|thousand|crore|lakh|million/i.test(words[1] || "")) {
-    const approx = raw.match(
-      /(?:INR|Rs\.?|₹)\s*[\d,]+(?:\.\d+)?/i,
-    );
+    const approx = raw.match(/(?:INR|Rs\.?|₹)?\s*([\d,]+(?:\.\d+)?)/i);
     if (approx) {
-      const n = Number(approx[0].replace(/[^\d.]/g, ""));
+      const n = Number(String(approx[1] || "").replace(/,/g, ""));
       if (Number.isFinite(n) && n >= 100_000) {
         return Math.round((n / 1e7) * 100) / 100;
       }
@@ -1766,12 +1798,46 @@ export function parseOrderSizeToCr(raw: string): number | null {
   return null;
 }
 
+/**
+ * LLM often puts absolute ₹ into order_size_cr (e.g. 42030000 instead of 4.20).
+ * Prefer parse of the stated size text; coerce huge "Cr" values as INR÷1e7.
+ */
+export function coerceOrderSizeCr(
+  candidate: number | null | undefined,
+  sizeText?: string | null,
+): number | null {
+  const parsed =
+    sizeText && sizeText !== NOT_DISCLOSED && sizeText.trim()
+      ? parseOrderSizeToCr(sizeText)
+      : null;
+  const n =
+    candidate != null && Number.isFinite(candidate) && candidate > 0
+      ? candidate
+      : null;
+
+  if (parsed != null && n != null) {
+    const asCrFromInr = Math.round((n / 1e7) * 100) / 100;
+    if (n >= 100_000 && asCrFromInr > 0) {
+      const rel =
+        Math.abs(asCrFromInr - parsed) / Math.max(parsed, 0.01);
+      if (rel <= 0.2) return parsed;
+    }
+    if (n >= 100_000 && n > parsed * 50) return parsed;
+    if (Math.abs(n - parsed) / Math.max(parsed, 0.01) <= 0.2) return parsed;
+  }
+  if (parsed != null) return parsed;
+  if (n != null && n >= 100_000) {
+    return Math.round((n / 1e7) * 100) / 100;
+  }
+  return n;
+}
+
 /** Sum monetary sizes across multi-annexure rows. */
 export function sumOrderSizeCr(orders: OrderWinRow[]): number | null {
   let total = 0;
   let any = false;
   for (const o of orders) {
-    const n = o.size_cr ?? parseOrderSizeToCr(o.order_size);
+    const n = coerceOrderSizeCr(o.size_cr, o.order_size);
     if (n != null) {
       total += n;
       any = true;
@@ -2275,13 +2341,13 @@ function extractScripCode(flat: string): string | null {
 /** Announced feed placeholder when BSE scrip is known but NSE symbol is not. */
 function isBsePlaceholderTicker(ticker: string | null | undefined): boolean {
   const t = (ticker || "").trim();
-  // BSE508494 or bare scrip 508494 from older rows / BSE-only feeds
-  return /^BSE\d{5,6}$/i.test(t) || /^\d{5,6}$/.test(t);
+  // BSE508494, BSE:508494, or bare scrip 508494
+  return /^(?:BSE[:\s-]*)?\d{5,7}$/i.test(t);
 }
 
 function scripFromBsePlaceholder(ticker: string | null | undefined): string | null {
   const t = (ticker || "").trim();
-  const m = t.match(/^(?:BSE)?(\d{5,6})$/i);
+  const m = t.match(/^(?:BSE[:\s-]*)?(\d{5,7})$/i);
   return m?.[1] || null;
 }
 
@@ -2289,9 +2355,9 @@ function scripFromBsePlaceholder(ticker: string | null | undefined): string | nu
 function normalizeBsePlaceholderTicker(
   ticker: string | null | undefined,
 ): string {
-  const t = (ticker || "").trim().toUpperCase();
-  if (/^\d{5,6}$/.test(t)) return `BSE${t}`;
-  return t;
+  const scrip = scripFromBsePlaceholder(ticker);
+  if (scrip) return `BSE${scrip}`;
+  return (ticker || "").trim().toUpperCase();
 }
 
 function lookupTickerByScripCode(
@@ -2584,6 +2650,31 @@ export function resolveTickerCompanyFromDb(
   }
 
   // Preferred ticker from caller / Symbol line only — no per-issuer hardcoding
+  return extract;
+}
+
+/**
+ * When DB/name match failed, resolve BSE###### via live BSE scrip header (ShortN).
+ */
+export async function resolveBsePlaceholderTickerLive(
+  extract: OrderbookExtract,
+  text?: string,
+): Promise<OrderbookExtract> {
+  if (!isBsePlaceholderTicker(extract.ticker)) return extract;
+  const flat = (text || "").replace(/\s+/g, " ");
+  const scrip =
+    scripFromBsePlaceholder(extract.ticker) ||
+    extractScripCode(flat) ||
+    null;
+  if (!scrip) return extract;
+  try {
+    const live = await resolveTickerFromBseScrip(scrip);
+    if (!live?.ticker || isBsePlaceholderTicker(live.ticker)) return extract;
+    extract.ticker = live.ticker;
+    if (!extract.company && live.name) extract.company = live.name;
+  } catch {
+    /* best-effort */
+  }
   return extract;
 }
 
@@ -3063,11 +3154,12 @@ export async function attachOrderbookPrices(
 ): Promise<OrderbookExtract> {
   const ticker = extract.ticker;
   if (!ticker || isBsePlaceholderTicker(ticker)) return extract;
+  const market = lookupCompanyMarket(ticker) || "NSE";
   try {
     // 1y of daily bars is enough for baseline-before-news_date.
     const [quote, bars] = await Promise.all([
-      fetchQuoteDetailed(ticker, "NSE", { skipSummary: true }),
-      fetchDailyBars(ticker, "NSE", 1),
+      fetchQuoteDetailed(ticker, market, { skipSummary: true }),
+      fetchDailyBars(ticker, market, 1),
     ]);
     const ltp =
       quote.price != null && Number.isFinite(quote.price) ? quote.price : null;
@@ -3245,11 +3337,133 @@ function purgeCorruptHistory(): void {
   }
 }
 
+/** Analysed row for OrderBookIQ feed (PASS + FAIL — not exchange stubs). */
+export type OrderbookScreenFeedRow = {
+  id: number;
+  source_url: string | null;
+  ticker: string | null;
+  company: string | null;
+  decision: "pass" | "fail";
+  awarding_entity: string;
+  order_size: string;
+  execution: string;
+  order_size_cr: number | null;
+  sales_cr: number | null;
+  order_to_sales_pct: number | null;
+  ltp: number | null;
+  baseline_close: number | null;
+  drift_pct: number | null;
+  subject: string | null;
+  why: string | null;
+  order_date: string | null;
+  news_date: string | null;
+  screened_at: string;
+};
+
+function isStubEngine(engine: string | null | undefined): boolean {
+  const eng = (engine || "").trim();
+  return eng === "exchange-fetch" || eng === "nse-came-fetch" || eng === "";
+}
+
+/**
+ * Recent analysed screens (PASS + FAIL) for the IQ feed.
+ * Stubs from Refresh orders are excluded — those stay PENDING until Scan.
+ */
+export function listOrderbookRecentScreens(
+  limit = 200,
+): OrderbookScreenFeedRow[] {
+  purgeCorruptHistory();
+  const db = ensureDb();
+  try {
+    const rows = db
+      .prepare(
+        `SELECT id, source_url, ticker, company, extract_json, engine, screened_at
+         FROM orderbook_screens
+         ORDER BY screened_at DESC
+         LIMIT ?`,
+      )
+      .all(Math.min(800, Math.max(1, limit * 3))) as Array<{
+      id: number;
+      source_url: string | null;
+      ticker: string | null;
+      company: string | null;
+      extract_json: string;
+      engine: string | null;
+      screened_at: string;
+    }>;
+
+    const out: OrderbookScreenFeedRow[] = [];
+    const seenUrl = new Set<string>();
+    for (const r of rows) {
+      if (isStubEngine(r.engine)) continue;
+      const url = r.source_url?.trim() || "";
+      if (url) {
+        if (seenUrl.has(url)) continue;
+        seenUrl.add(url);
+      }
+      let extract: OrderbookExtract = emptyExtract();
+      try {
+        const raw = JSON.parse(r.extract_json) as Partial<OrderbookExtract> & {
+          pending?: boolean;
+        };
+        if (raw.pending === true) continue;
+        extract = { ...emptyExtract(), ...raw };
+      } catch {
+        continue;
+      }
+      if (r.ticker) extract.ticker = r.ticker;
+      if (r.company) extract.company = r.company;
+      const pass = isOrderbookPass(extract);
+      const core = toCoreOrderFields(extract);
+      out.push({
+        id: r.id,
+        source_url: r.source_url,
+        ticker: extract.ticker || r.ticker,
+        company: extract.company || r.company,
+        decision: pass ? "pass" : "fail",
+        awarding_entity: extract.awarding_entity || NOT_DISCLOSED,
+        order_size: extract.order_size || NOT_DISCLOSED,
+        execution: extract.execution || NOT_DISCLOSED,
+        order_size_cr: coerceOrderSizeCr(
+          extract.order_size_cr,
+          extract.order_size,
+        ),
+        sales_cr: extract.sales_cr,
+        order_to_sales_pct:
+          extract.sales_cr != null &&
+          extract.sales_cr > 0 &&
+          coerceOrderSizeCr(extract.order_size_cr, extract.order_size) != null
+            ? Math.round(
+                ((coerceOrderSizeCr(extract.order_size_cr, extract.order_size) ||
+                  0) /
+                  extract.sales_cr) *
+                  10000,
+              ) / 100
+            : extract.order_to_sales_pct,
+        ltp: extract.ltp,
+        baseline_close: extract.baseline_close,
+        drift_pct: extract.drift_pct,
+        subject: extract.subject,
+        why: decideWhy(extract, core),
+        order_date: extract.order_date,
+        news_date: extract.news_date || extract.order_date,
+        screened_at: r.screened_at,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } finally {
+    db.close();
+  }
+}
+
 export type OrderbookHistoryRow = {
   id: number;
   source_url: string | null;
   ticker: string | null;
   company: string | null;
+  /** Listing market from company_about. */
+  market: string | null;
   order_date: string | null;
   /** Exchange filing day used for post-news drift (falls back to order_date). */
   news_date: string | null;
@@ -3298,19 +3512,27 @@ export function listOrderbookHistory(limit = 40): OrderbookHistoryRow[] {
         continue;
       }
       if (!isOrderbookPass(extract)) continue;
+      const ticker = r.ticker || extract.ticker;
+      const orderSize = extract.order_size;
+      const sizeCr = coerceOrderSizeCr(extract.order_size_cr, orderSize);
+      const pct =
+        extract.sales_cr != null && extract.sales_cr > 0 && sizeCr != null
+          ? Math.round((sizeCr / extract.sales_cr) * 10000) / 100
+          : extract.order_to_sales_pct;
       out.push({
         id: r.id,
         source_url: r.source_url,
-        ticker: r.ticker || extract.ticker,
+        ticker,
         company: r.company || extract.company,
+        market: ticker ? lookupCompanyMarket(ticker) : null,
         order_date: extract.order_date,
         news_date: extract.news_date || extract.order_date,
         awarding_entity: extract.awarding_entity || NOT_DISCLOSED,
-        order_size: extract.order_size || NOT_DISCLOSED,
+        order_size: orderSize || NOT_DISCLOSED,
         execution: extract.execution || NOT_DISCLOSED,
-        order_size_cr: extract.order_size_cr,
+        order_size_cr: sizeCr,
         sales_cr: extract.sales_cr,
-        order_to_sales_pct: extract.order_to_sales_pct,
+        order_to_sales_pct: pct,
         ltp: extract.ltp,
         baseline_close: extract.baseline_close,
         drift_pct: extract.drift_pct,
@@ -3330,6 +3552,7 @@ export type OrderTrackerOrder = {
   source_url: string | null;
   ticker: string;
   company: string;
+  market: string | null;
   customer: string;
   order_type: string;
   order_date: string | null;
@@ -3350,6 +3573,7 @@ export type OrderTrackerOrder = {
 export type OrderTrackerCompany = {
   ticker: string;
   company: string;
+  market: string | null;
   order_count: number;
   total_order_value_cr: number;
   sales_cr: number | null;
@@ -3484,20 +3708,22 @@ export function listOrderbookTracker(opts?: {
   const resolveRowTicker = (
     rawTicker: string,
     companyFallback: string | null,
-  ): string => {
+  ): { ticker: string; fromBseScrip: boolean } => {
     let ticker = normalizeBsePlaceholderTicker(rawTicker);
-    if (!isBsePlaceholderTicker(ticker)) return ticker;
+    if (!isBsePlaceholderTicker(ticker)) {
+      return { ticker, fromBseScrip: false };
+    }
     const cleaned = cleanIssuerDisplayName(companyFallback);
     if (aboutDb && cleaned) {
       const fromName = lookupTickerByCompanyName(aboutDb, cleaned);
-      if (fromName) return fromName;
+      if (fromName) return { ticker: fromName, fromBseScrip: true };
     }
     const scrip = scripFromBsePlaceholder(ticker);
     if (aboutDb && scrip) {
       const fromScrip = lookupTickerByScripCode(aboutDb, scrip);
-      if (fromScrip) return fromScrip;
+      if (fromScrip) return { ticker: fromScrip, fromBseScrip: true };
     }
-    return ticker;
+    return { ticker, fromBseScrip: true };
   };
 
   const db = ensureDb();
@@ -3531,10 +3757,11 @@ export function listOrderbookTracker(opts?: {
       }
       const pass = isOrderbookPass(extract);
       if (passOnly && !pass) continue;
-      const ticker = resolveRowTicker(
+      const resolved = resolveRowTicker(
         r.ticker || extract.ticker || "",
         r.company || extract.company,
       );
+      const ticker = resolved.ticker;
       if (!ticker) continue;
       if (tickerFilter && ticker !== tickerFilter) continue;
       const company = niceName(ticker, r.company || extract.company);
@@ -3562,10 +3789,12 @@ export function listOrderbookTracker(opts?: {
 
       let idx = 0;
       for (const line of lineItems) {
-        const cr =
+        const cr = coerceOrderSizeCr(
           line.size_cr != null && line.size_cr > 0
             ? line.size_cr
-            : extract.order_size_cr;
+            : extract.order_size_cr,
+          line.order_size || extract.order_size,
+        );
         const customer = trackerBlankLabel(line.awarding_entity);
         if ((cr == null || cr <= 0) && customer === "Not mentioned" && !pass) {
           idx += 1;
@@ -3582,7 +3811,7 @@ export function listOrderbookTracker(opts?: {
           extract.sales_cr != null && extract.sales_cr > 0
             ? cr != null
               ? Math.round((cr / extract.sales_cr) * 10000) / 100
-              : extract.order_to_sales_pct
+              : null
             : null;
         if (minPct != null && (pct == null || pct < minPct)) {
           idx += 1;
@@ -3615,12 +3844,18 @@ export function listOrderbookTracker(opts?: {
           }
         }
 
+        // BSE announcement placeholders / scrip resolves → BSE chart, not NSE.
+        const market =
+          lookupCompanyMarket(ticker) ||
+          (resolved.fromBseScrip ? "BSE" : null);
+
         rawOrders.push({
           id: `${r.id}-${idx}`,
           history_id: r.id,
           source_url: r.source_url,
           ticker,
           company,
+          market,
           customer,
           order_type: inferOrderType(
             extract,
@@ -3680,6 +3915,7 @@ export function listOrderbookTracker(opts?: {
       c = {
         ticker: o.ticker,
         company: o.company,
+        market: o.market,
         order_count: 0,
         total_order_value_cr: 0,
         sales_cr: o.sales_cr,
@@ -4181,6 +4417,9 @@ export async function screenOrderbookPdf(opts: {
     // Resolve placeholder → real symbol (company name / scrip cache)
     extract = resolveTickerCompanyFromDb(extract, text);
   }
+  if (isBsePlaceholderTicker(extract.ticker)) {
+    extract = await resolveBsePlaceholderTickerLive(extract, text);
+  }
 
   // Step: identify missing fields and repair when possible
   const repair = await repairOrderbookGaps(extract, text, {
@@ -4441,18 +4680,96 @@ export async function scanOrderbookAnnouncements(opts: {
 
   const total_candidates = sources.length;
   const batch = sources.slice(0, limit);
-  // Parallel batch — lexical scan is pdf-parse-first; running 3 at once cuts wall time ~3×.
+  // Per-PDF timeout so one stuck BSE/NSE download doesn't freeze Scan & Analyse.
+  const SCAN_PDF_MS = 90_000;
   const settled = await Promise.all(
-    batch.map((s) =>
-      screenOrderbookPdf({
-        url: s.url,
-        ticker: s.ticker,
-        company: s.company,
-        announced_at: s.announced_at,
-        mode,
-        skipOcr,
-      }),
-    ),
+    batch.map(async (s) => {
+      const url = s.url?.trim() || null;
+      let timer: ReturnType<typeof setTimeout> | null = null;
+      const clear = () => {
+        if (timer != null) {
+          clearTimeout(timer);
+          timer = null;
+        }
+      };
+      try {
+        const result = await Promise.race([
+          screenOrderbookPdf({
+            url: s.url,
+            ticker: s.ticker,
+            company: s.company,
+            announced_at: s.announced_at,
+            mode,
+            skipOcr,
+          }).finally(clear),
+          new Promise<OrderbookScreenResult>((resolve) => {
+            timer = setTimeout(() => {
+              const extract = emptyExtract();
+              extract.ticker = s.ticker || null;
+              extract.company = s.company || null;
+              const why = `Timed out after ${SCAN_PDF_MS / 1000}s — skipped so scan can continue`;
+              const id = url
+                ? saveRow({
+                    source_url: url,
+                    extract,
+                    engine: "timeout",
+                    text_chars: 0,
+                    decision: "fail",
+                  })
+                : null;
+              resolve({
+                ok: false,
+                decision: "fail",
+                extract,
+                engine: "timeout",
+                text_chars: 0,
+                text_excerpt: "",
+                source_url: url,
+                id: id ?? undefined,
+                screened_at: new Date().toISOString(),
+                pending_fields: true,
+                why,
+                core: toCoreOrderFields(extract),
+                error: why,
+              });
+            }, SCAN_PDF_MS);
+          }),
+        ]);
+        clear();
+        return result;
+      } catch (err) {
+        clear();
+        const extract = emptyExtract();
+        extract.ticker = s.ticker || null;
+        extract.company = s.company || null;
+        const why =
+          err instanceof Error ? err.message : "Scan item failed";
+        const id = url
+          ? saveRow({
+              source_url: url,
+              extract,
+              engine: "scan-error",
+              text_chars: 0,
+              decision: "fail",
+            })
+          : null;
+        return {
+          ok: false,
+          decision: "fail" as const,
+          extract,
+          engine: "scan-error",
+          text_chars: 0,
+          text_excerpt: "",
+          source_url: url,
+          id: id ?? undefined,
+          screened_at: new Date().toISOString(),
+          pending_fields: true,
+          why,
+          core: toCoreOrderFields(extract),
+          error: why,
+        };
+      }
+    }),
   );
   const results: OrderbookScreenResult[] = settled;
   let analysed = 0;

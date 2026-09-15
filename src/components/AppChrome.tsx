@@ -31,7 +31,6 @@ export const APP_TABS: { id: AppTab; label: string; short?: string }[] = [
 const ROUTES: { href: string; label: string; match: (p: string) => boolean }[] =
   [
     { href: "/fund", label: "Fund", match: (p) => p === "/fund" },
-    { href: "/order-tracker", label: "Orders", match: (p) => p === "/order-tracker" },
     { href: "/watchlist", label: "Watchlist", match: (p) => p === "/watchlist" },
   ];
 
@@ -59,6 +58,7 @@ export function useAppTab(): {
       if (next === "theme-scanner") params.delete("tab");
       else params.set("tab", next);
       if (next !== "concall") params.delete("view");
+      if (next !== "orderbookiq") params.delete("ordersView");
       if (next !== "governance") {
         params.delete("personId");
         params.delete("din");
@@ -74,7 +74,7 @@ export function useAppTab(): {
 
 /**
  * Shared topbar + footer for home tabs and standalone routes
- * (Orders / Watchlist / Fund). All pages use the same wide shell.
+ * (Watchlist / Fund). All pages use the same wide shell.
  */
 export function AppChrome({
   children,

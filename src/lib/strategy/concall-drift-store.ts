@@ -42,6 +42,10 @@ import {
   passesEarnQuality,
   CONCALL_DRIFT_JUNK_SUBJECTS,
 } from "./concall-drift-earn";
+import {
+  istDateKey,
+  repairLegacyNseIso,
+} from "../nse-corp-events";
 
 const TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -65,10 +69,52 @@ function ensureSchema(): void {
       );
       CREATE INDEX IF NOT EXISTS idx_concall_drift_earn ON concall_drift_events(earn_at);
       CREATE INDEX IF NOT EXISTS idx_concall_drift_ticker ON concall_drift_events(ticker);
+      CREATE TABLE IF NOT EXISTS strategy_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
+    migrateLegacyAnnouncementTimestamps(db);
   } finally {
     db.close();
   }
+}
+
+/**
+ * One-shot: old parseNseDateTime stuffed NSE (IST) wall clock into host Date.
+ * Reinterpret stored Y-M-DTH:M:S as IST → real UTC so Today/Yesterday match NSE.
+ */
+function migrateLegacyAnnouncementTimestamps(db: {
+  prepare: (sql: string) => {
+    get: (...args: unknown[]) => unknown;
+    run: (...args: unknown[]) => unknown;
+    all: (...args: unknown[]) => unknown[];
+  };
+  exec: (sql: string) => unknown;
+}): void {
+  const done = db
+    .prepare(`SELECT value FROM strategy_meta WHERE key = ?`)
+    .get("concall_ts_ist_v1") as { value: string } | undefined;
+  if (done?.value === "1") return;
+
+  const rows = db
+    .prepare(`SELECT id, earn_at, concall_at FROM concall_drift_events`)
+    .all() as Array<{ id: string; earn_at: string; concall_at: string | null }>;
+  const upd = db.prepare(
+    `UPDATE concall_drift_events SET earn_at = ?, concall_at = ? WHERE id = ?`,
+  );
+  for (const row of rows) {
+    const earn = repairLegacyNseIso(row.earn_at) || row.earn_at;
+    const call = row.concall_at
+      ? repairLegacyNseIso(row.concall_at)
+      : null;
+    if (earn !== row.earn_at || call !== row.concall_at) {
+      upd.run(earn, call, row.id);
+    }
+  }
+  db.prepare(
+    `INSERT OR REPLACE INTO strategy_meta (key, value) VALUES (?, ?)`,
+  ).run("concall_ts_ist_v1", "1");
 }
 
 function passesCapFilter(
@@ -402,7 +448,10 @@ function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): Co
 function passesConcallAnnouncement(row: RawEventRow): boolean {
   const call = (row.concall_at || "").trim();
   if (!call) return false;
-  return call.slice(0, 10) >= row.earn_at.slice(0, 10);
+  const callDay = istDateKey(call);
+  const earnDay = istDateKey(row.earn_at);
+  if (!callDay || !earnDay) return false;
+  return callDay >= earnDay;
 }
 
 function passesEarnRow(row: RawEventRow, output: ConcallDriftRow): boolean {
@@ -454,20 +503,6 @@ function passesRowFilters(
   }
 
   return { ok: true, meta };
-}
-
-function istDateKey(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) {
-    const m = iso.match(/^(\d{4}-\d{2}-\d{2})/);
-    return m?.[1] ?? "";
-  }
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d);
 }
 
 export function concallDriftFilterMeta(

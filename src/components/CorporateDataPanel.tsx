@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import { LiveBseFeedBadge } from "@/components/LiveBseFeedBadge";
 import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
 
 type MarketFilter = "All" | "NSE" | "NSE SME" | "Holdings" | "Gov board";
@@ -377,6 +378,7 @@ export function CorporateDataPanel() {
       circuit_remaining_ms?: number;
     }) | null
   >(null);
+  const [bseFeed, setBseFeed] = useState<NseFeedStatus | null>(null);
   const [dinMissing, setDinMissing] = useState<{
     count: number;
     tickers: string[];
@@ -412,6 +414,7 @@ export function CorporateDataPanel() {
           circuit_open?: boolean;
           circuit_remaining_ms?: number;
         }) | null;
+        bse_feed?: NseFeedStatus | null;
         din_missing?: { count: number; tickers: string[] };
         din_off_board?: { count: number; tickers: string[] };
       };
@@ -429,6 +432,7 @@ export function CorporateDataPanel() {
         }));
       }
       if (json.nse_feed) setNseFeed(json.nse_feed);
+      if (json.bse_feed) setBseFeed(json.bse_feed);
       if (json.din_missing) {
         setDinMissing({
           count: json.din_missing.count,
@@ -765,6 +769,7 @@ export function CorporateDataPanel() {
 
         <div className="ann-sort">
           <LiveNseFeedBadge status={nseFeed} compact />
+          <LiveBseFeedBadge status={bseFeed} compact />
           {nseFeed?.circuit_open ? (
             <span
               className="ann-circuit"
@@ -776,11 +781,11 @@ export function CorporateDataPanel() {
           <button
             type="button"
             className="ann-btn ann-btn--ghost"
-            title="Re-probe NSE live"
+            title="Re-probe NSE + BSE live"
             disabled={loading || batchBusy}
             onClick={() => void load({ forceNse: true })}
           >
-            Check NSE
+            Check feeds
           </button>
           <select
             value={sortKey}

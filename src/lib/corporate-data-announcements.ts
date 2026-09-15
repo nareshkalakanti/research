@@ -4,6 +4,14 @@
  */
 import { createNseBuybackSession, type NseCookieJar } from "./nse-buybacks";
 import { nseHttp1Fetch } from "./nse-http";
+import {
+  formatNseApiDateFromInstant,
+  istCivilDayToUtcNoon,
+  istDateKey,
+  istTodayParts,
+  parseNseDateTime,
+  shiftIstCivilDay,
+} from "./nse-time";
 import { withWebsiteFetch } from "./scrape-pool";
 
 const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
@@ -87,10 +95,6 @@ function safeStr(v: unknown): string {
   return String(v).trim();
 }
 
-function dd(d: Date): string {
-  return `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-}
-
 /** Auditor / non-board filings — also match Stat_auditor in PDF filenames. */
 function isAuditorish(blob: string): boolean {
   return /stat(?:utory)?[\s_-]*auditor|secretarial[\s_-]*auditor|cost[\s_-]*auditor|internal[\s_-]*auditor|auditor[\s_-]*appointment/i.test(
@@ -135,8 +139,8 @@ async function fetchAnn(
   const u = new URL(CORP_ANN_URL);
   u.searchParams.set("index", index);
   u.searchParams.set("symbol", symbol);
-  u.searchParams.set("from_date", dd(from));
-  u.searchParams.set("to_date", dd(to));
+  u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
+  u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
   let res: Response;
   try {
     res = await withWebsiteFetch(u.toString(), () =>
@@ -182,20 +186,35 @@ async function fetchAnn(
 /** Windows over lookback — order does not matter; we score quality, not recency. */
 function dateWindows(years: number, windowDays: number): Array<{ from: Date; to: Date }> {
   const windows: Array<{ from: Date; to: Date }> = [];
-  const end = new Date();
-  const oldest = new Date(end);
-  oldest.setFullYear(oldest.getFullYear() - years);
-  let to = new Date(end);
-  while (to > oldest) {
-    const from = new Date(to);
-    from.setDate(from.getDate() - windowDays);
-    if (from < oldest) {
-      windows.push({ from: new Date(oldest), to: new Date(to) });
+  const endDay = istTodayParts();
+  const oldestDay = shiftIstCivilDay(endDay, -Math.max(1, years) * 365);
+  let toDay = endDay;
+  while (
+    toDay.year > oldestDay.year ||
+    (toDay.year === oldestDay.year && toDay.month > oldestDay.month) ||
+    (toDay.year === oldestDay.year &&
+      toDay.month === oldestDay.month &&
+      toDay.day > oldestDay.day)
+  ) {
+    const fromDay = shiftIstCivilDay(toDay, -windowDays);
+    const oldestCmp =
+      fromDay.year < oldestDay.year ||
+      (fromDay.year === oldestDay.year && fromDay.month < oldestDay.month) ||
+      (fromDay.year === oldestDay.year &&
+        fromDay.month === oldestDay.month &&
+        fromDay.day < oldestDay.day);
+    if (oldestCmp) {
+      windows.push({
+        from: istCivilDayToUtcNoon(oldestDay),
+        to: istCivilDayToUtcNoon(toDay),
+      });
       break;
     }
-    windows.push({ from: new Date(from), to: new Date(to) });
-    to = new Date(from);
-    to.setDate(to.getDate() - 1);
+    windows.push({
+      from: istCivilDayToUtcNoon(fromDay),
+      to: istCivilDayToUtcNoon(toDay),
+    });
+    toDay = shiftIstCivilDay(fromDay, -1);
   }
   return windows;
 }
@@ -492,36 +511,15 @@ export function dateFromNseArchiveUrl(url: string | null | undefined): string | 
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
-/** Normalize NSE an_dt / loose dates to YYYY-MM-DD when possible. */
+/** Normalize NSE an_dt / loose dates to YYYY-MM-DD (IST) when possible. */
 export function normalizeAnnouncementDate(
   raw: string | null | undefined,
 ): string | null {
   const s = (raw || "").trim();
   if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const mon: Record<string, string> = {
-    Jan: "01",
-    Feb: "02",
-    Mar: "03",
-    Apr: "04",
-    May: "05",
-    Jun: "06",
-    Jul: "07",
-    Aug: "08",
-    Sep: "09",
-    Oct: "10",
-    Nov: "11",
-    Dec: "12",
-  };
-  const m = s.match(
-    /^(\d{1,2})[-/\s]([A-Za-z]{3})[-/\s,](\d{4})(?:\s+\d{1,2}:\d{2})?/,
-  );
-  if (m) {
-    const mm = mon[m[2]!];
-    if (!mm) return s;
-    return `${m[3]}-${mm}-${m[1]!.padStart(2, "0")}`;
-  }
-  const t = Date.parse(s);
-  if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const parsed = parseNseDateTime(s);
+  if (parsed) return istDateKey(parsed);
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return istDateKey(s);
   return null;
 }

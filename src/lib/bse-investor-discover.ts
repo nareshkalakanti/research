@@ -3,6 +3,11 @@ import { BSE_HEADERS } from "./bse-sme";
 import { loadBseSmeCacheMap } from "./bse-sme";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
 import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
+import {
+  formatBseApiDateFromInstant,
+  formatIstMonthYear,
+  istDayWindow,
+} from "./nse-time";
 import { openSqliteNamed } from "./sqlite-utils";
 
 const BSE_ANN_API =
@@ -92,10 +97,7 @@ function bsePdfUrl(attachment: string): string {
 }
 
 function formatPeriod(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("en-IN", { month: "short", year: "numeric" });
+  return formatIstMonthYear(iso || "");
 }
 
 function periodSortKey(period: string | null): number {
@@ -215,15 +217,11 @@ type BseAnnRow = {
 };
 
 function fmtBseDay(d: Date): string {
-  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return formatBseApiDateFromInstant(d);
 }
 
 function dayWindowLocal(offset: number): { from: Date; to: Date } {
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  from.setDate(from.getDate() - offset);
-  const to = new Date(from);
-  to.setHours(23, 59, 59, 999);
+  const { from, to } = istDayWindow(offset);
   return { from, to };
 }
 
@@ -238,7 +236,7 @@ export type BseMarketOrderHit = {
   scrip_code: string | null;
 };
 
-/** Reverse-lookup NSE ticker from cached BSE scrip code. */
+/** Reverse-lookup NSE/BSE ticker from cached BSE scrip code. */
 function tickerFromBseScrip(scrip: string): string | null {
   const code = scrip.trim();
   if (!code) return null;
@@ -258,6 +256,30 @@ function tickerFromBseScrip(scrip: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve BSE scrip → trading symbol (cache, then live BSE header ShortN).
+ * Used so BSE-only filings get Screener / TV / Yahoo symbols instead of BSE######.
+ */
+export async function resolveTickerFromBseScrip(
+  scripCode: string,
+): Promise<{ ticker: string; name: string | null } | null> {
+  const code = scripCode.trim();
+  if (!/^\d{5,7}$/.test(code)) return null;
+  const cached = tickerFromBseScrip(code);
+  if (cached && !/^BSE\d+/i.test(cached) && !/^\d+$/.test(cached)) {
+    return { ticker: cached, name: null };
+  }
+  const { fetchBseScripIdentity } = await import("./bse-sme");
+  const live = await fetchBseScripIdentity(code);
+  if (!live?.ticker) return null;
+  try {
+    cacheBseScripCode(live.ticker, code);
+  } catch {
+    /* best-effort */
+  }
+  return live;
 }
 
 /**
@@ -370,8 +392,7 @@ export async function discoverBseInvestorMaterialSources(
   const from = new Date(to);
   from.setFullYear(from.getFullYear() - 3);
 
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const fmt = (d: Date) => formatBseApiDateFromInstant(d);
 
   const params = new URLSearchParams({
     pageno: "1",
@@ -478,8 +499,7 @@ export async function discoverBseOrderAnnouncements(
   const from = new Date(to);
   from.setFullYear(from.getFullYear() - 2);
 
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  const fmt = (d: Date) => formatBseApiDateFromInstant(d);
 
   const params = new URLSearchParams({
     pageno: "1",

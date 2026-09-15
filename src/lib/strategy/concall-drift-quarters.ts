@@ -1,3 +1,9 @@
+import {
+  istDateKey,
+  istTodayParts,
+  shiftIstCivilDay,
+} from "../nse-time";
+
 /** Indian FY quarter: Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec, Q4 Jan–Mar. */
 export type FyQuarterKey = `Q${1 | 2 | 3 | 4}FY${string}`;
 
@@ -230,14 +236,11 @@ const MONTH_SHORT = [
   "Dec",
 ];
 
-/** UI chip — calendar period of the results, e.g. Apr–Jun '26 (not FY27). */
+/** UI pill — screenshot style: Q1 FY27 */
 export function fyQuarterChipLabel(label: string): string {
-  const range = fyQuarterReportingPeriod(label);
-  if (!range) return label;
-  const fromM = MONTH_SHORT[range.from.getMonth()]!;
-  const toM = MONTH_SHORT[range.to.getMonth()]!;
-  const y = String(range.to.getFullYear()).slice(-2);
-  return `${fromM}–${toM} '${y}`;
+  const m = label.trim().toUpperCase().match(/^Q([1-4])FY(\d{2})$/);
+  if (!m) return label;
+  return `Q${m[1]} FY${m[2]}`;
 }
 
 /** Tooltip / meta — Indian FY id + results period + typical NSE filing window. */
@@ -270,18 +273,11 @@ export function windowRange(
   if (w === "all" || w === "quarter") return null;
 
   const day = 86_400_000;
-  /** NSE calendar days in Asia/Kolkata. */
-  const istParts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kolkata",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const y = Number(istParts.find((p) => p.type === "year")?.value);
-  const m = Number(istParts.find((p) => p.type === "month")?.value);
-  const d = Number(istParts.find((p) => p.type === "day")?.value);
-  // Treat IST calendar day as a UTC date object for range compare on ISO timestamps.
-  const istTodayUtc = new Date(Date.UTC(y, m - 1, d));
+  const today = istTodayParts();
+  // Synthetic UTC midnight whose YYYY-MM-DD equals the IST civil day (for key compares).
+  const istTodayMidnight = new Date(
+    Date.UTC(today.year, today.month - 1, today.day),
+  );
 
   const startOfDay = (base: Date) =>
     new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate()));
@@ -291,35 +287,40 @@ export function windowRange(
     );
 
   if (w === "yesterday") {
-    const yest = new Date(istTodayUtc.getTime() - day);
-    return { from: startOfDay(yest), to: endOfDay(yest) };
+    const yest = shiftIstCivilDay(today, -1);
+    const y = new Date(Date.UTC(yest.year, yest.month - 1, yest.day));
+    return { from: startOfDay(y), to: endOfDay(y) };
   }
   if (w === "today") {
-    return { from: startOfDay(istTodayUtc), to: endOfDay(istTodayUtc) };
+    return { from: startOfDay(istTodayMidnight), to: endOfDay(istTodayMidnight) };
   }
   if (w === "tomorrow") {
-    const t = new Date(istTodayUtc.getTime() + day);
+    const tDay = shiftIstCivilDay(today, 1);
+    const t = new Date(Date.UTC(tDay.year, tDay.month - 1, tDay.day));
     return { from: startOfDay(t), to: endOfDay(t) };
   }
   if (w === "early") {
     // Fresh post-call moves: call in last 2 IST calendar days (incl. today).
-    const from = new Date(istTodayUtc.getTime() - day);
-    return { from: startOfDay(from), to: endOfDay(istTodayUtc) };
+    const fromDay = shiftIstCivilDay(today, -1);
+    const from = new Date(Date.UTC(fromDay.year, fromDay.month - 1, fromDay.day));
+    return { from: startOfDay(from), to: endOfDay(istTodayMidnight) };
   }
   if (w === "last7") {
-    const from = new Date(istTodayUtc.getTime() - 6 * day);
-    return { from: startOfDay(from), to: endOfDay(istTodayUtc) };
+    const fromDay = shiftIstCivilDay(today, -6);
+    const from = new Date(Date.UTC(fromDay.year, fromDay.month - 1, fromDay.day));
+    return { from: startOfDay(from), to: endOfDay(istTodayMidnight) };
   }
   if (w === "next7") {
-    const to = new Date(istTodayUtc.getTime() + 7 * day);
-    return { from: startOfDay(istTodayUtc), to: endOfDay(to) };
+    const toDay = shiftIstCivilDay(today, 7);
+    const to = new Date(Date.UTC(toDay.year, toDay.month - 1, toDay.day));
+    return { from: startOfDay(istTodayMidnight), to: endOfDay(to) };
   }
   if (w === "90d") {
     return { from: new Date(Date.now() - 90 * day), to: new Date() };
   }
   if (w === "custom" && customFrom && customTo) {
-    const from = new Date(`${customFrom}T00:00:00`);
-    const to = new Date(`${customTo}T23:59:59`);
+    const from = new Date(`${customFrom}T00:00:00Z`);
+    const to = new Date(`${customTo}T23:59:59.999Z`);
     if (Number.isFinite(from.getTime()) && Number.isFinite(to.getTime())) {
       return { from, to };
     }
@@ -339,9 +340,7 @@ export function intersectRanges(
   return { from, to };
 }
 
+/** IST calendar day YYYY-MM-DD for an instant (or host Date). */
 export function isoDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+  return istDateKey(d.toISOString());
 }

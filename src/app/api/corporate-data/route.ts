@@ -389,19 +389,26 @@ export async function GET(req: NextRequest) {
     .map((r) => r.ticker);
 
   let nse_feed = null;
+  let bse_feed = null;
   try {
     const { checkNseFeedStatus } = await import("@/lib/nse-feed-status");
+    const { checkBseFeedStatus } = await import("@/lib/bse-feed-status");
     const { nseCircuitRemainingMs, isNseCircuitOpen } = await import(
       "@/lib/corporate-data-announcements"
     );
-    const status = await checkNseFeedStatus({ force: forceNse });
+    const [nseStatus, bseStatus] = await Promise.all([
+      checkNseFeedStatus({ force: forceNse }),
+      checkBseFeedStatus({ force: forceNse }),
+    ]);
     nse_feed = {
-      ...status,
+      ...nseStatus,
       circuit_open: isNseCircuitOpen(),
       circuit_remaining_ms: nseCircuitRemainingMs(),
     };
+    bse_feed = bseStatus;
   } catch {
     nse_feed = null;
+    bse_feed = null;
   }
 
   return NextResponse.json({
@@ -420,6 +427,7 @@ export async function GET(req: NextRequest) {
       tickers: dinOffBoard,
     },
     nse_feed,
+    bse_feed,
   });
 }
 

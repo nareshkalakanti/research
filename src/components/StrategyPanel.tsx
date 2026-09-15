@@ -15,8 +15,11 @@ import {
   type ConcallDriftSortCounts,
   type ConcallDriftWindowCounts,
 } from "@/components/ConcallDriftFilterBar";
-import { recentFyQuarterOptions, currentEarnSeasonQuarter } from "@/lib/strategy/concall-drift-quarters";
-import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import {
+  recentFyQuarterOptions,
+  currentEarnSeasonQuarter,
+  fyQuarterChipLabel,
+} from "@/lib/strategy/concall-drift-quarters";
 import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
 import { parseFetchJson } from "@/lib/fetch-json";
 
@@ -36,6 +39,7 @@ type ApiResponse = {
   sort_counts?: ConcallDriftSortCounts;
   scan_progress?: { pending: number; scanned: number; universe: number };
   nse_feed?: NseFeedStatus;
+  bse_feed?: NseFeedStatus;
   rows: StrategyConcallDriftRowData[];
 };
 
@@ -289,16 +293,20 @@ export function StrategyPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [expandPanel, setExpandPanel] = useState<StrategyExpandPanel>("qtr");
+  const [expandPanel, setExpandPanel] = useState<StrategyExpandPanel>("about");
+  const [density, setDensity] = useState<"comfy" | "compact">("comfy");
 
   const rowIdentity = useMemo(
-    () => (data?.rows ?? []).map((r) => `${r.market}:${r.ticker}`).join("|"),
+    () =>
+      (data?.rows ?? [])
+        .map((r) => `${r.market}:${r.ticker}:${r.earn_at}`)
+        .join("|"),
     [data?.rows],
   );
 
   useEffect(() => {
     setExpanded(null);
-    setExpandPanel("qtr");
+    setExpandPanel("about");
   }, [rowIdentity]);
 
   const load = useCallback(async (opts?: { refresh?: boolean; silent?: boolean }) => {
@@ -372,38 +380,74 @@ export function StrategyPanel() {
   const rows = data?.rows ?? [];
   const dataReady = data?.kind === KIND && !loading;
 
+  const exportCsv = useCallback(() => {
+    const header = [
+      "ticker",
+      "company",
+      "market",
+      "sector",
+      "mcap_cr",
+      "ltp",
+      "earn_at",
+      "drift_pct",
+      "concall_at",
+    ];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      const cells = [
+        r.ticker,
+        r.name,
+        r.market,
+        r.sector || "",
+        r.market_cap_cr ?? "",
+        r.price ?? "",
+        r.earn_at || "",
+        r.drift_pct ?? "",
+        r.concall_at || "",
+      ].map((v) => {
+        const s = String(v);
+        return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      });
+      lines.push(cells.join(","));
+    }
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `concall-drift-${fyQuarterChipLabel(quarter) || "all"}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [quarter, rows]);
+
   return (
-    <div className="panel scan-panel strategy-panel">
-      <div className="toolbar">
-        <label className="field">
-          <span>List</span>
-          <select value={market} onChange={(e) => setMarket(e.target.value)}>
-            <option value="All">All</option>
-            <option value="NSE">NSE</option>
-            <option value="NSE SME">NSE SME</option>
-            <option value="BSE SME">BSE SME</option>
-          </select>
-        </label>
-        <div className="toolbar-actions">
-          <LiveNseFeedBadge status={data?.nse_feed} />
+    <div className={`pcd panel strategy-panel pcd-density-${density}`}>
+      <header className="pcd-hero">
+        <div className="pcd-hero-copy">
+          <h1 className="pcd-title">
+            Post-Concall <em>Announcement Drift</em>
+          </h1>
+          <p className="pcd-sub">
+            NSE · BSE · How stocks move after earnings concalls · Est. 2026
+          </p>
+        </div>
+        <div className="pcd-hero-actions">
+          <label className="pcd-list-field">
+            <span className="pcd-sr">List</span>
+            <select value={market} onChange={(e) => setMarket(e.target.value)}>
+              <option value="All">All markets</option>
+              <option value="NSE">NSE</option>
+              <option value="NSE SME">NSE SME</option>
+              <option value="BSE SME">BSE SME</option>
+            </select>
+          </label>
           <RefreshButton
             busy={loading}
             onRefresh={() => void load({ refresh: true })}
           />
         </div>
-      </div>
-
-      <p className="hint tight concall-panel-lead">
-        Post-concall announcement drift — last close before the NSE concall filing,
-        to CMP
-        {data ? (
-          <>
-            {" "}
-            · <strong>{rows.length.toLocaleString()}</strong> shown
-          </>
-        ) : null}
-        . Early movers: <strong>Early</strong> + <strong>↑ Gainers</strong>.
-      </p>
+      </header>
 
       <ConcallDriftFilterBar
         sort={driftSort}
@@ -432,9 +476,13 @@ export function StrategyPanel() {
         onSearch={setSearch}
         withBaseline={data?.with_baseline}
         totalEvents={data?.total_events}
+        shownCount={rows.length}
         windowCounts={data?.window_counts}
         sortCounts={data?.sort_counts}
         loading={loading}
+        density={density}
+        onDensity={setDensity}
+        onExportCsv={exportCsv}
         onClear={() => {
           setDriftSort("all");
           setDatePreset("");
@@ -449,37 +497,30 @@ export function StrategyPanel() {
           setCustomTo(defaults.to);
         }}
         nseFeed={data?.nse_feed}
+        bseFeed={data?.bse_feed}
       />
 
-      <div className="scan-filter-stack concall-scan-stack">
-        <div className="scan-filter-row">
-          <span className="scan-filter-label">Scan</span>
-          <StrategyScanBar
-            market={market}
-            busy={loading}
-            ready={dataReady}
-            onRefresh={load}
-          />
-        </div>
+      <div className="pcd-scan-row">
+        <StrategyScanBar
+          market={market}
+          busy={loading}
+          ready={dataReady}
+          onRefresh={load}
+        />
       </div>
 
-      <p className="hint tight">
-        <strong>Get announced</strong> pulls companies that just filed results or a
-        concall on NSE (last 7 days). Expand a row for Qtr, Con-calls, and Highlights.
-      </p>
-
       {loading ? (
-        <div className="loading" aria-live="polite">
+        <div className="pcd-loading" aria-live="polite">
           {data ? "Updating…" : "Loading…"}
         </div>
       ) : null}
 
       {loadError ? (
-        <div className="empty-state empty-state-error">{loadError}</div>
+        <div className="pcd-empty is-error">{loadError}</div>
       ) : null}
 
       {!loading && !loadError && rows.length === 0 ? (
-        <div className="empty-state">
+        <div className="pcd-empty">
           {datePreset ? (
             <>
               No earn events for this date filter — clear the date preset or
@@ -495,65 +536,59 @@ export function StrategyPanel() {
       ) : null}
 
       {rows.length > 0 ? (
-        <div className="table-card strategy-table-card">
-          <div className="table-wrap">
-            <table className="data-table strategy-data-table cd-board">
-              <colgroup>
-                <col className="cd-col-idx" />
-                <col className="cd-col-co" />
-                <col className="cd-col-date" />
-                <col className="cd-col-mcap" />
-                <col className="cd-col-sec" />
-                <col className="cd-col-ltp" />
-                <col className="cd-col-drift" />
-                <col className="cd-col-kw" />
-                <col className="cd-col-links" />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th className="cd-idx-h">#</th>
-                  <th>Company</th>
-                  <th className="cd-date-h">Date</th>
-                  <th className="num" title="Market cap in ₹ crore">
-                    Mcap
-                  </th>
-                  <th>Sec</th>
-                  <th className="num">LTP</th>
-                  <th className="num" title="LTP vs last close before concall announcement">
-                    Δ call
-                  </th>
-                  <th title="Matched corporate-event keyword">
-                    Keyword
-                  </th>
-                  <th className="col-links">Links</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r, i) => {
-                  const key = `${r.market}:${r.ticker}`;
-                  const open = expanded === key;
-                  return (
-                    <StrategyConcallDriftRow
-                      key={key}
-                      index={i + 1}
-                      row={r}
-                      open={open}
-                      panel={expandPanel}
-                      onToggle={() =>
-                        setExpanded((cur) => {
-                          if (cur === key) return null;
-                          setExpandPanel("qtr");
-                          return key;
-                        })
-                      }
-                      onPanel={setExpandPanel}
-                      onDocsChange={() => void load({ silent: true })}
-                    />
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="pcd-table-wrap">
+          <table className="pcd-table">
+            <colgroup>
+              <col className="pcd-col-ticker" />
+              <col className="pcd-col-co" />
+              <col className="pcd-col-sec" />
+              <col className="pcd-col-mcap" />
+              <col className="pcd-col-ltp" />
+              <col className="pcd-col-earn" />
+              <col className="pcd-col-drift" />
+              <col className="pcd-col-call" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>Ticker</th>
+                <th>Company</th>
+                <th>Sec</th>
+                <th className="num">MCap</th>
+                <th className="num">LTP</th>
+                <th title="Results / earnings filing">Earn</th>
+                <th
+                  className="pcd-th-drift num"
+                  title="LTP vs last close before concall — blank when baseline missing"
+                >
+                  Δ earn
+                </th>
+                <th title="Concall / investor meet filing">Concall</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => {
+                const key = `${r.market}:${r.ticker}:${r.earn_at}`;
+                const open = expanded === key;
+                return (
+                  <StrategyConcallDriftRow
+                    key={key}
+                    row={r}
+                    open={open}
+                    panel={expandPanel}
+                    onToggle={() => {
+                      setExpanded((cur) => (cur === key ? null : key));
+                      setExpandPanel("about");
+                    }}
+                    onPanel={setExpandPanel}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+          <footer className="pcd-foot">
+            <span>{rows.length.toLocaleString()} stocks shown</span>
+            <span>Tap a ticker → TradingView · company name expands detail</span>
+          </footer>
         </div>
       ) : null}
     </div>

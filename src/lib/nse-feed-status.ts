@@ -1,5 +1,10 @@
 import { openSqliteNamed } from "./sqlite-utils";
 import { createNseBuybackSession } from "./nse-buybacks";
+import {
+  formatNseApiDateFromInstant,
+  istCivilDayToUtcNoon,
+  istRangeDaysBack,
+} from "./nse-time";
 import type { NseFeedStatus } from "./nse-feed-status-types";
 
 export type { NseFeedStatus } from "./nse-feed-status-types";
@@ -14,12 +19,6 @@ const CACHE_MS = 60_000;
 type CacheEntry = { at: number; status: NseFeedStatus };
 
 let cache: CacheEntry | null = null;
-
-function formatNseRange(d: Date): string {
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  return `${dd}-${mm}-${d.getFullYear()}`;
-}
 
 function lastConcallDriftScanAt(): string | null {
   try {
@@ -44,15 +43,15 @@ async function probeNseAnnouncements(): Promise<{ ok: boolean; detail: string }>
   try {
     const { nseHttp1Fetch } = await import("./nse-http");
     const jar = await createNseBuybackSession();
-    const to = new Date();
-    const from = new Date(to);
-    from.setDate(from.getDate() - 2);
+    const { from: fromDay, to: toDay } = istRangeDaysBack(2);
+    const to = istCivilDayToUtcNoon(toDay);
+    const from = istCivilDayToUtcNoon(fromDay);
 
     const u = new URL(CORP_ANN_URL);
     u.searchParams.set("index", "equities");
     u.searchParams.set("symbol", PROBE_SYMBOL);
-    u.searchParams.set("from_date", formatNseRange(from));
-    u.searchParams.set("to_date", formatNseRange(to));
+    u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
+    u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
 
     const res = await nseHttp1Fetch(u.toString(), {
       jar,
