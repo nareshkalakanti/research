@@ -19948,34 +19948,6 @@ button.otrd-co-link {
   font-weight: 650;
 }
 
-.pcd-cap-band {
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  margin-left: 6px;
-  border-radius: 3px;
-  font-size: 0.58rem;
-  font-weight: 800;
-  vertical-align: middle;
-  background: #ebe4d8;
-  color: var(--pcd-muted);
-  font-family: var(--pcd-sans);
-}
-
-.pcd-cap-s {
-  background: #e8f1fb;
-  color: #0b5cab;
-}
-.pcd-cap-m {
-  background: #f3ebe0;
-  color: #8a5a20;
-}
-.pcd-cap-l {
-  background: #ece8f5;
-  color: #5b4a8a;
-}
-
 .pcd-td-ltp {
   font-weight: 750;
   font-variant-numeric: tabular-nums;

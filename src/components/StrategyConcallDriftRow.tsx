@@ -80,14 +80,6 @@ function fmtMcap(n: number | null): string {
   return `${Math.round(n).toLocaleString("en-IN")} Cr`;
 }
 
-/** Cap-band badge from mcap only — no issuer special cases. */
-function capBand(n: number | null): "S" | "M" | "L" | null {
-  if (n == null || !Number.isFinite(n) || n <= 0) return null;
-  if (n < 5_000) return "S";
-  if (n < 20_000) return "M";
-  return "L";
-}
-
 export const PCD_COL_SPAN = 8;
 
 function EventWhen({ iso }: { iso: string | null }) {
@@ -117,7 +109,6 @@ export function StrategyConcallDriftRow({
   onToggle,
   onPanel,
 }: Props) {
-  const band = capBand(r.market_cap_cr);
   const sec = secDisplay(r.sector, r.sub_sector);
 
   return (
@@ -175,11 +166,6 @@ export function StrategyConcallDriftRow({
           }
         >
           <span className="pcd-mcap-val">{fmtMcap(r.market_cap_cr)}</span>
-          {band ? (
-            <span className={`pcd-cap-band pcd-cap-${band.toLowerCase()}`}>
-              {band}
-            </span>
-          ) : null}
         </td>
         <td className="pcd-td-ltp num">{fmtLtp(r.price)}</td>
         <td className="pcd-td-earn">
@@ -194,7 +180,7 @@ export function StrategyConcallDriftRow({
           }
         >
           {r.drift_pct == null ? (
-            <span className="pcd-drift is-empty">n/a</span>
+            <span className="pcd-muted">—</span>
           ) : (
             <span
               className={`pcd-drift ${
