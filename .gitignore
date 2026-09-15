@@ -55,6 +55,7 @@ next-env.d.ts
 /data/orderbookiq.db
 /data/boardroomiq.db
 /logs/
+/data/llm-runtime.json
 
 # Local LLM gold regenerations under test/ (keep curated fixtures only)
 /test/HighlightSentiment.*.generated.json

@@ -3,6 +3,7 @@
 import { useCallback } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { OllamaBar } from "@/components/OllamaBar";
 
 export type AppTab =
   | "scan"
@@ -152,6 +153,7 @@ export function AppChrome({
         </nav>
 
         <div className="user-block">
+          <OllamaBar />
           {user ? <span className="user-email">{user}</span> : null}
           {user ? (
             <button type="button" className="btn-ghost" onClick={logout}>
