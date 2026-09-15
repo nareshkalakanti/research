@@ -7,6 +7,15 @@ import { createNseBuybackSession } from "./nse-buybacks";
 import { parseNseDateTime } from "./nse-corp-events";
 import { isOrderWinAnnouncementBlob, isOrderWinMarketHit } from "./bse-investor-discover";
 import { announcementDedupeKey } from "./announcement-dedupe";
+import {
+  formatIstMonthYear,
+  formatNseApiDateFromInstant,
+  istCivilDayToUtcNoon,
+  istDayWindow,
+  istDateKey,
+  istRangeDaysBack,
+  shiftIstCivilDay,
+} from "./nse-time";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
 
 const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
@@ -49,9 +58,7 @@ function safeStr(v: unknown): string {
 
 function formatPeriod(raw: unknown): string | null {
   const iso = parseNseDateTime(raw);
-  const d = iso ? new Date(iso) : null;
-  if (!d || Number.isNaN(d.getTime())) return null;
-  return d.toLocaleString("en-IN", { month: "short", year: "numeric" });
+  return iso ? formatIstMonthYear(iso) : null;
 }
 
 function periodSortKey(period: string | null): number {
@@ -119,14 +126,11 @@ async function fetchNseAnnouncements(
   to: Date,
   jar: { cookie: string },
 ): Promise<NseAnnRow[]> {
-  const dd = (d: Date) =>
-    `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-
   const u = new URL(CORP_ANN_URL);
   u.searchParams.set("index", index);
   u.searchParams.set("symbol", symbol);
-  u.searchParams.set("from_date", dd(from));
-  u.searchParams.set("to_date", dd(to));
+  u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
+  u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
 
   const res = await fetch(u.toString(), {
     headers: {
@@ -148,11 +152,11 @@ async function fetchNseAnnouncementWindows(
   index: "sme" | "equities",
   jar: { cookie: string },
 ): Promise<NseAnnRow[]> {
-  const now = new Date();
-  const recentFrom = new Date(now);
-  recentFrom.setDate(recentFrom.getDate() - 180);
-  const oldFrom = new Date(now);
-  oldFrom.setFullYear(oldFrom.getFullYear() - 3);
+  const { from: oldFromDay, to: toDay } = istRangeDaysBack(365 * 3);
+  const recentFromDay = shiftIstCivilDay(toDay, -180);
+  const now = istCivilDayToUtcNoon(toDay);
+  const recentFrom = istCivilDayToUtcNoon(recentFromDay);
+  const oldFrom = istCivilDayToUtcNoon(oldFromDay);
 
   const recent = await fetchNseAnnouncements(symbol, index, recentFrom, now, jar);
   const older = await fetchNseAnnouncements(symbol, index, oldFrom, recentFrom, jar);
@@ -290,12 +294,9 @@ export type NseMarketOrderHit = {
 };
 
 function dayWindowLocal(offset: number): { from: Date; to: Date } {
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  from.setDate(from.getDate() - offset);
-  const to = new Date(from);
-  to.setHours(23, 59, 59, 999);
-  return { from, to };
+  const day = istDayWindow(offset).day;
+  const noon = istCivilDayToUtcNoon(day);
+  return { from: noon, to: noon };
 }
 
 /**
@@ -328,7 +329,7 @@ export async function discoverNseAnnouncedOrders(
         parseNseDateTime(row.sort_date) ||
         parseNseDateTime(row.dt);
       const day =
-        (announced_at && announced_at.slice(0, 10)) ||
+        (announced_at && istDateKey(announced_at)) ||
         safeStr(row.an_dt || row.sort_date || row.dt).slice(0, 10);
       const key = announcementDedupeKey({
         ticker,
@@ -426,7 +427,7 @@ export async function discoverNseMarketAnnouncements(
         parseNseDateTime(row.dt);
       // Dedupe same issuer + title + calendar day (NSE often posts 2 PDFs).
       const day =
-        (announced_at && announced_at.slice(0, 10)) ||
+        (announced_at && istDateKey(announced_at)) ||
         safeStr(rawDt).slice(0, 10);
       const key = announcementDedupeKey({
         ticker,
@@ -486,13 +487,11 @@ async function fetchNseAnnouncementWindowsForRange(
   to: Date,
   jar: Awaited<ReturnType<typeof createNseBuybackSession>>,
 ): Promise<NseAnnRow[]> {
-  const dd = (d: Date) =>
-    `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
   const u = new URL(CORP_ANN_URL);
   u.searchParams.set("index", index);
   if (symbol.trim()) u.searchParams.set("symbol", symbol.trim().toUpperCase());
-  u.searchParams.set("from_date", dd(from));
-  u.searchParams.set("to_date", dd(to));
+  u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
+  u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
   const res = await fetch(u.toString(), {
     headers: {
       "User-Agent":

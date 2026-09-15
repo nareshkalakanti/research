@@ -3,6 +3,8 @@
  * Used by MarketIQ / OrderBookIQ feed + discover paths.
  */
 
+import { istDateKey } from "./nse-time";
+
 export function normAnnouncementTitle(title: string): string {
   return (title || "")
     .toLowerCase()
@@ -34,10 +36,11 @@ export function normIssuerKey(
 export function announcementDay(iso: string | null | undefined): string {
   if (!iso) return "";
   const s = iso.trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return istDateKey(s);
   const t = Date.parse(s);
   if (!Number.isFinite(t)) return s.slice(0, 10);
-  return new Date(t).toISOString().slice(0, 10);
+  return istDateKey(new Date(t).toISOString());
 }
 
 /** Stable key: issuer | YYYY-MM-DD | normalized title */

@@ -145,6 +145,33 @@ export async function fetchBseScripLtp(scripCode: string): Promise<number | null
   }
 }
 
+/** BSE scrip code → exchange symbol (ShortN) + legal name. */
+export async function fetchBseScripIdentity(
+  scripCode: string,
+): Promise<{ ticker: string; name: string | null } | null> {
+  const code = scripCode.trim();
+  if (!/^\d{5,7}$/.test(code)) return null;
+  const url = `${SCRIP_HEADER}?scripcode=${encodeURIComponent(code)}&flag=0`;
+  try {
+    const res = await fetch(url, {
+      headers: BSE_HEADERS,
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      Cmpname?: { ShortN?: string; FullN?: string };
+    };
+    const short = String(json.Cmpname?.ShortN || "")
+      .trim()
+      .toUpperCase();
+    if (!short || /^\d+$/.test(short)) return null;
+    const name = String(json.Cmpname?.FullN || "").trim() || null;
+    return { ticker: short, name };
+  } catch {
+    return null;
+  }
+}
+
 export type BseSmeMetrics = {
   ticker: string;
   price: number | null;

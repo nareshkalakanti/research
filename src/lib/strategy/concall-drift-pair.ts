@@ -25,36 +25,61 @@ function concallQuality(c: NseCorpEvent): number {
   return 2;
 }
 
+/**
+ * Clarifications / exchange replies are not the results announcement —
+ * they pollute the board ahead of Outcome of Board / Press Release rows.
+ */
+export function isPrimaryBoardEarn(e: NseCorpEvent): boolean {
+  if (e.kind !== "earn") return false;
+  const s = `${e.title} ${e.subject || ""}`.toLowerCase();
+  if (
+    /reply\s+to\s+clarification|clarification\s*[-–:]?\s*financial/.test(s)
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function pickBestConcall(
+  earnTs: number,
+  concalls: NseCorpEvent[],
+  preferPostEarn: boolean,
+): NseCorpEvent | null {
+  let best: NseCorpEvent | null = null;
+  let bestScore = Infinity;
+  let bestQuality = Infinity;
+
+  for (const c of concalls) {
+    const cTs = Date.parse(c.announced_at);
+    if (preferPostEarn && cTs < earnTs) continue;
+    const score = pairScore(earnTs, cTs);
+    if (score == null) continue;
+    const quality = concallQuality(c);
+    if (
+      !best ||
+      quality < bestQuality ||
+      (quality === bestQuality && score < bestScore)
+    ) {
+      best = c;
+      bestScore = score;
+      bestQuality = quality;
+    }
+  }
+  return best;
+}
+
 /** Pair each earn with the best NSE concall / investor-meet filing in the cycle. */
 export function pairEarnConcall(events: NseCorpEvent[]): Array<{
   earn: NseCorpEvent;
   concall: NseCorpEvent | null;
 }> {
-  const earns = events.filter((e) => e.kind === "earn");
+  const earns = events.filter(isPrimaryBoardEarn);
   const concalls = events.filter((e) => e.kind === "concall");
 
   return earns.map((earn) => {
     const earnTs = Date.parse(earn.announced_at);
-    let best: NseCorpEvent | null = null;
-    let bestScore = Infinity;
-    let bestQuality = Infinity;
-
-    for (const c of concalls) {
-      const cTs = Date.parse(c.announced_at);
-      const score = pairScore(earnTs, cTs);
-      if (score == null) continue;
-      const quality = concallQuality(c);
-      if (
-        !best ||
-        quality < bestQuality ||
-        (quality === bestQuality && score < bestScore)
-      ) {
-        best = c;
-        bestScore = score;
-        bestQuality = quality;
-      }
-    }
-
-    return { earn, concall: best };
+    // Board Concall column is on/after Earn only (pre-earn schedules stay off-row).
+    const concall = pickBestConcall(earnTs, concalls, true);
+    return { earn, concall };
   });
 }

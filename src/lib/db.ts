@@ -722,6 +722,29 @@ export function marketCounts(): Record<string, number> {
   return counts;
 }
 
+/** Listing market from company_about (NSE / NSE SME / BSE / BSE SME). */
+export function lookupCompanyMarket(ticker: string | null | undefined): string | null {
+  const key = (ticker || "").trim().toUpperCase();
+  if (!key) return null;
+  return companyMarketIndex().get(key) ?? null;
+}
+
+let marketIndexRows: CompanyRow[] | null = null;
+let marketIndexMap: Map<string, string> | null = null;
+
+function companyMarketIndex(): Map<string, string> {
+  const rows = loadAllCompanies();
+  if (marketIndexRows === rows && marketIndexMap) return marketIndexMap;
+  const map = new Map<string, string>();
+  for (const c of rows) {
+    const m = (c.market || "").trim();
+    if (m) map.set(c.ticker.toUpperCase(), m);
+  }
+  marketIndexRows = rows;
+  marketIndexMap = map;
+  return map;
+}
+
 export function distinctSectors(): string[] {
   const set = new Set<string>();
   for (const c of loadAllCompanies()) {

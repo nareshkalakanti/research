@@ -6,6 +6,9 @@ import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
 import { governanceDinUrl } from "@/lib/links";
 import { IqHintPanel } from "@/components/IqHintPanel";
 import { CompanyWatchCell } from "@/components/CompanyWatchCell";
+import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import { LiveBseFeedBadge } from "@/components/LiveBseFeedBadge";
+import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
 
 type BoardHit = {
   ticker: string;
@@ -178,7 +181,8 @@ export function BoardRoomIqPanel() {
   const [analyseBusyKey, setAnalyseBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
-  const [live, setLive] = useState(false);
+  const [nseFeed, setNseFeed] = useState<NseFeedStatus | null>(null);
+  const [bseFeed, setBseFeed] = useState<NseFeedStatus | null>(null);
   const [hits, setHits] = useState<BoardHit[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -204,8 +208,12 @@ export function BoardRoomIqPanel() {
     const json = (await res.json()) as {
       ok?: boolean;
       history?: HistoryRow[];
+      nse_feed?: NseFeedStatus;
+      bse_feed?: NseFeedStatus;
     };
     if (json.history) setHistory(json.history);
+    if (json.nse_feed) setNseFeed(json.nse_feed);
+    if (json.bse_feed) setBseFeed(json.bse_feed);
   }, []);
 
   const loadCategories = useCallback(async () => {
@@ -241,13 +249,16 @@ export function BoardRoomIqPanel() {
         note?: string;
         error?: string;
         cached?: boolean;
+        nse_feed?: NseFeedStatus;
+        bse_feed?: NseFeedStatus;
       };
       if (ac.signal.aborted) return;
+      if (json.nse_feed) setNseFeed(json.nse_feed);
+      if (json.bse_feed) setBseFeed(json.bse_feed);
       if (!res.ok || json.ok === false) {
         throw new Error(json.error || "Refresh failed");
       }
       setHits(json.sources || []);
-      setLive(true);
       setStatusNote(
         json.note ||
           `${json.sources?.length ?? 0} board / director / AGM filings${json.cached ? " (cache)" : ""}`,
@@ -743,10 +754,8 @@ export function BoardRoomIqPanel() {
           </p>
         </div>
         <div className="miq-head-actions">
-          <span className={live ? "miq-live on" : "miq-live"}>
-            <span className="miq-live-dot" />
-            {live ? "Live" : "Cached"}
-          </span>
+          <LiveNseFeedBadge status={nseFeed} compact />
+          <LiveBseFeedBadge status={bseFeed} compact />
           <button
             type="button"
             className="chip tag-chip"

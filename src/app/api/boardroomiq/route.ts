@@ -17,6 +17,7 @@ import {
   announcedCacheSet,
 } from "@/lib/announced-cache";
 import { clampAnnouncedDays } from "@/lib/announced-lookback";
+import { loadExchangeFeedStatus } from "@/lib/exchange-feed-status";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -34,10 +35,12 @@ export async function GET(req: NextRequest) {
       200,
       Math.max(1, Number(sp.get("limit") || 40) || 40),
     );
+    const feeds = await loadExchangeFeedStatus();
     return NextResponse.json({
       ok: true,
       db: BOARDROOMIQ_DB_FILE,
       history: listBoardRoomHistory(limit),
+      ...feeds,
     });
   }
 
@@ -59,13 +62,15 @@ export async function GET(req: NextRequest) {
     if (!bust) {
       const cached = announcedCacheGet<Record<string, unknown>>(cacheKey);
       if (cached) {
-        return NextResponse.json({ ...cached, cached: true });
+        const feeds = await loadExchangeFeedStatus();
+        return NextResponse.json({ ...cached, ...feeds, cached: true });
       }
     }
     try {
       const found = await discoverBoardRoomAnnounced(days, { q });
       announcedCacheSet(cacheKey, found);
-      return NextResponse.json({ ...found, cached: false });
+      const feeds = await loadExchangeFeedStatus({ force: bust });
+      return NextResponse.json({ ...found, ...feeds, cached: false });
     } catch (e) {
       return NextResponse.json(
         {

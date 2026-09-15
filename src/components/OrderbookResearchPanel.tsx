@@ -58,6 +58,7 @@ type HistoryRow = {
   source_url: string | null;
   ticker: string | null;
   company: string | null;
+  market?: string | null;
   order_date: string | null;
   awarding_entity: string;
   order_size: string;
@@ -1661,7 +1662,7 @@ export function OrderbookResearchPanel() {
                       {h.ticker ? (
                         <a
                           className="buyback-pass-company"
-                          href={tradingviewUrl(h.ticker, "NSE")}
+                          href={tradingviewUrl(h.ticker, h.market)}
                           target="_blank"
                           rel="noreferrer"
                           title={`${h.company || h.ticker} — TradingView`}

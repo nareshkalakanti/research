@@ -47,6 +47,7 @@ type HistoryRow = {
   source_url: string | null;
   ticker: string | null;
   company: string | null;
+  market?: string | null;
   call_date: string | null;
   period: string | null;
   sector: string | null;
@@ -2020,7 +2021,7 @@ export function ConcallResearchPanel() {
                       {h.ticker ? (
                         <a
                           className="buyback-pass-company"
-                          href={tradingviewUrl(h.ticker, "NSE")}
+                          href={tradingviewUrl(h.ticker, h.market)}
                           target="_blank"
                           rel="noreferrer"
                           title={`${h.company || h.ticker} — TradingView`}

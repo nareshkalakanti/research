@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { tradingviewUrl } from "@/lib/links";
+import { tradingviewUrl, bseScripCodeFromTicker } from "@/lib/links";
 import { WatchButton } from "@/components/WatchButton";
+import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import { LiveBseFeedBadge } from "@/components/LiveBseFeedBadge";
+import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
 
 type TrackerOrder = {
   id: string;
@@ -11,6 +14,7 @@ type TrackerOrder = {
   source_url: string | null;
   ticker: string;
   company: string;
+  market: string | null;
   customer: string;
   order_type: string;
   order_date: string | null;
@@ -31,6 +35,7 @@ type TrackerOrder = {
 type TrackerCompany = {
   ticker: string;
   company: string;
+  market: string | null;
   order_count: number;
   total_order_value_cr: number;
   sales_cr: number | null;
@@ -47,6 +52,8 @@ type TrackerResponse = {
   customers: string[];
   companies_filter: Array<{ ticker: string; company: string }>;
   pass_min_pct?: number;
+  nse_feed?: NseFeedStatus;
+  bse_feed?: NseFeedStatus;
   error?: string;
 };
 
@@ -103,6 +110,13 @@ function displayType(t: string): string {
   return t;
 }
 
+function exchangeLabel(ticker: string, market?: string | null): "NSE" | "BSE" {
+  if (bseScripCodeFromTicker(ticker)) return "BSE";
+  const mk = (market || "").toUpperCase();
+  if (mk.includes("BSE") || /^BSE/i.test(ticker)) return "BSE";
+  return "NSE";
+}
+
 function pdfHref(url: string | null): string | null {
   if (!url?.trim()) return null;
   return `/api/orderbook-screen?pdf=${encodeURIComponent(url.trim())}`;
@@ -138,10 +152,12 @@ function RefreshIcon() {
 function CompanyLink({
   ticker,
   company,
+  market,
   onOpen,
 }: {
   ticker: string;
   company: string;
+  market?: string | null;
   /** When set, click opens company accordion instead of TradingView. */
   onOpen?: (ticker: string) => void;
 }) {
@@ -163,10 +179,14 @@ function CompanyLink({
       ) : (
         <a
           className="otrd-co-link"
-          href={tradingviewUrl(ticker, "NSE")}
+          href={tradingviewUrl(ticker, market)}
           target="_blank"
           rel="noreferrer"
-          title={ticker}
+          title={
+            bseScripCodeFromTicker(ticker)
+              ? `${ticker} — BSE India`
+              : `${ticker} — TradingView`
+          }
           onClick={(e) => e.stopPropagation()}
         >
           {company}
@@ -241,6 +261,7 @@ function OrdersTable({
                     <CompanyLink
                       ticker={o.ticker}
                       company={o.company}
+                      market={o.market}
                       onOpen={onOpenCompany}
                     />
                   </td>
@@ -304,12 +325,30 @@ function OrdersTable({
 }
 
 type Props = {
-  /** Standalone page chrome (back link to app). */
-  standalone?: boolean;
+  /**
+   * Controlled view when embedded under OrderBookIQ tabs.
+   * Omit for internal All / By Company toggle.
+   */
+  view?: ViewMode;
+  onViewChange?: (v: ViewMode) => void;
+  /** Hide All / By Company tabs — parent chrome owns them. */
+  hideViewTabs?: boolean;
+  /** Skip page shell — parent already wraps with otrd-page / otrd-shell. */
+  embedInParent?: boolean;
 };
 
-export function OrderTrackerPanel({ standalone = false }: Props) {
-  const [view, setView] = useState<ViewMode>("all");
+export function OrderTrackerPanel({
+  view: viewProp,
+  onViewChange,
+  hideViewTabs = false,
+  embedInParent = false,
+}: Props) {
+  const [viewInternal, setViewInternal] = useState<ViewMode>("all");
+  const view = viewProp ?? viewInternal;
+  const setView = (v: ViewMode) => {
+    if (onViewChange) onViewChange(v);
+    else setViewInternal(v);
+  };
   const [ticker, setTicker] = useState("");
   const [customer, setCustomer] = useState("");
   const [minPct, setMinPct] = useState("0");
@@ -318,6 +357,8 @@ export function OrderTrackerPanel({ standalone = false }: Props) {
   const [passOnly, setPassOnly] = useState(false);
   const [q, setQ] = useState("");
   const [data, setData] = useState<TrackerResponse | null>(null);
+  const [nseFeed, setNseFeed] = useState<NseFeedStatus | null>(null);
+  const [bseFeed, setBseFeed] = useState<NseFeedStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -404,6 +445,8 @@ export function OrderTrackerPanel({ standalone = false }: Props) {
         return;
       }
       setData(json);
+      if (json.nse_feed) setNseFeed(json.nse_feed);
+      if (json.bse_feed) setBseFeed(json.bse_feed);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Tracker load failed");
       setData(null);
@@ -458,9 +501,9 @@ export function OrderTrackerPanel({ standalone = false }: Props) {
   }
 
   return (
-    <div className="otrd-page">
-      <div className="otrd-shell">
-        {standalone ? (
+    <div className={embedInParent ? "otrd-embed" : "otrd-page"}>
+      <div className={embedInParent ? "otrd-embed-inner" : "otrd-shell"}>
+        {!hideViewTabs ? (
           <div className="otrd-view-tabs" role="tablist">
             <button
               type="button"
@@ -491,24 +534,10 @@ export function OrderTrackerPanel({ standalone = false }: Props) {
               </p>
             ) : null}
           </div>
-          {!standalone ? (
-            <div className="otrd-view-tabs" role="tablist">
-              <button
-                type="button"
-                className={view === "all" ? "on" : ""}
-                onClick={() => setView("all")}
-              >
-                All Orders
-              </button>
-              <button
-                type="button"
-                className={view === "company" ? "on" : ""}
-                onClick={() => setView("company")}
-              >
-                By Company
-              </button>
-            </div>
-          ) : null}
+          <div className="otrd-head-feeds">
+            <LiveNseFeedBadge status={nseFeed} compact />
+            <LiveBseFeedBadge status={bseFeed} compact />
+          </div>
         </header>
 
         <div className="otrd-filters">
@@ -660,6 +689,11 @@ export function OrderTrackerPanel({ standalone = false }: Props) {
                       >
                         <span className="otrd-chev">{open ? "▴" : "▾"}</span>
                         <span className="otrd-co-link">{c.company}</span>
+                        <span
+                          className={`exch-chip exch-${exchangeLabel(c.ticker, c.market).toLowerCase()}`}
+                        >
+                          {exchangeLabel(c.ticker, c.market)}
+                        </span>
                         <PctPill value={c.orders_as_pct_of_revenue} />
                         <span className="otrd-co-count">
                           {c.order_count} order{c.order_count === 1 ? "" : "s"}
@@ -673,12 +707,16 @@ export function OrderTrackerPanel({ standalone = false }: Props) {
                       </button>
                       <a
                         className="otrd-tv"
-                        href={tradingviewUrl(c.ticker, "NSE")}
+                        href={tradingviewUrl(c.ticker, c.market)}
                         target="_blank"
                         rel="noreferrer"
-                        title="TradingView"
+                        title={
+                          bseScripCodeFromTicker(c.ticker)
+                            ? "BSE India quote"
+                            : "TradingView"
+                        }
                       >
-                        TV
+                        {bseScripCodeFromTicker(c.ticker) ? "BSE" : "TV"}
                       </a>
                     </div>
                     {open ? (

@@ -1,11 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { announcementDedupeKey } from "@/lib/announcement-dedupe";
 import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
 import { IqHintPanel } from "@/components/IqHintPanel";
 import { CompanyWatchCell } from "@/components/CompanyWatchCell";
+import { OrderTrackerPanel } from "@/components/OrderTrackerPanel";
+import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
+import { LiveBseFeedBadge } from "@/components/LiveBseFeedBadge";
+import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
+
+type OrdersTopView = "iq" | "all" | "company";
+
+function parseOrdersView(raw: string | null): OrdersTopView {
+  if (raw === "all" || raw === "company") return raw;
+  return "iq";
+}
 
 type OrderHit = {
   ticker: string;
@@ -33,6 +44,29 @@ type HistoryRow = {
   ltp: number | null;
   baseline_close: number | null;
   drift_pct: number | null;
+  screened_at: string;
+};
+
+/** Analysed PASS+FAIL from DB (not exchange stubs). */
+type ScreenFeedRow = {
+  id: number;
+  source_url: string | null;
+  ticker: string | null;
+  company: string | null;
+  decision: "pass" | "fail";
+  awarding_entity: string;
+  order_size: string;
+  execution: string;
+  order_size_cr: number | null;
+  sales_cr: number | null;
+  order_to_sales_pct: number | null;
+  ltp: number | null;
+  baseline_close: number | null;
+  drift_pct: number | null;
+  subject: string | null;
+  why: string | null;
+  order_date: string | null;
+  news_date: string | null;
   screened_at: string;
 };
 
@@ -160,9 +194,21 @@ function DriftTag({ pct }: { pct: number | null | undefined }) {
   );
 }
 
-function orderbookTvMarket(ticker: string | null | undefined): string {
+function formatFeedTicker(ticker: string | null | undefined): string {
   const t = (ticker || "").trim().toUpperCase();
-  if (t.startsWith("BSE") || /^\d{6}$/.test(t)) return "BSE";
+  const m = t.match(/^BSE(\d{5,7})$/i);
+  if (m) return `BSE:${m[1]}`;
+  return t || "—";
+}
+
+function orderbookTvMarket(
+  ticker: string | null | undefined,
+  market?: string | null,
+): string {
+  const mk = (market || "").trim();
+  if (mk) return mk;
+  const t = (ticker || "").trim().toUpperCase();
+  if (t.startsWith("BSE") || /^\d{5,7}$/.test(t)) return "BSE";
   return "NSE";
 }
 
@@ -239,6 +285,49 @@ function histToFeed(h: HistoryRow): FeedRow {
           announced_at: h.news_date || h.order_date,
           period: null,
           provider: "history",
+        }
+      : null,
+  };
+}
+
+function screenToFeed(s: ScreenFeedRow): FeedRow {
+  const iso = s.news_date || s.order_date || s.screened_at;
+  const headline =
+    s.subject?.trim() ||
+    (s.awarding_entity && s.awarding_entity !== "Not disclosed"
+      ? `Order · ${s.awarding_entity}`
+      : s.decision === "pass"
+        ? "Order win (PASS)"
+        : "Order filing (FAIL)");
+  return {
+    key: `screen-${s.id}`,
+    historyId: s.id,
+    company: s.company || s.ticker || "—",
+    ticker: (s.ticker || "—").toUpperCase(),
+    dateLabel: fmtDate(iso),
+    dateIso: iso,
+    headline,
+    awarding_entity: s.awarding_entity || "—",
+    order_size: s.order_size || "—",
+    execution: s.execution || "—",
+    order_size_cr: s.order_size_cr,
+    sales_cr: s.sales_cr,
+    order_to_sales_pct: s.order_to_sales_pct,
+    decision: s.decision,
+    why: s.why,
+    ltp: s.ltp,
+    baseline_close: s.baseline_close,
+    drift_pct: s.drift_pct,
+    url: s.source_url,
+    hit: s.source_url
+      ? {
+          ticker: (s.ticker || "").toUpperCase(),
+          company: s.company,
+          title: headline,
+          url: s.source_url,
+          announced_at: s.news_date || s.order_date,
+          period: null,
+          provider: "screen",
         }
       : null,
   };
@@ -326,6 +415,21 @@ type LabResult = {
 };
 
 export function OrderBookIqPanel() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const topView = parseOrdersView(searchParams.get("ordersView"));
+  const setTopView = useCallback(
+    (next: OrdersTopView) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", "orderbookiq");
+      if (next === "iq") params.delete("ordersView");
+      else params.set("ordersView", next);
+      const qs = params.toString();
+      router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+    },
+    [router, searchParams],
+  );
+
   const [days, setDays] = useState(2);
   const [useOcr, setUseOcr] = useState(false);
   const [q, setQ] = useState("");
@@ -333,9 +437,11 @@ export function OrderBookIqPanel() {
   const [analyseBusyKey, setAnalyseBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [statusNote, setStatusNote] = useState<string | null>(null);
-  const [live, setLive] = useState(false);
+  const [nseFeed, setNseFeed] = useState<NseFeedStatus | null>(null);
+  const [bseFeed, setBseFeed] = useState<NseFeedStatus | null>(null);
   const [hits, setHits] = useState<OrderHit[]>([]);
   const [history, setHistory] = useState<HistoryRow[]>([]);
+  const [screens, setScreens] = useState<ScreenFeedRow[]>([]);
   const [overlay, setOverlay] = useState<Record<string, AnalysedOverlay>>({});
   const [decisionFilter, setDecisionFilter] = useState<DecisionFilter>("all");
   const [page, setPage] = useState(1);
@@ -375,9 +481,15 @@ export function OrderBookIqPanel() {
       );
       const json = (await res.json()) as {
         history?: HistoryRow[];
+        screens?: ScreenFeedRow[];
         pass_min_pct?: number;
+        nse_feed?: NseFeedStatus;
+        bse_feed?: NseFeedStatus;
       };
       setHistory(json.history ?? []);
+      setScreens(json.screens ?? []);
+      if (json.nse_feed) setNseFeed(json.nse_feed);
+      if (json.bse_feed) setBseFeed(json.bse_feed);
       if (
         typeof json.pass_min_pct === "number" &&
         Number.isFinite(json.pass_min_pct)
@@ -405,13 +517,13 @@ export function OrderBookIqPanel() {
 
   const announcedAbortRef = useRef<AbortController | null>(null);
 
-  const fetchAnnounced = useCallback(async () => {
+  const fetchAnnounced = useCallback(async (): Promise<OrderHit[]> => {
     announcedAbortRef.current?.abort();
     const ac = new AbortController();
     announcedAbortRef.current = ac;
     setBusy(true);
     setError(null);
-    setStatusNote("Refreshing live order filings…");
+    setStatusNote("1/2 Refreshing live order filings…");
     try {
       const params = new URLSearchParams({
         announced: "1",
@@ -427,39 +539,43 @@ export function OrderBookIqPanel() {
         note?: string;
         error?: string;
         cached?: boolean;
+        nse_feed?: NseFeedStatus;
+        bse_feed?: NseFeedStatus;
       };
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted) return [];
+      if (json.nse_feed) setNseFeed(json.nse_feed);
+      if (json.bse_feed) setBseFeed(json.bse_feed);
       if (!res.ok || json.ok === false) {
         setError(json.error || "Fetch failed");
         setHits([]);
-        setLive(false);
-        return;
+        return [];
       }
-      setHits(json.sources ?? []);
-      setLive(true);
+      const sources = json.sources ?? [];
+      setHits(sources);
       setPage(1);
       setStatusNote(
         json.note ||
-          `${json.sources?.length ?? 0} live order filings${json.cached ? " (cache)" : ""}`,
+          `${sources.length} live order filings${json.cached ? " (cache)" : ""}`,
       );
-      if (json.sources?.length) {
+      if (sources.length) {
         await fetch("/api/orderbook-screen", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "save", sources: json.sources }),
+          body: JSON.stringify({ action: "save", sources }),
           signal: ac.signal,
         });
         if (!ac.signal.aborted) await loadHistory({ prices: false });
       }
+      return sources;
     } catch (e) {
-      if (ac.signal.aborted) return;
+      if (ac.signal.aborted) return [];
       setError(e instanceof Error ? e.message : "Fetch failed");
       setHits([]);
-      setLive(false);
+      return [];
     } finally {
       if (!ac.signal.aborted) setBusy(false);
     }
-  }, [days]);
+  }, [days, loadHistory]);
 
   useEffect(() => {
     void loadHistory({ prices: false });
@@ -608,7 +724,8 @@ export function OrderBookIqPanel() {
     scanStopRef.current = true;
   }, []);
 
-  const scanAllAnnouncements = useCallback(async () => {
+  const scanAllAnnouncements = useCallback(
+    async (sourceOverride?: OrderHit[]) => {
     if (scanRunning) return;
     scanStopRef.current = false;
     setScanRunning(true);
@@ -626,9 +743,11 @@ export function OrderBookIqPanel() {
       pct: 0,
       current: [],
     });
-    setStatusNote("Loading already-screened PDFs…");
+    setStatusNote("2/2 Analyse — loading screened PDFs…");
 
-    const queue = hits.filter((h) => h.url?.trim());
+    const liveHits =
+      sourceOverride && sourceOverride.length > 0 ? sourceOverride : hits;
+    const queue = liveHits.filter((h) => h.url?.trim());
     const doneUrls = new Set<string>();
 
     try {
@@ -689,7 +808,7 @@ export function OrderBookIqPanel() {
       current: [],
     });
     setStatusNote(
-      `Scanning ${pendingQueue.length} pending · skipped ${already} already in DB`,
+      `2/2 Analysing ${pendingQueue.length} pending · skipped ${already} already in DB`,
     );
 
     let ok = 0;
@@ -711,6 +830,7 @@ export function OrderBookIqPanel() {
             return u && !doneUrls.has(u);
           })
           .slice(0, 3);
+        if (nextBatch.length === 0) break;
         const current = nextBatch
           .map((h) => (h.ticker || "").toUpperCase())
           .filter(Boolean);
@@ -786,9 +906,14 @@ export function OrderBookIqPanel() {
         };
 
         if (!res.ok || json.ok === false) {
-          setError(json.error || "Scan batch failed");
-          errored = true;
-          break;
+          // Soft-fail the batch and keep going so one bad PDF doesn't stop the queue.
+          setStatusNote(
+            `Batch error — ${json.error || "Scan batch failed"} · continuing…`,
+          );
+          for (const u of batchUrls) doneUrls.add(u);
+          doneCount += batchUrls.length;
+          fail += batchUrls.length;
+          continue;
         }
 
         skipped = Math.max(skipped, already + (json.skipped ?? 0));
@@ -796,7 +921,7 @@ export function OrderBookIqPanel() {
         pass += json.passed ?? 0;
         fail += json.failed ?? 0;
         const remaining = json.remaining ?? 0;
-        const attempted = json.attempted ?? 0;
+        const attempted = json.attempted ?? batchUrls.length;
         if (round === 1 && total <= 0) {
           total = attempted + remaining;
         }
@@ -874,7 +999,22 @@ export function OrderBookIqPanel() {
       setScanRunning(false);
       scanStopRef.current = false;
     }
-  }, [scanRunning, hits, history, days, useOcr, ingestAnalyseResult, loadHistory]);
+  },
+  [scanRunning, hits, history, days, useOcr, ingestAnalyseResult, loadHistory],
+  );
+
+  /** One click: refresh live filings → analyse every pending PDF. */
+  const runPipeline = useCallback(async () => {
+    if (scanRunning || busy) return;
+    setError(null);
+    const sources = await fetchAnnounced();
+    if (scanStopRef.current) return;
+    if (!sources.length && !hits.length) {
+      setStatusNote("No live order filings in this lookback");
+      return;
+    }
+    await scanAllAnnouncements(sources.length ? sources : hits);
+  }, [scanRunning, busy, fetchAnnounced, scanAllAnnouncements, hits]);
 
   useEffect(() => {
     if (scanRunning || !scanStats?.finished) return;
@@ -979,10 +1119,19 @@ export function OrderBookIqPanel() {
     const byUrl = new Map<string, FeedRow>();
     const rows: FeedRow[] = [];
 
+    // Analysed PASS+FAIL from DB first — live hits must not resurrect as PENDING.
+    for (const s of screens) {
+      const row = screenToFeed(s);
+      rows.push(row);
+      if (s.source_url) byUrl.set(s.source_url.trim(), row);
+    }
+
     for (const h of history) {
+      const url = h.source_url?.trim() || "";
+      if (url && byUrl.has(url)) continue;
       const row = histToFeed(h);
       rows.push(row);
-      if (h.source_url) byUrl.set(h.source_url.trim(), row);
+      if (url) byUrl.set(url, row);
     }
 
     for (let i = 0; i < hits.length; i += 1) {
@@ -1032,7 +1181,7 @@ export function OrderBookIqPanel() {
       const blob = `${row.company} ${row.ticker} ${row.headline} ${row.awarding_entity}`.toLowerCase();
       return blob.includes(qLower);
     });
-  }, [history, hits, overlay, q, decisionFilter]);
+  }, [history, screens, hits, overlay, q, decisionFilter]);
 
   const pageCount = Math.max(1, Math.ceil(feed.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount);
@@ -1048,8 +1197,58 @@ export function OrderBookIqPanel() {
   };
 
   return (
-    <div className="miq-panel obiq-panel">
-      <header className="miq-head">
+    <div className="obiq-shell">
+      {topView === "all" || topView === "company" ? (
+        <div className="otrd-page">
+          <div className="otrd-shell">
+            <div className="otrd-view-tabs" role="tablist">
+              <button
+                type="button"
+                onClick={() => setTopView("iq")}
+              >
+                OrderBookIQ
+              </button>
+              <button
+                type="button"
+                className={topView === "all" ? "on" : ""}
+                onClick={() => setTopView("all")}
+              >
+                All Orders
+              </button>
+              <button
+                type="button"
+                className={topView === "company" ? "on" : ""}
+                onClick={() => setTopView("company")}
+              >
+                By Company
+              </button>
+            </div>
+            <OrderTrackerPanel
+              view={topView}
+              onViewChange={(v) => setTopView(v)}
+              hideViewTabs
+              embedInParent
+            />
+          </div>
+        </div>
+      ) : (
+        <div className="miq-panel obiq-panel">
+          <div className="otrd-view-tabs obiq-top-tabs" role="tablist">
+            <button
+              type="button"
+              className="on"
+              onClick={() => setTopView("iq")}
+            >
+              OrderBookIQ
+            </button>
+            <button type="button" onClick={() => setTopView("all")}>
+              All Orders
+            </button>
+            <button type="button" onClick={() => setTopView("company")}>
+              By Company
+            </button>
+          </div>
+          <header className="miq-head">
         <div>
           <h1 className="miq-title">OrderBookIQ</h1>
           <p className="miq-sub">
@@ -1058,13 +1257,8 @@ export function OrderBookIqPanel() {
           </p>
         </div>
         <div className="miq-head-actions">
-          <Link href="/order-tracker" className="chip tag-chip">
-            Order Tracker →
-          </Link>
-          <span className={live ? "miq-live on" : "miq-live"}>
-            <span className="miq-live-dot" />
-            {live ? "Live" : "Cached"}
-          </span>
+          <LiveNseFeedBadge status={nseFeed} compact />
+          <LiveBseFeedBadge status={bseFeed} compact />
           <button
             type="button"
             className="chip tag-chip"
@@ -1111,20 +1305,17 @@ export function OrderBookIqPanel() {
           <button
             type="button"
             className="chip chip-scan tag-chip"
-            disabled={
-              busy ||
-              (!scanRunning && hits.length === 0 && history.length === 0)
-            }
+            disabled={busy && !scanRunning}
             onClick={() => {
               if (scanRunning) stopScan();
-              else void scanAllAnnouncements();
+              else void runPipeline();
             }}
             title={
               scanRunning
                 ? "Stop after the current batch"
                 : useOcr
-                  ? "Scan pending filings with vision OCR (slower)"
-                  : "Scan pending filings (pdf-parse first, 3 in parallel)"
+                  ? "Refresh live filings, then analyse pending with OCR"
+                  : "Refresh live filings, then analyse pending (3 in parallel)"
             }
           >
             {scanRunning
@@ -1197,8 +1388,8 @@ export function OrderBookIqPanel() {
             Low ratios vs sales are noise (FAIL) — keep material wins only.
           </li>
           <li>
-            Refresh → Scan &amp; Analyse pending PDFs, or use the PDF lab for a
-            single filing.
+            Scan &amp; Analyse refreshes live NSE/BSE filings then analyses
+            pending PDFs (or use the PDF lab for a single filing).
           </li>
           <li>
             <strong>Δ drift</strong> = price reaction after the news: LTP vs last
@@ -1385,7 +1576,9 @@ export function OrderBookIqPanel() {
                     />
                     <div className="miq-co-meta">
                       <span>
-                        {(labResult.extract.ticker || labTicker || "—").toUpperCase()}
+                        {(labResult.extract.ticker || labTicker || "—")
+                          .toUpperCase()
+                          .replace(/^BSE(\d{5,7})$/i, "BSE:$1")}
                       </span>
                       {labResult.extract.order_date ? (
                         <>
@@ -1535,7 +1728,7 @@ export function OrderBookIqPanel() {
                         market={orderbookTvMarket(row.ticker)}
                       />
                       <div className="miq-co-meta">
-                        <span>{row.ticker}</span>
+                        <span>{formatFeedTicker(row.ticker)}</span>
                         <span className="miq-dot">·</span>
                         <span className="miq-co-date">
                           <IconCalendar />
@@ -1658,6 +1851,8 @@ export function OrderBookIqPanel() {
           </button>
         </div>
       ) : null}
+        </div>
+      )}
     </div>
   );
 }

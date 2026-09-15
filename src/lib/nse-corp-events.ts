@@ -1,6 +1,21 @@
 import { createNseBuybackSession } from "./nse-buybacks";
 import { isFinancialEarnAnnouncement } from "./strategy/concall-drift-earn";
 import { withWebsiteFetch } from "./scrape-pool";
+import {
+  formatNseApiDateFromInstant,
+  istCivilDayToUtcNoon,
+  istDayWindow,
+  istRangeDaysBack,
+  parseNseDateTime,
+  shiftIstCivilDay,
+} from "./nse-time";
+
+export {
+  parseNseDateTime,
+  nseWallTimeToUtcIso,
+  istDateKey,
+  repairLegacyNseIso,
+} from "./nse-time";
 
 const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
 const NSE_ANN_REF =
@@ -30,59 +45,6 @@ function nseAnnIndex(market: string | null | undefined): Array<"sme" | "equities
   const mk = (market || "").trim().toUpperCase();
   if (mk === "NSE SME") return ["sme", "equities"];
   return ["equities", "sme"];
-}
-
-export function parseNseDateTime(raw: unknown): string | null {
-  const text = safeStr(raw);
-  if (!text) return null;
-  const m = text.match(
-    /^(\d{2})-([A-Za-z]{3})-(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/,
-  );
-  if (m) {
-    const months: Record<string, number> = {
-      jan: 0,
-      feb: 1,
-      mar: 2,
-      apr: 3,
-      may: 4,
-      jun: 5,
-      jul: 6,
-      aug: 7,
-      sep: 8,
-      oct: 9,
-      nov: 10,
-      dec: 11,
-    };
-    const mon = months[m[2]!.toLowerCase()];
-    if (mon == null) return null;
-    const d = new Date(
-      Number(m[3]),
-      mon,
-      Number(m[1]),
-      Number(m[4] || 0),
-      Number(m[5] || 0),
-      Number(m[6] || 0),
-    );
-    if (Number.isNaN(d.getTime())) return null;
-    return d.toISOString();
-  }
-  const n = text.match(
-    /^(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/,
-  );
-  if (n) {
-    const d = new Date(
-      Number(n[3]),
-      Number(n[2]) - 1,
-      Number(n[1]),
-      Number(n[4] || 0),
-      Number(n[5] || 0),
-      Number(n[6] || 0),
-    );
-    if (Number.isNaN(d.getTime())) return null;
-    return d.toISOString();
-  }
-  const d = new Date(text);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 function isNoise(desc: string, attachmentText: string): boolean {
@@ -121,14 +83,11 @@ async function fetchNseAnnouncements(
   to: Date,
   jar: NseJar,
 ): Promise<NseAnnRow[]> {
-  const dd = (d: Date) =>
-    `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
-
   const u = new URL(CORP_ANN_URL);
   u.searchParams.set("index", index);
   if (symbol.trim()) u.searchParams.set("symbol", symbol.trim().toUpperCase());
-  u.searchParams.set("from_date", dd(from));
-  u.searchParams.set("to_date", dd(to));
+  u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
+  u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
 
   const res = await withWebsiteFetch(u.toString(), () =>
     fetch(u.toString(), {
@@ -194,11 +153,11 @@ export async function fetchNseCorpEvents(
   const symbol = ticker.trim().toUpperCase();
   if (!symbol) return [];
 
-  const to = new Date();
-  const recentFrom = new Date(to);
-  recentFrom.setDate(recentFrom.getDate() - Math.min(21, daysBack));
-  const from = new Date(to);
-  from.setDate(from.getDate() - daysBack);
+  const { from: fromDay, to: toDay } = istRangeDaysBack(daysBack);
+  const recentFromDay = shiftIstCivilDay(toDay, -Math.min(21, daysBack));
+  const to = istCivilDayToUtcNoon(toDay);
+  const from = istCivilDayToUtcNoon(fromDay);
+  const recentFrom = istCivilDayToUtcNoon(recentFromDay);
 
   const jar = sharedJar ?? (await createNseBuybackSession());
   const rows: NseAnnRow[] = [];
@@ -227,15 +186,6 @@ export async function fetchNseCorpEvents(
   return parseCorpRows(rows, symbol);
 }
 
-function dayWindow(offset: number): { from: Date; to: Date } {
-  const from = new Date();
-  from.setHours(0, 0, 0, 0);
-  from.setDate(from.getDate() - offset);
-  const to = new Date(from);
-  to.setHours(23, 59, 59, 999);
-  return { from, to };
-}
-
 /**
  * All NSE earn / concall filings in the last `daysBack` days (no per-ticker crawl).
  * Day windows avoid the bulk announcements cap dropping today's names.
@@ -250,7 +200,9 @@ export async function fetchNseAnnouncedCorpEvents(
   const seenSeq = new Set<string>();
 
   for (let offset = 0; offset < days; offset += 1) {
-    const { from, to } = dayWindow(offset);
+    const win = istDayWindow(offset);
+    const from = istCivilDayToUtcNoon(win.day);
+    const to = from;
     const windows = await Promise.all(
       (["equities", "sme"] as const).map((index) =>
         fetchNseAnnouncements("", index, from, to, jar).catch(
@@ -267,12 +219,12 @@ export async function fetchNseAnnouncedCorpEvents(
   }
 
   if (!rows.length) {
-    const now = new Date();
-    const from = new Date(now);
-    from.setDate(from.getDate() - Math.max(1, days));
+    const { from: fromDay, to: toDay } = istRangeDaysBack(Math.max(1, days));
+    const from = istCivilDayToUtcNoon(fromDay);
+    const to = istCivilDayToUtcNoon(toDay);
     const windows = await Promise.all(
       (["equities", "sme"] as const).map((index) =>
-        fetchNseAnnouncements("", index, from, now, jar).catch(
+        fetchNseAnnouncements("", index, from, to, jar).catch(
           () => [] as NseAnnRow[],
         ),
       ),

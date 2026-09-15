@@ -34,12 +34,11 @@ export function toYfinanceSymbol(
   if (
     mk === "BSE" ||
     mk === "BSE SME" ||
-    mk === "BOMBAY STOCK EXCHANGE"
+    mk === "BOMBAY STOCK EXCHANGE" ||
+    mk.startsWith("BSE")
   ) {
     return `${sym}.BO`;
   }
-  // Known BSE-only (often mis-tagged NSE in company_about).
-  if (sym === "ASMTEC") return `${sym}.BO`;
   return `${sym}.NS`;
 }
 

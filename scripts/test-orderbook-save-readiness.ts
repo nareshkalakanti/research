@@ -4,7 +4,9 @@
  *   npm run test:orderbook-save-readiness
  */
 import {
+  coerceOrderSizeCr,
   orderbookSaveReadiness,
+  parseOrderSizeToCr,
   repairOrderbookGaps,
   type OrderbookExtract,
 } from "../src/lib/orderbook-screen";
@@ -95,6 +97,23 @@ async function main() {
   assert(
     orderbookSaveReadiness(sizeRepair.extract).ready,
     "expected ready after core fields + ₹ Cr",
+  );
+
+  // Absolute ₹ mis-labeled as Cr (Innovision-style LLM bug)
+  const bare =
+    "27,52,09,635 (Twenty Seven Crore Fifty Two Lakh Nine Thousand Six Hundred and Thirty Five only)";
+  assert(
+    parseOrderSizeToCr(bare) === 27.52,
+    `bare absolute+crore words → 27.52, got ${parseOrderSizeToCr(bare)}`,
+  );
+  assert(
+    coerceOrderSizeCr(27_5209_635, bare) === 27.52,
+    `coerce INR-as-Cr → 27.52, got ${coerceOrderSizeCr(27_5209_635, bare)}`,
+  );
+  const withInrAsCr = "₹ 4,20,30,000/- (Four crores twenty lakhs thirty thousand Only)";
+  assert(
+    coerceOrderSizeCr(4_2030_000, withInrAsCr) === 4.2,
+    `coerce 42030000 → 4.2, got ${coerceOrderSizeCr(4_2030_000, withInrAsCr)}`,
   );
 
   console.log("OK · orderbook save readiness");

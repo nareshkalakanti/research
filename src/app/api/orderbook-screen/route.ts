@@ -7,6 +7,7 @@ import {
   extractOrderbookPdf,
   isOrderbookPdfProxyUrl,
   listOrderbookHistory,
+  listOrderbookRecentScreens,
   listOrderbookScreenedUrls,
   listOrderbookTracker,
   ORDERBOOK_PASS_MIN_PCT,
@@ -24,6 +25,7 @@ import {
   announcedCacheSet,
 } from "@/lib/announced-cache";
 import { clampAnnouncedDays } from "@/lib/announced-lookback";
+import { loadExchangeFeedStatus } from "@/lib/exchange-feed-status";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -49,13 +51,15 @@ export async function GET(req: NextRequest) {
     if (!bust) {
       const cached = announcedCacheGet<Record<string, unknown>>(cacheKey);
       if (cached) {
-        return NextResponse.json({ ...cached, cached: true });
+        const feeds = await loadExchangeFeedStatus();
+        return NextResponse.json({ ...cached, ...feeds, cached: true });
       }
     }
     try {
       const found = await discoverOrderbookAnnounced(days);
       announcedCacheSet(cacheKey, found);
-      return NextResponse.json({ ...found, cached: false });
+      const feeds = await loadExchangeFeedStatus({ force: bust });
+      return NextResponse.json({ ...found, ...feeds, cached: false });
     } catch (e) {
       return NextResponse.json(
         {
@@ -129,11 +133,13 @@ export async function GET(req: NextRequest) {
       monthsBack: Number.isFinite(monthsBack as number) ? monthsBack : null,
       minMcapCr: Number.isFinite(minMcapCr as number) ? minMcapCr : null,
     });
+    const feeds = await loadExchangeFeedStatus();
     return NextResponse.json({
       ok: true,
       db: ORDERBOOKIQ_DB_FILE,
       pass_min_pct: ORDERBOOK_PASS_MIN_PCT,
       ...data,
+      ...feeds,
     });
   }
 
@@ -186,11 +192,15 @@ export async function GET(req: NextRequest) {
   if (refresh && history.length) {
     history = await refreshOrderbookHistoryPrices(history);
   }
+  const screens = listOrderbookRecentScreens(limit);
+  const feeds = await loadExchangeFeedStatus();
   return NextResponse.json({
     ok: true,
     db: ORDERBOOKIQ_DB_FILE,
     history,
+    screens,
     pass_min_pct: ORDERBOOK_PASS_MIN_PCT,
+    ...feeds,
     required_fields: [
       "Ticker / Company",
       "Announcement date",

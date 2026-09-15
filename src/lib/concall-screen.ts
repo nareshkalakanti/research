@@ -15,6 +15,7 @@ import {
   baselineCloseBefore,
   computeDriftPct,
 } from "./strategy/concall-drift-math";
+import { lookupCompanyMarket } from "./db";
 import { fetchDailyBars } from "./ohlc";
 import { fetchQuoteDetailed } from "./yfinance";
 import {
@@ -146,6 +147,8 @@ export type ConcallHistoryRow = {
   source_url: string | null;
   ticker: string | null;
   company: string | null;
+  /** Listing market from company_about (NSE / BSE / SME boards). */
+  market: string | null;
   call_date: string | null;
   period: string | null;
   sector: string | null;
@@ -3128,12 +3131,14 @@ function historyFromExtract(
     typeof meta.company_name === "string" ? meta.company_name : null;
   const ticker = typeof meta.nse_symbol === "string" ? meta.nse_symbol : null;
   if (!company && ticker) company = lookupCompanyName(ticker);
+  const market = ticker ? lookupCompanyMarket(ticker) : null;
 
   return {
     id,
     source_url,
     ticker,
     company,
+    market,
     call_date,
     period: period || null,
     sector: typeof card.sector === "string" ? card.sector : null,
@@ -3166,10 +3171,11 @@ export async function attachConcallPrices(
   const ticker =
     typeof meta.nse_symbol === "string" ? meta.nse_symbol.trim() : "";
   if (!ticker) return extract;
+  const market = lookupCompanyMarket(ticker) || "NSE";
   try {
     const [quote, bars] = await Promise.all([
-      fetchQuoteDetailed(ticker, "NSE", { skipSummary: true }),
-      fetchDailyBars(ticker, "NSE", 2),
+      fetchQuoteDetailed(ticker, market, { skipSummary: true }),
+      fetchDailyBars(ticker, market, 2),
     ]);
     const ltp =
       quote.price != null && Number.isFinite(quote.price) ? quote.price : null;

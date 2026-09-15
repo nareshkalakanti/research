@@ -10,6 +10,11 @@ import { invalidateCompanyCache } from "./db";
 import { upsertMetrics } from "./metrics";
 import { createNseBuybackSession } from "./nse-buybacks";
 import { fetchQuoteDetailed, fetchYfAboutProfile } from "./yfinance";
+import {
+  formatNseApiDateFromInstant,
+  istCivilDayToUtcNoon,
+  istRangeDaysBack,
+} from "./nse-time";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const ABOUT_PATH = path.join(DATA_DIR, "company_about.db");
@@ -37,18 +42,16 @@ async function resolveFromNse(
 ): Promise<{ name: string; market: string } | null> {
   try {
     const jar = await createNseBuybackSession();
-    const to = new Date();
-    const from = new Date(to);
-    from.setFullYear(from.getFullYear() - 1);
-    const dd = (d: Date) =>
-      `${String(d.getDate()).padStart(2, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${d.getFullYear()}`;
+    const { from: fromDay, to: toDay } = istRangeDaysBack(365);
+    const to = istCivilDayToUtcNoon(toDay);
+    const from = istCivilDayToUtcNoon(fromDay);
 
     for (const index of ["equities", "sme"] as const) {
       const u = new URL(CORP_ANN_URL);
       u.searchParams.set("index", index);
       u.searchParams.set("symbol", ticker);
-      u.searchParams.set("from_date", dd(from));
-      u.searchParams.set("to_date", dd(to));
+      u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
+      u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
 
       const res = await fetch(u.toString(), {
         headers: {
