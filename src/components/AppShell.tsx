@@ -59,6 +59,11 @@ const MissingDataPanel = dynamic(
     import("@/components/MissingDataPanel").then((m) => m.MissingDataPanel),
   { loading: PanelFallback, ssr: false },
 );
+const ValuationPanel = dynamic(
+  () =>
+    import("@/components/ValuationPanel").then((m) => m.ValuationPanel),
+  { loading: PanelFallback, ssr: false },
+);
 
 const PANELS: Record<AppTab, ComponentType> = {
   "theme-scanner": ThemeScanner,
@@ -68,6 +73,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   marketiq: MarketIqPanel,
   orderbookiq: OrderBookIqPanel,
   boardroomiq: BoardRoomIqPanel,
+  valuation: ValuationPanel,
   research: ResearchPanel,
   missing: MissingDataPanel,
 };

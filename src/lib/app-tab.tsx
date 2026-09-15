@@ -20,6 +20,7 @@ export type AppTab =
   | "marketiq"
   | "orderbookiq"
   | "boardroomiq"
+  | "valuation"
   | "missing"
   | "research";
 
@@ -31,6 +32,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "marketiq", label: "MarketIQ", short: "Market" },
   { id: "orderbookiq", label: "OrderBookIQ", short: "Orders" },
   { id: "boardroomiq", label: "BoardRoomIQ", short: "Board" },
+  { id: "valuation", label: "Valuation", short: "Value" },
   { id: "research", label: "Research", short: "Research" },
   { id: "missing", label: "Missing data", short: "Missing" },
 ];
