@@ -19993,13 +19993,6 @@ button.otrd-co-link {
 .pcd-drift.is-flat {
   color: var(--pcd-muted);
 }
-.pcd-drift.is-empty {
-  color: #c4bbb0;
-  font-weight: 600;
-  font-size: 0.75rem;
-  letter-spacing: 0.04em;
-  text-transform: lowercase;
-}
 
 .pcd-foot {
   display: flex;
