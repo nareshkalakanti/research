@@ -4,6 +4,7 @@
 import type { QuarterPoint } from "./quarter-panel";
 import { trimReportedQuarters } from "./quarter-panel";
 import { BSE_HEADERS, loadBseSmeCacheMap } from "./bse-sme";
+import { resolveBseScripCode } from "./bse-investor-discover";
 
 const RESULTS_API =
   "https://api.bseindia.com/BseIndiaAPI/api/TabResults_PAR/w";
@@ -76,13 +77,20 @@ function isQuarterPeriod(label: string): boolean {
 
 function rowValue(
   rows: BseResultsRow[],
-  title: string,
+  titles: string | string[],
   key: "v1" | "v2" | "v3",
 ): number | null {
-  const row = rows.find(
-    (r) => String(r.title || "").trim().toLowerCase() === title.toLowerCase(),
+  const want = (Array.isArray(titles) ? titles : [titles]).map((t) =>
+    t.trim().toLowerCase(),
   );
-  return row ? num(row[key]) : null;
+  for (const title of want) {
+    const row = rows.find(
+      (r) => String(r.title || "").trim().toLowerCase() === title,
+    );
+    const v = row ? num(row[key]) : null;
+    if (v != null) return v;
+  }
+  return null;
 }
 
 function parseResultsPayload(raw: unknown): QuarterPoint[] {
@@ -114,10 +122,14 @@ function parseResultsPayload(raw: unknown): QuarterPoint[] {
   for (const p of periods) {
     const date = parsePeriodEnd(p.label);
     if (!date) continue;
-    const revenue = rowValue(rows, "Revenue", p.key);
-    const netIncome = rowValue(rows, "Net Profit", p.key);
-    const eps = rowValue(rows, "EPS", p.key);
-    const opm = rowValue(rows, "OPM %", p.key);
+    const revenue = rowValue(rows, ["Revenue", "Sales", "Net Sales"], p.key);
+    const netIncome = rowValue(
+      rows,
+      ["Net Profit", "Profit After Tax", "PAT"],
+      p.key,
+    );
+    const eps = rowValue(rows, ["EPS", "Basic EPS"], p.key);
+    const opm = rowValue(rows, ["OPM %", "OPM"], p.key);
     const ebit =
       revenue != null && opm != null
         ? Math.round(((revenue * opm) / 100) * 100) / 100
@@ -150,7 +162,12 @@ export async function fetchBseQuarterlyFundamentals(
 export async function fetchBseQuarterlyByTicker(
   ticker: string,
 ): Promise<QuarterPoint[]> {
-  const listing = loadBseSmeCacheMap().get(ticker.toUpperCase());
-  if (!listing?.scrip_code) return [];
-  return fetchBseQuarterlyFundamentals(listing.scrip_code);
+  const key = ticker.toUpperCase();
+  // Prefer live/cached scrip (company_bse_scrip) — SME list JSON is often absent.
+  const code =
+    resolveBseScripCode(key, null) ||
+    loadBseSmeCacheMap().get(key)?.scrip_code?.trim() ||
+    null;
+  if (!code) return [];
+  return fetchBseQuarterlyFundamentals(code);
 }

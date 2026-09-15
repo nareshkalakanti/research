@@ -71,6 +71,9 @@ export function useExpandBrief(
 
   useEffect(() => {
     if (!enabled || !ticker) return;
+    // Wait until QTR fetch finishes so we never brief against a missing panel
+    // while quarters are still loading (which made the LLM invent Growing).
+    if (quarters.loading) return;
 
     const gen = ++genRef.current;
     setLoading(true);
@@ -120,13 +123,22 @@ export function useExpandBrief(
       .finally(() => {
         if (gen === genRef.current) setLoading(false);
       });
-  }, [enabled, ticker, market, price, quarterBlock, materialsRev]);
+  }, [
+    enabled,
+    ticker,
+    market,
+    price,
+    quarterBlock,
+    quarters.loading,
+    quarters.panel,
+    materialsRev,
+  ]);
 
   return {
     brief,
     context,
-    loading,
-    waitingForQuarters: enabled && quarters.loading && loading && !brief,
+    loading: loading || (enabled && quarters.loading && !brief),
+    waitingForQuarters: enabled && quarters.loading && !brief,
     error,
     setupHint,
   };

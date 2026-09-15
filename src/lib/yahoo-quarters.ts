@@ -11,6 +11,7 @@ import {
 import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
 import { fetchBseQuarterlyByTicker } from "./bse-quarters";
 import { fetchScreenerQuarterlyFundamentals, mergeScreenerQuarterOverlay } from "./screener-quarters";
+import { fetchDailyBars } from "./ohlc";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
 export type { QuarterPoint };
@@ -284,9 +285,9 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  // BSE TabResults fallback for BSE / BSE SME names.
-  const mk = (market || "").trim().toUpperCase();
-  if (quarters.length < 2 && (mk === "BSE SME" || mk === "BSE")) {
+  // BSE TabResults fallback whenever Yahoo/NSE are thin and we can resolve a scrip.
+  // (BSE SME list JSON is optional — company_bse_scrip / SME map both work.)
+  if (quarters.length < 2) {
     try {
       const bse = await fetchBseQuarterlyByTicker(ticker);
       if (bse.length >= 2) {
@@ -337,19 +338,11 @@ export async function fetchQuarterlyFundamentals(
   let ret_3m_pct: number | null = null;
   if (!opts?.skipChart) {
     try {
-      const chart = await withYahooThrottle(() =>
-        yf.chart(usedSymbol, {
-          period1: toDateStr(new Date(Date.now() - 200 * 86400000)),
-          interval: "1d",
-        }),
-      );
-      const closes = (chart.quotes ?? [])
-        .filter((q) => q.close != null && q.date)
-        .map((q) => ({
-          date: toDateStr(q.date as Date),
-          close: Number(q.close),
-        }))
+      // App-wide OHLC path (Yahoo + Groww when thin) — not raw Yahoo chart.
+      const bars = await fetchDailyBars(ticker, market, 1);
+      const closes = bars
         .filter((q) => Number.isFinite(q.close) && q.close > 0)
+        .map((q) => ({ date: q.date.slice(0, 10), close: q.close }))
         .sort((a, b) => a.date.localeCompare(b.date));
       if (closes.length) {
         price = closes[closes.length - 1]!.close;

@@ -1,76 +1,28 @@
 "use client";
 
-import { useCallback } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
+import { APP_TABS, useAppTab, type AppTab } from "@/lib/app-tab";
+import { BrandMark } from "@/components/BrandMark";
 import { OllamaBar } from "@/components/OllamaBar";
 
-export type AppTab =
-  | "scan"
-  | "theme-scanner"
-  | "governance"
-  | "concall"
-  | "marketiq"
-  | "orderbookiq"
-  | "boardroomiq"
-  | "missing"
-  | "research";
+export type { AppTab };
+export { APP_TABS };
 
-export const APP_TABS: { id: AppTab; label: string; short?: string }[] = [
-  { id: "theme-scanner", label: "Theme" },
-  { id: "scan", label: "Scan" },
-  { id: "governance", label: "Governance", short: "Gov" },
-  { id: "concall", label: "Concall" },
-  { id: "marketiq", label: "MarketIQ", short: "Market" },
-  { id: "orderbookiq", label: "OrderBookIQ", short: "BookIQ" },
-  { id: "boardroomiq", label: "BoardRoomIQ", short: "BoardIQ" },
-  { id: "research", label: "Research" },
-  { id: "missing", label: "Missing data", short: "Missing" },
+const ROUTES: {
+  href: string;
+  label: string;
+  short: string;
+  match: (p: string) => boolean;
+}[] = [
+  {
+    href: "/watchlist",
+    label: "Watchlist",
+    short: "Watch",
+    match: (p) => p === "/watchlist",
+  },
+  { href: "/fund", label: "Fund", short: "Fund", match: (p) => p === "/fund" },
 ];
-
-const ROUTES: { href: string; label: string; match: (p: string) => boolean }[] =
-  [
-    { href: "/fund", label: "Fund", match: (p) => p === "/fund" },
-    { href: "/watchlist", label: "Watchlist", match: (p) => p === "/watchlist" },
-  ];
-
-function tabFromParam(raw: string | null): AppTab {
-  if (raw === "ht") return "scan";
-  if (raw === "strategy" || raw === "buyback" || raw === "corporate") {
-    return "concall";
-  }
-  if (raw === "categories") return "theme-scanner";
-  if (raw && APP_TABS.some((t) => t.id === raw)) return raw as AppTab;
-  return "theme-scanner";
-}
-
-export function useAppTab(): {
-  tab: AppTab;
-  setTab: (next: AppTab) => void;
-} {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const tab = tabFromParam(searchParams.get("tab"));
-
-  const setTab = useCallback(
-    (next: AppTab) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (next === "theme-scanner") params.delete("tab");
-      else params.set("tab", next);
-      if (next !== "concall") params.delete("view");
-      if (next !== "orderbookiq") params.delete("ordersView");
-      if (next !== "governance") {
-        params.delete("personId");
-        params.delete("din");
-      }
-      const qs = params.toString();
-      router.replace(qs ? `/?${qs}` : "/", { scroll: false });
-    },
-    [router, searchParams],
-  );
-
-  return { tab, setTab };
-}
 
 /**
  * Shared topbar + footer for home tabs and standalone routes
@@ -102,8 +54,8 @@ export function AppChrome({
           onClick={() => router.push("/")}
           title="Home"
         >
-          <span className="brand-mark">R</span>
-          <div>
+          <BrandMark />
+          <div className="brand-text">
             <div className="brand-name">Research</div>
             <div className="brand-sub">India equities · theme scan</div>
           </div>
@@ -116,7 +68,7 @@ export function AppChrome({
                 key={t.id}
                 type="button"
                 className={onHome && tab === t.id ? "tab on" : "tab"}
-                title={t.short ? t.label : undefined}
+                title={t.label}
                 onClick={() => {
                   if (onHome) setTab(t.id);
                   else {
@@ -126,31 +78,27 @@ export function AppChrome({
                   }
                 }}
               >
-                {t.short ? (
-                  <>
-                    <span className="tab-label-full">{t.label}</span>
-                    <span className="tab-label-short">{t.short}</span>
-                  </>
-                ) : (
-                  t.label
-                )}
-              </button>
-            ))}
-          </div>
-          <span className="tabs-sep" aria-hidden />
-          <div className="tabs-group tabs-group-routes" role="group" aria-label="Workspace">
-            {ROUTES.map((r) => (
-              <button
-                key={r.href}
-                type="button"
-                className={r.match(pathname) ? "tab on" : "tab"}
-                onClick={() => router.push(r.href)}
-              >
-                {r.label}
+                <span className="tab-label-full">{t.label}</span>
+                <span className="tab-label-short">{t.short}</span>
               </button>
             ))}
           </div>
         </nav>
+
+        <div className="tabs-routes" role="group" aria-label="Workspace">
+          {ROUTES.map((r) => (
+            <button
+              key={r.href}
+              type="button"
+              className={r.match(pathname) ? "tab on" : "tab"}
+              title={r.label}
+              onClick={() => router.push(r.href)}
+            >
+              <span className="tab-label-full">{r.label}</span>
+              <span className="tab-label-short">{r.short}</span>
+            </button>
+          ))}
+        </div>
 
         <div className="user-block">
           <OllamaBar />

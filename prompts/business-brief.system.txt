@@ -15,8 +15,8 @@ Return ONLY valid JSON (no markdown):
     "Another offering — one line explanation"
   ],
   "customers": "who buys / end markets in one sentence",
-  "qtr_signal": "exactly one of: Growing, Inconsistent, Declining — use Computed QTR trend if provided; else infer from quarterly data",
-  "qtr_reason": "One short sentence explaining the 5-quarter sales/NP pattern; cite sequential up-counts or QoQ % from Key metrics",
+  "qtr_signal": "exactly one of: Growing, Inconsistent, Declining — ONLY when Computed QTR trend or Quarterly data is present; otherwise null",
+  "qtr_reason": "One short sentence from the 5-quarter panel (sales/NP sequential pattern or QoQ %). Empty string when no quarterly data",
   "watch": "one risk, dependency, or thing to verify"
 }
-Use only facts from company dossier, peer context, quarterly data, and Investor materials (concall / PPT / PDF). Read the Investor materials section carefully before writing capex, growth_triggers, capabilities, offerings, and watch. Return 3-5 offerings as strings: Name — one line. Output valid JSON only (no markdown, no code fences). Escape double quotes inside strings. If unknown, say unclear from sources. Be specific to this company, not generic sector boilerplate.
+Use only facts from company dossier, peer context, quarterly data, and Investor materials (concall / PPT / PDF). Read the Investor materials section carefully before writing capex, growth_triggers, capabilities, offerings, and watch. Return 3-5 offerings as strings: Name — one line. Output valid JSON only (no markdown, no code fences). Escape double quotes inside strings. If unknown, say unclear from sources. Never invent quarterly trends — if Quarterly data / Computed QTR trend is missing, set qtr_signal to null and qtr_reason to "". Be specific to this company, not generic sector boilerplate.

@@ -307,7 +307,12 @@ export async function fetchScreenerQuarterlyFundamentals(
       consolidated: opts?.consolidated !== false,
     });
     const quarters = parseScreenerQuarterlyHtml(html);
-    writeCache(key, quarters);
+    // Don't pin empty parses for 7d — short miss block so BSE/NSE can win next try.
+    if (quarters.length >= 2) writeCache(key, quarters);
+    else {
+      const until = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      writeCache(key, [], until);
+    }
     return quarters;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
