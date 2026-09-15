@@ -20231,15 +20231,26 @@ button.otrd-co-link {
 }
 
 /* ——— Valuation Tool ——— */
-.viq-panel {
-  padding: 12px 14px 28px;
-  min-height: 60vh;
+.panel.viq-panel {
+  padding: 0;
+  min-height: calc(100vh - 140px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .viq-landing {
-  max-width: 720px;
-  margin: 48px auto 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 20px 64px;
   text-align: center;
+  box-sizing: border-box;
 }
 
 .viq-hero-title {
@@ -20251,31 +20262,60 @@ button.otrd-co-link {
 }
 
 .viq-hero-sub {
-  margin: 8px 0 22px;
+  margin: 8px 0 28px;
   color: var(--muted);
   font-size: 0.95rem;
 }
 
 .viq-hero-search {
-  max-width: 560px;
+  width: 100%;
+  max-width: 520px;
+}
+
+/* Override toolbar-sized TickerSuggest so the hero search is full-width + centered */
+.viq-hero-search .ticker-suggest {
+  display: block;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  flex: none;
   margin: 0 auto;
 }
 
-.viq-hero-search .viq-suggest-input,
-.viq-suggest-input {
+.viq-hero-search .ticker-suggest-field {
   width: 100%;
+}
+
+.viq-hero-search .ticker-suggest-icon {
+  left: 16px;
+  font-size: 1.05rem;
+  color: #94a3b8;
+}
+
+.viq-hero-search .ticker-suggest input,
+.viq-hero-search .viq-suggest-input {
+  width: 100%;
+  box-sizing: border-box;
   border: 1.5px solid #9aa0d4;
   border-radius: 999px;
-  padding: 12px 18px;
+  padding: 14px 44px 14px 42px;
   font-size: 0.95rem;
   background: #fff;
+  text-align: left;
+}
+
+.viq-hero-search .ticker-suggest input:focus {
+  outline: none;
+  border-color: #6b73c7;
+  box-shadow: 0 0 0 3px rgba(91, 99, 184, 0.18);
 }
 
 .viq-hero-hint {
-  margin: 14px 0 0;
+  margin: 16px 0 0;
+  max-width: 420px;
   font-size: 0.82rem;
   color: var(--muted);
-  line-height: 1.4;
+  line-height: 1.45;
 }
 
 .viq-chips {
@@ -20283,7 +20323,8 @@ button.otrd-co-link {
   flex-wrap: wrap;
   justify-content: center;
   gap: 8px 14px;
-  margin-top: 22px;
+  margin-top: 28px;
+  width: 100%;
 }
 
 .viq-chip {
@@ -20303,6 +20344,9 @@ button.otrd-co-link {
 .viq-company {
   max-width: 1180px;
   margin: 0 auto;
+  padding: 12px 14px 28px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .viq-company-head {
