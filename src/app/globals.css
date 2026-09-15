@@ -20229,3 +20229,379 @@ button.otrd-co-link {
     justify-content: flex-start;
   }
 }
+
+/* ——— Valuation Tool ——— */
+.viq-panel {
+  padding: 12px 14px 28px;
+  min-height: 60vh;
+}
+
+.viq-landing {
+  max-width: 720px;
+  margin: 48px auto 24px;
+  text-align: center;
+}
+
+.viq-hero-title {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: #3b3f8c;
+}
+
+.viq-hero-sub {
+  margin: 8px 0 22px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.viq-hero-search {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.viq-hero-search .viq-suggest-input,
+.viq-suggest-input {
+  width: 100%;
+  border: 1.5px solid #9aa0d4;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.viq-hero-hint {
+  margin: 14px 0 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.viq-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  margin-top: 22px;
+}
+
+.viq-chip {
+  border: none;
+  background: transparent;
+  color: #5b63b8;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+}
+
+.viq-chip:hover {
+  text-decoration: underline;
+}
+
+.viq-company {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+.viq-company-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.viq-back {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.viq-company-titles {
+  flex: 1;
+  min-width: 0;
+}
+
+.viq-company-name {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.viq-company-meta {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.viq-company-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.viq-btn {
+  border: 1px solid #c5c9ea;
+  background: #f4f5fb;
+  color: #3b3f8c;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.viq-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.viq-btn-ghost {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.viq-saved-pill {
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #eef0f4;
+  color: var(--muted);
+}
+
+.viq-saved-pill.is-on {
+  background: #e6f6ec;
+  color: #0f6b3a;
+}
+
+.viq-watch.watch-btn {
+  background: #f97316;
+  border-color: #ea580c;
+  color: #fff;
+}
+
+.viq-watch.watch-btn.is-on {
+  background: #16a34a;
+  border-color: #15803d;
+  color: #fff;
+}
+
+.viq-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  margin-bottom: 16px;
+}
+
+.viq-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.viq-metric-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.viq-metric-value {
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.viq-chg {
+  margin-left: 8px;
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 650;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+.viq-chg.up {
+  background: #e6f6ec;
+  color: #0f6b3a;
+}
+
+.viq-chg.down {
+  background: #fde8e8;
+  color: #9b1c1c;
+}
+
+.viq-model-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 8px 0 10px;
+}
+
+.viq-model-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.viq-case-pill {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: #5b63b8;
+}
+
+.viq-model-sub {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.viq-cases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-bottom: 12px;
+}
+
+.viq-case {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 600;
+  padding: 4px 2px;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.viq-case.on {
+  color: #3b3f8c;
+  border-bottom-color: #5b63b8;
+}
+
+.viq-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.viq-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.viq-table th,
+.viq-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eef0f4;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.viq-table th:first-child,
+.viq-table td:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+  min-width: 160px;
+}
+
+.viq-table thead th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: #fafbfc;
+}
+
+.viq-table thead th.viq-est {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.viq-table td.viq-est {
+  background: #fffbeb;
+}
+
+.viq-table tr.is-bold td {
+  font-weight: 700;
+}
+
+.viq-table tr.is-opm .viq-row-label {
+  color: #b91c1c;
+}
+
+.viq-table tr.is-pe td.viq-est {
+  background: #ede9fe;
+}
+
+.viq-up {
+  color: #0f6b3a;
+  font-weight: 650;
+}
+
+.viq-down {
+  color: #9b1c1c;
+  font-weight: 650;
+}
+
+.viq-cell-input {
+  width: 88px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 4px 6px;
+  text-align: right;
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  background: #fff;
+}
+
+.viq-cell-input:focus {
+  outline: 2px solid #c4b5fd;
+  border-color: #8b5cf6;
+}
+
+.viq-error {
+  color: #9b1c1c;
+  font-size: 0.85rem;
+}
+
+.viq-loading,
+.viq-empty {
+  color: var(--muted);
+  font-size: 0.88rem;
+  padding: 12px 0;
+}
+
+@media (max-width: 720px) {
+  .viq-company-head {
+    flex-wrap: wrap;
+  }
+  .viq-metrics {
+    gap: 12px 16px;
+  }
+}

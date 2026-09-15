@@ -15,6 +15,22 @@ export type ScreenerAnnualSeries = {
   roce: Array<number | null>;
 };
 
+/** Richer annual P&L for Valuation Tool (subset of Screener profit-loss). */
+export type ScreenerAnnualPl = {
+  dates: string[];
+  revenue: Array<number | null>;
+  expenses: Array<number | null>;
+  operating_profit: Array<number | null>;
+  other_income: Array<number | null>;
+  interest: Array<number | null>;
+  depreciation: Array<number | null>;
+  pbt: Array<number | null>;
+  tax: Array<number | null>;
+  pat: Array<number | null>;
+  shares_cr: Array<number | null>;
+  eps: Array<number | null>;
+};
+
 type CacheRow = {
   annual_json: string;
   fetched_at: string;
@@ -240,6 +256,193 @@ export function parseScreenerAnnualHtml(html: string): ScreenerAnnualSeries {
       return dates.map((d) => byYear.get(d.slice(0, 4)) ?? null);
     })(),
   };
+}
+
+function alignRow(
+  n: number,
+  vals: Array<number | null> | null,
+): Array<number | null> {
+  return (vals ?? Array(n).fill(null)).slice(0, n);
+}
+
+/** Full annual P&L lines for Valuation Tool. */
+export function parseScreenerAnnualPlHtml(html: string): ScreenerAnnualPl {
+  const empty: ScreenerAnnualPl = {
+    dates: [],
+    revenue: [],
+    expenses: [],
+    operating_profit: [],
+    other_income: [],
+    interest: [],
+    depreciation: [],
+    pbt: [],
+    tax: [],
+    pat: [],
+    shares_cr: [],
+    eps: [],
+  };
+  if (/captcha|access denied|rate limit/i.test(html)) return empty;
+  const $ = cheerio.load(html);
+  const pl = parseSectionTable($, "profit-loss");
+  if (!pl?.dates.length) return empty;
+  const n = pl.dates.length;
+  const revenue = pickRow(pl.rows, [/^Sales\b/i, /^Revenue\b/i]);
+  const op = pickRow(pl.rows, [/^Operating Profit\b/i, /^EBIT\b/i]);
+  const expenses = pickRow(pl.rows, [/^Expenses\b/i]);
+  const otherIncome = pickRow(pl.rows, [/^Other Income\b/i]);
+  const interest = pickRow(pl.rows, [/^Interest\b/i]);
+  const depreciation = pickRow(pl.rows, [/^Depreciation\b/i]);
+  const pbt = pickRow(pl.rows, [/^Profit before tax\b/i, /^PBT\b/i]);
+  const tax = pickRow(pl.rows, [/^Tax\b/i]);
+  const pat = pickRow(pl.rows, [
+    /^Net Profit\b/i,
+    /^Profit after tax\b/i,
+    /^PAT\b/i,
+  ]);
+  const eps = pickRow(pl.rows, [/^EPS\b/i, /EPS in Rs/i]);
+  // Screener sometimes has "Equity Capital" / shares elsewhere — leave null.
+  return {
+    dates: pl.dates.slice(0, n),
+    revenue: alignRow(n, revenue),
+    expenses: alignRow(n, expenses),
+    operating_profit: alignRow(n, op),
+    other_income: alignRow(n, otherIncome),
+    interest: alignRow(n, interest),
+    depreciation: alignRow(n, depreciation),
+    pbt: alignRow(n, pbt),
+    tax: alignRow(n, tax),
+    pat: alignRow(n, pat),
+    shares_cr: Array(n).fill(null),
+    eps: alignRow(n, eps),
+  };
+}
+
+const PL_CACHE_MS = CACHE_MS;
+
+function ensurePlCacheSchema(): void {
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS screener_annual_pl_cache (
+        ticker TEXT PRIMARY KEY,
+        pl_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        blocked_until TEXT
+      );
+    `);
+  } finally {
+    db.close();
+  }
+}
+
+function readPlCache(ticker: string): ScreenerAnnualPl | "blocked" | null {
+  ensurePlCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const row = db
+      .prepare(
+        `SELECT pl_json, fetched_at, blocked_until FROM screener_annual_pl_cache WHERE ticker = ?`,
+      )
+      .get(ticker.toUpperCase()) as
+      | { pl_json: string; fetched_at: string; blocked_until: string | null }
+      | undefined;
+    if (!row) return null;
+    if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
+      return "blocked";
+    }
+    if (Date.now() - Date.parse(row.fetched_at) < PL_CACHE_MS) {
+      return JSON.parse(row.pl_json) as ScreenerAnnualPl;
+    }
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
+function writePlCache(
+  ticker: string,
+  series: ScreenerAnnualPl,
+  blockedUntil?: string | null,
+): void {
+  ensurePlCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.prepare(
+      `INSERT INTO screener_annual_pl_cache (ticker, pl_json, fetched_at, blocked_until)
+       VALUES (@ticker, @pl_json, @fetched_at, @blocked_until)
+       ON CONFLICT(ticker) DO UPDATE SET
+         pl_json = excluded.pl_json,
+         fetched_at = excluded.fetched_at,
+         blocked_until = excluded.blocked_until`,
+    ).run({
+      ticker: ticker.toUpperCase(),
+      pl_json: JSON.stringify(series),
+      fetched_at: new Date().toISOString(),
+      blocked_until: blockedUntil ?? null,
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function fetchScreenerAnnualPl(
+  ticker: string,
+  opts?: { force?: boolean; consolidated?: boolean },
+): Promise<ScreenerAnnualPl> {
+  const key = ticker.trim().toUpperCase();
+  const empty: ScreenerAnnualPl = {
+    dates: [],
+    revenue: [],
+    expenses: [],
+    operating_profit: [],
+    other_income: [],
+    interest: [],
+    depreciation: [],
+    pbt: [],
+    tax: [],
+    pat: [],
+    shares_cr: [],
+    eps: [],
+  };
+  if (!key) return empty;
+
+  if (!opts?.force) {
+    const cached = readPlCache(key);
+    if (cached === "blocked") return empty;
+    if (cached && cached.revenue.some((s) => s != null && s > 0)) return cached;
+  }
+
+  try {
+    const html = await fetchScreenerCompanyHtml(key, {
+      consolidated: opts?.consolidated !== false,
+    });
+    let series = parseScreenerAnnualPlHtml(html);
+    if (
+      !series.revenue.some((s) => s != null && s > 0) &&
+      opts?.consolidated !== false
+    ) {
+      try {
+        const standHtml = await fetchScreenerCompanyHtml(key, {
+          consolidated: false,
+        });
+        const stand = parseScreenerAnnualPlHtml(standHtml);
+        if (stand.revenue.some((s) => s != null && s > 0)) series = stand;
+      } catch {
+        /* keep first parse */
+      }
+    }
+    if (series.revenue.some((s) => s != null && s > 0)) {
+      writePlCache(key, series);
+    }
+    return series;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/blocked|429|403|captcha/i.test(msg)) {
+      const until = new Date(Date.now() + BLOCK_MS).toISOString();
+      writePlCache(key, empty, until);
+    }
+    return empty;
+  }
 }
 
 export async function fetchScreenerAnnual(

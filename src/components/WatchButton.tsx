@@ -17,11 +17,16 @@ export function WatchButton({
   ticker,
   openWatchlistOnSavedClick = false,
   className,
+  offLabel = "Watch",
+  onLabel = "Saved",
 }: {
   ticker: string | null | undefined;
   /** If true, clicking when already watched navigates to /watchlist instead of removing. */
   openWatchlistOnSavedClick?: boolean;
   className?: string;
+  /** Label when not watched (e.g. "Watchlist"). */
+  offLabel?: string;
+  onLabel?: string;
 }) {
   const router = useRouter();
   const sym = (ticker || "").trim().toUpperCase();
@@ -62,14 +67,14 @@ export function WatchButton({
           <span className="watch-btn-mark" aria-hidden>
             ★
           </span>
-          Saved
+          {onLabel}
         </>
       ) : (
         <>
           <span className="watch-btn-mark" aria-hidden>
             +
           </span>
-          Watch
+          {offLabel}
         </>
       )}
     </button>
