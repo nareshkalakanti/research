@@ -320,15 +320,6 @@ export function ThemeScanner() {
               placeholder="Search for stocks…"
               className="theme-stock-suggest-input"
             />
-            {stockQ ? (
-              <button
-                type="button"
-                className="theme-stock-clear"
-                onClick={clearStock}
-              >
-                Clear
-              </button>
-            ) : null}
           </div>
         </div>
         <div className="scanner-col">
