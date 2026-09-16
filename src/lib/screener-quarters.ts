@@ -77,7 +77,17 @@ function readCache(ticker: string): QuarterPoint[] | "blocked" | null {
       return "blocked";
     }
     if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
-      return JSON.parse(row.quarters_json) as QuarterPoint[];
+      const qs = JSON.parse(row.quarters_json) as QuarterPoint[];
+      // Incomplete P&L (OP/EPS only) — refetch instead of pinning blanks.
+      if (
+        Array.isArray(qs) &&
+        qs.length >= 2 &&
+        !qs.some((q) => q.revenue != null) &&
+        !qs.some((q) => q.netIncome != null)
+      ) {
+        return null;
+      }
+      return qs;
     }
     return null;
   } finally {
@@ -225,10 +235,8 @@ export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
     const cells = $tr.find("td, th");
     if (cells.length < 2) return;
 
-    const labelCell = $(cells[0]).clone();
-    labelCell.find("button, .button, svg").remove();
     const label =
-      labelCell
+      $(cells[0])
         .text()
         .replace(/\u00a0/g, " ")
         .replace(/\s+/g, " ")
@@ -239,13 +247,37 @@ export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
       QuarterPoint,
       "revenue" | "netIncome" | "eps" | "ebit" | "otherIncome"
     > | null = null;
-    if (label.startsWith("sales")) field = "revenue";
-    else if (label.startsWith("net profit")) field = "netIncome";
-    else if (label.startsWith("eps")) field = "eps";
+    if (
+      label.startsWith("sales") ||
+      label.startsWith("revenue") ||
+      /^income from operations/.test(label)
+    ) {
+      field = "revenue";
+    } else if (
+      label.startsWith("net profit") ||
+      label.startsWith("profit after tax")
+    ) {
+      field = "netIncome";
+    } else if (label.startsWith("eps")) field = "eps";
     else if (label.startsWith("operating profit")) field = "ebit";
     else if (label.startsWith("other income")) field = "otherIncome";
     if (!field) return;
 
+    const nums: number[] = [];
+    cells.each((ci, el) => {
+      if (ci === 0) return;
+      const cell = $(el).clone();
+      cell.find("button, .button, svg").remove();
+      const val = parseNum(cell.text() || "");
+      if (val != null) nums.push(val);
+    });
+    if (nums.length === periods.length) {
+      periods.forEach((p, i) => {
+        const point = byDate.get(p.date);
+        if (point) point[field] = nums[i]!;
+      });
+      return;
+    }
     for (const p of periods) {
       const val = parseNum($(cells[p.idx]).text() || "");
       if (val == null) continue;
@@ -256,7 +288,11 @@ export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
 
   return trimReportedQuarters(
     [...byDate.values()].filter(
-      (q) => q.revenue != null || q.netIncome != null || q.eps != null,
+      (q) =>
+        q.revenue != null ||
+        q.netIncome != null ||
+        q.eps != null ||
+        q.ebit != null,
     ),
   );
 }

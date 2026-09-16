@@ -15,7 +15,6 @@ let lastScreenerAt = 0;
 export function screenerBlocked(html: string, status: number): boolean {
   if (status === 403 || status === 429) return true;
   if (/captcha|access denied|rate limit|too many requests/i.test(html)) return true;
-  if (/Error 404: Page Not Found/i.test(html)) return true;
   return false;
 }
 

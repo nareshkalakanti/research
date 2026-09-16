@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import {
   buildQuarterPanel,
   inrCroreDivisor,
+  mergeQuarterFill,
   qCellClass,
   trimReportedQuarters,
   type QuarterPoint,
@@ -18,6 +19,7 @@ import {
   parseGrowwFinancialStatement,
   parseGrowwQuarterLabel,
 } from "../src/lib/groww-quarters";
+import { parseScreenerQuarterlyHtml } from "../src/lib/screener-quarters";
 import {
   computeForwardPe,
   computeTrailingPe,
@@ -132,6 +134,54 @@ function main() {
   assert.equal(growwPanel[0]!.date, "2026-03-31");
   assert.equal(growwPanel[0]!.revenue, 100);
   assert.equal(growwPanel[1]!.netIncome, 12);
+
+  const growwStandalone = parseGrowwFinancialStatement({
+    financialStatementV2: {
+      CONSOLIDATED: [{ title: "Revenue", yearly: {} }],
+      STANDALONE: [
+        { title: "Revenue", quarterly: { "Jun '25": 30.69 } },
+        { title: "Profit", quarterly: { "Jun '25": 3.55 } },
+      ],
+    },
+    financialStatement: [],
+  });
+  assert.equal(growwStandalone.length, 1);
+  assert.equal(growwStandalone[0]!.date, "2025-06-30");
+  assert.equal(growwStandalone[0]!.revenue, 30.69);
+
+  const oneQ = buildQuarterPanel([
+    {
+      date: "2025-06-30",
+      revenue: 30.69,
+      netIncome: 3.55,
+      eps: 2.03,
+      ebit: 4.9,
+    },
+  ]);
+  assert.ok(oneQ);
+  assert.equal(oneQ!.labels.length, 1);
+
+  const plusHtml = `
+    <section><h2>Quarterly Results</h2>
+    <table><thead><tr><th></th><th>Jun 2025</th><th>Mar 2026</th><th>Jun 2026</th></tr></thead>
+    <tbody>
+      <tr><td class="text"><button>Sales&nbsp;<span>+</span></button></td><td>171</td><td>204</td><td>203</td></tr>
+      <tr><td class="text">Operating Profit</td><td>85</td><td>104</td><td>104</td></tr>
+      <tr><td class="text"><button>Net Profit&nbsp;<span>+</span></button></td><td>19</td><td>26</td><td>25</td></tr>
+    </tbody></table></section>`;
+  const parsedPlus = parseScreenerQuarterlyHtml(plusHtml);
+  assert.equal(parsedPlus.length, 3);
+  assert.equal(parsedPlus[0]!.revenue, 171);
+  assert.equal(parsedPlus[2]!.netIncome, 25);
+  assert.equal(parsedPlus[1]!.ebit, 104);
+
+  const filled = mergeQuarterFill(
+    [{ date: "2025-06-30", revenue: null, ebit: 85, netIncome: null, eps: 6.29 }],
+    [{ date: "2025-06-30", revenue: 180, ebit: null, netIncome: 19, eps: null }],
+  );
+  assert.equal(filled[0]!.revenue, 180);
+  assert.equal(filled[0]!.ebit, 85);
+  assert.equal(filled[0]!.netIncome, 19);
 
   const pnbLike: QuarterPoint[] = [
     { date: "2024-12-31", revenue: 316e7, netIncome: -10e7, eps: -0.56, ebit: 302e7 },
