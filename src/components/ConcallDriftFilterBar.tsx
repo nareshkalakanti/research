@@ -2,6 +2,10 @@
 
 import { useMemo } from "react";
 import {
+  MarketCapRangeBar,
+  MCAP_RANGE_STEPS,
+} from "@/components/MarketCapRangeBar";
+import {
   earnAnnouncementWindowForFyQuarter,
   fyQuarterChipLabel,
   fyQuarterExplain,
@@ -21,8 +25,6 @@ export type ConcallDriftDatePreset =
   | "next7"
   | "last7"
   | "custom";
-
-type McapBounds = { min: number; max: number };
 
 export type ConcallDriftWindowCounts = Partial<
   Record<
@@ -55,11 +57,9 @@ type Props = {
   subSector: string;
   onSubSector: (v: string) => void;
   subSectors: string[];
-  mcapMin: number | null;
-  mcapMax: number | null;
-  onMcapMin: (v: number) => void;
-  onMcapMax: (v: number) => void;
-  mcapBounds: McapBounds | null;
+  mcapMinIndex: number;
+  mcapMaxIndex: number;
+  onMcapChange: (minIndex: number, maxIndex: number) => void;
   search: string;
   onSearch: (q: string) => void;
   withBaseline?: number;
@@ -111,10 +111,7 @@ const DATE_PRESETS: Array<{
   { id: "custom", label: "Custom", title: "Pick a custom date range" },
 ];
 
-function fmtCr(n: number): string {
-  const rounded = n >= 100 ? Math.round(n) : Math.round(n * 10) / 10;
-  return `${rounded.toLocaleString("en-IN")} Cr`;
-}
+const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 
 export function ConcallDriftFilterBar({
   sort,
@@ -134,11 +131,9 @@ export function ConcallDriftFilterBar({
   subSector: _subSector,
   onSubSector: _onSubSector,
   subSectors: _subSectors,
-  mcapMin,
-  mcapMax,
-  onMcapMin,
-  onMcapMax,
-  mcapBounds,
+  mcapMinIndex,
+  mcapMaxIndex,
+  onMcapChange,
   search,
   onSearch,
   withBaseline,
@@ -154,34 +149,12 @@ export function ConcallDriftFilterBar({
   onDensity,
   onExportCsv,
 }: Props) {
-  const bounds = mcapBounds ?? { min: 0, max: 1000 };
-  const lo = Math.min(
-    bounds.max,
-    Math.max(bounds.min, mcapMin ?? bounds.min),
-  );
-  const hi = Math.max(
-    bounds.min,
-    Math.min(bounds.max, mcapMax ?? bounds.max),
-  );
-
-  const sliderPct = useMemo(() => {
-    const span = Math.max(bounds.max - bounds.min, 1);
-    return {
-      left: ((lo - bounds.min) / span) * 100,
-      width: ((hi - lo) / span) * 100,
-    };
-  }, [bounds.max, bounds.min, hi, lo]);
-
   const quarterWindow = useMemo(() => {
     if (!quarter) return null;
     return earnAnnouncementWindowForFyQuarter(quarter);
   }, [quarter]);
 
-  const mcapNarrowed =
-    mcapBounds != null &&
-    mcapMin != null &&
-    mcapMax != null &&
-    (mcapMin > mcapBounds.min || mcapMax < mcapBounds.max);
+  const mcapNarrowed = mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
 
   const filtersActive =
     sort !== "all" ||
@@ -321,41 +294,16 @@ export function ConcallDriftFilterBar({
         </label>
 
         <div className="pcd-mcap">
-          <div className="pcd-mcap-head">
-            <span className="pcd-mcap-lab">MCap</span>
-            <span className="pcd-mcap-vals">
-              {fmtCr(lo)} – {fmtCr(hi)}
-            </span>
-          </div>
-          <div className="pcd-range-wrap">
-            <div
-              className="pcd-range-fill"
-              style={{
-                left: `${sliderPct.left}%`,
-                width: `${sliderPct.width}%`,
-              }}
-            />
-            <input
-              type="range"
-              className="pcd-range pcd-range-lo"
-              min={bounds.min}
-              max={bounds.max}
-              step={1}
-              value={lo}
-              aria-label="Minimum market cap"
-              onChange={(e) => onMcapMin(Math.min(Number(e.target.value), hi))}
-            />
-            <input
-              type="range"
-              className="pcd-range pcd-range-hi"
-              min={bounds.min}
-              max={bounds.max}
-              step={1}
-              value={hi}
-              aria-label="Maximum market cap"
-              onChange={(e) => onMcapMax(Math.max(Number(e.target.value), lo))}
-            />
-          </div>
+          <MarketCapRangeBar
+            minIndex={mcapMinIndex}
+            maxIndex={mcapMaxIndex}
+            onChange={onMcapChange}
+            onClear={
+              mcapNarrowed
+                ? () => onMcapChange(0, MCAP_DEFAULT_MAX)
+                : undefined
+            }
+          />
         </div>
 
         <label className="pcd-search">

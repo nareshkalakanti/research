@@ -15,6 +15,8 @@ import { loadBreakoutMap } from "./signals";
 import {
   mcapCapCode,
   mcapCapLabel,
+  pledgedDirectorScore,
+  scoreCompanyBoard,
   scoreDirectorSeats,
   type DirectorScore,
 } from "./gov-score";
@@ -111,6 +113,7 @@ type AboutBits = {
 let govDb: Database.Database | null = null;
 let aboutDb: Database.Database | null = null;
 let mapCache: { at: number; rows: GovernanceMapRow[] } | null = null;
+let boardScoreCache: { at: number; map: Map<string, number> } | null = null;
 const CACHE_MS = 60_000;
 
 function openReadonly(name: string): Database.Database {
@@ -211,6 +214,36 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
       `,
     )
     .all(like, like, like, like) as SeatRow[];
+}
+
+function loadSeatsForTickers(tickers: string[]): SeatRow[] {
+  const keys = [
+    ...new Set(tickers.map((t) => t.toUpperCase()).filter(Boolean)),
+  ];
+  if (!keys.length) return [];
+  if (!fs.existsSync(path.join(DATA_DIR, "governance.db"))) return [];
+  const db = getGov();
+  const out: SeatRow[] = [];
+  const chunk = 200;
+  for (let i = 0; i < keys.length; i += chunk) {
+    const slice = keys.slice(i, i + chunk);
+    const placeholders = slice.map(() => "?").join(",");
+    const rows = db
+      .prepare(
+        `
+        ${SEAT_SELECT}
+          AND d.person_id IN (
+            SELECT DISTINCT s2.person_id
+            FROM board_seats s2
+            WHERE UPPER(s2.ticker) IN (${placeholders})
+          )
+        ORDER BY d.name COLLATE NOCASE, c.name COLLATE NOCASE
+        `,
+      )
+      .all(...slice) as SeatRow[];
+    out.push(...rows);
+  }
+  return out;
 }
 
 function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
@@ -416,6 +449,7 @@ function buildRows(minBoards: number): GovernanceMapRow[] {
 
 export function invalidateGovernanceMapCache(): void {
   mapCache = null;
+  boardScoreCache = null;
 }
 
 export function loadGovernanceMap(opts?: {
@@ -451,6 +485,98 @@ export function loadGovernanceMap(opts?: {
     mapCache = { at: now, rows };
   }
   return rows;
+}
+
+/** Ticker → board reputation (pledged outside network), same as Governance Companies. */
+export function loadCompanyBoardScoreMap(opts?: {
+  refresh?: boolean;
+}): Map<string, number> {
+  const now = Date.now();
+  if (
+    !opts?.refresh &&
+    boardScoreCache &&
+    now - boardScoreCache.at < CACHE_MS
+  ) {
+    return boardScoreCache.map;
+  }
+
+  const map = boardScoresFromDirectorRows(
+    loadGovernanceMap({ minBoards: 2, refresh: opts?.refresh }),
+  );
+  boardScoreCache = { at: now, map };
+  return map;
+}
+
+function boardScoresFromDirectorRows(
+  rows: GovernanceMapRow[],
+): Map<string, number> {
+  const byTicker = new Map<
+    string,
+    Array<{
+      pledged_score: number;
+      designation: string | null;
+      category: string | null;
+    }>
+  >();
+
+  for (const r of rows) {
+    for (const c of r.companies) {
+      const key = c.ticker.toUpperCase();
+      const otherSeats = r.companies.filter(
+        (x) => x.ticker.toUpperCase() !== key,
+      );
+      const pledged = pledgedDirectorScore({
+        otherSeats,
+        personId: r.person_id,
+        din: r.din,
+      });
+      let list = byTicker.get(key);
+      if (!list) {
+        list = [];
+        byTicker.set(key, list);
+      }
+      list.push({
+        pledged_score: pledged,
+        designation: c.designation,
+        category: c.category,
+      });
+    }
+  }
+
+  const map = new Map<string, number>();
+  for (const [ticker, directors] of byTicker) {
+    map.set(ticker, scoreCompanyBoard(directors));
+  }
+  return map;
+}
+
+/** Scores for a ticker list (includes single-board directors when needed). */
+export function companyBoardScoresForTickers(
+  tickers: string[],
+): Map<string, number> {
+  const want = [
+    ...new Set(tickers.map((t) => t.toUpperCase()).filter(Boolean)),
+  ];
+  const out = new Map<string, number>();
+  if (!want.length) return out;
+
+  const cached = loadCompanyBoardScoreMap();
+  const missing: string[] = [];
+  for (const t of want) {
+    const hit = cached.get(t);
+    if (hit != null) out.set(t, hit);
+    else missing.push(t);
+  }
+  if (!missing.length) return out;
+
+  const extra = boardScoresFromDirectorRows(
+    buildRowsFromSeats(loadSeatsForTickers(missing), 1),
+  );
+  for (const t of missing) {
+    const hit = extra.get(t);
+    if (hit != null) out.set(t, hit);
+  }
+  return out;
 }
 
 export type GovernanceMapStats = {

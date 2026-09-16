@@ -6,6 +6,8 @@ import assert from "node:assert/strict";
 import {
   BRIDGE_LARGE_MIN_CR,
   BRIDGE_SMALL_MAX_CR,
+  scoreCompanyBoard,
+  pledgedDirectorScore,
   scoreDirectorSeats,
 } from "../src/lib/gov-score";
 import {
@@ -82,6 +84,25 @@ function main() {
     { personId: "n:gap", din: null },
   );
   assert.equal(gapOnly.bridge, false, "two SC boards should not cap-bridge");
+
+  const pledged = pledgedDirectorScore({
+    otherSeats: [{ ticker: "BIG", market_cap_cr: 80_000, designation: "Independent" }],
+    personId: "11223344",
+    din: "11223344",
+  });
+  const none = pledgedDirectorScore({
+    otherSeats: [],
+    personId: "11223344",
+    din: "11223344",
+  });
+  assert.ok(pledged > 40, "other large seat is reputation at risk");
+  assert.equal(none, 0, "no other seats means nothing pledged");
+
+  const board = scoreCompanyBoard([
+    { pledged_score: 80, designation: "Chairperson", category: "Independent" },
+    { pledged_score: 40, designation: "Director", category: "Non-Executive" },
+  ]);
+  assert.ok(board > 40 && board < 80, "chair should pull board score above the unweighted midpoint");
 
   const rows = loadGovernanceMap({ minBoards: 2 });
   assert.ok(rows.length > 100, `expected many directors, got ${rows.length}`);

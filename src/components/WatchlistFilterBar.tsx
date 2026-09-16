@@ -1,10 +1,6 @@
 "use client";
 
 import {
-  CapMarketFilters,
-  type CapFilter,
-} from "@/components/CapMarketFilters";
-import {
   FUND_WATCHLIST_KEYS,
   FUND_WATCHLIST_LABELS,
   type FundCountState,
@@ -19,8 +15,6 @@ function Count({ n }: { n?: number }) {
 }
 
 type ListsProps = {
-  cap?: CapFilter;
-  onCap?: (cap: CapFilter) => void;
   sme?: boolean;
   onSme?: (on: boolean) => void;
   note?: boolean;
@@ -36,14 +30,10 @@ type ListsProps = {
   noteCount?: number;
   /** Counts keyed by threshold (25 / 50 / 100). */
   ageCounts?: Partial<Record<number, number>>;
-  capCounts?: Partial<Record<CapFilter, number>>;
-  allCount?: number;
 };
 
-/** Cap + list tags (Funds / SME / Note / Age). Hold / Edge live on FundsFilterBar. */
+/** List tags (Funds / SME / Note / Age). Hold / Edge live on FundsFilterBar. */
 export function WatchlistFilterBar({
-  cap,
-  onCap,
   sme = false,
   onSme,
   note = false,
@@ -56,16 +46,12 @@ export function WatchlistFilterBar({
   smeCount,
   noteCount,
   ageCounts,
-  capCounts,
-  allCount,
 }: ListsProps) {
   const ageOn = ageMin != null;
 
-  const filtersActive =
-    (cap != null && cap !== "All") || sme || note || funds || ageOn;
+  const filtersActive = sme || note || funds || ageOn;
 
   const clearFilters = () => {
-    onCap?.("All");
     onSme?.(false);
     onNote?.(false);
     onFunds?.(false);
@@ -75,19 +61,6 @@ export function WatchlistFilterBar({
   return (
     <div className="filter-bar">
       <div className="filter-bar-main">
-        {onCap && cap != null ? (
-          <>
-            <CapMarketFilters
-              cap={cap}
-              onCap={onCap}
-              inline
-              capCounts={capCounts}
-              allCount={allCount}
-            />
-            <span className="filter-sep" aria-hidden />
-          </>
-        ) : null}
-
         {onFunds ? (
           <button
             type="button"

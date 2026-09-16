@@ -64,6 +64,9 @@ type Body = {
   funds?: FundFilterState;
   /** All distinct stocks across every fund list. */
   fundAll?: boolean;
+  /** Absolute mcap bounds in ₹ Cr (from MCAP range slider). */
+  mcapMin?: number | null;
+  mcapMax?: number | null;
 };
 
 function parseFunds(raw: unknown): FundFilterState {
@@ -99,11 +102,23 @@ function applySelectionFilters<
     ageMin: number | null;
     funds: FundFilterState;
     fundAll?: boolean;
+    mcapMin?: number | null;
+    mcapMax?: number | null;
   },
 ): T[] {
   let out = companies;
   if (opts.cap && opts.cap !== "All") {
     out = out.filter((c) => capTier(c.mcap_cr ?? null) === opts.cap);
+  }
+  if (opts.mcapMin != null && opts.mcapMin > 0) {
+    out = out.filter(
+      (c) => c.mcap_cr != null && c.mcap_cr >= opts.mcapMin!,
+    );
+  }
+  if (opts.mcapMax != null) {
+    out = out.filter(
+      (c) => c.mcap_cr != null && c.mcap_cr <= opts.mcapMax!,
+    );
   }
   if (opts.sme) {
     out = out.filter((c) => /\bSME\b/i.test(c.market));
@@ -149,8 +164,12 @@ function hasSelectionFilters(opts: {
   ageMin: number | null;
   funds: FundFilterState;
   fundAll?: boolean;
+  mcapMin?: number | null;
+  mcapMax?: number | null;
 }): boolean {
   if (opts.cap && opts.cap !== "All") return true;
+  if (opts.mcapMin != null && opts.mcapMin > 0) return true;
+  if (opts.mcapMax != null) return true;
   if (
     opts.hold ||
     opts.edge ||
@@ -218,6 +237,14 @@ export async function POST(req: NextRequest) {
       parseAgeMin(body.ageMin) ?? (body.age25 === true ? 25 : null),
     funds: parseFunds(body.funds),
     fundAll: body.fundAll === true,
+    mcapMin:
+      body.mcapMin != null && Number.isFinite(Number(body.mcapMin))
+        ? Number(body.mcapMin)
+        : null,
+    mcapMax:
+      body.mcapMax != null && Number.isFinite(Number(body.mcapMax))
+        ? Number(body.mcapMax)
+        : null,
   };
   const scope: ScanScope =
     body.scope === "list"

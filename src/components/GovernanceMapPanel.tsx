@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  CapMarketFilters,
-  type CapFilter,
-} from "@/components/CapMarketFilters";
+  MarketCapRangeBar,
+  MCAP_RANGE_STEPS,
+  mcapIndicesToBounds,
+} from "@/components/MarketCapRangeBar";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
 import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
 import { HighlightedText } from "@/components/HighlightedText";
@@ -28,6 +29,7 @@ import {
   GOV_TI_BRIDGE_TITLE,
   GOV_MULTI_LC_LABEL,
   GOV_MULTI_LC_TITLE,
+  GOV_BOARD_SCORE_TITLE,
   GOV_SME_CROSS_HINT,
   GOV_SME_CROSS_LABEL,
   GOV_SME_CROSS_TITLE,
@@ -37,6 +39,8 @@ import { tradingviewUrl } from "@/lib/links";
 
 type View = "director" | "company";
 type BridgeMode = "off" | "ti" | "mic" | "cap";
+
+const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 
 type DrillFrame =
   | {
@@ -134,6 +138,7 @@ type CompanyRow = {
   market: string;
   market_cap_cr: number | null;
   cap_code: string | null;
+  board_score?: number;
   has_bb: boolean;
   has_bb_w?: boolean;
   has_bb_m?: boolean;
@@ -154,6 +159,7 @@ type CompanyRow = {
     name: string;
     din: string | null;
     dir_score: number;
+    pledged_score?: number;
     din_backed: boolean;
     designation: string;
     category: string | null;
@@ -244,7 +250,8 @@ export function GovernanceMapPanel() {
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
-  const [cap, setCap] = useState<CapFilter>("All");
+  const [mcapMinIndex, setMcapMinIndex] = useState(0);
+  const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [sme, setSme] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -267,7 +274,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, cap, sme]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -290,7 +297,9 @@ export function GovernanceMapPanel() {
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       appendFundParams(params, fundFilters);
-      if (cap !== "All") params.set("cap", cap);
+      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
+      if (maxCr != null) params.set("mcapMax", String(maxCr));
       if (sme) params.set("sme", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
@@ -328,7 +337,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, cap, sme],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme],
   );
 
   useEffect(() => {
@@ -523,11 +532,8 @@ export function GovernanceMapPanel() {
     setBridgeMode((cur) => (cur === mode ? "off" : mode));
   }
 
-  function onCapChange(next: CapFilter) {
-    setCap(next);
-    // Cap band filter is independent of bridge size; clear bridge so MIC/SC aren't empty.
-    if (next !== "All") setBridgeMode("off");
-  }
+  const mcapNarrowed =
+    mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
 
   const bridgeHint = filterSmeCross
     ? GOV_SME_CROSS_HINT
@@ -550,7 +556,7 @@ export function GovernanceMapPanel() {
     filterHold ||
     filterEdge ||
     FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) ||
-    cap !== "All" ||
+    mcapNarrowed ||
     sme;
 
   function clearFilters() {
@@ -563,7 +569,8 @@ export function GovernanceMapPanel() {
     setFilterHold(false);
     setFilterEdge(false);
     setFundFilters(EMPTY_FUNDS);
-    setCap("All");
+    setMcapMinIndex(0);
+    setMcapMaxIndex(MCAP_DEFAULT_MAX);
     setSme(false);
     setOpenId(null);
     setView("company");
@@ -707,7 +714,7 @@ export function GovernanceMapPanel() {
             className={`sme-cross ${filterSmeCross ? "on" : ""}`}
             onClick={() => {
               setFilterSmeCross((v) => !v);
-              // Thesis targets SMEs — Companies view shows those listings.
+              // SME listings that share a director with a mainboard.
               if (!filterSmeCross) setView("company");
             }}
             title={GOV_SME_CROSS_TITLE}
@@ -786,12 +793,28 @@ export function GovernanceMapPanel() {
       </div>
 
       <div className="gov-cap-filters">
-        <CapMarketFilters
-          cap={cap}
-          onCap={onCapChange}
-          allCount={stats?.companies}
-          capCounts={stats?.caps}
-        />
+        <div className="scan-filter-row">
+          <span className="scan-filter-label">Mcap</span>
+          <MarketCapRangeBar
+            minIndex={mcapMinIndex}
+            maxIndex={mcapMaxIndex}
+            onChange={(lo, hi) => {
+              setMcapMinIndex(lo);
+              setMcapMaxIndex(hi);
+              if (lo > 0 || hi < MCAP_DEFAULT_MAX) setBridgeMode("off");
+            }}
+            onClear={
+              mcapNarrowed
+                ? () => {
+                    setMcapMinIndex(0);
+                    setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                  }
+                : undefined
+            }
+            onRefresh={() => void load({ refresh: true })}
+            refreshing={loading}
+          />
+        </div>
         {filtersActive ? (
           <button
             type="button"
@@ -964,7 +987,7 @@ export function GovernanceMapPanel() {
                       ) : null}
                     </div>
                   </div>
-                  <div className="gov-score" title="Director network score">
+                  <div className="gov-score" title="Professional network across this director's boards">
                     {r.dir_score.toFixed(1)}
                   </div>
                 </div>
@@ -1152,6 +1175,12 @@ export function GovernanceMapPanel() {
                       {` · ${directors.length} multi-board directors`}
                     </div>
                   </div>
+                  <div
+                    className="gov-score"
+                    title={GOV_BOARD_SCORE_TITLE}
+                  >
+                    {(c.board_score ?? 0).toFixed(1)}
+                  </div>
                   <div className="gov-co-links">
                     {c.web ? (
                       <a href={c.web} target="_blank" rel="noreferrer">
@@ -1175,7 +1204,11 @@ export function GovernanceMapPanel() {
                 <ul className="gov-dir-list">
                   {directors
                     .slice()
-                    .sort((a, b) => b.dir_score - a.dir_score)
+                    .sort(
+                      (a, b) =>
+                        (b.pledged_score ?? b.dir_score) -
+                        (a.pledged_score ?? a.dir_score),
+                    )
                     .map((d) => {
                       const others = d.other_boards ?? [];
                       // Keep SME visible even when many large-cap boards exist.
@@ -1189,8 +1222,11 @@ export function GovernanceMapPanel() {
                       const extra = others.filter((b) => !shownSet.has(b.ticker)).length;
                       return (
                       <li key={`${c.ticker}-${d.person_id}`}>
-                        <span className="gov-score inline">
-                          {d.dir_score.toFixed(1)}
+                        <span
+                          className="gov-score inline"
+                          title="Reputation this director is staking here (other boards)"
+                        >
+                          {(d.pledged_score ?? d.dir_score).toFixed(1)}
                         </span>
                         <span className="gov-dir-main">
                           <span className="gov-dir-name-row">

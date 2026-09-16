@@ -301,7 +301,7 @@ function normalizeBrief(
       80,
     ),
     themes: themeTags,
-    headline: String(raw.headline || "Business summary unavailable").slice(0, 120),
+    headline: String(raw.headline || "").trim().slice(0, 120),
     capabilities: String(raw.capabilities || "").slice(0, 420),
     growth_triggers: String(raw.growth_triggers || "").slice(0, 420),
     capex: String(raw.capex || "").slice(0, 280),

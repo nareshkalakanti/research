@@ -14,6 +14,8 @@ export type YfQuote = {
   price: number | null;
   mcap_cr: number | null;
   sector: string | null;
+  /** Daily % change (Yahoo regularMarketChangePercent). */
+  change_pct?: number | null;
   error?: string;
 };
 
@@ -92,6 +94,22 @@ function num(v: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function yahooChangePct(q: {
+  regularMarketChangePercent?: unknown;
+  regularMarketChange?: unknown;
+  regularMarketPreviousClose?: unknown;
+  regularMarketPrice?: unknown;
+}): number | null {
+  const pct = num(q.regularMarketChangePercent);
+  if (pct != null) return Math.round(pct * 100) / 100;
+  const chg = num(q.regularMarketChange);
+  const prev = num(q.regularMarketPreviousClose) ?? num(q.regularMarketPrice);
+  if (chg != null && prev != null && prev !== 0) {
+    return Math.round((chg / prev) * 10000) / 100;
+  }
+  return null;
+}
+
 /** Listed shares when Yahoo omits marketCap (rare NSE SME listings). */
 const KNOWN_LISTED_SHARES: Record<string, number> = {
   VISDEM: 10_272_093,
@@ -151,6 +169,9 @@ function absorbBits(
   if (q.sector != null && next.sector == null) {
     next = { ...next, sector: q.sector };
   }
+  if (q.change_pct != null && next.change_pct == null) {
+    next = { ...next, change_pct: q.change_pct };
+  }
   return { bits: next, used: nextUsed, priceSym: nextPrice };
 }
 
@@ -159,7 +180,35 @@ type QuoteBits = {
   mcap: number | null;
   shares: number | null;
   sector: string | null;
+  change_pct: number | null;
 };
+
+function emptyBits(): QuoteBits {
+  return {
+    price: null,
+    mcap: null,
+    shares: null,
+    sector: null,
+    change_pct: null,
+  };
+}
+
+function yfQuoteFromBits(
+  ticker: string,
+  used: string,
+  bits: QuoteBits,
+  error?: string,
+): YfQuote {
+  return {
+    ticker: ticker.toUpperCase(),
+    yf_symbol: used,
+    price: bits.price != null ? Math.round(bits.price * 100) / 100 : null,
+    mcap_cr: mcapToCr(bits.mcap),
+    sector: bits.sector,
+    change_pct: bits.change_pct,
+    ...(error ? { error } : {}),
+  };
+}
 
 async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   let t: ReturnType<typeof setTimeout> | undefined;
@@ -189,6 +238,7 @@ async function quoteBits(symbol: string): Promise<QuoteBits | null> {
       mcap,
       shares,
       sector: (q.sector as string | undefined)?.trim() || null,
+      change_pct: yahooChangePct(q),
     };
   } catch {
     return null;
@@ -215,7 +265,13 @@ async function summaryBits(symbol: string): Promise<QuoteBits | null> {
     const sector =
       (qs.summaryProfile as { sector?: string } | undefined)?.sector?.trim() ||
       null;
-    return { price, mcap, shares, sector };
+    const change_pct = yahooChangePct({
+      regularMarketChangePercent: qs.price?.regularMarketChangePercent,
+      regularMarketChange: qs.price?.regularMarketChange,
+      regularMarketPreviousClose: qs.price?.regularMarketPreviousClose,
+      regularMarketPrice: qs.price?.regularMarketPrice,
+    });
+    return { price, mcap, shares, sector, change_pct };
   } catch {
     return null;
   }
@@ -239,16 +295,12 @@ export async function fetchQuoteDetailed(
       price: null,
       mcap_cr: null,
       sector: null,
+      change_pct: null,
       error: "empty symbol",
     };
   }
 
-  let bits: QuoteBits = {
-    price: null,
-    mcap: null,
-    shares: null,
-    sector: null,
-  };
+  let bits: QuoteBits = emptyBits();
   let used = base;
   let priceSym: string | null = null;
 
@@ -288,23 +340,10 @@ export async function fetchQuoteDetailed(
   }
 
   if (bits.price == null && bits.mcap == null) {
-    return {
-      ticker: ticker.toUpperCase(),
-      yf_symbol: used,
-      price: null,
-      mcap_cr: null,
-      sector: null,
-      error: "no quote",
-    };
+    return yfQuoteFromBits(ticker, used, bits, "no quote");
   }
 
-  return {
-    ticker: ticker.toUpperCase(),
-    yf_symbol: used,
-    price: bits.price != null ? Math.round(bits.price * 100) / 100 : null,
-    mcap_cr: mcapToCr(bits.mcap),
-    sector: bits.sector,
-  };
+  return yfQuoteFromBits(ticker, used, bits);
 }
 
 /** Fast live price refresh — single Yahoo quote per ticker (no quoteSummary fallbacks). */
@@ -323,18 +362,14 @@ export async function fetchLivePrices(
         price: null,
         mcap_cr: null,
         sector: null,
+        change_pct: null,
         error: "empty symbol",
       };
     }
     const hits = await Promise.all(
       candidates.slice(0, 3).map(async (s) => ({ s, q: await quoteBits(s) })),
     );
-    let bits: QuoteBits = {
-      price: null,
-      mcap: null,
-      shares: null,
-      sector: null,
-    };
+    let bits: QuoteBits = emptyBits();
     let used = sym;
     let priceSym: string | null = null;
     for (const { s, q } of hits) {
@@ -344,14 +379,7 @@ export async function fetchLivePrices(
       priceSym = next.priceSym;
     }
     if (bits.price == null && bits.mcap == null) {
-      return {
-        ticker: ticker.toUpperCase(),
-        yf_symbol: used,
-        price: null,
-        mcap_cr: null,
-        sector: null,
-        error: "no quote",
-      };
+      return yfQuoteFromBits(ticker, used, bits, "no quote");
     }
     let mcap = bits.mcap;
     if (mcap == null && bits.price != null && bits.shares != null) {
@@ -360,13 +388,8 @@ export async function fetchLivePrices(
     if (mcap == null && bits.price != null) {
       mcap = deriveMcapFromKnownShares(ticker, bits.price);
     }
-    return {
-      ticker: ticker.toUpperCase(),
-      yf_symbol: used,
-      price: bits.price != null ? Math.round(bits.price * 100) / 100 : null,
-      mcap_cr: mcapToCr(mcap),
-      sector: bits.sector,
-    };
+    bits = { ...bits, mcap };
+    return yfQuoteFromBits(ticker, used, bits);
   });
 }
 
