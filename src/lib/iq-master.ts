@@ -3,6 +3,7 @@
  */
 
 import { openSqliteNamed } from "@/lib/sqlite-utils";
+import { companyBoardScoresForTickers } from "@/lib/governance-map";
 import { getMetrics } from "@/lib/metrics";
 import { listLatestMarketIqByTickers } from "@/lib/marketiq-screen";
 import { listBoardRoomHistory } from "@/lib/boardroom-screen";
@@ -12,20 +13,39 @@ import { isEdge } from "@/lib/edge";
 import { isHolding } from "@/lib/holdings";
 import { fundTagsForTicker } from "@/lib/fund-watchlists";
 import { FUND_WATCHLIST_LABELS } from "@/lib/fund-watchlist-meta";
+import { loadBreakoutMap, type BreakoutFlags } from "@/lib/signals";
 
 export type IqMasterRow = {
   ticker: string;
   company: string;
   market: string | null;
   price: number | null;
+  /** Daily % change from metrics / Yahoo. */
+  change_pct: number | null;
+  /** Board reputation (0–100) from directors' other seats. */
+  board_score: number | null;
   market_cap_cr: number | null;
   sector: string | null;
+  sub_sector: string | null;
   about: string | null;
   headquarters: string | null;
   ceo: string | null;
   managing_director: string | null;
   founded_year: string | null;
   tags: string[];
+  /** 12−1 momentum % from signals.db (null if not scanned). */
+  momentum_pct: number | null;
+  /** Monthly RSI(14) from signals.db (null if not scanned). */
+  rsi_m: number | null;
+  has_bb_w: boolean;
+  has_bb_m: boolean;
+  has_tq: boolean;
+  has_ema: boolean;
+  has_ath: boolean;
+  has_high52: boolean;
+  has_mrsi: boolean;
+  has_mrsi85: boolean;
+  tq_score: number | null;
   marketiq: {
     headline: string;
     summary: string;
@@ -111,6 +131,44 @@ function companyProfile(ticker: string): CompanyProfile {
   }
 }
 
+function taxonomyFor(
+  ticker: string,
+  market: string | null,
+): { sector: string | null; sub_sector: string | null } {
+  const empty = { sector: null as string | null, sub_sector: null as string | null };
+  try {
+    const db = openSqliteNamed("classifications.db", {
+      readonly: true,
+      wal: true,
+    });
+    try {
+      const mk = (market || "").trim().toUpperCase();
+      const row = db
+        .prepare(
+          `SELECT sector, industry, sub_sector FROM classifications
+           WHERE UPPER(ticker) = ?
+           ORDER BY CASE WHEN UPPER(market) = ? THEN 0 ELSE 1 END
+           LIMIT 1`,
+        )
+        .get(ticker.toUpperCase(), mk) as
+        | {
+            sector?: string | null;
+            industry?: string | null;
+            sub_sector?: string | null;
+          }
+        | undefined;
+      if (!row) return empty;
+      const sector = row.sector?.trim() || null;
+      const sub_sector = row.sub_sector?.trim() || row.industry?.trim() || null;
+      return { sector, sub_sector };
+    } finally {
+      db.close();
+    }
+  } catch {
+    return empty;
+  }
+}
+
 function tagsFor(ticker: string): string[] {
   const out: string[] = [];
   try {
@@ -142,7 +200,7 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
         .map((t) => t.trim().toUpperCase())
         .filter((t) => t && !/^BSE\d{5,6}$/i.test(t)),
     ),
-  ].slice(0, 80);
+  ];
 
   if (!wanted.length) return [];
 
@@ -204,6 +262,20 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     /* ignore */
   }
 
+  let breakouts = new Map<string, BreakoutFlags>();
+  try {
+    breakouts = loadBreakoutMap();
+  } catch {
+    /* ignore */
+  }
+
+  let boardScores = new Map<string, number>();
+  try {
+    boardScores = companyBoardScoresForTickers(wanted);
+  } catch {
+    /* ignore */
+  }
+
   return wanted.map((ticker) => {
     const m = getMetrics(ticker);
     const profile = companyProfile(ticker);
@@ -217,19 +289,35 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     } catch {
       /* ignore */
     }
+    const flags = breakouts.get(ticker);
+    const tax = taxonomyFor(ticker, m?.market ?? null);
     return {
       ticker,
       company: profile.name,
       market: m?.market ?? null,
       price: m?.price ?? null,
+      change_pct: m?.change_pct ?? null,
+      board_score: boardScores.get(ticker.toUpperCase()) ?? null,
       market_cap_cr: m?.market_cap_cr ?? null,
-      sector: m?.sector ?? null,
+      sector: tax.sector || m?.sector || null,
+      sub_sector: tax.sub_sector,
       about: profile.about,
       headquarters: profile.headquarters,
       ceo: profile.ceo,
       managing_director: profile.managing_director,
       founded_year: profile.founded_year,
       tags: tagsFor(ticker),
+      momentum_pct: flags?.mom?.momentum_pct ?? null,
+      rsi_m: flags?.mrsi?.rsi ?? null,
+      has_bb_w: !!flags?.has_bb_w,
+      has_bb_m: !!flags?.has_bb_m,
+      has_tq: !!flags?.has_tq,
+      has_ema: !!flags?.has_ema,
+      has_ath: !!flags?.has_ath,
+      has_high52: !!flags?.has_high52,
+      has_mrsi: !!flags?.has_mrsi,
+      has_mrsi85: !!flags?.has_mrsi85,
+      tq_score: flags?.tq?.score ?? null,
       marketiq: miqByTicker.get(ticker) ?? null,
       board: boardByTicker.get(ticker) ?? null,
       governance,

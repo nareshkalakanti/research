@@ -1,8 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { type CapFilter } from "@/components/CapMarketFilters";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
+import {
+  MarketCapRangeBar,
+  MCAP_RANGE_STEPS,
+  mcapIndicesToBounds,
+} from "@/components/MarketCapRangeBar";
 import { RefreshButton } from "@/components/RefreshButton";
 import { WatchlistFilterBar, FundsFilterBar } from "@/components/WatchlistFilterBar";
 import { SavedSearchesBar } from "@/components/SavedSearchesBar";
@@ -19,6 +23,8 @@ import {
   FUND_WATCHLIST_KEYS,
   type FundFilterState,
 } from "@/lib/fund-watchlist-meta";
+
+const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 
 const EMPTY_FUNDS = Object.fromEntries(
   FUND_WATCHLIST_KEYS.map((k) => [k, false]),
@@ -59,7 +65,8 @@ export function ThemeScanner() {
   const [focusTicker, setFocusTicker] = useState<string | null>(null);
   const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
   const [market, setMarket] = useState("All");
-  const [cap, setCap] = useState<CapFilter>("All");
+  const [mcapMinIndex, setMcapMinIndex] = useState(0);
+  const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
@@ -79,12 +86,6 @@ export function ThemeScanner() {
     edge: 0,
     sme: 0,
     note: 0,
-    NC: 0,
-    TI: 0,
-    MIC: 0,
-    SC: 0,
-    MC: 0,
-    LC: 0,
     ...Object.fromEntries(FUND_WATCHLIST_KEYS.map((k) => [k, 0])),
   });
 
@@ -125,7 +126,8 @@ export function ThemeScanner() {
     debouncedCustom,
     stockQ,
     market,
-    cap,
+    mcapMinIndex,
+    mcapMaxIndex,
     sector,
     subSector,
     filterHold,
@@ -178,7 +180,6 @@ export function ThemeScanner() {
         themes: selected.join(","),
         custom: debouncedCustom,
         market,
-        cap,
         sector,
         subSector,
         page: String(page),
@@ -191,6 +192,9 @@ export function ThemeScanner() {
       if (filterEdge) params.set("edge", "1");
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
+      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
+      if (maxCr != null) params.set("mcapMax", String(maxCr));
       appendFundParams(params, fundFilters);
       if (opts?.refresh) params.set("refresh", "1");
       try {
@@ -217,7 +221,8 @@ export function ThemeScanner() {
       debouncedCustom,
       stockQ,
       market,
-      cap,
+      mcapMinIndex,
+      mcapMaxIndex,
       sector,
       subSector,
       filterHold,
@@ -291,42 +296,41 @@ export function ThemeScanner() {
         </div>
       </div>
 
-      <div className="theme-stock-search">
-        <TickerSuggest
-          value={stockQ}
-          onChange={(v) => {
-            setStockQ(v);
-            if (!v.trim()) setFocusTicker(null);
-          }}
-          onSelect={pickStock}
-          onSubmit={(t) => {
-            const sym = t.trim().toUpperCase();
-            if (!sym) {
-              clearStock();
-              return;
-            }
-            setStockQ(sym);
-            setFocusTicker(sym);
-            setActiveSavedId(null);
-          }}
-          placeholder="Search for stocks…"
-          className="theme-stock-suggest-input"
-        />
-        {stockQ ? (
-          <button
-            type="button"
-            className="theme-stock-clear"
-            onClick={clearStock}
-          >
-            Clear stock
-          </button>
-        ) : null}
-        <p className="hint tight theme-stock-hint">
-          Jump to a ticker — opens About | Qtr. Combine with themes to narrow.
-        </p>
-      </div>
-
-      <div className="scanner-controls">
+      <div className="scanner-controls scanner-controls--theme-row">
+        <div className="scanner-col scanner-col--stock">
+          <label className="field-label">Stock</label>
+          <div className="theme-stock-search theme-stock-search--inline">
+            <TickerSuggest
+              value={stockQ}
+              onChange={(v) => {
+                setStockQ(v);
+                if (!v.trim()) setFocusTicker(null);
+              }}
+              onSelect={pickStock}
+              onSubmit={(t) => {
+                const sym = t.trim().toUpperCase();
+                if (!sym) {
+                  clearStock();
+                  return;
+                }
+                setStockQ(sym);
+                setFocusTicker(sym);
+                setActiveSavedId(null);
+              }}
+              placeholder="Search for stocks…"
+              className="theme-stock-suggest-input"
+            />
+            {stockQ ? (
+              <button
+                type="button"
+                className="theme-stock-clear"
+                onClick={clearStock}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
         <div className="scanner-col">
           <label className="field-label">Themes</label>
           <ThemeMultiselect
@@ -370,21 +374,8 @@ export function ThemeScanner() {
               </button>
             ) : null}
           </div>
-          <p className="hint tight">
-            Pipe = OR · + = AND inside a clause
-            {selected.length > 0 ? " · narrows selected themes" : ""}
-          </p>
-          <SavedSearchesBar
-            scope="theme"
-            pattern={custom}
-            activeId={activeSavedId}
-            onApply={(s: SavedSearchRow) => {
-              setActiveSavedId(s.id);
-              setCustom(s.pattern);
-            }}
-          />
         </div>
-        <label className="field">
+        <label className="field scanner-col--list">
           <span>List</span>
           <select value={market} onChange={(e) => setMarket(e.target.value)}>
             <option value="All">All ({allCount.toLocaleString() || "…"})</option>
@@ -397,6 +388,23 @@ export function ThemeScanner() {
             </option>
           </select>
         </label>
+      </div>
+
+      <div className="theme-controls-meta">
+        <p className="hint tight">
+          Jump to a ticker — opens About | Qtr. Pipe = OR · + = AND inside a
+          clause
+          {selected.length > 0 ? " · keywords narrow selected themes" : ""}.
+        </p>
+        <SavedSearchesBar
+          scope="theme"
+          pattern={custom}
+          activeId={activeSavedId}
+          onApply={(s: SavedSearchRow) => {
+            setActiveSavedId(s.id);
+            setCustom(s.pattern);
+          }}
+        />
       </div>
 
       {selectedThemes.length > 0 ? (
@@ -424,41 +432,59 @@ export function ThemeScanner() {
       ) : null}
 
       <div className="scan-filter-stack theme-filter-stack">
-        <div className="scan-filter-row">
-          <span className="scan-filter-label">Lists</span>
-          <WatchlistFilterBar
-            cap={cap}
-            onCap={setCap}
-            sme={filterSme}
-            note={filterNote}
-            onSme={setFilterSme}
-            onNote={setFilterNote}
-            smeCount={data?.signals?.sme ?? signalCounts.sme}
-            noteCount={data?.signals?.note ?? signalCounts.note}
-            allCount={
-              data?.total ??
-              Object.values(markets).reduce((a, b) => a + b, 0)
-            }
-            capCounts={{
-              NC: data?.signals?.NC ?? signalCounts.NC,
-              TI: data?.signals?.TI ?? signalCounts.TI,
-              MIC: data?.signals?.MIC ?? signalCounts.MIC,
-              SC: data?.signals?.SC ?? signalCounts.SC,
-              MC: data?.signals?.MC ?? signalCounts.MC,
-              LC: data?.signals?.LC ?? signalCounts.LC,
-            }}
-          />
+        <div className="scan-filter-row scan-filter-row--lists-tags">
+          <div className="scan-filter-group">
+            <span className="scan-filter-label">Lists</span>
+            <WatchlistFilterBar
+              sme={filterSme}
+              note={filterNote}
+              onSme={setFilterSme}
+              onNote={setFilterNote}
+              smeCount={data?.signals?.sme ?? signalCounts.sme}
+              noteCount={data?.signals?.note ?? signalCounts.note}
+            />
+          </div>
+          <div className="scan-filter-group">
+            <span className="scan-filter-label">Tags</span>
+            <FundsFilterBar
+              hold={filterHold}
+              edge={filterEdge}
+              onHold={setFilterHold}
+              onEdge={setFilterEdge}
+              holdCount={data?.signals?.hold ?? signalCounts.hold}
+              distressCount={data?.signals?.distress ?? signalCounts.distress}
+              edgeCount={data?.signals?.edge ?? signalCounts.edge}
+            />
+          </div>
         </div>
         <div className="scan-filter-row">
-          <span className="scan-filter-label">Tags</span>
-          <FundsFilterBar
-            hold={filterHold}
-            edge={filterEdge}
-            onHold={setFilterHold}
-            onEdge={setFilterEdge}
-            holdCount={data?.signals?.hold ?? signalCounts.hold}
-            distressCount={data?.signals?.distress ?? signalCounts.distress}
-            edgeCount={data?.signals?.edge ?? signalCounts.edge}
+          <span className="scan-filter-label">Mcap</span>
+          <MarketCapRangeBar
+            minIndex={mcapMinIndex}
+            maxIndex={mcapMaxIndex}
+            onChange={(lo, hi) => {
+              setMcapMinIndex(lo);
+              setMcapMaxIndex(hi);
+              setPage(1);
+            }}
+            onClear={
+              mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX
+                ? () => {
+                    setMcapMinIndex(0);
+                    setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                    setPage(1);
+                  }
+                : undefined
+            }
+            onRefresh={async () => {
+              await fetch("/api/companies?market=All&pageSize=10&refresh=1")
+                .then((r) => r.json())
+                .then((j: { markets?: Record<string, number> }) => {
+                  if (j.markets) setMarkets(j.markets);
+                });
+              await load({ refresh: true });
+            }}
+            refreshing={loading}
           />
         </div>
       </div>
@@ -481,7 +507,6 @@ export function ThemeScanner() {
         showMatched={
           selected.length > 0 || debouncedCustom.trim().length > 0
         }
-        capFilter={cap}
         onNoteChange={() => void load()}
         onScrapeDone={() => void load()}
         expandTicker={focusTicker}

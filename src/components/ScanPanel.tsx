@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  type CapFilter,
-} from "@/components/CapMarketFilters";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
+import {
+  MarketCapRangeBar,
+  MCAP_RANGE_STEPS,
+  mcapIndicesToBounds,
+} from "@/components/MarketCapRangeBar";
 import { RefreshButton } from "@/components/RefreshButton";
 import {
   SignalScanBar,
@@ -20,6 +22,8 @@ import {
   type FundFilterState,
 } from "@/lib/fund-watchlist-meta";
 import type { Company } from "@/lib/types";
+
+const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 
 const EMPTY_FUNDS = Object.fromEntries(
   FUND_WATCHLIST_KEYS.map((k) => [k, false]),
@@ -47,7 +51,8 @@ type ApiResponse = {
 
 export function ScanPanel() {
   const [list, setList] = useState<ScanList>("All");
-  const [cap, setCap] = useState<CapFilter>("All");
+  const [mcapMinIndex, setMcapMinIndex] = useState(0);
+  const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [filterGov, setFilterGov] = useState(false);
@@ -78,18 +83,15 @@ export function ScanPanel() {
     age100: 0,
     age_min: 0,
     distress: 0,
-    NC: 0,
-    TI: 0,
-    MIC: 0,
-    SC: 0,
-    MC: 0,
-    LC: 0,
     ...Object.fromEntries(FUND_WATCHLIST_KEYS.map((k) => [k, 0])),
   });
 
+  const mcapNarrowed =
+    mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
   const filtersKey = [
     list,
-    cap,
+    mcapMinIndex,
+    mcapMaxIndex,
     view,
     filterHold,
     filterEdge,
@@ -114,7 +116,6 @@ export function ScanPanel() {
       if (isRefresh) setRefreshing(true);
       const params = new URLSearchParams({
         market: list,
-        cap,
         bbTf: "weekly",
         page: String(pageForLoad),
         pageSize: "100",
@@ -139,6 +140,9 @@ export function ScanPanel() {
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
       if (ageMin != null) params.set("ageMin", String(ageMin));
+      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
+      if (maxCr != null) params.set("mcapMax", String(maxCr));
       if (isRefresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`, {
@@ -164,12 +168,6 @@ export function ScanPanel() {
             age100: json.signals.age100 ?? 0,
             age_min: json.signals.age_min ?? 0,
             distress: json.signals.distress ?? 0,
-            NC: json.signals.NC ?? 0,
-            TI: json.signals.TI ?? 0,
-            MIC: json.signals.MIC ?? 0,
-            SC: json.signals.SC ?? 0,
-            MC: json.signals.MC ?? 0,
-            LC: json.signals.LC ?? 0,
             ...Object.fromEntries(
               FUND_WATCHLIST_KEYS.map((k) => [k, json.signals?.[k] ?? 0]),
             ),
@@ -186,7 +184,8 @@ export function ScanPanel() {
     },
     [
       list,
-      cap,
+      mcapMinIndex,
+      mcapMaxIndex,
       view,
       pageForLoad,
       sort,
@@ -291,7 +290,16 @@ export function ScanPanel() {
   const end = data ? Math.min(data.page * 100, data.total) : 0;
   const chipLabel = useMemo(() => {
     const parts: string[] = [];
-    if (cap !== "All") parts.push(cap);
+    if (mcapNarrowed) {
+      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      if (minCr != null && minCr > 0 && maxCr != null) {
+        parts.push(`Mcap ${minCr}–${maxCr}`);
+      } else if (minCr != null && minCr > 0) {
+        parts.push(`Mcap ≥${minCr}`);
+      } else if (maxCr != null) {
+        parts.push(`Mcap ≤${maxCr}`);
+      }
+    }
     if (filterFundAll) parts.push("Funds");
     if (filterNote) parts.push("Note");
     if (filterEdge) parts.push("Edge");
@@ -303,7 +311,9 @@ export function ScanPanel() {
     return parts.length ? `${base} · ${parts.join(" · ")}` : base;
   }, [
     list,
-    cap,
+    mcapNarrowed,
+    mcapMinIndex,
+    mcapMaxIndex,
     filterFundAll,
     filterNote,
     filterEdge,
@@ -313,7 +323,6 @@ export function ScanPanel() {
     ageMin,
   ]);
   const selectionActive = hasScanSelection({
-    cap,
     hold: filterHold,
     edge: filterEdge,
     gov: filterGov,
@@ -322,6 +331,7 @@ export function ScanPanel() {
     ageMin,
     funds: EMPTY_FUNDS,
     fundAll: filterFundAll,
+    mcapNarrowed,
   });
   useEffect(() => {
     if (selectionActive) setScanScope("selection");
@@ -349,7 +359,8 @@ export function ScanPanel() {
               setList(e.target.value as ScanList);
               setPage(1);
               setView("all");
-              setCap("All");
+              setMcapMinIndex(0);
+              setMcapMaxIndex(MCAP_DEFAULT_MAX);
               setFilterHold(false);
               setFilterEdge(false);
               setFilterGov(false);
@@ -376,51 +387,65 @@ export function ScanPanel() {
       </div>
 
       <div className="scan-filter-stack">
-        <div className="scan-filter-row">
-          <span className="scan-filter-label">Lists</span>
-          <WatchlistFilterBar
-            cap={cap}
-            onCap={setCap}
-            funds={filterFundAll}
-            onFunds={setFilterFundAll}
-            fundsCount={fundAllCount}
-            sme={filterSme}
-            note={filterNote}
-            ageMin={ageMin}
-            onSme={setFilterSme}
-            onNote={setFilterNote}
-            onAgeMin={setAgeMin}
-            smeCount={data?.signals?.sme ?? listCounts.sme}
-            noteCount={data?.signals?.note ?? listCounts.note}
-            ageCounts={{
-              25: data?.signals?.age25 ?? listCounts.age25,
-              50: data?.signals?.age50 ?? listCounts.age50,
-              100: data?.signals?.age100 ?? listCounts.age100,
-            }}
-            allCount={allCount}
-            capCounts={{
-              NC: data?.signals?.NC ?? listCounts.NC,
-              TI: data?.signals?.TI ?? listCounts.TI,
-              MIC: data?.signals?.MIC ?? listCounts.MIC,
-              SC: data?.signals?.SC ?? listCounts.SC,
-              MC: data?.signals?.MC ?? listCounts.MC,
-              LC: data?.signals?.LC ?? listCounts.LC,
-            }}
-          />
+        <div className="scan-filter-row scan-filter-row--lists-tags">
+          <div className="scan-filter-group">
+            <span className="scan-filter-label">Lists</span>
+            <WatchlistFilterBar
+              funds={filterFundAll}
+              onFunds={setFilterFundAll}
+              fundsCount={fundAllCount}
+              sme={filterSme}
+              note={filterNote}
+              ageMin={ageMin}
+              onSme={setFilterSme}
+              onNote={setFilterNote}
+              onAgeMin={setAgeMin}
+              smeCount={data?.signals?.sme ?? listCounts.sme}
+              noteCount={data?.signals?.note ?? listCounts.note}
+              ageCounts={{
+                25: data?.signals?.age25 ?? listCounts.age25,
+                50: data?.signals?.age50 ?? listCounts.age50,
+                100: data?.signals?.age100 ?? listCounts.age100,
+              }}
+            />
+          </div>
+          <div className="scan-filter-group">
+            <span className="scan-filter-label">Tags</span>
+            <FundsFilterBar
+              hold={filterHold}
+              edge={filterEdge}
+              gov={filterGov}
+              onHold={setFilterHold}
+              onEdge={setFilterEdge}
+              onGov={setFilterGov}
+              holdCount={data?.signals?.hold ?? listCounts.hold}
+              distressCount={data?.signals?.distress ?? listCounts.distress}
+              edgeCount={data?.signals?.edge ?? listCounts.edge}
+              govCount={data?.signals?.gov ?? listCounts.gov}
+            />
+          </div>
         </div>
-        <div className="scan-filter-row">
-          <span className="scan-filter-label">Tags</span>
-          <FundsFilterBar
-            hold={filterHold}
-            edge={filterEdge}
-            gov={filterGov}
-            onHold={setFilterHold}
-            onEdge={setFilterEdge}
-            onGov={setFilterGov}
-            holdCount={data?.signals?.hold ?? listCounts.hold}
-            distressCount={data?.signals?.distress ?? listCounts.distress}
-            edgeCount={data?.signals?.edge ?? listCounts.edge}
-            govCount={data?.signals?.gov ?? listCounts.gov}
+        <div className="scan-filter-row scan-mcap-row">
+          <span className="scan-filter-label">Mcap</span>
+          <MarketCapRangeBar
+            compact
+            valueOnly
+            minIndex={mcapMinIndex}
+            maxIndex={mcapMaxIndex}
+            onChange={(lo, hi) => {
+              setMcapMinIndex(lo);
+              setMcapMaxIndex(hi);
+              setPage(1);
+            }}
+            onClear={
+              mcapNarrowed
+                ? () => {
+                    setMcapMinIndex(0);
+                    setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                    setPage(1);
+                  }
+                : undefined
+            }
           />
         </div>
         <SignalScanBar
@@ -432,7 +457,6 @@ export function ScanPanel() {
           scope={scanScope}
           onScope={setScanScope}
           selectionActive={selectionActive}
-          cap={cap}
           hold={filterHold}
           edge={filterEdge}
           gov={filterGov}
@@ -441,6 +465,16 @@ export function ScanPanel() {
           ageMin={ageMin}
           funds={EMPTY_FUNDS}
           fundAll={filterFundAll}
+          mcapMin={
+            mcapNarrowed
+              ? mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex).minCr
+              : null
+          }
+          mcapMax={
+            mcapNarrowed
+              ? mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex).maxCr
+              : null
+          }
           bbCount={data?.signals?.bb}
           bbWCount={data?.signals?.bb_w}
           bbMCount={data?.signals?.bb_m}
@@ -492,7 +526,6 @@ export function ScanPanel() {
                   setFilterGov(false);
                   setFilterNote(false);
                   setAgeMin(null);
-                  setCap("All");
                   setPage(1);
                 }}
               >
@@ -538,7 +571,6 @@ export function ScanPanel() {
         dir={dir}
         onSort={onSort}
         signalMode={signalMode}
-        capFilter={cap}
         onNoteChange={softReload}
         onScrapeDone={softReload}
         toolbar={

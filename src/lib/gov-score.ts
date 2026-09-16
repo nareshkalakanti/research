@@ -33,7 +33,7 @@ export const GOV_TINY_BRIDGE_TITLE = GOV_MIC_BRIDGE_TITLE;
 export const GOV_CAP_BRIDGE_HINT = "≥5k ↔ <5k Cr";
 export const GOV_SME_CROSS_LABEL = "SME ↔ Mainboard";
 export const GOV_SME_CROSS_TITLE =
-  "Strong board reputation → investor confidence: director sits on both an NSE SME listing and a main NSE board";
+  "Director sits on both an NSE SME listing and a main NSE board";
 export const GOV_SME_CROSS_HINT = "SME with mainboard directors";
 export const GOV_MULTI_LC_LABEL = "Multi-LC";
 export const GOV_MULTI_LC_TITLE =
@@ -274,4 +274,47 @@ export function scoreDirectorSeats(
     known_mcap_n: knownMcapN,
     match_weight: matchWeight(pid, dinKey),
   };
+}
+
+export const GOV_BOARD_SCORE_TITLE =
+  "Reputation directors are willing to stake here, from their other boards";
+
+/** Outside-network score a director is pledging to this seat (excludes this ticker). */
+export function pledgedDirectorScore(opts: {
+  otherSeats: SeatForScore[];
+  personId?: string | null;
+  din?: string | null;
+}): number {
+  if (!opts.otherSeats.length) return 0;
+  return scoreDirectorSeats(opts.otherSeats, {
+    personId: opts.personId,
+    din: opts.din,
+  }).dir_score;
+}
+
+/**
+ * Company board score: role-weighted mean of reputation pledged from
+ * each director's other seats — they are putting that network at risk here.
+ */
+export function scoreCompanyBoard(
+  directors: Array<{
+    pledged_score?: number;
+    dir_score?: number;
+    designation?: string | null;
+    category?: string | null;
+  }>,
+): number {
+  let wsum = 0;
+  let wtot = 0;
+  for (const d of directors) {
+    const s = Number(
+      d.pledged_score != null ? d.pledged_score : d.dir_score,
+    );
+    if (!Number.isFinite(s)) continue;
+    const w = roleWeight(d.designation, d.category);
+    wsum += s * w;
+    wtot += w;
+  }
+  if (wtot <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((wsum / wtot) * 10) / 10));
 }

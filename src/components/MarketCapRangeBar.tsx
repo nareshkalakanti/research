@@ -7,7 +7,10 @@ export const MCAP_RANGE_STEPS: Array<{ label: string; value: number | null }> = 
   { label: "0", value: 0 },
   { label: "100", value: 100 },
   { label: "500", value: 500 },
+  { label: "1k", value: 1000 },
   { label: "2k", value: 2000 },
+  { label: "3k", value: 3000 },
+  { label: "5k", value: 5000 },
   { label: "10k", value: 10000 },
   { label: "1L", value: 100000 },
   { label: "Max", value: null },
@@ -37,6 +40,10 @@ type Props = {
   onClear?: () => void;
   onRefresh?: () => void;
   refreshing?: boolean;
+  /** Tighter layout for Scan / dense toolbars. */
+  compact?: boolean;
+  /** Hide the "Market Cap:" prefix (row already has an Mcap label). */
+  valueOnly?: boolean;
 };
 
 export function MarketCapRangeBar({
@@ -46,6 +53,8 @@ export function MarketCapRangeBar({
   onClear,
   onRefresh,
   refreshing,
+  compact = false,
+  valueOnly = false,
 }: Props) {
   const n = MCAP_RANGE_STEPS.length - 1;
   const lo = Math.max(0, Math.min(minIndex, maxIndex, n));
@@ -71,10 +80,18 @@ export function MarketCapRangeBar({
   );
 
   return (
-    <div className="mcap-range-bar">
+    <div
+      className={`mcap-range-bar${compact ? " mcap-range-bar--compact" : ""}`}
+    >
       <div className="mcap-range-main">
         <div className="mcap-range-label">
-          Market Cap: <strong>{label}</strong>
+          {valueOnly ? (
+            <strong>{label}</strong>
+          ) : (
+            <>
+              Market Cap: <strong>{label}</strong>
+            </>
+          )}
         </div>
         <div className="mcap-range-track-wrap">
           <div className="mcap-range-ticks" aria-hidden>

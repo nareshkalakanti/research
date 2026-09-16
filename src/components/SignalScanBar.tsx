@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import {
-  CapMarketFilters,
-  type CapFilter,
-} from "@/components/CapMarketFilters";
+import type { CapFilter } from "@/components/CapMarketFilters";
 import type { FundFilterState } from "@/lib/fund-watchlist-meta";
 import { anyFundFilterActive } from "@/lib/fund-watchlist-meta";
 
@@ -47,8 +44,8 @@ type Props = {
   ageMin?: number | null;
   funds?: FundFilterState;
   fundAll?: boolean;
-  onCap?: (cap: CapFilter) => void;
-  showCap?: boolean;
+  mcapMin?: number | null;
+  mcapMax?: number | null;
   bbCount?: number;
   bbWCount?: number;
   bbMCount?: number;
@@ -224,8 +221,10 @@ export function hasScanSelection(opts: {
   ageMin?: number | null;
   funds?: FundFilterState;
   fundAll?: boolean;
+  mcapNarrowed?: boolean;
 }): boolean {
   if (opts.cap && opts.cap !== "All") return true;
+  if (opts.mcapNarrowed) return true;
   if (
     opts.hold ||
     opts.edge ||
@@ -258,8 +257,8 @@ export function SignalScanBar({
   ageMin,
   funds,
   fundAll,
-  onCap,
-  showCap,
+  mcapMin,
+  mcapMax,
   bbCount,
   bbWCount,
   bbMCount,
@@ -355,6 +354,8 @@ export function SignalScanBar({
               ageMin: ageMin ?? null,
               funds: funds ?? {},
               fundAll: !!fundAll,
+              mcapMin: mcapMin ?? null,
+              mcapMax: mcapMax ?? null,
             }
           : {}),
       };
@@ -532,6 +533,8 @@ export function SignalScanBar({
       ageMin,
       funds,
       fundAll,
+      mcapMin,
+      mcapMax,
       onBatch,
       onDone,
       onView,
@@ -552,9 +555,11 @@ export function SignalScanBar({
             ageMin: ageMin ?? null,
             funds: funds ?? {},
             fundAll: !!fundAll,
+            mcapMin: mcapMin ?? null,
+            mcapMax: mcapMax ?? null,
           }
         : { scope: "list" as const },
-    [scope, cap, hold, edge, gov, sme, note, ageMin, funds, fundAll],
+    [scope, cap, hold, edge, gov, sme, note, ageMin, funds, fundAll, mcapMin, mcapMax],
   );
 
   const runQuartersFill = useCallback(async () => {
@@ -713,13 +718,6 @@ export function SignalScanBar({
         <span className="scan-filter-label">Signals</span>
         <div className="filter-bar scan-signal-bar">
           <div className="filter-bar-main">
-            {showCap && onCap && cap != null ? (
-              <>
-                <CapMarketFilters cap={cap} onCap={onCap} inline />
-                <span className="filter-sep" aria-hidden />
-              </>
-            ) : null}
-
             <button
               type="button"
               className={`chip tag-chip ${view === "all" ? "on" : ""}`}

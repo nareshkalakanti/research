@@ -5,6 +5,7 @@ import {
   type GovernanceMapRow,
   type GovCompanySeat,
 } from "@/lib/governance-map";
+import { pledgedDirectorScore, scoreCompanyBoard } from "@/lib/gov-score";
 import {
   combinePatterns,
   matchedKeywords,
@@ -49,6 +50,20 @@ function seatMatchesCap(
   return (c.cap_code || "").toUpperCase() === cap.toUpperCase();
 }
 
+function seatMatchesMcap(
+  c: { market_cap_cr: number | null },
+  mcapMin: number | null,
+  mcapMax: number | null,
+): boolean {
+  if (mcapMin != null && mcapMin > 0) {
+    if (c.market_cap_cr == null || c.market_cap_cr < mcapMin) return false;
+  }
+  if (mcapMax != null) {
+    if (c.market_cap_cr == null || c.market_cap_cr > mcapMax) return false;
+  }
+  return true;
+}
+
 function filterRows(
   rows: GovernanceMapRow[],
   opts: {
@@ -71,6 +86,8 @@ function filterRows(
     themeShowAll: boolean;
     /** Cap band filter: All | NC | TI | MIC | SC | MC | LC */
     cap: string;
+    mcapMin: number | null;
+    mcapMax: number | null;
     /** NSE SME seats only */
     sme: boolean;
     /** When searching by company, drop non-matching seats (Companies tab). */
@@ -81,6 +98,8 @@ function filterRows(
   const out: GovernanceMapRow[] = [];
   const cap = (opts.cap || "All").toUpperCase();
   const capActive = cap !== "ALL" && Boolean(cap);
+  const mcapActive =
+    (opts.mcapMin != null && opts.mcapMin > 0) || opts.mcapMax != null;
 
   for (const r of rows) {
     if (opts.dinOnly && !r.din_backed) continue;
@@ -109,6 +128,14 @@ function filterRows(
 
     if (capActive) {
       const matched = companies.filter((c) => seatMatchesCap(c, cap));
+      if (!matched.length) continue;
+      companies = matched;
+    }
+
+    if (mcapActive) {
+      const matched = companies.filter((c) =>
+        seatMatchesMcap(c, opts.mcapMin, opts.mcapMax),
+      );
       if (!matched.length) continue;
       companies = matched;
     }
@@ -270,6 +297,7 @@ type CompanyAgg = {
   market: string;
   market_cap_cr: number | null;
   cap_code: string | null;
+  board_score: number;
   has_bb: boolean;
   has_bb_w: boolean;
   has_bb_m: boolean;
@@ -288,6 +316,7 @@ type CompanyAgg = {
     name: string;
     din: string | null;
     dir_score: number;
+    pledged_score?: number;
     din_backed: boolean;
     designation: string;
     category: string | null;
@@ -365,6 +394,14 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     themePattern,
     themeShowAll: sp.get("themeShowAll") === "1",
     cap: (sp.get("cap") || "All").trim() || "All",
+    mcapMin:
+      sp.get("mcapMin") != null && Number.isFinite(Number(sp.get("mcapMin")))
+        ? Number(sp.get("mcapMin"))
+        : null,
+    mcapMax:
+      sp.get("mcapMax") != null && Number.isFinite(Number(sp.get("mcapMax")))
+        ? Number(sp.get("mcapMax"))
+        : null,
     sme: sp.get("sme") === "1",
     narrowCompanies: view === "company",
   });
@@ -411,21 +448,29 @@ async function buildGovernanceMapResponse(req: NextRequest) {
             sc: c.sc,
             tv: c.tv,
             web: c.web,
+            board_score: 0,
             directors: [],
           };
           byTicker.set(c.ticker, agg);
         }
         const fullBoards = fullBoardsByPerson.get(r.person_id) ?? r.companies;
+        const otherSeats = fullBoards.filter(
+          (x) => x.ticker.toUpperCase() !== c.ticker.toUpperCase(),
+        );
         agg.directors.push({
           person_id: r.person_id,
           name: r.name,
           din: r.din,
           dir_score: r.dir_score,
+          pledged_score: pledgedDirectorScore({
+            otherSeats,
+            personId: r.person_id,
+            din: r.din,
+          }),
           din_backed: r.din_backed,
           designation: c.designation,
           category: c.category,
-          other_boards: fullBoards
-            .filter((x) => x.ticker.toUpperCase() !== c.ticker.toUpperCase())
+          other_boards: otherSeats
             .slice()
             .sort((a, b) => {
               // SME first so small listings stay visible, then largest mcap.
@@ -442,7 +487,14 @@ async function buildGovernanceMapResponse(req: NextRequest) {
         });
       }
     }
-    const companies = [...byTicker.values()].sort((a, b) => {
+    const companies = [...byTicker.values()].map((agg) => ({
+      ...agg,
+      board_score: scoreCompanyBoard(agg.directors),
+    }));
+    companies.sort((a, b) => {
+      if (sort === "score" && b.board_score !== a.board_score) {
+        return b.board_score - a.board_score;
+      }
       const am = a.market_cap_cr ?? -1;
       const bm = b.market_cap_cr ?? -1;
       if (bm !== am) return bm - am;

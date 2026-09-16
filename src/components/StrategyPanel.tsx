@@ -16,6 +16,10 @@ import {
   type ConcallDriftWindowCounts,
 } from "@/components/ConcallDriftFilterBar";
 import {
+  MCAP_RANGE_STEPS,
+  mcapIndicesToBounds,
+} from "@/components/MarketCapRangeBar";
+import {
   recentFyQuarterOptions,
   currentEarnSeasonQuarter,
   fyQuarterChipLabel,
@@ -25,6 +29,7 @@ import { parseFetchJson } from "@/lib/fetch-json";
 
 const DEFAULT_CUSTOM = defaultCustomDates();
 const KIND = "concall_drift" as const;
+const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 type ApiResponse = {
   kind: typeof KIND;
   stats: Record<string, number>;
@@ -286,8 +291,8 @@ export function StrategyPanel() {
   const [customTo, setCustomTo] = useState(DEFAULT_CUSTOM.to);
   const [sector, setSector] = useState("");
   const [subSector, setSubSector] = useState("");
-  const [mcapMin, setMcapMin] = useState<number | null>(null);
-  const [mcapMax, setMcapMax] = useState<number | null>(null);
+  const [mcapMinIndex, setMcapMinIndex] = useState(0);
+  const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [search, setSearch] = useState("");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -328,8 +333,14 @@ export function StrategyPanel() {
         if (customFrom) params.set("from", customFrom);
         if (customTo) params.set("to", customTo);
       }
-      if (mcapMin != null) params.set("mcapMin", String(mcapMin));
-      if (mcapMax != null) params.set("mcapMax", String(mcapMax));
+      if (mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX) {
+        const { minCr, maxCr } = mcapIndicesToBounds(
+          mcapMinIndex,
+          mcapMaxIndex,
+        );
+        if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
+        if (maxCr != null) params.set("mcapMax", String(maxCr));
+      }
       if (opts?.refresh) params.set("refresh", "1");
       const res = await fetch(`/api/strategy?${params}`, {
         signal: AbortSignal.timeout(120_000),
@@ -358,19 +369,13 @@ export function StrategyPanel() {
     subSector,
     customFrom,
     customTo,
-    mcapMin,
-    mcapMax,
+    mcapMinIndex,
+    mcapMaxIndex,
   ]);
 
   useEffect(() => {
-    if (!data?.mcap_bounds) return;
-    setMcapMin((cur) => (cur == null ? data.mcap_bounds!.min : cur));
-    setMcapMax((cur) => (cur == null ? data.mcap_bounds!.max : cur));
-  }, [data?.mcap_bounds]);
-
-  useEffect(() => {
-    setMcapMin(null);
-    setMcapMax(null);
+    setMcapMinIndex(0);
+    setMcapMaxIndex(MCAP_DEFAULT_MAX);
   }, [quarter, market]);
 
   useEffect(() => {
@@ -467,11 +472,12 @@ export function StrategyPanel() {
         subSector={subSector}
         onSubSector={setSubSector}
         subSectors={data?.sub_sectors ?? []}
-        mcapMin={mcapMin}
-        mcapMax={mcapMax}
-        onMcapMin={setMcapMin}
-        onMcapMax={setMcapMax}
-        mcapBounds={data?.mcap_bounds ?? null}
+        mcapMinIndex={mcapMinIndex}
+        mcapMaxIndex={mcapMaxIndex}
+        onMcapChange={(lo, hi) => {
+          setMcapMinIndex(lo);
+          setMcapMaxIndex(hi);
+        }}
         search={search}
         onSearch={setSearch}
         withBaseline={data?.with_baseline}
@@ -490,8 +496,8 @@ export function StrategyPanel() {
           setSector("");
           setSubSector("");
           setSearch("");
-          setMcapMin(null);
-          setMcapMax(null);
+          setMcapMinIndex(0);
+          setMcapMaxIndex(MCAP_DEFAULT_MAX);
           const defaults = defaultCustomDates();
           setCustomFrom(defaults.from);
           setCustomTo(defaults.to);

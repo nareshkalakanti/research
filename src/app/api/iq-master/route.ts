@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buildIqMasterRows } from "@/lib/iq-master";
+import { loadMetricsMap, refreshPagePrices } from "@/lib/metrics";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,13 @@ export async function GET(req: NextRequest) {
     if (!tickers.length) {
       return NextResponse.json({ ok: true, rows: [] });
     }
+    const metrics = loadMetricsMap();
+    await refreshPagePrices(
+      tickers.map((ticker) => ({
+        ticker,
+        market: metrics.get(ticker.toUpperCase())?.market,
+      })),
+    );
     const rows = buildIqMasterRows(tickers);
     return NextResponse.json({ ok: true, rows });
   } catch (e) {

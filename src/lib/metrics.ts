@@ -19,6 +19,7 @@ export type MetricsRow = {
   price: number | null;
   market_cap_cr: number | null;
   sector: string | null;
+  change_pct: number | null;
   fetched_at: string;
 };
 
@@ -35,6 +36,7 @@ const METRICS_SCHEMA = `
     price REAL,
     market_cap_cr REAL,
     sector TEXT,
+    change_pct REAL,
     fetched_at TEXT NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_metrics_fetched ON stock_metrics(fetched_at);
@@ -82,6 +84,12 @@ function ensureMetricsDb(): Database.Database {
   db.pragma("journal_mode = WAL");
   db.pragma("busy_timeout = 8000");
   db.exec(METRICS_SCHEMA);
+  const cols = db
+    .prepare(`PRAGMA table_info(stock_metrics)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "change_pct")) {
+    db.exec(`ALTER TABLE stock_metrics ADD COLUMN change_pct REAL`);
+  }
   metricsDb = db;
   return db;
 }
@@ -101,7 +109,7 @@ export function loadMetricsMap(): Map<string, MetricsRow> {
     const db = ensureMetricsDb();
     const rows = db
       .prepare(
-        `SELECT ticker, market, yf_symbol, price, market_cap_cr, sector, fetched_at
+        `SELECT ticker, market, yf_symbol, price, market_cap_cr, sector, change_pct, fetched_at
          FROM stock_metrics`,
       )
       .all() as MetricsRow[];
@@ -125,6 +133,7 @@ function metricsNeedsPriceRefresh(
   maxAgeMs: number,
 ): boolean {
   if (!row || row.price == null) return true;
+  if (row.change_pct == null) return true;
   const t = Date.parse(row.fetched_at);
   if (!Number.isFinite(t)) return true;
   return Date.now() - t > maxAgeMs;
@@ -171,14 +180,15 @@ export function upsertMetrics(
   try {
     const db = ensureMetricsDb();
     const stmt = db.prepare(`
-      INSERT INTO stock_metrics (ticker, market, yf_symbol, price, market_cap_cr, sector, fetched_at)
-      VALUES (@ticker, @market, @yf_symbol, @price, @market_cap_cr, @sector, @fetched_at)
+      INSERT INTO stock_metrics (ticker, market, yf_symbol, price, market_cap_cr, sector, change_pct, fetched_at)
+      VALUES (@ticker, @market, @yf_symbol, @price, @market_cap_cr, @sector, @change_pct, @fetched_at)
       ON CONFLICT(ticker) DO UPDATE SET
         market = COALESCE(excluded.market, stock_metrics.market),
         yf_symbol = COALESCE(excluded.yf_symbol, stock_metrics.yf_symbol),
         price = COALESCE(excluded.price, stock_metrics.price),
         market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
         sector = COALESCE(excluded.sector, stock_metrics.sector),
+        change_pct = COALESCE(excluded.change_pct, stock_metrics.change_pct),
         fetched_at = excluded.fetched_at
     `);
 
@@ -196,6 +206,7 @@ export function upsertMetrics(
           price: q.price,
           market_cap_cr: q.mcap_cr,
           sector: q.sector,
+          change_pct: q.change_pct ?? null,
           fetched_at: now,
         });
         n += 1;
