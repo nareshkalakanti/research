@@ -65,13 +65,13 @@ export const VALUATION_ROWS: Array<{
   label: string;
   editableEst?: boolean;
   bold?: boolean;
-  accent?: "opm" | "pe";
+  accent?: "pe";
 }> = [
   { id: "revenue", label: "Revenue Cr", bold: true },
   { id: "revenue_growth", label: "Revenue Growth %", editableEst: true },
   { id: "expenses", label: "Expenses Cr" },
   { id: "operating_profit", label: "Operating Profit Cr", bold: true },
-  { id: "opm", label: "OPM %", editableEst: true, accent: "opm" },
+  { id: "opm", label: "OPM %", editableEst: true },
   { id: "other_income", label: "Other Income Cr", editableEst: true },
   { id: "interest", label: "Interest Expense Cr", editableEst: true },
   { id: "depreciation", label: "Depreciation Cr", editableEst: true },

@@ -187,7 +187,15 @@ function parseSectionTable(
   table.find("tbody tr").each((_, tr) => {
     const cells = $(tr).find("td, th");
     if (cells.length < 2) return;
-    const name = $(cells[0]).text().replace(/\s+/g, " ").trim();
+    // Screener puts an expand "+" button in the label cell — strip it.
+    const labelCell = $(cells[0]).clone();
+    labelCell.find("button, .button, svg").remove();
+    const name = labelCell
+      .text()
+      .replace(/\u00a0/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\s*\+\s*$/g, "")
+      .trim();
     if (!name) return;
     const vals: Array<number | null> = [];
     for (const idx of dateIdx) {

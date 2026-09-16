@@ -19,6 +19,7 @@ import { SecCell } from "@/components/SecCell";
 import { WatchButton } from "@/components/WatchButton";
 
 export type SortKey =
+  | "ticker"
   | "name"
   | "price"
   | "price_1y"
@@ -72,6 +73,8 @@ type Props = {
   onScrapeDone?: () => void;
   /** Sector filter, pager, etc. — rendered above the table header row. */
   toolbar?: ReactNode;
+  /** When set, expand this ticker's About | Qtr row (e.g. Theme stock search). */
+  expandTicker?: string | null;
 };
 
 function SortIcon({
@@ -185,15 +188,24 @@ export function CompanyTable({
   onNoteChange,
   onScrapeDone,
   toolbar,
+  expandTicker,
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [more, setMore] = useState<Record<string, boolean>>({});
   const [panel, setPanel] = useState<ExpandPanel>("about");
   const [noteFlags, setNoteFlags] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const t = (expandTicker || "").trim().toUpperCase();
+    if (!t) return;
+    setExpanded(t);
+    setPanel("about");
+  }, [expandTicker]);
+
   const mode: "mom" | "rsi" | "overlap" | null =
     signalMode ?? (showMomentum ? "mom" : null);
   const colSpan =
-    mode === "mom" ? 9 : mode === "rsi" || mode === "overlap" ? 7 : 5;
+    mode === "mom" ? 10 : mode === "rsi" || mode === "overlap" ? 8 : 6;
   const headers = useMemo((): HeaderDef[] => {
     if (mode === "mom") {
       return [
@@ -202,6 +214,7 @@ export function CompanyTable({
           label: "Rank",
           align: "left",
         },
+        { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
         { key: "sector", label: "Sec", align: "left" },
         {
@@ -234,6 +247,7 @@ export function CompanyTable({
           label: "Rank",
           align: "left",
         },
+        { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
         { key: "sector", label: "Sec", align: "left" },
         {
@@ -251,6 +265,7 @@ export function CompanyTable({
     }
     if (mode === "overlap") {
       return [
+        { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
         { key: "sector", label: "Sec", align: "left" },
         {
@@ -267,6 +282,7 @@ export function CompanyTable({
       ];
     }
     return [
+      { key: "ticker", label: "Ticker", align: "left" },
       { key: "name", label: "Company", align: "left" },
       { key: "sector", label: "Sec", align: "left" },
       {
@@ -310,6 +326,7 @@ export function CompanyTable({
             {mode === "mom" ? (
               <>
                 <col className="col-rank" />
+                <col className="col-ticker" />
                 <col className="col-name" />
                 <col className="col-sec" />
                 <col className="col-mcap_cr" />
@@ -322,6 +339,7 @@ export function CompanyTable({
             ) : mode === "rsi" ? (
               <>
                 <col className="col-rank" />
+                <col className="col-ticker" />
                 <col className="col-name" />
                 <col className="col-sec" />
                 <col className="col-mcap_cr" />
@@ -331,6 +349,7 @@ export function CompanyTable({
               </>
             ) : mode === "overlap" ? (
               <>
+                <col className="col-ticker" />
                 <col className="col-name" />
                 <col className="col-sec" />
                 <col className="col-mcap_cr" />
@@ -340,6 +359,7 @@ export function CompanyTable({
               </>
             ) : (
               <>
+                <col className="col-ticker" />
                 <col className="col-name" />
                 <col className="col-sec" />
                 <col className="col-mcap_cr" />
@@ -953,24 +973,28 @@ function CompanyRows({
             {r.rsi_rank != null ? r.rsi_rank : "—"}
           </td>
         ) : null}
+        <td className="col-ticker">
+          <a
+            className="ticker-col-link"
+            href={r.tv}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${r.ticker} — TradingView`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {r.ticker}
+          </a>
+        </td>
         <td className="col-name">
           <div className="company-watch-row">
             <WatchButton ticker={r.ticker} />
             <button type="button" className="company-cell" onClick={onToggleAbout}>
               <span className="company-name">{r.name}</span>
-              {!open ? (
+              {!open && r.headquarters ? (
                 <span className="company-meta">
-                  <span className="ticker">{r.ticker}</span>
-                  {r.headquarters ? (
-                    <>
-                      <span className="meta-sep" aria-hidden>
-                        ·
-                      </span>
-                      <span className="hq-line" title="Headquarters">
-                        {r.headquarters}
-                      </span>
-                    </>
-                  ) : null}
+                  <span className="hq-line" title="Headquarters">
+                    {r.headquarters}
+                  </span>
                 </span>
               ) : null}
               <SignalTags company={r} />

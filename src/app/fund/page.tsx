@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppChrome } from "@/components/AppChrome";
 import { FundPanel } from "@/components/FundPanel";
+import { AppTabProvider } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 
 function FundBody() {
@@ -19,9 +20,11 @@ function FundBody() {
   }
 
   return (
-    <AppChrome>
-      <FundPanel />
-    </AppChrome>
+    <AppTabProvider>
+      <AppChrome>
+        <FundPanel />
+      </AppChrome>
+    </AppTabProvider>
   );
 }
 

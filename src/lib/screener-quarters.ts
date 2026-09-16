@@ -221,15 +221,20 @@ export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
   }
 
   table.find("tbody tr").each((_, tr) => {
-    const cells = $(tr)
-      .find("td, th")
-      .map((__, td) => $(td).text().trim())
-      .get();
+    const $tr = $(tr);
+    const cells = $tr.find("td, th");
     if (cells.length < 2) return;
 
+    const labelCell = $(cells[0]).clone();
+    labelCell.find("button, .button, svg").remove();
     const label =
-      cells[0]?.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim().toLowerCase() ||
-      "";
+      labelCell
+        .text()
+        .replace(/\u00a0/g, " ")
+        .replace(/\s+/g, " ")
+        .replace(/\s*\+\s*$/g, "")
+        .trim()
+        .toLowerCase() || "";
     let field: keyof Pick<
       QuarterPoint,
       "revenue" | "netIncome" | "eps" | "ebit" | "otherIncome"
@@ -242,7 +247,7 @@ export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
     if (!field) return;
 
     for (const p of periods) {
-      const val = parseNum(cells[p.idx] || "");
+      const val = parseNum($(cells[p.idx]).text() || "");
       if (val == null) continue;
       const point = byDate.get(p.date);
       if (point) point[field] = val;
