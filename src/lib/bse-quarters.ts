@@ -4,7 +4,8 @@
 import type { QuarterPoint } from "./quarter-panel";
 import { trimReportedQuarters } from "./quarter-panel";
 import { BSE_HEADERS, loadBseSmeCacheMap } from "./bse-sme";
-import { resolveBseScripCode } from "./bse-investor-discover";
+import { cacheBseScripCode, resolveBseScripCode } from "./bse-investor-discover";
+import { growwCompanyData } from "./web-mcap";
 
 const RESULTS_API =
   "https://api.bseindia.com/BseIndiaAPI/api/TabResults_PAR/w";
@@ -164,10 +165,22 @@ export async function fetchBseQuarterlyByTicker(
 ): Promise<QuarterPoint[]> {
   const key = ticker.toUpperCase();
   // Prefer live/cached scrip (company_bse_scrip) — SME list JSON is often absent.
-  const code =
+  let code =
     resolveBseScripCode(key, null) ||
     loadBseSmeCacheMap().get(key)?.scrip_code?.trim() ||
     null;
+  if (!code) {
+    try {
+      const groww = await growwCompanyData(key, key);
+      const bse = String(groww?.hit.bse_scrip_code || "").trim();
+      if (/^\d{4,8}$/.test(bse)) {
+        cacheBseScripCode(key, bse);
+        code = bse;
+      }
+    } catch {
+      /* Groww scrip lookup is optional */
+    }
+  }
   if (!code) return [];
   return fetchBseQuarterlyFundamentals(code);
 }

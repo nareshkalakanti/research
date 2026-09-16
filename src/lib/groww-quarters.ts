@@ -79,19 +79,39 @@ function seriesField(title: string): "revenue" | "netIncome" | null {
   return null;
 }
 
-function statementRows(raw: unknown): unknown[] {
-  if (Array.isArray(raw)) return raw;
+function quarterlyKeyCount(rows: unknown[]): number {
+  let n = 0;
+  for (const item of rows) {
+    n += Object.keys(asRecord(asRecord(item).quarterly)).length;
+  }
+  return n;
+}
+
+function statementRows(raw: unknown, fallback: unknown[]): unknown[] {
   const rec = asRecord(raw);
-  if (Array.isArray(rec.CONSOLIDATED)) return rec.CONSOLIDATED;
-  if (Array.isArray(rec.consolidated)) return rec.consolidated;
-  if (Array.isArray(rec.STANDALONE)) return rec.STANDALONE;
-  return [];
+  const candidates = [
+    asArray(rec.CONSOLIDATED),
+    asArray(rec.consolidated),
+    asArray(rec.STANDALONE),
+    asArray(rec.standalone),
+    Array.isArray(raw) ? raw : [],
+    fallback,
+  ];
+  let best: unknown[] = [];
+  let bestN = -1;
+  for (const rows of candidates) {
+    const n = quarterlyKeyCount(rows);
+    if (n > bestN) {
+      bestN = n;
+      best = rows;
+    }
+  }
+  return bestN > 0 ? best : fallback;
 }
 
 export function parseGrowwFinancialStatement(company: Record<string, unknown>): QuarterPoint[] {
-  const rows = statementRows(company.financialStatementV2);
   const fallback = asArray(company.financialStatement);
-  const series = rows.length ? rows : fallback;
+  const series = statementRows(company.financialStatementV2, fallback);
   const byDate = new Map<string, QuarterPoint>();
 
   for (const item of series) {

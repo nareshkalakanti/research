@@ -5,6 +5,8 @@
  */
 import YahooFinance from "yahoo-finance2";
 import {
+  mergeQuarterFill,
+  missingSalesOrProfit,
   trimReportedQuarters,
   type QuarterPoint,
 } from "./quarter-panel";
@@ -254,7 +256,11 @@ export async function fetchQuarterlyFundamentals(
 
     const candidate = trimReportedQuarters(
       [...byDate.values()].filter(
-        (q) => q.revenue != null || q.netIncome != null || q.eps != null,
+        (q) =>
+          q.revenue != null ||
+          q.netIncome != null ||
+          q.eps != null ||
+          q.ebit != null,
       ),
     );
     if (candidate.length >= 2) {
@@ -266,10 +272,11 @@ export async function fetchQuarterlyFundamentals(
     if (candidate.length > quarters.length) {
       quarters = candidate;
       usedSymbol = sym;
+      source = candidate.length ? "yahoo" : source;
     }
   }
 
-  source = quarters.length >= 2 ? source : "none";
+  if (quarters.length < 1) source = "none";
 
   // NSE integrated filing fallback for NSE / NSE SME names.
   if (quarters.length < 2) {
@@ -335,13 +342,20 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  // Groww company JSON (₹ Cr) — last backup when exchange/Screener series are empty.
-  if (quarters.length < 2) {
+  // Groww company JSON (₹ Cr) — backup when series are empty or missing Sales/NP.
+  if (quarters.length < 2 || missingSalesOrProfit(quarters)) {
     try {
       const groww = await fetchGrowwQuarterlyFundamentals(ticker);
-      if (groww.length >= 2) {
-        quarters = groww;
-        source = "groww";
+      if (groww.length) {
+        const merged = mergeQuarterFill(quarters, groww);
+        const filledPnl =
+          missingSalesOrProfit(quarters) && !missingSalesOrProfit(merged);
+        if (filledPnl || (quarters.length < 1 && merged.length >= 1)) {
+          quarters = merged;
+          if (source === "none") source = "groww";
+        } else if (merged.length > quarters.length) {
+          quarters = merged;
+        }
       }
     } catch {
       /* keep prior source */

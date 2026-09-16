@@ -68,6 +68,47 @@ export function trimReportedQuarters(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** Fill null P&L fields from another series; union dates. */
+export function mergeQuarterFill(
+  base: QuarterPoint[],
+  extra: QuarterPoint[],
+): QuarterPoint[] {
+  if (!extra.length) return base;
+  const byDate = new Map<string, QuarterPoint>();
+  for (const q of [...base, ...extra]) {
+    const date = q.date.slice(0, 10);
+    const prev = byDate.get(date);
+    if (!prev) {
+      byDate.set(date, { ...q, date });
+      continue;
+    }
+    byDate.set(date, {
+      date,
+      revenue: prev.revenue ?? q.revenue,
+      ebit: prev.ebit ?? q.ebit,
+      netIncome: prev.netIncome ?? q.netIncome,
+      eps: prev.eps ?? q.eps,
+      otherIncome: prev.otherIncome ?? q.otherIncome,
+    });
+  }
+  return trimReportedQuarters(
+    [...byDate.values()].filter(
+      (q) =>
+        q.revenue != null ||
+        q.netIncome != null ||
+        q.eps != null ||
+        q.ebit != null,
+    ),
+  );
+}
+
+export function missingSalesOrProfit(quarters: QuarterPoint[]): boolean {
+  return (
+    !quarters.some((q) => q.revenue != null) ||
+    !quarters.some((q) => q.netIncome != null)
+  );
+}
+
 function quarterLabel(dateStr: string): string {
   const d = new Date(`${dateStr}T12:00:00Z`);
   if (!Number.isFinite(d.getTime())) return dateStr;
@@ -103,10 +144,14 @@ export function buildQuarterPanel(
 ): QuarterPanel | null {
   const qs = trimReportedQuarters(
     quarters.filter(
-      (q) => q.revenue != null || q.netIncome != null || q.eps != null,
+      (q) =>
+        q.revenue != null ||
+        q.netIncome != null ||
+        q.eps != null ||
+        q.ebit != null,
     ),
   );
-  if (qs.length < 2) return null;
+  if (!qs.length) return null;
 
   const slice = qs.slice(-maxQuarters);
   const labels = slice.map((q) => quarterLabel(q.date));
