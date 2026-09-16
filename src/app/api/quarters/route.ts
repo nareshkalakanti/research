@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     const mk = (market || "").trim().toUpperCase();
     const noPanelError = !result.panel
       ? mk === "NSE SME" || mk === "BSE SME"
-        ? "No exchange fundamentals yet (Yahoo/NSE/BSE) — common for recent SME listings"
+        ? "No exchange fundamentals yet (Yahoo/NSE/BSE/Groww) — common for recent SME listings"
         : "No quarterly data available"
       : undefined;
 

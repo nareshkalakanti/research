@@ -263,7 +263,7 @@ async function tickertapeLookup(
   };
 }
 
-async function growwCompanyData(
+export async function growwCompanyData(
   symbol: string,
   companyName: string,
 ): Promise<{ hit: Record<string, unknown>; company: Record<string, unknown> } | null> {

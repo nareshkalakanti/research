@@ -11,6 +11,7 @@ import {
 import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
 import { fetchBseQuarterlyByTicker } from "./bse-quarters";
 import { fetchScreenerQuarterlyFundamentals, mergeScreenerQuarterOverlay } from "./screener-quarters";
+import { fetchGrowwQuarterlyFundamentals } from "./groww-quarters";
 import { fetchDailyBars } from "./ohlc";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
@@ -191,7 +192,7 @@ export async function fetchQuarterlyFundamentals(
   price: number | null;
   ret_3m_pct: number | null;
   symbol: string;
-  source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "none";
+  source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "groww" | "none";
   /** Latest operating cash flow (Yahoo cash-flow module). */
   operating_cashflow: number | null;
   /** NP paired with CFO when annual cash-flow fallback is used (same units). */
@@ -215,7 +216,7 @@ export async function fetchQuarterlyFundamentals(
 
   let usedSymbol = symbol;
   let quarters: QuarterPoint[] = [];
-  let source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "none" = "none";
+  let source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "groww" | "none" = "none";
 
   for (const sym of symbolCandidates) {
     const period1 = new Date();
@@ -331,6 +332,19 @@ export async function fetchQuarterlyFundamentals(
       } catch {
         /* keep prior source */
       }
+    }
+  }
+
+  // Groww company JSON (₹ Cr) — last backup when exchange/Screener series are empty.
+  if (quarters.length < 2) {
+    try {
+      const groww = await fetchGrowwQuarterlyFundamentals(ticker);
+      if (groww.length >= 2) {
+        quarters = groww;
+        source = "groww";
+      }
+    } catch {
+      /* keep prior source */
     }
   }
 
