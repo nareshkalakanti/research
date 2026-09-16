@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppChrome } from "@/components/AppChrome";
 import { WatchlistPanel } from "@/components/WatchlistPanel";
+import { AppTabProvider } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 
 function WatchlistBody() {
@@ -19,9 +20,11 @@ function WatchlistBody() {
   }
 
   return (
-    <AppChrome>
-      <WatchlistPanel />
-    </AppChrome>
+    <AppTabProvider>
+      <AppChrome>
+        <WatchlistPanel />
+      </AppChrome>
+    </AppTabProvider>
   );
 }
 

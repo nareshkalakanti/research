@@ -373,7 +373,6 @@ export function ValuationPanel() {
                     key={row.id}
                     className={[
                       row.bold ? "is-bold" : "",
-                      row.accent === "opm" ? "is-opm" : "",
                       row.accent === "pe" ? "is-pe" : "",
                     ]
                       .filter(Boolean)
@@ -393,8 +392,11 @@ export function ValuationPanel() {
                         row.id === "pat_growth" ||
                         row.id === "opm" ||
                         row.id === "tax_pct";
+                      // Only growth rows use green/red — not OPM / Tax rates.
                       const tone =
-                        isPct && v != null
+                        (row.id === "revenue_growth" ||
+                          row.id === "pat_growth") &&
+                        v != null
                           ? v > 0
                             ? "up"
                             : v < 0

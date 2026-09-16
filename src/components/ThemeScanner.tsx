@@ -7,6 +7,10 @@ import { RefreshButton } from "@/components/RefreshButton";
 import { WatchlistFilterBar, FundsFilterBar } from "@/components/WatchlistFilterBar";
 import { SavedSearchesBar } from "@/components/SavedSearchesBar";
 import { ThemeMultiselect } from "@/components/ThemeMultiselect";
+import {
+  TickerSuggest,
+  type TickerSuggestHit,
+} from "@/components/TickerSuggest";
 import type { Company, Theme, ThemeGroup } from "@/lib/types";
 import type { SavedSearchRow } from "@/lib/saved-searches";
 import {
@@ -51,6 +55,8 @@ export function ThemeScanner() {
   const [selected, setSelected] = useState<string[]>([]);
   const [custom, setCustom] = useState("");
   const [debouncedCustom, setDebouncedCustom] = useState("");
+  const [stockQ, setStockQ] = useState("");
+  const [focusTicker, setFocusTicker] = useState<string | null>(null);
   const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
   const [market, setMarket] = useState("All");
   const [cap, setCap] = useState<CapFilter>("All");
@@ -117,6 +123,7 @@ export function ThemeScanner() {
   }, [
     selected,
     debouncedCustom,
+    stockQ,
     market,
     cap,
     sector,
@@ -129,9 +136,11 @@ export function ThemeScanner() {
   ]);
 
   const fundsActive = anyFundFilterActive(fundFilters);
+  const stockActive = stockQ.trim().length > 0;
   const active =
     selected.length > 0 ||
     debouncedCustom.trim().length > 0 ||
+    stockActive ||
     fundsActive ||
     filterHold ||
     filterEdge;
@@ -177,6 +186,7 @@ export function ThemeScanner() {
         sort,
         dir,
       });
+      if (stockQ.trim()) params.set("q", stockQ.trim());
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterSme) params.set("sme", "1");
@@ -205,6 +215,7 @@ export function ThemeScanner() {
       active,
       selected,
       debouncedCustom,
+      stockQ,
       market,
       cap,
       sector,
@@ -236,6 +247,18 @@ export function ThemeScanner() {
     }
   }
 
+  const pickStock = (hit: TickerSuggestHit) => {
+    const t = hit.ticker.trim().toUpperCase();
+    setStockQ(t);
+    setFocusTicker(t);
+    setActiveSavedId(null);
+  };
+
+  const clearStock = () => {
+    setStockQ("");
+    setFocusTicker(null);
+  };
+
   const start = data ? (data.page - 1) * 100 + 1 : 0;
   const end = data ? Math.min(data.page * 100, data.total) : 0;
   const nseCount = markets["NSE"] ?? 0;
@@ -266,6 +289,41 @@ export function ThemeScanner() {
             }}
           />
         </div>
+      </div>
+
+      <div className="theme-stock-search">
+        <TickerSuggest
+          value={stockQ}
+          onChange={(v) => {
+            setStockQ(v);
+            if (!v.trim()) setFocusTicker(null);
+          }}
+          onSelect={pickStock}
+          onSubmit={(t) => {
+            const sym = t.trim().toUpperCase();
+            if (!sym) {
+              clearStock();
+              return;
+            }
+            setStockQ(sym);
+            setFocusTicker(sym);
+            setActiveSavedId(null);
+          }}
+          placeholder="Search for stocks…"
+          className="theme-stock-suggest-input"
+        />
+        {stockQ ? (
+          <button
+            type="button"
+            className="theme-stock-clear"
+            onClick={clearStock}
+          >
+            Clear stock
+          </button>
+        ) : null}
+        <p className="hint tight theme-stock-hint">
+          Jump to a ticker — opens About | Qtr. Combine with themes to narrow.
+        </p>
       </div>
 
       <div className="scanner-controls">
@@ -410,7 +468,7 @@ export function ThemeScanner() {
       ) : null}
       {!active ? (
         <div className="empty-state">
-          Select themes or keywords to scan. Manage funds on{" "}
+          Search a stock, or select themes / keywords to scan. Manage funds on{" "}
           <a href="/fund">Fund</a>.
         </div>
       ) : null}
@@ -420,10 +478,13 @@ export function ThemeScanner() {
         sort={sort}
         dir={dir}
         onSort={onSort}
-        showMatched={active}
+        showMatched={
+          selected.length > 0 || debouncedCustom.trim().length > 0
+        }
         capFilter={cap}
         onNoteChange={() => void load()}
         onScrapeDone={() => void load()}
+        expandTicker={focusTicker}
         toolbar={
           <>
             <label className="field sector-field sector-field--table">

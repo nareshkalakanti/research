@@ -582,7 +582,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       );
     }
     companies = hits;
-  } else if (scan && !scanPattern && !fundListMode) {
+  } else if (scan && !scanPattern && !fundListMode && !qTerms.length) {
     companies = [];
   } else if (qTerms.length) {
     const qPattern = qTerms.join(" | ");
