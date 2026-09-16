@@ -14,6 +14,7 @@ function sourceLabel(source: string | null): string | null {
     return "Consolidated P&L from Screener.in (cached 7d) · OP matches Screener";
   }
   if (source === "screener") return "Quarterly from Screener.in consolidated (cached 7d)";
+  if (source === "groww") return "Quarterly from Groww (₹ Cr)";
   return `Source: ${source}`;
 }
 

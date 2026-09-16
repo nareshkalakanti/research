@@ -18933,6 +18933,15 @@ button.otrd-co-link {
   gap: 1px;
 }
 
+.wl-simple-table .company-meta {
+  flex-wrap: wrap;
+}
+
+.wl-simple-table .company-meta .result-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
 .wl-simple-table .company-name {
   white-space: nowrap;
   overflow: hidden;

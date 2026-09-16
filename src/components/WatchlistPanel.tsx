@@ -466,6 +466,14 @@ function WatchlistRow({ r }: { r: WatchRow }) {
               </a>
               <span className="company-meta">
                 <span className="ticker">{r.ticker}</span>
+                {/\bSME\b/i.test(r.market || "") ? (
+                  <span
+                    className="result-tag tag-mkt-sme"
+                    title={`${r.market} listing`}
+                  >
+                    SME
+                  </span>
+                ) : null}
               </span>
             </div>
           </div>

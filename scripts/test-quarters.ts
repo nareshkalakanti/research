@@ -15,6 +15,10 @@ import {
 } from "../src/lib/quarter-panel";
 import { parseNonIndAsQuarterXbrl } from "../src/lib/nse-quarters";
 import {
+  parseGrowwFinancialStatement,
+  parseGrowwQuarterLabel,
+} from "../src/lib/groww-quarters";
+import {
   computeForwardPe,
   computeTrailingPe,
 } from "../src/lib/valuation";
@@ -109,6 +113,25 @@ function main() {
   assert.equal(yoyPct(4.48, -0.56), null);
   assert.equal(fmtYoYPct(12.5), "+12.5%");
   assert.equal(fmtYoYPct(null), "N/M");
+
+  assert.equal(parseGrowwQuarterLabel("Jun '26"), "2026-06-30");
+  assert.equal(parseGrowwQuarterLabel("Mar '26"), "2026-03-31");
+  const growwPanel = parseGrowwFinancialStatement({
+    financialStatement: [
+      {
+        title: "Revenue",
+        quarterly: { "Mar '26": 100, "Jun '26": 120 },
+      },
+      {
+        title: "Profit",
+        quarterly: { "Mar '26": 10, "Jun '26": 12 },
+      },
+    ],
+  });
+  assert.equal(growwPanel.length, 2);
+  assert.equal(growwPanel[0]!.date, "2026-03-31");
+  assert.equal(growwPanel[0]!.revenue, 100);
+  assert.equal(growwPanel[1]!.netIncome, 12);
 
   const pnbLike: QuarterPoint[] = [
     { date: "2024-12-31", revenue: 316e7, netIncome: -10e7, eps: -0.56, ebit: 302e7 },
