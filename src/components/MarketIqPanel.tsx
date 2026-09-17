@@ -10,7 +10,8 @@ import { IqHintPanel } from "@/components/IqHintPanel";
 import { CompanyWatchCell } from "@/components/CompanyWatchCell";
 import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
 import { LiveBseFeedBadge } from "@/components/LiveBseFeedBadge";
-import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
+import { formatMcap } from "@/lib/types";
+import { formatPeDisplay, ttmPeBandClass, ttmPeBandTitle } from "@/lib/valuation";
 
 type MarketIqHit = {
   ticker: string;
@@ -21,6 +22,8 @@ type MarketIqHit = {
   period: string | null;
   provider: string;
   index?: string;
+  mcap_cr?: number | null;
+  pe_ttm?: number | null;
 };
 
 type HistoryRow = {
@@ -38,6 +41,8 @@ type HistoryRow = {
   source_url: string | null;
   screened_at: string;
   funds_mentioned?: FundChip[];
+  mcap_cr?: number | null;
+  pe_ttm?: number | null;
 };
 
 type FundChip = {
@@ -87,6 +92,8 @@ type FeedRow = {
   url: string | null;
   hit: MarketIqHit | null;
   funds_mentioned: FundChip[];
+  mcap_cr: number | null;
+  pe_ttm: number | null;
 };
 
 type SentimentFilter = "all" | "bullish" | "bearish" | "neutral";
@@ -172,6 +179,8 @@ function hitToFeed(h: MarketIqHit, i: number): FeedRow {
     url: h.url,
     hit: h,
     funds_mentioned: [],
+    mcap_cr: h.mcap_cr ?? null,
+    pe_ttm: h.pe_ttm ?? null,
   };
 }
 
@@ -211,6 +220,8 @@ function histToFeed(h: HistoryRow): FeedRow {
         }
       : null,
     funds_mentioned: Array.isArray(h.funds_mentioned) ? h.funds_mentioned : [],
+    mcap_cr: h.mcap_cr ?? null,
+    pe_ttm: h.pe_ttm ?? null,
   };
 }
 
@@ -749,6 +760,8 @@ export function MarketIqPanel() {
               hit: live.hit,
               dateLabel: live.dateLabel || merged.dateLabel,
               dateIso: live.dateIso || merged.dateIso,
+              mcap_cr: merged.mcap_cr ?? live.mcap_cr,
+              pe_ttm: merged.pe_ttm ?? live.pe_ttm,
             };
           })
         : hits.length > 0 && q.trim()
@@ -768,6 +781,8 @@ export function MarketIqPanel() {
                   hit: live.hit,
                   dateLabel: live.dateLabel || merged.dateLabel,
                   dateIso: live.dateIso || merged.dateIso,
+                  mcap_cr: merged.mcap_cr ?? live.mcap_cr,
+                  pe_ttm: merged.pe_ttm ?? live.pe_ttm,
                 };
               }),
               ...history.map(histToFeed),
@@ -812,6 +827,8 @@ export function MarketIqPanel() {
           funds_mentioned: b.funds_mentioned.length
             ? b.funds_mentioned
             : a.funds_mentioned,
+          mcap_cr: b.mcap_cr ?? a.mcap_cr,
+          pe_ttm: b.pe_ttm ?? a.pe_ttm,
         };
       if (ra > rb)
         return {
@@ -821,6 +838,8 @@ export function MarketIqPanel() {
           funds_mentioned: a.funds_mentioned.length
             ? a.funds_mentioned
             : b.funds_mentioned,
+          mcap_cr: a.mcap_cr ?? b.mcap_cr,
+          pe_ttm: a.pe_ttm ?? b.pe_ttm,
         };
       // Tie: keep longer summary text
       const pick =
@@ -833,6 +852,8 @@ export function MarketIqPanel() {
         funds_mentioned: pick.funds_mentioned.length
           ? pick.funds_mentioned
           : other.funds_mentioned,
+        mcap_cr: pick.mcap_cr ?? other.mcap_cr,
+        pe_ttm: pick.pe_ttm ?? other.pe_ttm,
       };
     };
 
@@ -1877,12 +1898,34 @@ export function MarketIqPanel() {
         </p>
       )}
 
+      <p className="pe-ttm-legend" aria-label="TTM PE colour bands">
+        <span className="pe-ttm pe-ttm-low" title="Market prices little/no growth">
+          &lt;10
+        </span>
+        <span className="pe-ttm pe-ttm-mod" title="Market prices moderate growth">
+          10–30
+        </span>
+        <span className="pe-ttm pe-ttm-high" title="Market prices high growth">
+          30–60
+        </span>
+        <span className="pe-ttm pe-ttm-vhigh" title="Market prices very high growth">
+          &gt;60
+        </span>
+      </p>
+
       <div className="table-wrap miq-table-wrap">
         <table className="miq-table">
           <thead>
             <tr>
               <th>Company</th>
-              <th>Details</th>
+              <th className="num">Market cap</th>
+              <th
+                className="num"
+                title="TTM PE: under 10 little/no growth priced, 10–30 moderate, 30–60 high, over 60 very high"
+              >
+                TTM PE
+              </th>
+              <th>Remarks</th>
               <th>Category</th>
               <th>Sentiment</th>
               <th>Download</th>
@@ -1892,7 +1935,7 @@ export function MarketIqPanel() {
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={6} className="empty-state">
+                <td colSpan={8} className="empty-state">
                   {busy
                     ? "Loading…"
                     : "No announcements yet. Click Run · Get → Analyse."}
@@ -1938,6 +1981,15 @@ export function MarketIqPanel() {
                       >
                         {rowScanning ? "Analysing…" : "Analyse"}
                       </button>
+                    </td>
+                    <td className="num miq-td-mcap">{formatMcap(r.mcap_cr)}</td>
+                    <td className="num miq-td-pe">
+                      <span
+                        className={ttmPeBandClass(r.pe_ttm)}
+                        title={ttmPeBandTitle(r.pe_ttm)}
+                      >
+                        {formatPeDisplay(r.pe_ttm)}
+                      </span>
                     </td>
                     <td className="miq-td-details">
                       <div className="miq-headline">{r.headline}</div>

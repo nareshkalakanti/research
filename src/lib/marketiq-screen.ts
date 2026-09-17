@@ -26,6 +26,7 @@ import { announcementDedupeKey } from "./announcement-dedupe";
 import { matchMarketIqFundsInText } from "./marketiq-fund-aliases";
 import { marketIqDbFile } from "./iq-dbs";
 import { openSqliteNamed } from "./sqlite-utils";
+import { attachTickerQuoteStats } from "./ticker-quote-stats";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const LDR_CATEGORIES_PATH = path.join(
@@ -48,6 +49,8 @@ export type MarketIqHit = {
   period: string | null;
   provider: string;
   index?: string;
+  mcap_cr?: number | null;
+  pe_ttm?: number | null;
 };
 
 export type MarketIqSentiment = "Bullish" | "Bearish" | "Neutral";
@@ -116,6 +119,8 @@ export type MarketIqHistoryRow = {
   screened_at: string;
   engine: string | null;
   funds_mentioned?: MarketIqFundChip[];
+  mcap_cr?: number | null;
+  pe_ttm?: number | null;
 };
 
 type ScoringFile = {
@@ -493,13 +498,15 @@ export function listMarketIqHistory(
         byKey.set(key, r);
       }
     }
-    return [...byKey.values()]
-      .sort((a, b) => {
-        const at = Date.parse(a.screened_at || a.announcement_date || "") || 0;
-        const bt = Date.parse(b.screened_at || b.announcement_date || "") || 0;
-        return bt - at;
-      })
-      .slice(0, want);
+    return attachTickerQuoteStats(
+      [...byKey.values()]
+        .sort((a, b) => {
+          const at = Date.parse(a.screened_at || a.announcement_date || "") || 0;
+          const bt = Date.parse(b.screened_at || b.announcement_date || "") || 0;
+          return bt - at;
+        })
+        .slice(0, want),
+    );
   } finally {
     db.close();
   }
