@@ -81,7 +81,7 @@ function fmtMcap(n: number | null): string {
   return `${Math.round(n).toLocaleString("en-IN")} Cr`;
 }
 
-export const PCD_COL_SPAN = 8;
+export const PCD_COL_SPAN = 7;
 
 function EventWhen({ iso }: { iso: string | null }) {
   const when = fmtEventParts(iso);
@@ -179,8 +179,8 @@ export function StrategyConcallDriftRow({
           className="pcd-td-drift"
           title={
             r.baseline_close != null
-              ? `Close before concall ₹${r.baseline_close.toLocaleString("en-IN")}`
-              : "No pre-concall baseline yet"
+              ? `Close before results ₹${r.baseline_close.toLocaleString("en-IN")}`
+              : "No pre-results baseline yet"
           }
         >
           {r.drift_pct == null ? (
@@ -199,9 +199,6 @@ export function StrategyConcallDriftRow({
               {fmtDrift(r.drift_pct)}
             </span>
           )}
-        </td>
-        <td className="pcd-td-call">
-          <EventWhen iso={r.concall_at} />
         </td>
       </tr>
       <StrategyExpandDetail

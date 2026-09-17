@@ -10,7 +10,7 @@ import {
 } from "../nse-corp-events";
 import { runConcurrent, withScrapeWriteLock } from "../scrape-pool";
 import {
-  concallAnnouncementBaseline,
+  baselineCloseBefore,
   computeDriftPct,
   priceBaselineConsistent,
 } from "./concall-drift-math";
@@ -80,11 +80,7 @@ export async function scanTickerConcallDrift(
   const out: ConcallDriftEvent[] = [];
 
   for (const { earn, concall } of pairs) {
-    const baseline = concallAnnouncementBaseline(
-      bars,
-      concall?.announced_at ?? null,
-      earn.announced_at,
-    );
+    const baseline = baselineCloseBefore(bars, earn.announced_at);
     const consistent =
       baseline != null && price != null && priceBaselineConsistent(price, baseline);
     const drift = consistent ? computeDriftPct(price, baseline) : null;
@@ -131,11 +127,7 @@ export async function recomputeConcallAnnouncementBaselines(
     ]);
     const price = quotes[0]?.price ?? null;
     for (const row of rows) {
-      const baseline = concallAnnouncementBaseline(
-        bars,
-        row.concall_at,
-        row.earn_at,
-      );
+      const baseline = baselineCloseBefore(bars, row.earn_at);
       const consistent =
         baseline != null &&
         price != null &&

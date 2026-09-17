@@ -84,12 +84,12 @@ const DATE_PRESETS: Array<{
   {
     id: "yesterday",
     label: "Yesterday",
-    title: "Concall announced yesterday (IST)",
+    title: "Results filed yesterday (IST)",
   },
   {
     id: "today",
     label: "Today",
-    title: "Concall announced today (IST)",
+    title: "Results filed today (IST)",
   },
   {
     id: "tomorrow",
@@ -106,7 +106,7 @@ const DATE_PRESETS: Array<{
   {
     id: "last7",
     label: "Last 7 days",
-    title: "Concall announced in the last 7 IST days",
+    title: "Results filed in the last 7 IST days",
   },
   { id: "custom", label: "Custom", title: "Pick a custom date range" },
 ];
