@@ -731,7 +731,7 @@ export function WatchlistPanel() {
 
       {tickers.length === 0 ? (
         <p className="miq-empty-hint">
-          Click <strong>+ Watch</strong> next to any stock on Scan or Concall.
+          Click <strong>+ Watch</strong> next to any stock on Scan.
         </p>
       ) : (
         <div className="table-wrap">

@@ -2,33 +2,33 @@
 
 import {
   createContext,
-  startTransition,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { useRouter } from "next/navigation";
 
 export type AppTab =
   | "scan"
   | "theme-scanner"
   | "governance"
-  | "concall"
   | "marketiq"
   | "orderbookiq"
   | "boardroomiq"
   | "valuation"
   | "missing"
-  | "research";
+  | "research"
+  | "watchlist"
+  | "fund";
 
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "theme-scanner", label: "Theme", short: "Theme" },
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "governance", label: "Governance", short: "Governance" },
-  { id: "concall", label: "ConcallIQ", short: "Concall" },
+  { id: "fund", label: "Fund", short: "Fund" },
   { id: "marketiq", label: "MarketIQ", short: "Market" },
   { id: "orderbookiq", label: "OrderBookIQ", short: "Orders" },
   { id: "boardroomiq", label: "BoardRoomIQ", short: "Board" },
@@ -37,33 +37,52 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "missing", label: "Missing data", short: "Missing" },
 ];
 
+export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [
+  { id: "watchlist", label: "Watchlist", short: "Watch" },
+];
+
 export const IQ_TABS: AppTab[] = [
-  "concall",
   "marketiq",
   "orderbookiq",
   "boardroomiq",
 ];
 
+function isPageTab(id: AppTab): boolean {
+  return id === "watchlist" || id === "fund";
+}
+
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
-  if (raw === "strategy" || raw === "buyback" || raw === "corporate") {
-    return "concall";
+  if (
+    raw === "strategy" ||
+    raw === "buyback" ||
+    raw === "corporate" ||
+    raw === "concall"
+  ) {
+    return "fund";
   }
   if (raw === "categories") return "theme-scanner";
   if (raw && APP_TABS.some((t) => t.id === raw)) return raw as AppTab;
   return "theme-scanner";
 }
 
-function readTabFromLocation(): AppTab {
+function pathOnly(): string {
+  const p = window.location.pathname.replace(/\/+$/, "");
+  return p || "/";
+}
+
+export function readTabFromLocation(): AppTab {
   if (typeof window === "undefined") return "theme-scanner";
+  const path = pathOnly();
+  if (path === "/watchlist") return "watchlist";
+  if (path === "/fund") return "fund";
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
 
-function buildTabSearch(next: AppTab, current: URLSearchParams): string {
+function buildHomeSearch(next: AppTab, current: URLSearchParams): string {
   const params = new URLSearchParams(current.toString());
   if (next === "theme-scanner") params.delete("tab");
   else params.set("tab", next);
-  if (next !== "concall") params.delete("view");
   if (next !== "orderbookiq") params.delete("ordersView");
   if (next !== "governance") {
     params.delete("personId");
@@ -72,14 +91,26 @@ function buildTabSearch(next: AppTab, current: URLSearchParams): string {
   return params.toString();
 }
 
-function syncTabUrl(next: AppTab) {
-  const params = new URLSearchParams(window.location.search);
-  const qs = buildTabSearch(next, params);
-  const path = window.location.pathname;
-  const url = qs ? `${path}?${qs}` : path;
-  if (`${path}${window.location.search}` !== url) {
-    window.history.replaceState(window.history.state, "", url);
-  }
+function urlForTab(next: AppTab): string {
+  if (next === "watchlist") return "/watchlist";
+  if (next === "fund") return "/fund";
+  const fromHome =
+    pathOnly() === "/"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
+  const qs = buildHomeSearch(next, fromHome);
+  return qs ? `/?${qs}` : "/";
+}
+
+function currentUrl(): string {
+  return `${pathOnly()}${window.location.search}`;
+}
+
+function syncTabUrl(next: AppTab, mode: "push" | "replace") {
+  const url = urlForTab(next);
+  if (currentUrl() === url) return;
+  if (mode === "push") window.history.pushState(window.history.state, "", url);
+  else window.history.replaceState(window.history.state, "", url);
 }
 
 type AppTabContextValue = {
@@ -90,8 +121,9 @@ type AppTabContextValue = {
 const AppTabContext = createContext<AppTabContextValue | null>(null);
 
 export function AppTabProvider({ children }: { children: ReactNode }) {
-  const router = useRouter();
   const [tab, setTabState] = useState<AppTab>(readTabFromLocation);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
 
   useEffect(() => {
     const onPop = () => setTabState(readTabFromLocation());
@@ -99,18 +131,12 @@ export function AppTabProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const setTab = useCallback(
-    (next: AppTab) => {
-      setTabState(next);
-      syncTabUrl(next);
-      startTransition(() => {
-        const params = new URLSearchParams(window.location.search);
-        const qs = buildTabSearch(next, params);
-        router.replace(qs ? `/?${qs}` : "/", { scroll: false });
-      });
-    },
-    [router],
-  );
+  const setTab = useCallback((next: AppTab) => {
+    const prev = tabRef.current;
+    setTabState(next);
+    const pageHop = isPageTab(prev) || isPageTab(next);
+    syncTabUrl(next, pageHop && prev !== next ? "push" : "replace");
+  }, []);
 
   const value = useMemo(() => ({ tab, setTab }), [tab, setTab]);
 
@@ -123,4 +149,8 @@ export function useAppTab(): AppTabContextValue {
   const ctx = useContext(AppTabContext);
   if (!ctx) throw new Error("useAppTab must be used within AppTabProvider");
   return ctx;
+}
+
+export function useOptionalAppTab(): AppTabContextValue | null {
+  return useContext(AppTabContext);
 }

@@ -1,32 +1,16 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { APP_TABS, PAGE_TABS, useAppTab, type AppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
-import { APP_TABS, useAppTab, type AppTab } from "@/lib/app-tab";
 import { BrandMark } from "@/components/BrandMark";
 import { OllamaBar } from "@/components/OllamaBar";
 
 export type { AppTab };
 export { APP_TABS };
 
-const ROUTES: {
-  href: string;
-  label: string;
-  short: string;
-  match: (p: string) => boolean;
-}[] = [
-  {
-    href: "/watchlist",
-    label: "Watchlist",
-    short: "Watch",
-    match: (p) => p === "/watchlist",
-  },
-  { href: "/fund", label: "Fund", short: "Fund", match: (p) => p === "/fund" },
-];
-
 /**
- * Shared topbar + footer for home tabs and standalone routes
- * (Watchlist / Fund). All pages use the same wide shell.
+ * Shared topbar + footer. Tab/page switches stay in the same client shell
+ * (history API only) so panels are not remounted.
  */
 export function AppChrome({
   children,
@@ -40,10 +24,7 @@ export function AppChrome({
   layout?: "default" | "wide" | "tracker";
 }) {
   const { user, logout } = useAuth();
-  const router = useRouter();
-  const pathname = usePathname() || "/";
   const { tab, setTab } = useAppTab();
-  const onHome = pathname === "/";
 
   return (
     <div className="app">
@@ -51,7 +32,7 @@ export function AppChrome({
         <button
           type="button"
           className="brand brand-btn"
-          onClick={() => router.push("/")}
+          onClick={() => setTab("theme-scanner")}
           title="Home"
         >
           <BrandMark />
@@ -67,16 +48,9 @@ export function AppChrome({
               <button
                 key={t.id}
                 type="button"
-                className={onHome && tab === t.id ? "tab on" : "tab"}
+                className={tab === t.id ? "tab on" : "tab"}
                 title={t.label}
-                onClick={() => {
-                  if (onHome) setTab(t.id);
-                  else {
-                    router.push(
-                      t.id === "theme-scanner" ? "/" : `/?tab=${t.id}`,
-                    );
-                  }
-                }}
+                onClick={() => setTab(t.id)}
               >
                 <span className="tab-label-full">{t.label}</span>
                 <span className="tab-label-short">{t.short}</span>
@@ -86,13 +60,13 @@ export function AppChrome({
         </nav>
 
         <div className="tabs-routes" role="group" aria-label="Workspace">
-          {ROUTES.map((r) => (
+          {PAGE_TABS.map((r) => (
             <button
-              key={r.href}
+              key={r.id}
               type="button"
-              className={r.match(pathname) ? "tab on" : "tab"}
+              className={tab === r.id ? "tab on" : "tab"}
               title={r.label}
-              onClick={() => router.push(r.href)}
+              onClick={() => setTab(r.id)}
             >
               <span className="tab-label-full">{r.label}</span>
               <span className="tab-label-short">{r.short}</span>
