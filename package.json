@@ -53,7 +53,7 @@
     "fill-sectors": "tsx scripts/fill-sectors-ai.ts",
     "db:verify": "tsx scripts/db-maintenance.ts verify",
     "db:checkpoint": "tsx scripts/db-maintenance.ts checkpoint",
-    "db:prepare-sync": "tsx scripts/db-maintenance.ts prepare-sync",
+    "db:publish-seed": "tsx scripts/db-maintenance.ts publish-seed",
     "db:fix": "tsx scripts/db-maintenance.ts fix",
     "db:fix-all": "tsx scripts/db-maintenance.ts fix-all"
   },

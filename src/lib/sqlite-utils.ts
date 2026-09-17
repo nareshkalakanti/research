@@ -4,6 +4,8 @@ import fs from "fs";
 import path from "path";
 
 export const DATA_DIR = path.join(process.cwd(), "data");
+/** Committed snapshots. Live `data/*.db` working copies are gitignored when listed here. */
+export const DB_SEED_DIR = path.join(DATA_DIR, "seeds");
 
 const CLOUD_SYNC_MARKERS = [
   "Mobile Documents/com~apple~CloudDocs",
@@ -211,10 +213,31 @@ export function openSqlite(
   }
 }
 
+/** Copy `data/seeds/<name>` → `data/<name>` when the working file is missing. */
+export function hydrateWorkingDbFromSeed(name: string): boolean {
+  const file = name.endsWith(".db") ? name : `${name}.db`;
+  const dest = path.join(DATA_DIR, file);
+  const seed = path.join(DB_SEED_DIR, file);
+  if (fs.existsSync(dest) || !fs.existsSync(seed)) return false;
+  fs.copyFileSync(seed, dest);
+  return true;
+}
+
+export function hydrateAllSeededDbs(): string[] {
+  if (!fs.existsSync(DB_SEED_DIR)) return [];
+  const hydrated: string[] = [];
+  for (const file of fs.readdirSync(DB_SEED_DIR)) {
+    if (!file.endsWith(".db")) continue;
+    if (hydrateWorkingDbFromSeed(file)) hydrated.push(file);
+  }
+  return hydrated;
+}
+
 export function openSqliteNamed(
   name: string,
   opts: OpenSqliteOpts = {},
 ): Database.Database {
+  hydrateWorkingDbFromSeed(name);
   return openSqlite(path.join(DATA_DIR, name), opts);
 }
 

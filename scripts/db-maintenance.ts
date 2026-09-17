@@ -8,8 +8,10 @@
  *   npm run db:verify
  *   npm run db:fix-all
  *
- * Never copy *.db-wal / *.db-shm between machines. Only copy checkpointed *.db files
- * (or use git — sidecars are gitignored; committed .db files are self-contained).
+ * Never copy *.db-wal / *.db-shm between machines. Only copy checkpointed *.db files.
+ * Listing About live file is gitignored (`data/company_about.db`); clone hydrates
+ * it from `data/seeds/company_about.db`. To share About updates:
+ *   npm run db:publish-seed -- company_about.db
  */
 import { execSync } from "child_process";
 import fs from "fs";
@@ -18,6 +20,7 @@ import {
   checkDb,
   checkpointAllDbs,
   DATA_DIR,
+  hydrateAllSeededDbs,
   recoverCorruptDb,
   removeWalSidecars,
   verifyAllDbs,
@@ -28,9 +31,9 @@ function basename(p: string): string {
   return path.basename(p);
 }
 
-function gitTrackedDbPath(file: string): boolean {
+function gitTrackedDbPath(relUnderData: string): boolean {
   try {
-    execSync(`git cat-file -e HEAD:data/${file}`, {
+    execSync(`git cat-file -e HEAD:data/${relUnderData}`, {
       cwd: process.cwd(),
       stdio: "ignore",
     });
@@ -42,10 +45,15 @@ function gitTrackedDbPath(file: string): boolean {
 
 function restoreFromGit(dbPath: string): boolean {
   const file = basename(dbPath);
-  if (!gitTrackedDbPath(file)) return false;
+  const gitPath = gitTrackedDbPath(`seeds/${file}`)
+    ? `data/seeds/${file}`
+    : gitTrackedDbPath(file)
+      ? `data/${file}`
+      : null;
+  if (!gitPath) return false;
   const tmp = path.join(DATA_DIR, `.restore-${file}`);
   try {
-    execSync(`git show HEAD:data/${file} > ${JSON.stringify(tmp)}`, {
+    execSync(`git show HEAD:${gitPath} > ${JSON.stringify(tmp)}`, {
       cwd: process.cwd(),
       shell: "/bin/bash",
     });
@@ -151,6 +159,9 @@ function cmdFixAll(): number {
 /** Runs before `npm run dev` — warn, auto-fix corrupt dbs, fail if still broken. */
 function cmdPrepareDev(): number {
   warnIfCloudSyncedDataDir();
+  for (const file of hydrateAllSeededDbs()) {
+    console.log(`[db] hydrated ${file} from data/seeds/`);
+  }
   const bad = verifyAllDbs().filter((r) => !r.ok);
   if (bad.length) {
     console.warn(`[db] ${bad.length} corrupt — auto-fixing…`);
@@ -166,6 +177,24 @@ function cmdPrepareDev(): number {
 }
 
 /** Checkpoint all DBs before copying repo to another machine or pushing to git. */
+/** Copy a live working DB into data/seeds/ so other machines can hydrate it. */
+function cmdPublishSeed(name: string): number {
+  const file = name.endsWith(".db") ? name : `${name}.db`;
+  const src = path.join(DATA_DIR, file);
+  const destDir = path.join(DATA_DIR, "seeds");
+  const dest = path.join(destDir, file);
+  if (!fs.existsSync(src)) {
+    console.error(`missing working copy data/${file}`);
+    return 1;
+  }
+  cmdCheckpoint();
+  fs.mkdirSync(destDir, { recursive: true });
+  fs.copyFileSync(src, dest);
+  console.log(`copied data/${file} → data/seeds/${file}`);
+  console.log("commit data/seeds/" + file + " when you want other machines to get this snapshot");
+  return 0;
+}
+
 function cmdPrepareSync(): number {
   warnIfCloudSyncedDataDir();
   cmdCheckpoint();
@@ -190,6 +219,15 @@ function main(): void {
     case "fix-all":
       process.exit(cmdFixAll());
       break;
+    case "publish-seed": {
+      const target = rest[0];
+      if (!target) {
+        console.error("usage: npm run db:publish-seed -- company_about.db");
+        process.exit(1);
+      }
+      process.exit(cmdPublishSeed(target));
+      break;
+    }
     case "fix": {
       const target = rest[0];
       if (!target) {
@@ -204,6 +242,7 @@ function main(): void {
   npm run db:verify
   npm run db:checkpoint
   npm run db:prepare-sync
+  npm run db:publish-seed -- company_about.db
   npm run db:fix-all
   npm run db:fix -- company_about.db`);
       process.exit(cmd ? 1 : 0);
