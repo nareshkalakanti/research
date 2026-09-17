@@ -318,6 +318,45 @@ export function mergeScreenerQuarterOverlay(
   });
 }
 
+/** Cached Screener P&L (including stale rows) — no network. */
+export function loadCachedScreenerQuartersMap(
+  tickers: string[],
+): Map<string, QuarterPoint[]> {
+  const keys = [
+    ...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean)),
+  ];
+  const out = new Map<string, QuarterPoint[]>();
+  if (!keys.length) return out;
+  ensureCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const chunk = 400;
+    for (let i = 0; i < keys.length; i += chunk) {
+      const part = keys.slice(i, i + chunk);
+      const placeholders = part.map(() => "?").join(",");
+      const rows = db
+        .prepare(
+          `SELECT ticker, quarters_json FROM screener_quarters_cache
+           WHERE ticker IN (${placeholders})`,
+        )
+        .all(...part) as Array<{ ticker: string; quarters_json: string }>;
+      for (const row of rows) {
+        try {
+          const qs = JSON.parse(row.quarters_json) as QuarterPoint[];
+          if (Array.isArray(qs) && qs.length) {
+            out.set(row.ticker.toUpperCase(), qs);
+          }
+        } catch {
+          /* skip bad json */
+        }
+      }
+    }
+  } finally {
+    db.close();
+  }
+  return out;
+}
+
 export type ScreenerQuarterOpts = {
   force?: boolean;
   /** Skip network — return cache only (for throttling). */

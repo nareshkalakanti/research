@@ -103,6 +103,30 @@ export function formatPeDisplay(pe: number | null | undefined): string {
   return pe.toLocaleString("en-IN", { maximumFractionDigits: 1 });
 }
 
+/** TTM PE growth-expectation bands (cheap → rich). */
+export type TtmPeBand = "low" | "mod" | "high" | "vhigh" | "na";
+
+export function ttmPeBand(pe: number | null | undefined): TtmPeBand {
+  if (pe == null || !Number.isFinite(pe) || pe >= 500) return "na";
+  if (pe < 10) return "low";
+  if (pe < 30) return "mod";
+  if (pe < 60) return "high";
+  return "vhigh";
+}
+
+export function ttmPeBandClass(pe: number | null | undefined): string {
+  return `pe-ttm pe-ttm-${ttmPeBand(pe)}`;
+}
+
+export function ttmPeBandTitle(pe: number | null | undefined): string {
+  const band = ttmPeBand(pe);
+  if (band === "na") return "No TTM PE";
+  if (band === "low") return "PE under 10 — market prices little/no growth";
+  if (band === "mod") return "PE 10–30 — market prices moderate growth";
+  if (band === "high") return "PE 30–60 — market prices high growth";
+  return "PE over 60 — market prices very high growth; only if growth is clear";
+}
+
 /** stocks-ai PEAD fpe coloring: lower is better. */
 export function forwardPeClass(pe: number | null | undefined): string {
   if (pe == null || !Number.isFinite(pe)) return "fpe-na";

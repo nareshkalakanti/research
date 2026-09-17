@@ -20,6 +20,7 @@ import {
 } from "@/lib/announced-cache";
 import { clampAnnouncedDays } from "@/lib/announced-lookback";
 import { loadExchangeFeedStatus } from "@/lib/exchange-feed-status";
+import { attachTickerQuoteStats } from "@/lib/ticker-quote-stats";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -84,14 +85,29 @@ export async function GET(req: NextRequest) {
       const cached = announcedCacheGet<Record<string, unknown>>(cacheKey);
       if (cached) {
         const feeds = await loadExchangeFeedStatus();
-        return NextResponse.json({ ...cached, ...feeds, cached: true });
+        const sources = Array.isArray(cached.sources)
+          ? attachTickerQuoteStats(
+              cached.sources as Array<{ ticker?: string | null }>,
+            )
+          : [];
+        return NextResponse.json({
+          ...cached,
+          sources,
+          ...feeds,
+          cached: true,
+        });
       }
     }
     try {
       const found = await discoverMarketIqAnnounced(days, { q });
       announcedCacheSet(cacheKey, found);
       const feeds = await loadExchangeFeedStatus({ force: bust });
-      return NextResponse.json({ ...found, ...feeds, cached: false });
+      return NextResponse.json({
+        ...found,
+        sources: attachTickerQuoteStats(found.sources),
+        ...feeds,
+        cached: false,
+      });
     } catch (e) {
       return NextResponse.json(
         {
