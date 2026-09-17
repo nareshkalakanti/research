@@ -125,6 +125,7 @@ export function ThemeScanner() {
     selected,
     debouncedCustom,
     stockQ,
+    focusTicker,
     market,
     mcapMinIndex,
     mcapMaxIndex,
@@ -187,7 +188,8 @@ export function ThemeScanner() {
         sort,
         dir,
       });
-      if (stockQ.trim()) params.set("q", stockQ.trim());
+      if (focusTicker) params.set("ticker", focusTicker);
+      else if (stockQ.trim()) params.set("q", stockQ.trim());
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterSme) params.set("sme", "1");
@@ -220,6 +222,7 @@ export function ThemeScanner() {
       selected,
       debouncedCustom,
       stockQ,
+      focusTicker,
       market,
       mcapMinIndex,
       mcapMaxIndex,
@@ -305,6 +308,12 @@ export function ThemeScanner() {
               onChange={(v) => {
                 setStockQ(v);
                 if (!v.trim()) setFocusTicker(null);
+                else if (
+                  focusTicker &&
+                  v.trim().toUpperCase() !== focusTicker
+                ) {
+                  setFocusTicker(null);
+                }
               }}
               onSelect={pickStock}
               onSubmit={(t) => {

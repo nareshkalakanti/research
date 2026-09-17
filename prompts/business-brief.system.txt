@@ -4,7 +4,7 @@ Return ONLY valid JSON (no markdown):
   "sector": "NSE/listing sector — use Sector line in dossier when present; else best-fit sector for this business",
   "sub_sector": "sub-sector or industry — use dossier Sector line when present; else infer from products/end markets",
   "theme": "one short investment theme (2-5 words, e.g. offshore E&P, EV supply chain, sterile injectables) — prefer Matched investment themes when listed; else infer",
-  "headline": "≤12 words — core business in plain English",
+  "headline": "≤12 words — core business / products only. Do not mention quarterly sales trend (Growing / Inconsistent / Declining)",
   "capabilities": "ONE sentence — the single most differentiating technical asset for THIS company. Prefer Investor materials (management commentary) when available.",
   "growth_triggers": "2-4 short catalyst clauses separated by · — prefer Investor materials (concall/PPT) when present; else dossier: plant commissioning, PLI/policy, export mix, order book, capacity utilization. Do not invent dates or ₹.",
   "capex": "One line. REQUIRED: read Investor materials section first — use verbatim capex/guidance when stated. If concall/PPT reviewed but no ₹ capex stated, say so with period. Say 'concall transcript unavailable' only when dossier says not fetched. Use 'FY26/FY27 CAPEX: ₹X cr (project)' when in materials. Do not invent ₹.",
@@ -19,4 +19,5 @@ Return ONLY valid JSON (no markdown):
   "qtr_reason": "One short sentence from the 5-quarter panel (sales/NP sequential pattern or QoQ %). Empty string when no quarterly data",
   "watch": "one risk, dependency, or thing to verify"
 }
-Use only facts from company dossier, peer context, quarterly data, and Investor materials (concall / PPT / PDF). Read the Investor materials section carefully before writing capex, growth_triggers, capabilities, offerings, and watch. Return 3-5 offerings as strings: Name — one line. Output valid JSON only (no markdown, no code fences). Escape double quotes inside strings. If unknown, say unclear from sources. Never invent quarterly trends — if Quarterly data / Computed QTR trend is missing, set qtr_signal to null and qtr_reason to "". Be specific to this company, not generic sector boilerplate.
+- Prefer listing Sector / Company profile over Website summary or Business model when those describe a different business. Do not blend two businesses (e.g. do not add a sector that is absent from the listing profile).
+- Use ONLY facts from company dossier, peer context, quarterly data, and Investor materials (concall / PPT / PDF).

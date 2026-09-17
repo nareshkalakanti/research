@@ -521,6 +521,34 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   const qTerms = q ? splitSearchOrTerms(q) : [];
+  const tickerParam = (sp.get("ticker") || "").trim().toUpperCase();
+  const pinnedTicker = (() => {
+    if (tickerParam) return tickerParam;
+    if (qTerms.length !== 1) return null;
+    const term = qTerms[0]!.trim().toUpperCase();
+    if (!looksLikeTickerSearch(term)) return null;
+    return allCompanies.some((c) => c.ticker.toUpperCase() === term)
+      ? term
+      : null;
+  })();
+
+  if (pinnedTicker) {
+    companies = companies.filter(
+      (c) => c.ticker.toUpperCase() === pinnedTicker,
+    );
+  } else if (qTerms.length === 1 && looksLikeTickerSearch(qTerms[0]!)) {
+    const term = qTerms[0]!.trim();
+    companies = companies.filter((c) => tickerMatchesSearch(c.ticker, term));
+  } else if (qTerms.length) {
+    companies = companies.filter((c) => {
+      const hit = (term: string) => {
+        const t = term.toLowerCase();
+        if (tickerMatchesSearch(c.ticker, t)) return true;
+        return textHasTerm(c.search_text, t);
+      };
+      return mode === "AND" ? qTerms.every(hit) : qTerms.some(hit);
+    });
+  }
 
   let llmScan: ThemeLlmScanResult | null = null;
   const llmScore = new Map<string, number>();
@@ -538,19 +566,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     companies = companies.filter((c) => keep.has(c.ticker.toUpperCase()));
   }
 
-  if (qTerms.length) {
-    companies = companies.filter((c) => {
-      const hit = (term: string) => {
-        const t = term.toLowerCase();
-        // Tickers: exact or prefix (TATA → TATAINVEST), not mid-string (atam ↛ DATAMATICS).
-        if (tickerMatchesSearch(c.ticker, t)) return true;
-        // Names / about / sector: whole-word only (avoid parastatals → tata).
-        return textHasTerm(c.search_text, t);
-      };
-      return mode === "AND" ? qTerms.every(hit) : qTerms.some(hit);
-    });
-  }
-
   const matchedByTheme: Record<string, string[]> = {};
   const matchedThemeIdsByTicker: Record<string, string[]> = {};
   const highlightsByTicker: Record<string, string[]> = {};
@@ -565,7 +580,11 @@ async function buildCompaniesResponse(req: NextRequest) {
       fullHighlightsByTicker[c.ticker] = h.terms;
       highlightsByTicker[c.ticker] = aboutHighlightsForRow(c.about, h.terms);
     }
-  } else if (scan && (selectedThemes.length > 0 || custom.trim())) {
+  } else if (
+    scan &&
+    (selectedThemes.length > 0 || custom.trim()) &&
+    !pinnedTicker
+  ) {
     const hits = [];
     for (const c of companies) {
       const result = matchThemesForRow(c, selectedThemes, {
@@ -582,7 +601,27 @@ async function buildCompaniesResponse(req: NextRequest) {
       );
     }
     companies = hits;
-  } else if (scan && !scanPattern && !fundListMode && !qTerms.length) {
+  } else if (pinnedTicker && scan && (selectedThemes.length > 0 || custom.trim())) {
+    for (const c of companies) {
+      const result = matchThemesForRow(c, selectedThemes, {
+        customPattern: custom.trim() || null,
+      });
+      if (!result.matched) continue;
+      matchedByTheme[c.ticker] = result.matchedTerms;
+      matchedThemeIdsByTicker[c.ticker] = result.matchedThemeIds;
+      fullHighlightsByTicker[c.ticker] = result.highlights;
+      highlightsByTicker[c.ticker] = aboutHighlightsForRow(
+        c.about,
+        result.highlights,
+      );
+    }
+  } else if (
+    scan &&
+    !scanPattern &&
+    !fundListMode &&
+    !qTerms.length &&
+    !pinnedTicker
+  ) {
     companies = [];
   } else if (qTerms.length) {
     const qPattern = qTerms.join(" | ");
