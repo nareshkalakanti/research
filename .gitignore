@@ -50,6 +50,9 @@ next-env.d.ts
 *.db-wal
 *.db-shm
 
+# Live About DB (scrapes/WAL). Snapshot: data/seeds/company_about.db
+/data/company_about.db
+
 # IQ scan / backfill DBs + logs — machine-local (do not ship between machines)
 /data/marketiq.db
 /data/orderbookiq.db

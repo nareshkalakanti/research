@@ -66,4 +66,4 @@ FIRECRAWL_API_KEY=
 # BRAND=Research
 ```
 
-`data/` SQLite DBs are mostly committed so a fresh clone keeps research state. Machine-local scan DBs (`marketiq.db`, `orderbookiq.db`, `boardroomiq.db`) and `logs/` are gitignored — re-run scans on each machine if needed.
+`data/` SQLite DBs are mostly committed so a fresh clone keeps research state. `company_about.db` is a **local working copy** (gitignored) because the app writes scrapes into it and that blocked `git pull` on every machine. Clones get `data/seeds/company_about.db`; `npm run dev` copies it to `data/company_about.db` if missing. To share About updates: `npm run db:publish-seed -- company_about.db` then commit `data/seeds/company_about.db`. Machine-local scan DBs (`marketiq.db`, `orderbookiq.db`, `boardroomiq.db`) and `logs/` are gitignored — re-run scans on each machine if needed.
