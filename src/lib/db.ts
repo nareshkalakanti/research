@@ -8,6 +8,10 @@ import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
 import { ensureLlmAboutSchema } from "./llm-about-schema";
 import { ensureWebProfileSchema } from "./web-profile-schema";
 import { openSqliteNamed } from "./sqlite-utils";
+import {
+  dropIfConflictsListing,
+  listingAboutCorpus,
+} from "./listing-extract-trust";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -175,7 +179,9 @@ export function mergeAboutSourcesForThemeSearch(row: {
     row.llm_about ?? null,
   ];
   if (useCleanScrapeInThemes()) {
-    const clean = (row.scraped_about_clean ?? "").trim();
+    const listing = listingAboutCorpus(row);
+    const trusted = dropIfConflictsListing(listing, row.scraped_about_clean);
+    const clean = (trusted ?? "").trim();
     // Cap length so Theme/Scan company cache stays fast after bulk clean imports.
     sources.push(clean.length > 900 ? clean.slice(0, 900) : clean || null);
   }
@@ -205,9 +211,11 @@ export function mergeAboutSourcesForSearch(row: {
   yf_about: string | null;
   scraped_about: string | null;
 }): string {
-  const scrape = looksLikeNavJunk(row.scraped_about ?? "")
-    ? extractWebsiteSignal(row.scraped_about)
-    : row.scraped_about;
+  const listing = listingAboutCorpus(row);
+  const rawScrape = dropIfConflictsListing(listing, row.scraped_about);
+  const scrape = looksLikeNavJunk(rawScrape ?? "")
+    ? extractWebsiteSignal(rawScrape)
+    : rawScrape;
   const sources = [row.about, row.yf_about, scrape]
     .map(nonempty)
     .filter(
@@ -227,22 +235,49 @@ export function mergeAboutSourcesForSearch(row: {
   return kept.join("\n\n");
 }
 
+function trustedScrapeFields(row: RawAbout): Pick<
+  RawAbout,
+  | "scraped_about"
+  | "scraped_about_clean"
+  | "products"
+  | "end_markets"
+  | "business_model"
+  | "llm_about"
+> {
+  const listing = listingAboutCorpus(row);
+  return {
+    scraped_about: dropIfConflictsListing(listing, row.scraped_about),
+    scraped_about_clean: dropIfConflictsListing(
+      listing,
+      row.scraped_about_clean,
+    ),
+    products: dropIfConflictsListing(listing, row.products),
+    end_markets: dropIfConflictsListing(listing, row.end_markets),
+    business_model: dropIfConflictsListing(listing, row.business_model),
+    llm_about: dropIfConflictsListing(listing, row.llm_about),
+  };
+}
+
 function buildThemeSearchText(
   row: RawAbout,
   sector?: string | null,
   sub?: string | null,
 ): string {
-  const aboutCorpus = mergeAboutSourcesForThemeSearch(row);
+  const trusted = trustedScrapeFields(row);
+  const aboutCorpus = mergeAboutSourcesForThemeSearch({
+    ...row,
+    ...trusted,
+  });
   return [
     row.headquarters,
     row.name,
     row.ticker,
     aboutCorpus,
-    row.products,
-    row.end_markets,
+    trusted.products,
+    trusted.end_markets,
     row.group_name,
     row.recent_moves,
-    row.business_model,
+    trusted.business_model,
     row.theme_tags,
     sector,
     sub,
@@ -257,18 +292,19 @@ function buildSearchText(
   sector?: string | null,
   sub?: string | null,
 ): string {
-  const aboutCorpus = mergeAboutSourcesForSearch(row);
+  const trusted = trustedScrapeFields(row);
+  const aboutCorpus = mergeAboutSourcesForSearch({ ...row, ...trusted });
   // HQ first so location themes (e.g. Mumbai) can AND with about terms.
   return [
     row.headquarters,
     row.name,
     row.ticker,
     aboutCorpus,
-    row.products,
-    row.end_markets,
+    trusted.products,
+    trusted.end_markets,
     row.group_name,
     row.recent_moves,
-    row.business_model,
+    trusted.business_model,
     row.theme_tags,
     sector,
     sub,
@@ -429,7 +465,8 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
     const links = researchLinks(row.ticker, row.market, row.website);
     const about = pickAboutText(row);
     const name = resolveCompanyName(row, about);
-    const searchRow = { ...row, name };
+    const trusted = trustedScrapeFields(row);
+    const searchRow = { ...row, name, ...trusted };
 
     const theme_search_text = buildThemeSearchText(searchRow, sector, sub_sector);
 
@@ -439,9 +476,9 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       market: row.market,
       website: row.website,
       about,
-      scraped_about: nonempty(row.scraped_about),
-      scraped_about_clean: nonempty(row.scraped_about_clean),
-      llm_about: nonempty(row.llm_about),
+      scraped_about: nonempty(trusted.scraped_about),
+      scraped_about_clean: nonempty(trusted.scraped_about_clean),
+      llm_about: nonempty(trusted.llm_about),
       scrape_source_url: scrapeSources.get(row.ticker.toUpperCase()) ?? null,
       headquarters: nonempty(row.headquarters),
       ceo: nonempty(row.ceo),
@@ -449,9 +486,9 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       founded_year: nonempty(row.founded_year),
       group_name: nonempty(row.group_name),
       recent_moves: nonempty(row.recent_moves),
-      products: nonempty(row.products),
-      end_markets: nonempty(row.end_markets),
-      business_model: nonempty(row.business_model),
+      products: nonempty(trusted.products),
+      end_markets: nonempty(trusted.end_markets),
+      business_model: nonempty(trusted.business_model),
       sector,
       sub_sector,
       price: m?.price ?? null,
