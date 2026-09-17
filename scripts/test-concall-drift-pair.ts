@@ -9,6 +9,7 @@ import {
   isPrimaryBoardEarn,
   pairEarnConcall,
 } from "../src/lib/strategy/concall-drift-pair";
+import { passesEarnQuality } from "../src/lib/strategy/concall-drift-earn";
 
 function ev(
   partial: Pick<NseCorpEvent, "kind" | "announced_at" | "subject"> & {
@@ -65,6 +66,12 @@ function main() {
     onlyPre[0]!.concall,
     null,
     "pre-earn schedule alone does not fill Concall column",
+  );
+
+  assert.equal(
+    passesEarnQuality("Financial Results", false),
+    true,
+    "new result filing still lists before concall/baseline",
   );
 
   console.log("ok — concall drift pairing");

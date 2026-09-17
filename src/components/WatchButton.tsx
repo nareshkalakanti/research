@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useOptionalAppTab } from "@/lib/app-tab";
 import {
   isWatched,
   subscribeWatchlist,
@@ -29,6 +30,7 @@ export function WatchButton({
   onLabel?: string;
 }) {
   const router = useRouter();
+  const workspace = useOptionalAppTab();
   const sym = (ticker || "").trim().toUpperCase();
   const [on, setOn] = useState(false);
 
@@ -56,7 +58,8 @@ export function WatchButton({
         e.preventDefault();
         e.stopPropagation();
         if (on && openWatchlistOnSavedClick) {
-          router.push("/watchlist");
+          if (workspace) workspace.setTab("watchlist");
+          else router.push("/watchlist");
           return;
         }
         setOn(toggleWatch(sym));

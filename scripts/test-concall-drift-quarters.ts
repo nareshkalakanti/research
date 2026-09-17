@@ -12,7 +12,9 @@ import {
   fyQuarterFromEarnEvent,
   fyQuarterReportingPeriod,
   isoDate,
+  windowRange,
 } from "../src/lib/strategy/concall-drift-quarters";
+import { istDateKey, istTodayParts, shiftIstCivilDay } from "../src/lib/nse-time";
 
 function fmtCr(n: number): string {
   const rounded = n >= 100 ? Math.round(n) : Math.round(n * 10) / 10;
@@ -70,6 +72,17 @@ function main() {
 
   // Current season resolves to a QnFYnn key
   assert.match(currentEarnSeasonQuarter(), /^Q[1-4]FY\d{2}$/);
+
+  const last7 = windowRange("last7");
+  assert.ok(last7);
+  const today = istTodayParts();
+  const fromDay = shiftIstCivilDay(today, -6);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const fromKey = `${fromDay.year}-${pad(fromDay.month)}-${pad(fromDay.day)}`;
+  const toKey = `${today.year}-${pad(today.month)}-${pad(today.day)}`;
+  assert.equal(last7.from.toISOString().slice(0, 10), fromKey);
+  assert.equal(last7.to.toISOString().slice(0, 10), toKey);
+  assert.equal(istDateKey(new Date().toISOString()) >= fromKey, true);
 
   console.log("ok · pill", fyQuarterChipLabel("Q1FY27"));
   console.log("ok · meta", meta);

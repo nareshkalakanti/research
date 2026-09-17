@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshButton } from "@/components/RefreshButton";
 import {
   StrategyConcallDriftRow,
@@ -21,11 +21,11 @@ import {
 } from "@/components/MarketCapRangeBar";
 import {
   recentFyQuarterOptions,
-  currentEarnSeasonQuarter,
   fyQuarterChipLabel,
 } from "@/lib/strategy/concall-drift-quarters";
 import type { NseFeedStatus } from "@/lib/nse-feed-status-types";
 import { parseFetchJson } from "@/lib/fetch-json";
+import { istDateKey } from "@/lib/nse-time";
 
 const DEFAULT_CUSTOM = defaultCustomDates();
 const KIND = "concall_drift" as const;
@@ -119,11 +119,13 @@ function StrategyScanBar({
   market,
   busy,
   ready,
+  lastScanAt,
   onRefresh,
 }: {
   market: string;
   busy: boolean;
   ready: boolean;
+  lastScanAt?: string | null;
   onRefresh: (opts?: { silent?: boolean; refresh?: boolean }) => void | Promise<void>;
 }) {
   const [scanBusy, setScanBusy] = useState(false);
@@ -171,7 +173,7 @@ function StrategyScanBar({
           label: leftover ? "Fetching" : "Announcements",
           detail: leftover
             ? `Batch ${round} · ${leftover.length.toLocaleString()} announced left…`
-            : "Pulling today’s earn / concall filings…",
+            : "Pulling today’s result filings…",
         });
 
         const json = await scanOnce({
@@ -212,7 +214,7 @@ function StrategyScanBar({
               json.message ||
               (uni
                 ? `${uni.toLocaleString()} announced names`
-                : "No earn/concall filings in the last 7 days"),
+                : "No result filings in the last 7 days"),
             done: true,
           });
           break;
@@ -236,6 +238,16 @@ function StrategyScanBar({
     }
   }, [busy, market, onRefresh, progress?.error, progress?.pct, scanBusy]);
 
+  const autoKickRef = useRef(false);
+  useEffect(() => {
+    if (!ready || scanBusy || busy || autoKickRef.current) return;
+    const today = istDateKey(new Date().toISOString());
+    const scannedDay = lastScanAt ? istDateKey(lastScanAt) : "";
+    if (scannedDay === today) return;
+    autoKickRef.current = true;
+    void run();
+  }, [busy, lastScanAt, ready, run, scanBusy]);
+
   const label = scanBusy
     ? "Fetching…"
     : progress?.error
@@ -251,7 +263,7 @@ function StrategyScanBar({
           type="button"
           className={`chip chip-scan tag-chip ${scanBusy ? "busy on" : ""}`}
           disabled={scanBusy || busy || !ready}
-          title="Pull companies that filed results or a concall on NSE (last 7 days)"
+          title="Pull companies that filed results on NSE (last 7 days)"
           onClick={() => void run()}
         >
           {label}
@@ -286,7 +298,7 @@ export function StrategyPanel() {
   const [market, setMarket] = useState("All");
   const [driftSort, setDriftSort] = useState<ConcallDriftSort>("all");
   const [datePreset, setDatePreset] = useState<ConcallDriftDatePreset>("");
-  const [quarter, setQuarter] = useState(currentEarnSeasonQuarter);
+  const [quarter, setQuarter] = useState("");
   const [customFrom, setCustomFrom] = useState(DEFAULT_CUSTOM.from);
   const [customTo, setCustomTo] = useState(DEFAULT_CUSTOM.to);
   const [sector, setSector] = useState("");
@@ -395,7 +407,6 @@ export function StrategyPanel() {
       "ltp",
       "earn_at",
       "drift_pct",
-      "concall_at",
     ];
     const lines = [header.join(",")];
     for (const r of rows) {
@@ -408,7 +419,6 @@ export function StrategyPanel() {
         r.price ?? "",
         r.earn_at || "",
         r.drift_pct ?? "",
-        r.concall_at || "",
       ].map((v) => {
         const s = String(v);
         return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -431,10 +441,10 @@ export function StrategyPanel() {
       <header className="pcd-hero">
         <div className="pcd-hero-copy">
           <h1 className="pcd-title">
-            Post-Concall <em>Announcement Drift</em>
+            Post-results <em>Announcement Drift</em>
           </h1>
           <p className="pcd-sub">
-            NSE · BSE · How stocks move after earnings concalls · Est. 2026
+            NSE · BSE · How stocks move after earnings filings · Est. 2026
           </p>
         </div>
         <div className="pcd-hero-actions">
@@ -511,6 +521,7 @@ export function StrategyPanel() {
           market={market}
           busy={loading}
           ready={dataReady}
+          lastScanAt={data?.nse_feed?.last_scan_at}
           onRefresh={load}
         />
       </div>
@@ -535,7 +546,7 @@ export function StrategyPanel() {
           ) : (
             <>
               No rows yet — click <strong>Get announced</strong> to pull today’s
-              NSE result / concall filings.
+              NSE result filings.
             </>
           )}
         </div>
@@ -552,7 +563,6 @@ export function StrategyPanel() {
               <col className="pcd-col-ltp" />
               <col className="pcd-col-earn" />
               <col className="pcd-col-drift" />
-              <col className="pcd-col-call" />
             </colgroup>
             <thead>
               <tr>
@@ -564,11 +574,10 @@ export function StrategyPanel() {
                 <th title="Results / earnings filing">Earn</th>
                 <th
                   className="pcd-th-drift num"
-                  title="LTP vs last close before concall — blank when baseline missing"
+                  title="LTP vs last close before the results filing — blank when baseline missing"
                 >
                   Δ earn
                 </th>
-                <th title="Concall / investor meet filing">Concall</th>
               </tr>
             </thead>
             <tbody>

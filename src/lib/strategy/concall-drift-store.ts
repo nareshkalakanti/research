@@ -263,9 +263,6 @@ function pickBetterDriftRow(prev: ConcallDriftRow, next: ConcallDriftRow): Conca
   const prevTs = Date.parse(prev.earn_at);
   const nextTs = Date.parse(next.earn_at);
   if (nextTs !== prevTs) return nextTs > prevTs ? next : prev;
-  if (Boolean(next.concall_at) !== Boolean(prev.concall_at)) {
-    return next.concall_at ? next : prev;
-  }
   if (next.has_baseline !== prev.has_baseline) {
     return next.has_baseline ? next : prev;
   }
@@ -397,9 +394,7 @@ function enrichConcallDriftRows(rows: ConcallDriftRow[]): ConcallDriftRow[] {
 
 function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): ConcallDriftRow {
   const priceOk = smePriceTrusted(meta.market, row.ticker, meta.price);
-  const callOk = passesConcallAnnouncement(row);
   const consistent =
-    callOk &&
     priceOk &&
     row.has_baseline === 1 &&
     row.baseline_close != null &&
@@ -454,8 +449,28 @@ function passesConcallAnnouncement(row: RawEventRow): boolean {
   return callDay >= earnDay;
 }
 
+function driftEventIstDay(row: { earn_at: string }): string {
+  return istDateKey(row.earn_at);
+}
+
+function rangeDayKeys(range: { from: Date; to: Date }): { fromKey: string; toKey: string } {
+  return {
+    fromKey: range.from.toISOString().slice(0, 10),
+    toKey: range.to.toISOString().slice(0, 10),
+  };
+}
+
+function inDayRange(
+  istDay: string,
+  range: { from: Date; to: Date } | null,
+): boolean {
+  if (!range) return true;
+  if (!istDay) return false;
+  const { fromKey, toKey } = rangeDayKeys(range);
+  return istDay >= fromKey && istDay <= toKey;
+}
+
 function passesEarnRow(row: RawEventRow, output: ConcallDriftRow): boolean {
-  if (!passesConcallAnnouncement(row)) return false;
   return passesEarnQuality(row.earn_subject, output.has_baseline);
 }
 
@@ -464,16 +479,9 @@ function passesRowFilters(
   opts: ConcallDriftLoadOpts | undefined,
   range: { from: Date; to: Date } | null,
 ): { ok: boolean; meta?: ReturnType<typeof companyMeta> } {
-  const anchorIso = (row.concall_at || "").trim() || row.earn_at;
   const earnTs = Date.parse(row.earn_at);
   if (!Number.isFinite(earnTs)) return { ok: false };
-  if (range) {
-    const eventKey = istDateKey(anchorIso);
-    if (!eventKey) return { ok: false };
-    const fromKey = range.from.toISOString().slice(0, 10);
-    const toKey = range.to.toISOString().slice(0, 10);
-    if (eventKey < fromKey || eventKey > toKey) return { ok: false };
-  }
+  if (range && !inDayRange(driftEventIstDay(row), range)) return { ok: false };
 
   if (
     opts?.quarter &&
@@ -505,61 +513,53 @@ function passesRowFilters(
   return { ok: true, meta };
 }
 
-export function concallDriftFilterMeta(
-  opts?: Omit<ConcallDriftLoadOpts, "sector" | "subSector" | "mcapMin" | "mcapMax" | "sort" | "q" | "limit">,
-): ConcallDriftFilterMeta {
+/** Latest earn per ticker after quality/sector filters — date window applied after. */
+function loadBestDriftRows(opts?: ConcallDriftLoadOpts): ConcallDriftRow[] {
+  const optsNoWin: ConcallDriftLoadOpts = {
+    ...opts,
+    window: "all",
+    from: undefined,
+    to: undefined,
+  };
+  const bestByTicker = new Map<string, ConcallDriftRow>();
+  for (const row of loadRawEvents()) {
+    const { ok, meta } = passesRowFilters(row, optsNoWin, null);
+    if (!ok || !meta) continue;
+    const output = rowToOutput(row, meta);
+    if (!passesEarnRow(row, output)) continue;
+    const key = row.ticker.toUpperCase();
+    const prev = bestByTicker.get(key);
+    if (!prev) bestByTicker.set(key, output);
+    else bestByTicker.set(key, pickBetterDriftRow(prev, output));
+  }
+  let out = [...bestByTicker.values()];
   const range = resolveDateRange(opts);
-  const rows = loadRawEvents();
+  if (range) {
+    out = out.filter((r) => inDayRange(driftEventIstDay(r), range));
+  }
+  return out;
+}
+
+export function concallDriftFilterMeta(
+  opts?: Omit<ConcallDriftLoadOpts, "sort" | "q" | "limit">,
+): ConcallDriftFilterMeta {
+  const outputs = loadBestDriftRows(opts);
   const sectors = new Set<string>();
   const subSectors = new Set<string>();
   const mcaps: number[] = [];
-  let total = 0;
   let withBaseline = 0;
-  const bestByTicker = new Map<string, ConcallDriftRow>();
-
-  for (const row of rows) {
-    const { ok, meta } = passesRowFilters(row, opts, range);
-    if (!ok || !meta) continue;
-
-    const output = rowToOutput(row, meta);
-    if (!passesEarnRow(row, output)) continue;
-
-    const onePerTicker = opts?.onePerTicker !== false;
-    if (onePerTicker) {
-      const key = row.ticker.toUpperCase();
-      const prev = bestByTicker.get(key);
-      if (!prev) {
-        bestByTicker.set(key, output);
-      } else {
-        bestByTicker.set(key, pickBetterDriftRow(prev, output));
-      }
-      continue;
-    }
-
-    total += 1;
+  for (const output of outputs) {
     if (output.has_baseline) withBaseline += 1;
-    if (meta.sector) sectors.add(meta.sector);
-    if (meta.sub_sector) subSectors.add(meta.sub_sector);
-    const sane = saneMcap(meta.market_cap_cr);
+    if (output.sector) sectors.add(output.sector);
+    if (output.sub_sector) subSectors.add(output.sub_sector);
+    const sane = saneMcap(output.market_cap_cr);
     if (sane != null) mcaps.push(sane);
   }
-
-  if (opts?.onePerTicker !== false) {
-    for (const output of bestByTicker.values()) {
-      total += 1;
-      if (output.has_baseline) withBaseline += 1;
-      if (output.sector) sectors.add(output.sector);
-      if (output.sub_sector) subSectors.add(output.sub_sector);
-      const sane = saneMcap(output.market_cap_cr);
-      if (sane != null) mcaps.push(sane);
-    }
-  }
-
   return {
     sectors: [...sectors].sort((a, b) => a.localeCompare(b)),
     sub_sectors: [...subSectors].sort((a, b) => a.localeCompare(b)),
     mcap_bounds: mcapSliderBounds(mcaps),
-    total_events: total,
+    total_events: outputs.length,
     with_baseline: withBaseline,
   };
 }
@@ -584,7 +584,7 @@ export type ConcallDriftSortCounts = {
   losers: number;
 };
 
-/** Scan-style chip counts for date windows (IST, by concall date). */
+/** Chip counts from the same latest-earn rows the table uses. */
 export function concallDriftWindowCounts(
   opts?: Omit<ConcallDriftLoadOpts, "window" | "from" | "to" | "sort" | "limit">,
 ): ConcallDriftWindowCounts {
@@ -601,39 +601,14 @@ export function concallDriftWindowCounts(
     WINDOW_CHIP_IDS.map((id) => [id, windowRange(id)]),
   ) as Record<(typeof WINDOW_CHIP_IDS)[number], { from: Date; to: Date } | null>;
 
-  const rows = loadRawEvents();
-  const bestAll = new Map<string, true>();
-  const bestByWindow = Object.fromEntries(
-    WINDOW_CHIP_IDS.map((id) => [id, new Map<string, true>()]),
-  ) as Record<(typeof WINDOW_CHIP_IDS)[number], Map<string, true>>;
-
-  const baseOpts = { ...opts, window: "all", sort: "all" as const };
-
-  for (const row of rows) {
-    const { ok, meta } = passesRowFilters(row, baseOpts, null);
-    if (!ok || !meta) continue;
-    const output = rowToOutput(row, meta);
-    if (!passesEarnRow(row, output)) continue;
-
-    const key = row.ticker.toUpperCase();
-    bestAll.set(key, true);
-
-    const anchorIso = (row.concall_at || "").trim() || row.earn_at;
-    const eventKey = istDateKey(anchorIso);
-    if (!eventKey) continue;
+  const best = loadBestDriftRows({ ...opts, window: "all" });
+  counts.all = best.length;
+  for (const row of best) {
+    const day = driftEventIstDay(row);
     for (const id of WINDOW_CHIP_IDS) {
       const range = ranges[id];
-      if (!range) continue;
-      const fromKey = range.from.toISOString().slice(0, 10);
-      const toKey = range.to.toISOString().slice(0, 10);
-      if (eventKey < fromKey || eventKey > toKey) continue;
-      bestByWindow[id].set(key, true);
+      if (range && inDayRange(day, range)) counts[id] += 1;
     }
-  }
-
-  counts.all = bestAll.size;
-  for (const id of WINDOW_CHIP_IDS) {
-    counts[id] = bestByWindow[id].size;
   }
   return counts;
 }
@@ -642,60 +617,19 @@ export function concallDriftWindowCounts(
 export function concallDriftSortCounts(
   opts?: Omit<ConcallDriftLoadOpts, "sort" | "limit">,
 ): ConcallDriftSortCounts {
-  const range = resolveDateRange(opts);
-  const rows = loadRawEvents();
-  const bestByTicker = new Map<string, ConcallDriftRow>();
-
-  for (const row of rows) {
-    const { ok, meta } = passesRowFilters(row, opts, range);
-    if (!ok || !meta) continue;
-    const output = rowToOutput(row, meta);
-    if (!passesEarnRow(row, output)) continue;
-    const key = row.ticker.toUpperCase();
-    const prev = bestByTicker.get(key);
-    if (!prev) bestByTicker.set(key, output);
-    else bestByTicker.set(key, pickBetterDriftRow(prev, output));
-  }
-
+  const best = loadBestDriftRows(opts);
   let gainers = 0;
   let losers = 0;
-  for (const r of bestByTicker.values()) {
+  for (const r of best) {
     if (!r.has_baseline || r.drift_pct == null) continue;
     if (r.drift_pct > 0) gainers += 1;
     else if (r.drift_pct < 0) losers += 1;
   }
-  return { all: bestByTicker.size, gainers, losers };
+  return { all: best.length, gainers, losers };
 }
 
 export function loadConcallDriftRows(opts?: ConcallDriftLoadOpts): ConcallDriftRow[] {
-  const range = resolveDateRange(opts);
-  const rows = loadRawEvents();
-  const onePerTicker = opts?.onePerTicker !== false;
-  const out: ConcallDriftRow[] = [];
-  const bestByTicker = new Map<string, ConcallDriftRow>();
-
-  for (const row of rows) {
-    const { ok, meta } = passesRowFilters(row, opts, range);
-    if (!ok || !meta) continue;
-
-    const output = rowToOutput(row, meta);
-    if (!passesEarnRow(row, output)) continue;
-
-    if (!onePerTicker) {
-      out.push(output);
-      continue;
-    }
-
-    const key = row.ticker.toUpperCase();
-    const prev = bestByTicker.get(key);
-    if (!prev) {
-      bestByTicker.set(key, output);
-      continue;
-    }
-    bestByTicker.set(key, pickBetterDriftRow(prev, output));
-  }
-
-  if (onePerTicker) out.push(...bestByTicker.values());
+  const out = loadBestDriftRows(opts);
 
   const sort = opts?.sort || "all";
   if (sort === "gainers") {
@@ -981,14 +915,13 @@ export function listConcallDriftBaselineJobs(tickers: string[]): Array<{
   for (const row of loadRawEvents()) {
     const t = row.ticker.toUpperCase();
     if (!want.has(t)) continue;
-    if (!passesConcallAnnouncement(row) || !row.concall_at) continue;
     const meta = companyMeta(row.ticker);
     out.push({
       id: row.id,
       ticker: t,
       market: meta.market,
       earn_at: row.earn_at,
-      concall_at: row.concall_at,
+      concall_at: row.concall_at ?? "",
     });
   }
   return out;
