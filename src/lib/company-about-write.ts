@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { invalidateCompanyCache, loadAllCompanies } from "./db";
+import { extractConflictsWithListing, listingAboutCorpus } from "./listing-extract-trust";
 import { upsertScrapeResult } from "./scraper-store";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -64,10 +65,21 @@ export function saveScrapedAboutToCompanyAbout(
 ): void {
   if (!fs.existsSync(ABOUT_PATH)) return;
   const key = ticker.toUpperCase();
-  const text = opts.scraped_about?.trim() || null;
+  let text = opts.scraped_about?.trim() || null;
   const db = new Database(ABOUT_PATH);
   try {
     db.pragma("busy_timeout = 5000");
+    if (text) {
+      const listingRow = db
+        .prepare(
+          `SELECT about, yf_about FROM company_about WHERE ticker = ?`,
+        )
+        .get(key) as { about: string | null; yf_about: string | null } | undefined;
+      const listing = listingAboutCorpus(listingRow ?? {});
+      if (extractConflictsWithListing(listing, text)) {
+        text = null;
+      }
+    }
     db.prepare(
       `UPDATE company_about SET
          scraped_about = @scraped_about,
