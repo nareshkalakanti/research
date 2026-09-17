@@ -32,10 +32,6 @@ const GovernanceMapPanel = dynamic(
     ),
   { loading: PanelFallback, ssr: false },
 );
-const StrategyPanel = dynamic(
-  () => import("@/components/StrategyPanel").then((m) => m.StrategyPanel),
-  { loading: PanelFallback, ssr: false },
-);
 const MarketIqPanel = dynamic(
   () => import("@/components/MarketIqPanel").then((m) => m.MarketIqPanel),
   { loading: PanelFallback, ssr: false },
@@ -65,24 +61,38 @@ const ValuationPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const WatchlistPanel = dynamic(
+  () => import("@/components/WatchlistPanel").then((m) => m.WatchlistPanel),
+  { loading: PanelFallback, ssr: false },
+);
+const FundPanel = dynamic(
+  () => import("@/components/FundPanel").then((m) => m.FundPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const PANELS: Record<AppTab, ComponentType> = {
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
   governance: GovernanceMapPanel,
-  concall: StrategyPanel,
   marketiq: MarketIqPanel,
   orderbookiq: OrderBookIqPanel,
   boardroomiq: BoardRoomIqPanel,
   valuation: ValuationPanel,
   research: ResearchPanel,
   missing: MissingDataPanel,
+  watchlist: WatchlistPanel,
+  fund: FundPanel,
 };
 
 function preloadIqPanels() {
-  void import("@/components/StrategyPanel");
   void import("@/components/MarketIqPanel");
   void import("@/components/OrderBookIqPanel");
   void import("@/components/BoardRoomIqPanel");
+}
+
+function preloadWorkspacePanels() {
+  void import("@/components/WatchlistPanel");
+  void import("@/components/FundPanel");
 }
 
 function AppShellPanels() {
@@ -118,7 +128,10 @@ function AppShellPanels() {
   }, [tab]);
 
   useEffect(() => {
-    const run = () => preloadIqPanels();
+    const run = () => {
+      preloadIqPanels();
+      preloadWorkspacePanels();
+    };
     if (typeof requestIdleCallback !== "undefined") {
       const id = requestIdleCallback(run);
       return () => cancelIdleCallback(id);
@@ -155,27 +168,25 @@ export function AppShell() {
     if (ready && !user) router.replace("/login");
   }, [ready, user, router]);
 
-  // Legacy query redirects (one-time on load).
+  // Legacy query redirects (one-time on load) — history only, do not remount.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("tab");
-    if (t === "corporate") {
-      params.set("tab", "concall");
-      params.delete("view");
-      router.replace(`/?${params.toString()}`, { scroll: false });
-      return;
-    }
-    if (t === "concall" && params.get("view") === "board") {
-      params.delete("view");
-      router.replace(`/?${params.toString()}`, { scroll: false });
+    if (
+      t === "corporate" ||
+      t === "concall" ||
+      t === "strategy" ||
+      t === "buyback"
+    ) {
+      window.history.replaceState(window.history.state, "", "/fund");
       return;
     }
     if (t === "categories") {
       params.delete("tab");
       const qs = params.toString();
-      router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+      window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
     }
-  }, [router]);
+  }, []);
 
   if (!ready || !user) {
     return <div className="boot">Loading…</div>;

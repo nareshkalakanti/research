@@ -1,12 +1,12 @@
 "use client";
 
 import { Suspense } from "react";
-import { AppShell } from "@/components/AppShell";
+import { WorkspaceApp } from "@/components/WorkspaceApp";
 
 export default function HomePage() {
   return (
     <Suspense fallback={<div className="boot">Loading…</div>}>
-      <AppShell />
+      <WorkspaceApp />
     </Suspense>
   );
 }
