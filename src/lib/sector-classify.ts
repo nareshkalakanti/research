@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { loadLlmConfig } from "./llm-config";
 import { pickAboutText } from "./db";
+import { extractConflictsWithListing } from "./listing-extract-trust";
 
 const CLASS_PATH = path.join(process.cwd(), "data", "classifications.db");
 
@@ -71,6 +72,10 @@ export function classificationCorpus(c: SectorClassifyInput): string {
   });
   const manual = (c.about ?? "").trim();
   const scraped = (c.scraped_about ?? "").trim();
+  const listing = [manual, (c.yf_about ?? "").trim()].filter((s) => s.length >= 40).join("\n\n");
+  const scrapeOk =
+    scraped.length >= 80 &&
+    !(listing.length >= 80 && extractConflictsWithListing(listing, scraped));
 
   // Prefer long Yahoo/manual about; ignore short generic scrape blurbs that disagree.
   if (manual.length >= 120) {
@@ -78,16 +83,12 @@ export function classificationCorpus(c: SectorClassifyInput): string {
   }
   if (picked && picked.length >= 80) {
     const parts = [c.name, picked];
-    if (
-      scraped &&
-      scraped.length >= 80 &&
-      scraped.length > picked.length * 0.35
-    ) {
+    if (scrapeOk && scraped.length > picked.length * 0.35) {
       parts.push(scraped);
     }
     return parts.join("\n\n").slice(0, 4000);
   }
-  return [c.name, picked, scraped].filter(Boolean).join("\n\n").slice(0, 4000);
+  return [c.name, picked, scrapeOk ? scraped : null].filter(Boolean).join("\n\n").slice(0, 4000);
 }
 
 const KEYWORD_BOOSTS: Array<{

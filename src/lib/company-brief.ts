@@ -5,6 +5,11 @@ import {
   type PeerUniqueness,
 } from "./company-uniqueness";
 import { buildCompanyDossierText, loadAllCompanies, type CompanyRow } from "./db";
+import {
+  extractConflictsWithListing,
+  phraseGroundedInListing,
+  preferSpecificHeadline,
+} from "./listing-extract-trust";
 import { formatInvestorMaterialsBriefBlock } from "./investor-material-corpus";
 import { checkLlmStatus, completeJson, type LlmStatus } from "./llm-client";
 import { loadPrompt } from "./prompts";
@@ -83,7 +88,7 @@ Return ONLY valid JSON (no markdown):
   "sector": "listing sector from dossier or best fit",
   "sub_sector": "sub-sector or industry",
   "theme": "one short investment theme (2-5 words)",
-  "headline": "≤12 words — core business in plain English",
+  "headline": "≤12 words — core business / products only. Do not mention quarterly sales, Growing, Inconsistent, or Declining",
   "capabilities": "ONE sentence — the single most differentiating technical asset for THIS company",
   "growth_triggers": "2-4 short catalyst clauses separated by · — from dossier and investor materials",
   "capex": "One line from investor materials or unclear from sources",
@@ -98,7 +103,7 @@ Return ONLY valid JSON (no markdown):
   "qtr_reason": "One short sentence on 5-quarter pattern, or empty when no quarters",
   "watch": "one risk or thing to verify"
 }
-Use only facts from dossier, peer context, quarterly data, and investor materials. Read Investor materials before capex and growth_triggers. Never invent qtr_signal when quarterly data is missing. Return valid JSON only — no markdown fences.`;
+Use only facts from dossier, peer context, quarterly data, and investor materials. Prefer listing Company profile over a website summary that describes a different business. Read Investor materials before capex and growth_triggers. Never invent qtr_signal when quarterly data is missing. Return valid JSON only — no markdown fences.`;
 
 function briefSystemPrompt(): string {
   return loadPrompt("business-brief", BRIEF_FALLBACK);
@@ -109,7 +114,7 @@ const cache = new Map<string, CacheEntry>();
 const CACHE_MS = 60 * 60 * 1000;
 
 function corpusHash(text: string): string {
-  return `v19:${text.length}:${text.slice(0, 120)}`;
+  return `v21:${text.length}:${text.slice(0, 120)}`;
 }
 
 const BRIEF_USER_CHAR_LIMIT = 30_000;
@@ -276,6 +281,67 @@ function normalizeProducts(raw: unknown): string[] {
   return out.slice(0, 8);
 }
 
+function groundBriefToListing(
+  brief: CompanyBrief,
+  row: {
+    about?: string | null;
+    business_model?: string | null;
+    products?: string | null;
+  },
+): CompanyBrief {
+  const profile = (row.about || "").trim();
+  const headline = preferSpecificHeadline({
+    headline: brief.headline,
+    listing: profile,
+    businessModel: row.business_model,
+    products: row.products,
+  });
+
+  if (profile.length < 80) {
+    return { ...brief, headline };
+  }
+
+  const offerings = brief.offerings.filter((o) =>
+    phraseGroundedInListing(profile, `${o.name} ${o.line}`),
+  );
+  const themes = brief.themes.filter((t) => phraseGroundedInListing(profile, t));
+  const blob = [
+    headline,
+    brief.capabilities,
+    brief.model,
+    offerings.map((o) => o.name).join(" "),
+  ].join(" ");
+
+  if (!extractConflictsWithListing(profile, blob)) {
+    return {
+      ...brief,
+      headline,
+      offerings,
+      products: offerings.map((o) => o.name),
+      themes,
+    };
+  }
+
+  const line = profile.replace(/\s+/g, " ").trim();
+  return {
+    ...brief,
+    headline:
+      headline ||
+      preferSpecificHeadline({
+        headline: line.slice(0, 120),
+        listing: profile,
+        businessModel: row.business_model,
+        products: row.products,
+      }),
+    capabilities: line.slice(0, 420),
+    model: "",
+    niche: line.slice(0, 400),
+    offerings,
+    products: offerings.map((o) => o.name),
+    themes,
+  };
+}
+
 function normalizeBrief(
   raw: Record<string, unknown>,
   row: {
@@ -324,11 +390,18 @@ function fallbackBriefFromRow(
   matchedThemes: MatchedThemeTag[],
   qtrTrend: { signal: QtrSignal; reason: string } | null,
 ): CompanyBrief | null {
+  const listing = (row.about || "").trim();
   const model = (row.business_model || "").trim();
   const products = normalizeProducts(row.products);
   const customers = (row.end_markets || "").trim();
   const clean = (row.scraped_about_clean || "").trim();
-  if (!model && !products.length && !customers && clean.length < 40) {
+  if (
+    !model &&
+    !products.length &&
+    !customers &&
+    clean.length < 40 &&
+    listing.length < 40
+  ) {
     return null;
   }
 
@@ -341,6 +414,7 @@ function fallbackBriefFromRow(
   const headline =
     model.slice(0, 120) ||
     niche.slice(0, 120) ||
+    listing.slice(0, 120) ||
     `${row.name} business summary`;
 
   return {
@@ -449,13 +523,19 @@ export async function generateCompanyBrief(
   const hash = corpusHash(corpus);
   const hit = cache.get(cacheKey);
   if (hit && hit.corpusHash === hash && Date.now() - hit.at < CACHE_MS) {
-    return { llm, context, brief: hit.brief, cached: true };
+    const grounded = groundBriefToListing(hit.brief, row);
+    return { llm, context, brief: grounded, cached: true };
   }
 
   if (!llm.available) {
     const fallback = fallbackBriefFromRow(row, matchedThemes, qtrTrend);
     if (fallback) {
-      return { llm, context, brief: fallback, cached: false };
+      return {
+        llm,
+        context,
+        brief: groundBriefToListing(fallback, row),
+        cached: false,
+      };
     }
     return {
       llm,
@@ -468,7 +548,10 @@ export async function generateCompanyBrief(
 
   try {
     const parsed = await completeBriefJson(cfg, corpus);
-    const brief = normalizeBrief(parsed, row, matchedThemes);
+    const brief = groundBriefToListing(
+      normalizeBrief(parsed, row, matchedThemes),
+      row,
+    );
     // QTR badge must come from the real panel — never keep LLM guesses.
     if (qtrTrend) {
       brief.qtr_signal = qtrTrend.signal;
@@ -483,7 +566,12 @@ export async function generateCompanyBrief(
     const message = err instanceof Error ? err.message : "LLM request failed";
     const fallback = fallbackBriefFromRow(row, matchedThemes, qtrTrend);
     if (fallback) {
-      return { llm, context, brief: fallback, cached: false };
+      return {
+        llm,
+        context,
+        brief: groundBriefToListing(fallback, row),
+        cached: false,
+      };
     }
     return { llm, context, brief: null, cached: false, error: message };
   }

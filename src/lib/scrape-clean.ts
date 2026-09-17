@@ -1,6 +1,7 @@
 import { loadLlmConfig } from "./llm-config";
 import { invalidateCompanyCache, looksLikeNavJunk } from "./db";
 import { completeJson } from "./llm-client";
+import { extractConflictsWithListing, listingAboutCorpus } from "./listing-extract-trust";
 import { withScrapeWriteLock } from "./scrape-pool";
 import { ensureScrapeCleanSchema } from "./scrape-clean-schema";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -15,6 +16,7 @@ Return ONLY valid JSON:
 Rules:
 - Use ONLY facts from Raw website scrape and company context. Do not invent.
 - Drop navigation menus, careers, CSR, investor relations boilerplate, cookie banners.
+- If the listing Yahoo/Screener about describes a clearly different business from the raw scrape, set confidence to reject (do not blend).
 - If source is mostly junk or too thin to describe the business, set confidence to reject and summary to "".
 - Do not copy Screener/Yahoo about verbatim if provided — only add website facts not already stated there.
 - Prefer concrete nouns over marketing adjectives.`;
@@ -110,6 +112,22 @@ export async function distillScrapedAbout(input: {
         .slice(0, 12)
     : [];
   const gate = passesScrapeCleanGate(summary, confidence);
+  const listing = listingAboutCorpus({
+    about: input.manual_about ?? null,
+    yf_about: input.yf_about ?? null,
+  });
+  if (
+    gate.passed &&
+    extractConflictsWithListing(listing, summary)
+  ) {
+    return {
+      summary: null,
+      confidence: "reject",
+      terms,
+      passed: false,
+      reason: "conflicts_listing_about",
+    };
+  }
 
   return {
     summary: gate.passed ? summary : null,

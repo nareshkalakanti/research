@@ -11,6 +11,7 @@ import {
   matchCorporateEventKeywords,
 } from "./corporate-event-keywords";
 import { completeJson, checkLlmStatus } from "./llm-client";
+import { extractConflictsWithListing } from "./listing-extract-trust";
 import { loadLlmConfig } from "./llm-config";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -61,7 +62,13 @@ export function pickCleanAbout(c: {
   about?: string | null;
 }): { text: string; source: AboutCategoryRow["about_source"] } {
   const clean = (c.scraped_about_clean || "").trim();
-  if (clean.length >= 80) return { text: clean, source: "clean" };
+  const listing = (c.about || "").trim();
+  if (
+    clean.length >= 80 &&
+    !(listing.length >= 80 && extractConflictsWithListing(listing, clean))
+  ) {
+    return { text: clean, source: "clean" };
+  }
   const llm = (c.llm_about || "").trim();
   if (llm.length >= 80) return { text: llm, source: "llm" };
   const about = (c.about || "").trim();
