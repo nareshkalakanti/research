@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       Math.max(1, Number(sp.get("limit") || 40) || 40),
     );
     const q = sp.get("q")?.trim() || null;
-    const feeds = await loadExchangeFeedStatus();
+    const feeds = await loadExchangeFeedStatus({ cachedOnly: true });
     return NextResponse.json({
       ok: true,
       db: MARKETIQ_DB_FILE,

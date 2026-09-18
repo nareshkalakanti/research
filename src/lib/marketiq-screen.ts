@@ -50,7 +50,6 @@ export type MarketIqHit = {
   provider: string;
   index?: string;
   mcap_cr?: number | null;
-  pe_ttm?: number | null;
 };
 
 export type MarketIqSentiment = "Bullish" | "Bearish" | "Neutral";
@@ -120,7 +119,6 @@ export type MarketIqHistoryRow = {
   engine: string | null;
   funds_mentioned?: MarketIqFundChip[];
   mcap_cr?: number | null;
-  pe_ttm?: number | null;
 };
 
 type ScoringFile = {

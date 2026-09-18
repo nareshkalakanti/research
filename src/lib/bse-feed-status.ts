@@ -101,9 +101,20 @@ async function probeBseLive(): Promise<{ ok: boolean; detail: string }> {
 /** Probe BSE API reachability (cached ~60s). */
 export async function checkBseFeedStatus(opts?: {
   force?: boolean;
+  cachedOnly?: boolean;
 }): Promise<BseFeedStatus> {
   if (!opts?.force && cache && Date.now() - cache.at < CACHE_MS) {
     return cache.status;
+  }
+  if (opts?.cachedOnly) {
+    return (
+      cache?.status ?? {
+        live: false,
+        checked_at: new Date().toISOString(),
+        detail: "BSE feed not probed yet",
+        last_scan_at: null,
+      }
+    );
   }
 
   const probe = await probeBseLive();

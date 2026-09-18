@@ -93,9 +93,20 @@ async function probeNseAnnouncements(): Promise<{ ok: boolean; detail: string }>
 /** Probe NSE corporate-announcements reachability (cached ~60s). */
 export async function checkNseFeedStatus(opts?: {
   force?: boolean;
+  cachedOnly?: boolean;
 }): Promise<NseFeedStatus> {
   if (!opts?.force && cache && Date.now() - cache.at < CACHE_MS) {
     return cache.status;
+  }
+  if (opts?.cachedOnly) {
+    return (
+      cache?.status ?? {
+        live: false,
+        checked_at: new Date().toISOString(),
+        detail: "NSE feed not probed yet",
+        last_scan_at: lastConcallDriftScanAt(),
+      }
+    );
   }
 
   const probe = await probeNseAnnouncements();
