@@ -17369,59 +17369,10 @@ tr.sm-row-sme-hit td {
   max-width: 15rem;
 }
 
-.miq-td-mcap,
-.miq-td-pe {
+.miq-td-mcap {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-}
-
-.pe-ttm {
-  display: inline-block;
-  min-width: 3.2rem;
-  padding: 3px 8px;
-  border-radius: 999px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.pe-ttm-low {
-  color: #166534;
-  background: #dcfce7;
-}
-
-.pe-ttm-mod {
-  color: #1e40af;
-  background: #dbeafe;
-}
-
-.pe-ttm-high {
-  color: #9a3412;
-  background: #ffedd5;
-}
-
-.pe-ttm-vhigh {
-  color: #991b1b;
-  background: #fee2e2;
-}
-
-.pe-ttm-na {
-  color: var(--muted);
-  background: var(--badge);
-}
-
-.pe-ttm-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0 0 8px;
-  font-size: 0.75rem;
-  font-weight: 650;
-}
-
-.pe-ttm-legend .pe-ttm {
-  min-width: 0;
-  text-align: center;
 }
 
 .miq-co-name {
