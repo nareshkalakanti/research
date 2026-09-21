@@ -11,12 +11,20 @@ import {
   preferSpecificHeadline,
 } from "./listing-extract-trust";
 import { formatInvestorMaterialsBriefBlock } from "./investor-material-corpus";
+import {
+  applyResearchFillToBrief,
+  collectResearchBriefFill,
+  ensureInvestorMaterialsForBrief,
+  formatResearchFillBlock,
+} from "./research-brief-fill";
 import { checkLlmStatus, completeJson, type LlmStatus } from "./llm-client";
 import { loadPrompt } from "./prompts";
 import { loadQuarterDossier } from "./quarter-dossier";
 import { classifyQuarterTrend, type QtrTrendSignal } from "./quarter-trend";
 import { capTier, formatMcap, type CapTier } from "./types";
 import type { QuarterPanel } from "./quarter-panel";
+import { listMaterialIcons } from "./investor-materials";
+import type { MaterialIconItem } from "./investor-material-types";
 
 export type MatchedThemeTag = {
   id: string;
@@ -43,6 +51,8 @@ export type CompanyBriefContext = {
   cap_band: CapTier;
   cap_name: string;
   peers: PeerUniqueness;
+  fill_note: string | null;
+  materials: MaterialIconItem[];
 };
 
 export type QtrSignal = QtrTrendSignal;
@@ -114,7 +124,7 @@ const cache = new Map<string, CacheEntry>();
 const CACHE_MS = 60 * 60 * 1000;
 
 function corpusHash(text: string): string {
-  return `v21:${text.length}:${text.slice(0, 120)}`;
+  return `v22:${text.length}:${text.slice(0, 120)}`;
 }
 
 const BRIEF_USER_CHAR_LIMIT = 30_000;
@@ -179,6 +189,8 @@ function buildContext(
     cap_band: band,
     cap_name: CAP_NAMES[band],
     peers,
+    fill_note: null,
+    materials: [],
   };
 }
 
@@ -342,6 +354,34 @@ function groundBriefToListing(
   };
 }
 
+function sanitizeGrowthTriggers(raw: string): string {
+  return raw
+    .split(/\s*·\s*|\n+/)
+    .map((p) => p.trim())
+    .filter(
+      (p) =>
+        p &&
+        !/^(order book expansion|new product launches?|increase in export mix|capacity utilization improvement|plant commissioning)$/i.test(
+          p,
+        ),
+    )
+    .join(" · ")
+    .slice(0, 420);
+}
+
+function sanitizeCapexLine(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "";
+  if (
+    /₹X\s*cr|\bX cr\b|details to be provided|unclear from sources|not disclosed|unavailable/i.test(
+      t,
+    )
+  ) {
+    return "";
+  }
+  return t.slice(0, 280);
+}
+
 function normalizeBrief(
   raw: Record<string, unknown>,
   row: {
@@ -369,8 +409,8 @@ function normalizeBrief(
     themes: themeTags,
     headline: String(raw.headline || "").trim().slice(0, 120),
     capabilities: String(raw.capabilities || "").slice(0, 420),
-    growth_triggers: String(raw.growth_triggers || "").slice(0, 420),
-    capex: String(raw.capex || "").slice(0, 280),
+    growth_triggers: sanitizeGrowthTriggers(String(raw.growth_triggers || "")),
+    capex: sanitizeCapexLine(String(raw.capex || "")),
     niche: String(raw.niche || "").slice(0, 400),
     model: String(raw.model || "").slice(0, 120),
     angle: String(raw.angle || "").slice(0, 280),
@@ -448,6 +488,7 @@ export async function generateCompanyBrief(
   price?: number | null,
   quarterBlock?: string | null,
   quarterPanel?: QuarterPanel | null,
+  opts?: { ensureMaterials?: boolean },
 ): Promise<{
   llm: LlmStatus;
   context: CompanyBriefContext | null;
@@ -472,12 +513,20 @@ export async function generateCompanyBrief(
     };
   }
 
+  if (opts?.ensureMaterials) {
+    await ensureInvestorMaterialsForBrief(row.ticker).catch(() => null);
+  }
+
   const matchedThemes: MatchedThemeTag[] = [];
   const context = buildContext(
     row,
     computePeerUniqueness(row, loadAllCompanies()),
     matchedThemes,
   );
+  const fill = collectResearchBriefFill(row.ticker);
+  context.fill_note = fill.note;
+  context.materials = listMaterialIcons(row.ticker);
+  const fillBlock = formatResearchFillBlock(fill);
   const investorBlock = formatInvestorMaterialsBriefBlock(row.ticker);
   const qtrTrend = quarterPanel ? classifyQuarterTrend(quarterPanel) : null;
   const themeBlock = matchedThemes.length
@@ -505,6 +554,7 @@ export async function generateCompanyBrief(
         ].join("\n")
       : null,
     investorBlock ? ["", investorBlock].join("\n") : null,
+    fillBlock ? ["", fillBlock].join("\n") : null,
     themeBlock,
   ]
     .filter(Boolean)
@@ -523,7 +573,10 @@ export async function generateCompanyBrief(
   const hash = corpusHash(corpus);
   const hit = cache.get(cacheKey);
   if (hit && hit.corpusHash === hash && Date.now() - hit.at < CACHE_MS) {
-    const grounded = groundBriefToListing(hit.brief, row);
+    const grounded = applyResearchFillToBrief(
+      groundBriefToListing(hit.brief, row),
+      fill,
+    );
     return { llm, context, brief: grounded, cached: true };
   }
 
@@ -533,7 +586,10 @@ export async function generateCompanyBrief(
       return {
         llm,
         context,
-        brief: groundBriefToListing(fallback, row),
+        brief: applyResearchFillToBrief(
+          groundBriefToListing(fallback, row),
+          fill,
+        ),
         cached: false,
       };
     }
@@ -548,9 +604,12 @@ export async function generateCompanyBrief(
 
   try {
     const parsed = await completeBriefJson(cfg, corpus);
-    const brief = groundBriefToListing(
-      normalizeBrief(parsed, row, matchedThemes),
-      row,
+    const brief = applyResearchFillToBrief(
+      groundBriefToListing(
+        normalizeBrief(parsed, row, matchedThemes),
+        row,
+      ),
+      fill,
     );
     // QTR badge must come from the real panel — never keep LLM guesses.
     if (qtrTrend) {
@@ -569,7 +628,10 @@ export async function generateCompanyBrief(
       return {
         llm,
         context,
-        brief: groundBriefToListing(fallback, row),
+        brief: applyResearchFillToBrief(
+          groundBriefToListing(fallback, row),
+          fill,
+        ),
         cached: false,
       };
     }

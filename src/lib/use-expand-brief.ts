@@ -25,6 +25,7 @@ export function useExpandBrief(
   quarters: ExpandQuarterData,
   enabled: boolean,
   materialsRev = 0,
+  ensureMaterials = false,
 ): ExpandBriefData {
   const [brief, setBrief] = useState<CompanyBrief | null>(null);
   const [context, setContext] = useState<CompanyBriefContext | null>(null);
@@ -32,7 +33,7 @@ export function useExpandBrief(
   const [error, setError] = useState<string | null>(null);
   const [setupHint, setSetupHint] = useState<string | null>(null);
   const genRef = useRef(0);
-  const paramsRef = useRef({ ticker, market, price, materialsRev });
+  const paramsRef = useRef({ ticker, market, price, materialsRev, ensureMaterials });
 
   const quarterBlock = useMemo(() => {
     if (!quarters.panel) return null;
@@ -56,8 +57,9 @@ export function useExpandBrief(
       prev.ticker !== ticker ||
       prev.market !== market ||
       prev.price !== price ||
-      prev.materialsRev !== materialsRev;
-    paramsRef.current = { ticker, market, price, materialsRev };
+      prev.materialsRev !== materialsRev ||
+      prev.ensureMaterials !== ensureMaterials;
+    paramsRef.current = { ticker, market, price, materialsRev, ensureMaterials };
     if (!changed) return;
     genRef.current += 1;
     if (!ticker) {
@@ -67,7 +69,7 @@ export function useExpandBrief(
       setError(null);
       setSetupHint(null);
     }
-  }, [ticker, market, price, materialsRev]);
+  }, [ticker, market, price, materialsRev, ensureMaterials]);
 
   useEffect(() => {
     if (!enabled || !ticker) return;
@@ -90,6 +92,7 @@ export function useExpandBrief(
           price != null && Number.isFinite(price) && price > 0 ? price : null,
         quarterBlock,
         quarterPanel: quarters.panel,
+        ensureMaterials,
       }),
       signal: AbortSignal.timeout(300_000),
     })
@@ -132,6 +135,7 @@ export function useExpandBrief(
     quarters.loading,
     quarters.panel,
     materialsRev,
+    ensureMaterials,
   ]);
 
   return {

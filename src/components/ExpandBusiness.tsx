@@ -5,7 +5,24 @@ import type { ExpandBriefData } from "@/lib/use-expand-brief";
 
 type Props = {
   data: ExpandBriefData;
+  /** Snapshot: headline, sector, products — skip labeled rows that duplicate the strip. */
+  compact?: boolean;
 };
+
+function unlabeledAbout(raw: string | null | undefined): string {
+  const chunks = (raw ?? "")
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !/^([A-Za-z][A-Za-z0-9 /&'_-]{1,48}):\s+/.test(l));
+  const t = chunks.join(" ").replace(/\s+/g, " ").trim();
+  if (t.length < 40) return "";
+  return t.length > 720 ? `${t.slice(0, 717).trim()}…` : t;
+}
+
+function sameText(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
 
 function isDisclosed(text: string): boolean {
   const t = text.trim();
@@ -30,6 +47,13 @@ function buildGrowthTriggers(brief: CompanyBrief): string[] {
   for (const part of splitTriggers(brief.growth_triggers || "")) {
     const t = part.trim();
     if (!isDisclosed(t)) continue;
+    if (
+      /^(order book expansion|new product launches?|increase in export mix|capacity utilization improvement|plant commissioning)$/i.test(
+        t,
+      )
+    ) {
+      continue;
+    }
     const key = t.toLowerCase().slice(0, 48);
     if (seen.has(key)) continue;
     seen.add(key);
@@ -43,13 +67,23 @@ function buildWatchLine(brief: CompanyBrief): string | null {
   if (brief.qtr_signal === "Declining" && brief.qtr_reason) {
     parts.push(brief.qtr_reason.split(";")[0]?.trim() || brief.qtr_reason);
   }
-  if (isDisclosed(brief.watch || "")) parts.push(brief.watch.trim());
+  if (
+    isDisclosed(brief.watch || "") &&
+    !/risks related to global market/i.test(brief.watch)
+  ) {
+    parts.push(brief.watch.trim());
+  }
   return parts.length ? [...new Set(parts)].slice(0, 2).join(" · ") : null;
 }
 
 function disclosedCapex(brief: CompanyBrief): string | null {
   const c = brief.capex?.trim();
-  if (!c || /unclear from sources|not disclosed|unavailable/i.test(c)) {
+  if (
+    !c ||
+    /unclear from sources|not disclosed|unavailable|₹X\s*cr|\bX cr\b|details to be provided/i.test(
+      c,
+    )
+  ) {
     return null;
   }
   return c;
@@ -157,7 +191,7 @@ function Row({
   );
 }
 
-export function ExpandBusiness({ data }: Props) {
+export function ExpandBusiness({ data, compact = false }: Props) {
   const { brief, context, loading, error, setupHint, waitingForQuarters } = data;
 
   const cleanRaw = context?.scraped_about_clean ?? null;
@@ -241,9 +275,14 @@ export function ExpandBusiness({ data }: Props) {
     : businessModel || differentiator.slice(0, 120) || "";
 
   const model =
-    businessModel ||
-    (brief ? capabilityLine(brief) : "") ||
-    differentiator ||
+    (brief?.model && isDisclosed(brief.model) ? brief.model.trim() : "") ||
+    (businessModel && !sameText(businessModel, headline) ? businessModel : "") ||
+    (brief &&
+    isDisclosed(brief.capabilities) &&
+    !sameText(brief.capabilities, headline)
+      ? brief.capabilities.trim()
+      : "") ||
+    (differentiator && !sameText(differentiator, headline) ? differentiator : "") ||
     "";
 
   const triggers = brief ? buildGrowthTriggers(brief) : [];
@@ -292,6 +331,19 @@ export function ExpandBusiness({ data }: Props) {
     .filter((v, i, a) => a.findIndex((x) => x.toLowerCase() === v.toLowerCase()) === i)
     .join(" · ");
 
+  const compactTriggers = [
+    ...triggers,
+    ...(capex ? [capex] : []),
+  ].filter((t, i, a) => a.findIndex((x) => sameText(x, t)) === i);
+
+  const aboutPara = unlabeledAbout(cleanRaw);
+  const fallbackAbout =
+    aboutPara &&
+    !sameText(aboutPara, headline) &&
+    !sameText(aboutPara, model)
+      ? aboutPara
+      : "";
+
   return (
     <div className="biz-panel biz-compact">
       {loading && !brief ? (
@@ -301,24 +353,55 @@ export function ExpandBusiness({ data }: Props) {
       {headline ? <p className="biz-lead">{headline}</p> : null}
       {meta.length ? <p className="biz-meta">{meta.join(" · ")}</p> : null}
 
-      {model ? <Row label="Model">{model}</Row> : null}
+      {compact && model ? <p className="biz-copy">{model}</p> : null}
+
+      {!compact && model ? <Row label="Model">{model}</Row> : null}
 
       {productItems.length ? (
-        <Row label="Sells">
-          <ul className="biz-inline-list">
+        compact ? (
+          <ul className="wl-sells">
             {productItems.map((o) => (
               <li key={o.name}>
                 <strong>{o.name}</strong>
-                {o.line ? ` — ${o.line}` : null}
+                {o.line ? <span>{o.line}</span> : null}
               </li>
             ))}
           </ul>
-        </Row>
+        ) : (
+          <Row label="Sells">
+            <ul className="biz-inline-list">
+              {productItems.map((o) => (
+                <li key={o.name}>
+                  <strong>{o.name}</strong>
+                  {o.line ? ` — ${o.line}` : null}
+                </li>
+              ))}
+            </ul>
+          </Row>
+        )
       ) : null}
 
-      {marketsLine ? <Row label="Markets">{marketsLine}</Row> : null}
+      {compact && marketsLine ? (
+        <p className="biz-copy">{marketsLine}</p>
+      ) : null}
 
-      {schemes.length ? (
+      {!compact && marketsLine ? <Row label="Markets">{marketsLine}</Row> : null}
+
+      {compact && compactTriggers.length ? (
+        <div className="wl-triggers">
+          {compactTriggers.map((t) => (
+            <span key={t}>{t}</span>
+          ))}
+        </div>
+      ) : null}
+
+      {compact && watch ? <p className="biz-copy biz-watch">{watch}</p> : null}
+
+      {compact && fallbackAbout ? (
+        <p className="biz-copy biz-about">{fallbackAbout}</p>
+      ) : null}
+
+      {!compact && schemes.length ? (
         <Row label="Schemes">
           <ul className="biz-theme-chips biz-theme-chips--scheme">
             {schemes.map((s) => (
@@ -328,17 +411,17 @@ export function ExpandBusiness({ data }: Props) {
         </Row>
       ) : null}
 
-      {triggers.length ? (
+      {!compact && triggers.length ? (
         <Row label="Triggers">{triggers.join(", ")}</Row>
       ) : null}
 
-      {capex ? <Row label="Capex">{capex}</Row> : null}
+      {!compact && capex ? <Row label="Capex">{capex}</Row> : null}
 
-      {groupName ? <Row label="Group">{groupName}</Row> : null}
+      {!compact && groupName ? <Row label="Group">{groupName}</Row> : null}
 
-      {recentMoves ? <Row label="Events">{recentMoves}</Row> : null}
+      {!compact && recentMoves ? <Row label="Events">{recentMoves}</Row> : null}
 
-      {brief?.qtr_signal ? (
+      {!compact && brief?.qtr_signal ? (
         <Row label="Qtr">
           <span
             className={`biz-qtr-verdict biz-qtr-verdict--${verdictClass(brief.qtr_signal)}`}
@@ -351,7 +434,7 @@ export function ExpandBusiness({ data }: Props) {
         </Row>
       ) : null}
 
-      {watch ? <Row label="Watch">{watch}</Row> : null}
+      {!compact && watch ? <Row label="Watch">{watch}</Row> : null}
 
       {error && !brief ? (
         <p className="biz-note-meta">Brief unavailable: {error}</p>

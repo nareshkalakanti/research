@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
     price?: number | null;
     quarterBlock?: string | null;
     quarterPanel?: import("@/lib/quarter-panel").QuarterPanel | null;
+    ensureMaterials?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -84,6 +85,7 @@ export async function POST(req: NextRequest) {
     price,
     quarterBlock,
     body.quarterPanel ?? null,
+    { ensureMaterials: body.ensureMaterials === true },
   );
 
   if (result.error && !result.brief) {

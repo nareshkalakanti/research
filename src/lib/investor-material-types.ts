@@ -1,5 +1,16 @@
 export type InvestorMaterialKind = "concall" | "ppt" | "transcript" | "other";
 
+export type MaterialIconItem = {
+  id: number;
+  kind: InvestorMaterialKind;
+  title: string;
+  period: string | null;
+  source_url: string | null;
+  has_text: boolean;
+  pending: boolean;
+  distilled: boolean;
+};
+
 export type MaterialSourceProvider =
   | "screener_concalls"
   | "screener_announcements"

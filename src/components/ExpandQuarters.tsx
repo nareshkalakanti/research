@@ -6,6 +6,7 @@ import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 type Props = {
   data: ExpandQuarterData;
   price?: number | null;
+  compact?: boolean;
 };
 
 function sourceLabel(source: string | null): string | null {
@@ -18,7 +19,7 @@ function sourceLabel(source: string | null): string | null {
   return `Source: ${source}`;
 }
 
-export function ExpandQuarters({ data, price }: Props) {
+export function ExpandQuarters({ data, price, compact = false }: Props) {
   const { panel, yoy, source, loading, error } = data;
 
   if (loading) {
@@ -31,7 +32,7 @@ export function ExpandQuarters({ data, price }: Props) {
     return <p className="q-empty">No quarterly data available.</p>;
   }
 
-  const sourceNote = sourceLabel(source);
+  const sourceNote = compact ? null : sourceLabel(source);
 
   return (
     <div className="about-quarters">
@@ -40,6 +41,7 @@ export function ExpandQuarters({ data, price }: Props) {
         yoy={yoy}
         price={price}
         sourceNote={sourceNote}
+        compact={compact}
       />
     </div>
   );

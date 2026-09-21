@@ -625,29 +625,63 @@ export function applyExecutiveSnapshotToFinancials(
 
   const fin = asObj(extract.reported_financials) || {};
 
+  const asFiniteNum = (v: unknown): number | null => {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string") {
+      const n = Number(String(v).replace(/[, ]/g, "").replace(/[^\d.-]/g, ""));
+      return Number.isFinite(n) ? n : null;
+    }
+    return null;
+  };
+
+  const sectionObj = (key: string): Record<string, unknown> | null => {
+    const v = snap[key];
+    if (typeof v === "number" && Number.isFinite(v)) {
+      return { current_qtr_inr_cr: v };
+    }
+    return asObj(v);
+  };
+
   const pickCr = (row: Record<string, unknown> | null): number | null => {
     if (!row) return null;
-    const preferred: number[] = [];
-    const fallback: number[] = [];
-    for (const [k, v] of Object.entries(row)) {
-      if (typeof v !== "number" || !Number.isFinite(v)) continue;
-      if (!/₹cr|inr_?cr|_cr$|crore/i.test(k)) continue;
-      if (
-        /guidance|target|prior|remaining|largest|inflow|pending|gross_profit|operating_ebitda|\bpbt\b|\bpat\b/i.test(
-          k,
-        )
-      ) {
-        continue;
+    const scored: Array<{ n: number; score: number }> = [];
+    const walk = (obj: Record<string, unknown>, path: string) => {
+      for (const [k, v] of Object.entries(obj)) {
+        const key = `${path} ${k}`.trim();
+        const nested = asObj(v);
+        if (nested) {
+          walk(nested, key);
+          continue;
+        }
+        const n = asFiniteNum(v);
+        if (n == null || n <= 0) continue;
+        if (/yoy|growth|pct|margin|bps|cagr/i.test(key)) continue;
+        if (
+          /guidance|target|prior|remaining|largest|inflow|pending|gross_profit|operating_ebitda|\bpbt\b|\bpat\b/i.test(
+            key,
+          ) &&
+          !/revenue/i.test(key)
+        ) {
+          continue;
+        }
+        const labeledMoney = /₹cr|inr_?cr|_cr\b|crore|rupee/i.test(key);
+        const periodKey =
+          /q[1-4][\s_-]*fy[\s_-]*\d{2}/i.test(key) ||
+          /current_qtr|^current$|value|amount|revenue|sales|turnover/i.test(key);
+        if (!labeledMoney && !periodKey) continue;
+        let score = labeledMoney ? 20 : 10;
+        const fy = key.match(/fy\s*'?(\d{2})/i);
+        const q = key.match(/q\s*([1-4])/i);
+        if (fy) score += Number(fy[1]) * 10;
+        if (q) score += Number(q[1]);
+        if (/current/i.test(key)) score += 50;
+        scored.push({ n, score });
       }
-      if (/yoy|growth|pct|margin|bps/i.test(k)) continue;
-      // Prior-year comps → fallback (current quarter keys stay preferred)
-      if (/_fy2[0-5]\b|_fy26\b|q[1-4]_fy26/i.test(k)) {
-        fallback.push(v);
-        continue;
-      }
-      preferred.push(v);
-    }
-    return preferred[0] ?? fallback[0] ?? null;
+    };
+    walk(row, "");
+    if (!scored.length) return null;
+    scored.sort((a, b) => b.score - a.score);
+    return scored[0]!.n;
   };
 
   const pickYoy = (row: Record<string, unknown> | null): number | null => {
@@ -675,7 +709,7 @@ export function applyExecutiveSnapshotToFinancials(
   const ensureMetric = (key: string, section: string) => {
     const existing = asObj(fin[key]);
     if (existing && typeof existing.current_qtr === "number") return;
-    const row = asObj(snap[section]);
+    const row = sectionObj(section);
     const cur = pickCr(row);
     if (cur == null) return;
     fin[key] = {
@@ -702,5 +736,33 @@ export function applyExecutiveSnapshotToFinancials(
   }
 
   extract.reported_financials = fin;
+}
+
+/** Copy company / period from quant exec metadata when the extract left them empty. */
+export function applyExecutiveMetaToExtract(
+  extract: Record<string, unknown>,
+  exec: Record<string, unknown> | null | undefined,
+): void {
+  const em = asObj(exec?.metadata);
+  if (!em) return;
+  const meta = asObj(extract.metadata) || {};
+  const company = typeof em.company === "string" ? em.company.trim() : "";
+  if (company.length >= 3 && !meta.company_name) {
+    meta.company_name = company;
+  }
+  const period =
+    typeof em.reporting_period === "string" ? em.reporting_period : "";
+  const q = period.match(/\bQ([1-4])\b/i);
+  const fy = period.match(/\bFY\s*'?(\d{2,4})\b/i);
+  if (q && !meta.quarter) meta.quarter = `Q${q[1]}`;
+  if (fy && !meta.fiscal_year) {
+    const y = fy[1].length === 2 ? `FY${fy[1]}` : `FY${fy[1].slice(-2)}`;
+    meta.fiscal_year = y;
+  }
+  const ev = typeof em.event_date === "string" ? em.event_date.trim() : "";
+  if (ev && !meta.call_date) {
+    if (/^\d{4}-\d{2}-\d{2}/.test(ev)) meta.call_date = ev.slice(0, 10);
+  }
+  extract.metadata = meta;
 }
 

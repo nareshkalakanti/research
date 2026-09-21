@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { WatchButton } from "@/components/WatchButton";
+import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
+import { ExpandBusiness } from "@/components/ExpandBusiness";
+import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { InvestorMaterialIcons } from "@/components/InvestorMaterialIcons";
 import { listWatchedTickers } from "@/lib/user-watchlist";
+import { useExpandBrief } from "@/lib/use-expand-brief";
+import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import {
   VALUATION_ROWS,
   buildValuationColumns,
@@ -143,6 +149,22 @@ export function ValuationPanel() {
   }, [data, columns, estimates]);
 
   const cagr = useMemo(() => revenueCagr(grid), [grid]);
+
+  const quarterData = useExpandQuarters(
+    ticker || "",
+    data?.market,
+    data?.price,
+    !!ticker,
+  );
+  const briefData = useExpandBrief(
+    ticker || "",
+    data?.market,
+    data?.price,
+    quarterData,
+    !!ticker,
+    0,
+    true,
+  );
 
   const persist = useCallback(
     (next: Record<string, ValuationEstimateInput>) => {
@@ -315,6 +337,32 @@ export function ValuationPanel() {
         {loading && !data ? (
           <p className="viq-loading">Loading annual P&amp;L…</p>
         ) : null}
+
+        <div className="viq-snapshot">
+          <ExpandMetricsStrip
+            panel={quarterData.panel}
+            forwardPe={quarterData.forward_pe}
+            yoy={quarterData.yoy}
+            extras={quarterData.extras}
+            loading={quarterData.loading}
+            empty={
+              !quarterData.loading &&
+              !quarterData.error &&
+              !quarterData.panel &&
+              quarterData.forward_pe == null &&
+              quarterData.yoy?.eps_yoy == null
+            }
+          />
+          <InvestorMaterialIcons
+            items={briefData.context?.materials}
+            loading={briefData.loading}
+            note={briefData.context?.fill_note}
+          />
+          <div className="viq-snapshot-body">
+            <ExpandBusiness data={briefData} compact />
+            <ExpandQuarters data={quarterData} price={data?.price} compact />
+          </div>
+        </div>
 
         <div className="viq-model-head">
           <div>
