@@ -21225,6 +21225,174 @@ button.otrd-co-link {
   color: #9b1c1c;
 }
 
+.viq-mat-row {
+  margin: 10px 0 4px;
+}
+
+.viq-mat-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.viq-snapshot {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 16px 18px 18px;
+  margin: 4px 0 16px;
+}
+
+.viq-snapshot-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.05fr);
+  gap: 18px 24px;
+  align-items: start;
+  margin-top: 14px;
+}
+
+.viq-snapshot .expand-metrics {
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.viq-snapshot .expand-metrics-group {
+  padding: 10px 14px;
+  gap: 10px 14px;
+}
+
+.viq-snapshot .expand-metrics-story {
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.viq-snapshot .expand-metrics-signal {
+  font-size: 0.78rem;
+  padding: 3px 9px;
+}
+
+.viq-snapshot .expand-metrics-item {
+  font-size: 0.95rem;
+}
+
+.viq-snapshot .expand-metrics-label {
+  font-size: 0.72rem;
+}
+
+.viq-snapshot .biz-panel {
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.viq-snapshot .biz-lead {
+  font-size: 1.28rem;
+  font-weight: 650;
+  margin: 0 0 8px;
+  line-height: 1.4;
+}
+
+.viq-snapshot .biz-meta {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.viq-snapshot .biz-copy {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--fg);
+}
+
+.viq-snapshot .biz-watch {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.viq-snapshot .wl-sells {
+  margin: 0 0 12px;
+  gap: 10px;
+}
+
+.viq-snapshot .wl-sells strong {
+  font-size: 1rem;
+}
+
+.viq-snapshot .wl-sells span {
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.viq-snapshot .wl-triggers {
+  margin: 0 0 12px;
+  gap: 8px;
+}
+
+.viq-snapshot .wl-triggers span {
+  font-size: 0.84rem;
+  padding: 5px 10px;
+}
+
+.viq-snapshot .biz-fill-note,
+.biz-fill-note {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.viq-snapshot .biz-inline-list {
+  margin: 0 0 10px;
+  padding-left: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.viq-snapshot .q-expand,
+.viq-snapshot .about-quarters {
+  min-width: 0;
+}
+
+.viq-snapshot .q-block-title {
+  font-size: 0.78rem;
+}
+
+.viq-snapshot .q-block-head {
+  margin-bottom: 10px;
+}
+
+.viq-snapshot .q-table {
+  width: 100%;
+  font-size: 0.92rem;
+}
+
+.viq-snapshot .q-table th,
+.viq-snapshot .q-table td {
+  padding: 9px 12px;
+}
+
+.viq-snapshot .q-table th {
+  font-size: 0.72rem;
+}
+
+.viq-snapshot .q-col-metric {
+  width: 9.5rem;
+}
+
+.viq-snapshot .q-table col.q-col-qtr {
+  width: auto;
+}
+
+@media (max-width: 720px) {
+  .viq-snapshot-body {
+    grid-template-columns: 1fr;
+  }
+}
+
 .viq-model-head {
   display: flex;
   justify-content: space-between;

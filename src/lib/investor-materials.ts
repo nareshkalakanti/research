@@ -11,7 +11,7 @@ import {
   isTranscriptLike,
   pickMaterialsForEvent,
 } from "./investor-material-corpus";
-import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
+import type { DiscoveredMaterialSource, InvestorMaterialKind, MaterialIconItem } from "./investor-material-types";
 import { checkLlmStatus, completeJson } from "./llm-client";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -34,7 +34,7 @@ const DISTILL_FALLBACK = `Extract equity-research facts from an Indian company c
 Return ONLY valid JSON:
 {
   "summary": "180-280 words. Management-stated capabilities, growth catalysts, capacity/capex (₹ amounts and FY labels when stated), guidance, order book, commissioning dates. Use exact numbers from source.",
-  "capex_line": "One line — FY26/FY27 CAPEX: ₹X cr (project) or unclear",
+  "capex_line": "One line copied from source: period + ₹ amount + project as written, or unclear",
   "growth_triggers": "2-4 clauses separated by · — only from source",
   "capabilities": "ONE sentence — key technical / commercial edge from source"
 }
@@ -45,7 +45,7 @@ function distillSystemPrompt(): string {
 }
 
 function isPromptLeak(s: string): boolean {
-  return /one sentence —|one line —|exactly one of|separated by ·|only from source|180-280 words|commercial edge from source/i.test(
+  return /one sentence —|one line —|exactly one of|separated by ·|only from source|180-280 words|commercial edge from source|₹X\s*cr|details to be provided/i.test(
     s,
   );
 }
@@ -141,7 +141,41 @@ export function isPendingInvestorMaterial(m: Pick<InvestorMaterial, "raw_text">)
   return m.raw_text.startsWith(PENDING_PREFIX);
 }
 
-/** API payload — omit full PDF text so JSON stays small and serializable. */
+/** Compact file chips for Valuation / Research — PPT, concall, results. */
+export function listMaterialIcons(ticker: string): MaterialIconItem[] {
+  const items = listInvestorMaterials(ticker).map(toClientInvestorMaterial);
+  const eligible = items.filter((m) => {
+    if (m.kind === "concall" || m.kind === "transcript" || m.kind === "ppt") {
+      return m.has_text || m.pending;
+    }
+    if (m.kind === "other") {
+      return (
+        m.has_text &&
+        /financial\s+result|outcome\s+of\s+board/i.test(m.title || "")
+      );
+    }
+    return false;
+  });
+  const byKey = new Map<string, (typeof eligible)[number]>();
+  for (const m of eligible) {
+    const key = m.source_url || `id:${m.id}`;
+    const prev = byKey.get(key);
+    if (!prev || Number(m.has_text) > Number(prev.has_text)) byKey.set(key, m);
+  }
+  return [...byKey.values()]
+    .sort((a, b) => (b.updated_at || "").localeCompare(a.updated_at || ""))
+    .slice(0, 6)
+    .map((m) => ({
+      id: m.id,
+      kind: m.kind,
+      title: m.title,
+      period: m.period,
+      source_url: m.source_url,
+      has_text: m.has_text,
+      pending: m.pending,
+      distilled: Boolean((m.brief_text || "").trim()),
+    }));
+}
 export function toClientInvestorMaterial(m: InvestorMaterial): InvestorMaterial & {
   has_text: boolean;
   pending: boolean;

@@ -32,6 +32,7 @@ import {
 } from "./unified-earnings-extract";
 import {
   applyExecutiveSnapshotToFinancials,
+  applyExecutiveMetaToExtract,
   applyHighlightSentimentToCard,
   cardHighlightsFromQuant,
   dedupeHighlightScanlines,
@@ -90,6 +91,29 @@ export function classifyConcallDocument(text: string): {
         ? "Transcript Notes"
         : "Earnings call transcript",
       note: "Earnings conference call transcript.",
+    };
+  }
+  if (
+    /Investor Presentation|Earnings Presentation|Safe Harbour Statement|Shareholding Pattern/i.test(
+      head,
+    ) ||
+    /Presentation for the Investor Conference Call/i.test(head)
+  ) {
+    return {
+      kind: "investor_presentation",
+      label: "Investor presentation",
+      note: "Earnings / investor deck — use printed P&L when stated.",
+    };
+  }
+  if (
+    /intimation of.{0,100}(?:analyst|investor).{0,60}meet/i.test(head) ||
+    (/pursuant to regulation\s*30/i.test(head) &&
+      /institutional\s+investor|analyst/i.test(head))
+  ) {
+    return {
+      kind: "analyst_meet",
+      label: "Analyst meet intimation",
+      note: "Exchange cover letter — not a full transcript. Prefer PPT for P&L.",
     };
   }
   return {
@@ -1123,6 +1147,22 @@ function extractCallDateFromText(text: string): string | null {
   const iso = t.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
 
+  // Indian letterhead "Dt: 05/12/2025" — day/month when ambiguous
+  const slash = head.match(
+    /\b(?:Dt\.?|Date)\s*:?\s*(\d{1,2})[./-](\d{1,2})[./-](20\d{2})\b/i,
+  ) || head.match(/\b(\d{1,2})[./-](\d{1,2})[./-](20\d{2})\b/);
+  if (slash) {
+    const a = Number(slash[1]);
+    const b = Number(slash[2]);
+    const y = slash[3];
+    if (a >= 1 && a <= 31 && b >= 1 && b <= 12) {
+      return `${y}-${String(b).padStart(2, "0")}-${String(a).padStart(2, "0")}`;
+    }
+    if (b >= 1 && b <= 31 && a >= 1 && a <= 12) {
+      return `${y}-${String(a).padStart(2, "0")}-${String(b).padStart(2, "0")}`;
+    }
+  }
+
   return null;
 }
 
@@ -1948,19 +1988,16 @@ function extractNseSymbolFromText(text: string): string | null {
 
 /** Letterhead / subject company — prefer full legal name from PDF text. */
 function extractFilingCompanyName(text: string): string | null {
+  const head = text.slice(0, 6_000);
   const candidates = [
-    text.match(
-      /(?:for|of)\s+(Indo Borax[^.\n]{0,40}Limited)/i,
+    head.match(
+      /(?:for(?:\s+and\s+on\s+behalf\s+of)?|of)\s+((?:The\s+)?[A-Z][A-Za-z0-9 &.'-]{3,70}?\s+(?:Limited|Ltd\.?))/i,
     )?.[1],
     text.match(
-      /\b(Happiest Minds Technologies\s+(?:Limited|Ltd\.?))\b/i,
-    )?.[1],
-    // ALL-CAPS letterhead (common on NSE cover letters)
-    text.match(
-      /\b([A-Z][A-Z0-9 &.'-]{4,70}?\s+(?:LIMITED|LTD\.?))\b/,
+      /\b((?:THE\s+)?[A-Z][A-Z0-9 &.'-]{4,70}?\s+(?:LIMITED|LTD\.?))\b/,
     )?.[1],
     text.match(
-      /\b([A-Z][A-Za-z0-9 &.'-]{2,60}?\s+(?:Life Sciences|Healthcare|Chemicals|Industries|Pharmaceuticals?|Technologies|Labs?|Limited|Ltd\.?))\b/,
+      /\b((?:The\s+)?[A-Z][A-Za-z0-9 &.'-]{3,70}?\s+(?:Limited|Ltd\.?))\b/,
     )?.[1],
   ];
   for (const co of candidates) {
@@ -2038,11 +2075,15 @@ function lookupTickerByCompanyName(name: string | null): string | null {
   if (!name) return null;
   const cleaned = name.replace(/\s+/g, " ").trim();
   if (cleaned.length < 4) return null;
-  const tryDb = (sql: string, arg: string): string | null => {
+  const tryNamed = (
+    file: string,
+    sql: string,
+    arg: string,
+  ): string | null => {
     try {
-      const db = openSqliteNamed("company_about.db", {
+      const db = openSqliteNamed(file, {
         readonly: true,
-        wal: true,
+        wal: file === "company_about.db",
       });
       const row = db.prepare(sql).get(arg) as { ticker: string | null } | undefined;
       return row?.ticker?.trim()?.toUpperCase() || null;
@@ -2050,23 +2091,44 @@ function lookupTickerByCompanyName(name: string | null): string | null {
       return null;
     }
   };
+  const tryAbout = (sql: string, arg: string) =>
+    tryNamed("company_about.db", sql, arg);
+  const tryScraper = (sql: string, arg: string) =>
+    tryNamed("scraper.db", sql, arg);
+  const stripped = cleaned
+    .replace(/\b(the|ltd\.?|limited)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const exact =
-    tryDb(
+    tryAbout(
       `SELECT ticker FROM company_about WHERE LOWER(name) = LOWER(?) LIMIT 1`,
       cleaned,
     ) ||
-    tryDb(
+    tryAbout(
       `SELECT ticker FROM company_about WHERE LOWER(name) = LOWER(?) LIMIT 1`,
-      `${cleaned.replace(/\b(ltd\.?|limited)\b/gi, "").trim()} Limited`,
+      `${stripped} Limited`,
+    ) ||
+    tryScraper(
+      `SELECT ticker FROM companies WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+      cleaned,
+    ) ||
+    tryScraper(
+      `SELECT ticker FROM companies WHERE LOWER(name) = LOWER(?) LIMIT 1`,
+      `${stripped} Limited`,
     );
   if (exact) return exact;
   const tokens = distinctiveNameTokens(cleaned);
-  // Never fuzzy-match on generic "India" alone (that wrongly hits 3MINDIA first)
   if (!tokens.length) return null;
   const primary = tokens.sort((a, b) => b.length - a.length)[0]!;
-  return tryDb(
-    `SELECT ticker FROM company_about WHERE LOWER(name) LIKE LOWER(?) ORDER BY LENGTH(name) ASC LIMIT 1`,
-    `%${primary}%`,
+  return (
+    tryAbout(
+      `SELECT ticker FROM company_about WHERE LOWER(name) LIKE LOWER(?) ORDER BY LENGTH(name) ASC LIMIT 1`,
+      `%${primary}%`,
+    ) ||
+    tryScraper(
+      `SELECT ticker FROM companies WHERE LOWER(name) LIKE LOWER(?) ORDER BY LENGTH(name) ASC LIMIT 1`,
+      `%${primary}%`,
+    )
   );
 }
 
@@ -2394,6 +2456,7 @@ export async function runConcallQuantForRow(opts: {
         compare.executive = r.compare;
       }
       applyExecutiveSnapshotToFinancials(extract, r.json);
+      applyExecutiveMetaToExtract(extract, r.json);
       const summaryText = formatExecutiveSummaryText(r.json);
       if (summaryText) {
         const docs = asDocs(extract.docs);
@@ -2852,9 +2915,7 @@ export function concallSaveReadiness(extract: ConcallExtract): {
     .map((h) => String(asObj(h)?.text || ""))
     .join(" · ");
   const quant = asObj(extract.quant);
-  const hasExecSnap = Boolean(
-    asObj(asObj(quant?.executive_summary)?.financial_snapshot)?.revenue,
-  );
+  const hasExecSnap = snapshotHasMappableRevenue(extract);
 
   if (!meta.nse_symbol && !meta.company_name) {
     gaps.push({
@@ -2872,7 +2933,7 @@ export function concallSaveReadiness(extract: ConcallExtract): {
   const looksResults =
     Boolean(meta.quarter || meta.fiscal_year) ||
     hasExecSnap ||
-    /revenue|ebitda|\bpat\b|sales|margin|operating income/i.test(hlBlob) ||
+    /(?:revenue|net sales|ebitda|\bpat\b).{0,24}\d/i.test(hlBlob) ||
     asObj(fin.revenue) != null ||
     asObj(fin.ebitda) != null ||
     asObj(fin.pat) != null ||
@@ -2913,6 +2974,46 @@ export function concallSaveReadiness(extract: ConcallExtract): {
   }
 
   return { ready: gaps.length === 0, gaps };
+}
+
+function snapshotHasMappableRevenue(extract: ConcallExtract): boolean {
+  const exec = asObj(asObj(extract.quant)?.executive_summary);
+  if (!exec) return false;
+  const probe: ConcallExtract = { reported_financials: {} };
+  applyExecutiveSnapshotToFinancials(probe, exec);
+  const cr = revenueToCr(asObj(probe.reported_financials)?.revenue);
+  return cr != null && cr > 0;
+}
+
+/** Printed revenue in combined TX/PPT text — last resort before blocking save. */
+function fillRevenueFromCombinedText(extract: ConcallExtract): boolean {
+  const fin = asObj(extract.reported_financials) || {};
+  const existing = revenueToCr(fin.revenue);
+  if (existing != null && existing > 0) return false;
+  const text = [
+    asDocs(extract.docs).combined,
+    asDocs(extract.docs).summary,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  if (text.length < 40) return false;
+  const m =
+    text.match(
+      /(?:consolidated\s+)?(?:net\s+)?(?:operating\s+)?(?:revenue|sales|turnover)(?:\s+from\s+operations)?[^\d₹]{0,48}(?:₹|rs\.?|inr)?\s*([\d,]+\.?\d*)\s*(?:cr(?:ore)?s?)\b/i,
+    ) ||
+    text.match(
+      /(?:₹|rs\.?)\s*([\d,]+\.?\d*)\s*(?:cr(?:ore)?s?)\b[^\n]{0,48}(?:revenue|sales|turnover)/i,
+    );
+  if (!m) return false;
+  const n = Number(String(m[1]).replace(/,/g, ""));
+  if (!Number.isFinite(n) || n <= 0) return false;
+  fin.revenue = {
+    ...(asObj(fin.revenue) || {}),
+    current_qtr: n,
+    unit: "INR cr",
+  };
+  extract.reported_financials = fin;
+  return true;
 }
 
 function openDb() {
@@ -3031,19 +3132,12 @@ export function ensureFinancialsFromQuantSnapshot(
   extract: ConcallExtract,
 ): boolean {
   const fin = asObj(extract.reported_financials) || {};
-  const rev = asObj(fin.revenue);
-  if (typeof rev?.current_qtr === "number" && Number.isFinite(rev.current_qtr)) {
-    return false;
-  }
-  const snap = asObj(
-    asObj(asObj(extract.quant)?.executive_summary)?.financial_snapshot,
-  );
-  if (!snap?.revenue) return false;
+  const already = revenueToCr(fin.revenue);
+  if (already != null && already > 0) return false;
   const before = JSON.stringify(extract.reported_financials ?? null);
-  applyExecutiveSnapshotToFinancials(
-    extract,
-    asObj(extract.quant)?.executive_summary as Record<string, unknown>,
-  );
+  const exec = asObj(asObj(extract.quant)?.executive_summary);
+  if (exec) applyExecutiveSnapshotToFinancials(extract, exec);
+  fillRevenueFromCombinedText(extract);
   return JSON.stringify(extract.reported_financials ?? null) !== before;
 }
 
@@ -4833,6 +4927,7 @@ async function finalizeMergedMaterials(opts: {
 }): Promise<ConcallScreenResult> {
   let extract = await attachConcallPrices(opts.extract);
   extract = setDocsCombined(extract, opts.combined_text);
+  ensureFinancialsFromQuantSnapshot(extract);
   const { decision, why, gaps } = decide(extract);
   const id = saveHistory({
     source_url: opts.source_url,
@@ -5046,6 +5141,7 @@ export async function screenConcallFromCombinedText(opts: {
     if (execR.ok) {
       quant.executive_summary = execR.json;
       applyExecutiveSnapshotToFinancials(extract, execR.json);
+      applyExecutiveMetaToExtract(extract, execR.json);
       const summaryText = formatExecutiveSummaryText(execR.json);
       if (summaryText) {
         const docs = asDocs(extract.docs);
@@ -5065,8 +5161,31 @@ export async function screenConcallFromCombinedText(opts: {
       whyHint = `Analyze · quant failed (${hlR.error || execR.error || "empty"})`;
     }
     extract.quant = quant;
-    // Belt-and-suspenders: never leave quant HL without card scanlines
     ensureHighlightsFromQuant(extract);
+    ensureFinancialsFromQuantSnapshot(extract);
+    const joined = [tx, ppt].filter(Boolean).join("\n\n");
+    const docPpt = ppt ? classifyConcallDocument(ppt) : null;
+    const docTx = tx ? classifyConcallDocument(tx) : null;
+    const preferDeck =
+      looksLikeInvestorPresentation(ppt) ||
+      docPpt?.kind === "investor_presentation";
+    const doc = preferDeck
+      ? {
+          kind: "investor_presentation" as const,
+          label: "Investor presentation",
+          note: "Earnings / investor deck — use printed P&L when stated.",
+        }
+      : docTx && docTx.kind !== "other"
+        ? docTx
+        : classifyConcallDocument(joined);
+    const meta = asObj(extract.metadata) || {};
+    if (!meta.document_kind || meta.document_kind === "other") {
+      meta.document_kind = doc.kind;
+      meta.document_type = doc.label;
+      meta.document_note = doc.note;
+      extract.metadata = meta;
+    }
+    extract = enrichCard(joined, enrichLexical(joined, extract));
   } catch (e) {
     whyHint = `Lexical only · quant error (${e instanceof Error ? e.message : "failed"})`;
   }

@@ -6,8 +6,8 @@ Return ONLY valid JSON (no markdown):
   "theme": "one short investment theme (2-5 words, e.g. offshore E&P, EV supply chain, sterile injectables) — prefer Matched investment themes when listed; else infer",
   "headline": "≤12 words — core business / products only. Do not mention quarterly sales trend (Growing / Inconsistent / Declining)",
   "capabilities": "ONE sentence — the single most differentiating technical asset for THIS company. Prefer Investor materials (management commentary) when available.",
-  "growth_triggers": "2-4 short catalyst clauses separated by · — prefer Investor materials (concall/PPT) when present; else dossier: plant commissioning, PLI/policy, export mix, order book, capacity utilization. Do not invent dates or ₹.",
-  "capex": "One line. REQUIRED: read Investor materials section first — use verbatim capex/guidance when stated. If concall/PPT reviewed but no ₹ capex stated, say so with period. Say 'concall transcript unavailable' only when dossier says not fetched. Use 'FY26/FY27 CAPEX: ₹X cr (project)' when in materials. Do not invent ₹.",
+  "growth_triggers": "2-4 short catalyst clauses separated by · — only clauses that appear in Investor materials or the dossier (named plant, named scheme, stated mix shift, stated order book). Empty string if none. Do not invent dates, ₹, or generic catalysts.",
+  "capex": "One line copied from Investor materials: period + ₹ amount + project name as written. If no ₹ amount in materials, 'unclear from sources'. Never invent ₹ or write a fill-in template.",
   "niche": "1-2 sentences on niche, specialization, or edge",
   "model": "business model in ≤12 words (e.g. asset-light B2B services, integrated manufacturer)",
   "offerings": [

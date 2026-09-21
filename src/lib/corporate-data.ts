@@ -566,6 +566,21 @@ function parseExtracted(raw: string | null): CorporateExtractPayload | null {
   }
 }
 
+/** Latest stored Research concall extract for one ticker, if any. */
+export function loadCorporateConcallExtract(
+  ticker: string,
+): CorporateExtractPayload["concall"] | null {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return null;
+  const conn = ensureDb();
+  const row = conn
+    .prepare(
+      `SELECT extracted_json FROM corporate_rows WHERE ticker = ? LIMIT 1`,
+    )
+    .get(key) as { extracted_json: string | null } | undefined;
+  return parseExtracted(row?.extracted_json ?? null)?.concall ?? null;
+}
+
 function normDin(d: string | null | undefined): string | null {
   if (!d) return null;
   const digits = String(d).replace(/\D/g, "");

@@ -90,6 +90,50 @@ function main() {
     "expected tone gap when overall_tone missing",
   );
 
+  const unlabeled: ConcallExtract = {
+    metadata: {
+      company_name: "Example Industrials Limited",
+      nse_symbol: "EXIND",
+      quarter: "Q2",
+      fiscal_year: "FY27",
+    },
+    management_tone: { overall_tone: "neutral" },
+    reported_financials: {},
+    card: {
+      highlights: [{ text: "Capacity Addition", polarity: "positive" }],
+    },
+    quant: {
+      executive_summary: {
+        financial_snapshot: {
+          revenue: { q2_fy27: 210.5 },
+        },
+      },
+    },
+    corporate_actions: [],
+    key_catalysts: [],
+  };
+  applyExecutiveSnapshotToFinancials(
+    unlabeled,
+    (
+      unlabeled.quant as {
+        executive_summary?: Record<string, unknown>;
+      }
+    ).executive_summary,
+  );
+  const unlabeledRev = (
+    unlabeled.reported_financials as {
+      revenue?: { current_qtr?: number };
+    }
+  )?.revenue;
+  assert(
+    unlabeledRev?.current_qtr === 210.5,
+    "period keys without ₹cr must still map to current_qtr",
+  );
+  assert(
+    !concallSaveReadiness(unlabeled).gaps.some((g) => g.field === "revenue_cr"),
+    "revenue_cr gap should clear for unlabeled snapshot keys",
+  );
+
   console.log("OK · concall save readiness");
 }
 

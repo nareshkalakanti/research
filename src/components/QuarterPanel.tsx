@@ -21,6 +21,8 @@ type Props = {
   yoy?: PanelYoY | null;
   price?: number | null;
   sourceNote?: string | null;
+  /** Snapshot layout: core P&L rows only, no repeated story / PE / trend. */
+  compact?: boolean;
 };
 
 function TrendCell({ row }: { row: QuarterRow }) {
@@ -33,16 +35,32 @@ function TrendCell({ row }: { row: QuarterRow }) {
   );
 }
 
-export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
+export function QuarterPanel({
+  panel,
+  yoy,
+  price,
+  sourceNote,
+  compact = false,
+}: Props) {
   if (!panel?.labels?.length || !panel.rows?.length) {
     return <div className="q-empty">No quarterly data.</div>;
   }
 
   const n = panel.labels.length;
-  const peRows = peRowsFromPanel(panel, price);
-  const displayRows = [...panel.rows, ...peRows];
-  const overall = classifyQuarterTrend(panel, yoy);
-  const story = describeQuarterTable(panel, yoy) || overall?.reason || null;
+  const peRows = compact ? [] : peRowsFromPanel(panel, price);
+  const core = compact
+    ? panel.rows.filter((r) =>
+        /^(Sales|Operating Profit|OPM %|Net Profit)$/i.test(r.label),
+      )
+    : panel.rows;
+  const displayRows = [
+    ...(core.length ? core : panel.rows.slice(0, 4)),
+    ...peRows,
+  ];
+  const overall = compact ? null : classifyQuarterTrend(panel, yoy);
+  const story = compact
+    ? null
+    : describeQuarterTable(panel, yoy) || overall?.reason || null;
 
   const salesRow = panel.rows.find((r) => r.label === "Sales");
   const allZeroSales =
@@ -81,7 +99,7 @@ export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
               {panel.labels.map((lb) => (
                 <col key={lb} className="q-col-qtr" />
               ))}
-              <col className="q-col-trend" />
+              {compact ? null : <col className="q-col-trend" />}
             </colgroup>
             <thead>
               <tr>
@@ -91,7 +109,7 @@ export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
                     {lb}
                   </th>
                 ))}
-                <th className="q-trend-col">Trend</th>
+                {compact ? null : <th className="q-trend-col">Trend</th>}
               </tr>
             </thead>
             <tbody>
@@ -108,7 +126,7 @@ export function QuarterPanel({ panel, yoy, price, sourceNote }: Props) {
                       </td>
                     );
                   })}
-                  <TrendCell row={row} />
+                  {compact ? null : <TrendCell row={row} />}
                 </tr>
               ))}
             </tbody>
