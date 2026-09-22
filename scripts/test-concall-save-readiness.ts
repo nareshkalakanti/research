@@ -196,6 +196,64 @@ function main() {
     "revenue_cr gap should clear for unlabeled snapshot keys",
   );
 
+  const meetLetter: ConcallExtract = {
+    metadata: {
+      company_name: "Example Paper Limited",
+      nse_symbol: "EXPAPER",
+      quarter: "May",
+      fiscal_year: "2026",
+      document_type: "Analyst meet intimation",
+      document_kind: "analyst_meet",
+      document_note: "Exchange cover letter — not a full transcript.",
+    },
+    management_tone: { overall_tone: "neutral" },
+    reported_financials: { revenue: {} },
+    card: {
+      highlights: [{ text: "UPSI Shared", polarity: "neutral" }],
+    },
+    docs: {
+      combined: `Date: 19 May 2026
+Sub: Disclosure under Regulation 30 — Outcome of Meeting of Analysts / Institutional Investors.
+Further to our letter, the meeting was organized on 19 May 2026.`,
+    },
+    corporate_actions: [],
+    key_catalysts: [],
+  };
+  assert(
+    !concallSaveReadiness(meetLetter).gaps.some((g) => g.field === "revenue_cr"),
+    "meet cover letter with a date must not demand revenue_cr",
+  );
+
+  const paper: ConcallExtract = {
+    metadata: {
+      company_name: "Example Paper Limited",
+      nse_symbol: "EXPAPER",
+    },
+    management_tone: { overall_tone: "neutral" },
+    reported_financials: {},
+    card: { highlights: [] },
+    docs: {
+      combined: `EXTRACT OF UNAUDITED FINANCIAL RESULTS FOR THE QUARTER ENDED
+({ in Crore)
+Particulars 30.06.2026 30.06.2025 31.03.2026
+Total income from operations (Net) 210.50 180.00 800.00
+Net Profit / (Loss) for the period after tax 5.74 (7.41) 247.75`,
+    },
+    corporate_actions: [],
+    key_catalysts: [],
+  };
+  assert(
+    ensureFinancialsFromQuantSnapshot(paper) === true,
+    "newspaper extract in ₹ Cr should fill revenue",
+  );
+  const paperRev = (
+    paper.reported_financials as { revenue?: { current_qtr?: number } }
+  )?.revenue;
+  assert(
+    paperRev?.current_qtr === 210.5,
+    "Total income from operations (Net) must map to ₹ Cr",
+  );
+
   console.log("OK · concall save readiness");
 }
 

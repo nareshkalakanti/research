@@ -45,6 +45,8 @@ type ValuationConcallSlice = {
   revenue_cr: number | null;
   revenue_yoy_pct: number | null;
   ebitda_margin_pct: number | null;
+  guidance_label: string | null;
+  drift_pct: number | null;
   highlights: Array<{ text: string; polarity: string }>;
   why_own: string | null;
   risk: string | null;
@@ -198,7 +200,7 @@ export function ValuationPanel() {
     quarterData,
     !!ticker,
     0,
-    true,
+    false,
   );
 
   const persist = useCallback(
@@ -391,10 +393,9 @@ export function ValuationPanel() {
           <InvestorMaterialIcons
             items={briefData.context?.materials}
             loading={briefData.loading}
-            note={briefData.context?.fill_note}
           />
           <div className="viq-snapshot-body">
-            <ExpandBusiness data={briefData} compact />
+            <ExpandBusiness data={briefData} compact lean />
             <ExpandQuarters data={quarterData} price={data?.price} compact />
           </div>
           <ValuationConcallBlock
@@ -575,6 +576,21 @@ function fmtCr(v: number | null): string | null {
   return `₹${v.toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
 }
 
+function thesisBits(slice: ValuationConcallSlice): Array<{
+  label: string;
+  text: string;
+  tone?: "risk" | "on";
+}> {
+  const bits: Array<{ label: string; text: string; tone?: "risk" | "on" }> = [];
+  if (slice.why_own) bits.push({ label: "Why own", text: slice.why_own });
+  if (slice.risk) bits.push({ label: "Risk", text: slice.risk, tone: "risk" });
+  if (slice.next_catalyst) bits.push({ label: "Next", text: slice.next_catalyst });
+  if (slice.valuation_anchor) {
+    bits.push({ label: "Anchor", text: slice.valuation_anchor });
+  }
+  return bits;
+}
+
 function ValuationConcallBlock({
   slice,
   scenario,
@@ -585,28 +601,23 @@ function ValuationConcallBlock({
   onOpenResearch?: () => void;
 }) {
   const when = slice ? fmtCallDate(slice.call_date) : null;
-  const thesis =
-    scenario === "bull"
-      ? slice?.why_own
-      : scenario === "bear"
-        ? slice?.risk
-        : slice?.why_own;
-  const thesisLabel =
-    scenario === "bull"
-      ? "Why own"
-      : scenario === "bear"
-        ? "Risk"
-        : "Why own";
   const rev = slice ? fmtCr(slice.revenue_cr) : null;
   const yoy =
     slice?.revenue_yoy_pct != null && Number.isFinite(slice.revenue_yoy_pct)
-      ? `${slice.revenue_yoy_pct >= 0 ? "+" : ""}${slice.revenue_yoy_pct.toFixed(1)}% YoY`
+      ? `${slice.revenue_yoy_pct >= 0 ? "+" : ""}${slice.revenue_yoy_pct.toFixed(1)}%`
       : null;
   const opm =
     slice?.ebitda_margin_pct != null &&
     Number.isFinite(slice.ebitda_margin_pct)
-      ? `${slice.ebitda_margin_pct.toFixed(1)}% OPM`
+      ? `${slice.ebitda_margin_pct.toFixed(1)}%`
       : null;
+  const drift =
+    slice?.drift_pct != null && Number.isFinite(slice.drift_pct)
+      ? `${slice.drift_pct >= 0 ? "+" : ""}${slice.drift_pct.toFixed(1)}%`
+      : null;
+  const cards = slice ? thesisBits(slice) : [];
+  const emphasize =
+    scenario === "bull" ? "Why own" : scenario === "bear" ? "Risk" : null;
 
   return (
     <div className="viq-concall">
@@ -631,51 +642,91 @@ function ValuationConcallBlock({
       </div>
       {!slice ? (
         <p className="viq-concall-empty">
-          Analyze a transcript or PPT on Research to use call quality, highlights,
-          and thesis here. Annual P&amp;L stays on Screener.
+          Analyze a transcript or PPT on Research to use call quality and thesis
+          here. Annual P&amp;L stays on Screener.
         </p>
       ) : (
-        <>
-          <div className="viq-concall-kpis">
-            <MetricSelectorBox
-              label="Result quality"
-              value={slice.result_quality}
-              kind="quality"
-            />
-            <MetricSelectorBox
-              label="Tone"
-              value={slice.mgmt_sentiment}
-              kind="sentiment"
-            />
-            <CongratsScoreBox score={slice.sentiment_score} />
-            {rev || yoy || opm ? (
-              <div className="viq-concall-print">
-                {[rev, yoy, opm].filter(Boolean).join(" · ")}
-              </div>
-            ) : null}
+        <div className="viq-concall-body">
+          <div className="viq-concall-left">
+            <div className="viq-concall-kpis">
+              <MetricSelectorBox
+                label="Result quality"
+                value={slice.result_quality}
+                kind="quality"
+              />
+              <MetricSelectorBox
+                label="Tone"
+                value={slice.mgmt_sentiment}
+                kind="sentiment"
+              />
+              <CongratsScoreBox score={slice.sentiment_score} />
+            </div>
+            <div className="viq-concall-stats">
+              {rev ? (
+                <div className="viq-concall-stat">
+                  <span>Revenue</span>
+                  <strong>{rev}</strong>
+                </div>
+              ) : null}
+              {yoy ? (
+                <div className="viq-concall-stat">
+                  <span>YoY</span>
+                  <strong
+                    className={
+                      slice.revenue_yoy_pct != null && slice.revenue_yoy_pct < 0
+                        ? "viq-down"
+                        : "viq-up"
+                    }
+                  >
+                    {yoy}
+                  </strong>
+                </div>
+              ) : null}
+              {opm ? (
+                <div className="viq-concall-stat">
+                  <span>OPM</span>
+                  <strong>{opm}</strong>
+                </div>
+              ) : null}
+              {slice.guidance_label ? (
+                <div className="viq-concall-stat">
+                  <span>Guidance</span>
+                  <strong>{slice.guidance_label}</strong>
+                </div>
+              ) : null}
+              {drift ? (
+                <div className="viq-concall-stat">
+                  <span>Δ call</span>
+                  <strong
+                    className={
+                      slice.drift_pct != null && slice.drift_pct < 0
+                        ? "viq-down"
+                        : "viq-up"
+                    }
+                  >
+                    {drift}
+                  </strong>
+                </div>
+              ) : null}
+            </div>
+            <div className="viq-concall-hl">
+              <HighlightsBulletList items={slice.highlights} max={4} />
+            </div>
           </div>
-          <HighlightsBulletList items={slice.highlights} max={4} />
-          {thesis ? (
-            <p className="viq-concall-thesis">
-              <strong>{thesisLabel}:</strong> {thesis}
-            </p>
+          {cards.length ? (
+            <div className="viq-concall-cards">
+              {cards.map((c) => (
+                <div
+                  key={c.label}
+                  className={`viq-concall-card${c.tone === "risk" ? " is-risk" : ""}${emphasize === c.label ? " is-on" : ""}`}
+                >
+                  <span>{c.label}</span>
+                  <p>{c.text}</p>
+                </div>
+              ))}
+            </div>
           ) : null}
-          {scenario === "base" && slice.risk ? (
-            <p className="viq-concall-thesis viq-concall-thesis-risk">
-              <strong>Risk:</strong> {slice.risk}
-            </p>
-          ) : null}
-          {slice.next_catalyst ? (
-            <p className="viq-concall-thesis">
-              <strong>Next:</strong> {slice.next_catalyst}
-            </p>
-          ) : null}
-          {slice.valuation_anchor ? (
-            <p className="viq-concall-thesis">
-              <strong>Anchor:</strong> {slice.valuation_anchor}
-            </p>
-          ) : null}
-        </>
+        </div>
       )}
     </div>
   );

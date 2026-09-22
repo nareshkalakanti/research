@@ -73,6 +73,50 @@ Thanking you`;
 assert.equal(isCallIntimationBlob(pptLetter), true);
 assert.equal(followPdfUrlFromIntimation(pptLetter, "ppt"), null);
 
+const meetOutcome = `Date: 19 May 2026
+Sub: Disclosure under Regulation 30 of the Securities and Exchange Board of India
+(Listing Obligations and Disclosure Requirements) Regulations, 2015 — Outcome of
+Meeting of Analysts / Institutional Investors.
+Further to our letter dated 13 May 2026, the meeting with the Analyst or
+Institutional Investor was organized on 19 May 2026.
+Kindly take the same on record.
+Thanking you`;
+assert.equal(isCallIntimationBlob(meetOutcome), true);
+assert.equal(classifyConcallDocument(meetOutcome).label, "Call intimation");
+assert.equal(
+  isFinancialResultsHit({
+    title: "Outcome Of Board Meeting Held On 12Th August, 2026",
+    url: "https://nsearchives.nseindia.com/corporate/EXAMPLE_12082026.pdf",
+    kind: "other",
+  }),
+  false,
+);
+assert.equal(
+  isFinancialResultsHit({
+    title: "Financial results",
+    url: "https://nsearchives.nseindia.com/corporate/EXAMPLE_24052025_Outcome.pdf",
+    kind: "other",
+  }),
+  true,
+);
+
+assert.equal(
+  isCallIntimationHit({
+    url: "https://nsearchives.nseindia.com/corporate/EXAMPLE_15052026170220_SELtrOutcomeInvconcall15052026CSDSC.pdf",
+    title: "Outcome of Meeting - Analysts / Institutional Investors",
+    kind: "concall",
+  }),
+  true,
+);
+assert.equal(
+  isFinancialResultsHit({
+    url: "https://nsearchives.nseindia.com/corporate/EXAMPLE_13082026114715_324thBMNewspaper13082026CSDSC.pdf",
+    title: "Newspaper Advertisements for Unaudited Financial Results",
+    kind: "other",
+  }),
+  true,
+);
+
 const enclosedDeck = `${pptLetter}
 
 Investor Presentation Q1FY27
