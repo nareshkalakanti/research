@@ -28,6 +28,7 @@ import {
 } from "@/lib/quarter-trend";
 import { formatPeDisplay, forwardPeClass } from "@/lib/valuation";
 import type { CompanyBrief, CompanyBriefContext, OfferingItem } from "@/lib/company-brief";
+import { isPlaceholderWatch } from "@/lib/brief-placeholder";
 
 type WatchRow = {
   ticker: string;
@@ -243,6 +244,7 @@ function isUsable(text: string | null | undefined): boolean {
   if (/not specified|unclear from sources|₹X\b|not explicitly stated/i.test(t)) {
     return false;
   }
+  if (isPlaceholderWatch(t)) return false;
   return true;
 }
 

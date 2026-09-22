@@ -24,12 +24,17 @@ const NSE_ANN_REF =
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title: string }> = [
   {
+    re: /audio\s+recording|covering\s+letter|intimation.{0,80}(?:conference|earnings)\s+call/i,
+    kind: "other",
+    title: "Call intimation",
+  },
+  {
     re: /transcript|con\.?\s*call|concall|conference\s+call|earnings?\s+call|investor\s+meet|analyst\s+meet/i,
     kind: "concall",
     title: "Concall transcript",
   },
   {
-    re: /investor\s+presentation|earnings\s+presentation|analyst\s+presentation/i,
+    re: /investors?\s+presentation|earnings\s+presentation|analyst\s+presentation/i,
     kind: "ppt",
     title: "Investor presentation",
   },
@@ -107,6 +112,9 @@ function classifyRow(row: NseAnnRow): {
   const blob = `${desc} ${attachmentText} ${file}`;
   if (isNoise(desc, attachmentText)) return null;
 
+  if (/covering_letter|audio.?record/i.test(file) && !/transcript|presentation/i.test(file)) {
+    return { kind: "other", title: "Call intimation" };
+  }
   if (/transcript|earning_call|earnings_call|concall|conference.?call|earnings.?call/i.test(file)) {
     return { kind: "concall", title: "Concall transcript" };
   }

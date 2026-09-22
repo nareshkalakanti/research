@@ -35,7 +35,7 @@ const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title: 
     title: "Earnings call transcript",
   },
   {
-    re: /investor\s+presentation|earnings\s+presentation|analyst\s+presentation|investor\s+meet/i,
+    re: /investors?\s+presentation|earnings\s+presentation|analyst\s+presentation|investor\s+meet/i,
     kind: "ppt",
     title: "Investor presentation",
   },

@@ -38,7 +38,10 @@ operational_metrics / segment_analysis / capex_and_returns / risk_factors:
 
 near_term_catalysts_6m / medium_term_catalysts_12m: 4–6 short strings (or [])
 investment_summary:
-  bull_case / bear_case — quantified from disclosed facts only
+  bull_case — 1–2 sentences: WHY THE EQUITY IS INTERESTING from disclosed facts
+    (unique plant/process if stated, approvals, mix, named project ramp, quantified print).
+    Not a buy/sell rating. Not a generic "EBITDA grew".
+  bear_case — disclosed headwind only (export/geopolitics/volume miss/guidance cut). [] → null
   valuation_anchors — ONLY if materials give usable anchors (OB coverage, guidance vs run-rate,
     disclosed multiples, net cash, ROCE/ROE). Dense one sentence with numbers.
   If no real valuation facts → valuation_anchors: null
@@ -47,7 +50,11 @@ investment_summary:
 
 Priority: financials → orders → capacity → capex → risks → catalysts → bull/bear.
 Skip bios, safe harbour, "Private and Confidential" footers, cover letters. Invent nothing.
-Mn→Cr: ALWAYS ÷10. Examples: 3,658 Mn → 365.8 ₹cr; 345 Mn → 34.5 ₹cr; 13,764 Mn → 1,376.4 ₹cr.
+If TX/PPT is only a listing intimation / covering letter / audio-recording notice
+(no printed P&L and no spoken results): set every money field to null. Do not copy
+scrip codes, page numbers, or dates into ₹cr.
+Mn→Cr: ALWAYS ÷10. Lacs/lakhs → ₹cr ÷100. Examples: 3,658 Mn → 365.8 ₹cr; 8,303 Lacs → 83.03 ₹cr.
+NEVER treat 13,764 as ₹cr when the print is Mn (that is 1,376.4 ₹cr).
 NEVER output 36580 / 3658 for revenue — correct is 365.8 when source is Mn.
 Use exact key names with ₹ and % characters: q1_fy27_₹cr, yoy_growth_%, q1_fy27_margin_%.
 order_book uses pending_₹cr + q1_inflow_₹cr (not q1_fy27_₹cr for pending).

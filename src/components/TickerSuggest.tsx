@@ -93,6 +93,7 @@ export function TickerSuggest({
   const [pos, setPos] = useState<PanelPos | null>(null);
   const [mounted, setMounted] = useState(false);
   const reqRef = useRef(0);
+  const pickedRef = useRef<string | null>(null);
 
   const q = value.trim().toUpperCase();
   const showPanel = open && q.length >= 1 && (loading || searched);
@@ -141,6 +142,14 @@ export function TickerSuggest({
 
   useEffect(() => {
     if (disabled || q.length < 1) {
+      setHits([]);
+      setOpen(false);
+      setSearched(false);
+      setLoading(false);
+      return;
+    }
+    if (pickedRef.current && q === pickedRef.current) {
+      pickedRef.current = null;
       setHits([]);
       setOpen(false);
       setSearched(false);
@@ -199,18 +208,22 @@ export function TickerSuggest({
 
   const pick = useCallback(
     (hit: TickerSuggestHit) => {
-      onChange(hit.ticker);
+      const t = hit.ticker.trim().toUpperCase();
+      pickedRef.current = t;
+      reqRef.current += 1;
+      onChange(t);
       onSelect?.(hit);
       setOpen(false);
       setHits([]);
       setSearched(false);
+      setLoading(false);
     },
     [onChange, onSelect],
   );
 
   const submitCurrent = useCallback(() => {
     if (open && hits[active]) {
-      pick(hits[active]);
+      pick(hits[active]!);
       return;
     }
     const t = value.trim().toUpperCase();

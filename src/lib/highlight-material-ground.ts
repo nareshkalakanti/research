@@ -4,6 +4,8 @@
  * volume guidance bands, demerger / new subsidiary names found in text.
  */
 
+import { polarityFromHighlightText } from "./highlight-polarity";
+
 export type MaterialHighlightCandidate = {
   text: string;
   polarity: "positive" | "negative" | "neutral";
@@ -413,12 +415,12 @@ export function groundHighlightSentimentInMaterials(
         Math.min(5, risk.score > 5 ? 4 : risk.score),
       )
     : guidance && guidance.text !== (wins[0] || win).text
-      ? candidateToRow(guidance, 2, "BIGGEST RISK", "NEGATIVE", 4)
+      ? candidateToRow(guidance, 2, "STRATEGIC", "NEUTRAL", 6)
       : {
           id: 2,
-          category: "BIGGEST RISK",
-          sentiment: "NEGATIVE",
-          headline: "Limited hard negatives disclosed",
+          category: "CONTEXT",
+          sentiment: "NEUTRAL",
+          headline: "No hard negative stated in materials",
           quote: null,
           quantified_impact: {
             metric: null,
@@ -427,7 +429,7 @@ export function groundHighlightSentimentInMaterials(
             impact_level: "LOW",
           },
           forward_indicator: true,
-          score: 4,
+          score: 5,
         };
   const rowStrat = strategic
     ? candidateToRow(
@@ -534,7 +536,10 @@ export function cardHighlightsFromGroundedQuant(
       if (!o || typeof o.text !== "string") return null;
       return {
         text: o.text.trim().slice(0, 120),
-        polarity: String(o.polarity || "neutral"),
+        polarity: polarityFromHighlightText(
+          o.text,
+          String(o.polarity || "neutral"),
+        ),
       };
     })
     .filter(Boolean) as Array<{ text: string; polarity: string }>;

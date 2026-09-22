@@ -4,6 +4,7 @@
  */
 import * as cheerio from "cheerio";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
+import { trendlynePdfUrlForPostId } from "./concall-pdf-url";
 import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
 import { withWebsiteFetch } from "./scrape-pool";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -241,12 +242,16 @@ export function parseTrendlyneAnalystCallsHtml(
     const headingFull = $panel.find("h6").text().replace(/\s+/g, " ").trim();
     const kind = classifyKind(label, headingFull);
 
-    const pdfHref = $panel.find("a.newslink[href*='get-document/post/pdf']").first().attr("href");
+    const pdfHref =
+      $panel.find("a[href*='get-document/post/pdf']").first().attr("href") ||
+      $panel.find("a[href$='.pdf'], a[href*='.pdf?']").first().attr("href");
     const pdfUrl = pdfHref
       ? pdfHref.startsWith("http")
         ? pdfHref
         : `https://trendlyne.com${pdfHref}`
-      : null;
+      : postId
+        ? trendlynePdfUrlForPostId(postId)
+        : null;
 
     const shareHref = $panel
       .find(`a.copy-post-link[data-href*='posts/${postId}']`)
@@ -334,7 +339,7 @@ export async function discoverTrendlyneInvestorMaterialSources(
   const out: DiscoveredMaterialSource[] = [];
   for (const post of posts) {
     if (post.kind !== "concall" && post.kind !== "ppt") continue;
-    const url = post.postUrl;
+    const url = post.pdfUrl || post.postUrl;
     const id = sourceId(`trendlyne:post:${post.postId}`);
     out.push({
       id,
@@ -432,4 +437,31 @@ export async function findLatestTrendlyneConcall(
     bodyText: best.bodyText,
     pdfUrl: best.pdfUrl,
   };
+}
+
+/** Post page article text when the PDF is login-gated. */
+export async function fetchTrendlynePostPageText(
+  postId: string,
+): Promise<string | null> {
+  const id = postId.replace(/\D/g, "");
+  if (!id) return null;
+  const url = `https://trendlyne.com/posts/${id}/`;
+  const html = await withWebsiteFetch(url, async () => {
+    const res = await fetch(url, {
+      headers: { "user-agent": USER_AGENT, referer: "https://trendlyne.com/" },
+      signal: AbortSignal.timeout(45_000),
+      redirect: "follow",
+    });
+    if (!res.ok) throw new Error(`Trendlyne post failed (${res.status})`);
+    return res.text();
+  });
+  const $ = cheerio.load(html);
+  const t = (
+    $("article").first().text() ||
+    $("div.panel-post").first().text() ||
+    ""
+  )
+    .replace(/\s+/g, " ")
+    .trim();
+  return t.replace(/\s/g, "").length >= 60 ? t.slice(0, 12_000) : null;
 }

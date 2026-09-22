@@ -4,6 +4,12 @@
  * reorder + force WIN / RISK / STRATEGIC semantics.
  */
 
+import {
+  looksNegativeHighlight,
+  looksPositiveHighlight,
+  polarityFromHighlightText,
+} from "./highlight-polarity";
+
 export type HighlightSentiment = "POSITIVE" | "NEGATIVE" | "NEUTRAL";
 
 export type HighlightRow = {
@@ -239,9 +245,21 @@ export function enforceSlotSemantics(
 
   const risk = { ...normalized[riskIdx]! };
   risk.id = 2;
-  risk.category = "BIGGEST RISK";
-  risk.sentiment = "NEGATIVE";
-  risk.score = clamp(risk.score > 5 ? 4 : risk.score, 1, 5);
+  const riskLooksBad = looksNegativeHighlight(risk.headline);
+  const riskLooksGood = looksPositiveHighlight(risk.headline);
+  if (riskLooksBad && !riskLooksGood) {
+    risk.category = "BIGGEST RISK";
+    risk.sentiment = "NEGATIVE";
+    risk.score = clamp(risk.score > 5 ? 4 : risk.score, 1, 5);
+  } else if (riskLooksGood) {
+    risk.category = "STRATEGIC";
+    risk.sentiment = "POSITIVE";
+    risk.score = clamp(risk.score, 4, 8);
+  } else {
+    risk.category = "CONTEXT";
+    risk.sentiment = "NEUTRAL";
+    risk.score = clamp(risk.score, 4, 6);
+  }
   risk.forward_indicator =
     typeof risk.forward_indicator === "boolean" ? risk.forward_indicator : true;
 
@@ -249,9 +267,16 @@ export function enforceSlotSemantics(
   strat.id = 3;
   strat.category = "STRATEGIC";
   strat.score = clamp(strat.score, 4, 8);
-  if (!["POSITIVE", "NEGATIVE", "NEUTRAL"].includes(strat.sentiment)) {
-    strat.sentiment = "NEUTRAL";
-  }
+  const stratPol = polarityFromHighlightText(
+    strat.headline,
+    strat.sentiment.toLowerCase(),
+  );
+  strat.sentiment =
+    stratPol === "positive"
+      ? "POSITIVE"
+      : stratPol === "negative"
+        ? "NEGATIVE"
+        : "NEUTRAL";
   strat.forward_indicator =
     typeof strat.forward_indicator === "boolean"
       ? strat.forward_indicator

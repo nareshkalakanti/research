@@ -5,6 +5,8 @@
  * Data-driven from analyze JSON — no company hardcoding.
  */
 
+import { polarityFromHighlightText } from "@/lib/highlight-polarity";
+
 export type HighlightItem = {
   text: string;
   polarity?: string | null;
@@ -15,23 +17,7 @@ function normalizePolarity(
   raw: string | null | undefined,
   text: string,
 ): "positive" | "negative" | "neutral" {
-  const p = String(raw || "").toLowerCase();
-  if (p === "positive" || p === "negative" || p === "neutral") return p;
-  if (
-    /miss|cut|reset|delay|decline|loss|weak|compress|headwind|cautious|hit/i.test(
-      text,
-    )
-  ) {
-    return "negative";
-  }
-  if (
-    /grew|growth|won|win|record|beat|raise|strong|capacity|order inflow|ramp/i.test(
-      text,
-    )
-  ) {
-    return "positive";
-  }
-  return "neutral";
+  return polarityFromHighlightText(text, raw);
 }
 
 /** Map HL / card score onto 0–10 for Congrats Index display. */

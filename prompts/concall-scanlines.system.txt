@@ -91,9 +91,12 @@ FIELD RULES
 3) HIGHLIGHTS — 3–5 StockScans-style scanlines from THIS document only
    Shape: { "text": "≤12 words", "polarity": "positive"|"neutral"|"negative" }
    Prefer: named M&A / amalgamation, capacity, YoY prints, market share if stated.
+   Include ONE investment-point scanline when the text states a structural why-own
+   (unique facility/process, approvals, mix, named ramp) — not a vague theme.
    Polarity (dot color in UI):
      positive = green  beat/raise/closed M&A/investment/target/wins
      negative = red    cut/reset/miss/delay/destock/promoter divestment
+     Capacity addition, capex, expansion, commissioning = positive unless delay/cut/overrun is stated.
      neutral  = gray   audit/appeal/process/announced/CEO change
    Never invent orders, win rates, OEM wins, data-center deals, or market-share paths
    that are not in the text.

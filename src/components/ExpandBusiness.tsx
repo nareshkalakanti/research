@@ -1,6 +1,7 @@
 "use client";
 
 import type { CompanyBrief, OfferingItem, QtrSignal } from "@/lib/company-brief";
+import { isPlaceholderWatch } from "@/lib/brief-placeholder";
 import type { ExpandBriefData } from "@/lib/use-expand-brief";
 
 type Props = {
@@ -14,6 +15,7 @@ function unlabeledAbout(raw: string | null | undefined): string {
     .split(/\n+/)
     .map((l) => l.trim())
     .filter(Boolean)
+    .filter((l) => !isPlaceholderWatch(l))
     .filter((l) => !/^([A-Za-z][A-Za-z0-9 /&'_-]{1,48}):\s+/.test(l));
   const t = chunks.join(" ").replace(/\s+/g, " ").trim();
   if (t.length < 40) return "";
@@ -69,6 +71,7 @@ function buildWatchLine(brief: CompanyBrief): string | null {
   }
   if (
     isDisclosed(brief.watch || "") &&
+    !isPlaceholderWatch(brief.watch) &&
     !/risks related to global market/i.test(brief.watch)
   ) {
     parts.push(brief.watch.trim());

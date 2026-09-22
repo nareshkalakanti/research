@@ -23,6 +23,7 @@ import { loadQuarterDossier } from "./quarter-dossier";
 import { classifyQuarterTrend, type QtrTrendSignal } from "./quarter-trend";
 import { capTier, formatMcap, type CapTier } from "./types";
 import type { QuarterPanel } from "./quarter-panel";
+import { usableWatchText } from "./brief-placeholder";
 import { listMaterialIcons } from "./investor-materials";
 import type { MaterialIconItem } from "./investor-material-types";
 
@@ -111,7 +112,7 @@ Return ONLY valid JSON (no markdown):
   "customers": "who buys / end markets in one sentence",
   "qtr_signal": "Growing|Inconsistent|Declining only when quarterly data present; else null",
   "qtr_reason": "One short sentence on 5-quarter pattern, or empty when no quarters",
-  "watch": "one risk or thing to verify"
+  "watch": "one risk from sources, else empty. Never say no risks were mentioned. Never restate the company name."
 }
 Use only facts from dossier, peer context, quarterly data, and investor materials. Prefer listing Company profile over a website summary that describes a different business. Read Investor materials before capex and growth_triggers. Never invent qtr_signal when quarterly data is missing. Return valid JSON only — no markdown fences.`;
 
@@ -124,7 +125,7 @@ const cache = new Map<string, CacheEntry>();
 const CACHE_MS = 60 * 60 * 1000;
 
 function corpusHash(text: string): string {
-  return `v22:${text.length}:${text.slice(0, 120)}`;
+  return `v23:${text.length}:${text.slice(0, 120)}`;
 }
 
 const BRIEF_USER_CHAR_LIMIT = 30_000;
@@ -420,7 +421,7 @@ function normalizeBrief(
     customers: String(raw.customers || "").slice(0, 240),
     qtr_signal: normalizeQtrSignal(raw.qtr_signal),
     qtr_reason: String(raw.qtr_reason || raw.quarters || "").slice(0, 320),
-    watch: String(raw.watch || "").slice(0, 240),
+    watch: usableWatchText(String(raw.watch || "")),
   };
 }
 

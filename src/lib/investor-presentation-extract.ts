@@ -7,6 +7,11 @@ import fs from "fs";
 import path from "path";
 import { applyInvestorPresentationLexical } from "./investor-presentation-lexical";
 import { parseOrderSizeToCr } from "./orderbook-screen";
+import {
+  isCallIntimationBlob,
+  isFinancialResultsBlob,
+  looksLikeEnclosedEarningsDeck,
+} from "./call-intimation";
 
 export type InvestorPresentationExtract = Record<string, unknown>;
 
@@ -277,6 +282,8 @@ export function validateInvestorPresentationExtract(
 
 /** True when PDF text is an investor deck / Reg-30 presentation, not an earnings call transcript. */
 export function looksLikeInvestorPresentation(text: string): boolean {
+  if (looksLikeEnclosedEarningsDeck(text)) return true;
+  if (isCallIntimationBlob(text)) return false;
   const head = text.slice(0, 12_000);
   const transcriptCue =
     /Moderator\s*:|Ladies and gentlemen|earnings conference call|Good (?:morning|afternoon|evening).{0,80}welcome to the/i.test(
@@ -300,7 +307,8 @@ export function looksLikeInvestorPresentation(text: string): boolean {
     /Presentation for the Investor Conference Call/i.test(text) ||
     /enclosed the presentation for the Investor Conference Call/i.test(text) ||
     (/QoQ Sales\s*\(INR Cr\)/i.test(text) &&
-      /QoQ EBITDA\s*\(INR Cr\)/i.test(text))
+      /QoQ EBITDA\s*\(INR Cr\)/i.test(text)) ||
+    isFinancialResultsBlob(text)
   ) {
     return true;
   }

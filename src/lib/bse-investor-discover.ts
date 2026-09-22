@@ -15,7 +15,12 @@ const BSE_ANN_API =
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title?: string }> = [
   {
-    re: /investor\s+presentation|earnings\s+presentation|analyst\s+presentation/i,
+    re: /audio\s+recording|covering\s+letter|intimation.{0,80}(?:conference|earnings)\s+call/i,
+    kind: "other",
+    title: "Call intimation",
+  },
+  {
+    re: /investors?\s+presentation|earnings\s+presentation|analyst\s+presentation/i,
     kind: "ppt",
   },
   {
@@ -94,6 +99,68 @@ function bsePdfUrl(attachment: string): string {
   const name = attachment.trim();
   if (!name) return "";
   return `https://www.bseindia.com/stockinfo/AnnPdfOpen.aspx?Pname=${encodeURIComponent(name)}`;
+}
+
+/** BSE AnnSubCategoryGetData rejects ranges longer than 12 months. */
+export function bseAnnouncementDateWindows(
+  yearsBack: number,
+  now = new Date(),
+): Array<{ from: Date; to: Date }> {
+  const years = Math.max(1, Math.min(6, Math.round(yearsBack)));
+  const earliest = new Date(now);
+  earliest.setFullYear(earliest.getFullYear() - years);
+  const out: Array<{ from: Date; to: Date }> = [];
+  let to = new Date(now);
+  while (to.getTime() > earliest.getTime()) {
+    const from = new Date(to);
+    from.setMonth(from.getMonth() - 11);
+    if (from.getTime() < earliest.getTime()) from.setTime(earliest.getTime());
+    out.push({ from: new Date(from), to: new Date(to) });
+    to = new Date(from);
+    to.setDate(to.getDate() - 1);
+    if (out.length > 24) break;
+  }
+  return out;
+}
+
+async function fetchBseAnnouncementRows(
+  scripCode: string,
+  from: Date,
+  to: Date,
+): Promise<BseAnnRow[]> {
+  const fmt = (d: Date) => formatBseApiDateFromInstant(d);
+  const all: BseAnnRow[] = [];
+  for (let pageno = 1; pageno <= 12; pageno += 1) {
+    const params = new URLSearchParams({
+      pageno: String(pageno),
+      strCat: "-1",
+      strPrevDate: fmt(from),
+      strScrip: scripCode,
+      strSearch: "P",
+      strToDate: fmt(to),
+      strType: "C",
+      subcategory: "",
+    });
+    const res = await fetch(`${BSE_ANN_API}?${params}`, { headers: BSE_HEADERS });
+    if (!res.ok) {
+      throw new Error(`BSE announcements failed (${res.status})`);
+    }
+    const raw = await res.text();
+    let json: { Table?: BseAnnRow[]; Status?: boolean; Message?: string };
+    try {
+      json = JSON.parse(raw) as { Table?: BseAnnRow[]; Status?: boolean; Message?: string };
+    } catch {
+      throw new Error("BSE announcements returned invalid JSON");
+    }
+    if (json.Status === false) {
+      throw new Error(json.Message || "BSE announcements rejected");
+    }
+    const rows = json.Table ?? [];
+    if (!rows.length) break;
+    all.push(...rows);
+    if (rows.length < 40) break;
+  }
+  return all;
 }
 
 function formatPeriod(iso: string | null | undefined): string | null {
@@ -388,37 +455,19 @@ export async function discoverBseInvestorMaterialSources(
   const code = scripCode.trim();
   if (!code) return [];
 
-  const to = new Date();
-  const from = new Date(to);
-  from.setFullYear(from.getFullYear() - 3);
-
-  const fmt = (d: Date) => formatBseApiDateFromInstant(d);
-
-  const params = new URLSearchParams({
-    pageno: "1",
-    strCat: "-1",
-    strPrevDate: fmt(from),
-    strScrip: code,
-    strSearch: "P",
-    strToDate: fmt(to),
-    strType: "C",
-    subcategory: "",
-  });
-
-  const res = await fetch(`${BSE_ANN_API}?${params}`, { headers: BSE_HEADERS });
-  if (!res.ok) {
-    throw new Error(`BSE announcements failed (${res.status})`);
+  const rows: BseAnnRow[] = [];
+  const seenNews = new Set<string>();
+  for (const win of bseAnnouncementDateWindows(3)) {
+    const chunk = await fetchBseAnnouncementRows(code, win.from, win.to);
+    for (const row of chunk) {
+      const att = String(row.ATTACHMENTNAME || "").trim();
+      const key = att || `${row.NEWSSUB}|${row.NEWS_DT}`;
+      if (seenNews.has(key)) continue;
+      seenNews.add(key);
+      rows.push(row);
+    }
   }
 
-  const raw = await res.text();
-  let json: { Table?: BseAnnRow[] };
-  try {
-    json = JSON.parse(raw) as { Table?: BseAnnRow[] };
-  } catch {
-    throw new Error("BSE announcements returned invalid JSON");
-  }
-
-  const rows = json.Table ?? [];
   const out: DiscoveredMaterialSource[] = [];
   const seen = new Set<string>();
 
@@ -495,37 +544,19 @@ export async function discoverBseOrderAnnouncements(
   const code = scripCode.trim();
   if (!code) return [];
 
-  const to = new Date();
-  const from = new Date(to);
-  from.setFullYear(from.getFullYear() - 2);
-
-  const fmt = (d: Date) => formatBseApiDateFromInstant(d);
-
-  const params = new URLSearchParams({
-    pageno: "1",
-    strCat: "-1",
-    strPrevDate: fmt(from),
-    strScrip: code,
-    strSearch: "P",
-    strToDate: fmt(to),
-    strType: "C",
-    subcategory: "",
-  });
-
-  const res = await fetch(`${BSE_ANN_API}?${params}`, { headers: BSE_HEADERS });
-  if (!res.ok) {
-    throw new Error(`BSE announcements failed (${res.status})`);
+  const rows: BseAnnRow[] = [];
+  const seenNews = new Set<string>();
+  for (const win of bseAnnouncementDateWindows(2)) {
+    const chunk = await fetchBseAnnouncementRows(code, win.from, win.to);
+    for (const row of chunk) {
+      const att = String(row.ATTACHMENTNAME || "").trim();
+      const key = att || `${row.NEWSSUB}|${row.NEWS_DT}`;
+      if (seenNews.has(key)) continue;
+      seenNews.add(key);
+      rows.push(row);
+    }
   }
 
-  const raw = await res.text();
-  let json: { Table?: BseAnnRow[] };
-  try {
-    json = JSON.parse(raw) as { Table?: BseAnnRow[] };
-  } catch {
-    throw new Error("BSE announcements returned invalid JSON");
-  }
-
-  const rows = json.Table ?? [];
   const out: OrderAnnHit[] = [];
   const seen = new Set<string>();
 
