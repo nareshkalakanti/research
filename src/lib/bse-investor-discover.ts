@@ -15,7 +15,7 @@ const BSE_ANN_API =
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title?: string }> = [
   {
-    re: /audio\s+recording|covering\s+letter|intimation.{0,80}(?:conference|earnings)\s+call/i,
+    re: /audio\s+recording|covering\s+letter|intimation.{0,80}(?:conference|earnings)\s+call|outcome of meeting.{0,80}analyst|invconcall|seltr.?outcome/i,
     kind: "other",
     title: "Call intimation",
   },
@@ -24,7 +24,7 @@ const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title?:
     kind: "ppt",
   },
   {
-    re: /transcript|concall|conference\s+call|earnings?\s+call|investor\s+meet|analyst\s+meet/i,
+    re: /transcript|conference\s+call|earnings?\s+call/i,
     kind: "concall",
   },
   {
@@ -477,7 +477,7 @@ export async function discoverBseInvestorMaterialSources(
     const blob = `${heading} ${detail}`;
     if (
       /newspaper publication|board meeting intimation|dividend|postal ballot/i.test(blob) &&
-      !/board\s+report|annual\s+report|financial\s+results/i.test(blob)
+      !/board\s+report|annual\s+report|financial\s+results|unaudited|audited/i.test(blob)
     ) {
       continue;
     }

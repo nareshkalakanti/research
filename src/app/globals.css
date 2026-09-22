@@ -21310,8 +21310,10 @@ button.otrd-co-link {
 
 .viq-concall {
   margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
 }
 
 .viq-concall-head {
@@ -21319,21 +21321,22 @@ button.otrd-co-link {
   align-items: baseline;
   gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .viq-concall-title {
   margin: 0;
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
 }
 
 .viq-concall-meta {
   font-size: 0.88rem;
-  color: var(--muted);
+  color: var(--fg);
+  font-weight: 600;
 }
 
 .viq-concall-open {
@@ -21347,28 +21350,106 @@ button.otrd-co-link {
   line-height: 1.45;
 }
 
+.viq-concall-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.15fr);
+  gap: 16px 22px;
+  align-items: start;
+}
+
 .viq-concall-kpis {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 12px 16px;
-  margin-bottom: 10px;
+  gap: 10px 14px;
+  margin-bottom: 12px;
 }
 
-.viq-concall-print {
+.viq-concall-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+  gap: 8px 10px;
+  margin-bottom: 12px;
+}
+
+.viq-concall-stat {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f6f7f9;
+  min-width: 0;
+}
+
+.viq-concall-stat span {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.viq-concall-stat strong {
   font-size: 0.92rem;
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.viq-concall-hl .ehc-hl-list {
+  margin: 0;
+}
+
+.viq-concall-hl .ehc-hl-text {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.viq-concall-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.viq-concall-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #fafbfc;
+  min-width: 0;
+}
+
+.viq-concall-card.is-on {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+}
+
+.viq-concall-card.is-risk {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.viq-concall-card span {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.viq-concall-card p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
   color: var(--fg);
 }
 
-.viq-concall-thesis {
-  margin: 8px 0 0;
-  font-size: 0.95rem;
-  line-height: 1.45;
-}
-
-.viq-concall-thesis-risk {
-  color: #9b1c1c;
+@media (max-width: 900px) {
+  .viq-concall-body,
+  .viq-concall-cards {
+    grid-template-columns: 1fr;
+  }
 }
 
 .viq-snapshot .biz-watch {

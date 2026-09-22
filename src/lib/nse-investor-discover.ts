@@ -24,12 +24,12 @@ const NSE_ANN_REF =
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title: string }> = [
   {
-    re: /audio\s+recording|covering\s+letter|intimation.{0,80}(?:conference|earnings)\s+call/i,
+    re: /audio\s+recording|covering\s+letter|intimation.{0,80}(?:conference|earnings)\s+call|outcome of meeting.{0,80}analyst|invconcall|seltr.?outcome/i,
     kind: "other",
     title: "Call intimation",
   },
   {
-    re: /transcript|con\.?\s*call|concall|conference\s+call|earnings?\s+call|investor\s+meet|analyst\s+meet/i,
+    re: /transcript|con\.?\s*call|conference\s+call|earnings?\s+call/i,
     kind: "concall",
     title: "Concall transcript",
   },
@@ -98,7 +98,7 @@ function isNoise(desc: string, attachmentText: string): boolean {
   return (
     /newspaper publication|postal ballot|agm notice|dividend|record date|clarification.*delay|reasons for delayed|non-submission of financial/i.test(
       blob,
-    ) && !/financial result|outcome of board|investor presentation|transcript|conference call|concall/i.test(blob)
+    ) && !/financial result|unaudited|audited financial|outcome of board|investor presentation|transcript|conference call|concall/i.test(blob)
   );
 }
 
@@ -112,10 +112,16 @@ function classifyRow(row: NseAnnRow): {
   const blob = `${desc} ${attachmentText} ${file}`;
   if (isNoise(desc, attachmentText)) return null;
 
-  if (/covering_letter|audio.?record/i.test(file) && !/transcript|presentation/i.test(file)) {
+  if (/covering_letter|audio.?record|invconcall|seltr.?outcome/i.test(file) && !/transcript|presentation/i.test(file)) {
     return { kind: "other", title: "Call intimation" };
   }
-  if (/transcript|earning_call|earnings_call|concall|conference.?call|earnings.?call/i.test(file)) {
+  if (
+    /transcript|earning_call|earnings_call|earnings.?call/i.test(file) &&
+    !/outcome|intimation|covering/i.test(file)
+  ) {
+    return { kind: "concall", title: "Concall transcript" };
+  }
+  if (/concall/i.test(file) && /transcript/i.test(file)) {
     return { kind: "concall", title: "Concall transcript" };
   }
   if (/presentation|_ip_|investor_presentation/i.test(file)) {

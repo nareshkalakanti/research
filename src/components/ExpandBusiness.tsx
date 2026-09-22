@@ -8,6 +8,8 @@ type Props = {
   data: ExpandBriefData;
   /** Snapshot: headline, sector, products — skip labeled rows that duplicate the strip. */
   compact?: boolean;
+  /** Valuation: no PPT/concall fill lines (those sit in Latest concall). */
+  lean?: boolean;
 };
 
 function unlabeledAbout(raw: string | null | undefined): string {
@@ -194,7 +196,7 @@ function Row({
   );
 }
 
-export function ExpandBusiness({ data, compact = false }: Props) {
+export function ExpandBusiness({ data, compact = false, lean = false }: Props) {
   const { brief, context, loading, error, setupHint, waitingForQuarters } = data;
 
   const cleanRaw = context?.scraped_about_clean ?? null;
@@ -390,7 +392,7 @@ export function ExpandBusiness({ data, compact = false }: Props) {
 
       {!compact && marketsLine ? <Row label="Markets">{marketsLine}</Row> : null}
 
-      {compact && compactTriggers.length ? (
+      {compact && !lean && compactTriggers.length ? (
         <div className="wl-triggers">
           {compactTriggers.map((t) => (
             <span key={t}>{t}</span>
@@ -398,9 +400,9 @@ export function ExpandBusiness({ data, compact = false }: Props) {
         </div>
       ) : null}
 
-      {compact && watch ? <p className="biz-copy biz-watch">{watch}</p> : null}
+      {compact && !lean && watch ? <p className="biz-copy biz-watch">{watch}</p> : null}
 
-      {compact && fallbackAbout ? (
+      {compact && !lean && fallbackAbout ? (
         <p className="biz-copy biz-about">{fallbackAbout}</p>
       ) : null}
 

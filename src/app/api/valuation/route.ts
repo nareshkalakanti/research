@@ -84,6 +84,8 @@ export async function GET(req: NextRequest) {
         revenue_cr: pass.revenue_cr,
         revenue_yoy_pct: pass.revenue_yoy_pct,
         ebitda_margin_pct: pass.ebitda_margin_pct,
+        guidance_label: pass.guidance_label,
+        drift_pct: pass.drift_pct,
         highlights: pass.highlights,
         why_own: pass.why_own,
         risk: pass.risk,

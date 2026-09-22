@@ -38,6 +38,7 @@ import {
   isFinancialResultsBlob,
   isFinancialResultsHit,
   followPdfUrlFromIntimation,
+  looksLikeEnclosedEarningsDeck,
 } from "./call-intimation";
 import {
   extractUnifiedEarningsFromTexts,
@@ -658,11 +659,15 @@ function scoreConcallDiscoverHit(opts: {
   if (/bse|nse|screener/.test(opts.provider)) score += 15;
   if (/trendlyne/.test(opts.provider)) score -= 20;
   // Filename is more reliable than exchange title labels
-  if (/covering[_\s-]?letter|audio[_\s-]?record/i.test(pathOnly)) {
+  if (/covering[_\s-]?letter|audio[_\s-]?record|invconcall|seltr.?outcome/i.test(pathOnly)) {
     score -= 180;
   }
-  if (/investors?_?presentation|investorpresentation|presentation/i.test(pathOnly))
-    score += 40;
+  if (
+    /newspaper/i.test(pathOnly) &&
+    /(?:unaudited|audited|financial\s+result)/i.test(blob)
+  ) {
+    score += 50;
+  }
   // Prefer newer filings encoded in NSE archive filenames: TICKER_DDMMYYYY…
   const nseDate = pathOnly.match(/_(\d{2})(\d{2})(20\d{2})\d*_/);
   if (nseDate) {
@@ -833,8 +838,7 @@ export async function discoverConcallPdfSources(
     // Require "transcript" — bare "earnings call" matches audio intimations
     return (
       h.kind === "transcript" ||
-      /transcript/i.test(blob) ||
-      (/conference\s*call\s*outcome/i.test(blob) && /\.pdf/i.test(h.url))
+      /transcript/i.test(blob)
     );
   };
   const isPpt = (h: ConcallDiscoverHit) =>
@@ -1635,6 +1639,7 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
           "i",
         ),
       );
+    const printedInc = !m ? printedOperatingIncomeCr(text) : null;
     if (m) {
       const cur = num(m[1]);
       const prior = num(m[3] || m[2]);
@@ -1651,6 +1656,18 @@ function enrichLexical(text: string, extract: ConcallExtract): ConcallExtract {
           unit: "INR cr",
         };
       }
+    } else if (printedInc) {
+      const pct =
+        printedInc.prior != null && printedInc.prior > 0
+          ? ((printedInc.current - printedInc.prior) / Math.abs(printedInc.prior)) *
+            100
+          : null;
+      fin.revenue = {
+        current_qtr: printedInc.current,
+        yoy_qtr: printedInc.prior,
+        pct_change: pct != null ? Math.round(pct * 10) / 10 : null,
+        unit: "INR cr",
+      };
     }
   }
   // Spoken quarterly growth: "delivered 17% in the last quarter" / "we saw Q1 at 17%"
@@ -3057,14 +3074,33 @@ export function concallSaveReadiness(extract: ConcallExtract): {
     });
   }
 
+  const dtype = String(meta.document_type || "");
+  const dnote = String(meta.document_note || "");
+  const dkind = String(meta.document_kind || "");
+  const combined = asDocs(extract.docs).combined || "";
+  const coverLetter =
+    isCallIntimationBlob(combined) ||
+    /intimation|cover letter/i.test(`${dtype} ${dnote}`);
+
+  const finAbs =
+    (revenueToCr(fin.revenue) != null && (revenueToCr(fin.revenue) as number) > 0) ||
+    asNum(asObj(fin.ebitda)?.current_qtr) != null ||
+    asNum(asObj(fin.pat)?.current_qtr) != null ||
+    asNum(asObj(fin.net_profit)?.current_qtr) != null;
+
+  // Period on a meet letter is not a results print. Only gate revenue when
+  // materials actually look like a P&L (or quant already mapped a snapshot).
   const looksResults =
-    Boolean(meta.quarter || meta.fiscal_year) ||
-    hasExecSnap ||
-    /(?:revenue|net sales|ebitda|\bpat\b).{0,24}\d/i.test(hlBlob) ||
-    asObj(fin.revenue) != null ||
-    asObj(fin.ebitda) != null ||
-    asObj(fin.pat) != null ||
-    asObj(fin.net_profit) != null;
+    !coverLetter &&
+    (hasExecSnap ||
+      finAbs ||
+      /(?:revenue|net sales|ebitda|\bpat\b).{0,24}\d/i.test(hlBlob) ||
+      isFinancialResultsBlob(combined) ||
+      looksLikeEnclosedEarningsDeck(combined) ||
+      (dkind === "investor_presentation" &&
+        /(?:revenue from operations|total income|operating ebitda)/i.test(
+          combined,
+        )));
 
   const hasEventOnly =
     !looksResults &&
@@ -3116,7 +3152,30 @@ function snapshotHasMappableRevenue(extract: ConcallExtract): boolean {
   return cr != null && cr > 0;
 }
 
-/** Printed revenue in combined TX/PPT text — last resort before blocking save. */
+/** Newspaper / Reg. 47 extract: "Total income from operations (Net) 1,146.64" with unit on the Crore line. */
+function printedOperatingIncomeCr(text: string): {
+  current: number;
+  prior: number | null;
+} | null {
+  const m = text.match(
+    /total\s+income(?:\s+from\s+operations)?(?:\s*\(\s*net\s*\))?[^\d]{0,48}([\d,]+\.\d{1,2})(?:\s+([\d,]+\.\d{1,2}))?/i,
+  );
+  if (!m) return null;
+  const around = text.slice(
+    Math.max(0, (m.index || 0) - 280),
+    Math.min(text.length, (m.index || 0) + 220),
+  );
+  if (!/(?:₹|rs\.?|inr)?\s*in\s+crore|\(\s*\{?\s*in\s+crore|crore\s*\)/i.test(around)) {
+    return null;
+  }
+  const current = Number(String(m[1]).replace(/,/g, ""));
+  const prior = m[2] ? Number(String(m[2]).replace(/,/g, "")) : null;
+  if (!Number.isFinite(current) || current <= 0) return null;
+  return {
+    current,
+    prior: prior != null && Number.isFinite(prior) && prior > 0 ? prior : null,
+  };
+}
 function fillRevenueFromCombinedText(extract: ConcallExtract): boolean {
   const fin = asObj(extract.reported_financials) || {};
   const existing = revenueToCr(fin.revenue);
@@ -3128,19 +3187,25 @@ function fillRevenueFromCombinedText(extract: ConcallExtract): boolean {
     .filter(Boolean)
     .join("\n");
   if (text.length < 40) return false;
-  const m =
-    text.match(
-      /(?:consolidated\s+)?(?:net\s+)?(?:operating\s+)?(?:revenue|sales|turnover)(?:\s+from\s+operations)?[^\d₹]{0,48}(?:₹|rs\.?|inr)?\s*([\d,]+\.?\d*)\s*(?:cr(?:ore)?s?)\b/i,
-    ) ||
-    text.match(
-      /(?:₹|rs\.?)\s*([\d,]+\.?\d*)\s*(?:cr(?:ore)?s?)\b[^\n]{0,48}(?:revenue|sales|turnover)/i,
-    );
-  if (!m) return false;
-  const n = Number(String(m[1]).replace(/,/g, ""));
+  const printed = printedOperatingIncomeCr(text);
+  const m = printed
+    ? null
+    : text.match(
+        /(?:consolidated\s+)?(?:net\s+)?(?:operating\s+)?(?:revenue|sales|turnover)(?:\s+from\s+operations)?[^\d₹]{0,48}(?:₹|rs\.?|inr)?\s*([\d,]+\.?\d*)\s*(?:cr(?:ore)?s?)\b/i,
+      ) ||
+      text.match(
+        /(?:₹|rs\.?)\s*([\d,]+\.?\d*)\s*(?:cr(?:ore)?s?)\b[^\n]{0,48}(?:revenue|sales|turnover)/i,
+      );
+  const n = printed
+    ? printed.current
+    : m
+      ? Number(String(m[1]).replace(/,/g, ""))
+      : NaN;
   if (!Number.isFinite(n) || n <= 0) return false;
   fin.revenue = {
     ...(asObj(fin.revenue) || {}),
     current_qtr: n,
+    ...(printed?.prior != null ? { yoy_qtr: printed.prior } : {}),
     unit: "INR cr",
   };
   extract.reported_financials = fin;
@@ -4851,6 +4916,32 @@ export async function extractConcallMaterialsText(opts: {
       });
     }
 
+    // Scanned newspaper extracts / image-only pages: text layer is empty or tiny.
+    const compact = text.replace(/\s+/g, "");
+    if (pptOcr && compact.length < 600) {
+      try {
+        report?.({
+          type: "progress",
+          role,
+          phase: "ocr",
+          message: `${role}: thin text layer — OCR…`,
+          pct: 45,
+        });
+        const ocr = await ocrPdfText(buf, {
+          maxPages,
+          dpi: 144,
+          role,
+          onProgress: report,
+        });
+        if (ocr.replace(/\s+/g, "").length > compact.length) {
+          text = ocr;
+          engine = `vision-ocr:${(process.env.QIANFAN_OCR_MODEL || process.env.LLM_MODEL_OCR || "ocr").trim()}`;
+        }
+      } catch {
+        /* keep pdf-parse */
+      }
+    }
+
     if (!text.trim()) {
       return {
         role,
@@ -5473,8 +5564,10 @@ export async function screenConcallFromCombinedText(opts: {
     const docPpt = ppt ? classifyConcallDocument(ppt) : null;
     const docTx = tx ? classifyConcallDocument(tx) : null;
     const preferDeck =
-      looksLikeInvestorPresentation(ppt) ||
-      docPpt?.kind === "investor_presentation";
+      ppt.replace(/\s+/g, "").length >= 400 &&
+      !isCallIntimationBlob(ppt) &&
+      (looksLikeInvestorPresentation(ppt) ||
+        docPpt?.kind === "investor_presentation");
     const doc = preferDeck
       ? {
           kind: "investor_presentation" as const,
@@ -5485,12 +5578,10 @@ export async function screenConcallFromCombinedText(opts: {
         ? docTx
         : classifyConcallDocument(joined);
     const meta = asObj(extract.metadata) || {};
-    if (!meta.document_kind || meta.document_kind === "other") {
-      meta.document_kind = doc.kind;
-      meta.document_type = doc.label;
-      meta.document_note = doc.note;
-      extract.metadata = meta;
-    }
+    meta.document_kind = doc.kind;
+    meta.document_type = doc.label;
+    meta.document_note = doc.note;
+    extract.metadata = meta;
     extract = enrichCard(joined, enrichLexical(joined, extract));
   } catch (e) {
     whyHint = `Lexical only · quant error (${e instanceof Error ? e.message : "failed"})`;

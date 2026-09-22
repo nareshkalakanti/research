@@ -14,6 +14,14 @@ export function isFinancialResultsBlob(text: string): boolean {
     return true;
   }
   if (
+    /EXTRACT OF .{0,80}FINANCIAL RESULTS/i.test(t) &&
+    /(?:Revenue from Operations|Total Income|Profit (?:after|for the) tax|\bPAT\b)/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
+  if (
     /Outcome of Board Meeting/i.test(t) &&
     /Regulation\s*33/i.test(t) &&
     /(?:Audited|Unaudited)\s+Financial Results/i.test(t)
@@ -30,12 +38,30 @@ export function isFinancialResultsHit(opts: {
 }): boolean {
   if (isCallIntimationHit(opts)) return false;
   const blob = `${opts.kind || ""} ${opts.title || ""} ${opts.url || ""}`;
-  if (/investor\s+meet|analyst\s+meet|conference\s+call\s+outcome/i.test(blob)) {
+  if (
+    /investor\s+meet|analyst\s+meet|conference\s+call\s+outcome|outcome of meeting of analysts|institutional\s+investors?\s+reg/i.test(
+      blob,
+    )
+  ) {
     return false;
   }
-  return /financial\s+result|outcome\s+of\s+(?:the\s+)?board|audited\s+financial|unaudited\s+financial|_Outcome\.pdf/i.test(
-    blob,
-  );
+  if (/financial\s+result|audited\s+financial|unaudited\s+financial/i.test(blob)) {
+    return true;
+  }
+  if (
+    /newspaper/i.test(blob) &&
+    /(?:unaudited|audited|financial\s+result|extract)/i.test(blob)
+  ) {
+    return true;
+  }
+  // Bare “Outcome of Board Meeting” is often a meet letter, not Reg. 33 P&L.
+  if (
+    /outcome\s+of\s+(?:the\s+)?board|_Outcome\.pdf/i.test(blob) &&
+    /(?:regulation\s*33|audited|unaudited|financial\s+result)/i.test(blob)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /** Cover letter + enclosed earnings deck in the same PDF. */
@@ -95,6 +121,18 @@ export function isCallIntimationBlob(text: string): boolean {
   ) {
     return true;
   }
+  // Reg. 30 analyst / institutional-investor meet letters (schedule or outcome).
+  if (
+    t.length < 8_000 &&
+    /regulation\s*30/i.test(head) &&
+    /(?:analyst|institutional\s+investor)/i.test(head) &&
+    /(?:meet|meeting)/i.test(head) &&
+    !/STATEMENT OF .{0,40}FINANCIAL RESULTS|Revenue from Operations|EXTRACT OF .{0,40}FINANCIAL RESULTS/i.test(
+      t,
+    )
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -140,5 +178,13 @@ export function isCallIntimationHit(opts: {
   kind?: string | null;
 }): boolean {
   const blob = `${opts.kind || ""} ${opts.title || ""} ${opts.url || ""}`;
-  return /covering[_\s-]?letter|audio[_\s-]?record/i.test(blob);
+  if (
+    /newspaper/i.test(blob) &&
+    /(?:unaudited|audited|financial\s+result)/i.test(blob)
+  ) {
+    return false;
+  }
+  return /covering[_\s-]?letter|audio[_\s-]?record|intimation of.{0,80}(?:analyst|investor).{0,40}meet|outcome of meeting of analysts|invconcall|seltr.?outcome|outcomeinvconcall|institutional\s+investors?.{0,40}(?:concall|meet)/i.test(
+    blob,
+  );
 }
