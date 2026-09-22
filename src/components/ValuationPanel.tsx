@@ -7,7 +7,13 @@ import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandBusiness } from "@/components/ExpandBusiness";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { InvestorMaterialIcons } from "@/components/InvestorMaterialIcons";
+import {
+  CongratsScoreBox,
+  HighlightsBulletList,
+  MetricSelectorBox,
+} from "@/components/EarningsHighlightsCard";
 import { listWatchedTickers } from "@/lib/user-watchlist";
+import { useOptionalAppTab } from "@/lib/app-tab";
 import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import {
@@ -30,6 +36,22 @@ import {
   type ValuationScenario,
 } from "@/lib/valuation-model";
 
+type ValuationConcallSlice = {
+  period: string | null;
+  call_date: string | null;
+  result_quality: string | null;
+  mgmt_sentiment: string | null;
+  sentiment_score: number | null;
+  revenue_cr: number | null;
+  revenue_yoy_pct: number | null;
+  ebitda_margin_pct: number | null;
+  highlights: Array<{ text: string; polarity: string }>;
+  why_own: string | null;
+  risk: string | null;
+  next_catalyst: string | null;
+  valuation_anchor: string | null;
+};
+
 type ValuationPayload = {
   ok: boolean;
   ticker: string;
@@ -40,6 +62,7 @@ type ValuationPayload = {
   mcap_cr: number | null;
   change_pct: number | null;
   series: ValuationHistSeries;
+  concall?: ValuationConcallSlice | null;
   error?: string;
 };
 
@@ -80,7 +103,19 @@ function inputKeyForRow(
   return null;
 }
 
+function fmtCallDate(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export function ValuationPanel() {
+  const tabs = useOptionalAppTab();
   const [query, setQuery] = useState("");
   const [ticker, setTicker] = useState<string | null>(null);
   const [data, setData] = useState<ValuationPayload | null>(null);
@@ -362,6 +397,13 @@ export function ValuationPanel() {
             <ExpandBusiness data={briefData} compact />
             <ExpandQuarters data={quarterData} price={data?.price} compact />
           </div>
+          <ValuationConcallBlock
+            slice={data?.concall ?? null}
+            scenario={scenario}
+            onOpenResearch={
+              tabs ? () => tabs.setTab("research") : undefined
+            }
+          />
         </div>
 
         <div className="viq-model-head">
@@ -372,7 +414,9 @@ export function ValuationPanel() {
                 [{SCENARIOS.find((s) => s.id === scenario)?.label}]
               </span>
             </h3>
-            <p className="viq-model-sub">Consolidated · Annual</p>
+            <p className="viq-model-sub">
+              Consolidated · Annual P&amp;L from Screener (not PPT / concall)
+            </p>
           </div>
           <button
             type="button"
@@ -523,5 +567,116 @@ export function ValuationPanel() {
         ) : null}
       </div>
     </section>
+  );
+}
+
+function fmtCr(v: number | null): string | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return `₹${v.toLocaleString("en-IN", { maximumFractionDigits: 1 })} Cr`;
+}
+
+function ValuationConcallBlock({
+  slice,
+  scenario,
+  onOpenResearch,
+}: {
+  slice: ValuationConcallSlice | null;
+  scenario: ValuationScenario;
+  onOpenResearch?: () => void;
+}) {
+  const when = slice ? fmtCallDate(slice.call_date) : null;
+  const thesis =
+    scenario === "bull"
+      ? slice?.why_own
+      : scenario === "bear"
+        ? slice?.risk
+        : slice?.why_own;
+  const thesisLabel =
+    scenario === "bull"
+      ? "Why own"
+      : scenario === "bear"
+        ? "Risk"
+        : "Why own";
+  const rev = slice ? fmtCr(slice.revenue_cr) : null;
+  const yoy =
+    slice?.revenue_yoy_pct != null && Number.isFinite(slice.revenue_yoy_pct)
+      ? `${slice.revenue_yoy_pct >= 0 ? "+" : ""}${slice.revenue_yoy_pct.toFixed(1)}% YoY`
+      : null;
+  const opm =
+    slice?.ebitda_margin_pct != null &&
+    Number.isFinite(slice.ebitda_margin_pct)
+      ? `${slice.ebitda_margin_pct.toFixed(1)}% OPM`
+      : null;
+
+  return (
+    <div className="viq-concall">
+      <div className="viq-concall-head">
+        <h4 className="viq-concall-title">Latest concall</h4>
+        {slice ? (
+          <span className="viq-concall-meta">
+            {[slice.period, when].filter(Boolean).join(" · ")}
+          </span>
+        ) : (
+          <span className="viq-concall-meta">No PASS on file</span>
+        )}
+        {onOpenResearch ? (
+          <button
+            type="button"
+            className="viq-btn viq-btn-ghost viq-concall-open"
+            onClick={onOpenResearch}
+          >
+            Open Research
+          </button>
+        ) : null}
+      </div>
+      {!slice ? (
+        <p className="viq-concall-empty">
+          Analyze a transcript or PPT on Research to use call quality, highlights,
+          and thesis here. Annual P&amp;L stays on Screener.
+        </p>
+      ) : (
+        <>
+          <div className="viq-concall-kpis">
+            <MetricSelectorBox
+              label="Result quality"
+              value={slice.result_quality}
+              kind="quality"
+            />
+            <MetricSelectorBox
+              label="Tone"
+              value={slice.mgmt_sentiment}
+              kind="sentiment"
+            />
+            <CongratsScoreBox score={slice.sentiment_score} />
+            {rev || yoy || opm ? (
+              <div className="viq-concall-print">
+                {[rev, yoy, opm].filter(Boolean).join(" · ")}
+              </div>
+            ) : null}
+          </div>
+          <HighlightsBulletList items={slice.highlights} max={4} />
+          {thesis ? (
+            <p className="viq-concall-thesis">
+              <strong>{thesisLabel}:</strong> {thesis}
+            </p>
+          ) : null}
+          {scenario === "base" && slice.risk ? (
+            <p className="viq-concall-thesis viq-concall-thesis-risk">
+              <strong>Risk:</strong> {slice.risk}
+            </p>
+          ) : null}
+          {slice.next_catalyst ? (
+            <p className="viq-concall-thesis">
+              <strong>Next:</strong> {slice.next_catalyst}
+            </p>
+          ) : null}
+          {slice.valuation_anchor ? (
+            <p className="viq-concall-thesis">
+              <strong>Anchor:</strong> {slice.valuation_anchor}
+            </p>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }

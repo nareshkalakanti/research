@@ -7,6 +7,7 @@ import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import type { CorporateExtractPayload } from "./corporate-data";
 import { excerptInvestorTextForLlm } from "./investor-material-corpus";
+import { usableWatchText } from "./brief-placeholder";
 import {
   listInvestorMaterials,
   type InvestorMaterial,
@@ -53,7 +54,7 @@ Return ONLY JSON. Use only the transcript — never invent numbers or outlook.
   "sentiment_score": -2,
   "sentiment_why": "one sentence: what drove the label (guidance raise/cut, demand, margins, order book, risks)",
   "tone": "same as sentiment",
-  "risks": "key risks / headwinds management flagged, else null"
+  "risks": "key risks / headwinds management flagged. null if none. Never write that no risks were mentioned."
 }
 Sentiment rules (management language, not stock price):
 - bullish (+2): confident raise/strong guidance, robust demand, margin expansion clearly stated
@@ -67,6 +68,7 @@ function clip(s: string | null | undefined, n: number): string | null {
   if (s == null) return null;
   const t = String(s).replace(/\s+/g, " ").trim();
   if (!t || /^null$/i.test(t) || /^not disclosed$/i.test(t)) return null;
+  if (usableWatchText(t) === "" && /risk/i.test(t)) return null;
   return t.slice(0, n);
 }
 

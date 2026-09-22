@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { loadAllCompanies } from "@/lib/db";
 import { getMetrics } from "@/lib/metrics";
 import { fetchScreenerAnnualPl } from "@/lib/screener-annual";
+import { listLatestConcallPassByTickers } from "@/lib/concall-screen";
 import type { ValuationHistSeries } from "@/lib/valuation-model";
 
 export const runtime = "nodejs";
@@ -72,6 +73,25 @@ export async function GET(req: NextRequest) {
       ? Math.round((price / lastEps) * 10) / 10
       : null;
 
+  const pass = listLatestConcallPassByTickers([ticker]).get(ticker) ?? null;
+  const concall = pass
+    ? {
+        period: pass.period,
+        call_date: pass.call_date,
+        result_quality: pass.result_quality,
+        mgmt_sentiment: pass.mgmt_sentiment,
+        sentiment_score: pass.sentiment_score,
+        revenue_cr: pass.revenue_cr,
+        revenue_yoy_pct: pass.revenue_yoy_pct,
+        ebitda_margin_pct: pass.ebitda_margin_pct,
+        highlights: pass.highlights,
+        why_own: pass.why_own,
+        risk: pass.risk,
+        next_catalyst: pass.next_catalyst,
+        valuation_anchor: pass.valuation_anchor,
+      }
+    : null;
+
   return NextResponse.json({
     ok: true,
     ticker,
@@ -82,6 +102,7 @@ export async function GET(req: NextRequest) {
     mcap_cr: metrics?.market_cap_cr ?? company?.mcap_cr ?? null,
     change_pct: null as number | null,
     series,
+    concall,
     source: "screener",
   });
 }

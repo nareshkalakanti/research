@@ -12,6 +12,7 @@ import {
 } from "./investor-materials";
 import { materialHeadline } from "./investor-material-labels";
 import { pickMaterialsForBrief } from "./investor-material-corpus";
+import { usableWatchText, isPlaceholderWatch } from "./brief-placeholder";
 
 export type ResearchFillSourceKind = "ppt" | "concall" | "corporate";
 
@@ -72,10 +73,7 @@ function usableCapex(s: string | null | undefined): string {
 }
 
 function usableWatch(s: string | null | undefined): string {
-  const t = (s || "").replace(/\s+/g, " ").trim();
-  if (!t) return "";
-  if (/risks related to global market|crowded sector/i.test(t)) return "";
-  return t.slice(0, 240);
+  return usableWatchText(s);
 }
 
 export function isGenericTriggerClause(text: string): boolean {
@@ -210,7 +208,8 @@ export function applyResearchFillToBrief<
   } else {
     next.growth_triggers = clauses.join(" · ");
   }
-  if ((!next.watch.trim() || /risks related to global market/i.test(next.watch)) &&
+  if ((!next.watch.trim() || isPlaceholderWatch(next.watch) ||
+    /risks related to global market/i.test(next.watch)) &&
     fill.watch
   ) {
     next.watch = fill.watch;

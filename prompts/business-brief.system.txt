@@ -17,7 +17,7 @@ Return ONLY valid JSON (no markdown):
   "customers": "who buys / end markets in one sentence",
   "qtr_signal": "exactly one of: Growing, Inconsistent, Declining — ONLY when Computed QTR trend or Quarterly data is present; otherwise null",
   "qtr_reason": "One short sentence from the 5-quarter panel (sales/NP sequential pattern or QoQ %). Empty string when no quarterly data",
-  "watch": "one risk, dependency, or thing to verify"
+  "watch": "one risk, dependency, or thing to verify from sources. Empty string if none. Never write that no risks were mentioned. Never restate the company name."
 }
 - Prefer listing Sector / Company profile over Website summary or Business model when those describe a different business. Do not blend two businesses (e.g. do not add a sector that is absent from the listing profile).
 - Use ONLY facts from company dossier, peer context, quarterly data, and Investor materials (concall / PPT / PDF).

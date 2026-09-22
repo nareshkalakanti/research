@@ -239,8 +239,8 @@ export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
       $(cells[0])
         .text()
         .replace(/\u00a0/g, " ")
+        .replace(/\+/g, " ")
         .replace(/\s+/g, " ")
-        .replace(/\s*\+\s*$/g, "")
         .trim()
         .toLowerCase() || "";
     let field: keyof Pick<

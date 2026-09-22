@@ -142,7 +142,9 @@ function parseSectionTable(
 ): { dates: string[]; rows: Map<string, Array<number | null>> } | null {
   const section = $(`#${sectionId}`);
   if (!section.length) return null;
-  const table = section.find("table.data-table").first();
+  const table = section.find("table.data-table").first().length
+    ? section.find("table.data-table").first()
+    : section.find("table").first();
   if (!table.length) return null;
 
   const dates: string[] = [];
@@ -187,19 +189,19 @@ function parseSectionTable(
   table.find("tbody tr").each((_, tr) => {
     const cells = $(tr).find("td, th");
     if (cells.length < 2) return;
-    // Screener puts an expand "+" button in the label cell — strip it.
-    const labelCell = $(cells[0]).clone();
-    labelCell.find("button, .button, svg").remove();
-    const name = labelCell
+    // Keep button text (Screener often puts "Sales" inside the + control).
+    const name = $(cells[0])
       .text()
       .replace(/\u00a0/g, " ")
+      .replace(/\+/g, " ")
       .replace(/\s+/g, " ")
-      .replace(/\s*\+\s*$/g, "")
       .trim();
     if (!name) return;
     const vals: Array<number | null> = [];
     for (const idx of dateIdx) {
-      vals.push(parseNum($(cells[idx]).text()));
+      const cell = $(cells[idx]).clone();
+      cell.find("button, .button, svg").remove();
+      vals.push(parseNum(cell.text()));
     }
     rows.set(name, vals);
   });
@@ -210,13 +212,37 @@ function parseSectionTable(
 function pickRow(
   rows: Map<string, Array<number | null>>,
   patterns: RegExp[],
+  opts?: { allowPct?: boolean },
 ): Array<number | null> | null {
-  for (const [name, vals] of rows) {
-    for (const re of patterns) {
-      if (re.test(name)) return vals;
+  for (const re of patterns) {
+    for (const [name, vals] of rows) {
+      if (!re.test(name)) continue;
+      if (
+        !opts?.allowPct &&
+        /growth|yoy|qoq|\b%\s*$/i.test(name) &&
+        !/^OPM\b/i.test(name)
+      ) {
+        continue;
+      }
+      return vals;
     }
   }
   return null;
+}
+
+function zipAdd(
+  a: Array<number | null> | null,
+  b: Array<number | null> | null,
+  n: number,
+): Array<number | null> | null {
+  if (!a || !b) return null;
+  const out: Array<number | null> = [];
+  for (let i = 0; i < n; i++) {
+    const x = a[i];
+    const y = b[i];
+    out.push(x != null && y != null ? x + y : null);
+  }
+  return out.some((v) => v != null) ? out : null;
 }
 
 /** Parse annual Sales / EPS / ROCE from Screener company HTML. */
@@ -236,7 +262,12 @@ export function parseScreenerAnnualHtml(html: string): ScreenerAnnualSeries {
 
   const dates = pl?.dates ?? ratios?.dates ?? [];
   const sales = pl
-    ? pickRow(pl.rows, [/^Sales\b/i, /^Revenue\b/i])
+    ? pickRow(pl.rows, [
+        /^Sales\b/i,
+        /^Net Sales\b/i,
+        /^Revenue from operations/i,
+        /^Revenue\b/i,
+      ])
     : null;
   const eps = pl
     ? pickRow(pl.rows, [/^EPS\b/i, /EPS in Rs/i])
@@ -294,19 +325,40 @@ export function parseScreenerAnnualPlHtml(html: string): ScreenerAnnualPl {
   const pl = parseSectionTable($, "profit-loss");
   if (!pl?.dates.length) return empty;
   const n = pl.dates.length;
-  const revenue = pickRow(pl.rows, [/^Sales\b/i, /^Revenue\b/i]);
+  const revenue =
+    pickRow(pl.rows, [
+      /^Sales\b/i,
+      /^Net Sales\b/i,
+      /^Revenue from operations/i,
+      /^Income from operations/i,
+      /^Revenue\b/i,
+    ]) ??
+    zipAdd(
+      pickRow(pl.rows, [/^Expenses\b/i]),
+      pickRow(pl.rows, [/^Operating Profit\b/i, /^EBIT\b/i]),
+      n,
+    );
   const op = pickRow(pl.rows, [/^Operating Profit\b/i, /^EBIT\b/i]);
   const expenses = pickRow(pl.rows, [/^Expenses\b/i]);
   const otherIncome = pickRow(pl.rows, [/^Other Income\b/i]);
   const interest = pickRow(pl.rows, [/^Interest\b/i]);
   const depreciation = pickRow(pl.rows, [/^Depreciation\b/i]);
   const pbt = pickRow(pl.rows, [/^Profit before tax\b/i, /^PBT\b/i]);
-  const tax = pickRow(pl.rows, [/^Tax\b/i]);
-  const pat = pickRow(pl.rows, [
+  const tax = pickRow(pl.rows, [/^Tax\b/i, /^Tax %/i], { allowPct: true });
+  let pat = pickRow(pl.rows, [
     /^Net Profit\b/i,
     /^Profit after tax\b/i,
+    /^Reported (?:Net )?Profit\b/i,
     /^PAT\b/i,
   ]);
+  if (!pat?.some((v) => v != null) && pbt?.some((v) => v != null) && tax) {
+    pat = pbt.map((p, i) => {
+      if (p == null || tax[i] == null) return null;
+      const t = tax[i]!;
+      const rate = Math.abs(t) <= 100 ? t / 100 : t / p;
+      return p * (1 - rate);
+    });
+  }
   const eps = pickRow(pl.rows, [/^EPS\b/i, /EPS in Rs/i]);
   // Screener sometimes has "Equity Capital" / shares elsewhere — leave null.
   return {
@@ -341,6 +393,19 @@ function ensurePlCacheSchema(): void {
   } finally {
     db.close();
   }
+}
+
+/** True when Sales looks like a P&L line, not growth %. OP cannot exceed Sales. */
+function plUsable(pl: ScreenerAnnualPl): boolean {
+  if (!pl.revenue.some((s) => s != null && s > 0)) return false;
+  for (let i = 0; i < pl.revenue.length; i++) {
+    const r = pl.revenue[i];
+    const op = pl.operating_profit[i];
+    if (r != null && op != null && r > 0 && op > 0 && r + 0.5 < op) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function readPlCache(ticker: string): ScreenerAnnualPl | "blocked" | null {
@@ -417,7 +482,7 @@ export async function fetchScreenerAnnualPl(
   if (!opts?.force) {
     const cached = readPlCache(key);
     if (cached === "blocked") return empty;
-    if (cached && cached.revenue.some((s) => s != null && s > 0)) return cached;
+    if (cached && plUsable(cached)) return cached;
   }
 
   try {
@@ -425,21 +490,18 @@ export async function fetchScreenerAnnualPl(
       consolidated: opts?.consolidated !== false,
     });
     let series = parseScreenerAnnualPlHtml(html);
-    if (
-      !series.revenue.some((s) => s != null && s > 0) &&
-      opts?.consolidated !== false
-    ) {
+    if (!plUsable(series) && opts?.consolidated !== false) {
       try {
         const standHtml = await fetchScreenerCompanyHtml(key, {
           consolidated: false,
         });
         const stand = parseScreenerAnnualPlHtml(standHtml);
-        if (stand.revenue.some((s) => s != null && s > 0)) series = stand;
+        if (plUsable(stand)) series = stand;
       } catch {
         /* keep first parse */
       }
     }
-    if (series.revenue.some((s) => s != null && s > 0)) {
+    if (plUsable(series)) {
       writePlCache(key, series);
     }
     return series;

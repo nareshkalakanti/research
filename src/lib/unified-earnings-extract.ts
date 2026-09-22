@@ -8,6 +8,7 @@ import path from "path";
 import { completeJson, checkLlmStatus } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { parseOrderSizeToCr } from "./orderbook-screen";
+import { polarityFromHighlightText } from "./highlight-polarity";
 
 export type UnifiedEarningsExtract = Record<string, unknown>;
 
@@ -408,26 +409,8 @@ export async function extractUnifiedEarningsFromTexts(opts: {
       },
     )) as Record<string, unknown>;
 
-    const inferPol = (text: string, raw?: string) => {
-      const pol = String(raw || "").toLowerCase();
-      if (pol === "positive" || pol === "negative" || pol === "neutral")
-        return pol;
-      if (
-        /miss|cut|reset|delay|destock|divest|decline|loss|weak|compress|headwind/i.test(
-          text,
-        )
-      ) {
-        return "negative" as const;
-      }
-      if (
-        /grew|growth|won|win|target|acquisition completed|closed|reaffirm|investment|commission|capacity|\+\d|beat|raise/i.test(
-          text,
-        )
-      ) {
-        return "positive" as const;
-      }
-      return "neutral" as const;
-    };
+    const inferPol = (text: string, raw?: string) =>
+      polarityFromHighlightText(text, raw);
 
     const stripMark = (s: string) =>
       s.replace(/^[✓✔⚠⚠️•\-\*]\s*/, "").trim();

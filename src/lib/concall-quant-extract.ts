@@ -14,6 +14,8 @@ import {
   groundHighlightSentimentInMaterials,
   cardHighlightsFromGroundedQuant,
 } from "./highlight-material-ground";
+import { polarityFromHighlightText } from "./highlight-polarity";
+import { isCallIntimationBlob } from "./call-intimation";
 export { formatExecutiveSummaryText } from "./concall-quant-format";
 export {
   enforceSlotSemantics,
@@ -359,8 +361,10 @@ export async function extractQuantFromTexts(opts: {
     };
   }
 
-  const tx = opts.transcriptText.trim();
-  const ppt = opts.presentationText.trim();
+  let tx = opts.transcriptText.trim();
+  let ppt = opts.presentationText.trim();
+  if (isCallIntimationBlob(ppt)) ppt = "";
+  if (isCallIntimationBlob(tx) && ppt.length < 80) tx = "";
   if (tx.length < 80 && ppt.length < 80) {
     return {
       ok: false,
@@ -495,12 +499,14 @@ export function cardHighlightsFromQuant(
       const o = asObj(h);
       if (!o || typeof o.headline !== "string") return null;
       const sent = String(o.sentiment || "").toUpperCase();
-      const polarity =
+      const polarity = polarityFromHighlightText(
+        o.headline,
         sent === "POSITIVE"
           ? "positive"
           : sent === "NEGATIVE"
             ? "negative"
-            : "neutral";
+            : "neutral",
+      );
       return { text: o.headline.trim().slice(0, 120), polarity };
     })
     .filter(Boolean) as Array<{ text: string; polarity: string }>;
@@ -619,9 +625,71 @@ export function applyHighlightSentimentToCard(
 export function applyExecutiveSnapshotToFinancials(
   extract: Record<string, unknown>,
   exec: Record<string, unknown> | null | undefined,
+  sourceText?: string | null,
 ): void {
   const snap = asObj(exec?.financial_snapshot);
   if (!snap) return;
+
+  const docs = asObj(extract.docs);
+  const corpus = [
+    sourceText,
+    typeof docs?.combined === "string" ? docs.combined : "",
+    typeof docs?.transcript === "string" ? docs.transcript : "",
+    typeof docs?.ppt === "string" ? docs.ppt : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const requireGround = corpus.replace(/\s/g, "").length >= 80;
+
+  const groundedCr = (n: number, section?: string): boolean => {
+    if (!requireGround) return true;
+    const t = corpus.replace(/,/g, "");
+    const exact = n.toFixed(2).replace(/\.00$/, "");
+    const label =
+      section === "revenue"
+        ? "(?:revenue|sales|turnover|total income)"
+        : section === "ebitda"
+          ? "(?:ebitda|operating ebitda)"
+          : section === "pat"
+            ? "(?:profit after tax|(?<!cash )\\bpat\\b)"
+            : "(?:revenue|sales|turnover|ebitda|pat|total income)";
+    const re = new RegExp(
+      `(?:₹|rs\\.?|inr)?\\s*${exact.replace(".", "\\.")}\\s*(?:cr|crores?)\\b|${label}[^\\n%]{0,48}${exact.replace(".", "\\.")}`,
+      "i",
+    );
+    if (re.test(t)) return true;
+    if (Math.abs(n - Math.round(n)) < 0.051) {
+      if (
+        new RegExp(
+          `(?:₹|rs\\.?|inr)?\\s*${Math.round(n)}\\s*(?:cr|crores?)\\b`,
+          "i",
+        ).test(t)
+      ) {
+        return true;
+      }
+    }
+    for (const m of t.matchAll(
+      /([\d]+(?:\.\d+)?)\s*(?:lacs?|lakhs?)\b/gi,
+    )) {
+      const lacs = Number(m[1]);
+      if (!Number.isFinite(lacs) || lacs <= 0) continue;
+      if (Math.abs(lacs / 100 - n) <= 0.02) return true;
+    }
+    for (const m of t.matchAll(
+      /([\d]+(?:\.\d+)?)\s*(?:mn|million)\b/gi,
+    )) {
+      const mn = Number(m[1]);
+      if (!Number.isFinite(mn) || mn <= 0) continue;
+      if (Math.abs(mn / 10 - n) <= 0.05) return true;
+    }
+    return false;
+  };
+  const groundedPct = (n: number): boolean => {
+    if (!requireGround) return true;
+    const t = corpus.replace(/,/g, "");
+    const s = Number.isInteger(n) ? String(n) : String(n);
+    return new RegExp(`${s.replace(".", "\\.")}\\s*%`).test(t);
+  };
 
   const fin = asObj(extract.reported_financials) || {};
 
@@ -657,7 +725,7 @@ export function applyExecutiveSnapshotToFinancials(
         if (n == null || n <= 0) continue;
         if (/yoy|growth|pct|margin|bps|cagr/i.test(key)) continue;
         if (
-          /guidance|target|prior|remaining|largest|inflow|pending|gross_profit|operating_ebitda|\bpbt\b|\bpat\b/i.test(
+          /guidance|target|prior|remaining|largest|inflow|pending|gross_profit|operating_ebitda|\bpbt\b|\bpat\b|cash_pat|cash pat/i.test(
             key,
           ) &&
           !/revenue/i.test(key)
@@ -711,7 +779,7 @@ export function applyExecutiveSnapshotToFinancials(
     if (existing && typeof existing.current_qtr === "number") return;
     const row = sectionObj(section);
     const cur = pickCr(row);
-    if (cur == null) return;
+    if (cur == null || !groundedCr(cur, section)) return;
     fin[key] = {
       current_qtr: cur,
       yoy_qtr: null,
@@ -726,7 +794,7 @@ export function applyExecutiveSnapshotToFinancials(
 
   if (!asObj(fin.ebitda_margin_pct)?.current_qtr) {
     const margin = pickMargin(asObj(snap.ebitda));
-    if (margin != null) {
+    if (margin != null && groundedPct(margin)) {
       fin.ebitda_margin_pct = {
         current_qtr: margin,
         pct_change: null,
@@ -764,5 +832,26 @@ export function applyExecutiveMetaToExtract(
     if (/^\d{4}-\d{2}-\d{2}/.test(ev)) meta.call_date = ev.slice(0, 10);
   }
   extract.metadata = meta;
+
+  const inv = asObj(exec.investment_summary);
+  const unified = asObj(extract.unified_earnings) || {};
+  const ia = asObj(unified.investor_analysis) || {};
+  const str = (v: unknown) =>
+    typeof v === "string" && v.trim().length >= 8 ? v.trim().slice(0, 400) : null;
+  if (!str(ia.bull_case) && str(inv?.bull_case)) ia.bull_case = str(inv?.bull_case);
+  if (!str(ia.bear_case) && str(inv?.bear_case)) ia.bear_case = str(inv?.bear_case);
+  if (!str(ia.valuation_anchors) && str(inv?.valuation_anchors)) {
+    ia.valuation_anchors = str(inv?.valuation_anchors);
+  }
+  const cats = Array.isArray(exec.near_term_catalysts_6m)
+    ? exec.near_term_catalysts_6m.filter((x) => typeof x === "string" && x.trim())
+    : [];
+  if (!str(ia.next_catalyst) && cats[0]) {
+    ia.next_catalyst = String(cats[0]).trim().slice(0, 200);
+  }
+  if (ia.bull_case || ia.bear_case || ia.next_catalyst) {
+    unified.investor_analysis = ia;
+    extract.unified_earnings = unified;
+  }
 }
 

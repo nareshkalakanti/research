@@ -6,6 +6,13 @@ import { createHash } from "crypto";
 import fs from "fs";
 import path from "path";
 import { downloadBuybackPdf } from "./buyback-screen";
+import {
+  looksLikeConcallPdfUrl,
+  trendlynePdfUrlForPostId,
+  trendlynePostIdFromUrl,
+  isPrivatePdfHost,
+  encodeLiteralAmpersandsInPath,
+} from "./concall-pdf-url";
 import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -26,6 +33,13 @@ import {
 } from "./investor-presentation-extract";
 import { parseOrderSizeToCr } from "./orderbook-screen";
 import {
+  isCallIntimationBlob,
+  isCallIntimationHit,
+  isFinancialResultsBlob,
+  isFinancialResultsHit,
+  followPdfUrlFromIntimation,
+} from "./call-intimation";
+import {
   extractUnifiedEarningsFromTexts,
   isUnifiedLlmEnabled,
   mapUnifiedEarningsToConcallExtract,
@@ -41,6 +55,7 @@ import {
   loadQuantGold,
   compareQuantJson,
 } from "./concall-quant-extract";
+import { polarityFromHighlightText } from "./highlight-polarity";
 
 const CONCALL_UPLOAD_DIR = path.join(process.cwd(), "data", "concall-uploads");
 
@@ -59,6 +74,20 @@ export function classifyConcallDocument(text: string): {
   note: string;
 } {
   const head = text.slice(0, 14_000);
+  if (isCallIntimationBlob(text)) {
+    return {
+      kind: "other",
+      label: "Call intimation",
+      note: "Audio-recording / covering letter — not a results PPT. Do not use for printed P&L.",
+    };
+  }
+  if (isFinancialResultsBlob(text)) {
+    return {
+      kind: "investor_presentation",
+      label: "Financial results",
+      note: "Reg. 33 board outcome / results — use printed P&L (convert lacs→Cr).",
+    };
+  }
   if (
     /Transcript of Investors?\s*(?:&|and)\s*Analyst Meet/i.test(head) ||
     /Investors?\s*(?:&|and)\s*Analyst Meet/i.test(head) ||
@@ -186,6 +215,10 @@ export type ConcallHistoryRow = {
   result_quality: string | null;
   mgmt_sentiment: string | null;
   highlights: Array<{ text: string; polarity: string }>;
+  why_own: string | null;
+  risk: string | null;
+  next_catalyst: string | null;
+  valuation_anchor: string | null;
   /** StockScans-style material links (+ saved combined text for re-run) */
   docs: {
     summary: string | null;
@@ -424,13 +457,71 @@ function persistUploadedConcallPdf(
   return `local:${name}`;
 }
 
+function isPdfBuffer(buf: Buffer | null | undefined): buf is Buffer {
+  return Boolean(
+    buf &&
+      buf.length >= 100 &&
+      buf[0] === 0x25 &&
+      buf[1] === 0x50 &&
+      buf[2] === 0x44 &&
+      buf[3] === 0x46,
+  );
+}
+
+async function fetchPdfWithReferer(
+  url: string,
+  timeoutMs: number,
+): Promise<Buffer | null> {
+  try {
+    const parsed = new URL(url);
+    const host = parsed.hostname.toLowerCase();
+    const referer = host.includes("trendlyne")
+      ? "https://trendlyne.com/"
+      : host.includes("bseindia")
+        ? "https://www.bseindia.com/"
+        : host.includes("nseindia")
+          ? "https://www.nseindia.com/"
+          : `${parsed.protocol}//${parsed.host}/`;
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "application/pdf,*/*",
+        Referer: referer,
+      },
+      signal: AbortSignal.timeout(timeoutMs),
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    return isPdfBuffer(buf) ? buf : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function downloadConcallPdf(
   url: string,
   opts?: { timeoutMs?: number },
 ): Promise<Buffer | null> {
   if (isConcallLocalPdfRef(url)) return readConcallLocalPdf(url);
   if (isConcallSamplePdfRef(url)) return readConcallSamplePdf(url);
-  return downloadBuybackPdf(url, opts);
+  const timeoutMs = opts?.timeoutMs ?? 90_000;
+  const tried = new Set<string>();
+  const queue = [url.trim()];
+  const withAmp = encodeLiteralAmpersandsInPath(url.trim());
+  if (withAmp !== url.trim()) queue.push(withAmp);
+  const postId = trendlynePostIdFromUrl(url);
+  if (postId) queue.push(trendlynePdfUrlForPostId(postId));
+  for (const u of queue) {
+    if (!u || tried.has(u)) continue;
+    tried.add(u);
+    const buf =
+      (await fetchPdfWithReferer(u, timeoutMs)) ||
+      (await downloadBuybackPdf(u, { timeoutMs }));
+    if (isPdfBuffer(buf)) return buf;
+  }
+  return null;
 }
 
 export function isConcallPdfProxyUrl(url: string): boolean {
@@ -439,6 +530,8 @@ export function isConcallPdfProxyUrl(url: string): boolean {
     const u = new URL(url.trim());
     if (u.protocol !== "http:" && u.protocol !== "https:") return false;
     const h = u.hostname.toLowerCase();
+    if (isPrivatePdfHost(h)) return false;
+    if (looksLikeConcallPdfUrl(url.trim())) return true;
     return (
       h === "www.bseindia.com" ||
       h === "bseindia.com" ||
@@ -455,8 +548,7 @@ export function isConcallPdfProxyUrl(url: string): boolean {
       h.includes("screener.in") ||
       h.includes("moneycontrol") ||
       h.includes("stockscans") ||
-      h.includes("alphastreet") ||
-      h.includes("indoborax")
+      h.includes("alphastreet")
     );
   } catch {
     return false;
@@ -566,8 +658,9 @@ function scoreConcallDiscoverHit(opts: {
   if (/bse|nse|screener/.test(opts.provider)) score += 15;
   if (/trendlyne/.test(opts.provider)) score -= 20;
   // Filename is more reliable than exchange title labels
-  if (/transcript|conference.?call.?outcome|earnings.?call/i.test(pathOnly))
-    score += 60;
+  if (/covering[_\s-]?letter|audio[_\s-]?record/i.test(pathOnly)) {
+    score -= 180;
+  }
   if (/investors?_?presentation|investorpresentation|presentation/i.test(pathOnly))
     score += 40;
   // Prefer newer filings encoded in NSE archive filenames: TICKER_DDMMYYYY…
@@ -613,10 +706,9 @@ function scoreConcallDiscoverHit(opts: {
 
 function isExtractableConcallUrl(url: string): boolean {
   if (isConcallLocalPdfRef(url) || isConcallSamplePdfRef(url)) return true;
+  if (looksLikeConcallPdfUrl(url)) return true;
+  if (trendlynePostIdFromUrl(url)) return true;
   try {
-    const u = new URL(url);
-    const h = u.hostname.toLowerCase();
-    if (h.includes("trendlyne.com") && !/\.pdf(\?|$)/i.test(u.pathname)) return false;
     return isConcallPdfProxyUrl(url);
   } catch {
     return false;
@@ -667,26 +759,43 @@ export async function discoverConcallPdfSources(
     const { discoverInvestorMaterialSources } = await import(
       "./investor-material-scrape"
     );
-    const found = await discoverInvestorMaterialSources(ticker);
+    const found = await discoverInvestorMaterialSources(ticker, {
+      refresh: true,
+    });
     for (const s of found.sources) {
-      if (s.kind !== "concall" && s.kind !== "ppt" && s.kind !== "transcript") {
+      const asResults = isFinancialResultsHit({
+        kind: s.kind,
+        title: s.title,
+        url: s.url,
+      });
+      if (
+        s.kind !== "concall" &&
+        s.kind !== "ppt" &&
+        s.kind !== "transcript" &&
+        !asResults
+      ) {
         continue;
       }
+      const kind: ConcallDiscoverHit["kind"] = asResults
+        ? "ppt"
+        : s.kind === "transcript"
+          ? "transcript"
+          : s.kind;
       const score = scoreConcallDiscoverHit({
-        kind: s.kind,
+        kind,
         title: s.title,
         url: s.url,
         provider: s.provider,
       });
-      if (score < 20) continue;
+      if (score < 20 && !asResults) continue;
       hits.push({
         id: s.id,
-        kind: s.kind === "transcript" ? "transcript" : s.kind,
+        kind,
         title: s.title,
         period: s.period,
         url: s.url,
         provider: s.provider,
-        score,
+        score: asResults ? Math.max(score, 40) : score,
         extractable: isExtractableConcallUrl(s.url),
       });
     }
@@ -714,8 +823,12 @@ export async function discoverConcallPdfSources(
       `${h.title} ${h.url}`,
     ) && !/transcript/i.test(`${h.title} ${h.url}`);
 
+  const isIntimation = (h: ConcallDiscoverHit) =>
+    isCallIntimationHit(h) || isAudioOnly(h);
+
   const isTx = (h: ConcallDiscoverHit) => {
-    if (isAudioOnly(h)) return false;
+    if (isIntimation(h)) return false;
+    if (isFinancialResultsHit(h)) return false;
     const blob = `${h.kind} ${h.title} ${h.url}`;
     // Require "transcript" — bare "earnings call" matches audio intimations
     return (
@@ -725,24 +838,28 @@ export async function discoverConcallPdfSources(
     );
   };
   const isPpt = (h: ConcallDiscoverHit) =>
-    h.kind === "ppt" ||
-    /presentation|investor\s*deck|earnings\s*deck/i.test(h.title);
+    !isIntimation(h) &&
+    (h.kind === "ppt" ||
+      isFinancialResultsHit(h) ||
+      /presentation|investor\s*deck|earnings\s*deck/i.test(h.title));
 
   const extractable = sources.filter((h) => h.extractable !== false);
+  const pdfExtractable = extractable.filter((h) => looksLikeConcallPdfUrl(h.url));
+  const pickPool = pdfExtractable.length ? pdfExtractable : extractable;
   let latest_transcript =
-    extractable.find(isTx) ||
-    extractable.find((h) => /transcript/i.test(h.url) && !isAudioOnly(h)) ||
+    pickPool.find(isTx) ||
+    pickPool.find((h) => /transcript/i.test(h.url) && !isAudioOnly(h)) ||
     null;
   let latest_ppt =
-    extractable.find(isPpt) ||
-    extractable.find((h) => /presentation|investor/i.test(h.url)) ||
-    extractable.find((h) => h.kind === "ppt") ||
+    pickPool.find(isPpt) ||
+    pickPool.find((h) => /presentation|investor/i.test(h.url)) ||
+    pickPool.find((h) => h.kind === "ppt") ||
     null;
 
   // Fallback: unclassified PDFs still usable — first as TX, next as PPT
   const pdfish = (h: ConcallDiscoverHit) =>
     h.extractable !== false &&
-    !isAudioOnly(h) &&
+    !isIntimation(h) &&
     (/\.pdf(\?|$)/i.test(h.url) ||
       /^sample:/i.test(h.url) ||
       /pdf|attachment|download/i.test(h.url));
@@ -757,10 +874,31 @@ export async function discoverConcallPdfSources(
   if (!latest_ppt) {
     latest_ppt =
       extractable.find(
-        (h) => pdfish(h) && h !== latest_transcript && (isPpt(h) || h.kind === "ppt" || h.kind === "concall"),
+        (h) => pdfish(h) && h !== latest_transcript && isPpt(h),
       ) ||
-      extractable.find((h) => pdfish(h) && h !== latest_transcript) ||
+      extractable.find(
+        (h) =>
+          pdfish(h) &&
+          h !== latest_transcript &&
+          /presentation|investor\s*deck/i.test(`${h.title} ${h.url}`),
+      ) ||
       null;
+  }
+
+  // Don't pair a year-old results PDF with a much later transcript.
+  if (latest_ppt && latest_transcript) {
+    const recency = (h: ConcallDiscoverHit) => {
+      const pk = periodSortKey(h.period);
+      if (pk) return pk;
+      const nse = h.url.match(/_(\d{2})(\d{2})(20\d{2})/);
+      if (!nse) return 0;
+      return Number(nse[3]) * 10000 + Number(nse[2]) * 100 + Number(nse[1]);
+    };
+    const txK = recency(latest_transcript);
+    const pptK = recency(latest_ppt);
+    if (txK && pptK && pptK + 400 < txK) {
+      latest_ppt = null;
+    }
   }
 
   return {
@@ -2385,21 +2523,10 @@ function normalizeHighlightList(
               ? o.headline
               : "";
       if (!text.trim() || isJunk(text)) return null;
-      const pol = String(o.polarity || o.tone || "neutral").toLowerCase();
+      const stored = String(o.polarity || o.tone || "").toLowerCase();
       return {
         text: text.trim().replace(/\s+/g, " ").slice(0, 100),
-        polarity:
-          pol === "positive" ||
-          pol === "negative" ||
-          pol === "neutral" ||
-          pol === "pos" ||
-          pol === "neg"
-            ? pol === "pos"
-              ? "positive"
-              : pol === "neg"
-                ? "negative"
-                : pol
-            : "neutral",
+        polarity: polarityFromHighlightText(text, stored),
       };
     })
     .filter(Boolean) as Array<{ text: string; polarity: string }>;
@@ -2455,7 +2582,7 @@ export async function runConcallQuantForRow(opts: {
       if (opts.compareGold !== false && r.compare) {
         compare.executive = r.compare;
       }
-      applyExecutiveSnapshotToFinancials(extract, r.json);
+      applyExecutiveSnapshotToFinancials(extract, r.json, saved.combined_text);
       applyExecutiveMetaToExtract(extract, r.json);
       const summaryText = formatExecutiveSummaryText(r.json);
       if (summaryText) {
@@ -2980,7 +3107,11 @@ function snapshotHasMappableRevenue(extract: ConcallExtract): boolean {
   const exec = asObj(asObj(extract.quant)?.executive_summary);
   if (!exec) return false;
   const probe: ConcallExtract = { reported_financials: {} };
-  applyExecutiveSnapshotToFinancials(probe, exec);
+  applyExecutiveSnapshotToFinancials(
+    probe,
+    exec,
+    asDocs(extract.docs).combined,
+  );
   const cr = revenueToCr(asObj(probe.reported_financials)?.revenue);
   return cr != null && cr > 0;
 }
@@ -3136,7 +3267,13 @@ export function ensureFinancialsFromQuantSnapshot(
   if (already != null && already > 0) return false;
   const before = JSON.stringify(extract.reported_financials ?? null);
   const exec = asObj(asObj(extract.quant)?.executive_summary);
-  if (exec) applyExecutiveSnapshotToFinancials(extract, exec);
+  if (exec) {
+    applyExecutiveSnapshotToFinancials(
+      extract,
+      exec,
+      asDocs(extract.docs).combined,
+    );
+  }
   fillRevenueFromCombinedText(extract);
   return JSON.stringify(extract.reported_financials ?? null) !== before;
 }
@@ -3192,6 +3329,39 @@ export function ensureCallDateFromCombined(
   return true;
 }
 
+function pickThesisLine(...vals: unknown[]): string | null {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim().length >= 8) {
+      return v.trim().slice(0, 400);
+    }
+  }
+  return null;
+}
+
+function thesisFromExtract(extract: ConcallExtract): {
+  why_own: string | null;
+  risk: string | null;
+  next_catalyst: string | null;
+  valuation_anchor: string | null;
+} {
+  const ia = asObj(asObj(extract.unified_earnings)?.investor_analysis);
+  const exec = asObj(asObj(extract.quant)?.executive_summary);
+  const inv = asObj(exec?.investment_summary);
+  const cats = Array.isArray(exec?.near_term_catalysts_6m)
+    ? exec.near_term_catalysts_6m
+    : [];
+  const firstCat = cats.find((x) => typeof x === "string" && x.trim().length >= 8);
+  return {
+    why_own: pickThesisLine(ia?.bull_case, inv?.bull_case),
+    risk: pickThesisLine(ia?.bear_case, inv?.bear_case),
+    next_catalyst: pickThesisLine(ia?.next_catalyst, firstCat),
+    valuation_anchor: pickThesisLine(
+      ia?.valuation_anchors,
+      inv?.valuation_anchors,
+    ),
+  };
+}
+
 function historyFromExtract(
   id: number,
   source_url: string | null,
@@ -3226,6 +3396,7 @@ function historyFromExtract(
   const ticker = typeof meta.nse_symbol === "string" ? meta.nse_symbol : null;
   if (!company && ticker) company = lookupCompanyName(ticker);
   const market = ticker ? lookupCompanyMarket(ticker) : null;
+  const thesis = thesisFromExtract(extract);
 
   return {
     id,
@@ -3248,6 +3419,10 @@ function historyFromExtract(
     mgmt_sentiment:
       typeof card.mgmt_sentiment === "string" ? card.mgmt_sentiment : null,
     highlights,
+    why_own: thesis.why_own,
+    risk: thesis.risk,
+    next_catalyst: thesis.next_catalyst,
+    valuation_anchor: thesis.valuation_anchor,
     docs: asDocsPublic(extract.docs, extract),
     decision,
     ltp: asNum(extract.ltp),
@@ -4504,6 +4679,28 @@ Prior extract context (use only if supported by transcript): ${prior}`;
 }
 
 /**
+ * Drop a PPT/results PDF that is a covering letter or a different issuer
+ * than the transcript (stale URL from a prior ticker).
+ */
+export function shouldDropPptAgainstTranscript(
+  pptText: string,
+  transcriptText?: string | null,
+): boolean {
+  const ppt = (pptText || "").trim();
+  if (!ppt) return true;
+  if (isCallIntimationBlob(ppt)) return true;
+  const tx = (transcriptText || "").trim();
+  if (!tx) return false;
+  const pptSym = extractNseSymbolFromText(ppt);
+  const txSym = extractNseSymbolFromText(tx);
+  if (pptSym && txSym && pptSym !== txSym) return true;
+  const pptCo = extractFilingCompanyName(ppt);
+  const txCo = extractFilingCompanyName(tx);
+  if (pptCo && txCo && !issuerNamesCompatible(pptCo, txCo)) return true;
+  return false;
+}
+
+/**
  * Text extract for Transcript and/or PPT.
  * Transcript: always pdf-parse.
  * PPT: vision OCR when QIANFAN_OCR_BASE_URL is set (glm-ocr / qwen2.5vl).
@@ -4555,6 +4752,25 @@ export async function extractConcallMaterialsText(opts: {
     });
     if (!buf && source_url) {
       buf = await downloadConcallPdf(source_url);
+    }
+    if (!buf && source_url) {
+      const postId = trendlynePostIdFromUrl(source_url);
+      if (postId) {
+        const { fetchTrendlynePostPageText } = await import(
+          "./trendlyne-investor-discover"
+        );
+        const htmlText = await fetchTrendlynePostPageText(postId);
+        if (htmlText && htmlText.replace(/\s/g, "").length >= 80) {
+          return {
+            role,
+            ok: true,
+            text: htmlText.slice(0, TEXT_MAX),
+            text_chars: htmlText.length,
+            engine: "trendlyne-html",
+            source_url,
+          };
+        }
+      }
     }
     if (!buf) {
       return {
@@ -4649,6 +4865,55 @@ export async function extractConcallMaterialsText(opts: {
             : `No text in ${role} PDF (text layer empty)`,
       };
     }
+
+    if (isCallIntimationBlob(text)) {
+      const follow = followPdfUrlFromIntimation(text, role);
+      if (
+        follow &&
+        follow !== source_url &&
+        looksLikeConcallPdfUrl(follow)
+      ) {
+        report?.({
+          type: "progress",
+          role,
+          phase: "download",
+          message: `${role}: following PDF link in covering letter…`,
+          pct: 40,
+        });
+        const nextBuf = await downloadConcallPdf(follow);
+        if (isPdfBuffer(nextBuf)) {
+          try {
+            const nextText = await extractPdfText(nextBuf);
+            if (
+              nextText.trim() &&
+              !isCallIntimationBlob(nextText)
+            ) {
+              return {
+                role,
+                ok: true,
+                text: nextText.slice(0, TEXT_MAX),
+                text_chars: nextText.length,
+                engine: "pdf-parse-follow",
+                source_url: follow,
+              };
+            }
+          } catch {
+            /* keep intimation failure below */
+          }
+        }
+      }
+      return {
+        role,
+        ok: false,
+        text: "",
+        text_chars: 0,
+        engine,
+        source_url,
+        error:
+          "Covering letter / intimation — not a transcript or results PPT",
+      };
+    }
+
     return {
       role,
       ok: true,
@@ -4674,6 +4939,23 @@ export async function extractConcallMaterialsText(opts: {
       one("transcript", opts.transcriptUrl, opts.transcriptBuffer),
       one("ppt", opts.pptUrl, opts.pptBuffer),
     ]);
+  }
+
+  if (
+    ppt?.ok &&
+    shouldDropPptAgainstTranscript(
+      ppt.text,
+      transcript?.ok ? transcript.text : null,
+    )
+  ) {
+    ppt = {
+      ...ppt,
+      ok: false,
+      text: "",
+      text_chars: 0,
+      error:
+        "PPT is a different issuer or a call intimation — not merged with this ticker’s transcript",
+    };
   }
 
   const materials = {
@@ -4753,7 +5035,7 @@ export async function screenConcallMaterials(opts: {
     });
   }
 
-  const [tx, ppt] = await Promise.all([
+  const [tx, pptScreened] = await Promise.all([
     screenConcallPdf({
       url: opts.transcriptUrl,
       pdfBuffer: opts.transcriptBuffer,
@@ -4769,9 +5051,29 @@ export async function screenConcallMaterials(opts: {
       downloadTimeoutMs: 45_000,
     }),
   ]);
+  let ppt = pptScreened;
 
   const txOk = (tx.text_chars || 0) > 0;
-  const pptOk = (ppt.text_chars || 0) > 0;
+  let pptOk = (ppt.text_chars || 0) > 0;
+  if (
+    txOk &&
+    pptOk &&
+    shouldDropPptAgainstTranscript(
+      ppt.text_full || ppt.text_excerpt || "",
+      tx.text_full || tx.text_excerpt || "",
+    )
+  ) {
+    pptOk = false;
+    ppt = {
+      ...ppt,
+      ok: false,
+      error:
+        "PPT is a different issuer or a call intimation — not merged with this ticker’s transcript",
+      text_chars: 0,
+      text_excerpt: "",
+      text_full: "",
+    };
+  }
 
   // If one side failed (e.g. BSE blocked) but the other extracted, keep going.
   if (!txOk && pptOk) {
@@ -5140,7 +5442,11 @@ export async function screenConcallFromCombinedText(opts: {
     ]);
     if (execR.ok) {
       quant.executive_summary = execR.json;
-      applyExecutiveSnapshotToFinancials(extract, execR.json);
+      applyExecutiveSnapshotToFinancials(
+        extract,
+        execR.json,
+        [tx, ppt].filter(Boolean).join("\n\n"),
+      );
       applyExecutiveMetaToExtract(extract, execR.json);
       const summaryText = formatExecutiveSummaryText(execR.json);
       if (summaryText) {

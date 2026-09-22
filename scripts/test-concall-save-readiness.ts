@@ -120,6 +120,68 @@ function main() {
       }
     ).executive_summary,
   );
+
+  const invented: ConcallExtract = {
+    ...unlabeled,
+    docs: {
+      combined:
+        "Moderator: Welcome to the earnings conference call. Gross margin was 11.3% to 20.3%.",
+    },
+    quant: {
+      executive_summary: {
+        financial_snapshot: {
+          revenue: { current_qtr_inr_cr: 83.03 },
+          ebitda: { margin_pct: 15.48 },
+        },
+      },
+    },
+    reported_financials: {},
+  };
+  applyExecutiveSnapshotToFinancials(
+    invented,
+    (
+      invented.quant as {
+        executive_summary?: Record<string, unknown>;
+      }
+    ).executive_summary,
+    "Moderator: Welcome to the earnings conference call. Gross margin was 11.3% to 20.3%.",
+  );
+  const inventedRev = (
+    invented.reported_financials as { revenue?: { current_qtr?: number } }
+  )?.revenue;
+  assert(
+    inventedRev?.current_qtr == null,
+    "spoken call without printed ₹ cr must not take invented snapshot revenue",
+  );
+
+  const lacsGround: ConcallExtract = {
+    ...unlabeled,
+    docs: { combined: "" },
+    reported_financials: {},
+    quant: {
+      executive_summary: {
+        financial_snapshot: {
+          revenue: { current_qtr_inr_cr: 83.03 },
+        },
+      },
+    },
+  };
+  applyExecutiveSnapshotToFinancials(
+    lacsGround,
+    (
+      lacsGround.quant as {
+        executive_summary?: Record<string, unknown>;
+      }
+    ).executive_summary,
+    "STATEMENT OF FINANCIAL RESULTS (Amount in Rs. Lacs) Total Income 8,303.05",
+  );
+  const lacsRev = (
+    lacsGround.reported_financials as { revenue?: { current_qtr?: number } }
+  )?.revenue;
+  assert(
+    lacsRev?.current_qtr === 83.03,
+    "lacs print must ground snapshot ₹ Cr (÷100)",
+  );
   const unlabeledRev = (
     unlabeled.reported_financials as {
       revenue?: { current_qtr?: number };

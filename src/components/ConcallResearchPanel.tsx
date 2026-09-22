@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tradingviewUrl } from "@/lib/links";
 import { TickerSuggest } from "@/components/TickerSuggest";
+import { looksLikeConcallPdfUrl } from "@/lib/concall-pdf-url";
 import { ExecSummaryHtml } from "@/components/ExecSummaryHtml";
 import { formatExecutiveSummaryText } from "@/lib/concall-quant-format";
 import {
@@ -231,29 +232,6 @@ function HighlightList({
   items: Array<{ text: string; polarity: string }> | undefined;
 }) {
   return <HighlightsBulletList items={items} />;
-}
-
-function normalizePolarity(
-  raw: string | null | undefined,
-  text: string,
-): "positive" | "negative" | "neutral" {
-  const p = String(raw || "").toLowerCase();
-  if (p === "positive" || p === "negative" || p === "neutral") return p;
-  if (
-    /miss|cut|reset|delay|destock|divest|decline|loss|weak|compress|headwind|cautious/i.test(
-      text,
-    )
-  ) {
-    return "negative";
-  }
-  if (
-    /grew|growth|won|win|target|acquisition completed|closed|reaffirm|investment|commission|capacity|beat|raise|strong \+|PAT \+|Revenue \+/i.test(
-      text,
-    )
-  ) {
-    return "positive";
-  }
-  return "neutral";
 }
 
 function KpiCards({
@@ -552,8 +530,8 @@ export function ConcallResearchPanel() {
   const [deleting, setDeleting] = useState(false);
   const [textRowBusy, setTextRowBusy] = useState<number | null>(null);
 
-  const findLatest = useCallback(async () => {
-    const ticker = tickerInput.trim().toUpperCase();
+  const findLatest = useCallback(async (tickerRaw?: string) => {
+    const ticker = (tickerRaw ?? tickerInput).trim().toUpperCase();
     if (!ticker) {
       setError("Enter an NSE ticker (e.g. KAMDHENU)");
       return;
@@ -561,6 +539,14 @@ export function ConcallResearchPanel() {
     setDiscovering(true);
     setError(null);
     setDiscoverHits([]);
+    setResult(null);
+    setMaterials(null);
+    setUrlTranscript("");
+    setUrlPpt("");
+    setFileTranscript(null);
+    setFilePpt(null);
+    if (txFileRef.current) txFileRef.current.value = "";
+    if (pptFileRef.current) pptFileRef.current.value = "";
     setStatus(`Finding latest Transcript + PPT for ${ticker}…`);
     try {
       const res = await fetch(
@@ -600,16 +586,8 @@ export function ConcallResearchPanel() {
       setResult(null);
       const txUrl = json.latest_transcript?.url?.trim() || "";
       const pptUrl = json.latest_ppt?.url?.trim() || "";
-      if (txUrl) {
-        setUrlTranscript(txUrl);
-        setFileTranscript(null);
-        if (txFileRef.current) txFileRef.current.value = "";
-      }
-      if (pptUrl) {
-        setUrlPpt(pptUrl);
-        setFilePpt(null);
-        if (pptFileRef.current) pptFileRef.current.value = "";
-      }
+      setUrlTranscript(txUrl);
+      setUrlPpt(pptUrl);
       if (!txUrl && !pptUrl) {
         setStatus(
           hits.length
@@ -825,7 +803,7 @@ export function ConcallResearchPanel() {
 
   const proxyPdf = useCallback((url: string | null | undefined) => {
     const u = url?.trim();
-    if (!u) return null;
+    if (!u || !looksLikeConcallPdfUrl(u)) return null;
     return `/api/concall-screen?pdf=${encodeURIComponent(u)}`;
   }, []);
 
@@ -1262,7 +1240,20 @@ export function ConcallResearchPanel() {
     })
     .filter(Boolean) as string[];
   const unified = asObj(ex?.unified_earnings);
-  const investor = asObj(unified?.investor_analysis);
+  const execSum = asObj(asObj(ex?.quant)?.executive_summary);
+  const investor = {
+    ...(asObj(execSum?.investment_summary) || {}),
+    ...(asObj(unified?.investor_analysis) || {}),
+  };
+  const cats = Array.isArray(execSum?.near_term_catalysts_6m)
+    ? execSum.near_term_catalysts_6m
+    : [];
+  if (
+    typeof investor.next_catalyst !== "string" &&
+    typeof cats[0] === "string"
+  ) {
+    investor.next_catalyst = cats[0];
+  }
   const hasTxPdf = Boolean(txPdfSrc);
   const hasPptPdf = Boolean(pptPdfSrc);
   const hasAnyPdf = hasTxPdf || hasPptPdf;
@@ -1286,7 +1277,8 @@ export function ConcallResearchPanel() {
         <TickerSuggest
           value={tickerInput}
           onChange={setTickerInput}
-          onSubmit={() => void findLatest()}
+          onSelect={(h) => void findLatest(h.ticker)}
+          onSubmit={(t) => void findLatest(t)}
           disabled={busy || textBusy || discovering}
           placeholder="NSE ticker e.g. KAMDHENU…"
         />
@@ -1299,6 +1291,42 @@ export function ConcallResearchPanel() {
         >
           {discovering ? "Finding…" : "Find latest"}
         </button>
+        <button
+          type="button"
+          className={`chip chip-scan tag-chip ${busy || textBusy ? "busy on" : ""}`}
+          disabled={
+            busy ||
+            textBusy ||
+            refreshing ||
+            (!hasAnyInput && combinedText.trim().length < 80)
+          }
+          onClick={() => void runPipeline()}
+          title="Extract text from PDFs, then LLM analyze → PASS list"
+        >
+          {busy || textBusy ? "Running…" : "Run"}
+        </button>
+        {hasAnyInput || combinedText.trim().length >= 80 || discoverHits.length ? (
+          <button
+            type="button"
+            className="link-btn"
+            disabled={busy || textBusy}
+            onClick={() => {
+              setFileTranscript(null);
+              setFilePpt(null);
+              setUrlTranscript("");
+              setUrlPpt("");
+              setTickerInput("");
+              setMaterials(null);
+              setCombinedText("");
+              setResult(null);
+              setDiscoverHits([]);
+              if (txFileRef.current) txFileRef.current.value = "";
+              if (pptFileRef.current) pptFileRef.current.value = "";
+            }}
+          >
+            Clear
+          </button>
+        ) : null}
       </div>
 
       <div className="concall-dual-inputs">
@@ -1429,7 +1457,15 @@ export function ConcallResearchPanel() {
                       {h.title || h.url}
                     </div>
                     <div className="concall-discover-sub">
-                      {[h.period, h.provider, h.extractable ? null : "not PDF"]
+                      {[
+                        h.period,
+                        h.provider,
+                        looksLikeConcallPdfUrl(h.url)
+                          ? null
+                          : h.extractable
+                            ? "HTML"
+                            : "not PDF",
+                      ]
                         .filter(Boolean)
                         .join(" · ")}
                     </div>
@@ -1461,45 +1497,6 @@ export function ConcallResearchPanel() {
         </div>
       ) : null}
 
-      <div className="buyback-input-row">
-        <button
-          type="button"
-          className={`chip chip-scan tag-chip ${busy || textBusy ? "busy on" : ""}`}
-          disabled={
-            busy ||
-            textBusy ||
-            refreshing ||
-            (!hasAnyInput && combinedText.trim().length < 80)
-          }
-          onClick={() => void runPipeline()}
-          title="Extract text from PDFs, then LLM analyze → PASS list"
-        >
-          {busy || textBusy ? "Running…" : "Run"}
-        </button>
-        {hasAnyInput || combinedText.trim().length >= 80 || discoverHits.length ? (
-          <button
-            type="button"
-            className="link-btn"
-            disabled={busy || textBusy}
-            onClick={() => {
-              setFileTranscript(null);
-              setFilePpt(null);
-              setUrlTranscript("");
-              setUrlPpt("");
-              setTickerInput("");
-              setMaterials(null);
-              setCombinedText("");
-              setResult(null);
-              setDiscoverHits([]);
-              if (txFileRef.current) txFileRef.current.value = "";
-              if (pptFileRef.current) pptFileRef.current.value = "";
-            }}
-          >
-            Clear
-          </button>
-        ) : null}
-      </div>
-
       {status && !busy && !textBusy ? (
         <p className="buyback-status" role="status">
           {status}
@@ -1517,6 +1514,10 @@ export function ConcallResearchPanel() {
                 className="buyback-pdf-frame"
                 src={txPdfSrc}
               />
+            ) : urlTranscript.trim() ? (
+              <div className="buyback-pdf-empty">
+                HTML listing, not a PDF. Run still extracts the post text.
+              </div>
             ) : (
               <div className="buyback-pdf-empty">Upload / paste transcript</div>
             )}
@@ -1529,6 +1530,10 @@ export function ConcallResearchPanel() {
                 className="buyback-pdf-frame"
                 src={pptPdfSrc}
               />
+            ) : urlPpt.trim() ? (
+              <div className="buyback-pdf-empty">
+                HTML listing, not a PDF. Run still extracts the post text.
+              </div>
             ) : (
               <div className="buyback-pdf-empty">Upload / paste PPT</div>
             )}
@@ -1824,6 +1829,41 @@ export function ConcallResearchPanel() {
                           {finLines.map((line) => (
                             <li key={line}>{line}</li>
                           ))}
+                        </ul>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row">Investment</th>
+                    <td>
+                      {investor &&
+                      (typeof investor.bull_case === "string" ||
+                        typeof investor.bear_case === "string" ||
+                        typeof investor.next_catalyst === "string") ? (
+                        <ul className="concall-fin-lines">
+                          {typeof investor.bull_case === "string" ? (
+                            <li>
+                              <strong>Why own:</strong> {investor.bull_case}
+                            </li>
+                          ) : null}
+                          {typeof investor.bear_case === "string" ? (
+                            <li>
+                              <strong>Risk:</strong> {investor.bear_case}
+                            </li>
+                          ) : null}
+                          {typeof investor.next_catalyst === "string" ? (
+                            <li>
+                              <strong>Next:</strong> {investor.next_catalyst}
+                            </li>
+                          ) : null}
+                          {typeof investor.valuation_anchors === "string" ? (
+                            <li>
+                              <strong>Anchor:</strong>{" "}
+                              {investor.valuation_anchors}
+                            </li>
+                          ) : null}
                         </ul>
                       ) : (
                         "—"

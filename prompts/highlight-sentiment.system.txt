@@ -9,15 +9,19 @@ record value-added mix %, highest EBITDA/kg, record volumes/share mix
 Sentiment: MUST be POSITIVE
 Score: 7-10
 
-SLOT 2: BIGGEST RISK/HEADWIND
-Search for: margin compression bps, order delay, guidance cut, execution miss,
-input-cost margin moderation
-Sentiment: MUST be NEGATIVE
+SLOT 2: BIGGEST RISK/HEADWIND only when the text states a miss, cut, delay,
+destock, write-off, or cost/margin hit.
+Sentiment: NEGATIVE when that fact is in the text
 Score: 1-5
+Do NOT put capacity addition, capex, expansion, or commissioning here unless
+delay/cut/overrun is stated.
+If no risk is in the text: use a real process/context fact, Sentiment NEUTRAL
+(do not invent "Margin Compression" or force NEGATIVE).
 
-SLOT 3: STRATEGIC/STRUCTURAL
-Search for: capex, merger, demerger, new subsidiary/company name, capacity addition,
-market entry, restructuring
+SLOT 3: INVESTMENT POINT / WHY OWN (structural)
+Search for: unique facility/process if stated, approvals, mix shift, named capex ramp,
+customer adds with a number, market entry — a fact an owner would underwrite.
+Headline = that fact (not vague "Sustainability and Diversification").
 Sentiment: POSITIVE or NEUTRAL or NEGATIVE (whichever fits)
 Score: 4-8
 
@@ -101,8 +105,11 @@ REQUIRED JSON:
 }
 
 CRITICAL:
-- Slot 2 MUST be NEGATIVE (no exceptions)
+- Slot 2 is NEGATIVE only when a real risk is in the text (no exceptions to that)
+- Cover letter / audio intimation / "thanking you" filings: headlines from those
+  facts only — no invented subsidiaries, compression, or ₹ P&L
 - All headlines MAX 70 chars
 - sentiment_summary MUST be present
 - Never invent numbers
 - All from earnings text only
+- If not in text, use null / NEUTRAL — never "No New Subsidiaries" unless stated
