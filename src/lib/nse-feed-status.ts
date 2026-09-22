@@ -1,19 +1,10 @@
 import { openSqliteNamed } from "./sqlite-utils";
-import { createNseBuybackSession } from "./nse-buybacks";
-import {
-  formatNseApiDateFromInstant,
-  istCivilDayToUtcNoon,
-  istRangeDaysBack,
-} from "./nse-time";
 import type { NseFeedStatus } from "./nse-feed-status-types";
 
 export type { NseFeedStatus } from "./nse-feed-status-types";
 export { formatNseFeedAge } from "./nse-feed-status-types";
 
-const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
-const NSE_ANN_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
-const PROBE_SYMBOL = "RELIANCE";
+const NSE_HOME = "https://www.nseindia.com/";
 const CACHE_MS = 60_000;
 
 type CacheEntry = { at: number; status: NseFeedStatus };
@@ -39,58 +30,46 @@ function lastConcallDriftScanAt(): string | null {
   }
 }
 
-async function probeNseAnnouncements(): Promise<{ ok: boolean; detail: string }> {
+/** True when NSE HTML is a real site response (not Akamai deny). */
+function nseHtmlLooksLive(
+  status: number,
+  cookie: string,
+  body: string,
+): boolean {
+  if (status < 200 || status >= 400) return false;
+  if (/access denied|akamaighost/i.test(body) && !cookie.trim()) return false;
+  return Boolean(cookie.trim()) || /nseindia/i.test(body);
+}
+
+/**
+ * Probe NSE website reachability. Corporate-announcements JSON often hangs on
+ * Akamai even when the site itself is up — don't use that for the live badge.
+ */
+async function probeNseSite(): Promise<{ ok: boolean; detail: string }> {
   try {
     const { nseHttp1Fetch } = await import("./nse-http");
-    const jar = await createNseBuybackSession();
-    const { from: fromDay, to: toDay } = istRangeDaysBack(2);
-    const to = istCivilDayToUtcNoon(toDay);
-    const from = istCivilDayToUtcNoon(fromDay);
-
-    const u = new URL(CORP_ANN_URL);
-    u.searchParams.set("index", "equities");
-    u.searchParams.set("symbol", PROBE_SYMBOL);
-    u.searchParams.set("from_date", formatNseApiDateFromInstant(from));
-    u.searchParams.set("to_date", formatNseApiDateFromInstant(to));
-
-    const res = await nseHttp1Fetch(u.toString(), {
+    const jar = { cookie: "" };
+    const res = await nseHttp1Fetch(NSE_HOME, {
       jar,
       headers: {
-        Accept: "application/json",
-        Referer: NSE_ANN_REF,
+        Accept: "text/html,application/xhtml+xml",
+        Referer: NSE_HOME,
       },
       signal: AbortSignal.timeout(12_000),
     });
-
-    if (!res.ok) {
-      return { ok: false, detail: `NSE API HTTP ${res.status}` };
-    }
-
     const text = await res.text();
-    if (/access denied|akamaighost/i.test(text)) {
+    if (!nseHtmlLooksLive(res.status, jar.cookie, text)) {
+      if (!res.ok) return { ok: false, detail: `NSE HTTP ${res.status}` };
       return { ok: false, detail: "NSE Akamai access denied" };
     }
-    let body: unknown;
-    try {
-      body = JSON.parse(text) as unknown;
-    } catch {
-      return { ok: false, detail: "NSE API returned invalid JSON" };
-    }
-    if (!Array.isArray(body)) {
-      return { ok: false, detail: "NSE API returned invalid JSON" };
-    }
-
-    return {
-      ok: true,
-      detail: `Corporate announcements API responding (${body.length} rows)`,
-    };
+    return { ok: true, detail: "NSE website responding" };
   } catch (err) {
     const msg = err instanceof Error ? err.message : "NSE unreachable";
     return { ok: false, detail: msg };
   }
 }
 
-/** Probe NSE corporate-announcements reachability (cached ~60s). */
+/** Probe NSE reachability (cached ~60s). */
 export async function checkNseFeedStatus(opts?: {
   force?: boolean;
   cachedOnly?: boolean;
@@ -109,7 +88,7 @@ export async function checkNseFeedStatus(opts?: {
     );
   }
 
-  const probe = await probeNseAnnouncements();
+  const probe = await probeNseSite();
   const last_scan_at = lastConcallDriftScanAt();
   const status: NseFeedStatus = {
     live: probe.ok,
