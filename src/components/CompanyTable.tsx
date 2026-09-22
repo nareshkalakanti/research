@@ -17,6 +17,8 @@ import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap, formatMomPct, formatRsiM } from "@/lib/types";
 import { SecCell } from "@/components/SecCell";
 import { WatchButton } from "@/components/WatchButton";
+import { useOptionalAppTab } from "@/lib/app-tab";
+import { writeFocusTicker } from "@/lib/workspace-ticker";
 
 export type SortKey =
   | "ticker"
@@ -91,6 +93,7 @@ function SortIcon({
 }
 
 function SignalTags({ company }: { company: Company }) {
+  const tabs = useOptionalAppTab();
   const fundTags = companyFundTags(company);
   return (
     <span className="result-tags">
@@ -163,6 +166,20 @@ function SignalTags({ company }: { company: Company }) {
         <span className="result-tag tag-scan-high52" title="NEW 52-week high">
           52W
         </span>
+      ) : null}
+      {company.has_concall ? (
+        <button
+          type="button"
+          className="result-tag tag-scan-cc"
+          title="Research concall PASS — open Analyze"
+          onClick={(e) => {
+            e.stopPropagation();
+            writeFocusTicker(company.ticker);
+            tabs?.setTab("research", { ticker: company.ticker });
+          }}
+        >
+          CC
+        </button>
       ) : null}
       {fundTags.length ? (
         <FundWatchlistTags tags={fundTags} changes={company.fund_changes} />

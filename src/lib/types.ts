@@ -40,6 +40,8 @@ export type Company = {
   has_ath?: boolean;
   /** NEW 52-week high (daily). */
   has_high52?: boolean;
+  /** Latest Research concall PASS on file. */
+  has_concall?: boolean;
   /** Positive 12−1 price momentum (stocks-ai formula). */
   has_mom?: boolean;
   /** New monthly RSI(14) cross above 70. */

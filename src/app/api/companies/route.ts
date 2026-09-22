@@ -72,6 +72,7 @@ import type { BbTimeframe } from "@/lib/signals";
 import { operatingMetricsTickerSet } from "@/lib/opm-consistency";
 import { brutalPassTickerSet } from "@/lib/brutal-scan";
 import { isAgeAtLeast, parseAgeMin } from "@/lib/company-age";
+import { listLatestConcallPassByTickers } from "@/lib/concall-screen";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -1127,6 +1128,9 @@ async function buildCompaniesResponse(req: NextRequest) {
   const pageSafe = Math.min(page, pages);
   const start = (pageSafe - 1) * pageSize;
   const pageItems = companies.slice(start, start + pageSize);
+  const concallPass = listLatestConcallPassByTickers(
+    pageItems.map((c) => c.ticker),
+  );
 
   const forcePriceRefresh = sp.get("refresh") === "1";
   // Background price/mcap refresh for list tabs (skip Missing data — no live quotes needed).
@@ -1225,6 +1229,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       has_ema: !!flags?.has_ema,
       has_ath: !!flags?.has_ath,
       has_high52: !!flags?.has_high52,
+      has_concall: concallPass.has(row.ticker.toUpperCase()),
       has_mom: !!flags?.has_mom,
       has_mrsi: !!flags?.has_mrsi,
       has_mrsi85: !!flags?.has_mrsi85,

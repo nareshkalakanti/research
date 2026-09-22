@@ -10,6 +10,8 @@ import {
   HighlightsBulletList,
   MetricSelectorBox,
 } from "@/components/EarningsHighlightsCard";
+import { useOptionalAppTab } from "@/lib/app-tab";
+import { tickerFromLocation, writeFocusTicker } from "@/lib/workspace-ticker";
 
 type Extract = Record<string, unknown>;
 
@@ -466,6 +468,7 @@ function pdfHref(sourceUrl: string, download = false): string {
 }
 
 export function ConcallResearchPanel() {
+  const tabs = useOptionalAppTab();
   const txFileRef = useRef<HTMLInputElement>(null);
   const pptFileRef = useRef<HTMLInputElement>(null);
   const [urlTranscript, setUrlTranscript] = useState("");
@@ -537,6 +540,7 @@ export function ConcallResearchPanel() {
       return;
     }
     setDiscovering(true);
+    setTickerInput(ticker);
     setError(null);
     setDiscoverHits([]);
     setResult(null);
@@ -623,6 +627,16 @@ export function ConcallResearchPanel() {
       setDiscovering(false);
     }
   }, [tickerInput]);
+
+  const appliedFocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (tabs && tabs.tab !== "research") return;
+    const t = tickerFromLocation();
+    if (!t || appliedFocus.current === t) return;
+    appliedFocus.current = t;
+    writeFocusTicker(t);
+    void findLatest(t);
+  }, [tabs?.tab, findLatest]);
 
   const applyDiscoverHit = useCallback(
     (hit: { url: string; title?: string }, role: "transcript" | "ppt") => {

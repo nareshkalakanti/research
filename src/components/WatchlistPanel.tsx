@@ -29,6 +29,8 @@ import {
 import { formatPeDisplay, forwardPeClass } from "@/lib/valuation";
 import type { CompanyBrief, CompanyBriefContext, OfferingItem } from "@/lib/company-brief";
 import { isPlaceholderWatch } from "@/lib/brief-placeholder";
+import { useOptionalAppTab } from "@/lib/app-tab";
+import { writeFocusTicker } from "@/lib/workspace-ticker";
 
 type WatchRow = {
   ticker: string;
@@ -53,6 +55,7 @@ type WatchRow = {
   has_mrsi?: boolean;
   has_mrsi85?: boolean;
   tq_score?: number | null;
+  has_concall?: boolean;
 };
 
 function fmtCr(n: number | null | undefined): string {
@@ -124,6 +127,7 @@ function SignalChips({
   row: WatchRow;
   hideEmpty?: boolean;
 }) {
+  const tabs = useOptionalAppTab();
   const chips: Array<{ key: string; label: string; title: string; className: string }> =
     [];
   if (row.has_bb_w) {
@@ -182,20 +186,44 @@ function SignalChips({
       className: "tag-scan-mrsi",
     });
   }
+  if (row.has_concall) {
+    chips.push({
+      key: "cc",
+      label: "CC",
+      title: "Research concall PASS",
+      className: "tag-scan-cc",
+    });
+  }
   if (!chips.length) {
     return hideEmpty ? null : <span className="mom-tag mom-tag--empty">—</span>;
   }
   return (
     <div className="wl-signal-chips">
-      {chips.map((c) => (
-        <span
-          key={c.key}
-          className={`result-tag ${c.className}`}
-          title={c.title}
-        >
-          {c.label}
-        </span>
-      ))}
+      {chips.map((c) =>
+        c.key === "cc" ? (
+          <button
+            key={c.key}
+            type="button"
+            className={`result-tag ${c.className}`}
+            title={c.title}
+            onClick={(e) => {
+              e.stopPropagation();
+              writeFocusTicker(row.ticker);
+              tabs?.setTab("research", { ticker: row.ticker });
+            }}
+          >
+            {c.label}
+          </button>
+        ) : (
+          <span
+            key={c.key}
+            className={`result-tag ${c.className}`}
+            title={c.title}
+          >
+            {c.label}
+          </span>
+        ),
+      )}
     </div>
   );
 }
@@ -650,6 +678,7 @@ export function WatchlistPanel() {
               has_mrsi: false,
               has_mrsi85: false,
               tq_score: null,
+              has_concall: false,
             }
           );
         }),

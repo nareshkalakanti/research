@@ -79,7 +79,11 @@ export function readTabFromLocation(): AppTab {
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
 
-function buildHomeSearch(next: AppTab, current: URLSearchParams): string {
+function buildHomeSearch(
+  next: AppTab,
+  current: URLSearchParams,
+  ticker?: string | null,
+): string {
   const params = new URLSearchParams(current.toString());
   if (next === "theme-scanner") params.delete("tab");
   else params.set("tab", next);
@@ -88,17 +92,23 @@ function buildHomeSearch(next: AppTab, current: URLSearchParams): string {
     params.delete("personId");
     params.delete("din");
   }
+  const t = (ticker || "").trim().toUpperCase();
+  if (t && (next === "research" || next === "valuation")) {
+    params.set("ticker", t);
+  } else if (next !== "research" && next !== "valuation") {
+    params.delete("ticker");
+  }
   return params.toString();
 }
 
-function urlForTab(next: AppTab): string {
+function urlForTab(next: AppTab, ticker?: string | null): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "fund") return "/fund";
   const fromHome =
     pathOnly() === "/"
       ? new URLSearchParams(window.location.search)
       : new URLSearchParams();
-  const qs = buildHomeSearch(next, fromHome);
+  const qs = buildHomeSearch(next, fromHome, ticker);
   return qs ? `/?${qs}` : "/";
 }
 
@@ -106,8 +116,12 @@ function currentUrl(): string {
   return `${pathOnly()}${window.location.search}`;
 }
 
-function syncTabUrl(next: AppTab, mode: "push" | "replace") {
-  const url = urlForTab(next);
+function syncTabUrl(
+  next: AppTab,
+  mode: "push" | "replace",
+  ticker?: string | null,
+) {
+  const url = urlForTab(next, ticker);
   if (currentUrl() === url) return;
   if (mode === "push") window.history.pushState(window.history.state, "", url);
   else window.history.replaceState(window.history.state, "", url);
@@ -115,7 +129,7 @@ function syncTabUrl(next: AppTab, mode: "push" | "replace") {
 
 type AppTabContextValue = {
   tab: AppTab;
-  setTab: (next: AppTab) => void;
+  setTab: (next: AppTab, opts?: { ticker?: string }) => void;
 };
 
 const AppTabContext = createContext<AppTabContextValue | null>(null);
@@ -131,11 +145,15 @@ export function AppTabProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const setTab = useCallback((next: AppTab) => {
+  const setTab = useCallback((next: AppTab, opts?: { ticker?: string }) => {
     const prev = tabRef.current;
     setTabState(next);
     const pageHop = isPageTab(prev) || isPageTab(next);
-    syncTabUrl(next, pageHop && prev !== next ? "push" : "replace");
+    syncTabUrl(
+      next,
+      pageHop && prev !== next ? "push" : "replace",
+      opts?.ticker,
+    );
   }, []);
 
   const value = useMemo(() => ({ tab, setTab }), [tab, setTab]);
