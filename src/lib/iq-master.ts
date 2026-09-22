@@ -73,6 +73,7 @@ export type IqMasterRow = {
     drift_pct: number | null;
     highlights: Array<{ text: string; polarity: string }>;
   } | null;
+  has_concall: boolean;
 };
 
 type CompanyProfile = {
@@ -318,6 +319,7 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
       has_mrsi: !!flags?.has_mrsi,
       has_mrsi85: !!flags?.has_mrsi85,
       tq_score: flags?.tq?.score ?? null,
+      has_concall: Boolean(concallByTicker.get(ticker)),
       marketiq: miqByTicker.get(ticker) ?? null,
       board: boardByTicker.get(ticker) ?? null,
       governance,

@@ -1421,6 +1421,15 @@ button.brand-btn:hover .brand-name {
   border: 1px solid transparent;
 }
 
+button.result-tag {
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  color: inherit;
+}
+
 .result-tag.tag-cap-nc {
   background: #6b7280;
   border-color: #4b5563;
@@ -1561,6 +1570,18 @@ button.brand-btn:hover .brand-name {
 .result-tag.tag-scan-high52 {
   background: #0ea5e9;
   border-color: #0284c7;
+  color: #fff;
+}
+
+.tag-scan-cc {
+  background: #f5f3ff;
+  border-color: #c4b5fd;
+  color: #5b21b6;
+}
+.tag-scan-cc.on,
+.result-tag.tag-scan-cc {
+  background: #7c3aed;
+  border-color: #6d28d9;
   color: #fff;
 }
 

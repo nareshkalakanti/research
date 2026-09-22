@@ -14,6 +14,7 @@ import {
 } from "@/components/EarningsHighlightsCard";
 import { listWatchedTickers } from "@/lib/user-watchlist";
 import { useOptionalAppTab } from "@/lib/app-tab";
+import { tickerFromLocation, writeFocusTicker } from "@/lib/workspace-ticker";
 import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import {
@@ -144,6 +145,8 @@ export function ValuationPanel() {
     setError(null);
     setTicker(t);
     pushRecentValuationTicker(t);
+    writeFocusTicker(t);
+    if (tabs?.tab === "valuation") tabs.setTab("valuation", { ticker: t });
     try {
       const res = await fetch(
         `/api/valuation?ticker=${encodeURIComponent(t)}${force ? "&force=1" : ""}`,
@@ -163,7 +166,14 @@ export function ValuationPanel() {
     } finally {
       setLoading(false);
     }
-  }, [scenario]);
+  }, [scenario, tabs]);
+
+  useEffect(() => {
+    const t = tickerFromLocation();
+    if (t) void load(t);
+    // Initial URL ticker only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!ticker) return;
@@ -401,9 +411,14 @@ export function ValuationPanel() {
           <ValuationConcallBlock
             slice={data?.concall ?? null}
             scenario={scenario}
-            onOpenResearch={
-              tabs ? () => tabs.setTab("research") : undefined
-            }
+              onOpenResearch={
+                tabs && ticker
+                  ? () => {
+                      writeFocusTicker(ticker);
+                      tabs.setTab("research", { ticker });
+                    }
+                  : undefined
+              }
           />
         </div>
 
