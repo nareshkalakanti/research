@@ -20,11 +20,14 @@ export type QuoteTapeMa = {
 
 export type QuoteTape = {
   price: number | null;
+  prev_close: number | null;
   pe: number | null;
   cagr_pct: number | null;
   cagr_years: number | null;
   week52_low: number | null;
   week52_high: number | null;
+  dma200: number | null;
+  dma200_alert: "crossed_above" | "above" | null;
   mas: QuoteTapeMa[];
 };
 
@@ -79,11 +82,14 @@ export async function loadQuoteTape(
 ): Promise<QuoteTape> {
   const empty: QuoteTape = {
     price: null,
+    prev_close: null,
     pe: null,
     cagr_pct: null,
     cagr_years: null,
     week52_low: null,
     week52_high: null,
+    dma200: null,
+    dma200_alert: null,
     mas: [
       { period: 20, value: null, above: null },
       { period: 50, value: null, above: null },
@@ -100,6 +106,7 @@ export async function loadQuoteTape(
   ]);
   const closes = bars.map((b) => b.close).filter((c) => Number.isFinite(c));
   const price = closes.length ? round2(closes[closes.length - 1]!) : null;
+  const prev_close = closes.length > 1 ? round2(closes[closes.length - 2]!) : null;
 
   const mas: QuoteTapeMa[] = ([20, 50, 100, 200] as const).map((period) => {
     const value = lastMean(closes, period);
@@ -109,6 +116,13 @@ export async function loadQuoteTape(
       above: price != null && value != null ? price >= value : null,
     };
   });
+  const dma200 = mas.find((m) => m.period === 200)?.value ?? null;
+  const dma200_alert =
+    price != null && dma200 != null && price > dma200
+      ? prev_close != null && prev_close <= dma200
+        ? "crossed_above"
+        : "above"
+      : null;
 
   let week52_low = quote.low;
   let week52_high = quote.high;
@@ -139,11 +153,14 @@ export async function loadQuoteTape(
 
   return {
     price,
+    prev_close,
     pe: quote.pe,
     cagr_pct,
     cagr_years,
     week52_low,
     week52_high,
+    dma200,
+    dma200_alert,
     mas,
   };
 }

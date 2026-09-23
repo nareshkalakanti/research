@@ -76,11 +76,14 @@ type QuoteTapeMa = {
 
 type QuoteTape = {
   price: number | null;
+  prev_close: number | null;
   pe: number | null;
   cagr_pct: number | null;
   cagr_years: number | null;
   week52_low: number | null;
   week52_high: number | null;
+  dma200: number | null;
+  dma200_alert: "crossed_above" | "above" | null;
   mas: QuoteTapeMa[];
 };
 
@@ -136,6 +139,12 @@ function WlQuoteTape({
       : tape.cagr_pct >= 0
         ? "q-up"
         : "q-down";
+  const dma200Label =
+    tape.dma200_alert === "crossed_above"
+      ? "Crossed above 200 DMA"
+      : tape.dma200_alert === "above"
+        ? "Above 200 DMA"
+        : null;
 
   return (
     <div className="wl-tape">
@@ -197,6 +206,17 @@ function WlQuoteTape({
           </tr>
         </tbody>
       </table>
+      {dma200Label ? (
+        <div className="wl-dma-alert" role="status" aria-live="polite">
+          <span className="wl-dma-alert-pill">{dma200Label}</span>
+          {tape.dma200 != null && tape.price != null ? (
+            <span className="wl-dma-alert-text">
+              200 DMA {tape.dma200.toLocaleString("en-IN", { maximumFractionDigits: 2 })} ·
+              Price {tape.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       {low != null && high != null ? (
         <div className="wl-tape-range">
           <span className="wl-tape-label">52-week</span>
