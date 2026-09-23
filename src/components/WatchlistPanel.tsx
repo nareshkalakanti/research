@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addWatch,
   listWatchedTickers,
@@ -46,6 +46,7 @@ type WatchRow = {
   headquarters?: string | null;
   momentum_pct?: number | null;
   rsi_m?: number | null;
+  crossed_200dma_recently?: boolean;
   has_bb_w?: boolean;
   has_bb_m?: boolean;
   has_tq?: boolean;
@@ -87,6 +88,14 @@ type QuoteTape = {
   dma200_alert: "below_200_breakout" | null;
   mas: QuoteTapeMa[];
 };
+
+function crossedAbove200Dma(tape: QuoteTape | null): boolean {
+  if (!tape) return false;
+  if (tape.price == null || tape.dma200 == null || tape.prev_close == null) {
+    return false;
+  }
+  return tape.prev_close <= tape.dma200 && tape.price > tape.dma200;
+}
 
 function WlQuoteTape({
   ticker,
@@ -287,6 +296,15 @@ function RsiCell({
   return (
     <span className={`mom-tag mom-tag--${tone}`} title={titleParts.join(" · ")}>
       {label}
+    </span>
+  );
+}
+
+function Dma200Badge({ crossed }: { crossed: boolean }) {
+  if (!crossed) return null;
+  return (
+    <span className="result-tag tag-dma200" title="Crossed above 200 DMA recently">
+      200 DMA ↑
     </span>
   );
 }
@@ -665,6 +683,7 @@ function WatchlistRow({
               {open ? "−" : "+"}
             </button>
             <WatchButton ticker={r.ticker} />
+            <Dma200Badge crossed={!!r.crossed_200dma_recently} />
             {rank != null ? (
               <span className="wl-rank-pill" title="Momentum rank">
                 #{rank}
@@ -828,6 +847,7 @@ export function WatchlistPanel() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [addQ, setAddQ] = useState("");
+  const loadSeqRef = useRef(0);
 
   const refreshTickers = useCallback(() => {
     setTickers(listWatchedTickers());
@@ -910,6 +930,7 @@ export function WatchlistPanel() {
   );
 
   const loadRows = useCallback(async (syms: string[]) => {
+    const loadSeq = ++loadSeqRef.current;
     if (!syms.length) {
       setRows([]);
       return;
@@ -939,38 +960,72 @@ export function WatchlistPanel() {
       const byTicker = new Map(
         collected.map((r) => [r.ticker.toUpperCase(), r]),
       );
-      setRows(
-        syms.map((t) => {
-          const hit = byTicker.get(t.toUpperCase());
-          return (
-            hit ?? {
-              ticker: t,
-              company: t,
-              market: null,
-              price: null,
-              change_pct: null,
-              board_score: null,
-              market_cap_cr: null,
-              sector: null,
-              sub_sector: null,
-              about: null,
-              headquarters: null,
-              momentum_pct: null,
-              rsi_m: null,
-              has_bb_w: false,
-              has_bb_m: false,
-              has_tq: false,
-              has_ema: false,
-              has_ath: false,
-              has_high52: false,
-              has_mrsi: false,
-              has_mrsi85: false,
-              tq_score: null,
-              has_concall: false,
-            }
+      const nextRows = syms.map((t) => {
+        const hit = byTicker.get(t.toUpperCase());
+        return (
+          hit ?? {
+            ticker: t,
+            company: t,
+            market: null,
+            price: null,
+            change_pct: null,
+            board_score: null,
+            market_cap_cr: null,
+            sector: null,
+            sub_sector: null,
+            about: null,
+            headquarters: null,
+            momentum_pct: null,
+            rsi_m: null,
+            crossed_200dma_recently: false,
+            has_bb_w: false,
+            has_bb_m: false,
+            has_tq: false,
+            has_ema: false,
+            has_ath: false,
+            has_high52: false,
+            has_mrsi: false,
+            has_mrsi85: false,
+            tq_score: null,
+            has_concall: false,
+          }
+        );
+      });
+      setRows(nextRows);
+      void (async () => {
+        const CHUNK = 8;
+        const updates = new Map<string, boolean>();
+        for (let i = 0; i < nextRows.length; i += CHUNK) {
+          const chunk = nextRows.slice(i, i + CHUNK);
+          await Promise.all(
+            chunk.map(async (row) => {
+              try {
+                const q = new URLSearchParams({ ticker: row.ticker });
+                if (row.market) q.set("market", row.market);
+                const res = await fetch(`/api/quote-tape?${q}`, {
+                  signal: AbortSignal.timeout(30_000),
+                });
+                const json = (await res.json()) as {
+                  ok?: boolean;
+                  tape?: QuoteTape;
+                };
+                updates.set(row.ticker.toUpperCase(), crossedAbove200Dma(json.ok ? json.tape ?? null : null));
+              } catch {
+                updates.set(row.ticker.toUpperCase(), false);
+              }
+            }),
           );
-        }),
-      );
+        }
+        if (loadSeq !== loadSeqRef.current) return;
+        setRows((cur) =>
+          cur.map((row) => {
+            const crossed = updates.get(row.ticker.toUpperCase());
+            return crossed == null
+              ? row
+              : { ...row, crossed_200dma_recently: crossed };
+          }),
+        );
+      })();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
@@ -988,12 +1043,17 @@ export function WatchlistPanel() {
 
   const sortedRows = useMemo(() => {
     const base = [...rows];
-    if (list !== "holdings" || holdingsSort !== "momentum") return base;
     return base.sort((a, b) => {
-      const am = a.momentum_pct ?? Number.NEGATIVE_INFINITY;
-      const bm = b.momentum_pct ?? Number.NEGATIVE_INFINITY;
-      if (bm !== am) return bm - am;
-      return a.ticker.localeCompare(b.ticker);
+      const ac = a.crossed_200dma_recently ? 1 : 0;
+      const bc = b.crossed_200dma_recently ? 1 : 0;
+      if (bc !== ac) return bc - ac;
+      if (list === "holdings" && holdingsSort === "momentum") {
+        const am = a.momentum_pct ?? Number.NEGATIVE_INFINITY;
+        const bm = b.momentum_pct ?? Number.NEGATIVE_INFINITY;
+        if (bm !== am) return bm - am;
+        return a.ticker.localeCompare(b.ticker);
+      }
+      return 0;
     });
   }, [rows, list, holdingsSort]);
 
