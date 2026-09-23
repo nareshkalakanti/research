@@ -37,6 +37,7 @@ export type GovCompanySeat = {
   source: string | null;
   as_of: string | null;
   market_cap_cr: number | null;
+  price: number | null;
   cap_code: string | null;
   cap_label: string | null;
   website: string | null;
@@ -45,6 +46,7 @@ export type GovCompanySeat = {
   about_search: string;
   headquarters: string | null;
   sector: string | null;
+  industry: string | null;
   is_sme: boolean;
   is_main: boolean;
   has_bb: boolean;
@@ -108,7 +110,58 @@ type AboutBits = {
   end_markets: string | null;
   headquarters: string | null;
   sector: string | null;
+  industry: string | null;
 };
+
+function normalizedSurname(name: string): string {
+  const bits = name
+    .replace(/[().,]/g, " ")
+    .split(/\s+/)
+    .map((b) => b.trim())
+    .filter(Boolean);
+  return (bits[bits.length - 1] || "").toUpperCase();
+}
+
+function looksLikeControlRole(designation: string, category: string | null): boolean {
+  const text = `${designation} ${category || ""}`.toLowerCase();
+  return /founder|managing|whole[-\s]?time|joint managing|executive|chairman/.test(text);
+}
+
+export function companyHasFamilyPattern(companies: GovCompanySeat[]): boolean {
+  const seats = companies.filter((c) => c.name.trim() && c.din !== "");
+  if (!seats.length) return false;
+
+  const surnameCounts = new Map<string, number>();
+
+  for (const seat of seats) {
+    const surname = normalizedSurname(seat.name);
+    if (surname) surnameCounts.set(surname, (surnameCounts.get(surname) || 0) + 1);
+  }
+
+  return [...surnameCounts.values()].some((n) => n >= 2);
+}
+
+export function companyHasControlPattern(companies: GovCompanySeat[]): boolean {
+  const seats = companies.filter((c) => c.name.trim() && c.din !== "");
+  if (!seats.length) return false;
+
+  let controlRoles = 0;
+  let independentCount = 0;
+
+  for (const seat of seats) {
+    if (/independent/i.test(seat.designation || seat.category || "")) independentCount += 1;
+    if (looksLikeControlRole(seat.designation, seat.category)) controlRoles += 1;
+  }
+
+  return (
+    (controlRoles >= 3 && seats.length >= 4) ||
+    (controlRoles >= 2 && independentCount >= 1 && seats.length >= 5)
+  );
+}
+
+export function companyHasGovernancePattern(companies: GovCompanySeat[]): boolean {
+  return companyHasFamilyPattern(companies) || companyHasControlPattern(companies);
+}
 
 let govDb: Database.Database | null = null;
 let aboutDb: Database.Database | null = null;
@@ -300,6 +353,7 @@ function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
         end_markets: r.end_markets?.trim() || null,
         headquarters: r.headquarters?.trim() || null,
         sector: r.company_sector || r.company_industry || null,
+        industry: r.company_industry || null,
       });
     }
   }
@@ -347,6 +401,7 @@ function buildRowsFromSeats(
 
       const m = metrics.get(ticker);
       const mcap = m?.market_cap_cr ?? null;
+      const price = m?.price ?? null;
       const about = abouts.get(ticker);
       const bo = breakouts.get(ticker);
       const links = researchLinks(ticker, market, about?.website ?? null);
@@ -360,6 +415,7 @@ function buildRowsFromSeats(
         source: seat.source,
         as_of: seat.as_of,
         market_cap_cr: mcap,
+        price,
         cap_code: mcapCapCode(mcap),
         cap_label: mcapCapLabel(mcap),
         website: about?.website ?? null,
@@ -375,6 +431,7 @@ function buildRowsFromSeats(
           .join(" \n "),
         headquarters: about?.headquarters ?? null,
         sector: about?.sector ?? m?.sector ?? null,
+        industry: about?.industry ?? null,
         is_sme: isSme,
         is_main: !isSme && market === "NSE",
         has_bb: Boolean(bo?.has_bb),
@@ -591,6 +648,7 @@ export type GovernanceMapStats = {
   companies: number;
   hold: number;
   edge: number;
+  pattern: number;
   funds: Partial<Record<FundWatchlistKey, number>>;
   caps: {
     NC: number;
@@ -608,6 +666,7 @@ export function governanceMapStats(
   const tickers = new Set<string>();
   const holdTickers = new Set<string>();
   const edgeTickers = new Set<string>();
+  const patternTickers = new Set<string>();
   const fundTickers = Object.fromEntries(
     FUND_WATCHLIST_KEYS.map((k) => [k, new Set<string>()]),
   ) as Record<FundWatchlistKey, Set<string>>;
@@ -632,10 +691,12 @@ export function governanceMapStats(
     if (r.ti_bridge) tiBridges += 1;
     if (r.multi_lc) multiLc += 1;
     if (r.sme_cross) smeCross += 1;
+    const hasPattern = companyHasGovernancePattern(r.companies);
     for (const c of r.companies) {
       tickers.add(c.ticker);
       if (c.has_hold) holdTickers.add(c.ticker);
       if (c.has_edge) edgeTickers.add(c.ticker);
+      if (hasPattern) patternTickers.add(c.ticker);
       for (const k of c.fund_tags ?? []) fundTickers[k]?.add(c.ticker);
       const code = (c.cap_code || "NC").toUpperCase();
       if (code in capTickers) {
@@ -660,6 +721,7 @@ export function governanceMapStats(
     companies: tickers.size,
     hold: holdTickers.size,
     edge: edgeTickers.size,
+    pattern: patternTickers.size,
     funds,
     caps: {
       NC: capTickers.NC.size,

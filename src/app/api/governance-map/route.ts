@@ -84,6 +84,12 @@ function filterRows(
     minBoards: number;
     themePattern: string | null;
     themeShowAll: boolean;
+    family: boolean;
+    control: boolean;
+    pattern: boolean;
+    familyTickers?: Set<string>;
+    controlTickers?: Set<string>;
+    patternTickers?: Set<string>;
     /** Cap band filter: All | NC | TI | MIC | SC | MC | LC */
     cap: string;
     mcapMin: number | null;
@@ -124,6 +130,33 @@ function filterRows(
       themeMatched = matched.length;
       if (!themeMatched) continue;
       companies = opts.themeShowAll ? companies : matched;
+    }
+
+    if (opts.pattern && !opts.family && !opts.control) {
+      const matched = opts.patternTickers
+        ? companies.filter((c) => opts.patternTickers!.has(c.ticker.toUpperCase()))
+        : companies;
+      if (!matched.length) continue;
+      companies = matched;
+    } else {
+      if (opts.family && opts.familyTickers) {
+        const matched = companies.filter((c) =>
+          opts.familyTickers!.has(c.ticker.toUpperCase()),
+        );
+        if (!matched.length) continue;
+        companies = matched;
+      } else if (opts.family && !opts.familyTickers) {
+        continue;
+      }
+      if (opts.control && opts.controlTickers) {
+        const matched = companies.filter((c) =>
+          opts.controlTickers!.has(c.ticker.toUpperCase()),
+        );
+        if (!matched.length) continue;
+        companies = matched;
+      } else if (opts.control && !opts.controlTickers) {
+        continue;
+      }
     }
 
     if (capActive) {
@@ -343,6 +376,87 @@ type RoleAgg = {
   }>;
 };
 
+type BoardSeatLike = {
+  name: string;
+  designation: string;
+  category: string | null;
+  din: string | null;
+};
+
+function boardMatchesFamily(seats: BoardSeatLike[]): boolean {
+  const surnameCounts = new Map<string, number>();
+
+  for (const seat of seats) {
+    const surname = seat.name
+      .replace(/[().,]/g, " ")
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(-1)[0]
+      ?.toUpperCase();
+    if (surname) {
+      surnameCounts.set(surname, (surnameCounts.get(surname) || 0) + 1);
+    }
+  }
+
+  return [...surnameCounts.values()].some((n) => n >= 2);
+}
+
+function boardMatchesControl(seats: BoardSeatLike[]): boolean {
+  let controlRoles = 0;
+  let independentCount = 0;
+
+  for (const seat of seats) {
+    const text = `${seat.designation} ${seat.category || ""}`.toLowerCase();
+    if (/independent/.test(text)) independentCount += 1;
+    if (/founder|managing|whole[-\s]?time|joint managing|executive|chairman/.test(text)) {
+      controlRoles += 1;
+    }
+  }
+
+  return (
+    (controlRoles >= 3 && seats.length >= 4) ||
+    (controlRoles >= 2 && independentCount >= 1 && seats.length >= 5)
+  );
+}
+
+function boardMatchesPattern(seats: BoardSeatLike[]): boolean {
+  return boardMatchesFamily(seats) || boardMatchesControl(seats);
+}
+
+function buildBoardPatternTickerSets(rows: GovernanceMapRow[]): {
+  family: Set<string>;
+  control: Set<string>;
+  pattern: Set<string>;
+} {
+  const byTicker = new Map<string, BoardSeatLike[]>();
+  for (const row of rows) {
+    for (const seat of row.companies) {
+      const ticker = seat.ticker.trim().toUpperCase();
+      if (!ticker) continue;
+      const list = byTicker.get(ticker) ?? [];
+      list.push({
+        name: row.name,
+        designation: seat.designation,
+        category: seat.category,
+        din: row.din,
+      });
+      byTicker.set(ticker, list);
+    }
+  }
+
+  const family = new Set<string>();
+  const control = new Set<string>();
+  const pattern = new Set<string>();
+  for (const [ticker, seats] of byTicker) {
+    const familyHit = boardMatchesFamily(seats);
+    const controlHit = boardMatchesControl(seats);
+    if (familyHit) family.add(ticker);
+    if (controlHit) control.add(ticker);
+    if (familyHit || controlHit) pattern.add(ticker);
+  }
+  return { family, control, pattern };
+}
+
 export async function GET(req: NextRequest) {
   try {
     return await buildGovernanceMapResponse(req);
@@ -369,8 +483,11 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const format = sp.get("format") || "json";
   const custom = (sp.get("custom") || "").trim();
   const themePattern = combinePatterns([custom]) || null;
-
+  const pattern = sp.get("pattern") === "1";
+  const family = sp.get("family") === "1";
+  const control = sp.get("control") === "1";
   const all = loadGovernanceMap({ minBoards, refresh, q });
+  const boardPatternSets = buildBoardPatternTickerSets(all);
   // Stats from the multi-board universe (stable), not the search subset.
   const stats = governanceMapStats(
     q.trim() ? loadGovernanceMap({ minBoards }) : all,
@@ -403,6 +520,12 @@ async function buildGovernanceMapResponse(req: NextRequest) {
         ? Number(sp.get("mcapMax"))
         : null,
     sme: sp.get("sme") === "1",
+    family,
+    control,
+    pattern,
+    familyTickers: boardPatternSets.family,
+    controlTickers: boardPatternSets.control,
+    patternTickers: boardPatternSets.pattern,
     narrowCompanies: view === "company",
   });
 
@@ -487,7 +610,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
         });
       }
     }
-    const companies = [...byTicker.values()].map((agg) => ({
+    let companies = [...byTicker.values()].map((agg) => ({
       ...agg,
       board_score: scoreCompanyBoard(agg.directors),
     }));
@@ -500,6 +623,16 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       if (bm !== am) return bm - am;
       return a.ticker.localeCompare(b.ticker);
     });
+    if (pattern && !family && !control) {
+      companies = companies.filter((agg) => boardMatchesPattern(agg.directors));
+    } else {
+      if (family) {
+        companies = companies.filter((agg) => boardMatchesFamily(agg.directors));
+      }
+      if (control) {
+        companies = companies.filter((agg) => boardMatchesControl(agg.directors));
+      }
+    }
     const total = companies.length;
     const pages = Math.max(1, Math.ceil(total / pageSize));
     const start = (page - 1) * pageSize;

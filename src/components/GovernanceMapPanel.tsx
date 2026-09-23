@@ -80,10 +80,12 @@ type Seat = {
   designation: string;
   category: string | null;
   market_cap_cr: number | null;
+  price: number | null;
   cap_code: string | null;
   about: string | null;
   headquarters?: string | null;
   sector: string | null;
+  industry: string | null;
   is_sme: boolean;
   has_bb: boolean;
   has_bb_w?: boolean;
@@ -137,6 +139,7 @@ type CompanyRow = {
   name: string;
   market: string;
   market_cap_cr: number | null;
+  price: number | null;
   cap_code: string | null;
   board_score?: number;
   has_bb: boolean;
@@ -154,6 +157,8 @@ type CompanyRow = {
   sc: string;
   tv: string;
   web: string | null;
+  sector: string | null;
+  industry: string | null;
   directors: Array<{
     person_id: string;
     name: string;
@@ -221,6 +226,19 @@ function GovAbout({
   );
 }
 
+function fmtPrice(value: number | null): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  return `₹${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+}
+
+function formatSectorIndustry(
+  sector: string | null,
+  industry: string | null,
+): string | null {
+  const bits = [sector?.trim(), industry?.trim()].filter(Boolean);
+  return bits.length ? bits.join(" · ") : null;
+}
+
 const EMPTY_FUNDS = Object.fromEntries(
   FUND_WATCHLIST_KEYS.map((k) => [k, false]),
 ) as FundFilterState;
@@ -247,6 +265,8 @@ export function GovernanceMapPanel() {
   const [bridgeMode, setBridgeMode] = useState<BridgeMode>("off");
   const [filterMultiLc, setFilterMultiLc] = useState(false);
   const [filterSmeCross, setFilterSmeCross] = useState(false);
+  const [filterFamily, setFilterFamily] = useState(false);
+  const [filterControl, setFilterControl] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
@@ -274,7 +294,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -294,6 +314,8 @@ export function GovernanceMapPanel() {
       if (bridgeMode === "cap") params.set("bridge", "1");
       if (filterMultiLc) params.set("multiLc", "1");
       if (filterSmeCross) params.set("smeCross", "1");
+      if (filterFamily) params.set("family", "1");
+      if (filterControl) params.set("control", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       appendFundParams(params, fundFilters);
@@ -337,7 +359,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme],
   );
 
   useEffect(() => {
@@ -553,6 +575,8 @@ export function GovernanceMapPanel() {
     bridgeMode !== "off" ||
     filterMultiLc ||
     filterSmeCross ||
+    filterFamily ||
+    filterControl ||
     filterHold ||
     filterEdge ||
     FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) ||
@@ -566,6 +590,8 @@ export function GovernanceMapPanel() {
     setBridgeMode("off");
     setFilterMultiLc(false);
     setFilterSmeCross(false);
+    setFilterFamily(false);
+    setFilterControl(false);
     setFilterHold(false);
     setFilterEdge(false);
     setFundFilters(EMPTY_FUNDS);
@@ -721,6 +747,34 @@ export function GovernanceMapPanel() {
           >
             {GOV_SME_CROSS_LABEL}
             {stats?.sme_cross != null ? <i>{stats.sme_cross}</i> : null}
+          </button>
+          <button
+            type="button"
+            className={`family ${filterFamily ? "on" : ""}`}
+            onClick={() => {
+              setFilterFamily((v) => !v);
+              if (!filterFamily) {
+                setFilterControl(false);
+                setView("company");
+              }
+            }}
+            title="Repeated surname / family board"
+          >
+            Family
+          </button>
+          <button
+            type="button"
+            className={`control ${filterControl ? "on" : ""}`}
+            onClick={() => {
+              setFilterControl((v) => !v);
+              if (!filterControl) {
+                setFilterFamily(false);
+                setView("company");
+              }
+            }}
+            title="Promoter / executive-heavy board"
+          >
+            Control
           </button>
           <button
             type="button"
@@ -1171,6 +1225,10 @@ export function GovernanceMapPanel() {
                       {c.market}
                       {c.market_cap_cr != null
                         ? ` · ₹${formatMcap(c.market_cap_cr)}`
+                        : ""}
+                      {c.price != null ? ` · ${fmtPrice(c.price)}` : ""}
+                      {formatSectorIndustry(c.sector, c.industry)
+                        ? ` · ${formatSectorIndustry(c.sector, c.industry)}`
                         : ""}
                       {` · ${directors.length} multi-board directors`}
                     </div>
