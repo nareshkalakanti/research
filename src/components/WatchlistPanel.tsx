@@ -758,20 +758,24 @@ function WatchlistRow({
                     );
                   })()}
                 </section>
-                <section className="wl-card-qtr">
-                  <h3>Price</h3>
-                  <WlQuoteTape ticker={r.ticker} market={r.market} />
-                  <h3>Quarters</h3>
-                  {qtr.loading ? (
-                    <p className="wl-card-muted">Loading…</p>
-                  ) : qtr.error ? (
-                    <p className="wl-card-muted">{qtr.error}</p>
-                  ) : qtr.panel?.labels?.length ? (
-                    <MiniQtr panel={qtr.panel} />
-                  ) : (
-                    <p className="wl-card-muted">No quarterly data.</p>
-                  )}
-                </section>
+                <div className="wl-side-stack">
+                  <section className="wl-card-qtr wl-card-price">
+                    <h3>Price</h3>
+                    <WlQuoteTape ticker={r.ticker} market={r.market} />
+                  </section>
+                  <section className="wl-card-qtr">
+                    <h3>Quarters</h3>
+                    {qtr.loading ? (
+                      <p className="wl-card-muted">Loading…</p>
+                    ) : qtr.error ? (
+                      <p className="wl-card-muted">{qtr.error}</p>
+                    ) : qtr.panel?.labels?.length ? (
+                      <MiniQtr panel={qtr.panel} />
+                    ) : (
+                      <p className="wl-card-muted">No quarterly data.</p>
+                    )}
+                  </section>
+                </div>
               </div>
             </div>
           </td>

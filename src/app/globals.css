@@ -19295,6 +19295,12 @@ button.otrd-co-link {
   align-items: start;
 }
 
+.wl-side-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .wl-story-title {
   margin: 0 0 4px;
   font-size: 15px;
