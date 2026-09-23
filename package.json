@@ -37,6 +37,7 @@
     "add:fund-watchlist": "tsx scripts/add-fund-watchlist-tickers.ts",
     "sync:bse-sme": "tsx scripts/sync-bse-sme.ts",
     "sync:bse-about": "tsx scripts/sync-bse-about.ts",
+    "refresh:board": "tsx scripts/refresh-company-board.ts",
     "scan:concall-drift": "tsx scripts/scan-concall-drift.ts",
     "backfill:announced": "tsx scripts/backfill-announced.ts",
     "backfill:announced:3m": "tsx scripts/backfill-announced.ts --days 90",
