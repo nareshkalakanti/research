@@ -68,6 +68,135 @@ function fmtPrice(n: number | null | undefined): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 }
 
+type QuoteTapeMa = {
+  period: 20 | 50 | 100 | 200;
+  value: number | null;
+  above: boolean | null;
+};
+
+type QuoteTape = {
+  price: number | null;
+  pe: number | null;
+  cagr_pct: number | null;
+  cagr_years: number | null;
+  week52_low: number | null;
+  week52_high: number | null;
+  mas: QuoteTapeMa[];
+};
+
+function WlQuoteTape({
+  ticker,
+  market,
+}: {
+  ticker: string;
+  market: string | null;
+}) {
+  const [tape, setTape] = useState<QuoteTape | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    const q = new URLSearchParams({ ticker });
+    if (market) q.set("market", market);
+    void fetch(`/api/quote-tape?${q}`, { signal: AbortSignal.timeout(45_000) })
+      .then(async (res) => {
+        const json = (await res.json()) as { ok?: boolean; tape?: QuoteTape };
+        if (!cancelled && json.ok && json.tape) setTape(json.tape);
+      })
+      .catch(() => {
+        if (!cancelled) setTape(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ticker, market]);
+
+  if (loading && !tape) {
+    return <p className="wl-card-muted">Price tape…</p>;
+  }
+  if (!tape || (tape.price == null && tape.mas.every((m) => m.value == null))) {
+    return null;
+  }
+
+  const low = tape.week52_low;
+  const high = tape.week52_high;
+  const px = tape.price;
+  const span = low != null && high != null && high > low ? high - low : null;
+  const pct =
+    span != null && px != null
+      ? Math.min(100, Math.max(0, ((px - low!) / span) * 100))
+      : null;
+
+  return (
+    <div className="wl-tape">
+      <div className="wl-tape-kpis">
+        <div className="wl-tape-kpi">
+          <span>Price</span>
+          <strong>{fmtPrice(tape.price)}</strong>
+        </div>
+        <div className="wl-tape-kpi">
+          <span>PE</span>
+          <strong>{tape.pe != null ? tape.pe.toFixed(2) : "—"}</strong>
+        </div>
+        <div className="wl-tape-kpi">
+          <span>{tape.cagr_years ? `${tape.cagr_years}Y CAGR` : "CAGR"}</span>
+          <strong
+            className={
+              tape.cagr_pct == null
+                ? undefined
+                : tape.cagr_pct >= 0
+                  ? "wl-tape-up"
+                  : "wl-tape-down"
+            }
+          >
+            {tape.cagr_pct == null
+              ? "—"
+              : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
+          </strong>
+        </div>
+      </div>
+      <div className="wl-tape-ma">
+        <span className="wl-tape-label">Moving averages</span>
+        <div className="wl-tape-ma-row">
+          {tape.mas.map((m) => (
+            <span
+              key={m.period}
+              className={`wl-ma${m.above === true ? " is-above" : m.above === false ? " is-below" : ""}`}
+              title={`SMA ${m.period}`}
+            >
+              <em aria-hidden>{m.above === true ? "✓" : m.above === false ? "×" : "·"}</em>
+              {m.period}{" "}
+              {m.value != null
+                ? m.value.toLocaleString("en-IN", {
+                    maximumFractionDigits: 2,
+                  })
+                : "—"}
+            </span>
+          ))}
+        </div>
+      </div>
+      {low != null && high != null ? (
+        <div className="wl-tape-range">
+          <span className="wl-tape-label">52-week range</span>
+          <div className="wl-range-track">
+            <span className="wl-range-lo">{fmtPrice(low)}</span>
+            <span className="wl-range-bar">
+              {pct != null ? (
+                <i className="wl-range-dot" style={{ left: `${pct}%` }} />
+              ) : null}
+            </span>
+            <span className="wl-range-hi">{fmtPrice(high)}</span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function ChangeCell({ value }: { value: number | null | undefined }) {
   if (value == null || Number.isNaN(value)) {
     return <span className="chg-empty">—</span>;
@@ -463,7 +592,13 @@ function WlKpis({
   );
 }
 
-function WatchlistRow({ r }: { r: WatchRow }) {
+function WatchlistRow({
+  r,
+  canRemove,
+}: {
+  r: WatchRow;
+  canRemove: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const qtr = useExpandQuarters(r.ticker, r.market, r.price, open);
   const brief = useExpandBrief(r.ticker, r.market, r.price, qtr, open);
@@ -519,20 +654,27 @@ function WatchlistRow({ r }: { r: WatchRow }) {
           <ChangeCell value={r.change_pct} />
         </td>
         <td className="col-remove">
-          <button
-            type="button"
-            className="wl-remove-chip"
-            title={`Remove ${r.ticker}`}
-            onClick={() => removeWatch(r.ticker)}
-          >
-            Remove
-          </button>
+          {canRemove ? (
+            <button
+              type="button"
+              className="wl-remove-chip"
+              title={`Remove ${r.ticker}`}
+              onClick={() => removeWatch(r.ticker)}
+            >
+              Remove
+            </button>
+          ) : (
+            <span className="result-tag tag-hold" title="Personal holding">
+              Hold
+            </span>
+          )}
         </td>
       </tr>
       {open ? (
         <tr className="wl-expand-row">
           <td colSpan={6}>
             <div className="wl-card">
+              <WlQuoteTape ticker={r.ticker} market={r.market} />
               <WlKpis qtr={qtr} row={r} />
               <div className="wl-card-body">
                 <section className="wl-story">
@@ -610,7 +752,9 @@ function WatchlistRow({ r }: { r: WatchRow }) {
 }
 
 export function WatchlistPanel() {
+  const [list, setList] = useState<"watch" | "holdings">("watch");
   const [tickers, setTickers] = useState<string[]>([]);
+  const [holdTickers, setHoldTickers] = useState<string[]>([]);
   const [rows, setRows] = useState<WatchRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -621,8 +765,22 @@ export function WatchlistPanel() {
     setTickers(listWatchedTickers());
   }, []);
 
-  const loadRows = useCallback(async (list: string[]) => {
-    if (!list.length) {
+  const refreshHoldings = useCallback(async () => {
+    try {
+      const res = await fetch("/api/holdings", {
+        signal: AbortSignal.timeout(15_000),
+      });
+      const json = (await res.json()) as { tickers?: string[] };
+      setHoldTickers(
+        (json.tickers ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean),
+      );
+    } catch {
+      setHoldTickers([]);
+    }
+  }, []);
+
+  const loadRows = useCallback(async (syms: string[]) => {
+    if (!syms.length) {
       setRows([]);
       return;
     }
@@ -631,8 +789,8 @@ export function WatchlistPanel() {
     try {
       const CHUNK = 40;
       const collected: WatchRow[] = [];
-      for (let i = 0; i < list.length; i += CHUNK) {
-        const chunk = list.slice(i, i + CHUNK);
+      for (let i = 0; i < syms.length; i += CHUNK) {
+        const chunk = syms.slice(i, i + CHUNK);
         const res = await fetch(
           `/api/iq-master?tickers=${encodeURIComponent(chunk.join(","))}`,
         );
@@ -652,7 +810,7 @@ export function WatchlistPanel() {
         collected.map((r) => [r.ticker.toUpperCase(), r]),
       );
       setRows(
-        list.map((t) => {
+        syms.map((t) => {
           const hit = byTicker.get(t.toUpperCase());
           return (
             hit ?? {
@@ -692,12 +850,15 @@ export function WatchlistPanel() {
 
   useEffect(() => {
     refreshTickers();
+    void refreshHoldings();
     return subscribeWatchlist(refreshTickers);
-  }, [refreshTickers]);
+  }, [refreshTickers, refreshHoldings]);
+
+  const activeTickers = list === "holdings" ? holdTickers : tickers;
 
   useEffect(() => {
-    void loadRows(tickers);
-  }, [tickers, loadRows]);
+    void loadRows(activeTickers);
+  }, [activeTickers, loadRows]);
 
   const needle = q.trim().toLowerCase();
   const visible = !needle
@@ -717,7 +878,7 @@ export function WatchlistPanel() {
           <h1 className="wl-simple-title">Watchlist</h1>
           <p className="wl-simple-sub">
             Search a ticker to add it. Name opens TradingView. Expand (+) for
-            About + quarters. Unwatch with Remove.
+            price tape, about, and quarters.
           </p>
         </div>
         <span className="wl-simple-count" role="status">
@@ -725,44 +886,73 @@ export function WatchlistPanel() {
             ? error
             : busy
               ? "Loading…"
-              : tickers.length === 0
+              : activeTickers.length === 0
                 ? "Empty"
-                : `${visible.length} of ${tickers.length}`}
+                : `${visible.length} of ${activeTickers.length}`}
         </span>
       </header>
 
+      <div className="wl-list-chips" role="tablist" aria-label="List">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={list === "watch"}
+          className={`chip tag-chip${list === "watch" ? " on" : ""}`}
+          onClick={() => setList("watch")}
+        >
+          Watchlist
+          <span className="chip-count">{tickers.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={list === "holdings"}
+          className={`chip tag-chip tag-hold${list === "holdings" ? " on" : ""}`}
+          onClick={() => setList("holdings")}
+        >
+          Holdings
+          <span className="chip-count">{holdTickers.length}</span>
+        </button>
+      </div>
+
       <div className="wl-simple-toolbar">
-        <div className="theme-stock-search theme-stock-search--inline wl-add-search">
-          <TickerSuggest
-            value={addQ}
-            onChange={setAddQ}
-            placeholder="Search ticker or company to add…"
-            className="theme-stock-suggest-input"
-            onSelect={(hit) => {
-              addWatch(hit.ticker);
-              setAddQ("");
-            }}
-            onSubmit={(t) => {
-              const sym = t.trim().toUpperCase();
-              if (!sym) return;
-              addWatch(sym);
-              setAddQ("");
-            }}
-          />
-        </div>
+        {list === "watch" ? (
+          <div className="theme-stock-search theme-stock-search--inline wl-add-search">
+            <TickerSuggest
+              value={addQ}
+              onChange={setAddQ}
+              placeholder="Search ticker or company to add…"
+              className="theme-stock-suggest-input"
+              onSelect={(hit) => {
+                addWatch(hit.ticker);
+                setAddQ("");
+              }}
+              onSubmit={(t) => {
+                const sym = t.trim().toUpperCase();
+                if (!sym) return;
+                addWatch(sym);
+                setAddQ("");
+              }}
+            />
+          </div>
+        ) : (
+          <p className="wl-hold-hint">Personal holdings from holdings.db</p>
+        )}
         <input
           className="miq-search"
           type="search"
           placeholder="Filter this list…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          disabled={!tickers.length}
+          disabled={!activeTickers.length}
         />
       </div>
 
-      {tickers.length === 0 ? (
+      {activeTickers.length === 0 ? (
         <p className="miq-empty-hint">
-          Click <strong>+ Watch</strong> next to any stock on Scan.
+          {list === "holdings"
+            ? "No holdings on file — sync holdings to see names here."
+            : "Click + Watch next to any stock on Scan."}
         </p>
       ) : (
         <div className="table-wrap">
@@ -789,7 +979,11 @@ export function WatchlistPanel() {
             </thead>
             <tbody>
               {visible.map((r) => (
-                <WatchlistRow key={r.ticker} r={r} />
+                <WatchlistRow
+                  key={r.ticker}
+                  r={r}
+                  canRemove={list === "watch"}
+                />
               ))}
             </tbody>
           </table>

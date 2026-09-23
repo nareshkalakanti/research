@@ -1577,6 +1577,7 @@ button.result-tag {
   background: #f5f3ff;
   border-color: #c4b5fd;
   color: #5b21b6;
+  cursor: pointer;
 }
 .tag-scan-cc.on,
 .result-tag.tag-scan-cc {
@@ -18954,6 +18955,147 @@ button.otrd-co-link {
   font-size: 0.82rem;
   font-weight: 650;
   color: var(--muted);
+}
+
+.wl-list-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.wl-list-chips .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-hold-hint {
+  flex: 1 1 16rem;
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.wl-tape {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.wl-tape-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 28px;
+  margin-bottom: 12px;
+}
+
+.wl-tape-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wl-tape-kpi span {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.wl-tape-kpi strong {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.wl-tape-up {
+  color: #15803d;
+}
+
+.wl-tape-down {
+  color: #b91c1c;
+}
+
+.wl-tape-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.wl-tape-ma-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wl-ma {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.wl-ma em {
+  font-style: normal;
+  font-weight: 800;
+}
+
+.wl-ma.is-above {
+  background: #ecfdf3;
+  color: #15803d;
+}
+
+.wl-ma.is-below {
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.wl-tape-range {
+  margin-top: 12px;
+}
+
+.wl-range-track {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.wl-range-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ef4444, #eab308, #22c55e);
+}
+
+.wl-range-dot {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: #2563eb;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #93c5fd;
+  transform: translateY(-50%);
 }
 
 .wl-simple-toolbar {

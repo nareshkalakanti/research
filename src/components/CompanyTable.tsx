@@ -168,18 +168,27 @@ function SignalTags({ company }: { company: Company }) {
         </span>
       ) : null}
       {company.has_concall ? (
-        <button
-          type="button"
+        <span
           className="result-tag tag-scan-cc"
           title="Research concall PASS — open Analyze"
+          role="link"
+          tabIndex={0}
           onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            writeFocusTicker(company.ticker);
+            tabs?.setTab("research", { ticker: company.ticker });
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
             e.stopPropagation();
             writeFocusTicker(company.ticker);
             tabs?.setTab("research", { ticker: company.ticker });
           }}
         >
           CC
-        </button>
+        </span>
       ) : null}
       {fundTags.length ? (
         <FundWatchlistTags tags={fundTags} changes={company.fund_changes} />
