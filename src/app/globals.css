@@ -19203,6 +19203,13 @@ button.otrd-co-link {
   text-align: right;
 }
 
+.wl-simple-table .col-mom {
+  width: 10%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
+}
+
 .wl-simple-table th.num,
 .wl-simple-table td.num {
   text-align: right;
