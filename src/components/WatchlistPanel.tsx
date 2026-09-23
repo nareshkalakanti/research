@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   addWatch,
   listWatchedTickers,
@@ -638,10 +638,12 @@ function WatchlistRow({
   r,
   canRemove,
   onRemoveHold,
+  rank,
 }: {
   r: WatchRow;
   canRemove: boolean;
   onRemoveHold?: (ticker: string) => void;
+  rank?: number | null;
 }) {
   const [open, setOpen] = useState(false);
   const qtr = useExpandQuarters(r.ticker, r.market, r.price, open);
@@ -663,6 +665,11 @@ function WatchlistRow({
               {open ? "−" : "+"}
             </button>
             <WatchButton ticker={r.ticker} />
+            {rank != null ? (
+              <span className="wl-rank-pill" title="Momentum rank">
+                #{rank}
+              </span>
+            ) : null}
             <div className="company-watch-name">
               <a
                 className="company-name wl-tv-name"
@@ -811,6 +818,9 @@ function WatchlistRow({
 
 export function WatchlistPanel() {
   const [list, setList] = useState<"watch" | "holdings">("watch");
+  const [holdingsSort, setHoldingsSort] = useState<"default" | "momentum">(
+    "default",
+  );
   const [tickers, setTickers] = useState<string[]>([]);
   const [holdTickers, setHoldTickers] = useState<string[]>([]);
   const [rows, setRows] = useState<WatchRow[]>([]);
@@ -976,14 +986,25 @@ export function WatchlistPanel() {
 
   const activeTickers = list === "holdings" ? holdTickers : tickers;
 
+  const sortedRows = useMemo(() => {
+    const base = [...rows];
+    if (list !== "holdings" || holdingsSort !== "momentum") return base;
+    return base.sort((a, b) => {
+      const am = a.momentum_pct ?? Number.NEGATIVE_INFINITY;
+      const bm = b.momentum_pct ?? Number.NEGATIVE_INFINITY;
+      if (bm !== am) return bm - am;
+      return a.ticker.localeCompare(b.ticker);
+    });
+  }, [rows, list, holdingsSort]);
+
   useEffect(() => {
     void loadRows(activeTickers);
   }, [activeTickers, loadRows]);
 
   const needle = q.trim().toLowerCase();
   const visible = !needle
-    ? rows
-    : rows.filter(
+    ? sortedRows
+    : sortedRows.filter(
         (r) =>
           r.ticker.toLowerCase().includes(needle) ||
           r.company.toLowerCase().includes(needle) ||
@@ -1032,6 +1053,20 @@ export function WatchlistPanel() {
         >
           Holdings
           <span className="chip-count">{holdTickers.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={list === "holdings" && holdingsSort === "momentum"}
+          className={`chip tag-chip tag-mom${
+            list === "holdings" && holdingsSort === "momentum" ? " on" : ""
+          }`}
+          onClick={() => {
+            setList("holdings");
+            setHoldingsSort((cur) => (cur === "momentum" ? "default" : "momentum"));
+          }}
+        >
+          12M Momentum
         </button>
       </div>
 
@@ -1106,11 +1141,16 @@ export function WatchlistPanel() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((r) => (
+              {visible.map((r, idx) => (
                 <WatchlistRow
                   key={r.ticker}
                   r={r}
                   canRemove={list === "watch"}
+                  rank={
+                    list === "holdings" && holdingsSort === "momentum"
+                      ? idx + 1
+                      : undefined
+                  }
                   onRemoveHold={
                     list === "holdings" ? removeHolding : undefined
                   }

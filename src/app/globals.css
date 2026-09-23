@@ -18970,6 +18970,31 @@ button.otrd-co-link {
   gap: 6px;
 }
 
+.wl-list-chips .tag-mom {
+  border-color: #ddd6fe;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+
+.wl-list-chips .tag-mom.on {
+  border-color: #c4b5fd;
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.wl-rank-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .wl-hold-hint {
   flex: 1 1 16rem;
   margin: 0;
