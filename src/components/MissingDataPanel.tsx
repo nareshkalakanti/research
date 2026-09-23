@@ -78,6 +78,10 @@ export function MissingDataPanel() {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("name");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
+  const [boardDays, setBoardDays] = useState(90);
+  const [boardSelected, setBoardSelected] = useState<string[]>([]);
+  const [boardRunning, setBoardRunning] = useState(false);
+  const [boardStatus, setBoardStatus] = useState<string | null>(null);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const hasDataRef = useRef(false);
@@ -86,6 +90,11 @@ export function MissingDataPanel() {
   useEffect(() => {
     setPage(1);
   }, [market, gap]);
+
+  useEffect(() => {
+    setBoardSelected([]);
+    setBoardStatus(null);
+  }, [market, gap, page]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -148,6 +157,62 @@ export function MissingDataPanel() {
   const totalMetricsGaps = gaps?.metrics ?? 0;
   const gapLabel =
     GAP_OPTIONS.find((o) => o.id === gap)?.label.toLowerCase() ?? gap;
+  const boardRows = gap === "board" ? data?.rows ?? [] : [];
+  const boardSelectedRows = boardRows.filter((r) => boardSelected.includes(r.ticker));
+
+  const toggleBoardSelected = useCallback((ticker: string) => {
+    const t = ticker.trim().toUpperCase();
+    if (!t) return;
+    setBoardSelected((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t],
+    );
+  }, []);
+
+  const selectAllBoardRows = useCallback(() => {
+    setBoardSelected(boardRows.map((r) => r.ticker));
+  }, [boardRows]);
+
+  const runSelectedBoardRows = useCallback(async () => {
+    const selected = boardRows.filter((r) => boardSelected.includes(r.ticker));
+    if (!selected.length) return;
+    setBoardRunning(true);
+    setError(null);
+    try {
+      for (let i = 0; i < selected.length; i += 1) {
+        const row = selected[i]!;
+        const query = `${row.name} ${row.ticker}`.trim();
+        setBoardStatus(
+          `Scanning ${i + 1}/${selected.length}: ${row.ticker}…`,
+        );
+        const found = await fetch(
+          `/api/boardroomiq?announced=1&days=${boardDays}&q=${encodeURIComponent(query)}`,
+        );
+        const foundJson = (await found.json()) as {
+          sources?: Array<{ url?: string | null }>;
+        };
+        const sources = (foundJson.sources ?? []).filter((s) => !!s.url);
+        if (sources.length) {
+          await fetch("/api/boardroomiq", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "scan",
+              days: boardDays,
+              limit: Math.min(12, sources.length),
+              pendingOnly: true,
+              sources,
+            }),
+          });
+        }
+        await load({ refresh: true });
+      }
+      setBoardStatus(`Done · scanned ${selected.length} row(s)`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "BoardRoomIQ scan failed");
+    } finally {
+      setBoardRunning(false);
+    }
+  }, [boardDays, boardRows, boardSelected, load]);
 
   return (
     <div className="panel">
@@ -255,6 +320,73 @@ export function MissingDataPanel() {
 
       {gap === "board" ? (
         <>
+          <div className="missing-board-runner">
+            <div className="missing-board-runner-head">
+              <div>
+                <strong>Run selected missing DIN rows</strong>
+                <p className="hint tight">
+                  Pick one or more rows, scan their recent BoardRoomIQ filings, and refresh the count after each hit.
+                </p>
+              </div>
+              <label className="field missing-board-days">
+                <span>Days</span>
+                <select
+                  value={boardDays}
+                  disabled={boardRunning}
+                  onChange={(e) => setBoardDays(Number(e.target.value) || 90)}
+                >
+                  {[7, 30, 90, 180].map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="missing-board-actions">
+                <button
+                  type="button"
+                  className="chip tag-chip"
+                  disabled={boardRunning || boardRows.length === 0}
+                  onClick={selectAllBoardRows}
+                >
+                  Select all page
+                </button>
+                <button
+                  type="button"
+                  className="chip tag-chip"
+                  disabled={boardRunning || boardSelected.length === 0}
+                  onClick={() => setBoardSelected([])}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="chip chip-scan tag-chip"
+                  disabled={boardRunning || boardSelected.length === 0}
+                  onClick={() => void runSelectedBoardRows()}
+                >
+                  {boardRunning
+                    ? boardStatus || "Scanning…"
+                    : `Run selected (${boardSelected.length})`}
+                </button>
+              </div>
+            </div>
+            <div className="missing-board-runner-list">
+              {boardRows.map((row) => (
+                <label key={row.ticker} className="missing-board-row">
+                  <input
+                    type="checkbox"
+                    checked={boardSelected.includes(row.ticker)}
+                    onChange={() => toggleBoardSelected(row.ticker)}
+                    disabled={boardRunning}
+                  />
+                  <span className="missing-board-row-ticker">{row.ticker}</span>
+                  <span className="missing-board-row-name">{row.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          {boardStatus ? <p className="hint tight">{boardStatus}</p> : null}
           <GovernanceScanBar
             market={market}
             pageTickers={pageTickers}
