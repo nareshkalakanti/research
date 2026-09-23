@@ -27,7 +27,8 @@ export type QuoteTape = {
   week52_low: number | null;
   week52_high: number | null;
   dma200: number | null;
-  dma200_alert: "crossed_above" | "above" | null;
+  breakout20: number | null;
+  dma200_alert: "below_200_breakout" | null;
   mas: QuoteTapeMa[];
 };
 
@@ -89,6 +90,7 @@ export async function loadQuoteTape(
     week52_low: null,
     week52_high: null,
     dma200: null,
+    breakout20: null,
     dma200_alert: null,
     mas: [
       { period: 20, value: null, above: null },
@@ -117,11 +119,19 @@ export async function loadQuoteTape(
     };
   });
   const dma200 = mas.find((m) => m.period === 200)?.value ?? null;
+  const breakout20 =
+    bars.length > 1
+      ? round2(Math.max(...bars.slice(-21, -1).map((b) => b.high)))
+      : null;
   const dma200_alert =
-    price != null && dma200 != null && price > dma200
-      ? prev_close != null && prev_close <= dma200
-        ? "crossed_above"
-        : "above"
+    price != null &&
+    dma200 != null &&
+    breakout20 != null &&
+    price < dma200 &&
+    price > breakout20 &&
+    prev_close != null &&
+    prev_close <= breakout20
+      ? "below_200_breakout"
       : null;
 
   let week52_low = quote.low;
@@ -160,6 +170,7 @@ export async function loadQuoteTape(
     week52_low,
     week52_high,
     dma200,
+    breakout20,
     dma200_alert,
     mas,
   };
