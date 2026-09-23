@@ -83,7 +83,8 @@ type QuoteTape = {
   week52_low: number | null;
   week52_high: number | null;
   dma200: number | null;
-  dma200_alert: "crossed_above" | "above" | null;
+  breakout20: number | null;
+  dma200_alert: "below_200_breakout" | null;
   mas: QuoteTapeMa[];
 };
 
@@ -140,10 +141,8 @@ function WlQuoteTape({
         ? "q-up"
         : "q-down";
   const dma200Label =
-    tape.dma200_alert === "crossed_above"
-      ? "Crossed above 200 DMA"
-      : tape.dma200_alert === "above"
-        ? "Above 200 DMA"
+    tape.dma200_alert === "below_200_breakout"
+      ? "Below 200 DMA · Fresh breakout"
         : null;
 
   return (
@@ -212,7 +211,12 @@ function WlQuoteTape({
           {tape.dma200 != null && tape.price != null ? (
             <span className="wl-dma-alert-text">
               200 DMA {tape.dma200.toLocaleString("en-IN", { maximumFractionDigits: 2 })} ·
-              Price {tape.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              Breakout {tape.breakout20 != null
+                ? tape.breakout20.toLocaleString("en-IN", {
+                    maximumFractionDigits: 2,
+                  })
+                : "—"} · Price{" "}
+              {tape.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
             </span>
           ) : null}
         </div>
