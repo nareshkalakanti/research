@@ -993,6 +993,68 @@ button.brand-btn:hover .brand-name {
   flex-wrap: wrap;
 }
 
+.missing-board-runner {
+  margin: 12px 0 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fafafa;
+}
+
+.missing-board-runner-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.missing-board-runner-head .field {
+  min-width: 7rem;
+}
+
+.missing-board-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.missing-board-runner-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.missing-board-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.missing-board-row input {
+  margin: 0;
+}
+
+.missing-board-row-ticker {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.missing-board-row-name {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ok-state {
   color: var(--ok);
 }
