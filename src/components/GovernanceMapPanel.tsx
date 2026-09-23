@@ -277,6 +277,7 @@ export function GovernanceMapPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [refreshingTicker, setRefreshingTicker] = useState<string | null>(null);
   const pendingOpenRef = useRef<string | null>(null);
   const pendingScrollRef = useRef<number | null>(null);
   const deepDrillDoneRef = useRef<string | null>(null);
@@ -522,6 +523,45 @@ export function GovernanceMapPanel() {
 
   function bumpChanges() {
     setChangesRefreshKey((k) => k + 1);
+  }
+
+  async function refreshCompanyBoard(ticker: string, market: string) {
+    setRefreshingTicker(ticker);
+    setLoadError(null);
+    try {
+      const res = await fetch("/api/governance-scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          market,
+          tickers: [ticker],
+          limit: 1,
+          missingOnly: false,
+        }),
+      });
+      const text = await res.text();
+      let json: { error?: string; message?: string };
+      try {
+        json = JSON.parse(text) as { error?: string; message?: string };
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Invalid response from governance refresh"
+            : `Update failed (${res.status})`,
+        );
+      }
+      if (!res.ok || json.error) {
+        throw new Error(json.error || json.message || `Update failed (${res.status})`);
+      }
+      bumpChanges();
+      await load({ refresh: true });
+    } catch (err) {
+      setLoadError(
+        err instanceof Error ? err.message : "Failed to refresh company board",
+      );
+    } finally {
+      setRefreshingTicker(null);
+    }
   }
 
   function drillTicker(ticker: string, fromLabel?: string) {
@@ -1251,6 +1291,19 @@ export function GovernanceMapPanel() {
                     <a href={c.tv} target="_blank" rel="noreferrer">
                       TV
                     </a>
+                    {c.market.toUpperCase().startsWith("NSE") ? (
+                      <button
+                        type="button"
+                        className="btn-ghost gov-update-btn"
+                        disabled={refreshingTicker === c.ticker || loading}
+                        onClick={() =>
+                          void refreshCompanyBoard(c.ticker, c.market)
+                        }
+                        title="Refresh this board from NSE"
+                      >
+                        {refreshingTicker === c.ticker ? "Updating…" : "Update"}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
                 {c.about || c.headquarters ? (
