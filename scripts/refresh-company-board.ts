@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { runGovernanceRefreshBatch } from "../src/lib/governance-scan";
 import { saveCompanyBoard, type BoardSeat } from "../src/lib/governance-write";
 
 type BoardPayload = {
@@ -17,18 +18,12 @@ function usage(): never {
   throw new Error(
     [
       "Usage:",
+      "  npm run refresh:board -- APOLSINHOT",
+      "  npm run refresh:board -- --tickers APOLSINHOT,TCS",
       "  npm run refresh:board -- --input board.json",
-      "  npx tsx scripts/refresh-company-board.ts --input board.json",
       "",
-      "Optional overrides:",
-      "  --ticker APOLSINHOT",
-      "  --name \"Apollo Sindoori Hotels Limited\"",
-      "  --market NSE",
-      "  --as-of 2026-09-23",
-      "  --source nse_integrated_governance",
-      "  --notes \"...\"",
-      "  --no-replace-seats",
-      "  --no-protect-din-board",
+      "Automatic mode fetches the current board from NSE and replaces the ticker's seats.",
+      "JSON mode is still available for pasted payloads.",
     ].join("\n"),
   );
 }
@@ -61,6 +56,15 @@ function takeBoolFlag(args: string[], name: string): boolean | null {
   return null;
 }
 
+function takeCommaList(args: string[], name: string): string[] | null {
+  const raw = takeFlag(args, name);
+  if (raw == null) return null;
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function readJsonPayload(inputPath: string | null): BoardPayload {
   const raw = inputPath
     ? fs.readFileSync(inputPath, "utf8")
@@ -78,9 +82,39 @@ function readJsonPayload(inputPath: string | null): BoardPayload {
 function main() {
   const args = process.argv.slice(2);
   const inputPath = takeFlag(args, "input");
+  const cliTickers = takeCommaList(args, "tickers") ?? [];
+  const singleTicker = takeFlag(args, "ticker");
+  if (singleTicker) cliTickers.push(singleTicker);
+  const positionalTickers = args.filter((arg) => !arg.startsWith("--"));
+  const tickers = [
+    ...new Set(
+      [...cliTickers, ...positionalTickers].map((t) => t.toUpperCase()).filter(Boolean),
+    ),
+  ];
+
+  if (!inputPath && tickers.length) {
+    void (async () => {
+      const result = await runGovernanceRefreshBatch({
+        tickers,
+        limit: tickers.length,
+      });
+      console.log(
+        `Refreshed ${result.saved_tickers.join(", ") || tickers.join(", ")}`
+      );
+      console.log(
+        `saved=${result.saved} skipped=${result.skipped_empty + result.skipped_protected} failed=${result.failed} seats=${result.new_seats} events=${result.seat_events}`
+      );
+    })().catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+    return;
+  }
+
+  if (!inputPath) usage();
   const payload = readJsonPayload(inputPath);
 
-  const ticker = takeFlag(args, "ticker") || payload.ticker;
+  const ticker = payload.ticker;
   const name = takeFlag(args, "name") || payload.name;
   const market = takeFlag(args, "market") || payload.market || "NSE";
   const asOf = takeFlag(args, "as-of") || payload.as_of || undefined;
