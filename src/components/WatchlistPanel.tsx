@@ -1067,15 +1067,15 @@ export function WatchlistPanel() {
   const sortedRows = useMemo(() => {
     const base = [...rows];
     return base.sort((a, b) => {
-      const ac = a.crossed_200dma_recently ? 1 : 0;
-      const bc = b.crossed_200dma_recently ? 1 : 0;
-      if (bc !== ac) return bc - ac;
       if (list === "holdings" && holdingsSort === "momentum") {
         const am = a.momentum_pct ?? Number.NEGATIVE_INFINITY;
         const bm = b.momentum_pct ?? Number.NEGATIVE_INFINITY;
         if (bm !== am) return bm - am;
         return a.ticker.localeCompare(b.ticker);
       }
+      const ac = a.crossed_200dma_recently ? 1 : 0;
+      const bc = b.crossed_200dma_recently ? 1 : 0;
+      if (bc !== ac) return bc - ac;
       return 0;
     });
   }, [rows, list, holdingsSort]);
