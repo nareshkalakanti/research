@@ -116,7 +116,7 @@ function WlQuoteTape({
   }, [ticker, market]);
 
   if (loading && !tape) {
-    return <p className="wl-card-muted">Price tape…</p>;
+    return <p className="wl-card-muted">Price…</p>;
   }
   if (!tape || (tape.price == null && tape.mas.every((m) => m.value == null))) {
     return null;
@@ -130,58 +130,76 @@ function WlQuoteTape({
     span != null && px != null
       ? Math.min(100, Math.max(0, ((px - low!) / span) * 100))
       : null;
+  const cagrCls =
+    tape.cagr_pct == null
+      ? undefined
+      : tape.cagr_pct >= 0
+        ? "q-up"
+        : "q-down";
 
   return (
     <div className="wl-tape">
-      <div className="wl-tape-kpis">
-        <div className="wl-tape-kpi">
-          <span>Price</span>
-          <strong>{fmtPrice(tape.price)}</strong>
-        </div>
-        <div className="wl-tape-kpi">
-          <span>PE</span>
-          <strong>{tape.pe != null ? tape.pe.toFixed(2) : "—"}</strong>
-        </div>
-        <div className="wl-tape-kpi">
-          <span>{tape.cagr_years ? `${tape.cagr_years}Y CAGR` : "CAGR"}</span>
-          <strong
-            className={
-              tape.cagr_pct == null
-                ? undefined
-                : tape.cagr_pct >= 0
-                  ? "wl-tape-up"
-                  : "wl-tape-down"
-            }
-          >
-            {tape.cagr_pct == null
-              ? "—"
-              : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
-          </strong>
-        </div>
-      </div>
-      <div className="wl-tape-ma">
-        <span className="wl-tape-label">Moving averages</span>
-        <div className="wl-tape-ma-row">
-          {tape.mas.map((m) => (
-            <span
-              key={m.period}
-              className={`wl-ma${m.above === true ? " is-above" : m.above === false ? " is-below" : ""}`}
-              title={`SMA ${m.period}`}
-            >
-              <em aria-hidden>{m.above === true ? "✓" : m.above === false ? "×" : "·"}</em>
-              {m.period}{" "}
-              {m.value != null
-                ? m.value.toLocaleString("en-IN", {
-                    maximumFractionDigits: 2,
-                  })
-                : "—"}
-            </span>
-          ))}
-        </div>
-      </div>
+      <table className="wl-mini-q">
+        <thead>
+          <tr>
+            <th></th>
+            <th>Price</th>
+            <th>PE</th>
+            <th>{tape.cagr_years ? `${tape.cagr_years}Y CAGR` : "CAGR"}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>Last</th>
+            <td>{fmtPrice(tape.price)}</td>
+            <td>{tape.pe != null ? tape.pe.toFixed(2) : "—"}</td>
+            <td className={cagrCls}>
+              {tape.cagr_pct == null
+                ? "—"
+                : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <table className="wl-mini-q">
+        <thead>
+          <tr>
+            <th></th>
+            {tape.mas.map((m) => (
+              <th key={m.period}>{m.period}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th>SMA</th>
+            {tape.mas.map((m) => (
+              <td
+                key={m.period}
+                className={
+                  m.above === true ? "q-up" : m.above === false ? "q-down" : undefined
+                }
+                title={
+                  m.above === true
+                    ? "Price above SMA"
+                    : m.above === false
+                      ? "Price below SMA"
+                      : undefined
+                }
+              >
+                {m.value != null
+                  ? m.value.toLocaleString("en-IN", {
+                      maximumFractionDigits: 2,
+                    })
+                  : "—"}
+              </td>
+            ))}
+          </tr>
+        </tbody>
+      </table>
       {low != null && high != null ? (
         <div className="wl-tape-range">
-          <span className="wl-tape-label">52-week range</span>
+          <span className="wl-tape-label">52-week</span>
           <div className="wl-range-track">
             <span className="wl-range-lo">{fmtPrice(low)}</span>
             <span className="wl-range-bar">
@@ -595,9 +613,11 @@ function WlKpis({
 function WatchlistRow({
   r,
   canRemove,
+  onRemoveHold,
 }: {
   r: WatchRow;
   canRemove: boolean;
+  onRemoveHold?: (ticker: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const qtr = useExpandQuarters(r.ticker, r.market, r.price, open);
@@ -664,9 +684,18 @@ function WatchlistRow({
               Remove
             </button>
           ) : (
-            <span className="result-tag tag-hold" title="Personal holding">
+            <button
+              type="button"
+              className="result-tag tag-hold"
+              title={`Remove ${r.ticker} from holdings`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onRemoveHold?.(r.ticker);
+              }}
+            >
               Hold
-            </span>
+            </button>
           )}
         </td>
       </tr>
@@ -674,7 +703,6 @@ function WatchlistRow({
         <tr className="wl-expand-row">
           <td colSpan={6}>
             <div className="wl-card">
-              <WlQuoteTape ticker={r.ticker} market={r.market} />
               <WlKpis qtr={qtr} row={r} />
               <div className="wl-card-body">
                 <section className="wl-story">
@@ -731,6 +759,8 @@ function WatchlistRow({
                   })()}
                 </section>
                 <section className="wl-card-qtr">
+                  <h3>Price</h3>
+                  <WlQuoteTape ticker={r.ticker} market={r.market} />
                   <h3>Quarters</h3>
                   {qtr.loading ? (
                     <p className="wl-card-muted">Loading…</p>
@@ -765,19 +795,81 @@ export function WatchlistPanel() {
     setTickers(listWatchedTickers());
   }, []);
 
+  const applyHoldTickers = useCallback((next: string[]) => {
+    setHoldTickers(
+      next.map((t) => t.trim().toUpperCase()).filter(Boolean),
+    );
+  }, []);
+
   const refreshHoldings = useCallback(async () => {
     try {
       const res = await fetch("/api/holdings", {
         signal: AbortSignal.timeout(15_000),
       });
       const json = (await res.json()) as { tickers?: string[] };
-      setHoldTickers(
-        (json.tickers ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean),
-      );
+      applyHoldTickers(json.tickers ?? []);
     } catch {
       setHoldTickers([]);
     }
-  }, []);
+  }, [applyHoldTickers]);
+
+  const addHolding = useCallback(
+    async (hit: {
+      ticker: string;
+      name?: string | null;
+      market?: string | null;
+      sector?: string | null;
+    }) => {
+      const ticker = hit.ticker.trim().toUpperCase();
+      if (!ticker) return;
+      try {
+        const res = await fetch("/api/holdings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ticker,
+            name: hit.name || null,
+            market: hit.market || null,
+            sector: hit.sector || null,
+          }),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          tickers?: string[];
+          error?: string;
+        };
+        if (!res.ok || json.ok === false) {
+          setError(json.error || "Could not add holding");
+          return;
+        }
+        applyHoldTickers(json.tickers ?? [ticker]);
+        setList("holdings");
+        setAddQ("");
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not add holding");
+      }
+    },
+    [applyHoldTickers],
+  );
+
+  const removeHolding = useCallback(
+    async (ticker: string) => {
+      const t = ticker.trim().toUpperCase();
+      if (!t) return;
+      try {
+        const res = await fetch(
+          `/api/holdings?ticker=${encodeURIComponent(t)}`,
+          { method: "DELETE" },
+        );
+        const json = (await res.json()) as { tickers?: string[] };
+        applyHoldTickers(json.tickers ?? []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not remove holding");
+      }
+    },
+    [applyHoldTickers],
+  );
 
   const loadRows = useCallback(async (syms: string[]) => {
     if (!syms.length) {
@@ -916,28 +1008,36 @@ export function WatchlistPanel() {
       </div>
 
       <div className="wl-simple-toolbar">
-        {list === "watch" ? (
-          <div className="theme-stock-search theme-stock-search--inline wl-add-search">
-            <TickerSuggest
-              value={addQ}
-              onChange={setAddQ}
-              placeholder="Search ticker or company to add…"
-              className="theme-stock-suggest-input"
-              onSelect={(hit) => {
-                addWatch(hit.ticker);
-                setAddQ("");
-              }}
-              onSubmit={(t) => {
-                const sym = t.trim().toUpperCase();
-                if (!sym) return;
-                addWatch(sym);
-                setAddQ("");
-              }}
-            />
-          </div>
-        ) : (
-          <p className="wl-hold-hint">Personal holdings from holdings.db</p>
-        )}
+        <div className="theme-stock-search theme-stock-search--inline wl-add-search">
+          <TickerSuggest
+            value={addQ}
+            onChange={setAddQ}
+            placeholder={
+              list === "holdings"
+                ? "Search ticker or company to add to holdings…"
+                : "Search ticker or company to add…"
+            }
+            className="theme-stock-suggest-input"
+            onSelect={(hit) => {
+              if (list === "holdings") {
+                void addHolding(hit);
+                return;
+              }
+              addWatch(hit.ticker);
+              setAddQ("");
+            }}
+            onSubmit={(t) => {
+              const sym = t.trim().toUpperCase();
+              if (!sym) return;
+              if (list === "holdings") {
+                void addHolding({ ticker: sym });
+                return;
+              }
+              addWatch(sym);
+              setAddQ("");
+            }}
+          />
+        </div>
         <input
           className="miq-search"
           type="search"
@@ -951,7 +1051,7 @@ export function WatchlistPanel() {
       {activeTickers.length === 0 ? (
         <p className="miq-empty-hint">
           {list === "holdings"
-            ? "No holdings on file — sync holdings to see names here."
+            ? "No holdings on file — search a ticker to add one."
             : "Click + Watch next to any stock on Scan."}
         </p>
       ) : (
@@ -983,6 +1083,9 @@ export function WatchlistPanel() {
                   key={r.ticker}
                   r={r}
                   canRemove={list === "watch"}
+                  onRemoveHold={
+                    list === "holdings" ? removeHolding : undefined
+                  }
                 />
               ))}
             </tbody>

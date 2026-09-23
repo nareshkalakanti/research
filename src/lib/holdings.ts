@@ -26,6 +26,13 @@ function open(): Database.Database | null {
   return db;
 }
 
+function openWrite(): Database.Database {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const db = new Database(DB_PATH);
+  ensureSchema(db);
+  return db;
+}
+
 function ensureSchema(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS holdings (
@@ -74,6 +81,64 @@ export function holdingsTickerSet(): Set<string> {
 
 export function isHolding(ticker: string): boolean {
   return holdingsTickerSet().has(ticker.toUpperCase());
+}
+
+export function upsertHolding(row: {
+  ticker: string;
+  name?: string | null;
+  market?: string | null;
+  sector?: string | null;
+  sub_sector?: string | null;
+}): HoldingRow | null {
+  const ticker = (row.ticker || "").trim().toUpperCase();
+  if (!ticker) return null;
+  const db = openWrite();
+  try {
+    const now = new Date().toISOString();
+    db.prepare(
+      `INSERT INTO holdings (ticker, market, name, sector, sub_sector, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(ticker) DO UPDATE SET
+         market = excluded.market,
+         name = COALESCE(excluded.name, holdings.name),
+         sector = COALESCE(excluded.sector, holdings.sector),
+         sub_sector = COALESCE(excluded.sub_sector, holdings.sub_sector),
+         updated_at = excluded.updated_at`,
+    ).run(
+      ticker,
+      (row.market || "NSE").trim().toUpperCase() || "NSE",
+      row.name?.trim() || null,
+      row.sector?.trim() || null,
+      row.sub_sector?.trim() || null,
+      now,
+    );
+    invalidateHoldingsCache();
+    return (
+      loadHoldings().find((h) => h.ticker.toUpperCase() === ticker) ?? {
+        ticker,
+        name: row.name?.trim() || null,
+        market: (row.market || "NSE").trim().toUpperCase() || "NSE",
+        sector: row.sector?.trim() || null,
+        sub_sector: row.sub_sector?.trim() || null,
+      }
+    );
+  } finally {
+    db.close();
+  }
+}
+
+export function deleteHolding(ticker: string): boolean {
+  const t = (ticker || "").trim().toUpperCase();
+  if (!t) return false;
+  if (!fs.existsSync(DB_PATH)) return false;
+  const db = openWrite();
+  try {
+    const info = db.prepare(`DELETE FROM holdings WHERE UPPER(ticker) = ?`).run(t);
+    invalidateHoldingsCache();
+    return info.changes > 0;
+  } finally {
+    db.close();
+  }
 }
 
 /** Replace all holdings (used by sync script). */
