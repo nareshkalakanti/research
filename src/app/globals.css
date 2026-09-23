@@ -1745,6 +1745,12 @@ button.result-tag {
   color: #fff;
 }
 
+.result-tag.tag-dma200 {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #166534;
+}
+
 .tag-open {
   background: #dcfce7;
   border-color: #86efac;
