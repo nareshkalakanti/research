@@ -396,7 +396,7 @@ function SignalChips({
 }
 
 function MiniQtr({ panel }: { panel: QuarterPanel }) {
-  const labels = panel.labels.slice(-4);
+  const labels = panel.labels;
   const offset = panel.labels.length - labels.length;
   const rows = panel.rows.filter((r) =>
     /sales|operating profit|^opm|net profit/i.test(r.label),
