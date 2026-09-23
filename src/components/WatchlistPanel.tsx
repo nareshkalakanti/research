@@ -657,11 +657,13 @@ function WatchlistRow({
   canRemove,
   onRemoveHold,
   rank,
+  showMomentumColumn,
 }: {
   r: WatchRow;
   canRemove: boolean;
   onRemoveHold?: (ticker: string) => void;
   rank?: number | null;
+  showMomentumColumn: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const qtr = useExpandQuarters(r.ticker, r.market, r.price, open);
@@ -723,6 +725,27 @@ function WatchlistRow({
         <td className="num col-chg">
           <ChangeCell value={r.change_pct} />
         </td>
+        {showMomentumColumn ? (
+          <td className="num col-mom" title="12-1 momentum">
+            {r.momentum_pct != null ? (
+              <span
+                className={`mom-tag mom-tag--${
+                  Math.round(r.momentum_pct) > 0
+                    ? "pos"
+                    : Math.round(r.momentum_pct) < 0
+                      ? "neg"
+                      : "flat"
+                }`}
+              >
+                {`${Math.round(r.momentum_pct) > 0 ? "+" : ""}${Math.round(
+                  r.momentum_pct,
+                )}%`}
+              </span>
+            ) : (
+              <span className="mom-tag mom-tag--empty">—</span>
+            )}
+          </td>
+        ) : null}
         <td className="col-remove">
           {canRemove ? (
             <button
@@ -1056,6 +1079,7 @@ export function WatchlistPanel() {
       return 0;
     });
   }, [rows, list, holdingsSort]);
+  const showMomentumColumn = list === "holdings" && holdingsSort === "momentum";
 
   useEffect(() => {
     void loadRows(activeTickers);
@@ -1186,6 +1210,7 @@ export function WatchlistPanel() {
               <col className="col-mcap_cr" />
               <col className="col-price" />
               <col className="col-chg" />
+              {showMomentumColumn ? <col className="col-mom" /> : null}
               <col className="col-remove" />
             </colgroup>
             <thead>
@@ -1197,6 +1222,11 @@ export function WatchlistPanel() {
                 <th className="num col-chg" title="Today vs previous close">
                   1D
                 </th>
+                {showMomentumColumn ? (
+                  <th className="num col-mom" title="12-1 momentum">
+                    Mom
+                  </th>
+                ) : null}
                 <th className="col-remove" />
               </tr>
             </thead>
@@ -1211,6 +1241,7 @@ export function WatchlistPanel() {
                       ? idx + 1
                       : undefined
                   }
+                  showMomentumColumn={showMomentumColumn}
                   onRemoveHold={
                     list === "holdings" ? removeHolding : undefined
                   }
