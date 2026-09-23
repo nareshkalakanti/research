@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { useAppTab } from "@/lib/app-tab";
 
 export type TickerSuggestHit = {
   ticker: string;
@@ -94,6 +95,7 @@ export function TickerSuggest({
   const [mounted, setMounted] = useState(false);
   const reqRef = useRef(0);
   const pickedRef = useRef<string | null>(null);
+  const { tab } = useAppTab();
 
   const q = value.trim().toUpperCase();
   const showPanel = open && q.length >= 1 && (loading || searched);
@@ -101,6 +103,13 @@ export function TickerSuggest({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    setOpen(false);
+    setHits([]);
+    setSearched(false);
+    setLoading(false);
+  }, [tab]);
 
   const updatePos = useCallback(() => {
     const el = fieldRef.current;
