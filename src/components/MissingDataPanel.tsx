@@ -82,6 +82,7 @@ export function MissingDataPanel() {
   const [boardSelected, setBoardSelected] = useState<string[]>([]);
   const [boardRunning, setBoardRunning] = useState(false);
   const [boardStatus, setBoardStatus] = useState<string | null>(null);
+  const [boardError, setBoardError] = useState<string | null>(null);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const hasDataRef = useRef(false);
@@ -94,6 +95,7 @@ export function MissingDataPanel() {
   useEffect(() => {
     setBoardSelected([]);
     setBoardStatus(null);
+    setBoardError(null);
   }, [market, gap, page]);
 
   const load = useCallback(
@@ -173,10 +175,10 @@ export function MissingDataPanel() {
   }, [boardRows]);
 
   const runSelectedBoardRows = useCallback(async () => {
-    const selected = boardRows.filter((r) => boardSelected.includes(r.ticker));
+    const selected = boardSelectedRows;
     if (!selected.length) return;
     setBoardRunning(true);
-    setError(null);
+    setBoardError(null);
     try {
       for (let i = 0; i < selected.length; i += 1) {
         const row = selected[i]!;
@@ -208,11 +210,11 @@ export function MissingDataPanel() {
       }
       setBoardStatus(`Done · scanned ${selected.length} row(s)`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "BoardRoomIQ scan failed");
+      setBoardError(e instanceof Error ? e.message : "BoardRoomIQ scan failed");
     } finally {
       setBoardRunning(false);
     }
-  }, [boardDays, boardRows, boardSelected, load]);
+  }, [boardDays, boardSelectedRows, load]);
 
   return (
     <div className="panel">
@@ -387,6 +389,9 @@ export function MissingDataPanel() {
             </div>
           </div>
           {boardStatus ? <p className="hint tight">{boardStatus}</p> : null}
+          {boardError ? (
+            <p className="hint tight website-scrape-error">{boardError}</p>
+          ) : null}
           <GovernanceScanBar
             market={market}
             pageTickers={pageTickers}
