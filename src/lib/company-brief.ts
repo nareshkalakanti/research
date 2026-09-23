@@ -165,6 +165,26 @@ function normalizeQtrSignal(raw: unknown): QtrSignal | null {
   return null;
 }
 
+function normalizeText(value: unknown): string {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  if (Array.isArray(value)) {
+    return value.map(normalizeText).filter(Boolean).join(" · ");
+  }
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    for (const key of ["name", "label", "title", "text", "value", "line", "description", "detail"]) {
+      const v = normalizeText(obj[key]);
+      if (v) return v;
+    }
+    return Object.values(obj).map(normalizeText).filter(Boolean).join(" · ");
+  }
+  return String(value).trim();
+}
+
 function buildContext(
   row: CompanyRow,
   peers: PeerUniqueness,
@@ -272,9 +292,11 @@ function normalizeOfferings(
 function normalizeProducts(raw: unknown): string[] {
   const items: string[] = [];
   if (Array.isArray(raw)) {
-    for (const p of raw) items.push(String(p).trim());
+    for (const p of raw) items.push(normalizeText(p));
   } else if (typeof raw === "string") {
     items.push(raw.trim());
+  } else if (raw && typeof raw === "object") {
+    items.push(normalizeText(raw));
   }
   const out: string[] = [];
   const seen = new Set<string>();
@@ -402,26 +424,26 @@ function normalizeBrief(
       ? [llmTheme]
       : [];
   return {
-    sector: (row.sector?.trim() || String(raw.sector || "").trim()).slice(0, 80),
-    sub_sector: (row.sub_sector?.trim() || String(raw.sub_sector || "").trim()).slice(
+    sector: (row.sector?.trim() || normalizeText(raw.sector)).slice(0, 80),
+    sub_sector: (row.sub_sector?.trim() || normalizeText(raw.sub_sector)).slice(
       0,
       80,
     ),
     themes: themeTags,
-    headline: String(raw.headline || "").trim().slice(0, 120),
-    capabilities: String(raw.capabilities || "").slice(0, 420),
-    growth_triggers: sanitizeGrowthTriggers(String(raw.growth_triggers || "")),
-    capex: sanitizeCapexLine(String(raw.capex || "")),
-    niche: String(raw.niche || "").slice(0, 400),
-    model: String(raw.model || "").slice(0, 120),
-    angle: String(raw.angle || "").slice(0, 280),
-    uniqueness: String(raw.uniqueness || "").slice(0, 320),
+    headline: normalizeText(raw.headline).slice(0, 120),
+    capabilities: normalizeText(raw.capabilities).slice(0, 420),
+    growth_triggers: sanitizeGrowthTriggers(normalizeText(raw.growth_triggers)),
+    capex: sanitizeCapexLine(normalizeText(raw.capex)),
+    niche: normalizeText(raw.niche).slice(0, 400),
+    model: normalizeText(raw.model).slice(0, 120),
+    angle: normalizeText(raw.angle).slice(0, 280),
+    uniqueness: normalizeText(raw.uniqueness).slice(0, 320),
     products,
     offerings,
-    customers: String(raw.customers || "").slice(0, 240),
+    customers: normalizeText(raw.customers).slice(0, 240),
     qtr_signal: normalizeQtrSignal(raw.qtr_signal),
-    qtr_reason: String(raw.qtr_reason || raw.quarters || "").slice(0, 320),
-    watch: usableWatchText(String(raw.watch || "")),
+    qtr_reason: normalizeText(raw.qtr_reason || raw.quarters).slice(0, 320),
+    watch: usableWatchText(normalizeText(raw.watch)),
   };
 }
 
