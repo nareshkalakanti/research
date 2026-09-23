@@ -11,7 +11,7 @@ import { WatchButton } from "@/components/WatchButton";
 import { TickerSuggest } from "@/components/TickerSuggest";
 import { SecCell } from "@/components/SecCell";
 import { tradingviewUrl } from "@/lib/links";
-import { formatRsiM } from "@/lib/types";
+import { formatMomPct, formatRsiM } from "@/lib/types";
 import { GOV_BOARD_SCORE_TITLE } from "@/lib/gov-score";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { useExpandBrief } from "@/lib/use-expand-brief";
@@ -44,6 +44,7 @@ type WatchRow = {
   sub_sector?: string | null;
   about?: string | null;
   headquarters?: string | null;
+  momentum_score?: number | null;
   momentum_pct?: number | null;
   rsi_m?: number | null;
   has_bb_w?: boolean;
@@ -704,6 +705,9 @@ function WatchlistRow({
         <td className="num col-chg">
           <ChangeCell value={r.change_pct} />
         </td>
+        <td className="num col-mom" title="12-1 momentum score">
+          {formatMomPct(r.momentum_score ?? r.momentum_pct)}
+        </td>
         <td className="col-remove">
           {canRemove ? (
             <button
@@ -955,6 +959,7 @@ export function WatchlistPanel() {
               sub_sector: null,
               about: null,
               headquarters: null,
+              momentum_score: null,
               momentum_pct: null,
               rsi_m: null,
               has_bb_w: false,
@@ -1126,6 +1131,7 @@ export function WatchlistPanel() {
               <col className="col-mcap_cr" />
               <col className="col-price" />
               <col className="col-chg" />
+              <col className="col-mom" />
               <col className="col-remove" />
             </colgroup>
             <thead>
@@ -1136,6 +1142,9 @@ export function WatchlistPanel() {
                 <th className="num col-price">Price</th>
                 <th className="num col-chg" title="Today vs previous close">
                   1D
+                </th>
+                <th className="num col-mom" title="12-1 momentum">
+                  Mom
                 </th>
                 <th className="col-remove" />
               </tr>
