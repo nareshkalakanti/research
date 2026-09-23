@@ -253,6 +253,19 @@ function ChangeCell({ value }: { value: number | null | undefined }) {
   );
 }
 
+function MomCell({ value }: { value: number | null | undefined }) {
+  if (value == null || Number.isNaN(value)) {
+    return <span className="mom-tag mom-tag--empty">—</span>;
+  }
+  const rounded = Math.round(value);
+  const tone = rounded > 0 ? "pos" : rounded < 0 ? "neg" : "flat";
+  return (
+    <span className={`mom-tag mom-tag--${tone}`} title="12-1 momentum">
+      {formatMomPct(value)}
+    </span>
+  );
+}
+
 function RsiCell({
   value,
   crossed,
@@ -706,7 +719,7 @@ function WatchlistRow({
           <ChangeCell value={r.change_pct} />
         </td>
         <td className="num col-mom" title="12-1 momentum score">
-          {formatMomPct(r.momentum_score ?? r.momentum_pct)}
+          <MomCell value={r.momentum_score ?? r.momentum_pct} />
         </td>
         <td className="col-remove">
           {canRemove ? (
