@@ -46,7 +46,7 @@ type WatchRow = {
   headquarters?: string | null;
   momentum_pct?: number | null;
   rsi_m?: number | null;
-  above_200dma?: boolean;
+  crossed_200dma_recently?: boolean;
   has_bb_w?: boolean;
   has_bb_m?: boolean;
   has_tq?: boolean;
@@ -89,12 +89,12 @@ type QuoteTape = {
   mas: QuoteTapeMa[];
 };
 
-function above200Dma(tape: QuoteTape | null): boolean {
+function crossedAbove200Dma(tape: QuoteTape | null): boolean {
   if (!tape) return false;
   if (tape.price == null || tape.dma200 == null || tape.prev_close == null) {
     return false;
   }
-  return tape.price > tape.dma200;
+  return tape.prev_close <= tape.dma200 && tape.price > tape.dma200;
 }
 
 function WlQuoteTape({
@@ -300,10 +300,10 @@ function RsiCell({
   );
 }
 
-function Dma200Badge({ above }: { above: boolean }) {
-  if (!above) return null;
+function Dma200Badge({ crossed }: { crossed: boolean }) {
+  if (!crossed) return null;
   return (
-    <span className="result-tag tag-dma200" title="Price above 200 DMA">
+    <span className="result-tag tag-dma200" title="Crossed above 200 DMA recently">
       200 DMA ↑
     </span>
   );
@@ -685,7 +685,7 @@ function WatchlistRow({
               {open ? "−" : "+"}
             </button>
             <WatchButton ticker={r.ticker} />
-            <Dma200Badge above={!!r.above_200dma} />
+            <Dma200Badge crossed={!!r.crossed_200dma_recently} />
             {rank != null ? (
               <span className="wl-rank-pill" title="Momentum rank">
                 #{rank}
@@ -1000,7 +1000,7 @@ export function WatchlistPanel() {
             headquarters: null,
             momentum_pct: null,
             rsi_m: null,
-            above_200dma: false,
+            crossed_200dma_recently: false,
             has_bb_w: false,
             has_bb_m: false,
             has_tq: false,
@@ -1032,7 +1032,7 @@ export function WatchlistPanel() {
                   ok?: boolean;
                   tape?: QuoteTape;
                 };
-                updates.set(row.ticker.toUpperCase(), above200Dma(json.ok ? json.tape ?? null : null));
+                updates.set(row.ticker.toUpperCase(), crossedAbove200Dma(json.ok ? json.tape ?? null : null));
               } catch {
                 updates.set(row.ticker.toUpperCase(), false);
               }
@@ -1045,7 +1045,7 @@ export function WatchlistPanel() {
             const crossed = updates.get(row.ticker.toUpperCase());
             return crossed == null
               ? row
-              : { ...row, above_200dma: crossed };
+              : { ...row, crossed_200dma_recently: crossed };
           }),
         );
       })();
@@ -1073,8 +1073,8 @@ export function WatchlistPanel() {
         if (bm !== am) return bm - am;
         return a.ticker.localeCompare(b.ticker);
       }
-      const ac = a.above_200dma ? 1 : 0;
-      const bc = b.above_200dma ? 1 : 0;
+      const ac = a.crossed_200dma_recently ? 1 : 0;
+      const bc = b.crossed_200dma_recently ? 1 : 0;
       if (bc !== ac) return bc - ac;
       return 0;
     });
