@@ -8,8 +8,12 @@ import { ensureCompanyAboutRow, saveYfAboutProfile } from "./company-about-write
 import { upsertClassification } from "./classifications-write";
 import { invalidateCompanyCache } from "./db";
 import { upsertMetrics } from "./metrics";
+import { openSqliteNamed } from "./sqlite-utils";
 import { createNseBuybackSession } from "./nse-buybacks";
 import { fetchQuoteDetailed, fetchYfAboutProfile } from "./yfinance";
+import { cacheBseScripCode } from "./bse-investor-discover";
+import { fetchWebProfiles } from "./web-mcap";
+import { applyWebProfiles } from "./web-profile-apply";
 import {
   formatNseApiDateFromInstant,
   istCivilDayToUtcNoon,
@@ -80,19 +84,89 @@ async function resolveFromNse(
 }
 
 /** Insert a listed ticker when searched but missing from company_about.db. */
-export async function bootstrapCompanyTicker(ticker: string): Promise<boolean> {
-  const key = ticker.trim().toUpperCase();
+export async function bootstrapCompanyTicker(
+  ticker: string,
+  opts?: { name?: string | null; market?: string | null },
+): Promise<boolean> {
+  let key = ticker.trim().toUpperCase();
   if (!TICKER_RE.test(key)) return false;
-  if (companyExists(key)) return false;
+
+  const hintName = (opts?.name || "").trim();
+  const hintMarket = (opts?.market || "").trim().toUpperCase();
 
   const nse = await resolveFromNse(key);
-  const market = nse?.market || "NSE";
-  const quote = await fetchQuoteDetailed(key, market);
-  const hasQuote = quote.price != null || quote.mcap_cr != null;
-  // Require exchange or Yahoo proof — never insert bare prefix stubs.
-  if (!nse && !hasQuote) return false;
+  const quoteNse = await fetchQuoteDetailed(key, nse?.market || "NSE");
+  const quoteBse = await fetchQuoteDetailed(key, "BSE");
+  const nseHit =
+    !!nse || quoteNse.price != null || quoteNse.mcap_cr != null;
+  const bseHit = quoteBse.price != null || quoteBse.mcap_cr != null;
+  const usedBo = (quoteBse.yf_symbol || quoteNse.yf_symbol || "")
+    .toUpperCase()
+    .endsWith(".BO");
+  const usedNs = (quoteNse.yf_symbol || "").toUpperCase().endsWith(".NS");
 
-  const name = nse?.name || key;
+  let market = nse?.market || "";
+  if (!market) {
+    if (bseHit && (!nseHit || (usedBo && !usedNs))) market = "BSE";
+    else if (nseHit) market = "NSE";
+  }
+
+  const quote = market.startsWith("BSE") ? quoteBse : quoteNse;
+  const hasQuote = quote.price != null || quote.mcap_cr != null;
+
+  let name = nse?.name || hintName || key;
+  let webProfiles: Awaited<ReturnType<typeof fetchWebProfiles>> = [];
+  try {
+    webProfiles = await fetchWebProfiles(
+      [{ ticker: key, name, market: market || "BSE" }],
+      { concurrency: 1, delayMs: 80 },
+    );
+    const p = webProfiles[0];
+    if (p?.matched_name) name = p.matched_name;
+    const listed = (p?.listed_ticker || "")
+      .toUpperCase()
+      .replace(/-EQ$/i, "");
+    if (listed && TICKER_RE.test(listed)) key = listed;
+    const ex = (p?.exchange || "").toUpperCase();
+    if (hintMarket.startsWith("BSE") && p?.bse_tradable) market = "BSE";
+    else if (p?.bse_tradable && !p?.nse_tradable) market = "BSE";
+    else if (!nse && ex.includes("BSE")) market = "BSE";
+    else if (!nse && ex.includes("NSE") && !ex.includes("BSE")) market = "NSE";
+    if (p?.bse_scrip) cacheBseScripCode(key, p.bse_scrip);
+  } catch {
+    /* name/exchange from Yahoo is enough */
+  }
+  if (!market) market = usedBo ? "BSE" : "NSE";
+
+  const searched = ticker.trim().toUpperCase();
+  if (key !== searched && companyExists(searched)) {
+    const dbDrop = new Database(ABOUT_PATH);
+    try {
+      dbDrop.pragma("busy_timeout = 5000");
+      dbDrop
+        .prepare(`DELETE FROM company_about WHERE ticker = ?`)
+        .run(searched);
+    } finally {
+      dbDrop.close();
+    }
+    try {
+      const mdb = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+      try {
+        mdb.prepare(`DELETE FROM stock_metrics WHERE ticker = ?`).run(searched);
+      } finally {
+        mdb.close();
+      }
+    } catch {
+      /* metrics row optional */
+    }
+  }
+
+  if (companyExists(key)) return true;
+
+  const webOk = webProfiles.some(
+    (p) => p.matched_name || p.mcap_cr != null || p.price != null,
+  );
+  if (!nse && !hasQuote && !webOk) return false;
   if (!ensureCompanyAboutRow(key, { name, market })) return false;
 
   const db = new Database(ABOUT_PATH);
@@ -130,6 +204,12 @@ export async function bootstrapCompanyTicker(ticker: string): Promise<boolean> {
             sector: sector || quote.sector,
           },
         ],
+        { [key]: market },
+      );
+    }
+    if (webProfiles.length) {
+      applyWebProfiles(
+        webProfiles.map((p) => ({ ...p, ticker: key })),
         { [key]: market },
       );
     }

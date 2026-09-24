@@ -5,6 +5,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { isPlaceholderDirectorName } from "./gov-director-name";
 import { normDin, type BoardSeat } from "./nse-governance";
 
 const DATA_DIR = path.join(process.cwd(), "data");
@@ -20,6 +21,8 @@ function safeStr(v: unknown): string {
   if (v == null) return "";
   return String(v).trim();
 }
+
+export { isPlaceholderDirectorName } from "./gov-director-name";
 
 function nameKey(name: string): string {
   let text = safeStr(name).toLowerCase();
@@ -41,10 +44,9 @@ export function personIdFor(opts: {
 
 function requireMarket(market: string | null | undefined): string {
   const m = safeStr(market).toUpperCase() || "NSE";
-  if (m !== "NSE" && m !== "NSE SME") {
-    throw new Error("Governance is NSE-only");
-  }
-  return m;
+  if (m === "BSE SME") return "BSE";
+  if (m === "NSE" || m === "NSE SME" || m === "BSE") return m;
+  throw new Error(`Unsupported governance market: ${m}`);
 }
 
 function inferCategory(designation: string): string {
@@ -398,6 +400,7 @@ export function saveCompanyBoard(opts: {
     const designation = safeStr(raw.designation) || "Director";
     const din = normDin(raw.din);
     if (!person) throw new Error("Director name required");
+    if (isPlaceholderDirectorName(person)) continue;
     if (din && din.length !== 8) {
       throw new Error(`Invalid DIN for ${person}: ${raw.din}`);
     }
@@ -470,8 +473,18 @@ export function saveCompanyBoard(opts: {
       VALUES (?, ?, ?, ?, ?)
       ON CONFLICT(person_id) DO UPDATE SET
         din=COALESCE(NULLIF(excluded.din, ''), directors.din),
-        name=excluded.name,
-        name_key=excluded.name_key,
+        name=CASE
+          WHEN lower(excluded.name_key) LIKE 'din %'
+            AND lower(directors.name_key) NOT LIKE 'din %'
+          THEN directors.name
+          ELSE excluded.name
+        END,
+        name_key=CASE
+          WHEN lower(excluded.name_key) LIKE 'din %'
+            AND lower(directors.name_key) NOT LIKE 'din %'
+          THEN directors.name_key
+          ELSE excluded.name_key
+        END,
         updated_at=excluded.updated_at
       `,
     );
@@ -581,4 +594,112 @@ export function loadGovScanLogMap(): Map<
     if (key) map.set(key, r);
   }
   return map;
+}
+
+export function applyDinRegistryFill(opts: {
+  din: string;
+  name: string;
+  source: string;
+  seats: Array<{
+    ticker: string;
+    name: string;
+    market?: string;
+    designation?: string;
+    as_of?: string;
+  }>;
+}): { name_updated: boolean; seats_written: number } {
+  const din = normDin(opts.din);
+  const person = safeStr(opts.name);
+  if (!din || din.length !== 8) throw new Error("DIN required");
+  if (!person || isPlaceholderDirectorName(person)) {
+    throw new Error("Real director name required");
+  }
+  const pid = personIdFor({ din, name: person });
+  const now = utcNow();
+  const db = getGovernanceWriteDb();
+  const source = safeStr(opts.source) || "mca_din_directory";
+  let nameUpdated = false;
+  let seatsWritten = 0;
+
+  const tx = db.transaction(() => {
+    const prior = db
+      .prepare(`SELECT name FROM directors WHERE person_id = ?`)
+      .get(pid) as { name?: string } | undefined;
+    const priorName = safeStr(prior?.name);
+    const shouldWriteName =
+      !priorName || isPlaceholderDirectorName(priorName);
+
+    db.prepare(
+      `
+      INSERT INTO directors (person_id, din, name, name_key, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(person_id) DO UPDATE SET
+        din=COALESCE(NULLIF(excluded.din, ''), directors.din),
+        name=CASE
+          WHEN lower(directors.name_key) LIKE 'din %' THEN excluded.name
+          ELSE directors.name
+        END,
+        name_key=CASE
+          WHEN lower(directors.name_key) LIKE 'din %' THEN excluded.name_key
+          ELSE directors.name_key
+        END,
+        updated_at=excluded.updated_at
+      `,
+    ).run(pid, din, person, nameKey(person), now);
+    nameUpdated = shouldWriteName;
+
+    const upsertCo = db.prepare(
+      `
+      INSERT INTO companies (
+        ticker, market, name, cin, isin, notes,
+        sector, industry, sub_sector, updated_at
+      )
+      VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?)
+      ON CONFLICT(ticker) DO UPDATE SET
+        updated_at=excluded.updated_at
+      `,
+    );
+    const upsertSeat = db.prepare(
+      `
+      INSERT INTO board_seats (
+        ticker, person_id, designation, category, source, as_of, fetched_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(ticker, person_id) DO UPDATE SET
+        designation=CASE
+          WHEN excluded.designation != '' AND excluded.designation != 'Director'
+            THEN excluded.designation
+          ELSE board_seats.designation
+        END,
+        source=excluded.source,
+        as_of=COALESCE(NULLIF(excluded.as_of, ''), board_seats.as_of),
+        fetched_at=excluded.fetched_at
+      `,
+    );
+
+    for (const raw of opts.seats) {
+      const ticker = safeStr(raw.ticker).toUpperCase();
+      const coName = safeStr(raw.name);
+      if (!ticker || !coName) continue;
+      let market: string;
+      try {
+        market = requireMarket(raw.market);
+      } catch {
+        continue;
+      }
+      const designation = safeStr(raw.designation) || "Director";
+      upsertCo.run(ticker, market, coName, now);
+      upsertSeat.run(
+        ticker,
+        pid,
+        designation,
+        inferCategory(designation) || null,
+        source,
+        safeStr(raw.as_of) || null,
+        now,
+      );
+      seatsWritten += 1;
+    }
+  });
+  tx();
+  return { name_updated: nameUpdated, seats_written: seatsWritten };
 }

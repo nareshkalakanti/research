@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadQuoteTape } from "@/lib/quote-tape";
 import { getMetrics } from "@/lib/metrics";
+import { resolveListingMarket } from "@/lib/listing-market";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   const market =
     req.nextUrl.searchParams.get("market") ||
     getMetrics(ticker)?.market ||
-    null;
+    resolveListingMarket(ticker);
   try {
     const tape = await loadQuoteTape(ticker, market);
     return NextResponse.json({ ok: true, ticker, tape });

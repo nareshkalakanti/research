@@ -6,6 +6,11 @@ import {
   seedBseSmeMcapFromCache,
   upsertMetrics,
 } from "@/lib/metrics";
+import {
+  createMissingListStub,
+  injectPersonalListRows,
+  mergeFundWatchlistUniverse,
+} from "@/lib/missing-data";
 import { fetchNseMcapQuotes } from "@/lib/nse-quote-mcap";
 import { fetchWebProfiles, webProfileToQuote } from "@/lib/web-mcap";
 import { applyWebProfiles } from "@/lib/web-profile-apply";
@@ -26,6 +31,21 @@ type Body = {
   /** all = Yahoo→NSE→Tickertape. web = Tickertape/Groww only. */
   source?: "all" | "web";
 };
+
+function needsWebProfile(c: {
+  mcap_cr: number | null;
+  sector?: string | null;
+  sub_sector?: string | null;
+  about?: string | null;
+}): boolean {
+  return (
+    c.mcap_cr == null ||
+    c.mcap_cr <= 0 ||
+    !c.sector?.trim() ||
+    !c.sub_sector?.trim() ||
+    !c.about?.trim()
+  );
+}
 
 export async function POST(req: NextRequest) {
   let body: Body = {};
@@ -52,11 +72,26 @@ export async function POST(req: NextRequest) {
   if (market && market !== "All") {
     companies = companies.filter((c) => c.market === market);
   }
+  const universe = loadAllCompanies();
+  companies = mergeFundWatchlistUniverse(companies, universe);
+  companies = injectPersonalListRows(companies, universe, market);
 
   const tickerSet = body.tickers?.length
     ? new Set(body.tickers.map((t) => t.toUpperCase()))
     : null;
   if (tickerSet) {
+    const have = new Set(companies.map((c) => c.ticker.toUpperCase()));
+    for (const t of tickerSet) {
+      if (have.has(t)) continue;
+      companies.push(
+        createMissingListStub({
+          ticker: t,
+          name: t,
+          market: market !== "All" ? market : "NSE",
+        }) as (typeof companies)[number],
+      );
+      have.add(t);
+    }
     companies = companies.filter((c) => tickerSet.has(c.ticker.toUpperCase()));
   }
 
@@ -66,7 +101,15 @@ export async function POST(req: NextRequest) {
 
   let pending = companies.filter((c) => {
     if (skip.has(c.ticker.toUpperCase())) return false;
-    if (source === "web") return c.mcap_cr == null || c.mcap_cr <= 0;
+    if (source === "web") {
+      return (
+        c.mcap_cr == null ||
+        c.mcap_cr <= 0 ||
+        !c.sector?.trim() ||
+        !c.sub_sector?.trim() ||
+        !c.about?.trim()
+      );
+    }
     if (!missingOnly) return true;
     return c.price == null || c.mcap_cr == null || c.mcap_cr <= 0;
   });
@@ -102,7 +145,11 @@ export async function POST(req: NextRequest) {
       filledMcap: 0,
       failed: 0,
       remaining: gapsBefore.any,
-      remainingMcap: companies.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0).length,
+      remainingMcap: companies.filter((c) =>
+        source === "web"
+          ? needsWebProfile(c)
+          : c.mcap_cr == null || c.mcap_cr <= 0,
+      ).length,
       gaps: gapsBefore,
       message: "Nothing missing to fill",
     });
@@ -134,8 +181,15 @@ export async function POST(req: NextRequest) {
         },
     );
 
-    const afterCompanies = loadAllCompanies().filter((c) =>
+    const afterUniverse = loadAllCompanies();
+    let afterCompanies = afterUniverse.filter((c) =>
       market && market !== "All" ? c.market === market : true,
+    );
+    afterCompanies = mergeFundWatchlistUniverse(afterCompanies, afterUniverse);
+    afterCompanies = injectPersonalListRows(
+      afterCompanies,
+      afterUniverse,
+      market,
     );
     const afterScope = tickerSet
       ? afterCompanies.filter((c) => tickerSet.has(c.ticker.toUpperCase()))
@@ -163,8 +217,7 @@ export async function POST(req: NextRequest) {
       profile: applied,
       failed,
       remaining: gapsAfter.any,
-      remainingMcap: afterScope.filter((c) => c.mcap_cr == null || c.mcap_cr <= 0)
-        .length,
+      remainingMcap: afterScope.filter((c) => needsWebProfile(c)).length,
       triedTickers: batch.map((c) => c.ticker),
       closedTickers: batch.map((c) => c.ticker.toUpperCase()),
       gaps: gapsAfter,

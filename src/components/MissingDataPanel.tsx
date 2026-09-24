@@ -151,6 +151,14 @@ export function MissingDataPanel() {
   ).length;
   const mcapGapRows =
     (data?.rows ?? []).filter((r) => r.missing?.mcap).length ?? 0;
+  const webProfileGapRows =
+    (data?.rows ?? []).filter(
+      (r) =>
+        r.missing?.mcap ||
+        r.missing?.sector ||
+        r.missing?.sub_sector ||
+        r.missing?.about,
+    ).length ?? 0;
   const totalMcapGaps = gaps?.missingMcap ?? 0;
   const sectorGapRows =
     (data?.rows ?? []).filter((r) => r.missing?.sector || r.missing?.sub_sector)
@@ -238,7 +246,7 @@ export function MissingDataPanel() {
               </>
             ) : null}
             {" "}
-            · includes Niveshaay, Negen &amp; Kacholia watchlists
+            · includes fund books plus Holdings and named lists
           </p>
         </div>
         <div className="missing-head-actions">
@@ -260,8 +268,12 @@ export function MissingDataPanel() {
       <FillWebMcapButton
         market={market}
         tickers={pageTickers}
-        gapCount={mcapGapRows}
-        totalGaps={totalMcapGaps}
+        gapCount={webProfileGapRows}
+        totalGaps={Math.max(
+          totalMcapGaps,
+          gaps?.missingSector ?? 0,
+          gaps?.missingAbout ?? 0,
+        )}
         onDone={() => load({ refresh: true })}
       />
 

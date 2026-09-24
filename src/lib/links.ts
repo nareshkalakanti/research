@@ -1,10 +1,6 @@
 /** Screener / TradingView / Web link helpers for NSE & BSE. */
 
-import Database from "better-sqlite3";
-import fs from "fs";
-import path from "path";
 import { canonicalTicker } from "@/lib/ticker-aliases";
-import { DATA_DIR } from "@/lib/sqlite-utils";
 
 const TV_CHART_BASE = "https://www.tradingview.com/chart/";
 const NSE_MARKETS = new Set(["NSE", "NSE SME", "NATIONAL STOCK EXCHANGE"]);
@@ -28,96 +24,14 @@ function marketLooksNse(mk: string): boolean {
   return NSE_MARKETS.has(u) || u.startsWith("NSE");
 }
 
-function readMarketColumn(
-  file: string,
-  sql: string,
-  ticker: string,
-): string | null {
-  const p = path.join(DATA_DIR, file);
-  if (!fs.existsSync(p)) return null;
-  let db: Database.Database | null = null;
-  try {
-    db = new Database(p, { readonly: true, fileMustExist: true });
-    const row = db.prepare(sql).get(ticker) as { market?: string | null } | undefined;
-    const mk = clean(row?.market);
-    return mk || null;
-  } catch {
-    return null;
-  } finally {
-    try {
-      db?.close();
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-function hasBseScrip(ticker: string): boolean {
-  const p = path.join(DATA_DIR, "company_about.db");
-  if (!fs.existsSync(p)) return false;
-  let db: Database.Database | null = null;
-  try {
-    db = new Database(p, { readonly: true, fileMustExist: true });
-    const row = db
-      .prepare(
-        `SELECT 1 AS ok FROM company_bse_scrip WHERE UPPER(ticker) = ? LIMIT 1`,
-      )
-      .get(ticker) as { ok?: number } | undefined;
-    return Boolean(row?.ok);
-  } catch {
-    return false;
-  } finally {
-    try {
-      db?.close();
-    } catch {
-      /* ignore */
-    }
-  }
-}
-
-/** Listing venue from local DBs when the caller omitted market (or passed NSE by default). */
-function storedListingMarket(ticker: string): string | null {
-  const t = ticker.toUpperCase();
-  return (
-    readMarketColumn(
-      "company_about.db",
-      `SELECT market FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
-      t,
-    ) ||
-    readMarketColumn(
-      "metrics.db",
-      `SELECT market FROM stock_metrics WHERE UPPER(ticker) = ? LIMIT 1`,
-      t,
-    ) ||
-    readMarketColumn(
-      "holdings.db",
-      `SELECT market FROM holdings WHERE UPPER(ticker) = ? LIMIT 1`,
-      t,
-    ) ||
-    readMarketColumn(
-      "named_watchlists.db",
-      `SELECT market FROM named_watchlists
-       WHERE UPPER(ticker) = ? AND TRIM(COALESCE(market, '')) != ''
-       LIMIT 1`,
-      t,
-    ) ||
-    (hasBseScrip(t) ? "BSE" : null)
-  );
-}
-
+/** Chart exchange from the listing market string passed by the caller. */
 export function tradingviewExchange(
-  ticker: string,
+  _ticker: string,
   market?: string | null,
 ): "NSE" | "BSE" {
   const hint = clean(market);
-  const stored = storedListingMarket(canonicalTicker(ticker) || ticker);
   if (marketLooksBse(hint)) return "BSE";
-  // BSE-only names in local DBs must not chart as NSE when the caller omitted
-  // market or defaulted it.
-  if (stored && marketLooksBse(stored) && !marketLooksNse(stored)) return "BSE";
   if (marketLooksNse(hint)) return "NSE";
-  if (stored && marketLooksNse(stored)) return "NSE";
-  if (stored && marketLooksBse(stored)) return "BSE";
   return "NSE";
 }
 

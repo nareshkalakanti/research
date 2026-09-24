@@ -34,6 +34,15 @@ import { writeFocusTicker } from "@/lib/workspace-ticker";
 
 type ChipList = "watch" | "holdings" | "named" | "common";
 
+/** Distinct hues for named-list chips (not tied to any list label). */
+const NAMED_LIST_HUES = [
+  32, 262, 338, 195, 48, 285, 12, 220, 168, 300, 75, 250,
+];
+
+function namedListChipHue(index: number): number {
+  return NAMED_LIST_HUES[index % NAMED_LIST_HUES.length]!;
+}
+
 function sharedAcrossLists(lists: string[][], min = 2): string[] {
   const counts = new Map<string, number>();
   for (const xs of lists) {
@@ -320,7 +329,7 @@ function RsiCell({
 function Dma200Badge({ crossed }: { crossed: boolean }) {
   if (!crossed) return null;
   return (
-    <span className="result-tag tag-dma200" title="Crossed above 200 DMA recently">
+    <span className="result-tag tag-dma200" title="Crossed above 200 DMA today">
       200 DMA ↑
     </span>
   );
@@ -673,14 +682,12 @@ function WatchlistRow({
   r,
   canRemove,
   onRemoveHold,
-  holdChipLabel = "Hold",
   rank,
   showMomentumColumn,
 }: {
   r: WatchRow;
   canRemove: boolean;
   onRemoveHold?: (ticker: string) => void;
-  holdChipLabel?: string;
   rank?: number | null;
   showMomentumColumn: boolean;
 }) {
@@ -778,15 +785,15 @@ function WatchlistRow({
           ) : onRemoveHold ? (
             <button
               type="button"
-              className={`result-tag ${holdChipLabel.toLowerCase() === "hold" ? "tag-hold" : "tag-alpha"}`}
-              title={`Remove ${r.ticker} from ${holdChipLabel.toLowerCase()}`}
+              className="wl-remove-chip"
+              title={`Remove ${r.ticker} from this list`}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 onRemoveHold(r.ticker);
               }}
             >
-              {holdChipLabel}
+              Remove
             </button>
           ) : null}
         </td>
@@ -1385,6 +1392,60 @@ export function WatchlistPanel() {
     void loadRows(activeTickers);
   }, [activeTickers, loadRows]);
 
+  const [fillQtrBusy, setFillQtrBusy] = useState(false);
+  const [fillQtrLabel, setFillQtrLabel] = useState<string | null>(null);
+
+  const fillMissingQuarters = useCallback(async () => {
+    const tickers = activeTickers.map((t) => t.trim().toUpperCase()).filter(Boolean);
+    if (!tickers.length) return;
+    setFillQtrBusy(true);
+    setFillQtrLabel("Fill Quarters · missing-only…");
+    let remaining = 1;
+    let saved = 0;
+    let failed = 0;
+    try {
+      for (let round = 1; round <= 80; round += 1) {
+        const res = await fetch("/api/quarters-fill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            market: "All",
+            tickers,
+            limit: 8,
+            concurrency: 2,
+            missingOnly: true,
+          }),
+          signal: AbortSignal.timeout(120_000),
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          saved?: number;
+          failed?: number;
+          remaining?: number;
+          error?: string;
+          message?: string;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || json.message || "Quarters fill failed");
+        }
+        saved += json.saved ?? 0;
+        failed += json.failed ?? 0;
+        remaining = json.remaining ?? 0;
+        setFillQtrLabel(
+          remaining <= 0
+            ? `Quarters done · +${saved} cached`
+            : `Fill Quarters · +${saved} · ${failed} miss · ${remaining} left`,
+        );
+        if (remaining <= 0) break;
+      }
+      setListEpoch((n) => n + 1);
+    } catch (e) {
+      setFillQtrLabel(e instanceof Error ? e.message : "Quarters fill failed");
+    } finally {
+      setFillQtrBusy(false);
+    }
+  }, [activeTickers]);
+
   const needle = q.trim().toLowerCase();
   const visible = !needle
     ? sortedRows
@@ -1438,15 +1499,18 @@ export function WatchlistPanel() {
           Holdings
           <span className="chip-count">{holdTickers.length}</span>
         </button>
-        {namedLists.map((nl) => (
+        {namedLists.map((nl, i) => (
           <button
             key={nl.key}
             type="button"
             role="tab"
             aria-selected={list === "named" && namedKey === nl.key}
-            className={`chip tag-chip tag-alpha${
+            className={`chip tag-chip wl-named-chip${
               list === "named" && namedKey === nl.key ? " on" : ""
             }`}
+            style={{
+              ["--wl-named-h" as string]: String(namedListChipHue(i)),
+            }}
             onClick={() => selectNamed(nl.key)}
           >
             {nl.label}
@@ -1595,7 +1659,21 @@ export function WatchlistPanel() {
         >
           {busy ? "Refreshing…" : "Refresh prices"}
         </button>
+        <button
+          type="button"
+          className={`chip chip-scan tag-chip${fillQtrBusy ? " busy on" : ""}`}
+          disabled={fillQtrBusy || !activeTickers.length}
+          onClick={() => void fillMissingQuarters()}
+          title="Fill missing quarterly Sales/OP for this list"
+        >
+          {fillQtrBusy ? "…" : "Fill Quarters"}
+        </button>
       </div>
+      {fillQtrLabel ? (
+        <p className="hint tight wl-qtr-fill-status" role="status">
+          {fillQtrLabel}
+        </p>
+      ) : null}
 
       {activeTickers.length === 0 ? (
         <p className="miq-empty-hint">
@@ -1648,7 +1726,6 @@ export function WatchlistPanel() {
                       : undefined
                   }
                   showMomentumColumn={showMomentumColumn}
-                  holdChipLabel={list === "named" ? namedLabel : "Hold"}
                   onRemoveHold={
                     list === "holdings"
                       ? removeHolding

@@ -11,6 +11,9 @@ import {
 } from "@/lib/scraper-store";
 import { scrapeCleanAttemptedSet } from "@/lib/scrape-clean-batch";
 import { dinBoardTickerSet } from "@/lib/governance-write";
+import { loadHoldings } from "@/lib/holdings";
+import { allNamedWatchMembers } from "@/lib/named-watchlists";
+import { resolveListingMarket } from "@/lib/listing-market";
 
 export type MissingGapKey =
   | "metrics"
@@ -145,7 +148,7 @@ export function matchesMissingGap(
   return g.price || g.mcap;
 }
 
-function fundStubRow(stub: {
+export function createMissingListStub(stub: {
   ticker: string;
   name: string;
   market: string;
@@ -196,14 +199,51 @@ function appendFundWatchlistStubs(
   for (const listKey of FUND_WATCHLIST_KEYS) {
     for (const stub of loadFundWatchlistStubs(listKey, have)) {
       if (!tickers.has(stub.ticker.toUpperCase())) continue;
-      out.push(byTicker.get(stub.ticker.toUpperCase()) ?? fundStubRow(stub));
+      out.push(byTicker.get(stub.ticker.toUpperCase()) ?? createMissingListStub(stub));
       have.add(stub.ticker.toUpperCase());
     }
   }
   return out;
 }
 
-function mergeFundWatchlistUniverse(
+export function injectPersonalListRows(
+  companies: ReturnType<typeof loadAllCompanies>,
+  all: ReturnType<typeof loadAllCompanies>,
+  marketFilter?: string,
+) {
+  const extras: Array<{ ticker: string; name: string; market: string }> = [];
+  const seen = new Set<string>();
+  const add = (ticker: string, name: string | null, market: string | null) => {
+    const t = ticker.trim().toUpperCase();
+    if (!t || seen.has(t)) return;
+    seen.add(t);
+    extras.push({
+      ticker: t,
+      name: name?.trim() || t,
+      market: (market || "").trim() || resolveListingMarket(t) || "NSE",
+    });
+  };
+  for (const h of loadHoldings()) add(h.ticker, h.name, h.market);
+  for (const n of allNamedWatchMembers()) add(n.ticker, n.name, n.market);
+  const want = (marketFilter || "All").trim();
+  const extrasForMarket =
+    !want || want === "All"
+      ? extras
+      : extras.filter((e) => e.market === want);
+  if (!extrasForMarket.length) return companies;
+
+  const byTicker = new Map(all.map((c) => [c.ticker.toUpperCase(), c]));
+  const have = new Set(companies.map((c) => c.ticker.toUpperCase()));
+  const out = [...companies];
+  for (const stub of extrasForMarket) {
+    if (have.has(stub.ticker)) continue;
+    out.push(byTicker.get(stub.ticker) ?? createMissingListStub(stub));
+    have.add(stub.ticker);
+  }
+  return out;
+}
+
+export function mergeFundWatchlistUniverse(
   companies: ReturnType<typeof loadAllCompanies>,
   all: ReturnType<typeof loadAllCompanies>,
 ) {
@@ -230,6 +270,7 @@ export function loadMissingCompanies(
   }
 
   companies = mergeFundWatchlistUniverse(companies, allCompanies);
+  companies = injectPersonalListRows(companies, allCompanies, market);
 
   const outcomes = loadScrapeOutcomeSets(market || "All");
   const dinBoards = dinBoardTickerSet();

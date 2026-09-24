@@ -170,8 +170,18 @@ export function pendingQuartersFillTickers(opts?: {
     pool = applySelectionFilters(pool, opts.selection);
   }
   if (opts?.tickers?.length) {
-    const want = new Set(opts.tickers.map((t) => t.toUpperCase()));
+    const want = new Set(opts.tickers.map((t) => t.toUpperCase()).filter(Boolean));
+    const have = new Set(pool.map((c) => c.ticker.toUpperCase()));
     pool = pool.filter((c) => want.has(c.ticker.toUpperCase()));
+    for (const t of want) {
+      if (have.has(t)) continue;
+      pool.push({
+        ticker: t,
+        market: "NSE",
+        mcap_cr: null,
+        founded_year: null,
+      } as (typeof pool)[number]);
+    }
   }
 
   const cached = quartersCacheTickerSet();

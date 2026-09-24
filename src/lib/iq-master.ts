@@ -14,6 +14,7 @@ import { isHolding } from "@/lib/holdings";
 import { fundTagsForTicker } from "@/lib/fund-watchlists";
 import { FUND_WATCHLIST_LABELS } from "@/lib/fund-watchlist-meta";
 import { loadBreakoutMap, type BreakoutFlags } from "@/lib/signals";
+import { resolveListingMarket } from "@/lib/listing-market";
 
 export type IqMasterRow = {
   ticker: string;
@@ -292,10 +293,12 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     }
     const flags = breakouts.get(ticker);
     const tax = taxonomyFor(ticker, m?.market ?? null);
+    const market =
+      (m?.market && m.market.trim()) || resolveListingMarket(ticker);
     return {
       ticker,
       company: profile.name,
-      market: m?.market ?? null,
+      market,
       price: m?.price ?? null,
       change_pct: m?.change_pct ?? null,
       board_score: boardScores.get(ticker.toUpperCase()) ?? null,

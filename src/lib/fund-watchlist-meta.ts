@@ -49,6 +49,9 @@ export const FUND_WATCHLIST_KEYS: FundWatchlistKey[] = [
   "buoyant",
 ];
 
+/** Filter chips (Scan Lists / Watchlist bar). Empty = no Lucky/Niveshaay columns there. */
+export const FUND_WATCHLIST_CHIP_KEYS: FundWatchlistKey[] = [];
+
 export const FUND_WATCHLIST_LABELS: Record<FundWatchlistKey, string> = {
   niveshaay: "Niveshaay",
   negen: "Negen",

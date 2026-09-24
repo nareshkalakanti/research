@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  countNamelessDinDirectors,
   governanceMapStats,
   loadGovernanceFamilyMap,
   loadGovernanceMap,
@@ -71,6 +72,7 @@ function filterRows(
   opts: {
     q: string;
     dinOnly: boolean;
+    namelessDin: boolean;
     bridge: boolean;
     tinyBridge: boolean;
     tiBridge: boolean;
@@ -111,6 +113,7 @@ function filterRows(
 
   for (const r of rows) {
     if (opts.dinOnly && !r.din_backed) continue;
+    if (opts.namelessDin && !r.nameless_din) continue;
     if (opts.tiBridge && !r.ti_bridge) continue;
     if (opts.tinyBridge && !r.tiny_bridge) continue;
     if (opts.bridge && !r.bridge) continue;
@@ -478,7 +481,10 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const q = sp.get("q") || "";
   const page = Math.max(1, Number(sp.get("page") || 1));
   const pageSize = Math.min(100, Math.max(10, Number(sp.get("pageSize") || 40)));
-  const minBoards = Math.max(2, Number(sp.get("minBoards") || 2));
+  const namelessDin = sp.get("namelessDin") === "1";
+  const minBoards = namelessDin
+    ? 1
+    : Math.max(2, Number(sp.get("minBoards") || 2));
   const minScore = Number(sp.get("minScore") || 0);
   const sort = (sp.get("sort") || "score") as GovSort;
   const refresh = sp.get("refresh") === "1";
@@ -489,9 +495,10 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const family = sp.get("family") === "1";
   const control = sp.get("control") === "1";
   if (view === "family") {
-    const stats = governanceMapStats(
-      loadGovernanceMap({ minBoards, refresh }),
-    );
+    const stats = {
+      ...governanceMapStats(loadGovernanceMap({ minBoards, refresh })),
+      nameless_din: countNamelessDinDirectors(),
+    };
     const families = loadGovernanceFamilyMap({
       q,
       hold: sp.get("hold") === "1",
@@ -512,12 +519,14 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const all = loadGovernanceMap({ minBoards, refresh, q });
   const boardPatternSets = buildBoardPatternTickerSets(all);
   // Stats from the multi-board universe (stable), not the search subset.
-  const stats = governanceMapStats(
-    q.trim() ? loadGovernanceMap({ minBoards }) : all,
-  );
+  const stats = {
+    ...governanceMapStats(q.trim() ? loadGovernanceMap({ minBoards }) : all),
+    nameless_din: countNamelessDinDirectors(),
+  };
   const filtered = filterRows(all, {
     q,
     dinOnly: sp.get("dinOnly") !== "0",
+    namelessDin,
     bridge: sp.get("bridge") === "1",
     tinyBridge: sp.get("tinyBridge") === "1",
     tiBridge: sp.get("tiBridge") === "1",

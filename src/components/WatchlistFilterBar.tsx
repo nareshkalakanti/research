@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  FUND_WATCHLIST_KEYS,
   FUND_WATCHLIST_LABELS,
   type FundCountState,
   type FundFilterState,
@@ -168,8 +167,8 @@ export function FundsFilterBar({
   fundKeys,
   fundCounts = {},
 }: FundsProps) {
-  const visibleFundKeys = fundKeys ?? FUND_WATCHLIST_KEYS;
-  const hasFunds = Boolean(onFund);
+  const visibleFundKeys = fundKeys ?? [];
+  const hasFunds = Boolean(onFund) && visibleFundKeys.length > 0;
   const hasHoldEdge = Boolean(onHold || onEdge || onGov);
   if (!hasFunds && !hasHoldEdge) return null;
 

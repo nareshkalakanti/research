@@ -6830,6 +6830,11 @@ button.result-tag {
   color: #5b21b6;
 }
 
+.gov-focus-seg button.nameless.on {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
 .gov-focus-seg button.pattern.on {
   background: #dcfce7;
   color: #166534;
@@ -7997,7 +8002,7 @@ button.result-tag {
 .fam-graph svg {
   display: block;
   width: 100%;
-  max-height: 640px;
+  max-height: 520px;
   user-select: none;
   touch-action: none;
 }
@@ -8038,8 +8043,17 @@ button.result-tag {
 .fam-node.cap-lc circle { --cap: #ea580c; --cap-dark: #c2410c; }
 .fam-node.cap-mc circle { --cap: #0d9488; --cap-dark: #0f766e; }
 .fam-node.cap-sc circle { --cap: #2563eb; --cap-dark: #1e40af; }
-.fam-node.cap-mic circle { --cap: #9333ea; --cap-dark: #7e22ce; }
-.fam-node.cap-ti circle { --cap: #c026d3; --cap-dark: #a21caf; }
+.fam-node.cap-sub500 circle {
+  --cap: #f5c400;
+  --cap-dark: #7a4f00;
+  fill: #f5c400;
+  stroke: #7a4f00;
+  stroke-width: 2.5;
+}
+
+.fam-node.company.cap-sub500.dim {
+  opacity: 0.7;
+}
 
 .fam-node:hover circle {
   stroke-width: 3;
@@ -8052,10 +8066,23 @@ button.result-tag {
   stroke-dasharray: 3 2;
 }
 
+.fam-node.outside.cap-sub500 circle {
+  fill: #fff8dc;
+  stroke: #7a4f00;
+  stroke-width: 2.5;
+  stroke-dasharray: none;
+}
+
 .fam-node.person circle {
   fill: #475467;
   stroke: #fff;
   stroke-width: 1.5;
+}
+
+.fam-node.company.cap-sub500 circle {
+  fill: #f5c400;
+  stroke: #5c3b00;
+  stroke-width: 2.75;
 }
 
 .fam-node text {
@@ -8085,21 +8112,21 @@ button.result-tag {
   fill: #101828;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-weight: 700;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .fam-node.outside text {
   fill: #667085;
   font-family: var(--font-mono, ui-monospace, monospace);
   font-weight: 600;
-  font-size: 7px;
+  font-size: 10px;
 }
 
 .fam-node.person text {
   fill: #475467;
   font-family: var(--font-ui, inherit);
   font-weight: 500;
-  font-size: 6.5px;
+  font-size: 9px;
 }
 
 .fam-legend {
@@ -8126,8 +8153,7 @@ button.result-tag {
 .fam-legend .cap-lc::before { background: #ea580c; }
 .fam-legend .cap-mc::before { background: #0d9488; }
 .fam-legend .cap-sc::before { background: #2563eb; }
-.fam-legend .cap-mic::before { background: #9333ea; }
-.fam-legend .cap-ti::before { background: #c026d3; }
+.fam-legend .cap-sub500::before { background: #f5c400; border: 1.5px solid #7a4f00; }
 .fam-legend .person::before { background: #475467; width: 7px; height: 7px; }
 .fam-legend .outside::before { background: #fff; border: 1.5px dashed #667085; }
 
@@ -19670,6 +19696,18 @@ button.otrd-co-link {
   color: #78350f;
 }
 
+.wl-list-chips .wl-named-chip {
+  border-color: hsl(var(--wl-named-h, 32) 55% 78%);
+  background: hsl(var(--wl-named-h, 32) 72% 94%);
+  color: hsl(var(--wl-named-h, 32) 52% 28%);
+}
+
+.wl-list-chips .wl-named-chip.on {
+  border-color: hsl(var(--wl-named-h, 32) 48% 52%);
+  background: hsl(var(--wl-named-h, 32) 48% 40%);
+  color: #fff;
+}
+
 .wl-list-chips .tag-common {
   border-color: #bbf7d0;
   background: #f0fdf4;
@@ -19805,6 +19843,10 @@ button.otrd-co-link {
   gap: 10px;
   align-items: center;
   margin-bottom: 12px;
+}
+
+.wl-qtr-fill-status {
+  margin: -6px 0 12px;
 }
 
 .wl-add-search {

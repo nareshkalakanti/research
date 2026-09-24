@@ -61,6 +61,7 @@ import {
   companyGapFlags,
   loadScrapeOutcomeSets,
   matchesMissingGap,
+  injectPersonalListRows,
 } from "@/lib/missing-data";
 import { dinBoardTickerSet } from "@/lib/governance-write";
 import { capTier, type CapTier, type MatchedThemeTag } from "@/lib/types";
@@ -457,9 +458,20 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const qTrim = q.trim();
   if (qTrim && !/[|/]/.test(qTrim)) {
-    const tickerTerm = (qTrim.split(/\s+/)[0] ?? qTrim).toUpperCase();
+    const parts = qTrim.split(/\s+/).filter(Boolean);
+    let marketHint: string | null = null;
+    if (
+      parts.length > 1 &&
+      /^(NSE|BSE|NSE SME|BSE SME)$/i.test(parts[parts.length - 1]!)
+    ) {
+      marketHint = parts.pop()!.toUpperCase();
+    }
+    const tickerTerm = (parts[0] ?? qTrim).toUpperCase();
     if (looksLikeTickerSearch(tickerTerm)) {
-      void bootstrapCompanyTicker(tickerTerm).catch(() => {});
+      void bootstrapCompanyTicker(tickerTerm, {
+        name: parts.join(" ") || tickerTerm,
+        market: marketHint,
+      }).catch(() => {});
     }
   }
 
@@ -509,6 +521,7 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   if (missing) {
     companies = mergeFundWatchlistUniverse(companies, allCompanies);
+    companies = injectPersonalListRows(companies, allCompanies, market);
   }
 
   function gapFlags(c: (typeof companies)[number]) {
@@ -1327,6 +1340,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   );
   if (missing) {
     gapUniverse = mergeFundWatchlistUniverse(gapUniverse, loadAllCompanies());
+    gapUniverse = injectPersonalListRows(gapUniverse, loadAllCompanies(), market);
   } else if (market === "NSE") {
     gapUniverse = loadAllCompanies().filter(
       (c) => c.market === "NSE" || c.market === "NSE SME",

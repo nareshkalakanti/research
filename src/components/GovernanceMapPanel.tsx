@@ -17,7 +17,6 @@ import { FundWatchlistTags } from "@/components/FundWatchlistTags";
 import {
   appendFundParams,
   FUND_WATCHLIST_KEYS,
-  FUND_WATCHLIST_LABELS,
   type FundFilterState,
   type FundWatchlistKey,
 } from "@/lib/fund-watchlist-meta";
@@ -64,6 +63,7 @@ type Stats = {
   directors: number;
   din_backed: number;
   name_only: number;
+  nameless_din?: number;
   bridges: number;
   tiny_bridges: number;
   ti_bridges: number;
@@ -277,6 +277,7 @@ export function GovernanceMapPanel() {
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [sme, setSme] = useState(false);
+  const [filterNamelessDin, setFilterNamelessDin] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -299,7 +300,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme]);
+  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme, filterNamelessDin]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -328,6 +329,7 @@ export function GovernanceMapPanel() {
       if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
       if (maxCr != null) params.set("mcapMax", String(maxCr));
       if (sme) params.set("sme", "1");
+      if (filterNamelessDin) params.set("namelessDin", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/governance-map?${params}`);
@@ -364,7 +366,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme],
+    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme, filterNamelessDin],
   );
 
   useEffect(() => {
@@ -660,7 +662,8 @@ export function GovernanceMapPanel() {
     filterEdge ||
     FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) ||
     mcapNarrowed ||
-    sme;
+    sme ||
+    filterNamelessDin;
 
   function clearFilters() {
     setQ("");
@@ -677,6 +680,7 @@ export function GovernanceMapPanel() {
     setMcapMinIndex(0);
     setMcapMaxIndex(MCAP_DEFAULT_MAX);
     setSme(false);
+    setFilterNamelessDin(false);
     setOpenId(null);
     setView("company");
     setStack([]);
@@ -781,6 +785,21 @@ export function GovernanceMapPanel() {
           >
             {GOV_MULTI_LC_LABEL}
             {stats?.multi_lc != null ? <i>{stats.multi_lc}</i> : null}
+          </button>
+        </div>
+        <span className="gov-focus-label">Data</span>
+        <div className="gov-focus-seg" role="group" aria-label="Directors with DIN but no name">
+          <button
+            type="button"
+            className={`nameless ${filterNamelessDin ? "on" : ""}`}
+            onClick={() => {
+              setFilterNamelessDin((v) => !v);
+              if (!filterNamelessDin) setView("director");
+            }}
+            title="Directors with a DIN on file whose name is missing (shown as DIN only)"
+          >
+            No name
+            {stats?.nameless_din != null ? <i>{stats.nameless_din}</i> : null}
           </button>
         </div>
         <span className="gov-focus-label">Small side</span>
@@ -897,32 +916,6 @@ export function GovernanceMapPanel() {
             Edge
             {stats?.edge != null ? <i>{stats.edge}</i> : null}
           </button>
-          {[...FUND_WATCHLIST_KEYS]
-            .sort((a, b) =>
-              FUND_WATCHLIST_LABELS[a].localeCompare(
-                FUND_WATCHLIST_LABELS[b],
-                "en",
-                { sensitivity: "base" },
-              ),
-            )
-            .map((key) => (
-            <button
-              key={key}
-              type="button"
-              className={`${key} ${fundFilters[key] ? "on" : ""}`}
-              onClick={() =>
-                setFundFilters((prev) => ({ ...prev, [key]: !prev[key] }))
-              }
-              title={
-                view === "company"
-                  ? `Companies on ${FUND_WATCHLIST_LABELS[key]}`
-                  : `Directors with a board seat on ${FUND_WATCHLIST_LABELS[key]}`
-              }
-            >
-              {FUND_WATCHLIST_LABELS[key]}
-              {stats?.funds?.[key] != null ? <i>{stats.funds[key]}</i> : null}
-            </button>
-          ))}
         </div>
       </div>
 

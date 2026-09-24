@@ -17,6 +17,7 @@ import { invalidateCompanyCache } from "./db";
 
 export {
   FUND_WATCHLIST_KEYS,
+  FUND_WATCHLIST_CHIP_KEYS,
   FUND_WATCHLIST_LABELS,
   formatFundDisplayLabel,
   type FundChangeInfo,
