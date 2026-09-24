@@ -1,0 +1,359 @@
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+
+type Company = {
+  ticker: string;
+  name: string;
+  directors?: number;
+  din_verified?: number;
+};
+
+type Person = {
+  person_id: string;
+  name: string;
+  din: string | null;
+  tickers: string[];
+};
+
+type Outside = { ticker: string; name: string };
+
+type NodeKind = "company" | "person" | "outside";
+
+type GraphNode = {
+  id: string;
+  kind: NodeKind;
+  label: string;
+  title: string;
+  r: number;
+  x: number;
+  y: number;
+};
+
+const WIDE_ASPECT = 2.6;
+
+const RADIUS: Record<NodeKind, number> = { company: 24, outside: 19, person: 12 };
+
+function initials(name: string): string {
+  const bits = name.replace(/[^A-Za-z\s]/g, " ").split(/\s+/).filter(Boolean);
+  if (!bits.length) return "?";
+  if (bits.length === 1) return bits[0]!.slice(0, 2).toUpperCase();
+  return (bits[0]![0]! + bits[bits.length - 1]![0]!).toUpperCase();
+}
+
+function shortName(name: string): string {
+  const bits = name.split(/\s+/).filter(Boolean);
+  return bits.length > 2 ? `${bits[0]} ${bits[bits.length - 1]}` : name;
+}
+
+function shortTicker(t: string, max: number): string {
+  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+function layout(
+  nodes: GraphNode[],
+  edges: Array<[number, number]>,
+  width: number,
+  height: number,
+) {
+  const n = nodes.length;
+  if (!n) return;
+  const cx = width / 2;
+  const cy = height / 2;
+  nodes.forEach((node, i) => {
+    const angle = (i / n) * Math.PI * 2;
+    const ring = node.kind === "company" ? 0.25 : node.kind === "person" ? 0.4 : 0.55;
+    node.x = cx + Math.cos(angle) * width * ring;
+    node.y = cy + Math.sin(angle) * height * ring;
+  });
+  const vx = new Float64Array(n);
+  const vy = new Float64Array(n);
+  const iterations = 320;
+  for (let step = 0; step < iterations; step++) {
+    const cool = 1 - step / iterations;
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const a = nodes[i]!;
+        const b = nodes[j]!;
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let d2 = dx * dx + dy * dy;
+        if (d2 < 0.01) {
+          dx = Math.random() - 0.5;
+          dy = Math.random() - 0.5;
+          d2 = 0.25;
+        }
+        const minD = a.r + b.r + 14;
+        const force = (1800 + minD * minD) / d2;
+        const d = Math.sqrt(d2);
+        const fx = (dx / d) * force;
+        const fy = (dy / d) * force;
+        vx[i]! += fx;
+        vy[i]! += fy;
+        vx[j]! -= fx;
+        vy[j]! -= fy;
+      }
+    }
+    for (const [i, j] of edges) {
+      const a = nodes[i]!;
+      const b = nodes[j]!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const target = a.r + b.r + 48;
+      const k = (d - target) * 0.06;
+      vx[i]! += (dx / d) * k * d * 0.1;
+      vy[i]! += (dy / d) * k * d * 0.1;
+      vx[j]! -= (dx / d) * k * d * 0.1;
+      vy[j]! -= (dy / d) * k * d * 0.1;
+    }
+    for (let i = 0; i < n; i++) {
+      const node = nodes[i]!;
+      vx[i]! += (cx - node.x) * 0.004;
+      vy[i]! += (cy - node.y) * 0.07;
+      const max = 24 * cool + 1;
+      node.x += Math.max(-max, Math.min(max, vx[i]! * 0.1));
+      node.y += Math.max(-max, Math.min(max, vy[i]! * 0.1));
+      vx[i] = 0;
+      vy[i] = 0;
+    }
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < n; i++) {
+        for (let j = i + 1; j < n; j++) {
+          const a = nodes[i]!;
+          const b = nodes[j]!;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          const gap = a.kind === "person" || b.kind === "person" ? 22 : 12;
+          const minD = a.r + b.r + gap;
+          if (d >= minD) continue;
+          const push = (minD - d) / 2;
+          const ux = dx / d;
+          const uy = dy / d;
+          a.x -= ux * push;
+          a.y -= uy * push;
+          b.x += ux * push;
+          b.y += uy * push;
+        }
+      }
+    }
+  }
+}
+
+export function FamilyGraph({
+  companies,
+  people,
+  outside,
+  onCompany,
+  onPerson,
+}: {
+  companies: Company[];
+  people: Person[];
+  outside: Outside[];
+  onCompany: (ticker: string) => void;
+  onPerson: (personId: string, name: string) => void;
+}) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
+  const [dragged, setDragged] = useState<Record<string, { x: number; y: number }>>({});
+  const drag = useRef<{ id: string; moved: boolean } | null>(null);
+  const justDragged = useRef(false);
+
+  const { nodes, edges, view } = useMemo(() => {
+    const list: GraphNode[] = [];
+    const index = new Map<string, number>();
+    const add = (node: GraphNode) => {
+      index.set(node.id, list.length);
+      list.push(node);
+    };
+    for (const c of companies) {
+      add({
+        id: `c:${c.ticker}`,
+        kind: "company",
+        label: shortTicker(c.ticker, 9),
+        title: `${c.name} (${c.ticker})${
+          c.directors ? ` · DIN ${c.din_verified ?? 0}/${c.directors}` : ""
+        }`,
+        r: RADIUS.company,
+        x: 0,
+        y: 0,
+      });
+    }
+    for (const o of outside) {
+      add({
+        id: `c:${o.ticker}`,
+        kind: "outside",
+        label: shortTicker(o.ticker, 8),
+        title: `${o.name} (${o.ticker}) · outside the group`,
+        r: RADIUS.outside,
+        x: 0,
+        y: 0,
+      });
+    }
+    const pairs: Array<[number, number]> = [];
+    for (const p of people) {
+      add({
+        id: `p:${p.person_id}`,
+        kind: "person",
+        label: initials(p.name),
+        title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""} · ${p.tickers.length} boards`,
+        r: RADIUS.person,
+        x: 0,
+        y: 0,
+      });
+      const pi = index.get(`p:${p.person_id}`)!;
+      for (const t of p.tickers) {
+        const ci = index.get(`c:${t}`);
+        if (ci != null) pairs.push([pi, ci]);
+      }
+    }
+    const count = list.length;
+    const width = Math.max(760, Math.sqrt(count) * 210);
+    const height = Math.max(280, Math.sqrt(count) * 90);
+    layout(list, pairs, width, height);
+    if (list.length > 1) {
+      const xs = list.map((node) => node.x);
+      const ys = list.map((node) => node.y);
+      const spanX = Math.max(...xs) - Math.min(...xs) || 1;
+      const spanY = Math.max(...ys) - Math.min(...ys) || 1;
+      const stretch = (spanY * WIDE_ASPECT) / spanX;
+      if (stretch > 1) {
+        const midX = (Math.max(...xs) + Math.min(...xs)) / 2;
+        for (const node of list) node.x = midX + (node.x - midX) * stretch;
+      }
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const node of list) {
+      minX = Math.min(minX, node.x - node.r - 40);
+      maxX = Math.max(maxX, node.x + node.r + 40);
+      minY = Math.min(minY, node.y - node.r - 10);
+      maxY = Math.max(maxY, node.y + node.r + 22);
+    }
+    return {
+      nodes: list,
+      edges: pairs,
+      view: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+    };
+  }, [companies, people, outside]);
+
+  const pos = (node: GraphNode) => dragged[node.id] ?? { x: node.x, y: node.y };
+
+  const neighbours = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const [a, b] of edges) {
+      const ida = nodes[a]!.id;
+      const idb = nodes[b]!.id;
+      if (!map.has(ida)) map.set(ida, new Set());
+      if (!map.has(idb)) map.set(idb, new Set());
+      map.get(ida)!.add(idb);
+      map.get(idb)!.add(ida);
+    }
+    return map;
+  }, [nodes, edges]);
+
+  const lit = (id: string) =>
+    !hover || id === hover || Boolean(neighbours.get(hover)?.has(id));
+
+  const toSvg = (e: React.PointerEvent) => {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return null;
+    const pt = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+    return { x: pt.x, y: pt.y };
+  };
+
+  const activate = (node: GraphNode) => {
+    if (node.kind === "person") {
+      onPerson(node.id.slice(2), node.title.split(" · ")[0] || node.label);
+    } else {
+      onCompany(node.id.slice(2));
+    }
+  };
+
+  return (
+    <div className="fam-graph">
+      <svg
+        ref={svgRef}
+        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+        style={{ aspectRatio: `${view.w} / ${view.h}` }}
+        onPointerMove={(e) => {
+          if (!drag.current) return;
+          const p = toSvg(e);
+          if (!p) return;
+          drag.current.moved = true;
+          const id = drag.current.id;
+          setDragged((d) => ({ ...d, [id]: p }));
+        }}
+        onPointerUp={() => {
+          justDragged.current = Boolean(drag.current?.moved);
+          drag.current = null;
+        }}
+        onPointerLeave={() => {
+          drag.current = null;
+          setHover(null);
+        }}
+      >
+        <g className="fam-edges">
+          {edges.map(([a, b]) => {
+            const na = nodes[a]!;
+            const nb = nodes[b]!;
+            const pa = pos(na);
+            const pb = pos(nb);
+            const on = hover != null && (na.id === hover || nb.id === hover);
+            return (
+              <line
+                key={`${na.id}-${nb.id}`}
+                x1={pa.x}
+                y1={pa.y}
+                x2={pb.x}
+                y2={pb.y}
+                className={on ? "on" : hover ? "dim" : ""}
+              />
+            );
+          })}
+        </g>
+        {nodes.map((node) => {
+          const p = pos(node);
+          return (
+            <g
+              key={node.id}
+              className={`fam-node ${node.kind}${lit(node.id) ? "" : " dim"}`}
+              transform={`translate(${p.x} ${p.y})`}
+              onPointerEnter={() => setHover(node.id)}
+              onPointerLeave={() => setHover(null)}
+              onPointerDown={() => {
+                justDragged.current = false;
+                drag.current = { id: node.id, moved: false };
+              }}
+              onClick={() => {
+                if (justDragged.current) {
+                  justDragged.current = false;
+                  return;
+                }
+                activate(node);
+              }}
+            >
+              <title>{node.title}</title>
+              <circle r={node.r} />
+              <text dy="0.35em">{node.label}</text>
+              {node.kind === "person" ? (
+                <text className="fam-caption" y={node.r + 11}>
+                  {shortName(node.title.split(" · ")[0] || "")}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="fam-legend">
+        <span className="company">Group company</span>
+        <span className="person">Person</span>
+        {outside.length ? <span className="outside">Linked outside company</span> : null}
+      </div>
+    </div>
+  );
+}
