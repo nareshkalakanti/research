@@ -278,7 +278,8 @@ function regexDirectorsFromText(
     const nameHit = before.match(
       /(?:(?:Mr\.?|Mrs\.?|Ms\.?|Dr\.?|Shri)\s+)?([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z.]+){1,4})\s*$/,
     );
-    const name = nameHit?.[1]?.replace(/\s+/g, " ").trim() || `DIN ${din}`;
+    const name = nameHit?.[1]?.replace(/\s+/g, " ").trim();
+    if (!name) continue;
     out.push({
       name,
       din,

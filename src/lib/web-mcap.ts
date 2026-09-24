@@ -31,6 +31,10 @@ export type WebProfile = {
   price: number | null;
   mcap_cr: number | null;
   source: "tickertape" | "groww" | "tickertape+groww";
+  listed_ticker?: string;
+  nse_tradable?: boolean;
+  bse_tradable?: boolean;
+  bse_scrip?: string;
 };
 
 function sleep(ms: number): Promise<void> {
@@ -95,7 +99,19 @@ export function namesMatch(left: string, right: string): boolean {
   const a = normalizeName(left);
   const b = normalizeName(right);
   if (!a || !b) return false;
-  return a === b || a.includes(b) || b.includes(a);
+  if (a === b) return true;
+  const tokens = (s: string) => s.split(" ").filter((t) => t.length >= 3);
+  const ta = tokens(a);
+  const tb = tokens(b);
+  if (!ta.length || !tb.length) return false;
+  const setB = new Set(tb);
+  const overlap = ta.filter((t) => setB.has(t));
+  if (Math.min(ta.length, tb.length) === 1) {
+    const only = ta.length === 1 ? ta[0]! : tb[0]!;
+    return overlap.includes(only) && only.length >= 4;
+  }
+  const need = Math.max(2, Math.ceil(Math.min(ta.length, tb.length) * 0.6));
+  return overlap.length >= need;
 }
 
 export function parseCompactInr(value: string | null | undefined): number | null {
@@ -199,32 +215,54 @@ function emptyProfile(ticker: string): WebProfile {
   };
 }
 
+async function tickertapeSearchHits(query: string): Promise<
+  Array<{ sid: string; ticker: string; name: string; exchange: string }>
+> {
+  const payload = asRecord(
+    await httpGetJson(`${TICKERTAPE_SEARCH}${encodeURIComponent(query)}`),
+  );
+  const results = asArray(asRecord(payload.data).searchResults);
+  const hits: Array<{
+    sid: string;
+    ticker: string;
+    name: string;
+    exchange: string;
+  }> = [];
+  for (const item of results) {
+    const rec = asRecord(item);
+    const info = asRecord(asRecord(rec.stock).info);
+    const sid = str(rec.sid);
+    if (!sid) continue;
+    hits.push({
+      sid,
+      ticker: str(info.ticker).toUpperCase(),
+      name: str(info.name),
+      exchange: str(info.exchange),
+    });
+  }
+  return hits;
+}
+
+function pickTickertapeHit(
+  hits: Array<{ sid: string; ticker: string; name: string; exchange: string }>,
+  symbol: string,
+  companyName: string,
+) {
+  const exact = hits.filter((h) => h.ticker === symbol.toUpperCase());
+  const fuzzy = hits.filter((h) => namesMatch(companyName, h.name));
+  return exact[0] ?? fuzzy[0] ?? null;
+}
+
 async function tickertapeLookup(
   symbol: string,
   companyName: string,
 ): Promise<WebProfile | null> {
-  const payload = asRecord(
-    await httpGetJson(`${TICKERTAPE_SEARCH}${encodeURIComponent(symbol)}`),
-  );
-  const results = asArray(asRecord(payload.data).searchResults);
-  const exact: Array<{ sid: string; ticker: string; name: string; exchange: string }> =
-    [];
-  const fuzzy: Array<{ sid: string; ticker: string; name: string; exchange: string }> =
-    [];
-
-  for (const item of results) {
-    const rec = asRecord(item);
-    const info = asRecord(asRecord(rec.stock).info);
-    const ticker = str(info.ticker).toUpperCase();
-    const name = str(info.name);
-    const sid = str(rec.sid);
-    if (!sid) continue;
-    const row = { sid, ticker, name, exchange: str(info.exchange) };
-    if (ticker === symbol.toUpperCase()) exact.push(row);
-    else if (namesMatch(companyName, name)) fuzzy.push(row);
+  const fromTicker = await tickertapeSearchHits(symbol);
+  let chosen = pickTickertapeHit(fromTicker, symbol, companyName);
+  if (!chosen && companyName.trim() && companyName.trim().toUpperCase() !== symbol.toUpperCase()) {
+    const fromName = await tickertapeSearchHits(companyName.trim());
+    chosen = pickTickertapeHit(fromName, symbol, companyName);
   }
-
-  const chosen = exact[0] ?? fuzzy[0];
   if (!chosen) return null;
 
   const infoPayload = asRecord(
@@ -267,29 +305,34 @@ export async function growwCompanyData(
   symbol: string,
   companyName: string,
 ): Promise<{ hit: Record<string, unknown>; company: Record<string, unknown> } | null> {
-  const payload = asRecord(
-    await httpGetJson(`${GROWW_SEARCH}${encodeURIComponent(symbol)}`),
-  );
-  const hits = asArray(payload.content);
+  const queries = [symbol];
+  const nameQ = companyName.trim();
+  if (nameQ && nameQ.toUpperCase() !== symbol.toUpperCase()) queries.push(nameQ);
+
   const exact: Record<string, unknown>[] = [];
   const fuzzy: Record<string, unknown>[] = [];
+  const sym = symbol.toUpperCase();
 
-  for (const hit of hits) {
-    const rec = asRecord(hit);
-    const nse = str(rec.nse_scrip_code).toUpperCase();
-    const bse = str(rec.bse_scrip_code).toUpperCase();
-    const title = str(rec.title) || str(rec.company_short_name);
-    const searchId = str(rec.search_id) || str(rec.id);
-    const sym = symbol.toUpperCase();
-    if (nse === sym || bse === sym) {
-      exact.push(rec);
-    } else if (
-      namesMatch(companyName, title) ||
-      searchId.toLowerCase().includes(sym.toLowerCase()) ||
-      title.toUpperCase().split(/\s+/)[0] === sym
-    ) {
-      fuzzy.push(rec);
+  for (const query of queries) {
+    const payload = asRecord(
+      await httpGetJson(`${GROWW_SEARCH}${encodeURIComponent(query)}`),
+    );
+    for (const hit of asArray(payload.content)) {
+      const rec = asRecord(hit);
+      const nse = str(rec.nse_scrip_code).toUpperCase();
+      const bse = str(rec.bse_scrip_code).toUpperCase();
+      const title = str(rec.title) || str(rec.company_short_name);
+      const searchId = str(rec.search_id) || str(rec.id);
+      if (nse === sym || bse === sym) {
+        exact.push(rec);
+      } else if (
+        namesMatch(companyName || symbol, title) ||
+        searchId.toLowerCase() === sym.toLowerCase()
+      ) {
+        fuzzy.push(rec);
+      }
     }
+    if (exact.length) break;
   }
 
   const hit = exact[0] ?? fuzzy[0];
@@ -369,6 +412,34 @@ async function growwLivePrice(
   }
 }
 
+function listingBitsFromGroww(
+  hit: Record<string, unknown>,
+  company: Record<string, unknown>,
+): Pick<
+  WebProfile,
+  "listed_ticker" | "nse_tradable" | "bse_tradable" | "bse_scrip" | "exchange"
+> {
+  const header = asRecord(company.header);
+  const nseOn = Boolean(header.isNseTradable);
+  const bseOn = Boolean(header.isBseTradable);
+  const nseSym = firstText(header.nseScriptCode, hit.nse_scrip_code)
+    .replace(/-EQ$/i, "")
+    .toUpperCase();
+  const bseSym = firstText(header.bseTradingSymbol)
+    .replace(/-EQ$/i, "")
+    .toUpperCase();
+  const listed =
+    (nseOn && nseSym) || (bseOn && bseSym) || nseSym || bseSym || "";
+  const exchange = bseOn && !nseOn ? "BSE" : nseOn && !bseOn ? "NSE" : nseOn ? "NSE" : bseOn ? "BSE" : "";
+  return {
+    listed_ticker: listed || undefined,
+    nse_tradable: nseOn,
+    bse_tradable: bseOn,
+    bse_scrip: firstText(header.bseScriptCode, hit.bse_scrip_code) || undefined,
+    exchange,
+  };
+}
+
 async function growwLookup(
   symbol: string,
   companyName: string,
@@ -377,13 +448,14 @@ async function growwLookup(
   if (!data) return null;
   const { hit, company } = data;
   const header = asRecord(company.header);
-  const { mcap_cr, exchange } = mcapPriceFromGroww(company);
-  const price = await growwLivePrice(company, symbol);
+  const bits = listingBitsFromGroww(hit, company);
+  const { mcap_cr } = mcapPriceFromGroww(company);
+  const price = await growwLivePrice(company, bits.listed_ticker || symbol);
 
   return {
     ...emptyProfile(symbol),
     matched_name: firstText(header.displayName, hit.title),
-    exchange,
+    ...bits,
     isin: firstText(header.isin, hit.isin),
     subsector: firstText(header.industryName),
     ...profileFromGroww(company),
@@ -434,12 +506,13 @@ async function fetchOne(
       if (groww) {
         fillBlank(found, profileFromGroww(groww.company));
         const header = asRecord(groww.company.header);
-        const { mcap_cr, exchange } = mcapPriceFromGroww(groww.company);
+        const bits = listingBitsFromGroww(groww.hit, groww.company);
+        const { mcap_cr } = mcapPriceFromGroww(groww.company);
         fillBlank(found, {
+          ...bits,
           subsector: firstText(header.industryName),
           isin: firstText(header.isin),
           mcap_cr,
-          exchange: exchange || undefined,
         });
         // Tickertape often omits mcap on fresh BSE listings; Groww still has ₹…Cr.
         if (found.mcap_cr == null && mcap_cr != null) {

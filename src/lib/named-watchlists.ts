@@ -133,6 +133,33 @@ export function listNamedWatchlists(): NamedListInfo[] {
   }
 }
 
+/** Deduped members across named lists (for Missing data / Scan universe). */
+export function allNamedWatchMembers(): NamedWatchRow[] {
+  const db = openRead();
+  if (!db) return [];
+  try {
+    const rows = db
+      .prepare(
+        `SELECT list_key, ticker, name, market, sector, sub_sector
+         FROM named_watchlists ORDER BY ticker COLLATE NOCASE`,
+      )
+      .all() as NamedWatchRow[];
+    const byTicker = new Map<string, NamedWatchRow>();
+    for (const row of rows) {
+      const t = (row.ticker || "").trim().toUpperCase();
+      if (!t) continue;
+      const prev = byTicker.get(t);
+      const name = row.name?.trim() || null;
+      if (!prev || (name && !prev.name?.trim())) {
+        byTicker.set(t, { ...row, ticker: t, name });
+      }
+    }
+    return [...byTicker.values()];
+  } finally {
+    db.close();
+  }
+}
+
 export function createNamedList(labelRaw: string): NamedListInfo | null {
   const label = labelRaw.trim().replace(/\s+/g, " ");
   if (!label || label.length > 32) return null;

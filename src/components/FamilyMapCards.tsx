@@ -22,7 +22,7 @@ export type FamilyRow = {
     din: string | null;
     tickers: string[];
   }>;
-  outside?: Array<{ ticker: string; name: string; cap_code: string | null }>;
+  outside?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;
 };
 
 function dinTone(verified: number, total: number): "full" | "part" | "none" {

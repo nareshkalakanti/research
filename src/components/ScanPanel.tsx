@@ -391,9 +391,6 @@ export function ScanPanel() {
           <div className="scan-filter-group">
             <span className="scan-filter-label">Lists</span>
             <WatchlistFilterBar
-              funds={filterFundAll}
-              onFunds={setFilterFundAll}
-              fundsCount={fundAllCount}
               sme={filterSme}
               note={filterNote}
               ageMin={ageMin}

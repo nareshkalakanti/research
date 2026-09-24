@@ -6,6 +6,7 @@ type Company = {
   ticker: string;
   name: string;
   cap_code?: string | null;
+  market_cap_cr?: number | null;
   directors?: number;
   din_verified?: number;
 };
@@ -17,7 +18,7 @@ type Person = {
   tickers: string[];
 };
 
-type Outside = { ticker: string; name: string; cap_code?: string | null };
+type Outside = { ticker: string; name: string; cap_code?: string | null; market_cap_cr?: number | null };
 
 type NodeKind = "company" | "person" | "outside";
 
@@ -34,15 +35,29 @@ type GraphNode = {
 
 const WIDE_ASPECT = 2.6;
 
-const RADIUS: Record<NodeKind, number> = { company: 9, outside: 7, person: 4.5 };
+const RADIUS: Record<NodeKind, number> = { company: 16, outside: 12, person: 8 };
+const MIN_VIEW_W = 360;
+const MIN_VIEW_H = 220;
 
 const CAP_LEGEND = [
   ["lc", "Large"],
   ["mc", "Mid"],
   ["sc", "Small"],
-  ["mic", "Micro"],
-  ["ti", "Tiny"],
+  ["sub500", "Under ₹500 Cr"],
 ] as const;
+
+function capBand(
+  cap_code?: string | null,
+  market_cap_cr?: number | null,
+): string | null {
+  const mcap = market_cap_cr == null ? null : Number(market_cap_cr);
+  if (mcap != null && Number.isFinite(mcap) && mcap > 0 && mcap < 500) {
+    return "sub500";
+  }
+  const cap = (cap_code || "").toLowerCase();
+  if (cap === "ti" || cap === "mic") return "sub500";
+  return cap || null;
+}
 
 function shortName(name: string): string {
   const bits = name.split(/\s+/).filter(Boolean);
@@ -173,7 +188,7 @@ export function FamilyGraph({
         id: `c:${c.ticker}`,
         kind: "company",
         label: c.ticker,
-        cap: c.cap_code ? c.cap_code.toLowerCase() : null,
+        cap: capBand(c.cap_code, c.market_cap_cr),
         title: `${c.ticker} · ${c.name}${
           c.directors ? ` · DIN ${c.din_verified ?? 0}/${c.directors}` : ""
         }`,
@@ -187,7 +202,7 @@ export function FamilyGraph({
         id: `c:${o.ticker}`,
         kind: "outside",
         label: o.ticker,
-        cap: o.cap_code ? o.cap_code.toLowerCase() : null,
+        cap: capBand(o.cap_code, o.market_cap_cr),
         title: `${o.ticker} · ${o.name} · outside the group`,
         r: RADIUS.outside,
         x: 0,
@@ -232,15 +247,41 @@ export function FamilyGraph({
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const node of list) {
-      minX = Math.min(minX, node.x - node.r - 60);
-      maxX = Math.max(maxX, node.x + node.r + 60);
-      minY = Math.min(minY, node.y - node.r - 10);
-      maxY = Math.max(maxY, node.y + node.r + 22);
+      minX = Math.min(minX, node.x - node.r - 56);
+      maxX = Math.max(maxX, node.x + node.r + 56);
+      minY = Math.min(minY, node.y - node.r - 16);
+      maxY = Math.max(maxY, node.y + node.r + 28);
+    }
+    if (!list.length) {
+      minX = 0;
+      minY = 0;
+      maxX = MIN_VIEW_W;
+      maxY = MIN_VIEW_H;
+    }
+    let viewW = Math.max(maxX - minX, 1);
+    let viewH = Math.max(maxY - minY, 1);
+    if (viewW < MIN_VIEW_W) {
+      const mid = (minX + maxX) / 2;
+      minX = mid - MIN_VIEW_W / 2;
+      maxX = mid + MIN_VIEW_W / 2;
+      viewW = MIN_VIEW_W;
+    }
+    if (viewH < MIN_VIEW_H) {
+      const mid = (minY + maxY) / 2;
+      minY = mid - MIN_VIEW_H / 2;
+      maxY = mid + MIN_VIEW_H / 2;
+      viewH = MIN_VIEW_H;
+    }
+    const companyR = Math.max(12, Math.min(20, viewW * 0.042));
+    for (const node of list) {
+      if (node.kind === "company") node.r = node.cap === "sub500" ? companyR * 1.2 : companyR;
+      else if (node.kind === "outside") node.r = companyR * 0.78;
+      else node.r = companyR * 0.5;
     }
     return {
       nodes: list,
       edges: pairs,
-      view: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+      view: { x: minX, y: minY, w: viewW, h: viewH },
     };
   }, [companies, people, outside]);
 
