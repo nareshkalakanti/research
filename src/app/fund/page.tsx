@@ -1,12 +1,5 @@
-"use client";
-
-import { Suspense } from "react";
-import { WorkspaceApp } from "@/components/WorkspaceApp";
+import { redirect } from "next/navigation";
 
 export default function FundPage() {
-  return (
-    <Suspense fallback={<div className="boot">Loading…</div>}>
-      <WorkspaceApp />
-    </Suspense>
-  );
+  redirect("/watchlist");
 }

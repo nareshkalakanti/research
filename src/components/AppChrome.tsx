@@ -1,6 +1,6 @@
 "use client";
 
-import { APP_TABS, PAGE_TABS, useAppTab, type AppTab } from "@/lib/app-tab";
+import { APP_TABS, useAppTab, type AppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
 import { OllamaBar } from "@/components/OllamaBar";
@@ -58,21 +58,6 @@ export function AppChrome({
             ))}
           </div>
         </nav>
-
-        <div className="tabs-routes" role="group" aria-label="Workspace">
-          {PAGE_TABS.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              className={tab === r.id ? "tab on" : "tab"}
-              title={r.label}
-              onClick={() => setTab(r.id)}
-            >
-              <span className="tab-label-full">{r.label}</span>
-              <span className="tab-label-short">{r.short}</span>
-            </button>
-          ))}
-        </div>
 
         <div className="user-block">
           <OllamaBar />

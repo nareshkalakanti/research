@@ -60,10 +60,6 @@ const WatchlistPanel = dynamic(
   () => import("@/components/WatchlistPanel").then((m) => m.WatchlistPanel),
   { loading: PanelFallback, ssr: false },
 );
-const FundPanel = dynamic(
-  () => import("@/components/FundPanel").then((m) => m.FundPanel),
-  { loading: PanelFallback, ssr: false },
-);
 
 const FamilyDashboard = dynamic(
   () => import("@/components/FamilyDashboard").then((m) => m.FamilyDashboard),
@@ -81,7 +77,6 @@ const PANELS: Record<AppTab, ComponentType> = {
   research: ResearchPanel,
   missing: MissingDataPanel,
   watchlist: WatchlistPanel,
-  fund: FundPanel,
 };
 
 function preloadIqPanels() {
@@ -92,7 +87,6 @@ function preloadIqPanels() {
 
 function preloadWorkspacePanels() {
   void import("@/components/WatchlistPanel");
-  void import("@/components/FundPanel");
 }
 
 function AppShellPanels() {
@@ -178,7 +172,7 @@ export function AppShell() {
       t === "strategy" ||
       t === "buyback"
     ) {
-      window.history.replaceState(window.history.state, "", "/fund");
+      window.history.replaceState(window.history.state, "", "/watchlist");
       return;
     }
     if (t === "categories") {

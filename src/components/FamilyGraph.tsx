@@ -146,15 +146,14 @@ export function FamilyGraph({
   outside,
   onCompany,
   onPerson,
-  onTickerLabel,
+  chartUrl,
 }: {
   companies: Company[];
   people: Person[];
   outside: Outside[];
   onCompany: (ticker: string) => void;
   onPerson: (personId: string, name: string) => void;
-  /** When set, clicking a ticker label calls this instead of `onCompany`. */
-  onTickerLabel?: (ticker: string) => void;
+  chartUrl?: (ticker: string) => string;
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -344,22 +343,17 @@ export function FamilyGraph({
             >
               <title>{node.title}</title>
               <circle r={node.r} />
-              {onTickerLabel && node.kind !== "person" ? (
-                <text
-                  y={node.r + 10}
-                  className="fam-link"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (justDragged.current) {
-                      justDragged.current = false;
-                      return;
-                    }
-                    onTickerLabel(node.id.slice(2));
-                  }}
+              {chartUrl && node.kind !== "person" ? (
+                <a
+                  href={chartUrl(node.id.slice(2))}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <title>{`Open ${node.label} on TradingView`}</title>
-                  {node.label}
-                </text>
+                  <text y={node.r + 10} className="fam-link">
+                    {node.label}
+                  </text>
+                </a>
               ) : (
                 <text y={node.r + 10}>{node.label}</text>
               )}
