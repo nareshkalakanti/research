@@ -1085,6 +1085,11 @@ export function WatchlistPanel() {
     void loadRows(activeTickers);
   }, [activeTickers, loadRows]);
 
+  const refreshPrices = useCallback(() => {
+    if (!activeTickers.length) return;
+    void loadRows(activeTickers);
+  }, [activeTickers, loadRows]);
+
   const needle = q.trim().toLowerCase();
   const visible = !needle
     ? sortedRows
@@ -1193,6 +1198,15 @@ export function WatchlistPanel() {
           onChange={(e) => setQ(e.target.value)}
           disabled={!activeTickers.length}
         />
+        <button
+          type="button"
+          className="btn-ghost"
+          disabled={busy || !activeTickers.length}
+          onClick={refreshPrices}
+          title="Refresh prices and tape for the visible list"
+        >
+          {busy ? "Refreshing…" : "Refresh prices"}
+        </button>
       </div>
 
       {activeTickers.length === 0 ? (
