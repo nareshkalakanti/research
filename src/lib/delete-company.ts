@@ -151,6 +151,12 @@ export function deleteCompanyEverywhere(tickerRaw: string): {
     ticker,
   );
 
+  removed.named_watchlists = deleteFromDb(
+    "named_watchlists.db",
+    `DELETE FROM named_watchlists WHERE UPPER(ticker) = ?`,
+    ticker,
+  );
+
   removed.edge = deleteFromDb(
     "edge.db",
     `DELETE FROM edge WHERE UPPER(ticker) = ?`,
