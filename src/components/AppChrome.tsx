@@ -32,7 +32,7 @@ export function AppChrome({
         <button
           type="button"
           className="brand brand-btn"
-          onClick={() => setTab("theme-scanner")}
+          onClick={() => setTab("dashboard")}
           title="Home"
         >
           <BrandMark />
