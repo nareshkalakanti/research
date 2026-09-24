@@ -35,7 +35,13 @@ function openWrite(): Database.Database {
       updated_at TEXT NOT NULL,
       PRIMARY KEY (list_key, ticker)
     );
+    CREATE TABLE IF NOT EXISTS named_list_meta (
+      list_key TEXT PRIMARY KEY,
+      label TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
   `);
+  ensureMetaRows(db);
   return db;
 }
 
@@ -44,6 +50,110 @@ function openRead(): Database.Database | null {
   const db = new Database(DB_PATH, { readonly: true, fileMustExist: true });
   db.pragma("query_only = ON");
   return db;
+}
+
+function titleFromKey(key: string): string {
+  const t = key.replace(/[_-]+/g, " ").trim();
+  if (!t) return key;
+  return t.replace(/\b[a-z]/g, (c) => c.toUpperCase());
+}
+
+function ensureMetaRows(db: Database.Database): void {
+  const now = new Date().toISOString();
+  const keys = db
+    .prepare(`SELECT DISTINCT list_key FROM named_watchlists`)
+    .all() as Array<{ list_key: string }>;
+  const ins = db.prepare(
+    `INSERT OR IGNORE INTO named_list_meta (list_key, label, created_at)
+     VALUES (?, ?, ?)`,
+  );
+  for (const row of keys) {
+    ins.run(row.list_key, titleFromKey(row.list_key), now);
+  }
+}
+
+export type NamedListInfo = {
+  key: string;
+  label: string;
+  tickers: string[];
+  count: number;
+};
+
+export function listNamedWatchlists(): NamedListInfo[] {
+  const db = openRead();
+  if (!db) return [];
+  try {
+    const hasMeta = db
+      .prepare(
+        `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'named_list_meta'`,
+      )
+      .get();
+    const memberRows = db
+      .prepare(
+        `SELECT list_key, ticker FROM named_watchlists ORDER BY ticker COLLATE NOCASE`,
+      )
+      .all() as Array<{ list_key: string; ticker: string }>;
+    const byKey = new Map<string, string[]>();
+    for (const row of memberRows) {
+      const t = (row.ticker || "").toUpperCase();
+      if (!t) continue;
+      const list = byKey.get(row.list_key) ?? [];
+      list.push(t);
+      byKey.set(row.list_key, list);
+    }
+    const meta = hasMeta
+      ? (db
+          .prepare(`SELECT list_key, label FROM named_list_meta ORDER BY created_at, label`)
+          .all() as Array<{ list_key: string; label: string }>)
+      : [];
+    const seen = new Set<string>();
+    const out: NamedListInfo[] = [];
+    for (const m of meta) {
+      seen.add(m.list_key);
+      const tickers = byKey.get(m.list_key) ?? [];
+      out.push({
+        key: m.list_key,
+        label: m.label || titleFromKey(m.list_key),
+        tickers,
+        count: tickers.length,
+      });
+    }
+    for (const [key, tickers] of byKey) {
+      if (seen.has(key)) continue;
+      out.push({
+        key,
+        label: titleFromKey(key),
+        tickers,
+        count: tickers.length,
+      });
+    }
+    return out;
+  } finally {
+    db.close();
+  }
+}
+
+export function createNamedList(labelRaw: string): NamedListInfo | null {
+  const label = labelRaw.trim().replace(/\s+/g, " ");
+  if (!label || label.length > 32) return null;
+  const key = normalizeListKey(label);
+  if (!key || key === "watch" || key === "watchlist" || key === "holdings") {
+    return null;
+  }
+  const db = openWrite();
+  try {
+    db.prepare(
+      `INSERT OR IGNORE INTO named_list_meta (list_key, label, created_at)
+       VALUES (?, ?, ?)`,
+    ).run(key, label, new Date().toISOString());
+    db.prepare(`UPDATE named_list_meta SET label = ? WHERE list_key = ?`).run(
+      label,
+      key,
+    );
+  } finally {
+    db.close();
+  }
+  return listNamedWatchlists().find((l) => l.key === key) ?? { key, label, tickers: [], count: 0 };
 }
 
 export function loadNamedWatchlist(listKey: string): NamedWatchRow[] {
@@ -100,6 +210,10 @@ export function upsertNamedWatch(
       row.sub_sector?.trim() || null,
       now,
     );
+    db.prepare(
+      `INSERT OR IGNORE INTO named_list_meta (list_key, label, created_at)
+       VALUES (?, ?, ?)`,
+    ).run(key, titleFromKey(key), now);
     return (
       loadNamedWatchlist(key).find((h) => h.ticker.toUpperCase() === ticker) ?? {
         list_key: key,
