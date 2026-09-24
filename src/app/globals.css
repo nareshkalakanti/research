@@ -19642,6 +19642,19 @@ button.otrd-co-link {
   color: #5b21b6;
 }
 
+.wl-list-chips .tag-alpha {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.wl-list-chips .tag-alpha.on,
+.result-tag.tag-alpha {
+  border-color: #fbbf24;
+  background: #fef3c7;
+  color: #78350f;
+}
+
 .wl-rank-pill {
   display: inline-flex;
   align-items: center;
