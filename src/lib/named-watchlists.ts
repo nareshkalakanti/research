@@ -137,7 +137,13 @@ export function createNamedList(labelRaw: string): NamedListInfo | null {
   const label = labelRaw.trim().replace(/\s+/g, " ");
   if (!label || label.length > 32) return null;
   const key = normalizeListKey(label);
-  if (!key || key === "watch" || key === "watchlist" || key === "holdings") {
+  if (
+    !key ||
+    key === "watch" ||
+    key === "watchlist" ||
+    key === "holdings" ||
+    key === "common"
+  ) {
     return null;
   }
   const db = openWrite();
@@ -154,6 +160,38 @@ export function createNamedList(labelRaw: string): NamedListInfo | null {
     db.close();
   }
   return listNamedWatchlists().find((l) => l.key === key) ?? { key, label, tickers: [], count: 0 };
+}
+
+export function renameNamedList(
+  listKey: string,
+  labelRaw: string,
+): NamedListInfo | null {
+  const key = normalizeListKey(listKey);
+  const label = labelRaw.trim().replace(/\s+/g, " ");
+  if (!key || !label || label.length > 32) return null;
+  const reserved = normalizeListKey(label);
+  if (
+    reserved === "watch" ||
+    reserved === "watchlist" ||
+    reserved === "holdings" ||
+    reserved === "common"
+  ) {
+    return null;
+  }
+  const db = openWrite();
+  try {
+    const exists = db
+      .prepare(`SELECT 1 FROM named_list_meta WHERE list_key = ?`)
+      .get(key);
+    if (!exists) return null;
+    db.prepare(`UPDATE named_list_meta SET label = ? WHERE list_key = ?`).run(
+      label,
+      key,
+    );
+  } finally {
+    db.close();
+  }
+  return listNamedWatchlists().find((l) => l.key === key) ?? null;
 }
 
 export function loadNamedWatchlist(listKey: string): NamedWatchRow[] {

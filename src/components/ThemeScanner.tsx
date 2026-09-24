@@ -23,7 +23,6 @@ import {
   FUND_WATCHLIST_KEYS,
   type FundFilterState,
 } from "@/lib/fund-watchlist-meta";
-import { useAppTab } from "@/lib/app-tab";
 
 const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 
@@ -56,7 +55,6 @@ type ScanApi = {
 };
 
 export function ThemeScanner() {
-  const { setTab } = useAppTab();
   const [groups, setGroups] = useState<ThemeGroup[]>([]);
   const [meta, setMeta] = useState<ThemesApi["meta"]>({});
   const [markets, setMarkets] = useState<Record<string, number>>({});
@@ -496,17 +494,7 @@ export function ThemeScanner() {
       ) : null}
       {!active ? (
         <div className="empty-state">
-          Search a stock, or select themes / keywords to scan. Manage funds on{" "}
-          <a
-            href="/fund"
-            onClick={(e) => {
-              e.preventDefault();
-              setTab("fund");
-            }}
-          >
-            Fund
-          </a>
-          .
+          Search a stock, or select themes / keywords to scan.
         </div>
       ) : null}
       {loading && !data ? <div className="loading">Scanning…</div> : null}

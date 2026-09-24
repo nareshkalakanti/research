@@ -21,15 +21,14 @@ export type AppTab =
   | "boardroomiq"
   | "missing"
   | "research"
-  | "watchlist"
-  | "fund";
+  | "watchlist";
 
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "dashboard", label: "Dashboard", short: "Dashboard" },
   { id: "theme-scanner", label: "Theme", short: "Theme" },
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "governance", label: "Governance", short: "Governance" },
-  { id: "fund", label: "Fund", short: "Fund" },
+  { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "marketiq", label: "MarketIQ", short: "Market" },
   { id: "orderbookiq", label: "OrderBookIQ", short: "Orders" },
   { id: "boardroomiq", label: "BoardRoomIQ", short: "Board" },
@@ -37,9 +36,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "missing", label: "Missing data", short: "Missing" },
 ];
 
-export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [
-  { id: "watchlist", label: "Watchlist", short: "Watch" },
-];
+export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [];
 
 export const IQ_TABS: AppTab[] = [
   "marketiq",
@@ -48,7 +45,7 @@ export const IQ_TABS: AppTab[] = [
 ];
 
 function isPageTab(id: AppTab): boolean {
-  return id === "watchlist" || id === "fund";
+  return id === "watchlist";
 }
 
 export function tabFromParam(raw: string | null): AppTab {
@@ -59,8 +56,9 @@ export function tabFromParam(raw: string | null): AppTab {
     raw === "corporate" ||
     raw === "concall"
   ) {
-    return "fund";
+    return "watchlist";
   }
+  if (raw === "fund") return "watchlist";
   if (raw === "categories") return "theme-scanner";
   if (raw && APP_TABS.some((t) => t.id === raw)) return raw as AppTab;
   return "dashboard";
@@ -74,8 +72,7 @@ function pathOnly(): string {
 export function readTabFromLocation(): AppTab {
   if (typeof window === "undefined") return "dashboard";
   const path = pathOnly();
-  if (path === "/watchlist") return "watchlist";
-  if (path === "/fund") return "fund";
+  if (path === "/watchlist" || path === "/fund") return "watchlist";
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
 
@@ -103,7 +100,6 @@ function buildHomeSearch(
 
 function urlForTab(next: AppTab, ticker?: string | null): string {
   if (next === "watchlist") return "/watchlist";
-  if (next === "fund") return "/fund";
   const fromHome =
     pathOnly() === "/"
       ? new URLSearchParams(window.location.search)

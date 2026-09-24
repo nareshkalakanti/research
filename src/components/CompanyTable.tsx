@@ -1014,17 +1014,19 @@ function CompanyRows({
         <td className="col-name">
           <div className="company-watch-row">
             <WatchButton ticker={r.ticker} />
-            <button type="button" className="company-cell" onClick={onToggleAbout}>
-              <span className="company-name">{r.name}</span>
-              {!open && r.headquarters ? (
-                <span className="company-meta">
-                  <span className="hq-line" title="Headquarters">
-                    {r.headquarters}
+            <div className="company-cell-stack">
+              <button type="button" className="company-cell" onClick={onToggleAbout}>
+                <span className="company-name">{r.name}</span>
+                {!open && r.headquarters ? (
+                  <span className="company-meta">
+                    <span className="hq-line" title="Headquarters">
+                      {r.headquarters}
+                    </span>
                   </span>
-                </span>
-              ) : null}
+                ) : null}
+              </button>
               <SignalTags company={r} />
-            </button>
+            </div>
           </div>
           {missingTags.length > 0 ? (
             <div className="matched-tags">

@@ -54,14 +54,6 @@ export function FamilyDashboard() {
     );
   }, [rows, q]);
 
-  const openChart = (ticker: string) => {
-    window.open(
-      tradingviewUrl(ticker, marketByTicker.get(ticker)),
-      "_blank",
-      "noopener,noreferrer",
-    );
-  };
-
   const openCompany = (ticker: string) => {
     setTab("governance");
     requestGovOpen({ kind: "company", ticker, from: "Dashboard", returnTab: "dashboard" });
@@ -109,7 +101,7 @@ export function FamilyDashboard() {
           rows={filtered}
           onTicker={(t) => openCompany(t)}
           onPerson={(id, name) => openPerson(id, name)}
-          onChart={(t) => openChart(t)}
+          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
         />
       )}
     </section>

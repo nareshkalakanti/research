@@ -4,6 +4,7 @@ import {
   deleteNamedWatch,
   listNamedWatchlists,
   loadNamedWatchlist,
+  renameNamedList,
   upsertNamedWatch,
 } from "@/lib/named-watchlists";
 import { getMetrics } from "@/lib/metrics";
@@ -48,6 +49,7 @@ export async function POST(req: NextRequest) {
     sector?: string | null;
     sub_sector?: string | null;
     create?: boolean;
+    rename?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -55,11 +57,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
+  if (body.rename) {
+    const renamed = renameNamedList(body.list || "", body.label || "");
+    if (!renamed) {
+      return NextResponse.json(
+        { ok: false, error: "Could not rename that list" },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({
+      ok: true as const,
+      list: renamed,
+      lists: listNamedWatchlists(),
+    });
+  }
+
   if (body.create || (!body.ticker && (body.label || body.list))) {
     const created = createNamedList(body.label || body.list || "");
     if (!created) {
       return NextResponse.json(
-        { ok: false, error: "Need a list name (not Watchlist or Holdings)" },
+        { ok: false, error: "Need a list name (not Watchlist, Holdings, or Common)" },
         { status: 400 },
       );
     }

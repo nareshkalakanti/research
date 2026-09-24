@@ -34,14 +34,14 @@ export function FamilyMapCards({
   rows,
   onTicker,
   onPerson,
-  onChart,
+  chartUrl,
 }: {
   rows: FamilyRow[];
   /** Node click: open the company. */
   onTicker: (ticker: string, group: FamilyRow) => void;
   onPerson: (personId: string, name: string, group: FamilyRow) => void;
-  /** Ticker-name click: open the chart. Falls back to `onTicker`. */
-  onChart?: (ticker: string) => void;
+  /** Ticker-name click: open TradingView. */
+  chartUrl?: (ticker: string) => string;
 }) {
   const allCompanies = rows.flatMap((f) => f.companies);
   return (
@@ -105,23 +105,44 @@ export function FamilyMapCards({
                 outside={outside}
                 onCompany={(t) => onTicker(t, f)}
                 onPerson={(id, name) => onPerson(id, name, f)}
-                onTickerLabel={onChart}
+                chartUrl={chartUrl}
               />
               <div className="gov-family-chips">
-                {f.companies.map((c) => (
-                  <button
-                    key={c.ticker}
-                    type="button"
-                    className={`gov-family-chip ${dinTone(c.din_verified ?? 0, c.directors ?? 0)}`}
-                    title={`${c.ticker} · ${c.din_verified ?? 0} of ${c.directors ?? 0} directors DIN-validated${onChart ? " · open on TradingView" : ""}`}
-                    onClick={() => (onChart ? onChart(c.ticker) : onTicker(c.ticker, f))}
-                  >
-                    <span className="mono">{c.ticker}</span>
-                    <span className="gov-family-chip-din">
-                      {c.din_verified ?? 0}/{c.directors ?? 0}
-                    </span>
-                  </button>
-                ))}
+                {f.companies.map((c) => {
+                  const href = chartUrl?.(c.ticker);
+                  const title = `${c.ticker} · ${c.din_verified ?? 0} of ${c.directors ?? 0} directors DIN-validated${href ? " · TradingView" : ""}`;
+                  const body = (
+                    <>
+                      <span className="mono">{c.ticker}</span>
+                      <span className="gov-family-chip-din">
+                        {c.din_verified ?? 0}/{c.directors ?? 0}
+                      </span>
+                    </>
+                  );
+                  const cls = `gov-family-chip ${dinTone(c.din_verified ?? 0, c.directors ?? 0)}`;
+                  return href ? (
+                    <a
+                      key={c.ticker}
+                      className={cls}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={title}
+                    >
+                      {body}
+                    </a>
+                  ) : (
+                    <button
+                      key={c.ticker}
+                      type="button"
+                      className={cls}
+                      title={title}
+                      onClick={() => onTicker(c.ticker, f)}
+                    >
+                      {body}
+                    </button>
+                  );
+                })}
               </div>
             </article>
           );

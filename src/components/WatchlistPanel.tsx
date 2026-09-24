@@ -32,6 +32,23 @@ import { isPlaceholderWatch } from "@/lib/brief-placeholder";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
 
+type ChipList = "watch" | "holdings" | "named" | "common";
+
+function sharedAcrossLists(lists: string[][], min = 2): string[] {
+  const counts = new Map<string, number>();
+  for (const xs of lists) {
+    const seen = new Set(
+      xs.map((t) => t.trim().toUpperCase()).filter(Boolean),
+    );
+    if (!seen.size) continue;
+    for (const t of seen) counts.set(t, (counts.get(t) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, n]) => n >= min)
+    .map(([t]) => t)
+    .sort((a, b) => a.localeCompare(b));
+}
+
 type WatchRow = {
   ticker: string;
   company: string;
@@ -689,7 +706,7 @@ function WatchlistRow({
             <WatchButton ticker={r.ticker} />
             <Dma200Badge crossed={!!r.crossed_200dma_recently} />
             {rank != null ? (
-              <span className="wl-rank-pill" title="12M momentum rank">
+              <span className="wl-rank-pill" title="Momentum rank">
                 #{rank}
               </span>
             ) : null}
@@ -758,7 +775,7 @@ function WatchlistRow({
             >
               Remove
             </button>
-          ) : (
+          ) : onRemoveHold ? (
             <button
               type="button"
               className={`result-tag ${holdChipLabel.toLowerCase() === "hold" ? "tag-hold" : "tag-alpha"}`}
@@ -766,17 +783,17 @@ function WatchlistRow({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onRemoveHold?.(r.ticker);
+                onRemoveHold(r.ticker);
               }}
             >
               {holdChipLabel}
             </button>
-          )}
+          ) : null}
         </td>
       </tr>
       {open ? (
         <tr className="wl-expand-row">
-          <td colSpan={6}>
+          <td colSpan={showMomentumColumn ? 7 : 6}>
             <div className="wl-card">
               <WlKpis qtr={qtr} row={r} />
               <div className="wl-card-body">
@@ -861,11 +878,8 @@ function WatchlistRow({
 }
 
 export function WatchlistPanel() {
-  const [list, setList] = useState<"watch" | "holdings" | "named">("watch");
+  const [list, setList] = useState<ChipList>("watch");
   const [namedKey, setNamedKey] = useState("alpha");
-  const [holdingsSort, setHoldingsSort] = useState<"default" | "momentum">(
-    "default",
-  );
   const [tickers, setTickers] = useState<string[]>([]);
   const [holdTickers, setHoldTickers] = useState<string[]>([]);
   const [namedLists, setNamedLists] = useState<
@@ -873,6 +887,8 @@ export function WatchlistPanel() {
   >([]);
   const [newListOpen, setNewListOpen] = useState(false);
   const [newListName, setNewListName] = useState("");
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameName, setRenameName] = useState("");
   const [rows, setRows] = useState<WatchRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -952,31 +968,42 @@ export function WatchlistPanel() {
     loadSeqRef.current += 1;
     setRows([]);
     setBusy(false);
-    setHoldingsSort("default");
     setListEpoch((n) => n + 1);
+    setRenameOpen(false);
     setList("watch");
   };
 
-  const selectHoldings = (sort?: "default" | "momentum") => {
+  const selectHoldings = () => {
     loadSeqRef.current += 1;
     if (list !== "holdings") {
       setRows([]);
       setBusy(false);
     }
     setListEpoch((n) => n + 1);
+    setRenameOpen(false);
     setList("holdings");
-    if (sort) setHoldingsSort(sort);
-    else setHoldingsSort("default");
   };
 
   const selectNamed = (key: string) => {
     loadSeqRef.current += 1;
     setRows([]);
     setBusy(false);
-    setHoldingsSort("default");
     setListEpoch((n) => n + 1);
     setNamedKey(key);
+    setRenameOpen(false);
+    setRenameName(
+      namedLists.find((l) => l.key === key)?.label ?? "",
+    );
     setList("named");
+  };
+
+  const selectCommon = () => {
+    loadSeqRef.current += 1;
+    setRows([]);
+    setBusy(false);
+    setListEpoch((n) => n + 1);
+    setRenameOpen(false);
+    setList("common");
   };
 
   const addNamedTicker = useCallback(
@@ -1083,6 +1110,38 @@ export function WatchlistPanel() {
       setError(e instanceof Error ? e.message : "Could not create list");
     }
   }, [newListName, applyNamedLists]);
+
+  const renameList = useCallback(async () => {
+    const label = renameName.trim();
+    if (!label || !namedKey) return;
+    try {
+      const res = await fetch("/api/named-watchlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rename: true, list: namedKey, label }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        list?: { key: string; label: string };
+        lists?: Array<{
+          key: string;
+          label: string;
+          tickers: string[];
+          count: number;
+        }>;
+        error?: string;
+      };
+      if (!res.ok || json.ok === false) {
+        setError(json.error || "Could not rename list");
+        return;
+      }
+      if (json.lists) applyNamedLists(json.lists);
+      setRenameOpen(false);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not rename list");
+    }
+  }, [renameName, namedKey, applyNamedLists]);
 
   const addHolding = useCallback(
     async (hit: {
@@ -1261,16 +1320,28 @@ export function WatchlistPanel() {
     return subscribeWatchlist(refreshTickers);
   }, [refreshTickers, refreshHoldings, refreshNamed]);
 
+  const commonTickers = useMemo(
+    () =>
+      sharedAcrossLists([
+        holdTickers,
+        ...namedLists.map((l) => l.tickers),
+      ]),
+    [holdTickers, namedLists],
+  );
+
   const activeTickers =
     list === "holdings"
       ? holdTickers
       : list === "named"
         ? namedTickers
-        : tickers;
+        : list === "common"
+          ? commonTickers
+          : tickers;
   const activeTickerKey = `${listEpoch}:${list}:${namedKey}:${activeTickers.join(",")}`;
 
-  const momentumOn =
-    list === "named" || (list === "holdings" && holdingsSort === "momentum");
+  const rankedList =
+    list === "named" || list === "holdings" || list === "common";
+  const momentumOn = rankedList;
   const showMomentumColumn = momentumOn;
 
   const momRankByTicker = useMemo(() => {
@@ -1287,16 +1358,10 @@ export function WatchlistPanel() {
   const sortedRows = useMemo(() => {
     const base = [...rows];
     return base.sort((a, b) => {
-      if (list === "named") {
+      if (rankedList) {
         const ac = a.crossed_200dma_recently ? 1 : 0;
         const bc = b.crossed_200dma_recently ? 1 : 0;
         if (bc !== ac) return bc - ac;
-        const am = a.momentum_pct ?? Number.NEGATIVE_INFINITY;
-        const bm = b.momentum_pct ?? Number.NEGATIVE_INFINITY;
-        if (bm !== am) return bm - am;
-        return a.ticker.localeCompare(b.ticker);
-      }
-      if (momentumOn) {
         const am = a.momentum_pct ?? Number.NEGATIVE_INFINITY;
         const bm = b.momentum_pct ?? Number.NEGATIVE_INFINITY;
         if (bm !== am) return bm - am;
@@ -1307,7 +1372,7 @@ export function WatchlistPanel() {
       if (bc !== ac) return bc - ac;
       return 0;
     });
-  }, [rows, list, momentumOn]);
+  }, [rows, rankedList]);
 
   useEffect(() => {
     const parts = activeTickerKey.split(":");
@@ -1373,23 +1438,6 @@ export function WatchlistPanel() {
           Holdings
           <span className="chip-count">{holdTickers.length}</span>
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={list === "holdings" && holdingsSort === "momentum"}
-          className={`chip tag-chip tag-mom${
-            list === "holdings" && holdingsSort === "momentum" ? " on" : ""
-          }`}
-          onClick={() =>
-            selectHoldings(
-              list === "holdings" && holdingsSort === "momentum"
-                ? "default"
-                : "momentum",
-            )
-          }
-        >
-          12M Momentum
-        </button>
         {namedLists.map((nl) => (
           <button
             key={nl.key}
@@ -1405,6 +1453,49 @@ export function WatchlistPanel() {
             <span className="chip-count">{nl.count}</span>
           </button>
         ))}
+        <button
+          type="button"
+          role="tab"
+          aria-selected={list === "common"}
+          className={`chip tag-chip tag-common${list === "common" ? " on" : ""}`}
+          title="Names on two or more of Holdings and named lists"
+          onClick={selectCommon}
+        >
+          Common
+          <span className="chip-count">{commonTickers.length}</span>
+        </button>
+        {list === "named" && renameOpen ? (
+          <span className="wl-new-list">
+            <input
+              className="miq-search"
+              type="text"
+              placeholder="Rename list"
+              value={renameName}
+              onChange={(e) => setRenameName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void renameList();
+                if (e.key === "Escape") setRenameOpen(false);
+              }}
+              autoFocus
+            />
+            <button type="button" className="btn-ghost" onClick={() => void renameList()}>
+              Save
+            </button>
+          </span>
+        ) : list === "named" ? (
+          <button
+            type="button"
+            className="chip tag-chip"
+            onClick={() => {
+              setNewListOpen(false);
+              setRenameName(namedLabel);
+              setRenameOpen(true);
+            }}
+            title={`Rename ${namedLabel}`}
+          >
+            Rename
+          </button>
+        ) : null}
         {newListOpen ? (
           <span className="wl-new-list">
             <input
@@ -1430,8 +1521,11 @@ export function WatchlistPanel() {
           <button
             type="button"
             className="chip tag-chip"
-            onClick={() => setNewListOpen(true)}
-            title="Create a named list with 12M ranks and 200 DMA, like Alpha"
+            onClick={() => {
+              setRenameOpen(false);
+              setNewListOpen(true);
+            }}
+            title="Create a named list with momentum ranks and 200 DMA, like Alpha"
           >
             + List
           </button>
@@ -1444,14 +1538,18 @@ export function WatchlistPanel() {
             value={addQ}
             onChange={setAddQ}
             placeholder={
-              list === "holdings"
+              list === "common"
+                ? "Common is read-only — names on two or more lists"
+                : list === "holdings"
                 ? "Search ticker or company to add to holdings…"
                 : list === "named"
                   ? `Search ticker or company to add to ${namedLabel}…`
                   : "Search ticker or company to add…"
             }
             className="theme-stock-suggest-input"
+            disabled={list === "common"}
             onSelect={(hit) => {
+              if (list === "common") return;
               if (list === "holdings") {
                 void addHolding(hit);
                 return;
@@ -1464,6 +1562,7 @@ export function WatchlistPanel() {
               setAddQ("");
             }}
             onSubmit={(t) => {
+              if (list === "common") return;
               const sym = t.trim().toUpperCase();
               if (!sym) return;
               if (list === "holdings") {
@@ -1504,7 +1603,9 @@ export function WatchlistPanel() {
             ? "No holdings on file — search a ticker to add one."
             : list === "named"
               ? `No names in ${namedLabel} yet — search a ticker to add one.`
-              : "Click + Watch next to any stock on Scan."}
+              : list === "common"
+                ? "No names sit on two or more of Holdings and named lists yet."
+                : "Click + Watch next to any stock on Scan."}
         </p>
       ) : (
         <div className="table-wrap">
