@@ -689,7 +689,7 @@ function WatchlistRow({
             <WatchButton ticker={r.ticker} />
             <Dma200Badge crossed={!!r.crossed_200dma_recently} />
             {rank != null ? (
-              <span className="wl-rank-pill" title="Momentum rank">
+              <span className="wl-rank-pill" title="12M momentum rank">
                 #{rank}
               </span>
             ) : null}
@@ -1147,15 +1147,26 @@ export function WatchlistPanel() {
     list === "holdings" ? holdTickers : list === "alpha" ? alphaTickers : tickers;
 
   const momentumOn =
-    holdingsSort === "momentum" && (list === "holdings" || list === "alpha");
-  const showMomentumColumn = list === "alpha" || momentumOn;
+    list === "alpha" || (list === "holdings" && holdingsSort === "momentum");
+  const showMomentumColumn = momentumOn;
+
+  const momRankByTicker = useMemo(() => {
+    const ranked = [...rows]
+      .filter((r) => r.momentum_pct != null && Number.isFinite(r.momentum_pct))
+      .sort((a, b) => {
+        const d = (b.momentum_pct ?? 0) - (a.momentum_pct ?? 0);
+        if (d !== 0) return d;
+        return a.ticker.localeCompare(b.ticker);
+      });
+    return new Map(ranked.map((r, i) => [r.ticker.toUpperCase(), i + 1]));
+  }, [rows]);
 
   const sortedRows = useMemo(() => {
     const base = [...rows];
     return base.sort((a, b) => {
-      const ac = a.crossed_200dma_recently ? 1 : 0;
-      const bc = b.crossed_200dma_recently ? 1 : 0;
       if (list === "alpha") {
+        const ac = a.crossed_200dma_recently ? 1 : 0;
+        const bc = b.crossed_200dma_recently ? 1 : 0;
         if (bc !== ac) return bc - ac;
         const am = a.momentum_pct ?? Number.NEGATIVE_INFINITY;
         const bm = b.momentum_pct ?? Number.NEGATIVE_INFINITY;
@@ -1168,6 +1179,8 @@ export function WatchlistPanel() {
         if (bm !== am) return bm - am;
         return a.ticker.localeCompare(b.ticker);
       }
+      const ac = a.crossed_200dma_recently ? 1 : 0;
+      const bc = b.crossed_200dma_recently ? 1 : 0;
       if (bc !== ac) return bc - ac;
       return 0;
     });
@@ -1361,13 +1374,15 @@ export function WatchlistPanel() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((r, idx) => (
+              {visible.map((r) => (
                 <WatchlistRow
                   key={r.ticker}
                   r={r}
                   canRemove={list === "watch"}
                   rank={
-                    list === "alpha" || momentumOn ? idx + 1 : undefined
+                    momentumOn
+                      ? momRankByTicker.get(r.ticker.toUpperCase())
+                      : undefined
                   }
                   showMomentumColumn={showMomentumColumn}
                   holdChipLabel={list === "alpha" ? "Alpha" : "Hold"}
