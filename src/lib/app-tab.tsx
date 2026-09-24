@@ -12,6 +12,7 @@ import {
 } from "react";
 
 export type AppTab =
+  | "dashboard"
   | "scan"
   | "theme-scanner"
   | "governance"
@@ -24,6 +25,7 @@ export type AppTab =
   | "fund";
 
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
+  { id: "dashboard", label: "Dashboard", short: "Dashboard" },
   { id: "theme-scanner", label: "Theme", short: "Theme" },
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "governance", label: "Governance", short: "Governance" },
@@ -61,7 +63,7 @@ export function tabFromParam(raw: string | null): AppTab {
   }
   if (raw === "categories") return "theme-scanner";
   if (raw && APP_TABS.some((t) => t.id === raw)) return raw as AppTab;
-  return "theme-scanner";
+  return "dashboard";
 }
 
 function pathOnly(): string {
@@ -70,7 +72,7 @@ function pathOnly(): string {
 }
 
 export function readTabFromLocation(): AppTab {
-  if (typeof window === "undefined") return "theme-scanner";
+  if (typeof window === "undefined") return "dashboard";
   const path = pathOnly();
   if (path === "/watchlist") return "watchlist";
   if (path === "/fund") return "fund";
@@ -83,7 +85,7 @@ function buildHomeSearch(
   ticker?: string | null,
 ): string {
   const params = new URLSearchParams(current.toString());
-  if (next === "theme-scanner") params.delete("tab");
+  if (next === "dashboard") params.delete("tab");
   else params.set("tab", next);
   if (next !== "orderbookiq") params.delete("ordersView");
   if (next !== "governance") {

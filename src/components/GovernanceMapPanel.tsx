@@ -8,7 +8,9 @@ import {
   mcapIndicesToBounds,
 } from "@/components/MarketCapRangeBar";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
-import { FamilyGraph } from "@/components/FamilyGraph";
+import { FamilyMapCards, type FamilyRow } from "@/components/FamilyMapCards";
+import { onGovOpen } from "@/lib/gov-open";
+import { useOptionalAppTab, type AppTab } from "@/lib/app-tab";
 import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
 import { HighlightedText } from "@/components/HighlightedText";
 import { FundWatchlistTags } from "@/components/FundWatchlistTags";
@@ -179,33 +181,6 @@ type CompanyRow = {
   }>;
 };
 
-type FamilyRow = {
-  family_name: string;
-  company_count: number;
-  companies: Array<{
-    ticker: string;
-    name: string;
-    market: string;
-    cap_code: string | null;
-    market_cap_cr?: number | null;
-    is_sme: boolean;
-    family_directors?: number;
-    directors?: number;
-    din_verified?: number;
-  }>;
-  people?: Array<{
-    person_id: string;
-    name: string;
-    din: string | null;
-    tickers: string[];
-  }>;
-  outside?: Array<{ ticker: string; name: string; cap_code: string | null }>;
-};
-
-function dinTone(verified: number, total: number): "full" | "part" | "none" {
-  if (!total || !verified) return "none";
-  return verified >= total ? "full" : "part";
-}
 
 type ApiResponse = {
   view: View;
@@ -563,6 +538,23 @@ export function GovernanceMapPanel() {
     setOpenId(deepPersonId);
   }, [deepPersonId, loading, data]);
 
+  const appTab = useOptionalAppTab();
+  const drillRef = useRef({ drillTicker, drillDirector, depth: stack.length });
+  drillRef.current = { drillTicker, drillDirector, depth: stack.length };
+  const returnRef = useRef<{ depth: number; tab: AppTab } | null>(null);
+  useEffect(
+    () =>
+      onGovOpen((req) => {
+        const cur = drillRef.current;
+        returnRef.current = req.returnTab
+          ? { depth: cur.depth + 1, tab: req.returnTab }
+          : null;
+        if (req.kind === "company") cur.drillTicker(req.ticker, req.from);
+        else cur.drillDirector(req.personId, req.name, req.from);
+      }),
+    [],
+  );
+
   function bumpChanges() {
     setChangesRefreshKey((k) => k + 1);
   }
@@ -630,6 +622,11 @@ export function GovernanceMapPanel() {
     const leaving = stack[stack.length - 1];
     pendingScrollRef.current = leaving?.restoreY ?? 0;
     setStack((s) => s.slice(0, -1));
+    const ret = returnRef.current;
+    if (ret && stack.length === ret.depth) {
+      returnRef.current = null;
+      appTab?.setTab(ret.tab);
+    }
   }
 
   function toggleBridge(mode: BridgeMode) {
@@ -1456,109 +1453,13 @@ export function GovernanceMapPanel() {
       ) : null}
 
       {showFamily && ready ? (
-        <>
-          {familyRows.length > 0 ? (
-            <div className="gov-family-summary">
-              <strong>{familyRows.length.toLocaleString()}</strong> groups ·{" "}
-              <strong>
-                {familyRows
-                  .reduce((n, f) => n + f.company_count, 0)
-                  .toLocaleString()}
-              </strong>{" "}
-              listed companies ·{" "}
-              <strong>
-                {familyRows
-                  .flatMap((f) => f.companies)
-                  .reduce((n, c) => n + (c.din_verified ?? 0), 0)
-                  .toLocaleString()}
-                /
-                {familyRows
-                  .flatMap((f) => f.companies)
-                  .reduce((n, c) => n + (c.directors ?? 0), 0)
-                  .toLocaleString()}
-              </strong>{" "}
-              directors DIN-validated
-            </div>
-          ) : null}
-          <div className="gov-family-grid">
-            {familyRows.map((f) => {
-              const key = `${f.family_name}:${f.companies.map((c) => c.ticker).join(",")}`;
-              const dirTotal = f.companies.reduce(
-                (n, c) => n + (c.directors ?? 0),
-                0,
-              );
-              const dinTotal = f.companies.reduce(
-                (n, c) => n + (c.din_verified ?? 0),
-                0,
-              );
-              const dinPct = dirTotal
-                ? Math.round((dinTotal / dirTotal) * 100)
-                : 0;
-              const people = f.people ?? [];
-              const outside = f.outside ?? [];
-              return (
-                <article key={key} className="gov-card gov-family-card">
-                  <header className="gov-family-head">
-                    <div className="gov-family-head-row">
-                      <div className="gov-family-title-text">
-                        <span className="gov-family-name">{f.family_name}</span>
-                        <span className="gov-family-sub">
-                          {f.company_count} companies · {people.length} linking
-                          people
-                          {outside.length
-                            ? ` · ${outside.length} outside boards`
-                            : ""}
-                        </span>
-                      </div>
-                      <div
-                        className={`gov-family-din ${dinTone(dinTotal, dirTotal)}`}
-                        title={`${dinTotal} of ${dirTotal} directors have a validated DIN`}
-                      >
-                        <span className="gov-family-din-label">DIN</span>
-                        <span className="gov-family-din-val">
-                          {dinTotal}/{dirTotal}
-                        </span>
-                        <span className="gov-family-din-pct">{dinPct}%</span>
-                      </div>
-                    </div>
-                  </header>
-                  <FamilyGraph
-                    companies={f.companies}
-                    people={people}
-                    outside={outside}
-                    onCompany={(t) => drillTicker(t, `${f.family_name} group`)}
-                    onPerson={(id, name) =>
-                      drillDirector(id, name, `${f.family_name} group`)
-                    }
-                  />
-                  <div className="gov-family-chips">
-                    {f.companies.map((c) => (
-                      <button
-                        key={c.ticker}
-                        type="button"
-                        className={`gov-family-chip ${dinTone(c.din_verified ?? 0, c.directors ?? 0)}`}
-                        title={`${c.name} · ${c.din_verified ?? 0} of ${c.directors ?? 0} directors DIN-validated`}
-                        onClick={() =>
-                          drillTicker(c.ticker, `${f.family_name} group`)
-                        }
-                      >
-                        <span className="mono">{c.ticker}</span>
-                        <span className="gov-family-chip-din">
-                          {c.din_verified ?? 0}/{c.directors ?? 0}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-          {familyRows.length === 0 ? (
-            <div className="table-meta">
-              No family groups with 2+ companies found.
-            </div>
-          ) : null}
-        </>
+        <FamilyMapCards
+          rows={familyRows}
+          onTicker={(t, f) => drillTicker(t, `${f.family_name} group`)}
+          onPerson={(id, name, f) =>
+            drillDirector(id, name, `${f.family_name} group`)
+          }
+        />
       ) : null}
 
       {!inDrill && data && data.pages > 1 ? (

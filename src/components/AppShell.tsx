@@ -65,7 +65,13 @@ const FundPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const FamilyDashboard = dynamic(
+  () => import("@/components/FamilyDashboard").then((m) => m.FamilyDashboard),
+  { loading: PanelFallback, ssr: false },
+);
+
 const PANELS: Record<AppTab, ComponentType> = {
+  dashboard: FamilyDashboard,
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
   governance: GovernanceMapPanel,
@@ -176,7 +182,7 @@ export function AppShell() {
       return;
     }
     if (t === "categories") {
-      params.delete("tab");
+      params.set("tab", "theme-scanner");
       const qs = params.toString();
       window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
     }

@@ -5,6 +5,7 @@ import { useMemo, useRef, useState } from "react";
 type Company = {
   ticker: string;
   name: string;
+  cap_code?: string | null;
   directors?: number;
   din_verified?: number;
 };
@@ -16,7 +17,7 @@ type Person = {
   tickers: string[];
 };
 
-type Outside = { ticker: string; name: string };
+type Outside = { ticker: string; name: string; cap_code?: string | null };
 
 type NodeKind = "company" | "person" | "outside";
 
@@ -25,6 +26,7 @@ type GraphNode = {
   kind: NodeKind;
   label: string;
   title: string;
+  cap: string | null;
   r: number;
   x: number;
   y: number;
@@ -32,22 +34,19 @@ type GraphNode = {
 
 const WIDE_ASPECT = 2.6;
 
-const RADIUS: Record<NodeKind, number> = { company: 24, outside: 19, person: 12 };
+const RADIUS: Record<NodeKind, number> = { company: 9, outside: 7, person: 4.5 };
 
-function initials(name: string): string {
-  const bits = name.replace(/[^A-Za-z\s]/g, " ").split(/\s+/).filter(Boolean);
-  if (!bits.length) return "?";
-  if (bits.length === 1) return bits[0]!.slice(0, 2).toUpperCase();
-  return (bits[0]![0]! + bits[bits.length - 1]![0]!).toUpperCase();
-}
+const CAP_LEGEND = [
+  ["lc", "Large"],
+  ["mc", "Mid"],
+  ["sc", "Small"],
+  ["mic", "Micro"],
+  ["ti", "Tiny"],
+] as const;
 
 function shortName(name: string): string {
   const bits = name.split(/\s+/).filter(Boolean);
   return bits.length > 2 ? `${bits[0]} ${bits[bits.length - 1]}` : name;
-}
-
-function shortTicker(t: string, max: number): string {
-  return t.length > max ? `${t.slice(0, max - 1)}…` : t;
 }
 
 function layout(
@@ -125,7 +124,7 @@ function layout(
           const dx = b.x - a.x;
           const dy = b.y - a.y;
           const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-          const gap = a.kind === "person" || b.kind === "person" ? 22 : 12;
+          const gap = 34;
           const minD = a.r + b.r + gap;
           if (d >= minD) continue;
           const push = (minD - d) / 2;
@@ -147,12 +146,15 @@ export function FamilyGraph({
   outside,
   onCompany,
   onPerson,
+  onTickerLabel,
 }: {
   companies: Company[];
   people: Person[];
   outside: Outside[];
   onCompany: (ticker: string) => void;
   onPerson: (personId: string, name: string) => void;
+  /** When set, clicking a ticker label calls this instead of `onCompany`. */
+  onTickerLabel?: (ticker: string) => void;
 }) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<string | null>(null);
@@ -171,8 +173,9 @@ export function FamilyGraph({
       add({
         id: `c:${c.ticker}`,
         kind: "company",
-        label: shortTicker(c.ticker, 9),
-        title: `${c.name} (${c.ticker})${
+        label: c.ticker,
+        cap: c.cap_code ? c.cap_code.toLowerCase() : null,
+        title: `${c.ticker} · ${c.name}${
           c.directors ? ` · DIN ${c.din_verified ?? 0}/${c.directors}` : ""
         }`,
         r: RADIUS.company,
@@ -184,8 +187,9 @@ export function FamilyGraph({
       add({
         id: `c:${o.ticker}`,
         kind: "outside",
-        label: shortTicker(o.ticker, 8),
-        title: `${o.name} (${o.ticker}) · outside the group`,
+        label: o.ticker,
+        cap: o.cap_code ? o.cap_code.toLowerCase() : null,
+        title: `${o.ticker} · ${o.name} · outside the group`,
         r: RADIUS.outside,
         x: 0,
         y: 0,
@@ -196,7 +200,8 @@ export function FamilyGraph({
       add({
         id: `p:${p.person_id}`,
         kind: "person",
-        label: initials(p.name),
+        label: shortName(p.name),
+        cap: null,
         title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""} · ${p.tickers.length} boards`,
         r: RADIUS.person,
         x: 0,
@@ -228,8 +233,8 @@ export function FamilyGraph({
     let maxX = -Infinity;
     let maxY = -Infinity;
     for (const node of list) {
-      minX = Math.min(minX, node.x - node.r - 40);
-      maxX = Math.max(maxX, node.x + node.r + 40);
+      minX = Math.min(minX, node.x - node.r - 60);
+      maxX = Math.max(maxX, node.x + node.r + 60);
       minY = Math.min(minY, node.y - node.r - 10);
       maxY = Math.max(maxY, node.y + node.r + 22);
     }
@@ -321,7 +326,7 @@ export function FamilyGraph({
           return (
             <g
               key={node.id}
-              className={`fam-node ${node.kind}${lit(node.id) ? "" : " dim"}`}
+              className={`fam-node ${node.kind}${node.cap ? ` cap-${node.cap}` : ""}${lit(node.id) ? "" : " dim"}`}
               transform={`translate(${p.x} ${p.y})`}
               onPointerEnter={() => setHover(node.id)}
               onPointerLeave={() => setHover(null)}
@@ -339,20 +344,37 @@ export function FamilyGraph({
             >
               <title>{node.title}</title>
               <circle r={node.r} />
-              <text dy="0.35em">{node.label}</text>
-              {node.kind === "person" ? (
-                <text className="fam-caption" y={node.r + 11}>
-                  {shortName(node.title.split(" · ")[0] || "")}
+              {onTickerLabel && node.kind !== "person" ? (
+                <text
+                  y={node.r + 10}
+                  className="fam-link"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (justDragged.current) {
+                      justDragged.current = false;
+                      return;
+                    }
+                    onTickerLabel(node.id.slice(2));
+                  }}
+                >
+                  <title>{`Open ${node.label} on TradingView`}</title>
+                  {node.label}
                 </text>
-              ) : null}
+              ) : (
+                <text y={node.r + 10}>{node.label}</text>
+              )}
             </g>
           );
         })}
       </svg>
       <div className="fam-legend">
-        <span className="company">Group company</span>
+        {CAP_LEGEND.map(([code, label]) => (
+          <span key={code} className={`cap-${code}`}>
+            {label}
+          </span>
+        ))}
         <span className="person">Person</span>
-        {outside.length ? <span className="outside">Linked outside company</span> : null}
+        {outside.length ? <span className="outside">Outside group</span> : null}
       </div>
     </div>
   );
