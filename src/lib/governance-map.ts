@@ -177,11 +177,32 @@ export type GovFamilyCompany = {
   din_verified: number;
 };
 
+export type GovFamilyPerson = {
+  person_id: string;
+  name: string;
+  din: string | null;
+  /** Tickers this person sits on (group and outside). */
+  tickers: string[];
+};
+
+export type GovFamilyOutside = {
+  ticker: string;
+  name: string;
+  cap_code: string | null;
+};
+
 export type GovFamilyGroup = {
   family_name: string;
   company_count: number;
   companies: GovFamilyCompany[];
+  /** Non-independent board people linking two or more boards. */
+  people?: GovFamilyPerson[];
+  /** Outside companies where those people also sit. */
+  outside?: GovFamilyOutside[];
 };
+
+const FAMILY_GRAPH_MAX_OUTSIDE = 24;
+const FAMILY_GRAPH_MAX_PEOPLE = 40;
 
 function titleCaseSurname(raw: string): string {
   const s = raw.trim().toLowerCase();
@@ -1080,6 +1101,62 @@ export function loadGovernanceFamilyMap(opts?: {
           Number(a[0] === a[0].toUpperCase()) - Number(b[0] === b[0].toUpperCase()),
       )[0]![0];
     });
+  }
+
+  const isHouseSeat = (s: SeatRow) => {
+    const text = `${s.designation} ${s.category || ""}`.toLowerCase();
+    if (/nominee/.test(text)) return false;
+    return !/independent/.test(text) || /non[-\s]?independent/.test(text);
+  };
+  for (const g of groups) {
+    const inGroup = new Set(g.companies.map((c) => c.ticker));
+    const people = new Map<string, GovFamilyPerson>();
+    for (const t of inGroup) {
+      for (const s of byTicker.get(t) ?? []) {
+        if (!isHouseSeat(s) || people.has(s.person_id)) continue;
+        const tickers = [
+          ...new Set(
+            (seatsByPerson.get(s.person_id) ?? [])
+              .map((x) => (x.ticker || "").toUpperCase())
+              .filter((x) => metaByTicker.has(x)),
+          ),
+        ];
+        if (tickers.length < 2) continue;
+        people.set(s.person_id, {
+          person_id: s.person_id,
+          name: s.director_name,
+          din: s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null,
+          tickers,
+        });
+      }
+    }
+    const outsideLinks = new Map<string, number>();
+    for (const p of people.values()) {
+      for (const t of p.tickers) {
+        if (!inGroup.has(t)) outsideLinks.set(t, (outsideLinks.get(t) ?? 0) + 1);
+      }
+    }
+    const outside = [...outsideLinks.entries()]
+      .sort(
+        (a, b) =>
+          b[1] - a[1] ||
+          (metaByTicker.get(b[0])?.market_cap_cr ?? -1) -
+            (metaByTicker.get(a[0])?.market_cap_cr ?? -1),
+      )
+      .slice(0, FAMILY_GRAPH_MAX_OUTSIDE)
+      .map(([t]) => ({
+        ticker: t,
+        name: metaByTicker.get(t)!.name,
+        cap_code: metaByTicker.get(t)!.cap_code,
+      }));
+    const shown = new Set([...inGroup, ...outside.map((o) => o.ticker)]);
+    g.people = [...people.values()]
+      .map((p) => ({ ...p, tickers: p.tickers.filter((t) => shown.has(t)) }))
+      .filter((p) => p.tickers.length >= 2)
+      .sort((a, b) => b.tickers.length - a.tickers.length)
+      .slice(0, FAMILY_GRAPH_MAX_PEOPLE);
+    const linked = new Set(g.people.flatMap((p) => p.tickers));
+    g.outside = outside.filter((o) => linked.has(o.ticker));
   }
 
   const byLabel = new Map<string, GovFamilyGroup[]>();
