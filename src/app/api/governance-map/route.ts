@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   governanceMapStats,
+  loadGovernanceFamilyMap,
   loadGovernanceMap,
+  tickerMatchesSearch,
   type GovernanceMapRow,
   type GovCompanySeat,
 } from "@/lib/governance-map";
@@ -214,7 +216,7 @@ function filterRows(
       const dinHit = Boolean(r.din && r.din.toLowerCase().includes(q));
       const matchingCos = companies.filter(
         (c) =>
-          c.ticker.toLowerCase().includes(q) ||
+          tickerMatchesSearch(c.ticker, q) ||
           c.name.toLowerCase().includes(q) ||
           (c.designation || "").toLowerCase().includes(q),
       );
@@ -364,20 +366,6 @@ type CompanyAgg = {
   }>;
 };
 
-type FamilyCompany = {
-  ticker: string;
-  name: string;
-  market: string;
-  cap_code: string | null;
-  is_sme: boolean;
-};
-
-type FamilyAgg = {
-  family_name: string;
-  company_count: number;
-  companies: FamilyCompany[];
-};
-
 type RoleAgg = {
   role: string;
   count: number;
@@ -435,29 +423,6 @@ function boardMatchesControl(seats: BoardSeatLike[]): boolean {
 
 function boardMatchesPattern(seats: BoardSeatLike[]): boolean {
   return boardMatchesFamily(seats) || boardMatchesControl(seats);
-}
-
-function familyNameFromCompany(agg: CompanyAgg): string | null {
-  const surnameCounts = new Map<string, number>();
-  for (const d of agg.directors) {
-    const surname = d.name
-      .replace(/[().,]/g, " ")
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(-1)[0]
-      ?.trim()
-      .toUpperCase();
-    if (surname) surnameCounts.set(surname, (surnameCounts.get(surname) || 0) + 1);
-  }
-  const repeated = [...surnameCounts.entries()]
-    .filter(([, count]) => count >= 2)
-    .sort((a, b) => {
-      if (b[1] !== a[1]) return b[1] - a[1];
-      return a[0].localeCompare(b[0], undefined, { sensitivity: "base" });
-    })[0];
-  if (!repeated) return null;
-  const [surname] = repeated;
-  return surname.charAt(0) + surname.slice(1).toLowerCase();
 }
 
 function buildBoardPatternTickerSets(rows: GovernanceMapRow[]): {
@@ -523,6 +488,27 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const pattern = sp.get("pattern") === "1";
   const family = sp.get("family") === "1";
   const control = sp.get("control") === "1";
+  if (view === "family") {
+    const stats = governanceMapStats(
+      loadGovernanceMap({ minBoards, refresh }),
+    );
+    const families = loadGovernanceFamilyMap({
+      q,
+      hold: sp.get("hold") === "1",
+    });
+    const total = families.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const start = (page - 1) * pageSize;
+    return NextResponse.json({
+      view: "family",
+      stats,
+      total,
+      page,
+      pages,
+      themePattern: themePattern || null,
+      rows: families.slice(start, start + pageSize),
+    });
+  }
   const all = loadGovernanceMap({ minBoards, refresh, q });
   const boardPatternSets = buildBoardPatternTickerSets(all);
   // Stats from the multi-board universe (stable), not the search subset.
@@ -660,6 +646,10 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       if (bm !== am) return bm - am;
       return a.ticker.localeCompare(b.ticker);
     });
+    const tickerEq = (sp.get("ticker") || "").trim().toUpperCase();
+    if (tickerEq) {
+      companies = companies.filter((agg) => agg.ticker.toUpperCase() === tickerEq);
+    }
     if (pattern && !family && !control) {
       companies = companies.filter((agg) => boardMatchesPattern(agg.directors));
     } else {
@@ -669,46 +659,6 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       if (control) {
         companies = companies.filter((agg) => boardMatchesControl(agg.directors));
       }
-    }
-    if (view === "family") {
-      const byFamily = new Map<string, FamilyAgg>();
-      for (const agg of companies) {
-        const familyName = familyNameFromCompany(agg);
-        if (!familyName) continue;
-        let group = byFamily.get(familyName);
-        if (!group) {
-          group = {
-            family_name: familyName,
-            company_count: 0,
-            companies: [],
-          };
-          byFamily.set(familyName, group);
-        }
-        group.company_count += 1;
-        group.companies.push({
-          ticker: agg.ticker,
-          name: agg.name,
-          market: agg.market,
-          cap_code: agg.cap_code,
-          is_sme: agg.market.toUpperCase().includes("SME"),
-        });
-      }
-      const families = [...byFamily.values()].sort((a, b) => {
-        if (b.company_count !== a.company_count) return b.company_count - a.company_count;
-        return a.family_name.localeCompare(b.family_name, undefined, { sensitivity: "base" });
-      });
-      const total = families.length;
-      const pages = Math.max(1, Math.ceil(total / pageSize));
-      const start = (page - 1) * pageSize;
-      return NextResponse.json({
-        view,
-        stats,
-        total,
-        page,
-        pages,
-        themePattern: themePattern || null,
-        rows: families.slice(start, start + pageSize),
-      });
     }
     const total = companies.length;
     const pages = Math.max(1, Math.ceil(total / pageSize));
