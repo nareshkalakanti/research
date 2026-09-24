@@ -38,6 +38,8 @@ import { formatMcap } from "@/lib/types";
 import { tradingviewUrl } from "@/lib/links";
 
 type View = "director" | "company" | "family";
+
+const FAMILY_PREVIEW = 6;
 type BridgeMode = "off" | "ti" | "mic" | "cap";
 
 const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
@@ -186,9 +188,20 @@ type FamilyRow = {
     name: string;
     market: string;
     cap_code: string | null;
+    market_cap_cr?: number | null;
     is_sme: boolean;
+    family_directors?: number;
+    directors?: number;
+    din_verified?: number;
   }>;
 };
+
+const CAP_ORDER = ["LC", "MC", "SC", "MIC", "TI"] as const;
+
+function dinTone(verified: number, total: number): "full" | "part" | "none" {
+  if (!total || !verified) return "none";
+  return verified >= total ? "full" : "part";
+}
 
 type ApiResponse = {
   view: View;
@@ -281,6 +294,9 @@ export function GovernanceMapPanel() {
   const [filterControl, setFilterControl] = useState(false);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
+  const [expandedFamilies, setExpandedFamilies] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
@@ -316,7 +332,7 @@ export function GovernanceMapPanel() {
         view,
         q: debouncedQ,
         page: String(page),
-        pageSize: "40",
+        pageSize: view === "family" ? "200" : "40",
         minScore: "0",
         minBoards: String(minBoards),
         sort: "score",
@@ -401,6 +417,7 @@ export function GovernanceMapPanel() {
       sort: "score",
       dinOnly: "0",
     });
+    if (top.kind === "company") params.set("ticker", top.ticker);
     setDrillLoading(true);
     setDrillError(null);
     setDrillData(null);
@@ -453,8 +470,9 @@ export function GovernanceMapPanel() {
   }, [stack]);
 
   const stats = data?.stats;
-  const start = data ? (data.page - 1) * 40 + 1 : 0;
-  const end = data ? Math.min(data.page * 40, data.total) : 0;
+  const listPageSize = view === "family" ? 200 : 40;
+  const start = data ? (data.page - 1) * listPageSize + 1 : 0;
+  const end = data ? Math.min(data.page * listPageSize, data.total) : 0;
   const ready = inDrill
     ? drillData?.view === top?.kind
     : data?.view === view;
@@ -1437,42 +1455,189 @@ export function GovernanceMapPanel() {
       ) : null}
 
       {showFamily && ready ? (
-        <div className="gov-list">
-          {familyRows.map((f) => (
-            <article key={f.family_name} className="gov-card">
-              <div className="gov-card-head static">
-                <div className="gov-dir">
-                  <div className="gov-dir-name">
-                    {f.family_name}
-                    <span className="gov-badge">{f.company_count}</span>
-                  </div>
-                  <div className="gov-dir-sub">
-                    {f.company_count.toLocaleString()} companies in this family
-                  </div>
-                </div>
-              </div>
-              <div className="gov-other-boards">
-                {f.companies.map((c) => (
-                  <button
-                    key={c.ticker}
-                    type="button"
-                    className={`gov-other-link${
-                      c.cap_code ? ` cap-${c.cap_code.toLowerCase()}` : " cap-nc"
-                    }${c.is_sme ? " is-sme" : ""}`}
-                    onClick={() => drillTicker(c.ticker, f.family_name)}
-                    title={`${c.name}${c.cap_code ? ` · ${c.cap_code}` : ""}${c.is_sme ? " · SME" : ""}`}
-                  >
-                    {c.ticker.toUpperCase()}
-                    {c.is_sme ? <em className="gov-other-sme">SME</em> : null}
-                  </button>
-                ))}
-              </div>
-            </article>
-          ))}
-          {familyRows.length === 0 ? (
-            <div className="table-meta">No family groups found for the current filters.</div>
+        <>
+          {familyRows.length > 0 ? (
+            <div className="gov-family-summary">
+              <strong>{familyRows.length.toLocaleString()}</strong> groups ·{" "}
+              <strong>
+                {familyRows
+                  .reduce((n, f) => n + f.company_count, 0)
+                  .toLocaleString()}
+              </strong>{" "}
+              listed companies ·{" "}
+              <strong>
+                {familyRows
+                  .flatMap((f) => f.companies)
+                  .reduce((n, c) => n + (c.din_verified ?? 0), 0)
+                  .toLocaleString()}
+                /
+                {familyRows
+                  .flatMap((f) => f.companies)
+                  .reduce((n, c) => n + (c.directors ?? 0), 0)
+                  .toLocaleString()}
+              </strong>{" "}
+              directors DIN-validated
+            </div>
           ) : null}
-        </div>
+          <div className="gov-family-grid">
+            {familyRows.map((f) => {
+              const key = `${f.family_name}:${f.companies.map((c) => c.ticker).join(",")}`;
+              const totalMcap = f.companies.reduce(
+                (n, c) => n + (c.market_cap_cr ?? 0),
+                0,
+              );
+              const dirTotal = f.companies.reduce(
+                (n, c) => n + (c.directors ?? 0),
+                0,
+              );
+              const dinTotal = f.companies.reduce(
+                (n, c) => n + (c.din_verified ?? 0),
+                0,
+              );
+              const dinPct = dirTotal
+                ? Math.round((dinTotal / dirTotal) * 100)
+                : 0;
+              const capMix = CAP_ORDER.map((code) => ({
+                code,
+                n: f.companies.filter((c) => c.cap_code === code).length,
+              })).filter((x) => x.n > 0);
+              const open = expandedFamilies.has(key);
+              const shown = open
+                ? f.companies
+                : f.companies.slice(0, FAMILY_PREVIEW);
+              const hidden = f.companies.length - shown.length;
+              return (
+                <article key={key} className="gov-card gov-family-card">
+                  <header className="gov-family-head">
+                    <div className="gov-family-head-row">
+                      <div className="gov-family-title">
+                        <span className="gov-family-mark" aria-hidden>
+                          {f.family_name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <div className="gov-family-title-text">
+                          <span className="gov-family-name">
+                            {f.family_name}
+                          </span>
+                          <span className="gov-family-sub">
+                            {f.company_count} listed
+                            {totalMcap > 0
+                              ? ` · ₹${formatMcap(totalMcap)} combined`
+                              : ""}
+                          </span>
+                        </div>
+                      </div>
+                      <div
+                        className={`gov-family-din ${dinTone(dinTotal, dirTotal)}`}
+                        title={`${dinTotal} of ${dirTotal} directors have a validated DIN`}
+                      >
+                        <span className="gov-family-din-label">DIN</span>
+                        <span className="gov-family-din-val">
+                          {dinTotal}/{dirTotal}
+                        </span>
+                        <span className="gov-family-din-pct">{dinPct}%</span>
+                      </div>
+                    </div>
+                    {capMix.length ? (
+                      <div className="gov-family-mix">
+                        <div className="gov-family-mix-bar" aria-hidden>
+                          {capMix.map((x) => (
+                            <span
+                              key={x.code}
+                              className={`cap-${x.code.toLowerCase()}`}
+                              style={{ flexGrow: x.n }}
+                            />
+                          ))}
+                        </div>
+                        <div className="gov-family-mix-legend">
+                          {capMix.map((x) => (
+                            <span
+                              key={x.code}
+                              className={`cap-${x.code.toLowerCase()}`}
+                            >
+                              {x.n} {x.code}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </header>
+                  <ul className="gov-family-cos">
+                    {shown.map((c, i) => (
+                      <li key={c.ticker}>
+                        <button
+                          type="button"
+                          className="gov-family-co"
+                          title={c.name}
+                          onClick={() =>
+                            drillTicker(c.ticker, `${f.family_name} group`)
+                          }
+                        >
+                          <span className="gov-family-ticker mono">
+                            {c.ticker}
+                          </span>
+                          <span className="gov-family-co-name">
+                            {c.name.replace(/\s+(limited|ltd\.?)\s*$/i, "")}
+                            {i === 0 && f.companies.length > 2 ? (
+                              <span className="gov-family-flag">Flagship</span>
+                            ) : null}
+                          </span>
+                          <span className="gov-family-co-meta">
+                            <span
+                              className={`gov-family-mcap${c.cap_code ? ` cap-${c.cap_code.toLowerCase()}` : ""}`}
+                            >
+                              {c.market_cap_cr != null
+                                ? `₹${formatMcap(c.market_cap_cr)}`
+                                : c.market}
+                            </span>
+                            {c.cap_code ? (
+                              <span
+                                className={`gov-family-cap cap-${c.cap_code.toLowerCase()}`}
+                              >
+                                {c.cap_code}
+                              </span>
+                            ) : null}
+                            {c.is_sme ? (
+                              <span className="gov-family-cap sme">SME</span>
+                            ) : null}
+                            {c.directors ? (
+                              <span
+                                className={`gov-family-din-pill ${dinTone(c.din_verified ?? 0, c.directors)}`}
+                                title={`${c.din_verified ?? 0} of ${c.directors} directors have a validated DIN`}
+                              >
+                                {c.din_verified ?? 0}/{c.directors}
+                              </span>
+                            ) : null}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  {f.companies.length > FAMILY_PREVIEW ? (
+                    <button
+                      type="button"
+                      className="gov-family-more"
+                      onClick={() =>
+                        setExpandedFamilies((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(key)) next.delete(key);
+                          else next.add(key);
+                          return next;
+                        })
+                      }
+                    >
+                      {open ? "Show less" : `+${hidden} more`}
+                    </button>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+          {familyRows.length === 0 ? (
+            <div className="table-meta">
+              No family groups with 2+ companies found.
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {!inDrill && data && data.pages > 1 ? (
