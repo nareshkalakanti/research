@@ -761,7 +761,7 @@ function WatchlistRow({
           ) : (
             <button
               type="button"
-              className={`result-tag ${holdChipLabel.toLowerCase() === "alpha" ? "tag-alpha" : "tag-hold"}`}
+              className={`result-tag ${holdChipLabel.toLowerCase() === "hold" ? "tag-hold" : "tag-alpha"}`}
               title={`Remove ${r.ticker} from ${holdChipLabel.toLowerCase()}`}
               onClick={(e) => {
                 e.preventDefault();
@@ -861,19 +861,30 @@ function WatchlistRow({
 }
 
 export function WatchlistPanel() {
-  const [list, setList] = useState<"watch" | "holdings" | "alpha">("watch");
+  const [list, setList] = useState<"watch" | "holdings" | "named">("watch");
+  const [namedKey, setNamedKey] = useState("alpha");
   const [holdingsSort, setHoldingsSort] = useState<"default" | "momentum">(
     "default",
   );
   const [tickers, setTickers] = useState<string[]>([]);
   const [holdTickers, setHoldTickers] = useState<string[]>([]);
-  const [alphaTickers, setAlphaTickers] = useState<string[]>([]);
+  const [namedLists, setNamedLists] = useState<
+    Array<{ key: string; label: string; tickers: string[]; count: number }>
+  >([]);
+  const [newListOpen, setNewListOpen] = useState(false);
+  const [newListName, setNewListName] = useState("");
   const [rows, setRows] = useState<WatchRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [addQ, setAddQ] = useState("");
+  const [listEpoch, setListEpoch] = useState(0);
   const loadSeqRef = useRef(0);
+
+  const namedTickers =
+    namedLists.find((l) => l.key === namedKey)?.tickers ?? [];
+  const namedLabel =
+    namedLists.find((l) => l.key === namedKey)?.label ?? "List";
 
   const refreshTickers = useCallback(() => {
     setTickers(listWatchedTickers());
@@ -897,25 +908,78 @@ export function WatchlistPanel() {
     }
   }, [applyHoldTickers]);
 
-  const applyAlphaTickers = useCallback((next: string[]) => {
-    setAlphaTickers(
-      next.map((t) => t.trim().toUpperCase()).filter(Boolean),
-    );
-  }, []);
+  const applyNamedLists = useCallback(
+    (
+      lists: Array<{
+        key: string;
+        label: string;
+        tickers: string[];
+        count?: number;
+      }>,
+    ) => {
+      setNamedLists(
+        lists.map((l) => ({
+          key: l.key,
+          label: l.label,
+          tickers: (l.tickers ?? []).map((t) => t.trim().toUpperCase()).filter(Boolean),
+          count: l.count ?? (l.tickers ?? []).length,
+        })),
+      );
+    },
+    [],
+  );
 
-  const refreshAlpha = useCallback(async () => {
+  const refreshNamed = useCallback(async () => {
     try {
-      const res = await fetch("/api/named-watchlists?list=alpha", {
+      const res = await fetch("/api/named-watchlists", {
         signal: AbortSignal.timeout(15_000),
       });
-      const json = (await res.json()) as { tickers?: string[] };
-      applyAlphaTickers(json.tickers ?? []);
+      const json = (await res.json()) as {
+        lists?: Array<{
+          key: string;
+          label: string;
+          tickers: string[];
+          count: number;
+        }>;
+      };
+      applyNamedLists(json.lists ?? []);
     } catch {
-      setAlphaTickers([]);
+      setNamedLists([]);
     }
-  }, [applyAlphaTickers]);
+  }, [applyNamedLists]);
 
-  const addAlpha = useCallback(
+  const selectWatch = () => {
+    loadSeqRef.current += 1;
+    setRows([]);
+    setBusy(false);
+    setHoldingsSort("default");
+    setListEpoch((n) => n + 1);
+    setList("watch");
+  };
+
+  const selectHoldings = (sort?: "default" | "momentum") => {
+    loadSeqRef.current += 1;
+    if (list !== "holdings") {
+      setRows([]);
+      setBusy(false);
+    }
+    setListEpoch((n) => n + 1);
+    setList("holdings");
+    if (sort) setHoldingsSort(sort);
+    else setHoldingsSort("default");
+  };
+
+  const selectNamed = (key: string) => {
+    loadSeqRef.current += 1;
+    setRows([]);
+    setBusy(false);
+    setHoldingsSort("default");
+    setListEpoch((n) => n + 1);
+    setNamedKey(key);
+    setList("named");
+  };
+
+  const addNamedTicker = useCallback(
     async (hit: {
       ticker: string;
       name?: string | null;
@@ -923,13 +987,13 @@ export function WatchlistPanel() {
       sector?: string | null;
     }) => {
       const ticker = hit.ticker.trim().toUpperCase();
-      if (!ticker) return;
+      if (!ticker || !namedKey) return;
       try {
         const res = await fetch("/api/named-watchlists", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            list: "alpha",
+            list: namedKey,
             ticker,
             name: hit.name || null,
             market: hit.market || null,
@@ -939,40 +1003,86 @@ export function WatchlistPanel() {
         const json = (await res.json()) as {
           ok?: boolean;
           tickers?: string[];
+          lists?: Array<{
+            key: string;
+            label: string;
+            tickers: string[];
+            count: number;
+          }>;
           error?: string;
         };
         if (!res.ok || json.ok === false) {
-          setError(json.error || "Could not add to Alpha");
+          setError(json.error || "Could not add to list");
           return;
         }
-        applyAlphaTickers(json.tickers ?? [ticker]);
-        setList("alpha");
+        if (json.lists) applyNamedLists(json.lists);
         setAddQ("");
         setError(null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not add to Alpha");
+        setError(e instanceof Error ? e.message : "Could not add to list");
       }
     },
-    [applyAlphaTickers],
+    [namedKey, applyNamedLists],
   );
 
-  const removeAlpha = useCallback(
+  const removeNamedTicker = useCallback(
     async (ticker: string) => {
       const t = ticker.trim().toUpperCase();
-      if (!t) return;
+      if (!t || !namedKey) return;
       try {
         const res = await fetch(
-          `/api/named-watchlists?list=alpha&ticker=${encodeURIComponent(t)}`,
+          `/api/named-watchlists?list=${encodeURIComponent(namedKey)}&ticker=${encodeURIComponent(t)}`,
           { method: "DELETE" },
         );
-        const json = (await res.json()) as { tickers?: string[] };
-        applyAlphaTickers(json.tickers ?? []);
+        const json = (await res.json()) as {
+          lists?: Array<{
+            key: string;
+            label: string;
+            tickers: string[];
+            count: number;
+          }>;
+        };
+        if (json.lists) applyNamedLists(json.lists);
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not remove from Alpha");
+        setError(e instanceof Error ? e.message : "Could not remove from list");
       }
     },
-    [applyAlphaTickers],
+    [namedKey, applyNamedLists],
   );
+
+  const createList = useCallback(async () => {
+    const label = newListName.trim();
+    if (!label) return;
+    try {
+      const res = await fetch("/api/named-watchlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ create: true, label }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        list?: { key: string; label: string; tickers: string[] };
+        lists?: Array<{
+          key: string;
+          label: string;
+          tickers: string[];
+          count: number;
+        }>;
+        error?: string;
+      };
+      if (!res.ok || json.ok === false || !json.list) {
+        setError(json.error || "Could not create list");
+        return;
+      }
+      if (json.lists) applyNamedLists(json.lists);
+      setNewListName("");
+      setNewListOpen(false);
+      selectNamed(json.list.key);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create list");
+    }
+  }, [newListName, applyNamedLists]);
 
   const addHolding = useCallback(
     async (hit: {
@@ -1004,7 +1114,7 @@ export function WatchlistPanel() {
           return;
         }
         applyHoldTickers(json.tickers ?? [ticker]);
-        setList("holdings");
+        selectHoldings();
         setAddQ("");
         setError(null);
       } catch (e) {
@@ -1036,6 +1146,7 @@ export function WatchlistPanel() {
     const loadSeq = ++loadSeqRef.current;
     if (!syms.length) {
       setRows([]);
+      setBusy(false);
       return;
     }
     setBusy(true);
@@ -1044,15 +1155,18 @@ export function WatchlistPanel() {
       const CHUNK = 40;
       const collected: WatchRow[] = [];
       for (let i = 0; i < syms.length; i += CHUNK) {
+        if (loadSeq !== loadSeqRef.current) return;
         const chunk = syms.slice(i, i + CHUNK);
         const res = await fetch(
           `/api/iq-master?tickers=${encodeURIComponent(chunk.join(","))}`,
         );
+        if (loadSeq !== loadSeqRef.current) return;
         const json = (await res.json()) as {
           ok?: boolean;
           rows?: WatchRow[];
           error?: string;
         };
+        if (loadSeq !== loadSeqRef.current) return;
         if (!res.ok || json.ok === false) {
           setError(json.error || "Failed to load watchlist");
           setRows([]);
@@ -1060,6 +1174,7 @@ export function WatchlistPanel() {
         }
         collected.push(...(json.rows ?? []));
       }
+      if (loadSeq !== loadSeqRef.current) return;
       const byTicker = new Map(
         collected.map((r) => [r.ticker.toUpperCase(), r]),
       );
@@ -1094,11 +1209,13 @@ export function WatchlistPanel() {
           }
         );
       });
+      if (loadSeq !== loadSeqRef.current) return;
       setRows(nextRows);
       void (async () => {
         const CHUNK = 8;
         const updates = new Map<string, boolean>();
         for (let i = 0; i < nextRows.length; i += CHUNK) {
+          if (loadSeq !== loadSeqRef.current) return;
           const chunk = nextRows.slice(i, i + CHUNK);
           await Promise.all(
             chunk.map(async (row) => {
@@ -1130,24 +1247,30 @@ export function WatchlistPanel() {
         );
       })();
     } catch (e) {
+      if (loadSeq !== loadSeqRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load");
     } finally {
-      setBusy(false);
+      if (loadSeq === loadSeqRef.current) setBusy(false);
     }
   }, []);
 
   useEffect(() => {
     refreshTickers();
     void refreshHoldings();
-    void refreshAlpha();
+    void refreshNamed();
     return subscribeWatchlist(refreshTickers);
-  }, [refreshTickers, refreshHoldings, refreshAlpha]);
+  }, [refreshTickers, refreshHoldings, refreshNamed]);
 
   const activeTickers =
-    list === "holdings" ? holdTickers : list === "alpha" ? alphaTickers : tickers;
+    list === "holdings"
+      ? holdTickers
+      : list === "named"
+        ? namedTickers
+        : tickers;
+  const activeTickerKey = `${listEpoch}:${list}:${namedKey}:${activeTickers.join(",")}`;
 
   const momentumOn =
-    list === "alpha" || (list === "holdings" && holdingsSort === "momentum");
+    list === "named" || (list === "holdings" && holdingsSort === "momentum");
   const showMomentumColumn = momentumOn;
 
   const momRankByTicker = useMemo(() => {
@@ -1164,7 +1287,7 @@ export function WatchlistPanel() {
   const sortedRows = useMemo(() => {
     const base = [...rows];
     return base.sort((a, b) => {
-      if (list === "alpha") {
+      if (list === "named") {
         const ac = a.crossed_200dma_recently ? 1 : 0;
         const bc = b.crossed_200dma_recently ? 1 : 0;
         if (bc !== ac) return bc - ac;
@@ -1187,8 +1310,10 @@ export function WatchlistPanel() {
   }, [rows, list, momentumOn]);
 
   useEffect(() => {
-    void loadRows(activeTickers);
-  }, [activeTickers, loadRows]);
+    const parts = activeTickerKey.split(":");
+    const joined = parts.slice(3).join(":");
+    void loadRows(joined ? joined.split(",") : []);
+  }, [activeTickerKey, loadRows]);
 
   const refreshPrices = useCallback(() => {
     if (!activeTickers.length) return;
@@ -1233,7 +1358,7 @@ export function WatchlistPanel() {
           role="tab"
           aria-selected={list === "watch"}
           className={`chip tag-chip${list === "watch" ? " on" : ""}`}
-          onClick={() => setList("watch")}
+          onClick={selectWatch}
         >
           Watchlist
           <span className="chip-count">{tickers.length}</span>
@@ -1243,7 +1368,7 @@ export function WatchlistPanel() {
           role="tab"
           aria-selected={list === "holdings"}
           className={`chip tag-chip tag-hold${list === "holdings" ? " on" : ""}`}
-          onClick={() => setList("holdings")}
+          onClick={() => selectHoldings()}
         >
           Holdings
           <span className="chip-count">{holdTickers.length}</span>
@@ -1255,25 +1380,62 @@ export function WatchlistPanel() {
           className={`chip tag-chip tag-mom${
             list === "holdings" && holdingsSort === "momentum" ? " on" : ""
           }`}
-          onClick={() => {
-            setList("holdings");
-            setHoldingsSort((cur) =>
-              list === "holdings" && cur === "momentum" ? "default" : "momentum",
-            );
-          }}
+          onClick={() =>
+            selectHoldings(
+              list === "holdings" && holdingsSort === "momentum"
+                ? "default"
+                : "momentum",
+            )
+          }
         >
           12M Momentum
         </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={list === "alpha"}
-          className={`chip tag-chip tag-alpha${list === "alpha" ? " on" : ""}`}
-          onClick={() => setList("alpha")}
-        >
-          Alpha
-          <span className="chip-count">{alphaTickers.length}</span>
-        </button>
+        {namedLists.map((nl) => (
+          <button
+            key={nl.key}
+            type="button"
+            role="tab"
+            aria-selected={list === "named" && namedKey === nl.key}
+            className={`chip tag-chip tag-alpha${
+              list === "named" && namedKey === nl.key ? " on" : ""
+            }`}
+            onClick={() => selectNamed(nl.key)}
+          >
+            {nl.label}
+            <span className="chip-count">{nl.count}</span>
+          </button>
+        ))}
+        {newListOpen ? (
+          <span className="wl-new-list">
+            <input
+              className="miq-search"
+              type="text"
+              placeholder="List name"
+              value={newListName}
+              onChange={(e) => setNewListName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void createList();
+                if (e.key === "Escape") {
+                  setNewListOpen(false);
+                  setNewListName("");
+                }
+              }}
+              autoFocus
+            />
+            <button type="button" className="btn-ghost" onClick={() => void createList()}>
+              Create
+            </button>
+          </span>
+        ) : (
+          <button
+            type="button"
+            className="chip tag-chip"
+            onClick={() => setNewListOpen(true)}
+            title="Create a named list with 12M ranks and 200 DMA, like Alpha"
+          >
+            + List
+          </button>
+        )}
       </div>
 
       <div className="wl-simple-toolbar">
@@ -1284,8 +1446,8 @@ export function WatchlistPanel() {
             placeholder={
               list === "holdings"
                 ? "Search ticker or company to add to holdings…"
-                : list === "alpha"
-                  ? "Search ticker or company to add to Alpha…"
+                : list === "named"
+                  ? `Search ticker or company to add to ${namedLabel}…`
                   : "Search ticker or company to add…"
             }
             className="theme-stock-suggest-input"
@@ -1294,8 +1456,8 @@ export function WatchlistPanel() {
                 void addHolding(hit);
                 return;
               }
-              if (list === "alpha") {
-                void addAlpha(hit);
+              if (list === "named") {
+                void addNamedTicker(hit);
                 return;
               }
               addWatch(hit.ticker);
@@ -1308,8 +1470,8 @@ export function WatchlistPanel() {
                 void addHolding({ ticker: sym });
                 return;
               }
-              if (list === "alpha") {
-                void addAlpha({ ticker: sym });
+              if (list === "named") {
+                void addNamedTicker({ ticker: sym });
                 return;
               }
               addWatch(sym);
@@ -1340,8 +1502,8 @@ export function WatchlistPanel() {
         <p className="miq-empty-hint">
           {list === "holdings"
             ? "No holdings on file — search a ticker to add one."
-            : list === "alpha"
-              ? "No Alpha names yet — search a ticker to add one."
+            : list === "named"
+              ? `No names in ${namedLabel} yet — search a ticker to add one.`
               : "Click + Watch next to any stock on Scan."}
         </p>
       ) : (
@@ -1385,12 +1547,12 @@ export function WatchlistPanel() {
                       : undefined
                   }
                   showMomentumColumn={showMomentumColumn}
-                  holdChipLabel={list === "alpha" ? "Alpha" : "Hold"}
+                  holdChipLabel={list === "named" ? namedLabel : "Hold"}
                   onRemoveHold={
                     list === "holdings"
                       ? removeHolding
-                      : list === "alpha"
-                        ? removeAlpha
+                      : list === "named"
+                        ? removeNamedTicker
                         : undefined
                   }
                 />

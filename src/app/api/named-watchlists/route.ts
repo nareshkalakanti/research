@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  createNamedList,
   deleteNamedWatch,
+  listNamedWatchlists,
   loadNamedWatchlist,
   upsertNamedWatch,
 } from "@/lib/named-watchlists";
@@ -10,10 +12,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 function payload(list: string) {
+  const info = listNamedWatchlists().find((l) => l.key === list);
   const rows = loadNamedWatchlist(list);
   return {
     ok: true as const,
     list,
+    label: info?.label || list,
     tickers: rows.map((r) => r.ticker.toUpperCase()),
     count: rows.length,
   };
@@ -26,7 +30,10 @@ function listParam(req: NextRequest): string {
 export async function GET(req: NextRequest) {
   const list = listParam(req);
   if (!list) {
-    return NextResponse.json({ ok: false, error: "list required" }, { status: 400 });
+    return NextResponse.json({
+      ok: true as const,
+      lists: listNamedWatchlists(),
+    });
   }
   return NextResponse.json(payload(list));
 }
@@ -34,17 +41,35 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   let body: {
     list?: string;
+    label?: string;
     ticker?: string;
     name?: string | null;
     market?: string | null;
     sector?: string | null;
     sub_sector?: string | null;
+    create?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
   } catch {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
+
+  if (body.create || (!body.ticker && (body.label || body.list))) {
+    const created = createNamedList(body.label || body.list || "");
+    if (!created) {
+      return NextResponse.json(
+        { ok: false, error: "Need a list name (not Watchlist or Holdings)" },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({
+      ok: true as const,
+      list: created,
+      lists: listNamedWatchlists(),
+    });
+  }
+
   const list = (body.list || "").trim().toLowerCase();
   const ticker = (body.ticker || "").trim().toUpperCase();
   if (!list || !ticker) {
@@ -64,7 +89,7 @@ export async function POST(req: NextRequest) {
   if (!row) {
     return NextResponse.json({ ok: false, error: "Could not save" }, { status: 400 });
   }
-  return NextResponse.json({ ...payload(list), row });
+  return NextResponse.json({ ...payload(list), row, lists: listNamedWatchlists() });
 }
 
 export async function DELETE(req: NextRequest) {
@@ -77,5 +102,5 @@ export async function DELETE(req: NextRequest) {
     );
   }
   deleteNamedWatch(list, ticker);
-  return NextResponse.json(payload(list));
+  return NextResponse.json({ ...payload(list), lists: listNamedWatchlists() });
 }

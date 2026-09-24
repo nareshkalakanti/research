@@ -19655,6 +19655,16 @@ button.otrd-co-link {
   color: #78350f;
 }
 
+.wl-new-list {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wl-new-list .miq-search {
+  width: 140px;
+}
+
 .wl-rank-pill {
   display: inline-flex;
   align-items: center;
