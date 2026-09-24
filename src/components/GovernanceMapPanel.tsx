@@ -37,7 +37,7 @@ import {
 import { formatMcap } from "@/lib/types";
 import { tradingviewUrl } from "@/lib/links";
 
-type View = "director" | "company";
+type View = "director" | "company" | "family";
 type BridgeMode = "off" | "ti" | "mic" | "cap";
 
 const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
@@ -178,13 +178,25 @@ type CompanyRow = {
   }>;
 };
 
+type FamilyRow = {
+  family_name: string;
+  company_count: number;
+  companies: Array<{
+    ticker: string;
+    name: string;
+    market: string;
+    cap_code: string | null;
+    is_sme: boolean;
+  }>;
+};
+
 type ApiResponse = {
   view: View;
   stats: Stats;
   total: number;
   page: number;
   pages: number;
-  rows: DirectorRow[] | CompanyRow[];
+  rows: DirectorRow[] | CompanyRow[] | FamilyRow[];
 };
 
 function GovAbout({
@@ -454,8 +466,13 @@ export function GovernanceMapPanel() {
     ready && (inDrill ? top?.kind === "company" : view === "company")
       ? ((inDrill ? drillData : data)?.rows as CompanyRow[])
       : [];
+  const familyRows =
+    ready && (inDrill ? top?.kind === "family" : view === "family")
+      ? ((inDrill ? drillData : data)?.rows as FamilyRow[])
+      : [];
   const showDirectors = inDrill ? top?.kind === "director" : view === "director";
   const showCompanies = inDrill ? top?.kind === "company" : view === "company";
+  const showFamily = inDrill ? top?.kind === "family" : view === "family";
 
   const pageTickers = useMemo(() => {
     const set = new Set<string>();
@@ -465,13 +482,19 @@ export function GovernanceMapPanel() {
           if (c.ticker) set.add(c.ticker.toUpperCase());
         }
       }
+    } else if (view === "family") {
+      for (const f of familyRows) {
+        for (const c of f.companies ?? []) {
+          if (c.ticker) set.add(c.ticker.toUpperCase());
+        }
+      }
     } else {
       for (const c of companyRows) {
         if (c.ticker) set.add(c.ticker.toUpperCase());
       }
     }
     return [...set];
-  }, [view, directorRows, companyRows]);
+  }, [view, directorRows, companyRows, familyRows]);
 
   function drillDirector(personId: string, name: string, fromLabel?: string) {
     if (top?.kind === "director" && top.personId === personId) return;
@@ -663,6 +686,7 @@ export function GovernanceMapPanel() {
             [
               ["director", "Directors"],
               ["company", "Companies"],
+              ["family", "Family Map"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -1409,6 +1433,45 @@ export function GovernanceMapPanel() {
               </article>
             );
           })}
+        </div>
+      ) : null}
+
+      {showFamily && ready ? (
+        <div className="gov-list">
+          {familyRows.map((f) => (
+            <article key={f.family_name} className="gov-card">
+              <div className="gov-card-head static">
+                <div className="gov-dir">
+                  <div className="gov-dir-name">
+                    {f.family_name}
+                    <span className="gov-badge">{f.company_count}</span>
+                  </div>
+                  <div className="gov-dir-sub">
+                    {f.company_count.toLocaleString()} companies in this family
+                  </div>
+                </div>
+              </div>
+              <div className="gov-other-boards">
+                {f.companies.map((c) => (
+                  <button
+                    key={c.ticker}
+                    type="button"
+                    className={`gov-other-link${
+                      c.cap_code ? ` cap-${c.cap_code.toLowerCase()}` : " cap-nc"
+                    }${c.is_sme ? " is-sme" : ""}`}
+                    onClick={() => drillTicker(c.ticker, f.family_name)}
+                    title={`${c.name}${c.cap_code ? ` · ${c.cap_code}` : ""}${c.is_sme ? " · SME" : ""}`}
+                  >
+                    {c.ticker.toUpperCase()}
+                    {c.is_sme ? <em className="gov-other-sme">SME</em> : null}
+                  </button>
+                ))}
+              </div>
+            </article>
+          ))}
+          {familyRows.length === 0 ? (
+            <div className="table-meta">No family groups found for the current filters.</div>
+          ) : null}
         </div>
       ) : null}
 
