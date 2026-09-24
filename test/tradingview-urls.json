@@ -1,0 +1,20 @@
+[
+  {
+    "ticker": "CRANEX",
+    "market": "BSE",
+    "url": "https://www.tradingview.com/chart/?symbol=BSE%3ACRANEX",
+    "note": "BSE-only listing; NSE:CRANEX is not a TV symbol"
+  },
+  {
+    "ticker": "CRANEX",
+    "market": null,
+    "url": "https://www.tradingview.com/chart/?symbol=BSE%3ACRANEX",
+    "note": "Resolve exchange from named_watchlists / local DBs when market is omitted"
+  },
+  {
+    "ticker": "BSE522001",
+    "market": null,
+    "url": "https://www.bseindia.com/stock-share-price/stockreach_stock_price.aspx?scripcode=522001",
+    "note": "Numeric BSE placeholder is not a TradingView symbol"
+  }
+]

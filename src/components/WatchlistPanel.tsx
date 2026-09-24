@@ -687,7 +687,7 @@ function WatchlistRow({
   const [open, setOpen] = useState(false);
   const qtr = useExpandQuarters(r.ticker, r.market, r.price, open);
   const brief = useExpandBrief(r.ticker, r.market, r.price, qtr, open);
-  const tv = tradingviewUrl(r.ticker, r.market || "NSE");
+  const tv = tradingviewUrl(r.ticker, r.market);
 
   return (
     <>
