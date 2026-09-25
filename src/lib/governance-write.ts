@@ -6,7 +6,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { isPlaceholderDirectorName } from "./gov-director-name";
-import { normDin, type BoardSeat } from "./nse-governance";
+import { inferDirectorCategory, normDin, type BoardSeat } from "./nse-governance";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const GOV_PATH = path.join(DATA_DIR, "governance.db");
@@ -50,18 +50,7 @@ function requireMarket(market: string | null | undefined): string {
 }
 
 function inferCategory(designation: string): string {
-  const text = designation.toLowerCase();
-  if (text.includes("independent")) return "Independent";
-  // Word-boundary checks — plain "Director" must not match "cto" inside "direcTor".
-  if (
-    /\b(managing|executive|whole[-\s]?time|ceo|cfo|cto|md)\b/.test(text)
-  ) {
-    return "Executive";
-  }
-  if (text.includes("non-executive") || text.includes("non executive")) {
-    return "Non-Executive";
-  }
-  return "";
+  return inferDirectorCategory(designation);
 }
 
 export function getGovernanceWriteDb(): Database.Database {
@@ -636,16 +625,24 @@ export function applyDinRegistryFill(opts: {
       ON CONFLICT(person_id) DO UPDATE SET
         din=COALESCE(NULLIF(excluded.din, ''), directors.din),
         name=CASE
-          WHEN lower(directors.name_key) LIKE 'din %' THEN excluded.name
+          WHEN ? = 1 THEN excluded.name
           ELSE directors.name
         END,
         name_key=CASE
-          WHEN lower(directors.name_key) LIKE 'din %' THEN excluded.name_key
+          WHEN ? = 1 THEN excluded.name_key
           ELSE directors.name_key
         END,
         updated_at=excluded.updated_at
       `,
-    ).run(pid, din, person, nameKey(person), now);
+    ).run(
+      pid,
+      din,
+      person,
+      nameKey(person),
+      now,
+      shouldWriteName ? 1 : 0,
+      shouldWriteName ? 1 : 0,
+    );
     nameUpdated = shouldWriteName;
 
     const upsertCo = db.prepare(

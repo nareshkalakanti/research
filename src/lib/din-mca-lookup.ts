@@ -7,7 +7,8 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { DATA_DIR } from "./sqlite-utils";
-import { normDin } from "./nse-governance";
+import { inferDirectorCategory, normDin, type BoardSeat } from "./nse-governance";
+import { isPlaceholderDirectorName } from "./gov-director-name";
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
@@ -438,4 +439,99 @@ export function matchRegistryCompaniesToListings(
     });
   }
   return { matched, unmatched };
+}
+
+function headerKey(text: string): string {
+  const t = text.toLowerCase().replace(/[^a-z]+/g, " ").trim();
+  if (t === "din") return "din";
+  if (/\bdirector name\b|\bname\b/.test(t) && !/\bcompany\b/.test(t)) return "name";
+  if (/\bdesignation\b|\brole\b|\btitle\b/.test(t)) return "designation";
+  if (/\bappointment\b|\bas on\b|\bdate\b/.test(t)) return "as_of";
+  return "";
+}
+
+function isoDate(raw: string): string {
+  const t = raw.replace(/\s+/g, " ").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  return parseAppointment(t);
+}
+
+/** Public registry tables: DIN | Director Name | Designation | Appointment Date */
+export function parseCurrentDirectorsTable(html: string): BoardSeat[] {
+  const $ = cheerio.load(html);
+  const seats: BoardSeat[] = [];
+  const seen = new Set<string>();
+  $("table").each((_, table) => {
+    const $table = $(table);
+    const headers = $table
+      .find("thead th, tr")
+      .first()
+      .find("th, td")
+      .toArray()
+      .map((el) => headerKey($(el).text()));
+    const dinIdx = headers.indexOf("din");
+    const nameIdx = headers.indexOf("name");
+    if (dinIdx < 0 || nameIdx < 0) return;
+    const desigIdx = headers.indexOf("designation");
+    const asOfIdx = headers.indexOf("as_of");
+    $table.find("tbody tr, tr").each((__, tr) => {
+      const cells = $(tr)
+        .find("td")
+        .toArray()
+        .map((td) => $(td).text().replace(/\s+/g, " ").trim());
+      if (cells.length <= Math.max(dinIdx, nameIdx)) return;
+      const din = normDin(cells[dinIdx]);
+      const name = (cells[nameIdx] || "").replace(/\s+/g, " ").trim();
+      if (!din || din.length !== 8 || !name) return;
+      if (isPlaceholderDirectorName(name)) return;
+      if (seen.has(din)) return;
+      const designation = (desigIdx >= 0 ? cells[desigIdx] : "") || "Director";
+      seen.add(din);
+      seats.push({
+        din,
+        name,
+        designation,
+        category: inferDirectorCategory(designation),
+        source: "registry_current_directors",
+        as_of: asOfIdx >= 0 ? isoDate(cells[asOfIdx] || "") : "",
+      });
+    });
+  });
+  return seats;
+}
+
+export async function lookupCompanyCurrentDirectors(
+  companyName: string,
+): Promise<{ seats: BoardSeat[]; source_url: string } | null> {
+  const name = companyName.replace(/\s+/g, " ").trim();
+  if (!name) return null;
+  const slug = slugName(name);
+  const urls = [
+    `https://qorpiq.com/company/${slug}`,
+    `https://www.tofler.in/${slug}`,
+    `https://www.tofler.in/search?q=${encodeURIComponent(name)}`,
+  ];
+  for (const url of urls) {
+    const html = await fetchHtml(url);
+    if (!html) continue;
+    const seats = parseCurrentDirectorsTable(html);
+    if (seats.length >= 3) return { seats, source_url: url };
+    const $ = cheerio.load(html);
+    const hrefs: string[] = [];
+    $("a[href]").each((_, a) => {
+      const href = ($(a).attr("href") || "").trim();
+      if (!/\/company\//i.test(href) && !/directors/i.test(href)) return;
+      const abs = href.startsWith("http")
+        ? href
+        : new URL(href, url).toString();
+      if (!hrefs.includes(abs)) hrefs.push(abs);
+    });
+    for (const next of hrefs.slice(0, 6)) {
+      const page = await fetchHtml(next);
+      if (!page) continue;
+      const found = parseCurrentDirectorsTable(page);
+      if (found.length >= 3) return { seats: found, source_url: next };
+    }
+  }
+  return null;
 }

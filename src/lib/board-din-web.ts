@@ -10,6 +10,7 @@ import { invalidateGovernanceMapCache } from "./governance-map";
 import { completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { normDin, type BoardSeat } from "./nse-governance";
+import { lookupCompanyCurrentDirectors } from "./din-mca-lookup";
 import {
   dinBoardTickerSet,
   recordScanAttempt,
@@ -294,6 +295,20 @@ export async function extractBoardDinsForCompany(opts: {
   website?: string | null;
   evidenceText?: string | null;
 }): Promise<{ seats: BoardSeat[]; sources: string[]; detail: string }> {
+  if (!opts.evidenceText) {
+    try {
+      const registry = await lookupCompanyCurrentDirectors(opts.name);
+      if (registry && registry.seats.length >= 3) {
+        return {
+          seats: registry.seats,
+          sources: [registry.source_url],
+          detail: `${registry.seats.length} current directors from registry table`,
+        };
+      }
+    } catch {
+      /* fall through to evidence extract */
+    }
+  }
   let evidence = (opts.evidenceText || "").trim();
   let sources: string[] = [];
   if (!evidence) {
@@ -430,13 +445,18 @@ export async function runWebDinScanBatch(opts: {
         });
         continue;
       }
+      const fromRegistry = seats.every(
+        (s) => s.source === "registry_current_directors",
+      );
       const result = saveCompanyBoard({
         ticker: job.ticker,
         name: job.name,
         market: job.market,
         seats,
-        replaceSeats: false,
-        notes: "Additive DIN seats from web + Qwen extract",
+        replaceSeats: fromRegistry && seats.length >= 3,
+        notes: fromRegistry
+          ? "Current directors from public registry table"
+          : "Additive DIN seats from web + Qwen extract",
       });
       if (result.skipped) {
         skippedEmpty += 1;

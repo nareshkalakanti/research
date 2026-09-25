@@ -54,6 +54,18 @@ export function FamilyDashboard() {
     );
   }, [rows, q]);
 
+  const companySearch = useCallback(async (query: string) => {
+    const res = await fetch(
+      `/api/family-groups?q=${encodeURIComponent(query)}`,
+      { cache: "no-store" },
+    );
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      rows?: Array<{ ticker: string; name: string }>;
+    };
+    return json.rows ?? [];
+  }, []);
+
   const openCompany = (ticker: string) => {
     setTab("governance");
     requestGovOpen({ kind: "company", ticker, from: "Dashboard", returnTab: "dashboard" });
@@ -70,9 +82,9 @@ export function FamilyDashboard() {
         <div>
           <h2 className="fam-dash-title">Business groups</h2>
           <p className="fam-dash-sub">
-            Companies grouped by house, with the board people who link them.
-            Click a node to open the company; click a ticker name for its
-            TradingView chart.
+            Click a group name to rename it. Add a listed company from the field
+            on the card, or × a ticker to drop it. Click a node for the company
+            page; click a ticker for its TradingView chart.
           </p>
         </div>
         <div className="fam-dash-actions">
@@ -99,9 +111,42 @@ export function FamilyDashboard() {
       ) : (
         <FamilyMapCards
           rows={filtered}
+          editable
           onTicker={(t) => openCompany(t)}
           onPerson={(id, name) => openPerson(id, name)}
           chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+          companySearch={companySearch}
+          onRename={async (g, label) => {
+            if (!g.group_id) return;
+            await fetch("/api/family-groups", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ group_id: g.group_id, rename: true, label }),
+            });
+            await load();
+          }}
+          onRemoveCompany={async (g, ticker) => {
+            if (!g.group_id) return;
+            await fetch("/api/family-groups", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                group_id: g.group_id,
+                remove: true,
+                ticker,
+              }),
+            });
+            await load();
+          }}
+          onAddCompany={async (g, ticker) => {
+            if (!g.group_id) return;
+            await fetch("/api/family-groups", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ group_id: g.group_id, add: true, ticker }),
+            });
+            await load();
+          }}
         />
       )}
     </section>

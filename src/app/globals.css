@@ -8350,6 +8350,110 @@ button.result-tag {
   text-overflow: ellipsis;
 }
 
+.gov-family-chip-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+}
+
+.gov-family-chip-x {
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  padding: 0 7px;
+  cursor: pointer;
+}
+
+.gov-family-chip-wrap .gov-family-chip {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.gov-family-chip-x:hover {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+
+.gov-family-rename {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: inherit;
+  cursor: text;
+  text-align: left;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gov-family-rename:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.gov-family-rename-form {
+  min-width: 0;
+}
+
+.gov-family-rename-input {
+  width: min(240px, 100%);
+  font: inherit;
+  font-weight: 700;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.gov-family-add {
+  position: relative;
+  padding: 0 12px 10px;
+}
+
+.gov-family-add-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.gov-family-add-hits {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  max-height: 180px;
+  overflow: auto;
+}
+
+.gov-family-add-hits button {
+  width: 100%;
+  display: flex;
+  gap: 8px;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.gov-family-add-hits button:hover {
+  background: var(--accent-soft);
+}
+
 .gov-family-cos {
   list-style: none;
   margin: 0;
