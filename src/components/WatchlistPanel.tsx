@@ -1403,31 +1403,55 @@ export function WatchlistPanel() {
     let remaining = 1;
     let saved = 0;
     let failed = 0;
+    const postBatch = async () => {
+      const maxAttempts = 4;
+      let lastErr: Error | null = null;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try {
+          const res = await fetch("/api/quarters-fill", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              market: "All",
+              tickers,
+              limit: 8,
+              concurrency: 2,
+              missingOnly: true,
+            }),
+            cache: "no-store",
+          });
+          const json = (await res.json()) as {
+            ok?: boolean;
+            saved?: number;
+            failed?: number;
+            remaining?: number;
+            error?: string;
+            message?: string;
+          };
+          if (!res.ok || json.ok === false) {
+            throw new Error(json.error || json.message || "Quarters fill failed");
+          }
+          return json;
+        } catch (e) {
+          lastErr = e instanceof Error ? e : new Error(String(e));
+          const msg = lastErr.message || "";
+          const retryable =
+            /failed to fetch|networkerror|load failed|aborted|timeout|timed out/i.test(
+              msg,
+            ) ||
+            lastErr.name === "TimeoutError" ||
+            lastErr.name === "AbortError";
+          if (!retryable || attempt === maxAttempts) break;
+          setFillQtrLabel(`Fill Quarters · reconnect ${attempt}/${maxAttempts - 1}…`);
+          await new Promise((r) => setTimeout(r, 700 * attempt));
+        }
+      }
+      throw lastErr ?? new Error("Quarters fill failed");
+    };
+
     try {
       for (let round = 1; round <= 80; round += 1) {
-        const res = await fetch("/api/quarters-fill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            market: "All",
-            tickers,
-            limit: 8,
-            concurrency: 2,
-            missingOnly: true,
-          }),
-          signal: AbortSignal.timeout(120_000),
-        });
-        const json = (await res.json()) as {
-          ok?: boolean;
-          saved?: number;
-          failed?: number;
-          remaining?: number;
-          error?: string;
-          message?: string;
-        };
-        if (!res.ok || json.ok === false) {
-          throw new Error(json.error || json.message || "Quarters fill failed");
-        }
+        const json = await postBatch();
         saved += json.saved ?? 0;
         failed += json.failed ?? 0;
         remaining = json.remaining ?? 0;

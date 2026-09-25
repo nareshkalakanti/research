@@ -598,7 +598,7 @@ export function SignalScanBar({
               missingOnly: true,
               ...selectionBody(),
             }),
-            signal: AbortSignal.timeout(120_000),
+            cache: "no-store",
           });
           const json = (await res.json()) as {
             ok?: boolean;
