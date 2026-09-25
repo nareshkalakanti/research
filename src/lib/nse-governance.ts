@@ -73,13 +73,15 @@ function quarterEndIso(raw: unknown): string | null {
   return `${m[3]}-${month}-${String(Number(m[1])).padStart(2, "0")}`;
 }
 
-function inferCategory(text: string): string {
+export function inferDirectorCategory(text: string): string {
   const low = text.toLowerCase();
-  if (low.includes("independent")) return "Independent";
+  const nonIndependent = /non[-\s]?independent/.test(low);
+  if (!nonIndependent && low.includes("independent")) return "Independent";
   if (
     ["executive", "managing", "ceo", "md", "whole"].some((x) =>
       low.includes(x),
-    )
+    ) &&
+    !/non[-\s]?executive/.test(low)
   ) {
     return "Executive";
   }
@@ -87,6 +89,10 @@ function inferCategory(text: string): string {
     return "Non-Executive";
   }
   return "";
+}
+
+function inferCategory(text: string): string {
+  return inferDirectorCategory(text);
 }
 
 function designationFromParts(...parts: string[]): string {

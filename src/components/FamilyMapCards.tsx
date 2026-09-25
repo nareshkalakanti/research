@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { FamilyGraph } from "@/components/FamilyGraph";
 
 export type FamilyRow = {
   family_name: string;
   company_count: number;
+  group_id?: string;
   companies: Array<{
     ticker: string;
     name: string;
@@ -35,6 +37,11 @@ export function FamilyMapCards({
   onTicker,
   onPerson,
   chartUrl,
+  editable,
+  onRename,
+  onRemoveCompany,
+  onAddCompany,
+  companySearch,
 }: {
   rows: FamilyRow[];
   /** Node click: open the company. */
@@ -42,6 +49,13 @@ export function FamilyMapCards({
   onPerson: (personId: string, name: string, group: FamilyRow) => void;
   /** Ticker-name click: open TradingView. */
   chartUrl?: (ticker: string) => string;
+  editable?: boolean;
+  onRename?: (group: FamilyRow, label: string) => Promise<void> | void;
+  onRemoveCompany?: (group: FamilyRow, ticker: string) => Promise<void> | void;
+  onAddCompany?: (group: FamilyRow, ticker: string) => Promise<void> | void;
+  companySearch?: (
+    q: string,
+  ) => Promise<Array<{ ticker: string; name: string }>>;
 }) {
   const allCompanies = rows.flatMap((f) => f.companies);
   return (
@@ -81,7 +95,13 @@ export function FamilyMapCards({
               <header className="gov-family-head">
                 <div className="gov-family-head-row">
                   <div className="gov-family-title-text">
-                    <span className="gov-family-name">{f.family_name}</span>
+                    <span className="gov-family-name">
+                      {editable && onRename && f.group_id ? (
+                        <GroupRename label={f.family_name} onSave={(name) => onRename(f, name)} />
+                      ) : (
+                        f.family_name
+                      )}
+                    </span>
                     <span className="gov-family-sub">
                       {f.company_count} companies · {people.length} linking people
                       {outside.length ? ` · ${outside.length} outside boards` : ""}
@@ -120,9 +140,8 @@ export function FamilyMapCards({
                     </>
                   );
                   const cls = `gov-family-chip ${dinTone(c.din_verified ?? 0, c.directors ?? 0)}`;
-                  return href ? (
+                  const chipInner = href ? (
                     <a
-                      key={c.ticker}
                       className={cls}
                       href={href}
                       target="_blank"
@@ -133,7 +152,6 @@ export function FamilyMapCards({
                     </a>
                   ) : (
                     <button
-                      key={c.ticker}
                       type="button"
                       className={cls}
                       title={title}
@@ -142,15 +160,143 @@ export function FamilyMapCards({
                       {body}
                     </button>
                   );
+                  return (
+                    <span key={c.ticker} className="gov-family-chip-wrap">
+                      {chipInner}
+                      {editable && onRemoveCompany && f.group_id ? (
+                        <button
+                          type="button"
+                          className="gov-family-chip-x"
+                          title={`Remove ${c.ticker} from group`}
+                          onClick={() => void onRemoveCompany(f, c.ticker)}
+                        >
+                          ×
+                        </button>
+                      ) : null}
+                    </span>
+                  );
                 })}
               </div>
+              {editable && onAddCompany && companySearch && f.group_id ? (
+                <GroupAddCompany
+                  exclude={new Set(f.companies.map((c) => c.ticker.toUpperCase()))}
+                  search={companySearch}
+                  onAdd={(ticker) => onAddCompany(f, ticker)}
+                />
+              ) : null}
             </article>
           );
         })}
       </div>
       {rows.length === 0 ? (
-        <div className="table-meta">No family groups with 2+ companies found.</div>
+        <div className="table-meta">No family groups found.</div>
       ) : null}
     </>
+  );
+}
+
+function GroupRename({
+  label,
+  onSave,
+}: {
+  label: string;
+  onSave: (name: string) => Promise<void> | void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(label);
+  useEffect(() => {
+    setValue(label);
+  }, [label]);
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="gov-family-rename"
+        title="Rename group"
+        onClick={() => setEditing(true)}
+      >
+        {label}
+      </button>
+    );
+  }
+  return (
+    <form
+      className="gov-family-rename-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const next = value.replace(/\s+/g, " ").trim();
+        setEditing(false);
+        if (next && next !== label) void onSave(next);
+      }}
+    >
+      <input
+        autoFocus
+        className="gov-family-rename-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => {
+          const next = value.replace(/\s+/g, " ").trim();
+          setEditing(false);
+          if (next && next !== label) void onSave(next);
+        }}
+        aria-label="Group name"
+      />
+    </form>
+  );
+}
+
+function GroupAddCompany({
+  exclude,
+  search,
+  onAdd,
+}: {
+  exclude: Set<string>;
+  search: (q: string) => Promise<Array<{ ticker: string; name: string }>>;
+  onAdd: (ticker: string) => Promise<void> | void;
+}) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState<Array<{ ticker: string; name: string }>>([]);
+  useEffect(() => {
+    const needle = q.trim();
+    if (needle.length < 2) {
+      setHits([]);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      void search(needle).then((rows) => {
+        setHits(rows.filter((r) => !exclude.has(r.ticker.toUpperCase())).slice(0, 8));
+      });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [q, exclude, search]);
+  return (
+    <div className="gov-family-add">
+      <input
+        type="search"
+        className="gov-family-add-input"
+        placeholder="Add company…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      {hits.length ? (
+        <ul className="gov-family-add-hits">
+          {hits.map((h) => (
+            <li key={h.ticker}>
+              <button
+                type="button"
+                onClick={() => {
+                  void onAdd(h.ticker);
+                  setQ("");
+                  setHits([]);
+                }}
+              >
+                <span className="mono">{h.ticker}</span>
+                <span>{h.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

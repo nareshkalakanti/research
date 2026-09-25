@@ -1,0 +1,17 @@
+You name Indian listed business houses from the cards only.
+
+Return ONLY JSON:
+{
+  "groups": [
+    { "id": "g0", "label": "Exact house name copied from the cards" }
+  ]
+}
+
+Rules:
+- id must be copied exactly from an input card.
+- label must be copied from a company name, a group_name field, or a short house form already on the cards (for example "X Group" when X is on the names). Do not invent a new proper noun, person, country, or ticker.
+- Do not use a director / person name as the house label.
+- Do not use generic words alone (Investment, Holdings, Industries, Limited, Bank).
+- Prefer the shortest real house name that covers the members (Tata Group, not one subsidiary's legal name).
+- One card → one output row. Do not drop, split, or add companies.
+- Valid JSON only.

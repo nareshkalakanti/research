@@ -26,6 +26,11 @@ import {
   type FundWatchlistKey,
 } from "./fund-watchlist-meta";
 import { isPlaceholderDirectorName } from "./gov-director-name";
+import {
+  cachedFamilyLabel,
+  scheduleFamilyGroupRefine,
+} from "./family-group-refine";
+import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -198,6 +203,8 @@ export type GovFamilyGroup = {
   family_name: string;
   company_count: number;
   companies: GovFamilyCompany[];
+  /** Stable id for user edits (auto membership fingerprint). */
+  group_id?: string;
   /** Non-independent board people linking two or more boards. */
   people?: GovFamilyPerson[];
   /** Outside companies where those people also sit. */
@@ -250,6 +257,8 @@ const HOUSE_SKIP = new Set([
   "industry",
   "industrial",
   "international",
+  "investment",
+  "investments",
   "limited",
   "llp",
   "ltd",
@@ -343,7 +352,7 @@ function declaredMergeKey(groupName: string): string {
     return "";
   }
   if (/\b(promoted|subsidiary|owned|late)\b/.test(s)) return "";
-  if (/,/.test(s) && /\bgroup\b/.test(s)) return "";
+  if (/,/.test(s)) return "";
   s = s.replace(/[.,/&'’]+/g, " ").replace(/\s+/g, " ").trim();
   s = s.replace(/^(the|a|an)\s+/, "").trim();
   if (!s || HOUSE_SKIP.has(s)) return "";
@@ -355,11 +364,22 @@ function declaredCore(key: string): string {
 }
 
 function displayGroupLabel(mergeKey: string): string {
-  return mergeKey
+  const small = new Set(["of", "and", "the", "for", "in", "de", "da"]);
+  const words = mergeKey
     .split(" ")
     .filter(Boolean)
-    .map((w) => (w.length <= 3 ? w.toUpperCase() : titleCaseSurname(w)))
-    .join(" ");
+    .map((w) => {
+      const low = w.toLowerCase();
+      if (small.has(low)) return low;
+      if (w.length <= 3) return w.toUpperCase();
+      return titleCaseSurname(w);
+    });
+  if (words.length >= 2 && words[0]!.toLowerCase() === "group") {
+    const rest = words.slice(1);
+    if (!rest.some((w) => w.toLowerCase() === "group")) rest.push("Group");
+    return rest.join(" ");
+  }
+  return words.join(" ");
 }
 
 function houseContentTokens(house: string): string[] {
@@ -402,7 +422,21 @@ function isHouseControlSeat(designation: string, category: string | null): boole
   return /\bexecutive\b/.test(text);
 }
 
-/** Promoter / non-independent seats — family presence, not only chair/MD/ED. */
+/** Chair / promoter / founder — used to name a house, not every ED. */
+function isHouseFamilySeat(designation: string, category: string | null): boolean {
+  const text = `${designation} ${category || ""}`.toLowerCase();
+  if (/nominee/.test(text)) return false;
+  if (/independent/.test(text) && !/non[-\s]?independent/.test(text)) {
+    return false;
+  }
+  return /promoter|founder|chair/.test(text);
+}
+function isHouseLinkSeat(designation: string, category: string | null): boolean {
+  return (
+    isHouseFamilySeat(designation, category) ||
+    /promoter/.test(`${designation} ${category || ""}`.toLowerCase())
+  );
+}
 function isHousePromoterSeat(designation: string, category: string | null): boolean {
   const text = `${designation} ${category || ""}`.toLowerCase();
   if (/nominee/.test(text)) return false;
@@ -708,7 +742,7 @@ export function loadGovernanceFamilyMap(opts?: {
         controlPeople.add(seat.person_id);
         if (surname.length >= 3) controlSurnames.add(surname);
       }
-      if (isHousePromoterSeat(seat.designation, seat.category)) {
+      if (isHouseLinkSeat(seat.designation, seat.category)) {
         promoterPeople.add(seat.person_id);
       }
       const personSeats = seatsByPerson.get(seat.person_id) ?? [];
@@ -773,6 +807,22 @@ export function loadGovernanceFamilyMap(opts?: {
     controlPeopleByTicker.get(ticker) ?? new Set<string>();
   const promoterOn = (ticker: string) =>
     promoterPeopleByTicker.get(ticker) ?? new Set<string>();
+  const sharesControl = (a: string, b: string) => {
+    const left = new Set([...controlOn(a), ...promoterOn(a)]);
+    if (!left.size) return false;
+    for (const pid of [...controlOn(b), ...promoterOn(b)]) {
+      if (left.has(pid)) return true;
+    }
+    return false;
+  };
+  const groupsShareControl = (a: GovFamilyGroup, b: GovFamilyGroup) => {
+    for (const c of a.companies) {
+      for (const d of b.companies) {
+        if (sharesControl(c.ticker, d.ticker)) return true;
+      }
+    }
+    return false;
+  };
 
   function packCompanies(tickers: Iterable<string>, house: string): GovFamilyCompany[] {
     const companies: GovFamilyCompany[] = [];
@@ -816,12 +866,12 @@ export function loadGovernanceFamilyMap(opts?: {
         for (const seat of seatsByPerson.get(pid) ?? []) {
           const other = (seat.ticker || "").toUpperCase();
           if (!other || members.has(other)) continue;
-          if (!isHousePromoterSeat(seat.designation, seat.category)) continue;
-          const otherFirst = nameHousesByTicker.get(other)?.[0];
+          if (!isHouseLinkSeat(seat.designation, seat.category)) continue;
+          const otherLead = nameHousesByTicker.get(other)?.[0];
           if (
-            otherFirst &&
-            otherFirst.toUpperCase() !== houseKey &&
-            brandHouses.has(otherFirst) &&
+            otherLead &&
+            otherLead.toUpperCase() !== houseKey &&
+            brandHouses.has(otherLead) &&
             !expanderMatchesControl
           ) {
             continue;
@@ -838,9 +888,9 @@ export function loadGovernanceFamilyMap(opts?: {
             lead.length >= 3 &&
             houseKey &&
             lead !== houseKey &&
-            otherFirst &&
-            otherFirst.toUpperCase() === houseKey &&
-            otherFirst.toUpperCase() !== lead &&
+            otherLead &&
+            otherLead.toUpperCase() === houseKey &&
+            otherLead.toUpperCase() !== lead &&
             !(nameHousesByTicker.get(other) ?? []).some(
               (h) => h.toUpperCase() === lead,
             )
@@ -848,8 +898,11 @@ export function loadGovernanceFamilyMap(opts?: {
             continue;
           }
           const otherNamed =
-            Boolean(nameHousesByTicker.get(other)?.some((h) => h.toUpperCase() === houseKey)) ||
-            declaredByTicker.get(other)?.toLowerCase() === house.toLowerCase();
+            Boolean(
+              otherLead &&
+                (otherLead.toUpperCase() === houseKey ||
+                  otherLead.toUpperCase() === lead),
+            ) || declaredByTicker.get(other)?.toLowerCase() === house.toLowerCase();
           const surnameIsHouse = expanderSurname === houseKey;
           if (!otherNamed && !surnameIsHouse && !expanderMatchesControl) continue;
           members.add(other);
@@ -880,7 +933,7 @@ export function loadGovernanceFamilyMap(opts?: {
       if (members.has(ticker)) continue;
       const shared = new Set(
         grp
-          .filter((s) => isHousePromoterSeat(s.designation, s.category))
+          .filter((s) => isHouseLinkSeat(s.designation, s.category))
           .map((s) => s.person_id)
           .filter((pid) => memberPromoters.has(pid)),
       );
@@ -904,7 +957,7 @@ export function loadGovernanceFamilyMap(opts?: {
       }
       const hasHousePromoter = grp.some(
         (s) =>
-          isHousePromoterSeat(s.designation, s.category) &&
+          isHouseLinkSeat(s.designation, s.category) &&
           normalizedSurname(s.director_name) === houseKey,
       );
       if (!hasHousePromoter) continue;
@@ -968,10 +1021,10 @@ export function loadGovernanceFamilyMap(opts?: {
   function companyCarriesHouseName(ticker: string, house: string): boolean {
     const key = houseSurnameKey(house);
     const lead = houseLeadToken(house);
-    return (nameHousesByTicker.get(ticker) ?? []).some((h) => {
-      const u = h.toUpperCase();
-      return Boolean(u) && (u === key || u === lead);
-    });
+    const first = (nameHousesByTicker.get(ticker) ?? [])[0];
+    if (!first) return false;
+    const u = first.toUpperCase();
+    return Boolean(u) && (u === key || u === lead);
   }
 
   function partitionDeclared(members: Set<string>, label: string): Set<string>[] {
@@ -1060,7 +1113,6 @@ export function loadGovernanceFamilyMap(opts?: {
   );
   for (const [label, members] of declaredOrder) {
     const clusters = partitionDeclared(members, label);
-    if (!clusters.length && members.size) clusters.push(new Set(members));
     for (const cluster of clusters) {
       addAffiliates(cluster, label);
       const companies = packCompanies(cluster, label);
@@ -1107,7 +1159,7 @@ export function loadGovernanceFamilyMap(opts?: {
     }
     const components = new Map<string, Set<string>>();
     for (const t of uniq) {
-      if (!seedHousesByTicker.get(t)?.has(house) && !nameHousesByTicker.get(t)?.includes(house)) {
+      if (!seedHousesByTicker.get(t)?.has(house) && nameHousesByTicker.get(t)?.[0] !== house) {
         continue;
       }
       const root = find(uf, t);
@@ -1119,9 +1171,18 @@ export function loadGovernanceFamilyMap(opts?: {
       addAffiliates(members, house);
       const leftover = [...members].filter((t) => !covered.has(t));
       if (!leftover.length) continue;
-      const host = groups.find(
-        (g) => g.family_name.toLowerCase() === house.toLowerCase(),
-      );
+      const host = groups.find((g) => {
+        const base = (
+          g.family_name.split(" · ")[0] || g.family_name
+        ).toLowerCase();
+        const h = house.toLowerCase();
+        return (
+          base === h ||
+          base === `${h} group` ||
+          base.startsWith(`${h} `) ||
+          base.endsWith(` ${h}`)
+        );
+      });
       const hostControl = new Set<string>();
       if (host) {
         for (const c of host.companies) {
@@ -1136,7 +1197,7 @@ export function loadGovernanceFamilyMap(opts?: {
         return (byTicker.get(t) ?? []).some((s) => hostControl.has(s.person_id));
       };
       if (host) {
-        const extraTickers = leftover.filter(sharesHost);
+        const extraTickers = leftover.filter((t) => sharesHost(t));
         if (extraTickers.length) {
           const extra = packCompanies(extraTickers, house);
           for (const c of extra) {
@@ -1169,7 +1230,7 @@ export function loadGovernanceFamilyMap(opts?: {
       if (covered.has(ticker)) continue;
       if (
         !seedHousesByTicker.get(ticker)?.has(house) &&
-        !nameHousesByTicker.get(ticker)?.includes(house)
+        nameHousesByTicker.get(ticker)?.[0] !== house
       ) {
         continue;
       }
@@ -1321,18 +1382,23 @@ export function loadGovernanceFamilyMap(opts?: {
   }
 
   // A company belongs to one house: keep it where its board overlaps most.
-  const peopleOf = (t: string) => new Set((byTicker.get(t) ?? []).map((s) => s.person_id));
   const boardAffinity = (ticker: string, g: GovFamilyGroup) => {
-    const mine = peopleOf(ticker);
-    const control = controlOn(ticker);
+    const mine = new Set([
+      ...controlOn(ticker),
+      ...promoterOn(ticker),
+    ]);
     let score = 0;
     const counted = new Set<string>();
     for (const c of g.companies) {
       if (c.ticker === ticker) continue;
-      for (const pid of peopleOf(c.ticker)) {
-        if (!mine.has(pid) || counted.has(pid)) continue;
+      const theirs = new Set([
+        ...controlOn(c.ticker),
+        ...promoterOn(c.ticker),
+      ]);
+      for (const pid of mine) {
+        if (!theirs.has(pid) || counted.has(pid)) continue;
         counted.add(pid);
-        score += control.has(pid) || controlOn(c.ticker).has(pid) ? 2 : 1;
+        score += controlOn(ticker).has(pid) || controlOn(c.ticker).has(pid) ? 2 : 1;
       }
     }
     return score;
@@ -1356,8 +1422,8 @@ export function loadGovernanceFamilyMap(opts?: {
       }))
       .sort(
         (a, b) =>
-          b.score - a.score ||
           Number(b.named) - Number(a.named) ||
+          b.score - a.score ||
           b.g.companies.length - a.g.companies.length,
       );
     for (const { g } of ranked.slice(1)) {
@@ -1369,64 +1435,32 @@ export function loadGovernanceFamilyMap(opts?: {
     if (groups[i]!.companies.length < 2) groups.splice(i, 1);
   }
 
-  const ROLE_SURNAME = new Set([
-    "DIRECTOR",
-    "CHAIRMAN",
-    "CHAIRPERSON",
-    "INDEPENDENT",
-    "EXECUTIVE",
-    "MANAGING",
-    "LIMITED",
-    "SECRETARY",
-    "NOMINEE",
-    "PROMOTER",
-  ]);
-  const publicStem = (name: string) =>
-    name
-      .toLowerCase()
-      .replace(/\s*·.*$/, "")
-      .replace(/\bgroups?\b/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  const familySurnameForGroup = (g: GovFamilyGroup): string => {
-    const tickers = g.companies.map((c) => c.ticker);
-    const largest = tickers[0];
-    if (!largest) return "";
-    const controlOnLargest = controlSurnamesByTicker.get(largest) ?? new Set();
-    const bySurname = new Map<string, Set<string>>();
-    for (const t of tickers) {
-      for (const s of byTicker.get(t) ?? []) {
-        if (!isHousePromoterSeat(s.designation, s.category)) continue;
-        const n = normalizedSurname(s.director_name);
-        if (n.length < 3 || ROLE_SURNAME.has(n) || !controlOnLargest.has(n)) continue;
-        const set = bySurname.get(n) ?? new Set();
-        set.add(t);
-        bySurname.set(n, set);
-      }
-    }
-    const hits = [...bySurname.entries()].filter(([, ts]) => ts.size >= 2);
-    if (!hits.length) return "";
-    hits.sort((a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]));
-    return hits[0]![0];
-  };
-  const groupsByStem = new Map<string, GovFamilyGroup[]>();
   for (const g of groups) {
-    const stem = publicStem(g.family_name);
-    if (!stem) continue;
-    const list = groupsByStem.get(stem) ?? [];
-    list.push(g);
-    groupsByStem.set(stem, list);
-  }
-  for (const list of groupsByStem.values()) {
-    if (list.length < 2) continue;
-    for (const g of list) {
-      const sur = familySurnameForGroup(g);
-      if (!sur) continue;
-      if (houseContentTokens(g.family_name).some((w) => w.toUpperCase() === sur)) {
-        continue;
+    const lead = houseLeadToken(g.family_name.split(" · ")[0] || g.family_name);
+    if (!lead) continue;
+    g.companies = g.companies.filter((c) => {
+      const first = (nameHousesByTicker.get(c.ticker)?.[0] || "").toUpperCase();
+      if (first && first === lead) return true;
+      if (first && first !== lead && brandHouses.has(nameHousesByTicker.get(c.ticker)![0]!)) {
+        return false;
       }
-      g.family_name = `${g.family_name} · ${titleCaseSurname(sur.toLowerCase())}`;
+      return boardAffinity(c.ticker, g) > 0;
+    });
+    g.company_count = g.companies.length;
+    for (const c of g.companies) covered.add(c.ticker);
+  }
+  for (const g of groups) {
+    const lead = houseLeadToken(g.family_name.split(" · ")[0] || g.family_name);
+    if (!lead) continue;
+    for (const [ticker, houses] of nameHousesByTicker) {
+      if (covered.has(ticker)) continue;
+      if ((houses[0] || "").toUpperCase() !== lead) continue;
+      if (boardAffinity(ticker, g) <= 0) continue;
+      addChildToGroup(g, ticker, g.family_name);
     }
+  }
+  for (let i = groups.length - 1; i >= 0; i--) {
+    if (groups[i]!.companies.length < 2) groups.splice(i, 1);
   }
 
   // Display labels in the casing the member companies use (e.g. "DCM", not "Dcm").
@@ -1447,12 +1481,191 @@ export function loadGovernanceFamilyMap(opts?: {
     });
   }
 
+  const personNameKey = (name: string) =>
+    name
+      .toLowerCase()
+      .replace(/\b(mr|mrs|ms|dr|shri|smt)\.?\b/g, " ")
+      .replace(/[^a-z]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  for (const g of groups) {
+    const cached = cachedFamilyLabel(g.companies.map((c) => c.ticker));
+    const cacheTokens = houseContentTokens(cached || "")
+      .map((w) => w.toLowerCase())
+      .filter((w) => w !== "group");
+    const cacheFits =
+      Boolean(cached) &&
+      !cached!.includes("·") &&
+      cacheTokens.length > 0 &&
+      cacheTokens.every((w) =>
+        g.companies.some((c) =>
+          `${c.name} ${declaredByTicker.get(c.ticker) || ""}`
+            .toLowerCase()
+            .includes(w),
+        ),
+      );
+    if (cacheFits) {
+      g.family_name = cached!;
+      continue;
+    }
+    const directorKeys = new Set<string>();
+    const declaredVotes = new Map<string, number>();
+    for (const c of g.companies) {
+      for (const s of byTicker.get(c.ticker) ?? []) {
+        const k = personNameKey(s.director_name);
+        if (k) directorKeys.add(k);
+      }
+      const d = declaredByTicker.get(c.ticker);
+      if (d) declaredVotes.set(d, (declaredVotes.get(d) ?? 0) + 1);
+    }
+    const baseLabel = (g.family_name.split(" · ")[0] || g.family_name).trim();
+    const baseKey = personNameKey(baseLabel);
+    const labelTokens = houseContentTokens(baseLabel).map((w) => w.toLowerCase());
+    const labelInNames =
+      labelTokens.length > 0 &&
+      g.companies.filter((c) => {
+        const blob = `${c.name} ${declaredByTicker.get(c.ticker) || ""}`.toLowerCase();
+        return labelTokens.every((w) => blob.includes(w));
+      }).length >= Math.min(2, g.companies.length);
+    const looksLikePerson =
+      Boolean(baseKey) &&
+      (directorKeys.has(baseKey) ||
+        [...directorKeys].some(
+          (k) =>
+            k === baseKey ||
+            (baseKey.split(" ").length >= 2 &&
+              (k.endsWith(` ${baseKey}`) ||
+                k.startsWith(`${baseKey} `) ||
+                k.includes(` ${baseKey} `))),
+        ) ||
+        (labelTokens.length >= 2 && !labelInNames));
+    if (looksLikePerson) {
+      const topDeclared = [...declaredVotes.entries()]
+        .filter(([name]) => !directorKeys.has(personNameKey(name)))
+        .sort((a, b) => b[1] - a[1])[0];
+      if (topDeclared && topDeclared[1] >= 2) {
+        g.family_name = displayGroupLabel(topDeclared[0]);
+      } else {
+        const lead =
+          houseTokensFromName(g.companies[0]?.name || "")[0] || baseLabel;
+        g.family_name = /group$/i.test(lead) ? lead : `${lead} Group`;
+      }
+    }
+  }
+
+  const byLead = new Map<string, GovFamilyGroup[]>();
+  for (const g of groups) {
+    const lead = houseLeadToken(g.family_name.split(" · ")[0] || g.family_name);
+    if (!lead) continue;
+    const list = byLead.get(lead) ?? [];
+    list.push(g);
+    byLead.set(lead, list);
+  }
+  for (const list of byLead.values()) {
+    if (list.length < 2) continue;
+    for (const g of list) {
+      const tokens = houseTokensFromName(g.companies[0]?.name || "");
+      if (tokens.length >= 2) {
+        g.family_name = `${tokens[0]} ${tokens[1]}`;
+      }
+    }
+  }
+
+  const mergedByName = new Map<string, GovFamilyGroup>();
+  const leftover: GovFamilyGroup[] = [];
+  for (const g of groups) {
+    const key = g.family_name.toLowerCase().replace(/\s+/g, " ").trim();
+    const hit = mergedByName.get(key);
+    if (!hit) {
+      mergedByName.set(key, g);
+      leftover.push(g);
+      continue;
+    }
+    if (!groupsShareControl(hit, g)) {
+      leftover.push(g);
+      continue;
+    }
+    for (const c of g.companies) {
+      if (hit.companies.some((x) => x.ticker === c.ticker)) continue;
+      hit.companies.push(c);
+    }
+    hit.company_count = hit.companies.length;
+  }
+  groups.length = 0;
+  groups.push(...leftover.filter((g) => g.companies.length >= 2));
+  applyFamilyGroupEdits(groups, (ticker) => {
+    const packed = packCompanies([ticker], "");
+    return packed[0] ?? null;
+  });
+
   for (const g of groups) {
     const inGroup = new Set(g.companies.map((c) => c.ticker));
     const people = new Map<string, GovFamilyPerson>();
+    const addPerson = (
+      s: SeatRow,
+      tickers: string[],
+      inGroupOnly: boolean,
+    ) => {
+      if (people.has(s.person_id) || isPlaceholderDirectorName(s.director_name)) {
+        return;
+      }
+      const listed = inGroupOnly
+        ? tickers.filter((t) => inGroup.has(t))
+        : tickers.filter((t) => metaByTicker.has(t));
+      if (listed.length < 2) return;
+      people.set(s.person_id, {
+        person_id: s.person_id,
+        name: s.director_name,
+        din: s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null,
+        tickers: listed,
+      });
+    };
     for (const t of inGroup) {
       for (const s of byTicker.get(t) ?? []) {
-        if (!isHousePromoterSeat(s.designation, s.category) || people.has(s.person_id)) continue;
+        if (!isHousePromoterSeat(s.designation, s.category)) continue;
+        const tickers = [
+          ...new Set(
+            (seatsByPerson.get(s.person_id) ?? [])
+              .map((x) => (x.ticker || "").toUpperCase())
+              .filter((x) => metaByTicker.has(x)),
+          ),
+        ];
+        addPerson(s, tickers, false);
+      }
+    }
+    for (const t of inGroup) {
+      for (const s of byTicker.get(t) ?? []) {
+        const inGroupTickers = [
+          ...new Set(
+            (seatsByPerson.get(s.person_id) ?? [])
+              .map((x) => (x.ticker || "").toUpperCase())
+              .filter((x) => inGroup.has(x)),
+          ),
+        ];
+        addPerson(s, inGroupTickers, true);
+      }
+    }
+    const outsideLinks = new Map<string, number>();
+    for (const p of people.values()) {
+      for (const t of p.tickers) {
+        if (!inGroup.has(t)) outsideLinks.set(t, (outsideLinks.get(t) ?? 0) + 1);
+      }
+    }
+    const inGroupLinked = () => {
+      const s = new Set<string>();
+      for (const p of people.values()) {
+        for (const t of p.tickers) if (inGroup.has(t)) s.add(t);
+      }
+      return s;
+    };
+    let linkedIn = inGroupLinked();
+    for (const t of inGroup) {
+      if (linkedIn.has(t)) continue;
+      let bestPid = "";
+      let bestTickers: string[] = [];
+      for (const s of byTicker.get(t) ?? []) {
+        if (isPlaceholderDirectorName(s.director_name)) continue;
         const tickers = [
           ...new Set(
             (seatsByPerson.get(s.person_id) ?? [])
@@ -1461,19 +1674,18 @@ export function loadGovernanceFamilyMap(opts?: {
           ),
         ];
         if (tickers.length < 2) continue;
-        people.set(s.person_id, {
-          person_id: s.person_id,
-          name: s.director_name,
-          din: s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null,
-          tickers,
-        });
+        if (tickers.length > bestTickers.length) {
+          bestPid = s.person_id;
+          bestTickers = tickers;
+        }
       }
-    }
-    const outsideLinks = new Map<string, number>();
-    for (const p of people.values()) {
-      for (const t of p.tickers) {
-        if (!inGroup.has(t)) outsideLinks.set(t, (outsideLinks.get(t) ?? 0) + 1);
+      if (!bestPid) continue;
+      const seat = (seatsByPerson.get(bestPid) ?? []).find((x) => x.person_id === bestPid)!;
+      addPerson(seat, bestTickers, false);
+      for (const x of bestTickers) {
+        if (!inGroup.has(x)) outsideLinks.set(x, (outsideLinks.get(x) ?? 0) + 2);
       }
+      linkedIn = inGroupLinked();
     }
     const outside = [...outsideLinks.entries()]
       .sort(
@@ -1490,37 +1702,64 @@ export function loadGovernanceFamilyMap(opts?: {
         market_cap_cr: metaByTicker.get(t)!.market_cap_cr,
       }));
     const shown = new Set([...inGroup, ...outside.map((o) => o.ticker)]);
-    g.people = [...people.values()]
-      .map((p) => ({ ...p, tickers: p.tickers.filter((t) => shown.has(t)) }))
+    const ranked = [...people.values()]
+      .map((p) => ({ ...p, tickers: p.tickers.filter((x) => shown.has(x)) }))
       .filter((p) => p.tickers.length >= 2)
-      .sort((a, b) => b.tickers.length - a.tickers.length)
-      .slice(0, FAMILY_GRAPH_MAX_PEOPLE);
+      .sort((a, b) => b.tickers.length - a.tickers.length);
+    const picked: GovFamilyPerson[] = [];
+    const covered = new Set<string>();
+    const take = (p: GovFamilyPerson) => {
+      if (picked.some((x) => x.person_id === p.person_id)) return;
+      picked.push(p);
+      for (const x of p.tickers) if (inGroup.has(x)) covered.add(x);
+    };
+    for (const p of ranked) {
+      if (p.tickers.some((x) => inGroup.has(x) && !covered.has(x))) take(p);
+      if (covered.size === inGroup.size) break;
+    }
+    for (const p of ranked) {
+      if (picked.length >= FAMILY_GRAPH_MAX_PEOPLE) break;
+      take(p);
+    }
+    g.people = picked.sort((a, b) => b.tickers.length - a.tickers.length);
     const linked = new Set(g.people.flatMap((p) => p.tickers));
     g.outside = outside.filter((o) => linked.has(o.ticker));
   }
 
+  const editMap = loadFamilyGroupEditMap();
   const byLabel = new Map<string, GovFamilyGroup[]>();
   for (const g of groups) {
     const list = byLabel.get(g.family_name) ?? [];
     list.push(g);
     byLabel.set(g.family_name, list);
   }
-  for (const [base, list] of byLabel) {
+  for (const list of byLabel.values()) {
     if (list.length < 2) continue;
-    for (const g of list) {
-      const uniqueTicker = g.companies
-        .map((c) => c.ticker)
-        .find(
-          (t) =>
-            list.every(
-              (other) =>
-                other === g || !other.companies.some((c) => c.ticker === t),
-            ),
-        );
-      const mark =
-        uniqueTicker ||
-        [...g.companies.map((c) => c.ticker)].sort().join("-");
-      g.family_name = `${base} · ${mark}`;
+    const host = list[0]!;
+    for (const g of list.slice(1)) {
+      if (!groupsShareControl(host, g)) continue;
+      if (
+        editMap.has(host.group_id || "") ||
+        editMap.has(g.group_id || "")
+      ) {
+        continue;
+      }
+      for (const c of g.companies) {
+        if (host.companies.some((x) => x.ticker === c.ticker)) continue;
+        host.companies.push(c);
+      }
+      g.companies = [];
+    }
+    host.company_count = host.companies.length;
+  }
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i]!;
+    if (g.companies.length < 1) {
+      groups.splice(i, 1);
+      continue;
+    }
+    if (g.companies.length < 2 && !editMap.has(g.group_id || "")) {
+      groups.splice(i, 1);
     }
   }
 
@@ -1560,6 +1799,17 @@ export function loadGovernanceFamilyMap(opts?: {
       sensitivity: "base",
     });
   });
+  scheduleFamilyGroupRefine(
+    out.map((g, i) => ({
+      id: `g${i}`,
+      label: g.family_name,
+      companies: g.companies.map((c) => ({
+        ticker: c.ticker,
+        name: c.name,
+        group_name: groupNames.get(c.ticker) || "",
+      })),
+    })),
+  );
   return out;
 }
 
