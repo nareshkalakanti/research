@@ -8,7 +8,6 @@ import {
   mcapIndicesToBounds,
 } from "@/components/MarketCapRangeBar";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
-import { FamilyMapCards, type FamilyRow } from "@/components/FamilyMapCards";
 import { onGovOpen } from "@/lib/gov-open";
 import { useOptionalAppTab, type AppTab } from "@/lib/app-tab";
 import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
@@ -23,24 +22,20 @@ import {
 import {
   BRIDGE_TI_MAX_CR,
   BRIDGE_TINY_MAX_CR,
-  GOV_CAP_BRIDGE_LABEL,
+  GOV_BOARD_SCORE_TITLE,
   GOV_CAP_BRIDGE_TITLE,
-  GOV_MIC_BRIDGE_LABEL,
   GOV_MIC_BRIDGE_TITLE,
-  GOV_TI_BRIDGE_LABEL,
   GOV_TI_BRIDGE_TITLE,
   GOV_MULTI_LC_LABEL,
   GOV_MULTI_LC_TITLE,
-  GOV_BOARD_SCORE_TITLE,
-  GOV_SME_CROSS_HINT,
-  GOV_SME_CROSS_LABEL,
   GOV_SME_CROSS_TITLE,
 } from "@/lib/gov-score";
 import { formatMcap } from "@/lib/types";
 import { tradingviewUrl } from "@/lib/links";
 
-type View = "director" | "company" | "family";
-type BridgeMode = "off" | "ti" | "mic" | "cap";
+type View = "director" | "company" | "independence";
+
+const IND_FLOORS = [50, 60, 70, 80] as const;
 
 const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 
@@ -64,6 +59,8 @@ type Stats = {
   din_backed: number;
   name_only: number;
   nameless_din?: number;
+  independent_boards?: number;
+  independence_floors?: Partial<Record<number, number>>;
   bridges: number;
   tiny_bridges: number;
   ti_bridges: number;
@@ -162,6 +159,12 @@ type CompanyRow = {
   web: string | null;
   sector: string | null;
   industry: string | null;
+  independent_pct?: number | null;
+  independent_n?: number;
+  board_n?: number;
+  independent_ok?: boolean;
+  rank?: number;
+  family_control?: boolean;
   directors: Array<{
     person_id: string;
     name: string;
@@ -171,6 +174,7 @@ type CompanyRow = {
     din_backed: boolean;
     designation: string;
     category: string | null;
+    independent?: boolean;
     other_boards?: Array<{
       ticker: string;
       name: string;
@@ -188,7 +192,7 @@ type ApiResponse = {
   total: number;
   page: number;
   pages: number;
-  rows: DirectorRow[] | CompanyRow[] | FamilyRow[];
+  rows: DirectorRow[] | CompanyRow[];
 };
 
 function GovAbout({
@@ -266,18 +270,11 @@ export function GovernanceMapPanel() {
   const [debouncedQ, setDebouncedQ] = useState(() => deepPersonId || deepQ || "");
   const [page, setPage] = useState(1);
   const [minBoards, setMinBoards] = useState(() => (deepPersonId ? 1 : 2));
-  const [bridgeMode, setBridgeMode] = useState<BridgeMode>("off");
-  const [filterMultiLc, setFilterMultiLc] = useState(false);
-  const [filterSmeCross, setFilterSmeCross] = useState(false);
-  const [filterFamily, setFilterFamily] = useState(false);
-  const [filterControl, setFilterControl] = useState(false);
-  const [filterHold, setFilterHold] = useState(false);
-  const [filterEdge, setFilterEdge] = useState(false);
+  const [filterIndependence, setFilterIndependence] = useState(false);
+  const [minIndPct, setMinIndPct] = useState(50);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
-  const [sme, setSme] = useState(false);
-  const [filterNamelessDin, setFilterNamelessDin] = useState(false);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -300,36 +297,29 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme, filterNamelessDin]);
+  }, [view, debouncedQ, minBoards, filterIndependence, minIndPct, fundFilters, mcapMinIndex, mcapMaxIndex]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
       setLoading(true);
       const params = new URLSearchParams({
-        view,
+        view: filterIndependence ? "independence" : view,
         q: debouncedQ,
         page: String(page),
-        pageSize: view === "family" ? "200" : "40",
+        pageSize: "40",
         minScore: "0",
         minBoards: String(minBoards),
-        sort: "score",
+        sort: filterIndependence ? "independence" : "score",
         dinOnly: "1",
       });
-      if (bridgeMode === "ti") params.set("tiBridge", "1");
-      if (bridgeMode === "mic") params.set("tinyBridge", "1");
-      if (bridgeMode === "cap") params.set("bridge", "1");
-      if (filterMultiLc) params.set("multiLc", "1");
-      if (filterSmeCross) params.set("smeCross", "1");
-      if (filterFamily) params.set("family", "1");
-      if (filterControl) params.set("control", "1");
-      if (filterHold) params.set("hold", "1");
-      if (filterEdge) params.set("edge", "1");
+      if (filterIndependence) {
+        params.set("independence", "1");
+        params.set("minIndPct", String(minIndPct));
+      }
       appendFundParams(params, fundFilters);
       const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
       if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
       if (maxCr != null) params.set("mcapMax", String(maxCr));
-      if (sme) params.set("sme", "1");
-      if (filterNamelessDin) params.set("namelessDin", "1");
       if (opts?.refresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/governance-map?${params}`);
@@ -366,7 +356,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, bridgeMode, filterMultiLc, filterSmeCross, filterFamily, filterControl, filterHold, filterEdge, fundFilters, mcapMinIndex, mcapMaxIndex, sme, filterNamelessDin],
+    [view, debouncedQ, page, minBoards, filterIndependence, minIndPct, fundFilters, mcapMinIndex, mcapMaxIndex],
   );
 
   useEffect(() => {
@@ -448,27 +438,29 @@ export function GovernanceMapPanel() {
   }, [stack]);
 
   const stats = data?.stats;
-  const listPageSize = view === "family" ? 200 : 40;
+  const listPageSize = 40;
   const start = data ? (data.page - 1) * listPageSize + 1 : 0;
   const end = data ? Math.min(data.page * listPageSize, data.total) : 0;
   const ready = inDrill
     ? drillData?.view === top?.kind
-    : data?.view === view;
+    : filterIndependence
+      ? data?.view === "independence"
+      : data?.view === view;
   const directorRows =
-    ready && (inDrill ? top?.kind === "director" : view === "director")
+    ready && (inDrill ? top?.kind === "director" : view === "director" && !filterIndependence)
       ? ((inDrill ? drillData : data)?.rows as DirectorRow[])
       : [];
   const companyRows =
-    ready && (inDrill ? top?.kind === "company" : view === "company")
+    ready &&
+    (inDrill
+      ? top?.kind === "company"
+      : filterIndependence || view === "company")
       ? ((inDrill ? drillData : data)?.rows as CompanyRow[])
       : [];
-  const familyRows =
-    ready && (inDrill ? top?.kind === "family" : view === "family")
-      ? ((inDrill ? drillData : data)?.rows as FamilyRow[])
-      : [];
-  const showDirectors = inDrill ? top?.kind === "director" : view === "director";
-  const showCompanies = inDrill ? top?.kind === "company" : view === "company";
-  const showFamily = inDrill ? top?.kind === "family" : view === "family";
+  const showDirectors =
+    inDrill ? top?.kind === "director" : view === "director" && !filterIndependence;
+  const showCompanies =
+    inDrill ? top?.kind === "company" : filterIndependence || view === "company";
 
   const pageTickers = useMemo(() => {
     const set = new Set<string>();
@@ -478,19 +470,13 @@ export function GovernanceMapPanel() {
           if (c.ticker) set.add(c.ticker.toUpperCase());
         }
       }
-    } else if (view === "family") {
-      for (const f of familyRows) {
-        for (const c of f.companies ?? []) {
-          if (c.ticker) set.add(c.ticker.toUpperCase());
-        }
-      }
     } else {
       for (const c of companyRows) {
         if (c.ticker) set.add(c.ticker.toUpperCase());
       }
     }
     return [...set];
-  }, [view, directorRows, companyRows, familyRows]);
+  }, [view, directorRows, companyRows]);
 
   function drillDirector(personId: string, name: string, fromLabel?: string) {
     if (top?.kind === "director" && top.personId === personId) return;
@@ -631,56 +617,26 @@ export function GovernanceMapPanel() {
     }
   }
 
-  function toggleBridge(mode: BridgeMode) {
-    setBridgeMode((cur) => (cur === mode ? "off" : mode));
-  }
-
   const mcapNarrowed =
     mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
-
-  const bridgeHint = filterSmeCross
-    ? GOV_SME_CROSS_HINT
-    : filterMultiLc
-    ? "2+ large-cap boards (≥ ₹20,000 Cr) — group chairs, cross-holdings"
-    : bridgeMode === "ti"
-      ? `≥ ₹5,000 Cr board + under ₹${BRIDGE_TI_MAX_CR} Cr`
-      : bridgeMode === "mic"
-        ? `≥ ₹5,000 Cr board + under ₹${BRIDGE_TINY_MAX_CR} Cr`
-        : bridgeMode === "cap"
-          ? "≥ ₹5,000 Cr board + under ₹5,000 Cr"
-          : "Pick a size filter to find big-board directors on small names";
 
   const filtersActive =
     q.trim().length > 0 ||
     minBoards !== 2 ||
-    bridgeMode !== "off" ||
-    filterMultiLc ||
-    filterSmeCross ||
-    filterFamily ||
-    filterControl ||
-    filterHold ||
-    filterEdge ||
+    filterIndependence ||
+    minIndPct !== 50 ||
     FUND_WATCHLIST_KEYS.some((k) => fundFilters[k]) ||
-    mcapNarrowed ||
-    sme ||
-    filterNamelessDin;
+    mcapNarrowed;
 
   function clearFilters() {
     setQ("");
     setDebouncedQ("");
     setMinBoards(2);
-    setBridgeMode("off");
-    setFilterMultiLc(false);
-    setFilterSmeCross(false);
-    setFilterFamily(false);
-    setFilterControl(false);
-    setFilterHold(false);
-    setFilterEdge(false);
+    setFilterIndependence(false);
+    setMinIndPct(50);
     setFundFilters(EMPTY_FUNDS);
     setMcapMinIndex(0);
     setMcapMaxIndex(MCAP_DEFAULT_MAX);
-    setSme(false);
-    setFilterNamelessDin(false);
     setOpenId(null);
     setView("company");
     setStack([]);
@@ -706,17 +662,17 @@ export function GovernanceMapPanel() {
             [
               ["director", "Directors"],
               ["company", "Companies"],
-              ["family", "Family Map"],
             ] as const
           ).map(([id, label]) => (
             <button
               key={id}
               type="button"
               role="tab"
-              className={view === id ? "tab on" : "tab"}
-              aria-selected={view === id}
+              className={view === id && !filterIndependence ? "tab on" : "tab"}
+              aria-selected={view === id && !filterIndependence}
               onClick={() => {
                 setStack([]);
+                setFilterIndependence(false);
                 setView(id);
               }}
             >
@@ -742,6 +698,7 @@ export function GovernanceMapPanel() {
           />
         </label>
 
+        {filterIndependence ? null : (
         <label className="field">
           <span>Boards</span>
           <select
@@ -754,6 +711,7 @@ export function GovernanceMapPanel() {
             <option value={5}>5+</option>
           </select>
         </label>
+        )}
 
         <button
           type="button"
@@ -775,147 +733,40 @@ export function GovernanceMapPanel() {
       </div>
 
       <div className="gov-focus-bar">
-        <span className="gov-focus-label">Large side</span>
-        <div className="gov-focus-seg" role="group" aria-label="Multi large-cap directors">
+        <div className="gov-focus-seg" role="group" aria-label="Board independence">
           <button
             type="button"
-            className={filterMultiLc ? "on" : undefined}
-            onClick={() => setFilterMultiLc((v) => !v)}
-            title={GOV_MULTI_LC_TITLE}
-          >
-            {GOV_MULTI_LC_LABEL}
-            {stats?.multi_lc != null ? <i>{stats.multi_lc}</i> : null}
-          </button>
-        </div>
-        <span className="gov-focus-label">Data</span>
-        <div className="gov-focus-seg" role="group" aria-label="Directors with DIN but no name">
-          <button
-            type="button"
-            className={`nameless ${filterNamelessDin ? "on" : ""}`}
+            className={filterIndependence ? "on" : undefined}
             onClick={() => {
-              setFilterNamelessDin((v) => !v);
-              if (!filterNamelessDin) setView("director");
+              setFilterIndependence((v) => {
+                const next = !v;
+                if (next) setView("company");
+                return next;
+              });
             }}
-            title="Directors with a DIN on file whose name is missing (shown as DIN only)"
+            title="Ranked by independent share. Default: ≥50% independent, no promoter family on chair / MD / promoter seats"
           >
-            No name
-            {stats?.nameless_din != null ? <i>{stats.nameless_din}</i> : null}
+            Independent
+            {stats?.independent_boards != null ? (
+              <i>{stats.independent_boards}</i>
+            ) : null}
           </button>
-        </div>
-        <span className="gov-focus-label">Small side</span>
-        <div className="gov-focus-seg" role="group" aria-label="Small company size">
-          <button
-            type="button"
-            className={bridgeMode === "ti" ? "on" : undefined}
-            onClick={() => toggleBridge("ti")}
-            title={GOV_TI_BRIDGE_TITLE}
-          >
-            {GOV_TI_BRIDGE_LABEL}
-            {stats?.ti_bridges != null ? <i>{stats.ti_bridges}</i> : null}
-          </button>
-          <button
-            type="button"
-            className={bridgeMode === "mic" ? "on" : undefined}
-            onClick={() => toggleBridge("mic")}
-            title={GOV_MIC_BRIDGE_TITLE}
-          >
-            {GOV_MIC_BRIDGE_LABEL}
-            {stats?.tiny_bridges != null ? <i>{stats.tiny_bridges}</i> : null}
-          </button>
-          <button
-            type="button"
-            className={bridgeMode === "cap" ? "on" : undefined}
-            onClick={() => toggleBridge("cap")}
-            title={GOV_CAP_BRIDGE_TITLE}
-          >
-            {GOV_CAP_BRIDGE_LABEL}
-            {stats?.bridges != null ? <i>{stats.bridges}</i> : null}
-          </button>
-        </div>
-        <span className="gov-focus-label">Lists</span>
-        <div className="gov-focus-seg gov-focus-watch" role="group" aria-label="Lists">
-          <button
-            type="button"
-            className={`sme-cross ${filterSmeCross ? "on" : ""}`}
-            onClick={() => {
-              setFilterSmeCross((v) => !v);
-              // SME listings that share a director with a mainboard.
-              if (!filterSmeCross) setView("company");
-            }}
-            title={GOV_SME_CROSS_TITLE}
-          >
-            {GOV_SME_CROSS_LABEL}
-            {stats?.sme_cross != null ? <i>{stats.sme_cross}</i> : null}
-          </button>
-          <button
-            type="button"
-            className={`family ${filterFamily ? "on" : ""}`}
-            onClick={() => {
-              setFilterFamily((v) => !v);
-              if (!filterFamily) {
-                setFilterControl(false);
-                setView("company");
-              }
-            }}
-            title="Repeated surname / family board"
-          >
-            Family
-          </button>
-          <button
-            type="button"
-            className={`control ${filterControl ? "on" : ""}`}
-            onClick={() => {
-              setFilterControl((v) => !v);
-              if (!filterControl) {
-                setFilterFamily(false);
-                setView("company");
-              }
-            }}
-            title="Promoter / executive-heavy board"
-          >
-            Control
-          </button>
-          <button
-            type="button"
-            className={`sme ${sme ? "on" : ""}`}
-            onClick={() => setSme((v) => !v)}
-            title="SME listings (NSE SME + BSE SME)"
-          >
-            SME
-          </button>
-        </div>
-        <p className="gov-focus-hint">{bridgeHint}</p>
-      </div>
-
-      <div className="gov-funds-bar">
-        <span className="gov-focus-label">Funds</span>
-        <div className="gov-focus-seg gov-focus-funds" role="group" aria-label="Fund watchlists">
-          <button
-            type="button"
-            className={`hold ${filterHold ? "on" : ""}`}
-            onClick={() => setFilterHold((v) => !v)}
-            title={
-              view === "company"
-                ? "Companies in your HOLD list"
-                : "Directors with a board seat in your HOLD list"
-            }
-          >
-            Hold
-            {stats?.hold != null ? <i>{stats.hold}</i> : null}
-          </button>
-          <button
-            type="button"
-            className={`edge ${filterEdge ? "on" : ""}`}
-            onClick={() => setFilterEdge((v) => !v)}
-            title={
-              view === "company"
-                ? "Companies on Early Edge"
-                : "Directors with a board seat on Early Edge"
-            }
-          >
-            Edge
-            {stats?.edge != null ? <i>{stats.edge}</i> : null}
-          </button>
+          {filterIndependence
+            ? IND_FLOORS.map((floor) => (
+                <button
+                  key={floor}
+                  type="button"
+                  className={minIndPct === floor ? "on" : undefined}
+                  onClick={() => setMinIndPct(floor)}
+                  title={`Boards with at least ${floor}% independent directors`}
+                >
+                  ≥{floor}%
+                  {stats?.independence_floors?.[floor] != null ? (
+                    <i>{stats.independence_floors[floor]}</i>
+                  ) : null}
+                </button>
+              ))
+            : null}
         </div>
       </div>
 
@@ -928,7 +779,6 @@ export function GovernanceMapPanel() {
             onChange={(lo, hi) => {
               setMcapMinIndex(lo);
               setMcapMaxIndex(hi);
-              if (lo > 0 || hi < MCAP_DEFAULT_MAX) setBridgeMode("off");
             }}
             onClear={
               mcapNarrowed
@@ -969,7 +819,7 @@ export function GovernanceMapPanel() {
             <strong>{stats.companies.toLocaleString()}</strong> companies
           </span>
           <span>
-            <strong>{(stats.multi_lc ?? 0).toLocaleString()}</strong> multi-LC
+            <strong>{(stats.independent_boards ?? 0).toLocaleString()}</strong> independent boards
           </span>
           <span>
             <strong>{(stats.ti_bridges ?? 0).toLocaleString()}</strong> &lt;₹100
@@ -1000,6 +850,7 @@ export function GovernanceMapPanel() {
           <span>
             Showing {start.toLocaleString()}–{end.toLocaleString()} of{" "}
             {data.total.toLocaleString()}
+            {filterIndependence ? " · ranked by independence" : ""}
           </span>
         ) : null}
       </div>
@@ -1264,6 +1115,11 @@ export function GovernanceMapPanel() {
                 <div className="gov-card-head static">
                   <div className="gov-dir">
                     <div className="gov-dir-name">
+                      {c.rank != null ? (
+                        <span className="gov-rank" title="Independence rank">
+                          #{c.rank}
+                        </span>
+                      ) : null}
                       {c.name}{" "}
                       <span className="mono">({c.ticker})</span>
                       {c.cap_code ? (
@@ -1293,6 +1149,14 @@ export function GovernanceMapPanel() {
                       {c.has_tq ? (
                         <span className="gov-tag gov-tag-tq">TQ</span>
                       ) : null}
+                      {c.independent_pct != null ? (
+                        <span
+                          className={`gov-tag ${c.independent_ok ? "gov-tag-ind-ok" : "gov-tag-ind"}`}
+                          title={`${c.independent_n} of ${c.board_n} directors independent${c.independent_ok ? " · qualifies (no promoter-family control)" : ""}`}
+                        >
+                          {c.independent_n}/{c.board_n} ind
+                        </span>
+                      ) : null}
                     </div>
                     <div className="gov-dir-sub">
                       {c.market}
@@ -1303,14 +1167,24 @@ export function GovernanceMapPanel() {
                       {formatSectorIndustry(c.sector, c.industry)
                         ? ` · ${formatSectorIndustry(c.sector, c.industry)}`
                         : ""}
-                      {` · ${directors.length} multi-board directors`}
+                      {c.rank != null
+                        ? c.board_n
+                          ? ` · ${c.board_n} directors`
+                          : ""
+                        : ` · ${directors.length} multi-board directors`}
                     </div>
                   </div>
                   <div
                     className="gov-score"
-                    title={GOV_BOARD_SCORE_TITLE}
+                    title={
+                      c.rank != null
+                        ? "Independent directors as % of full board"
+                        : GOV_BOARD_SCORE_TITLE
+                    }
                   >
-                    {(c.board_score ?? 0).toFixed(1)}
+                    {c.rank != null && c.independent_pct != null
+                      ? `${c.independent_pct}%`
+                      : (c.board_score ?? 0).toFixed(1)}
                   </div>
                   <div className="gov-co-links">
                     {c.web ? (
@@ -1345,14 +1219,19 @@ export function GovernanceMapPanel() {
                     headquarters={c.headquarters}
                   />
                 ) : null}
+                {c.rank != null ? null : (
                 <ul className="gov-dir-list">
                   {directors
                     .slice()
-                    .sort(
-                      (a, b) =>
+                    .sort((a, b) => {
+                      if (c.rank != null && Boolean(a.independent) !== Boolean(b.independent)) {
+                        return a.independent ? -1 : 1;
+                      }
+                      return (
                         (b.pledged_score ?? b.dir_score) -
-                        (a.pledged_score ?? a.dir_score),
-                    )
+                        (a.pledged_score ?? a.dir_score)
+                      );
+                    })
                     .map((d) => {
                       const others = d.other_boards ?? [];
                       // Keep SME visible even when many large-cap boards exist.
@@ -1366,12 +1245,14 @@ export function GovernanceMapPanel() {
                       const extra = others.filter((b) => !shownSet.has(b.ticker)).length;
                       return (
                       <li key={`${c.ticker}-${d.person_id}`}>
+                        {c.rank == null ? (
                         <span
                           className="gov-score inline"
                           title="Reputation this director is staking here (other boards)"
                         >
                           {(d.pledged_score ?? d.dir_score).toFixed(1)}
                         </span>
+                        ) : null}
                         <span className="gov-dir-main">
                           <span className="gov-dir-name-row">
                             <button
@@ -1390,6 +1271,9 @@ export function GovernanceMapPanel() {
                             </button>
                             {d.din_backed ? (
                               <span className="gov-badge">DIN</span>
+                            ) : null}
+                            {d.independent ? (
+                              <span className="gov-tag gov-tag-ind-ok">Ind</span>
                             ) : null}
                           </span>
                           {shown.length > 0 ? (
@@ -1439,20 +1323,11 @@ export function GovernanceMapPanel() {
                       );
                     })}
                 </ul>
+                )}
               </article>
             );
           })}
         </div>
-      ) : null}
-
-      {showFamily && ready ? (
-        <FamilyMapCards
-          rows={familyRows}
-          onTicker={(t, f) => drillTicker(t, `${f.family_name} group`)}
-          onPerson={(id, name, f) =>
-            drillDirector(id, name, `${f.family_name} group`)
-          }
-        />
       ) : null}
 
       {!inDrill && data && data.pages > 1 ? (

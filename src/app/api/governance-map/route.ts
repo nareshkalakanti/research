@@ -2,13 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   countNamelessDinDirectors,
   governanceMapStats,
+  loadAboutMap,
   loadGovernanceFamilyMap,
   loadGovernanceMap,
   tickerMatchesSearch,
   type GovernanceMapRow,
   type GovCompanySeat,
 } from "@/lib/governance-map";
-import { pledgedDirectorScore, scoreCompanyBoard } from "@/lib/gov-score";
+import { mcapCapCode, pledgedDirectorScore, scoreCompanyBoard } from "@/lib/gov-score";
+import {
+  boardIndependenceForTicker,
+  independenceFloorCounts,
+  independentBoardCount,
+  independentBoardTickerSet,
+  rankedBoardIndependence,
+} from "@/lib/gov-independence";
+import { researchLinks } from "@/lib/links";
+import { loadMetricsMap } from "@/lib/metrics";
 import {
   combinePatterns,
   matchedKeywords,
@@ -23,7 +33,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type View = "director" | "company" | "role" | "family";
+type View = "director" | "company" | "role" | "family" | "independence";
 
 /** Theme match uses About + products + HQ location. */
 function seatAboutText(c: GovCompanySeat): string {
@@ -100,6 +110,8 @@ function filterRows(
     mcapMax: number | null;
     /** NSE SME seats only */
     sme: boolean;
+    independence: boolean;
+    independenceTickers?: Set<string>;
     /** When searching by company, drop non-matching seats (Companies tab). */
     narrowCompanies: boolean;
   },
@@ -180,6 +192,14 @@ function filterRows(
 
     if (opts.sme) {
       const matched = companies.filter((c) => c.is_sme);
+      if (!matched.length) continue;
+      companies = matched;
+    }
+
+    if (opts.independence) {
+      const ok = opts.independenceTickers;
+      if (!ok) continue;
+      const matched = companies.filter((c) => ok.has(c.ticker.toUpperCase()));
       if (!matched.length) continue;
       companies = matched;
     }
@@ -498,6 +518,8 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     const stats = {
       ...governanceMapStats(loadGovernanceMap({ minBoards, refresh })),
       nameless_din: countNamelessDinDirectors(),
+      independent_boards: independentBoardCount(),
+      independence_floors: independenceFloorCounts(true),
     };
     const families = loadGovernanceFamilyMap({
       q,
@@ -522,7 +544,69 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const stats = {
     ...governanceMapStats(q.trim() ? loadGovernanceMap({ minBoards }) : all),
     nameless_din: countNamelessDinDirectors(),
+    independent_boards: independentBoardCount(),
+    independence_floors: independenceFloorCounts(true),
   };
+  if (view === "independence") {
+    const minIndPct = Number(sp.get("minIndPct") || 50);
+    const ranked = rankedBoardIndependence({
+      minPct: Number.isFinite(minIndPct) ? minIndPct : 50,
+      noFamily: sp.get("indFamily") !== "1",
+      q,
+    });
+    const total = ranked.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const start = (page - 1) * pageSize;
+    const slice = ranked.slice(start, start + pageSize);
+    const abouts = loadAboutMap(slice.map((r) => r.ticker));
+    const metrics = loadMetricsMap();
+    const rows = slice.map((ind, i) => {
+      const about = abouts.get(ind.ticker);
+      const m = metrics.get(ind.ticker);
+      const mcap = m?.market_cap_cr ?? null;
+      const links = researchLinks(ind.ticker, ind.market, about?.website ?? null);
+      return {
+        ticker: ind.ticker,
+        name: about?.name || ind.name,
+        market: ind.market,
+        market_cap_cr: mcap,
+        price: m?.price ?? null,
+        cap_code: mcapCapCode(mcap),
+        has_bb: false,
+        has_bb_w: false,
+        has_bb_m: false,
+        has_tq: false,
+        has_hold: false,
+        has_edge: false,
+        fund_tags: [] as string[],
+        about: about?.about ?? null,
+        headquarters: about?.headquarters ?? null,
+        sector: about?.sector ?? m?.sector ?? null,
+        industry: about?.industry ?? null,
+        sc: links.sc,
+        tv: links.tv,
+        web: links.web,
+        board_score: Math.round(ind.pct * 1000) / 10,
+        rank: start + i + 1,
+        independent_pct: Math.round(ind.pct * 100),
+        independent_n: ind.independent,
+        board_n: ind.total,
+        independent_ok: ind.qualifies,
+        family_control: ind.family_control,
+        directors: [] as Array<Record<string, never>>,
+      };
+    });
+    return NextResponse.json({
+      view: "independence",
+      stats,
+      total,
+      page,
+      pages,
+      themePattern: themePattern || null,
+      rows,
+    });
+  }
+  const independenceTickers = independentBoardTickerSet();
   const filtered = filterRows(all, {
     q,
     dinOnly: sp.get("dinOnly") !== "0",
@@ -552,6 +636,8 @@ async function buildGovernanceMapResponse(req: NextRequest) {
         ? Number(sp.get("mcapMax"))
         : null,
     sme: sp.get("sme") === "1",
+    independence: sp.get("independence") === "1",
+    independenceTickers,
     family,
     control,
     pattern,
@@ -604,6 +690,10 @@ async function buildGovernanceMapResponse(req: NextRequest) {
             tv: c.tv,
             web: c.web,
             board_score: 0,
+            independent_pct: null as number | null,
+            independent_n: 0,
+            board_n: 0,
+            independent_ok: false,
             directors: [],
           };
           byTicker.set(c.ticker, agg);
@@ -642,11 +732,25 @@ async function buildGovernanceMapResponse(req: NextRequest) {
         });
       }
     }
-    let companies = [...byTicker.values()].map((agg) => ({
-      ...agg,
-      board_score: scoreCompanyBoard(agg.directors),
-    }));
+    let companies = [...byTicker.values()].map((agg) => {
+      const ind = boardIndependenceForTicker(agg.ticker);
+      return {
+        ...agg,
+        board_score: scoreCompanyBoard(agg.directors),
+        independent_pct: ind ? Math.round(ind.pct * 100) : null,
+        independent_n: ind?.independent ?? 0,
+        board_n: ind?.total ?? 0,
+        independent_ok: Boolean(ind?.qualifies),
+      };
+    });
     companies.sort((a, b) => {
+      if (sort === "independence" || sp.get("independence") === "1") {
+        const ap = a.independent_pct ?? -1;
+        const bp = b.independent_pct ?? -1;
+        if (bp !== ap) return bp - ap;
+        if (b.independent_n !== a.independent_n) return b.independent_n - a.independent_n;
+        if (a.independent_ok !== b.independent_ok) return a.independent_ok ? -1 : 1;
+      }
       if (sort === "score" && b.board_score !== a.board_score) {
         return b.board_score - a.board_score;
       }

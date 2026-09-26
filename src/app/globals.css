@@ -7558,6 +7558,22 @@ button.result-tag {
   background: #e0f2fe;
 }
 
+.gov-rank {
+  display: inline-block;
+  min-width: 2.1rem;
+  margin-right: 0.35rem;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  color: #57534e;
+  letter-spacing: -0.02em;
+}
+
+.gov-tag-ind {
+  color: #57534e;
+  background: #f5f5f4;
+}
+
 .gov-tag-edge {
   color: #3730a3;
   background: #e0e7ff;
