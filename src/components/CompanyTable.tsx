@@ -15,6 +15,7 @@ import { matchTagSource } from "@/lib/pattern";
 import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap, formatMomPct, formatRsiM } from "@/lib/types";
+import { fmtYoYPct, yoyClass } from "@/lib/quarter-panel";
 import { SecCell } from "@/components/SecCell";
 import { WatchButton } from "@/components/WatchButton";
 import { useOptionalAppTab } from "@/lib/app-tab";
@@ -33,7 +34,10 @@ export type SortKey =
   | "momentum_rank"
   | "rsi_m"
   | "rsi_rank"
-  | "fund_count";
+  | "fund_count"
+  | "pead_score"
+  | "sales_yoy"
+  | "np_yoy";
 
 type ExpandPanel =
   | "about"
@@ -44,6 +48,7 @@ type ExpandPanel =
 
 type HeaderDef = {
   key: SortKey;
+  id?: string;
   label: string;
   align: "left" | "right";
   sortable?: boolean;
@@ -57,7 +62,7 @@ type Props = {
   showMatched?: boolean;
   showMissing?: boolean;
   /** Scan signal columns: 12m mom, RSI M, fund overlap count, or none. */
-  signalMode?: "mom" | "rsi" | "overlap" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "pead" | null;
   /** @deprecated Prefer signalMode. */
   showMomentum?: boolean;
   /** Allow deleting a stock from local DBs (Missing Data). */
@@ -228,10 +233,16 @@ export function CompanyTable({
     setPanel("about");
   }, [expandTicker]);
 
-  const mode: "mom" | "rsi" | "overlap" | null =
+  const mode: "mom" | "rsi" | "overlap" | "pead" | null =
     signalMode ?? (showMomentum ? "mom" : null);
   const colSpan =
-    mode === "mom" ? 10 : mode === "rsi" || mode === "overlap" ? 8 : 6;
+    mode === "pead"
+      ? 8
+      : mode === "mom"
+        ? 10
+        : mode === "rsi" || mode === "overlap"
+          ? 8
+          : 6;
   const headers = useMemo((): HeaderDef[] => {
     if (mode === "mom") {
       return [
@@ -305,6 +316,18 @@ export function CompanyTable({
           label: "Count",
           align: "right",
         },
+      ];
+    }
+    if (mode === "pead") {
+      return [
+        { key: "name", label: "Company", align: "left" },
+        { key: "sales_yoy", label: "Rev Gr.", align: "right" },
+        { id: "pat", key: "np_yoy", label: "PAT Gr.", align: "right" },
+        { id: "revgr", key: "sales_yoy", label: "Rev Growth", align: "left", sortable: false },
+        { id: "mgn", key: "sales_yoy", label: "Margin Exp.", align: "left", sortable: false },
+        { id: "roce", key: "sales_yoy", label: "ROCE Impr.", align: "left", sortable: false },
+        { key: "pead_score", label: "PEAD Potential", align: "left" },
+        { id: "tech", key: "pead_score", label: "Tech Strength", align: "left", sortable: false },
       ];
     }
     return [
@@ -383,6 +406,17 @@ export function CompanyTable({
                 <col className="col-fund-count" />
                 <col className="col-links" />
               </>
+            ) : mode === "pead" ? (
+              <>
+                <col className="col-name" />
+                <col className="col-revgr-pct" />
+                <col className="col-patgr" />
+                <col className="col-revgr" />
+                <col className="col-mgn" />
+                <col className="col-roce" />
+                <col className="col-pead" />
+                <col className="col-tech" />
+              </>
             ) : (
               <>
                 <col className="col-ticker" />
@@ -398,7 +432,21 @@ export function CompanyTable({
             <tr>
               {headers.map((h) => {
                 const colClass =
-                  h.key === "sector"
+                  h.id === "pat"
+                    ? "col-patgr"
+                    : h.id === "revgr"
+                      ? "col-revgr"
+                      : h.id === "mgn"
+                        ? "col-mgn"
+                        : h.id === "roce"
+                          ? "col-roce"
+                          : h.id === "tech"
+                            ? "col-tech"
+                            : h.key === "sales_yoy" && !h.id
+                              ? "col-revgr-pct"
+                            : h.key === "pead_score"
+                              ? "col-pead"
+                  : h.key === "sector"
                     ? "col-sec"
                     : h.key === "momentum_pct"
                       ? "col-mom"
@@ -416,7 +464,7 @@ export function CompanyTable({
                 const sortable = h.sortable !== false;
                 return (
                   <th
-                    key={h.key}
+                    key={h.id ?? h.key}
                     className={[h.align === "right" ? "num" : "", colClass]
                       .filter(Boolean)
                       .join(" ")}
@@ -454,7 +502,11 @@ export function CompanyTable({
                     ) : (
                       <span
                         className={`th-btn${h.align === "right" ? " th-btn--end" : ""}`}
-                        title="Order book as-of date from filing"
+                        title={
+                          h.id === "tech"
+                            ? "Price vs daily SMA 20/50/200 (not Scan EMA or 12m). Very Strong = price > 20 > 50 > 200. Shown only when those SMAs are computed."
+                            : undefined
+                        }
                       >
                         {h.label}
                       </span>
@@ -462,7 +514,9 @@ export function CompanyTable({
                   </th>
                 );
               })}
-              <th className="col-links">Links</th>
+              {mode !== "pead" ? (
+                <th className="col-links">Links</th>
+              ) : null}
             </tr>
           </thead>
         <tbody>
@@ -816,6 +870,32 @@ function FundCountTag({ value }: { value: number | null | undefined }) {
   );
 }
 
+function BandChip({
+  band,
+  solid,
+}: {
+  band: "High" | "Med" | "Low" | null | undefined;
+  solid?: boolean;
+}) {
+  if (!band) return <span className="fund-chip fund-chip--na">—</span>;
+  return (
+    <span
+      className={`fund-chip fund-chip--${band.toLowerCase()}${solid ? " fund-chip--solid" : ""}`}
+    >
+      {band}
+    </span>
+  );
+}
+
+function techArrow(
+  strength: string | null | undefined,
+  change: string | null | undefined,
+): string {
+  if (strength === "Very Strong" || change === "Improved") return "↑";
+  if (strength === "Strong" || change === "Stable") return "→";
+  return "↓";
+}
+
 function CompanyLinks({
   web,
   sc,
@@ -885,7 +965,7 @@ function CompanyRows({
   showMore: boolean;
   showMatched?: boolean;
   showMissing?: boolean;
-  signalMode?: "mom" | "rsi" | "overlap" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "pead" | null;
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
   deleteLabel?: string;
@@ -999,6 +1079,28 @@ function CompanyRows({
             {r.rsi_rank != null ? r.rsi_rank : "—"}
           </td>
         ) : null}
+        {signalMode === "pead" ? (
+          <td className="col-name col-pead-co">
+            <div className="pead-co-text">
+                <a
+                  className="pead-name-link"
+                  href={r.tv}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${r.name} — TradingView`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {r.name}
+                </a>
+                {displaySubSector || displaySector ? (
+                  <span className="pead-sector">
+                    {displaySubSector || displaySector}
+                  </span>
+                ) : null}
+            </div>
+          </td>
+        ) : (
+        <>
         <td className="col-ticker">
           <a
             className="ticker-col-link"
@@ -1075,6 +1177,8 @@ function CompanyRows({
             </div>
           ) : null}
         </td>
+        </>
+        )}
         {signalMode === "mom" ? (
           <>
             <SecCell
@@ -1150,6 +1254,48 @@ function CompanyRows({
             </td>
             <td className="col-links">
               <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
+            </td>
+          </>
+        ) : signalMode === "pead" ? (
+          <>
+            <td className={`num col-revgr-pct ${yoyClass(r.fundamentals?.sales_yoy)}`}>
+              {r.fundamentals?.sales_yoy == null
+                ? "—"
+                : fmtYoYPct(r.fundamentals.sales_yoy)}
+            </td>
+            <td className={`num col-patgr ${yoyClass(r.fundamentals?.np_yoy)}`}>
+              {r.fundamentals?.np_yoy == null
+                ? "—"
+                : fmtYoYPct(r.fundamentals.np_yoy)}
+            </td>
+            <td className="col-revgr">
+              <BandChip band={r.fundamentals?.rev_growth} />
+            </td>
+            <td className="col-mgn">
+              <BandChip band={r.fundamentals?.margin_exp} />
+            </td>
+            <td className="col-roce">
+              <BandChip band={r.fundamentals?.roce_impr} />
+            </td>
+            <td className="col-pead">
+              <BandChip band={r.fundamentals?.pead_band} solid />
+            </td>
+            <td className="col-tech">
+              {r.fundamentals?.tech_strength ? (
+                <span
+                  className={`tech-cell tech-cell--${(r.fundamentals.tech_strength || "weak").toLowerCase().replace(/\s+/g, "-")}`}
+                >
+                  {r.fundamentals.tech_strength}{" "}
+                  <span className="tech-arrow" aria-hidden>
+                    {techArrow(
+                      r.fundamentals.tech_strength,
+                      r.fundamentals.tech_change,
+                    )}
+                  </span>
+                </span>
+              ) : (
+                "—"
+              )}
             </td>
           </>
         ) : (

@@ -289,6 +289,16 @@ export function yoyPct(
   return Math.round(((latest / prior) - 1) * 1000) / 10;
 }
 
+/** PAT / EPS / OP YoY when the prior period can be a loss (abs(prior) in the denominator). */
+export function profitYoyPct(
+  latest: number | null,
+  prior: number | null,
+): number | null {
+  if (latest == null || prior == null || !Number.isFinite(latest)) return null;
+  if (!Number.isFinite(prior) || prior === 0) return null;
+  return Math.round(((latest - prior) / Math.abs(prior)) * 1000) / 10;
+}
+
 export type PanelYoY = {
   sales_yoy: number | null;
   np_yoy: number | null;
@@ -326,9 +336,11 @@ export function qoqPairFromPanel(
 export function qoqFromPanel(panel: QuarterPanel): PanelQoQ | null {
   if (panel.labels.length < 2) return null;
   const sales = yoyPct(...qoqPairFromPanel(rowValues(panel, "Sales")));
-  const np = yoyPct(...qoqPairFromPanel(rowValues(panel, "Net Profit")));
-  const eps = yoyPct(...qoqPairFromPanel(rowValues(panel, "EPS in Rs")));
-  const ebidt = yoyPct(...qoqPairFromPanel(rowValues(panel, "Operating Profit")));
+  const np = profitYoyPct(...qoqPairFromPanel(rowValues(panel, "Net Profit")));
+  const eps = profitYoyPct(...qoqPairFromPanel(rowValues(panel, "EPS in Rs")));
+  const ebidt = profitYoyPct(
+    ...qoqPairFromPanel(rowValues(panel, "Operating Profit")),
+  );
   if (sales == null && np == null && eps == null && ebidt == null) return null;
   return { sales_qoq: sales, np_qoq: np, eps_qoq: eps, ebidt_qoq: ebidt };
 }
@@ -370,7 +382,7 @@ export function extraMetricsFromPanel(
 ): QuarterExtraMetrics | null {
   const qoq = qoqFromPanel(panel);
   const ebidtRow = rowValues(panel, "Operating Profit");
-  const ebidt_yoy = yoyPct(...yoyPairFromPanel(ebidtRow, panel.labels));
+  const ebidt_yoy = profitYoyPct(...yoyPairFromPanel(ebidtRow, panel.labels));
   const cf_profit = cfProfit ?? null;
   if (
     !qoq &&
@@ -392,9 +404,9 @@ export function extraMetricsFromPanel(
 export function yoyFromPanel(panel: QuarterPanel): PanelYoY | null {
   if (panel.labels.length < 2) return null;
   const sales = yoyPct(...yoyPairFromPanel(rowValues(panel, "Sales"), panel.labels));
-  const np = yoyPct(...yoyPairFromPanel(rowValues(panel, "Net Profit"), panel.labels));
-  const eps = yoyPct(...yoyPairFromPanel(rowValues(panel, "EPS in Rs"), panel.labels));
-  const ebidt = yoyPct(
+  const np = profitYoyPct(...yoyPairFromPanel(rowValues(panel, "Net Profit"), panel.labels));
+  const eps = profitYoyPct(...yoyPairFromPanel(rowValues(panel, "EPS in Rs"), panel.labels));
+  const ebidt = profitYoyPct(
     ...yoyPairFromPanel(rowValues(panel, "Operating Profit"), panel.labels),
   );
   if (sales == null && np == null && eps == null && ebidt == null) return null;

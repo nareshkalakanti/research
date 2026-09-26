@@ -12,6 +12,7 @@ import {
   type QuarterPoint,
   yoyFromPanel,
   yoyPct,
+  profitYoyPct,
   fmtYoYPct,
 } from "../src/lib/quarter-panel";
 import { parseNonIndAsQuarterXbrl } from "../src/lib/nse-quarters";
@@ -113,6 +114,7 @@ function main() {
   assert.equal(yoy!.eps_yoy, 40);
   assert.equal(yoyPct(140, 100), 40);
   assert.equal(yoyPct(4.48, -0.56), null);
+  assert.equal(profitYoyPct(4.48, -0.56), 900);
   assert.equal(fmtYoYPct(12.5), "+12.5%");
   assert.equal(fmtYoYPct(null), "N/M");
 

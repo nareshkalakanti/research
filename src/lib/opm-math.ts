@@ -203,6 +203,40 @@ export function salesYoyFromQuarters(quarters: QuarterLike[]): number | null {
   return yoyPct(latest.rev as number, prior.rev as number);
 }
 
+/**
+ * Latest OPM % minus same-month year-ago OPM, in basis points.
+ * OPM series is already percent (e.g. 8.0 − 3.0 = 500 bps).
+ */
+export function opmYoyDeltaBps(quarters: QuarterLike[]): number | null {
+  if (!Array.isArray(quarters) || quarters.length < 2) return null;
+  const sorted = quarters
+    .map((q) => ({
+      opm: opmPctFromQuarters([q])[0] ?? null,
+      key: parsePeriodEnd(q.date),
+    }))
+    .filter(
+      (q) =>
+        q.key &&
+        q.opm != null &&
+        Number.isFinite(q.opm),
+    )
+    .sort((a, b) => {
+      const ak = a.key!;
+      const bk = b.key!;
+      return ak.y !== bk.y ? ak.y - bk.y : ak.m - bk.m;
+    });
+  if (sorted.length < 2) return null;
+  const latest = sorted[sorted.length - 1]!;
+  const prior = [...sorted]
+    .reverse()
+    .find(
+      (q) =>
+        q.key!.m === latest.key!.m && q.key!.y === latest.key!.y - 1,
+    );
+  if (!prior || latest.opm == null || prior.opm == null) return null;
+  return Math.round((latest.opm - prior.opm) * 100);
+}
+
 /** QoQ sales % on the two newest quarters with revenue (for short histories). */
 export function salesQoqFromQuarters(quarters: QuarterLike[]): number | null {
   if (!Array.isArray(quarters) || quarters.length < 2) return null;

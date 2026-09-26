@@ -6,6 +6,8 @@ import { fetchDailyBars } from "./ohlc";
 import { rollingMean } from "./indicators";
 import { yfSymbolCandidates } from "./yfinance";
 import YahooFinance from "yahoo-finance2";
+import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
+import { computeReturnsPct } from "./pead-score";
 
 const yf = new YahooFinance({
   suppressNotices: ["yahooSurvey"],
@@ -30,6 +32,8 @@ export type QuoteTape = {
   breakout20: number | null;
   dma200_alert: "below_200_breakout" | null;
   mas: QuoteTapeMa[];
+  returns_pct: number | null;
+  result_date: string | null;
 };
 
 function lastMean(closes: number[], period: number): number | null {
@@ -98,6 +102,8 @@ export async function loadQuoteTape(
       { period: 100, value: null, above: null },
       { period: 200, value: null, above: null },
     ],
+    returns_pct: null,
+    result_date: null,
   };
   const t = ticker.trim().toUpperCase();
   if (!t) return empty;
@@ -161,6 +167,18 @@ export async function loadQuoteTape(
     }
   }
 
+  let result_date: string | null = null;
+  try {
+    result_date = loadQuarterMetricsMap().get(t)?.result_date ?? null;
+  } catch {
+    result_date = null;
+  }
+  const returns_pct = computeReturnsPct(
+    bars.map((b) => ({ date: b.date, close: b.close })),
+    result_date,
+    price,
+  );
+
   return {
     price,
     prev_close,
@@ -173,5 +191,7 @@ export async function loadQuoteTape(
     breakout20,
     dma200_alert,
     mas,
+    returns_pct,
+    result_date,
   };
 }

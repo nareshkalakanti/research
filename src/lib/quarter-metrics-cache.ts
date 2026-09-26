@@ -15,7 +15,9 @@ export type QuarterMetricsRow = {
   np_qoq: number | null;
   eps_qoq: number | null;
   ebidt_yoy: number | null;
+  ebidt_qoq: number | null;
   cf_profit: number | null;
+  result_date: string | null;
   computed_at: string;
 };
 
@@ -25,6 +27,7 @@ export type QuarterMetricsExtras = Pick<
   | "np_qoq"
   | "eps_qoq"
   | "ebidt_yoy"
+  | "ebidt_qoq"
   | "cf_profit"
 >;
 
@@ -66,11 +69,15 @@ function ensureDb(): Database.Database {
     "np_qoq",
     "eps_qoq",
     "ebidt_yoy",
+    "ebidt_qoq",
     "cf_profit",
   ]) {
     if (!names.has(col)) {
       db.exec(`ALTER TABLE quarter_metrics ADD COLUMN ${col} REAL`);
     }
+  }
+  if (!names.has("result_date")) {
+    db.exec(`ALTER TABLE quarter_metrics ADD COLUMN result_date TEXT`);
   }
   cacheDb = db;
   return db;
@@ -147,7 +154,8 @@ export function loadQuarterMetricsMap(): Map<string, QuarterMetricsRow> {
     const rows = db
       .prepare(
         `SELECT ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
-                sales_qoq, np_qoq, eps_qoq, ebidt_yoy, cf_profit, computed_at
+                sales_qoq, np_qoq, eps_qoq, ebidt_yoy, ebidt_qoq,
+                cf_profit, result_date, computed_at
          FROM quarter_metrics`,
       )
       .all() as QuarterMetricsRow[];
@@ -170,7 +178,9 @@ export function saveQuarterMetrics(
     np_qoq?: number | null;
     eps_qoq?: number | null;
     ebidt_yoy?: number | null;
+    ebidt_qoq?: number | null;
     cf_profit?: number | null;
+    result_date?: string | null;
   },
 ): void {
   const key = ticker.toUpperCase();
@@ -178,11 +188,13 @@ export function saveQuarterMetrics(
   db.prepare(
     `INSERT INTO quarter_metrics (
        ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
-       sales_qoq, np_qoq, eps_qoq, ebidt_yoy, cf_profit, computed_at
+       sales_qoq, np_qoq, eps_qoq, ebidt_yoy, ebidt_qoq,
+       cf_profit, result_date, computed_at
      )
      VALUES (
        @ticker, @forward_pe, @eps_yoy, @sales_yoy, @np_yoy,
-       @sales_qoq, @np_qoq, @eps_qoq, @ebidt_yoy, @cf_profit, @computed_at
+       @sales_qoq, @np_qoq, @eps_qoq, @ebidt_yoy, @ebidt_qoq,
+       @cf_profit, @result_date, @computed_at
      )
      ON CONFLICT(ticker) DO UPDATE SET
        forward_pe = excluded.forward_pe,
@@ -193,7 +205,9 @@ export function saveQuarterMetrics(
        np_qoq = excluded.np_qoq,
        eps_qoq = excluded.eps_qoq,
        ebidt_yoy = excluded.ebidt_yoy,
+       ebidt_qoq = excluded.ebidt_qoq,
        cf_profit = excluded.cf_profit,
+       result_date = excluded.result_date,
        computed_at = excluded.computed_at`,
   ).run({
     ticker: key,
@@ -205,7 +219,9 @@ export function saveQuarterMetrics(
     np_qoq: data.np_qoq ?? null,
     eps_qoq: data.eps_qoq ?? null,
     ebidt_yoy: data.ebidt_yoy ?? null,
+    ebidt_qoq: data.ebidt_qoq ?? null,
     cf_profit: data.cf_profit ?? null,
+    result_date: data.result_date ?? null,
     computed_at: new Date().toISOString(),
   });
   invalidateQuarterMetricsCache();

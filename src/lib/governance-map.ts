@@ -553,14 +553,25 @@ function loadGroupNameByTicker(): Map<string, string> {
   return map;
 }
 
-/** Optional sibling stocks-ai SQLite — business_groups as an extra input. */
-function stocksAiDbPaths(): string[] {
+function stocksAiDataDirCandidates(): string[] {
   const home = process.env.HOME || "";
+  const extra = (process.env.STOCKS_AI_DATA || "").trim();
   return [
-    path.join(process.cwd(), "..", "stocks-ai", "data", "stocks_ai.db"),
-    path.join(home, "Development", "stocks-ai", "data", "stocks_ai.db"),
-    path.join(home, "Development", "ai.com", "stocks-ai", "data", "stocks_ai.db"),
-  ];
+    extra,
+    path.join(process.cwd(), "..", "stocks-ai", "data"),
+    path.join(home, "Development", "stocks-ai", "data"),
+    path.join(home, "Development", "ai.com", "stocks-ai", "data"),
+  ].filter(Boolean);
+}
+
+function stocksAiDbPaths(): string[] {
+  return stocksAiDataDirCandidates().map((dir) => path.join(dir, "stocks_ai.db"));
+}
+
+function stocksAiSeedPaths(): string[] {
+  return stocksAiDataDirCandidates().map((dir) =>
+    path.join(dir, "business_groups_seed.json"),
+  );
 }
 
 type StocksAiGroupData = {
@@ -644,18 +655,111 @@ function readStocksAiGroups(db: Database.Database): StocksAiGroupData {
   return out;
 }
 
+function mergeStocksAiGroupData(
+  into: StocksAiGroupData,
+  extra: StocksAiGroupData,
+): StocksAiGroupData {
+  const byName = new Map<string, Set<string>>();
+  for (const g of [...into.groups, ...extra.groups]) {
+    const name = (g.name || "").trim();
+    if (!name) continue;
+    const set = byName.get(name) ?? new Set<string>();
+    for (const t of g.tickers) {
+      const ticker = (t || "").trim().toUpperCase();
+      if (ticker) set.add(ticker);
+    }
+    byName.set(name, set);
+  }
+  const pairSeen = new Set(
+    into.pairs.map((p) => `${p.parent}>${p.child}`),
+  );
+  const pairs = [...into.pairs];
+  for (const p of extra.pairs) {
+    const key = `${p.parent}>${p.child}`;
+    if (pairSeen.has(key)) continue;
+    pairSeen.add(key);
+    pairs.push(p);
+  }
+  return {
+    groups: [...byName.entries()].map(([name, set]) => ({
+      name,
+      tickers: [...set],
+    })),
+    pairs,
+  };
+}
+
+function readStocksAiSeedFile(file: string): StocksAiGroupData {
+  const out: StocksAiGroupData = { groups: [], pairs: [] };
+  let raw: unknown;
+  try {
+    raw = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return out;
+  }
+  const groups = Array.isArray((raw as { groups?: unknown }).groups)
+    ? ((raw as { groups: unknown[] }).groups)
+    : [];
+  for (const row of groups) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as {
+      name?: unknown;
+      members?: unknown;
+    };
+    const name = String(rec.name || "").trim();
+    const members = Array.isArray(rec.members) ? rec.members : [];
+    const tickers: string[] = [];
+    const spin: string[] = [];
+    const demergeParents: string[] = [];
+    for (const m of members) {
+      if (!m || typeof m !== "object") continue;
+      const mem = m as {
+        ticker?: unknown;
+        spin_off?: unknown;
+        demerger?: unknown;
+      };
+      const ticker = String(mem.ticker || "").trim().toUpperCase();
+      if (!ticker) continue;
+      tickers.push(ticker);
+      if (mem.spin_off === true) spin.push(ticker);
+      else if (mem.demerger === true) demergeParents.push(ticker);
+    }
+    const uniq = [...new Set(tickers)];
+    if (!name || !uniq.length) continue;
+    out.groups.push({ name, tickers: uniq });
+    const parents = demergeParents.length
+      ? demergeParents
+      : uniq.filter((t) => !spin.includes(t));
+    const parent = parents[0];
+    if (!parent) continue;
+    for (const child of spin) {
+      if (child !== parent) out.pairs.push({ parent, child });
+    }
+  }
+  return out;
+}
+
 let stocksAiCache: { at: number; data: StocksAiGroupData } | null = null;
 
 function loadStocksAiGroups(): StocksAiGroupData {
   const now = Date.now();
   if (stocksAiCache && now - stocksAiCache.at < CACHE_MS) return stocksAiCache.data;
   let data: StocksAiGroupData = { groups: [], pairs: [] };
+  for (const seedPath of stocksAiSeedPaths()) {
+    if (!fs.existsSync(seedPath)) continue;
+    try {
+      data = mergeStocksAiGroupData(data, readStocksAiSeedFile(seedPath));
+      break;
+    } catch (err) {
+      console.warn("[governance-map] stocks-ai seed unreadable:", seedPath, err);
+    }
+  }
   for (const dbPath of stocksAiDbPaths()) {
     if (!fs.existsSync(dbPath)) continue;
     let db: Database.Database | null = null;
     try {
       db = new Database(dbPath, { readonly: true, fileMustExist: true });
-      data = readStocksAiGroups(db);
+      data = mergeStocksAiGroupData(data, readStocksAiGroups(db));
       break;
     } catch (err) {
       console.warn("[governance-map] stocks-ai groups unreadable:", dbPath, err);
@@ -1594,6 +1698,29 @@ export function loadGovernanceFamilyMap(opts?: {
   }
   groups.length = 0;
   groups.push(...leftover.filter((g) => g.companies.length >= 2));
+
+  const seedDisplayName = (raw: string) => {
+    const key = declaredMergeKey(raw) || raw.trim().toLowerCase();
+    return displayGroupLabel(key);
+  };
+  for (const g of groups) {
+    const mine = new Set(g.companies.map((c) => c.ticker));
+    let best: { name: string; overlap: number; spec: number } | null = null;
+    for (const seed of stocksAi.groups) {
+      const overlap = seed.tickers.filter((t) => mine.has(t)).length;
+      if (overlap < 2 && !(mine.size === overlap && overlap >= 1)) continue;
+      const spec = overlap / Math.max(seed.tickers.length, 1);
+      if (
+        !best ||
+        overlap > best.overlap ||
+        (overlap === best.overlap && spec > best.spec)
+      ) {
+        best = { name: seed.name, overlap, spec };
+      }
+    }
+    if (best?.name) g.family_name = seedDisplayName(best.name);
+  }
+
   applyFamilyGroupEdits(groups, (ticker) => {
     const packed = packCompanies([ticker], "");
     return packed[0] ?? null;
@@ -1806,7 +1933,7 @@ export function loadGovernanceFamilyMap(opts?: {
       companies: g.companies.map((c) => ({
         ticker: c.ticker,
         name: c.name,
-        group_name: groupNames.get(c.ticker) || "",
+        group_name: groupNames.get(c.ticker) || g.family_name,
       })),
     })),
   );

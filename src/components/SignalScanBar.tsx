@@ -21,10 +21,11 @@ export type ViewFilter =
   | "mrsi"
   | "mrsi85"
   | "mrsi_empty"
-  | "opm";
+  | "opm"
+  | "pead";
 
 type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi" | "all";
-type ExtraBusy = "quarters";
+type ExtraBusy = "quarters" | "sma";
 
 type Props = {
   listLabel: string;
@@ -58,6 +59,7 @@ type Props = {
   mrsi85Count?: number;
   mrsiEmptyCount?: number;
   opmCount?: number;
+  peadCount?: number;
   bbDate?: string | null;
   bbWDate?: string | null;
   bbMDate?: string | null;
@@ -69,6 +71,8 @@ type Props = {
   mrsiDate?: string | null;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
+  /** Current PEAD page tickers — Fill SMA does these first. */
+  smaTickers?: string[];
 };
 
 type Progress = {
@@ -167,6 +171,7 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   mrsi85: "85–90",
   mrsi_empty: "Empty",
   opm: "Operating Metrics",
+  pead: "PEAD",
 };
 
 type ScanCounts = {
@@ -271,6 +276,7 @@ export function SignalScanBar({
   mrsi85Count,
   mrsiEmptyCount,
   opmCount,
+  peadCount,
   bbDate,
   bbWDate,
   bbMDate,
@@ -282,6 +288,7 @@ export function SignalScanBar({
   mrsiDate,
   onBatch,
   onDone,
+  smaTickers,
 }: Props) {
   const [busyKind, setBusyKind] = useState<ScanKind | ExtraBusy | null>(null);
   const [busyTf, setBusyTf] = useState<BbTimeframe | null>(null);
@@ -688,7 +695,77 @@ export function SignalScanBar({
     onView,
   ]);
 
-
+  const runSmaFill = useCallback(async () => {
+    const scopeLabel = market;
+    setBusyKind("sma");
+    setBusyTf(null);
+    setProgress({
+      pct: 2,
+      label: "Fill SMA",
+      detail: `Daily 20/50/200 · ${scopeLabel} · PEAD names missing tech…`,
+    });
+    let remaining = 1;
+    let saved = 0;
+    let failed = 0;
+    try {
+      for (let round = 1; round <= 400; round += 1) {
+        const res = await fetch("/api/sma-fill", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            market,
+            tickers: smaTickers ?? [],
+            limit: 8,
+            concurrency: 2,
+          }),
+          cache: "no-store",
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          tried?: number;
+          saved?: number;
+          failed?: number;
+          remaining?: number;
+          error?: string;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || "SMA fill failed");
+        }
+        saved += json.saved ?? 0;
+        failed += json.failed ?? 0;
+        remaining = json.remaining ?? 0;
+        setProgress({
+          pct: remaining <= 0 ? 100 : Math.min(97, 3 + round * 2),
+          label: remaining <= 0 ? "Done" : "Fill SMA",
+          detail: `+${saved} · ${failed} failed · ${remaining.toLocaleString()} left · ${scopeLabel}`,
+          done: remaining <= 0,
+        });
+        if (round === 1 || round % 2 === 0 || remaining <= 0) {
+          await (onBatch ?? onDone)?.();
+        }
+        if ((json.tried ?? 0) === 0 || remaining <= 0) break;
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      setProgress({
+        pct: 100,
+        label: "Done",
+        detail: `+${saved} SMA stacks · ${failed} failed · ${scopeLabel}`,
+        done: true,
+      });
+      onView("pead");
+      await onDone?.();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "SMA fill failed";
+      setProgress({
+        pct: 100,
+        label: "Failed",
+        detail: msg,
+        error: true,
+      });
+    } finally {
+      setBusyKind(null);
+    }
+  }, [market, onBatch, onDone, onView, smaTickers]);
 
   const busy = busyKind != null;
 
@@ -880,6 +957,15 @@ export function SignalScanBar({
               Operating Metrics
               <Count n={opmCount} />
             </button>
+            <button
+              type="button"
+              className={`chip tag-chip tag-scan-pead ${view === "pead" ? "on" : ""}`}
+              onClick={() => onView("pead")}
+              title="PEAD table: Rev/PAT YoY, chips, PEAD2 percentile. Tech Strength needs Fill SMA (daily 20/50/200)."
+            >
+              PEAD
+              <Count n={peadCount} />
+            </button>
 
             {view !== "all" ? (
               <button
@@ -987,6 +1073,15 @@ export function SignalScanBar({
               title={`Fill missing quarterly Sales/OP (for Operating Metrics) on ${scope === "selection" ? listLabel : market} — missing-only`}
             >
               {busyKind === "quarters" ? "…" : "Fill Quarters"}
+            </button>
+            <button
+              type="button"
+              className={`chip chip-scan tag-chip ${busyKind === "sma" ? "busy on" : ""}`}
+              disabled={busy}
+              onClick={() => void runSmaFill()}
+              title="Fill daily SMA 20/50/200 for PEAD Tech Strength (Yahoo bars). Does not use Scan EMA or 12m."
+            >
+              {busyKind === "sma" ? "…" : "Fill SMA"}
             </button>
           </div>
           {progressEl}

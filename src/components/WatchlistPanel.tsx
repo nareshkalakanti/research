@@ -178,7 +178,7 @@ function WlQuoteTape({
   const dma200Label =
     tape.dma200_alert === "below_200_breakout"
       ? "Below 200 DMA · Fresh breakout"
-        : null;
+      : null;
 
   return (
     <div className="wl-tape">
@@ -232,8 +232,8 @@ function WlQuoteTape({
               >
                 {m.value != null
                   ? m.value.toLocaleString("en-IN", {
-                      maximumFractionDigits: 2,
-                    })
+                    maximumFractionDigits: 2,
+                  })
                   : "—"}
               </td>
             ))}
@@ -248,8 +248,8 @@ function WlQuoteTape({
               200 DMA {tape.dma200.toLocaleString("en-IN", { maximumFractionDigits: 2 })} ·
               Breakout {tape.breakout20 != null
                 ? tape.breakout20.toLocaleString("en-IN", {
-                    maximumFractionDigits: 2,
-                  })
+                  maximumFractionDigits: 2,
+                })
                 : "—"} · Price{" "}
               {tape.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
             </span>
@@ -585,9 +585,9 @@ function storyFromBrief(
     ? brief.offerings?.length
       ? brief.offerings.slice(0, 4).filter((o) => isUsable(o.name))
       : (brief.products ?? [])
-          .slice(0, 4)
-          .filter((n) => isUsable(n))
-          .map((name) => ({ name, line: "" }))
+        .slice(0, 4)
+        .filter((n) => isUsable(n))
+        .map((name) => ({ name, line: "" }))
     : [];
   if (!offerings.length && context?.products) {
     for (const name of context.products.split(/\s*[;|]\s*|\s*,\s+/).slice(0, 4)) {
@@ -755,13 +755,12 @@ function WatchlistRow({
           <td className="num col-mom" title="12-1 momentum">
             {r.momentum_pct != null ? (
               <span
-                className={`mom-tag mom-tag--${
-                  Math.round(r.momentum_pct) > 0
+                className={`mom-tag mom-tag--${Math.round(r.momentum_pct) > 0
                     ? "pos"
                     : Math.round(r.momentum_pct) < 0
                       ? "neg"
                       : "flat"
-                }`}
+                  }`}
               >
                 {`${Math.round(r.momentum_pct) > 0 ? "+" : ""}${Math.round(
                   r.momentum_pct,
@@ -1474,12 +1473,12 @@ export function WatchlistPanel() {
   const visible = !needle
     ? sortedRows
     : sortedRows.filter(
-        (r) =>
-          r.ticker.toLowerCase().includes(needle) ||
-          r.company.toLowerCase().includes(needle) ||
-          (r.sector || "").toLowerCase().includes(needle) ||
-          (r.sub_sector || "").toLowerCase().includes(needle),
-      );
+      (r) =>
+        r.ticker.toLowerCase().includes(needle) ||
+        r.company.toLowerCase().includes(needle) ||
+        (r.sector || "").toLowerCase().includes(needle) ||
+        (r.sub_sector || "").toLowerCase().includes(needle),
+    );
 
   return (
     <section className="panel wl-panel wl-panel--simple">
@@ -1529,9 +1528,8 @@ export function WatchlistPanel() {
             type="button"
             role="tab"
             aria-selected={list === "named" && namedKey === nl.key}
-            className={`chip tag-chip wl-named-chip${
-              list === "named" && namedKey === nl.key ? " on" : ""
-            }`}
+            className={`chip tag-chip wl-named-chip${list === "named" && namedKey === nl.key ? " on" : ""
+              }`}
             style={{
               ["--wl-named-h" as string]: String(namedListChipHue(i)),
             }}
@@ -1629,10 +1627,10 @@ export function WatchlistPanel() {
               list === "common"
                 ? "Common is read-only — names on two or more lists"
                 : list === "holdings"
-                ? "Search ticker or company to add to holdings…"
-                : list === "named"
-                  ? `Search ticker or company to add to ${namedLabel}…`
-                  : "Search ticker or company to add…"
+                  ? "Search ticker or company to add to holdings…"
+                  : list === "named"
+                    ? `Search ticker or company to add to ${namedLabel}…`
+                    : "Search ticker or company to add…"
             }
             className="theme-stock-suggest-input"
             disabled={list === "common"}

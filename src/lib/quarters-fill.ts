@@ -61,10 +61,10 @@ function cachedQuartersUsableMap(): Map<
           `SELECT ticker, quarters_json, blocked_until FROM screener_quarters_cache`,
         )
         .all() as Array<{
-        ticker: string;
-        quarters_json: string;
-        blocked_until: string | null;
-      }>;
+          ticker: string;
+          quarters_json: string;
+          blocked_until: string | null;
+        }>;
       const now = Date.now();
       for (const row of rows) {
         const t = row.ticker.toUpperCase();
@@ -222,21 +222,21 @@ export async function runQuartersFillBatch(opts: {
   const pending = missingOnly
     ? pendingQuartersFillTickers(scopeOpts)
     : (() => {
-        const all = loadAllCompanies();
-        let pool = filterCompaniesByScanList(
-          all,
-          opts.market || "All",
-          all,
-        );
-        if (opts.selection && hasQuartersFillSelection(opts.selection)) {
-          pool = applySelectionFilters(pool, opts.selection);
-        }
-        if (opts.tickers?.length) {
-          const want = new Set(opts.tickers.map((t) => t.toUpperCase()));
-          pool = pool.filter((c) => want.has(c.ticker.toUpperCase()));
-        }
-        return pool.map((c) => c.ticker.toUpperCase()).sort();
-      })();
+      const all = loadAllCompanies();
+      let pool = filterCompaniesByScanList(
+        all,
+        opts.market || "All",
+        all,
+      );
+      if (opts.selection && hasQuartersFillSelection(opts.selection)) {
+        pool = applySelectionFilters(pool, opts.selection);
+      }
+      if (opts.tickers?.length) {
+        const want = new Set(opts.tickers.map((t) => t.toUpperCase()));
+        pool = pool.filter((c) => want.has(c.ticker.toUpperCase()));
+      }
+      return pool.map((c) => c.ticker.toUpperCase()).sort();
+    })();
 
   const batch = pending.slice(0, limit);
   if (!batch.length) {

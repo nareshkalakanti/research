@@ -5,7 +5,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import Database from "better-sqlite3";
-import { completeJson } from "./llm-client";
+import { checkLlmStatus, completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
 import { DATA_DIR } from "./sqlite-utils";
 
@@ -123,6 +123,8 @@ export async function refineFamilyGroupLabels(
   const out = new Map<string, string>();
   if (!groups.length) return out;
   const cfg = loadLlmConfig();
+  const status = await checkLlmStatus(cfg);
+  if (!status.available) return out;
   const cards = groups.map((g) => ({
     id: g.id,
     current_label: g.label,
@@ -196,7 +198,8 @@ export function scheduleFamilyGroupRefine(groups: RefineGroup[]): void {
         await refineFamilyGroupLabels(batch);
       }
     } catch (err) {
-      console.warn("[family-group-refine]", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn("[family-group-refine]", msg);
     } finally {
       refineInFlight = null;
     }
