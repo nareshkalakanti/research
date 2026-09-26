@@ -1904,7 +1904,7 @@ function loadSeatsForTickers(tickers: string[]): SeatRow[] {
   return out;
 }
 
-function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
+export function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
   const map = new Map<string, AboutBits>();
   const db = getAbout();
   if (!db || tickers.length === 0) return map;
