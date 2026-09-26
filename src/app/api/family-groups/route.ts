@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   addFamilyGroupTicker,
+  createFamilyGroup,
   removeFamilyGroupTicker,
   renameFamilyGroup,
   searchListedCompanies,
@@ -26,9 +27,11 @@ export async function POST(req: NextRequest) {
     group_id?: string;
     label?: string;
     ticker?: string;
+    tickers?: string[];
     rename?: boolean;
     add?: boolean;
     remove?: boolean;
+    create?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -36,6 +39,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
   const groupId = (body.group_id || "").trim();
+  if (body.create) {
+    const saved = createFamilyGroup(body.label || "", body.tickers || []);
+    if (!saved) {
+      return NextResponse.json({ ok: false, error: "Need a group name" }, { status: 400 });
+    }
+    const families = loadGovernanceFamilyMap();
+    const row = families.find((g) => g.group_id === saved.group_id) || null;
+    return NextResponse.json({
+      ok: true as const,
+      group: row,
+      group_id: saved.group_id,
+      total: families.length,
+    });
+  }
   if (!groupId) {
     return NextResponse.json({ ok: false, error: "Need group_id" }, { status: 400 });
   }
