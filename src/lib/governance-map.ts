@@ -1755,7 +1755,7 @@ export function loadGovernanceFamilyMap(opts?: {
   for (let i = groups.length - 1; i >= 0; i--) {
     const g = groups[i]!;
     if (g.companies.length < 1) {
-      groups.splice(i, 1);
+      if (!editMap.get(g.group_id || "")?.label) groups.splice(i, 1);
       continue;
     }
     if (g.companies.length < 2 && !editMap.has(g.group_id || "")) {

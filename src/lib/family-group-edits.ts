@@ -153,6 +153,30 @@ function saveEdit(edit: FamilyGroupEdit): void {
   }
 }
 
+export function createFamilyGroup(
+  label: string,
+  tickers: string[] = [],
+): FamilyGroupEdit | null {
+  const name = label.replace(/\s+/g, " ").trim();
+  if (name.length < 2 || name.length > 80) return null;
+  const add = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter((t) => /^[A-Z0-9][A-Z0-9.&-]{0,20}$/.test(t)),
+    ),
+  ];
+  const groupId = `user-${groupFingerprint([name, ...add, Date.now().toString()])}`;
+  const cur: FamilyGroupEdit = {
+    group_id: groupId,
+    label: name,
+    add,
+    remove: [],
+  };
+  saveEdit(cur);
+  return cur;
+}
+
 export function renameFamilyGroup(groupId: string, label: string): FamilyGroupEdit | null {
   const name = label.replace(/\s+/g, " ").trim();
   if (!groupId || name.length < 2 || name.length > 80) return null;
@@ -227,8 +251,34 @@ export function applyFamilyGroupEdits<
     }
     g.company_count = g.companies.length;
   }
+  const seen = new Set(groups.map((g) => g.group_id).filter(Boolean));
+  for (const edit of edits.values()) {
+    if (!edit.group_id.startsWith("user-") || seen.has(edit.group_id)) continue;
+    const companies: C[] = [];
+    for (const ticker of edit.add) {
+      if (companies.some((c) => c.ticker.toUpperCase() === ticker)) continue;
+      const extra = resolveCompany(ticker);
+      if (!extra) continue;
+      for (const other of groups) {
+        other.companies = other.companies.filter(
+          (c) => c.ticker.toUpperCase() !== ticker,
+        );
+        other.company_count = other.companies.length;
+      }
+      companies.push(extra);
+    }
+    if (!edit.label && companies.length < 1) continue;
+    groups.push({
+      family_name: edit.label || companies[0]!.ticker,
+      company_count: companies.length,
+      companies,
+      group_id: edit.group_id,
+    } as G);
+  }
   for (let i = groups.length - 1; i >= 0; i--) {
-    if (groups[i]!.companies.length < 1) groups.splice(i, 1);
+    const g = groups[i]!;
+    const edit = g.group_id ? edits.get(g.group_id) : undefined;
+    if (g.companies.length < 1 && !edit?.label) groups.splice(i, 1);
   }
 }
 
