@@ -133,6 +133,7 @@ export function ScanPanel() {
       if (view === "mrsi85") params.set("mrsi85", "1");
       if (view === "mrsi_empty") params.set("mrsi_empty", "1");
       if (view === "opm") params.set("opm", "1");
+      if (view === "pead") params.set("pead", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterGov) params.set("gov", "1");
@@ -238,19 +239,24 @@ export function ScanPanel() {
               key === "momentum_pct" ||
               key === "price_1y" ||
               key === "price_1m" ||
-              key === "rsi_m"
+              key === "rsi_m" ||
+              key === "pead_score" ||
+              key === "sales_yoy" ||
+              key === "np_yoy"
             ? "desc"
             : "asc",
       );
     }
   }
 
-  const signalMode: "mom" | "rsi" | null =
+  const signalMode: "mom" | "rsi" | "pead" | null =
     view === "mom"
       ? "mom"
       : view === "mrsi" || view === "mrsi85" || view === "mrsi_empty"
         ? "rsi"
-        : null;
+        : view === "pead"
+          ? "pead"
+          : null;
 
   const onView = useCallback(
     (next: ViewFilter) => {
@@ -259,6 +265,9 @@ export function ScanPanel() {
       if (next === "mom") {
         setSort("momentum_rank");
         setDir("asc");
+      } else if (next === "pead") {
+        setSort("pead_score");
+        setDir("desc");
       } else if (
         next === "mrsi" ||
         next === "mrsi85" ||
@@ -272,7 +281,10 @@ export function ScanPanel() {
         sort === "price_1y" ||
         sort === "price_1m" ||
         sort === "rsi_m" ||
-        sort === "rsi_rank"
+        sort === "rsi_rank" ||
+        sort === "pead_score" ||
+        sort === "sales_yoy" ||
+        sort === "np_yoy"
       ) {
         setSort("name");
         setDir("asc");
@@ -484,6 +496,7 @@ export function ScanPanel() {
           mrsi85Count={data?.signals?.mrsi85}
           mrsiEmptyCount={data?.signals?.mrsi_empty}
           opmCount={data?.signals?.operating_metrics}
+          peadCount={data?.signals?.pead}
           bbDate={data?.session?.bb ?? null}
           bbWDate={data?.session?.bb_w ?? data?.session?.bb ?? null}
           bbMDate={data?.session?.bb_m ?? null}
@@ -495,6 +508,9 @@ export function ScanPanel() {
           mrsiDate={data?.session?.mrsi ?? null}
           onBatch={softReload}
           onDone={hardReload}
+          smaTickers={
+            view === "pead" ? (data?.rows ?? []).map((r) => r.ticker) : []
+          }
         />
       </div>
 
@@ -508,6 +524,12 @@ export function ScanPanel() {
               listings: Stable OPM + QoQ sales &gt;0). Use{" "}
               <strong>Fill Quarters</strong> (List / Tags), open Quarters, or
               widen List.{" "}
+            </>
+          ) : view === "pead" ? (
+            <>
+              {" "}
+              Needs cached quarterly Sales YoY. Use{" "}
+              <strong>Fill Quarters</strong>, then sort PEAD.{" "}
             </>
           ) : selectionActive ? (
             <>

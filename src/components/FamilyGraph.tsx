@@ -189,9 +189,8 @@ export function FamilyGraph({
         kind: "company",
         label: c.ticker,
         cap: capBand(c.cap_code, c.market_cap_cr),
-        title: `${c.ticker} · ${c.name}${
-          c.directors ? ` · DIN ${c.din_verified ?? 0}/${c.directors}` : ""
-        }`,
+        title: `${c.ticker} · ${c.name}${c.directors ? ` · DIN ${c.din_verified ?? 0}/${c.directors}` : ""
+          }`,
         r: RADIUS.company,
         x: 0,
         y: 0,

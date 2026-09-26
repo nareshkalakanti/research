@@ -24,6 +24,7 @@ export type QuarterMetricsSnapshot = {
   sales_yoy: number | null;
   np_yoy: number | null;
   extras?: QuarterExtraMetrics | null;
+  result_date?: string | null;
 };
 
 function snapshotFromRow(row: QuarterMetricsRow): QuarterMetricsSnapshot {
@@ -37,8 +38,10 @@ function snapshotFromRow(row: QuarterMetricsRow): QuarterMetricsSnapshot {
       np_qoq: row.np_qoq,
       eps_qoq: row.eps_qoq,
       ebidt_yoy: row.ebidt_yoy,
+      ebidt_qoq: row.ebidt_qoq ?? null,
       cf_profit: row.cf_profit,
     },
+    result_date: row.result_date ?? null,
   };
 }
 
@@ -46,6 +49,7 @@ export function metricsSnapshotFromPanel(
   panel: NonNullable<ReturnType<typeof buildQuarterPanel>>,
   price: number | null,
   cfProfit?: number | null,
+  resultDate?: string | null,
 ): QuarterMetricsSnapshot {
   const eps = epsFromQuarterPanel(panel);
   const forwardPe = price ? computeForwardPe(price, eps) : null;
@@ -57,6 +61,7 @@ export function metricsSnapshotFromPanel(
     sales_yoy: yoy?.sales_yoy ?? null,
     np_yoy: yoy?.np_yoy ?? null,
     extras,
+    result_date: resultDate ?? null,
   };
 }
 
@@ -84,8 +89,17 @@ function persistSnapshot(ticker: string, snapshot: QuarterMetricsSnapshot): void
     np_qoq: snapshot.extras?.np_qoq ?? null,
     eps_qoq: snapshot.extras?.eps_qoq ?? null,
     ebidt_yoy: snapshot.extras?.ebidt_yoy ?? null,
+    ebidt_qoq: snapshot.extras?.ebidt_qoq ?? null,
     cf_profit: snapshot.extras?.cf_profit ?? null,
+    result_date: snapshot.result_date ?? null,
   });
+}
+
+export function persistQuarterMetricsSnapshot(
+  ticker: string,
+  snapshot: QuarterMetricsSnapshot,
+): void {
+  persistSnapshot(ticker, snapshot);
 }
 
 function resolveRowPrice(
@@ -158,6 +172,7 @@ export async function resolveQuarterPanelData(
           live.quarters.at(-1)?.netIncome ??
           null,
       ),
+      live.quarters.at(-1)?.date ?? null,
     );
     persistSnapshot(key, snapshot);
     return {
@@ -241,7 +256,12 @@ export async function computeAndCacheQuarterMetrics(
       operating_cashflow,
       operating_cashflow_np ?? latestNp,
     );
-    const snapshot = metricsSnapshotFromPanel(panel, price, cfProfit);
+    const snapshot = metricsSnapshotFromPanel(
+      panel,
+      price,
+      cfProfit,
+      quarters.at(-1)?.date ?? null,
+    );
     persistSnapshot(key, snapshot);
     return { ok: true, snapshot, panel, price, symbol, source };
   } catch {

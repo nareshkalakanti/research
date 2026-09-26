@@ -108,13 +108,13 @@ function companyProfile(ticker: string): CompanyProfile {
         )
         .get(ticker) as
         | {
-            name?: string;
-            about?: string | null;
-            headquarters?: string | null;
-            ceo?: string | null;
-            managing_director?: string | null;
-            founded_year?: string | null;
-          }
+          name?: string;
+          about?: string | null;
+          headquarters?: string | null;
+          ceo?: string | null;
+          managing_director?: string | null;
+          founded_year?: string | null;
+        }
         | undefined;
       if (!row) return empty;
       return {
@@ -154,10 +154,10 @@ function taxonomyFor(
         )
         .get(ticker.toUpperCase(), mk) as
         | {
-            sector?: string | null;
-            industry?: string | null;
-            sub_sector?: string | null;
-          }
+          sector?: string | null;
+          industry?: string | null;
+          sub_sector?: string | null;
+        }
         | undefined;
       if (!row) return empty;
       const sector = row.sector?.trim() || null;

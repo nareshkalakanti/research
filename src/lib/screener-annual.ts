@@ -110,6 +110,57 @@ export function markScreenerAnnualMiss(ticker: string): void {
   );
 }
 
+/** Latest FY ROCE minus prior FY, in percentage points. */
+export function roceYoYDeltaPp(series: ScreenerAnnualSeries): number | null {
+  const pairs: number[] = [];
+  const n = Math.min(series.dates.length, series.roce.length);
+  for (let i = 0; i < n; i++) {
+    const v = series.roce[i];
+    if (v == null || !Number.isFinite(v)) continue;
+    pairs.push(v);
+  }
+  if (pairs.length < 2) return null;
+  const prior = pairs[pairs.length - 2]!;
+  const latest = pairs[pairs.length - 1]!;
+  return Math.round((latest - prior) * 100) / 100;
+}
+
+let roceDeltaCache: { at: number; map: Map<string, number> } | null = null;
+const ROCE_DELTA_CACHE_MS = 60_000;
+
+export function loadRoceDeltaMap(): Map<string, number> {
+  const now = Date.now();
+  if (roceDeltaCache && now - roceDeltaCache.at < ROCE_DELTA_CACHE_MS) {
+    return roceDeltaCache.map;
+  }
+  const map = new Map<string, number>();
+  try {
+    ensureCacheSchema();
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      const rows = db
+        .prepare(`SELECT ticker, annual_json FROM screener_annual_cache`)
+        .all() as Array<{ ticker: string; annual_json: string }>;
+      for (const row of rows) {
+        let series: ScreenerAnnualSeries;
+        try {
+          series = JSON.parse(row.annual_json) as ScreenerAnnualSeries;
+        } catch {
+          continue;
+        }
+        const d = roceYoYDeltaPp(series);
+        if (d != null) map.set(row.ticker.toUpperCase(), d);
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* metrics.db missing */
+  }
+  roceDeltaCache = { at: now, map };
+  return map;
+}
+
 export function screenerAnnualCacheTickerSet(): Set<string> {
   ensureCacheSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
