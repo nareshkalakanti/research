@@ -16,13 +16,15 @@ export async function GET(req: NextRequest) {
     if (!tickers.length) {
       return NextResponse.json({ ok: true, rows: [] });
     }
-    const metrics = loadMetricsMap();
-    await refreshPagePrices(
-      tickers.map((ticker) => ({
-        ticker,
-        market: metrics.get(ticker.toUpperCase())?.market,
-      })),
-    );
+    if (req.nextUrl.searchParams.get("live") === "1") {
+      const metrics = loadMetricsMap();
+      await refreshPagePrices(
+        tickers.map((ticker) => ({
+          ticker,
+          market: metrics.get(ticker.toUpperCase())?.market,
+        })),
+      );
+    }
     const rows = buildIqMasterRows(tickers);
     return NextResponse.json({ ok: true, rows });
   } catch (e) {

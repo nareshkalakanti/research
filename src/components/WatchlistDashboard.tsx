@@ -122,8 +122,10 @@ export function WatchlistDashboard({ tickers }: { tickers: string[] }) {
   }, [tickers]);
 
   useEffect(() => {
-    void loadAll();
-  }, [loadAll]);
+    setRows([]);
+    setStatus(null);
+    setError(null);
+  }, [tickers]);
 
   return (
     <div className="wl-dash">

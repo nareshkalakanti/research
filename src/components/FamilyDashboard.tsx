@@ -2,12 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { FamilyMapCards, type FamilyRow } from "@/components/FamilyMapCards";
-import { useAppTab } from "@/lib/app-tab";
+import {
+  PeopleBoardCards,
+  type PersonBoardRow,
+} from "@/components/PeopleBoardCards";
+import { StockNetworkSearch } from "@/components/StockNetworkSearch";
+import { useSetAppTab } from "@/lib/app-tab";
 import { tradingviewUrl } from "@/lib/links";
 import { requestGovOpen } from "@/lib/gov-open";
 
+type DashView = "groups" | "people" | "stock";
+
 export function FamilyDashboard() {
-  const { setTab } = useAppTab();
+  const setTab = useSetAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,12 +25,15 @@ export function FamilyDashboard() {
   const [newQ, setNewQ] = useState("");
   const [newHits, setNewHits] = useState<Array<{ ticker: string; name: string }>>([]);
   const [creating, setCreating] = useState(false);
+  const [dashView, setDashView] = useState<DashView>("groups");
+  const [people, setPeople] = useState<PersonBoardRow[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ view: "family", page: "1", pageSize: "200" });
+      const params = new URLSearchParams({ view: "family", page: "1", pageSize: "80" });
       const res = await fetch(`/api/governance-map?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { rows?: FamilyRow[] };
@@ -35,15 +45,62 @@ export function FamilyDashboard() {
     }
   }, []);
 
+  const loadPeople = useCallback(async () => {
+    setPeopleLoading(true);
+    setError(null);
+    try {
+      const collected: PersonBoardRow[] = [];
+      let page = 1;
+      let pages = 1;
+      while (page <= pages && page <= 1) {
+        const params = new URLSearchParams({
+          view: "director",
+          sort: "boards",
+          minBoards: "2",
+          page: String(page),
+          pageSize: "40",
+        });
+        const res = await fetch(`/api/governance-map?${params}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as {
+          rows?: PersonBoardRow[];
+          pages?: number;
+        };
+        collected.push(...(json.rows ?? []));
+        pages = Math.max(1, json.pages ?? 1);
+        page += 1;
+      }
+      const seen = new Set<string>();
+      setPeople(
+        collected.filter((r) => {
+          if (seen.has(r.person_id)) return false;
+          seen.add(r.person_id);
+          return true;
+        }),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPeopleLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (dashView === "people") void loadPeople();
+  }, [dashView, loadPeople]);
+
   const marketByTicker = useMemo(() => {
     const map = new Map<string, string>();
     for (const f of rows) for (const c of f.companies) map.set(c.ticker, c.market);
+    for (const p of people) for (const c of p.companies) map.set(c.ticker, c.market);
     return map;
-  }, [rows]);
+  }, [rows, people]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -59,6 +116,21 @@ export function FamilyDashboard() {
         (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)),
     );
   }, [rows, q]);
+
+  const filteredPeople = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return people;
+    return people.filter(
+      (p) =>
+        p.name.toLowerCase().includes(needle) ||
+        (p.din || "").includes(needle.replace(/\D/g, "") || needle) ||
+        p.companies.some(
+          (c) =>
+            c.ticker.toLowerCase().startsWith(needle) ||
+            c.name.toLowerCase().includes(needle),
+        ),
+    );
+  }, [people, q]);
 
   const companySearch = useCallback(async (query: string) => {
     const res = await fetch(
@@ -129,21 +201,58 @@ export function FamilyDashboard() {
     <section className="fam-dash">
       <div className="fam-dash-head">
         <div>
-          <h2 className="fam-dash-title">Business groups</h2>
+          <div className="fam-dash-tabs" role="tablist" aria-label="Dashboard">
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "groups" ? "tab on" : "tab"}
+              aria-selected={dashView === "groups"}
+              onClick={() => setDashView("groups")}
+            >
+              Business groups
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "people" ? "tab on" : "tab"}
+              aria-selected={dashView === "people"}
+              onClick={() => setDashView("people")}
+            >
+              People & boards
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "stock" ? "tab on" : "tab"}
+              aria-selected={dashView === "stock"}
+              onClick={() => setDashView("stock")}
+            >
+              Stock
+            </button>
+          </div>
           <p className="fam-dash-sub">
-            Click a group name to rename it. Add group for a new house, then add
-            listed companies. × a ticker to drop it. Click a node for the
-            company page; click a ticker for its TradingView chart.
+            {dashView === "groups"
+              ? "Click a group name to rename it. Add group for a new house, then add listed companies. × a ticker to drop it. Click a node for the company page; click a ticker for its TradingView chart."
+              : dashView === "people"
+                ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker opens TradingView."
+                : "Search a stock. The graph is its directors plus every other listed company those directors sit on."}
           </p>
         </div>
         <div className="fam-dash-actions">
+          {dashView !== "stock" ? (
+            <>
           <input
             type="search"
             className="fam-dash-search"
-            placeholder="Group, ticker, company or director…"
+            placeholder={
+              dashView === "people"
+                ? "Person, DIN, ticker or company…"
+                : "Group, ticker, company or director…"
+            }
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
+          {dashView === "groups" ? (
           <button
             type="button"
             className="btn-ghost"
@@ -151,17 +260,24 @@ export function FamilyDashboard() {
           >
             {adding ? "Cancel" : "Add group"}
           </button>
+          ) : null}
           <button
             type="button"
             className="btn-ghost"
-            onClick={() => void load()}
-            disabled={loading}
+            onClick={() =>
+              void (dashView === "people" ? loadPeople() : load())
+            }
+            disabled={dashView === "people" ? peopleLoading : loading}
           >
-            {loading ? "Loading…" : "Refresh"}
+            {(dashView === "people" ? peopleLoading : loading)
+              ? "Loading…"
+              : "Refresh"}
           </button>
+            </>
+          ) : null}
         </div>
       </div>
-      {adding ? (
+      {dashView === "groups" && adding ? (
         <form
           className="fam-dash-create"
           onSubmit={(e) => {
@@ -233,8 +349,26 @@ export function FamilyDashboard() {
           </button>
         </form>
       ) : null}
-      {error ? <div className="table-meta">Could not load groups: {error}</div> : null}
-      {loading && !rows.length ? (
+      {error && dashView !== "stock" ? (
+        <div className="table-meta">Could not load: {error}</div>
+      ) : null}
+      {dashView === "stock" ? (
+        <StockNetworkSearch
+          onTicker={(t) => openCompany(t)}
+          onPerson={(id, name) => openPerson(id, name)}
+        />
+      ) : dashView === "people" ? (
+        peopleLoading && !people.length ? (
+          <div className="table-meta">Loading people and boards…</div>
+        ) : (
+          <PeopleBoardCards
+            rows={filteredPeople}
+            onTicker={(t) => openCompany(t)}
+            onPerson={(id, name) => openPerson(id, name)}
+            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+          />
+        )
+      ) : loading && !rows.length ? (
         <div className="table-meta">Loading business groups…</div>
       ) : (
         <FamilyMapCards

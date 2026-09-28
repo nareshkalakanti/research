@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, type ComponentType } from "react";
+import { memo, useEffect, useState, type ComponentType } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { AppChrome } from "@/components/AppChrome";
 import {
   AppTabProvider,
-  IQ_TABS,
   useAppTab,
   type AppTab,
 } from "@/lib/app-tab";
@@ -23,10 +22,6 @@ const ThemeScanner = dynamic(
 );
 const ScanPanel = dynamic(
   () => import("@/components/ScanPanel").then((m) => m.ScanPanel),
-  { loading: PanelFallback, ssr: false },
-);
-const PeadPanel = dynamic(
-  () => import("@/components/PeadPanel").then((m) => m.PeadPanel),
   { loading: PanelFallback, ssr: false },
 );
 const GovernanceMapPanel = dynamic(
@@ -74,7 +69,6 @@ const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
-  pead: PeadPanel,
   governance: GovernanceMapPanel,
   marketiq: MarketIqPanel,
   orderbookiq: OrderBookIqPanel,
@@ -84,14 +78,19 @@ const PANELS: Record<AppTab, ComponentType> = {
   watchlist: WatchlistPanel,
 };
 
-function preloadIqPanels() {
-  void import("@/components/MarketIqPanel");
-  void import("@/components/OrderBookIqPanel");
-  void import("@/components/BoardRoomIqPanel");
-}
+const KeptPanel = memo(function KeptPanel({
+  Panel,
+}: {
+  Panel: ComponentType;
+}) {
+  return <Panel />;
+});
 
-function preloadWorkspacePanels() {
+function preloadPanelModules() {
   void import("@/components/WatchlistPanel");
+  void import("@/components/ScanPanel");
+  void import("@/components/ThemeScanner");
+  void import("@/components/GovernanceMapPanel");
 }
 
 function AppShellPanels() {
@@ -109,28 +108,8 @@ function AppShellPanels() {
     });
   }, [tab]);
 
-  // Keep all IQ panels mounted once any IQ tab is opened — instant IQ switching.
   useEffect(() => {
-    if (!IQ_TABS.includes(tab)) return;
-    setVisited((prev) => {
-      let changed = false;
-      const next = new Set(prev);
-      for (const id of IQ_TABS) {
-        if (!next.has(id)) {
-          next.add(id);
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-    preloadIqPanels();
-  }, [tab]);
-
-  useEffect(() => {
-    const run = () => {
-      preloadIqPanels();
-      preloadWorkspacePanels();
-    };
+    const run = () => preloadPanelModules();
     if (typeof requestIdleCallback !== "undefined") {
       const id = requestIdleCallback(run);
       return () => cancelIdleCallback(id);
@@ -151,7 +130,7 @@ function AppShellPanels() {
             hidden={!active}
             inert={!active ? true : undefined}
           >
-            <Panel />
+            <KeptPanel Panel={Panel} />
           </div>
         );
       })}

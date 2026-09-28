@@ -59,7 +59,7 @@ export function OllamaBar() {
     void refresh();
     const t = window.setInterval(() => {
       if (!document.hidden) void refresh();
-    }, 15_000);
+    }, 60_000);
     return () => window.clearInterval(t);
   }, [refresh]);
 

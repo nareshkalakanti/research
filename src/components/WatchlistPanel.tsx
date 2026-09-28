@@ -29,9 +29,8 @@ import {
 import { formatPeDisplay, forwardPeClass } from "@/lib/valuation";
 import type { CompanyBrief, CompanyBriefContext, OfferingItem } from "@/lib/company-brief";
 import { isPlaceholderWatch } from "@/lib/brief-placeholder";
-import { useOptionalAppTab } from "@/lib/app-tab";
+import { useOptionalSetAppTab } from "@/lib/app-tab";
 import { WatchlistDashboard } from "@/components/WatchlistDashboard";
-import { crossedAbove200Dma } from "@/lib/dma200-cross";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
 
 type ChipList = "watch" | "holdings" | "named" | "common" | "dashboard";
@@ -336,7 +335,7 @@ function SignalChips({
   row: WatchRow;
   hideEmpty?: boolean;
 }) {
-  const tabs = useOptionalAppTab();
+  const setTab = useOptionalSetAppTab();
   const chips: Array<{ key: string; label: string; title: string; className: string }> =
     [];
   if (row.has_bb_w) {
@@ -418,7 +417,7 @@ function SignalChips({
             onClick={(e) => {
               e.stopPropagation();
               writeFocusTicker(row.ticker);
-              tabs?.setTab("research", { ticker: row.ticker });
+              setTab?.("research", { ticker: row.ticker });
             }}
           >
             {c.label}
@@ -1210,7 +1209,7 @@ export function WatchlistPanel() {
     [applyHoldTickers],
   );
 
-  const loadRows = useCallback(async (syms: string[]) => {
+  const loadRows = useCallback(async (syms: string[], live = false) => {
     const loadSeq = ++loadSeqRef.current;
     if (!syms.length) {
       setRows([]);
@@ -1220,14 +1219,16 @@ export function WatchlistPanel() {
     setBusy(true);
     setError(null);
     try {
-      const CHUNK = 40;
       const collected: WatchRow[] = [];
+      const CHUNK = 80;
       for (let i = 0; i < syms.length; i += CHUNK) {
         if (loadSeq !== loadSeqRef.current) return;
         const chunk = syms.slice(i, i + CHUNK);
-        const res = await fetch(
-          `/api/iq-master?tickers=${encodeURIComponent(chunk.join(","))}`,
-        );
+        const qs = new URLSearchParams({
+          tickers: chunk.join(","),
+        });
+        if (live) qs.set("live", "1");
+        const res = await fetch(`/api/iq-master?${qs}`);
         if (loadSeq !== loadSeqRef.current) return;
         const json = (await res.json()) as {
           ok?: boolean;
@@ -1279,41 +1280,6 @@ export function WatchlistPanel() {
       });
       if (loadSeq !== loadSeqRef.current) return;
       setRows(nextRows);
-      void (async () => {
-        const CHUNK = 8;
-        const updates = new Map<string, boolean>();
-        for (let i = 0; i < nextRows.length; i += CHUNK) {
-          if (loadSeq !== loadSeqRef.current) return;
-          const chunk = nextRows.slice(i, i + CHUNK);
-          await Promise.all(
-            chunk.map(async (row) => {
-              try {
-                const q = new URLSearchParams({ ticker: row.ticker });
-                if (row.market) q.set("market", row.market);
-                const res = await fetch(`/api/quote-tape?${q}`, {
-                  signal: AbortSignal.timeout(30_000),
-                });
-                const json = (await res.json()) as {
-                  ok?: boolean;
-                  tape?: QuoteTape;
-                };
-                updates.set(row.ticker.toUpperCase(), crossedAbove200Dma(json.ok ? json.tape ?? null : null));
-              } catch {
-                updates.set(row.ticker.toUpperCase(), false);
-              }
-            }),
-          );
-        }
-        if (loadSeq !== loadSeqRef.current) return;
-        setRows((cur) =>
-          cur.map((row) => {
-            const crossed = updates.get(row.ticker.toUpperCase());
-            return crossed == null
-              ? row
-              : { ...row, crossed_200dma_recently: crossed };
-          }),
-        );
-      })();
     } catch (e) {
       if (loadSeq !== loadSeqRef.current) return;
       setError(e instanceof Error ? e.message : "Failed to load");
@@ -1408,7 +1374,7 @@ export function WatchlistPanel() {
 
   const refreshPrices = useCallback(() => {
     if (!activeTickers.length) return;
-    void loadRows(activeTickers);
+    void loadRows(activeTickers, true);
   }, [activeTickers, loadRows]);
 
   const [fillQtrBusy, setFillQtrBusy] = useState(false);

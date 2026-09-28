@@ -8,9 +8,8 @@ import { getMetrics } from "@/lib/metrics";
 import { listLatestMarketIqByTickers } from "@/lib/marketiq-screen";
 import { listBoardRoomHistory } from "@/lib/boardroom-screen";
 import { listLatestConcallPassByTickers } from "@/lib/concall-screen";
-import { buildGovernanceBrief } from "@/lib/governance-brief";
-import { isEdge } from "@/lib/edge";
-import { isHolding } from "@/lib/holdings";
+import { edgeTickerSet } from "@/lib/edge";
+import { holdingsTickerSet } from "@/lib/holdings";
 import { fundTagsForTicker } from "@/lib/fund-watchlists";
 import { FUND_WATCHLIST_LABELS } from "@/lib/fund-watchlist-meta";
 import { loadBreakoutMap, type BreakoutFlags } from "@/lib/signals";
@@ -86,8 +85,8 @@ type CompanyProfile = {
   founded_year: string | null;
 };
 
-function companyProfile(ticker: string): CompanyProfile {
-  const empty: CompanyProfile = {
+function emptyProfile(ticker: string): CompanyProfile {
+  return {
     name: ticker,
     about: null,
     headquarters: null,
@@ -95,94 +94,112 @@ function companyProfile(ticker: string): CompanyProfile {
     managing_director: null,
     founded_year: null,
   };
+}
+
+function loadProfiles(tickers: string[]): Map<string, CompanyProfile> {
+  const out = new Map<string, CompanyProfile>();
+  for (const t of tickers) out.set(t, emptyProfile(t));
+  if (!tickers.length) return out;
   try {
     const db = openSqliteNamed("company_about.db", {
       readonly: true,
       wal: true,
     });
     try {
-      const row = db
-        .prepare(
-          `SELECT name, about, headquarters, ceo, managing_director, founded_year
-           FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
-        )
-        .get(ticker) as
-        | {
+      const chunk = 200;
+      for (let i = 0; i < tickers.length; i += chunk) {
+        const slice = tickers.slice(i, i + chunk);
+        const ph = slice.map(() => "?").join(",");
+        const rows = db
+          .prepare(
+            `SELECT ticker, name, about, headquarters, ceo, managing_director, founded_year
+             FROM company_about WHERE UPPER(ticker) IN (${ph})`,
+          )
+          .all(...slice) as Array<{
+          ticker?: string;
           name?: string;
           about?: string | null;
           headquarters?: string | null;
           ceo?: string | null;
           managing_director?: string | null;
           founded_year?: string | null;
+        }>;
+        for (const row of rows) {
+          const ticker = (row.ticker || "").trim().toUpperCase();
+          if (!ticker) continue;
+          out.set(ticker, {
+            name: row.name?.trim() || ticker,
+            about: row.about?.trim() || null,
+            headquarters: row.headquarters?.trim() || null,
+            ceo: row.ceo?.trim() || null,
+            managing_director: row.managing_director?.trim() || null,
+            founded_year: row.founded_year?.trim() || null,
+          });
         }
-        | undefined;
-      if (!row) return empty;
-      return {
-        name: row.name?.trim() || ticker,
-        about: row.about?.trim() || null,
-        headquarters: row.headquarters?.trim() || null,
-        ceo: row.ceo?.trim() || null,
-        managing_director: row.managing_director?.trim() || null,
-        founded_year: row.founded_year?.trim() || null,
-      };
+      }
     } finally {
       db.close();
     }
   } catch {
-    return empty;
+    /* missing db */
   }
+  return out;
 }
 
-function taxonomyFor(
-  ticker: string,
-  market: string | null,
-): { sector: string | null; sub_sector: string | null } {
+function loadTaxonomy(
+  tickers: string[],
+): Map<string, { sector: string | null; sub_sector: string | null }> {
   const empty = { sector: null as string | null, sub_sector: null as string | null };
+  const out = new Map<string, { sector: string | null; sub_sector: string | null }>();
+  for (const t of tickers) out.set(t, empty);
+  if (!tickers.length) return out;
   try {
     const db = openSqliteNamed("classifications.db", {
       readonly: true,
       wal: true,
     });
     try {
-      const mk = (market || "").trim().toUpperCase();
-      const row = db
-        .prepare(
-          `SELECT sector, industry, sub_sector FROM classifications
-           WHERE UPPER(ticker) = ?
-           ORDER BY CASE WHEN UPPER(market) = ? THEN 0 ELSE 1 END
-           LIMIT 1`,
-        )
-        .get(ticker.toUpperCase(), mk) as
-        | {
+      const chunk = 200;
+      for (let i = 0; i < tickers.length; i += chunk) {
+        const slice = tickers.slice(i, i + chunk);
+        const ph = slice.map(() => "?").join(",");
+        const rows = db
+          .prepare(
+            `SELECT ticker, sector, industry, sub_sector FROM classifications
+             WHERE UPPER(ticker) IN (${ph})`,
+          )
+          .all(...slice) as Array<{
+          ticker?: string;
           sector?: string | null;
           industry?: string | null;
           sub_sector?: string | null;
+        }>;
+        for (const row of rows) {
+          const ticker = (row.ticker || "").trim().toUpperCase();
+          if (!ticker || out.get(ticker)?.sector) continue;
+          out.set(ticker, {
+            sector: row.sector?.trim() || null,
+            sub_sector: row.sub_sector?.trim() || row.industry?.trim() || null,
+          });
         }
-        | undefined;
-      if (!row) return empty;
-      const sector = row.sector?.trim() || null;
-      const sub_sector = row.sub_sector?.trim() || row.industry?.trim() || null;
-      return { sector, sub_sector };
+      }
     } finally {
       db.close();
     }
   } catch {
-    return empty;
+    /* missing db */
   }
+  return out;
 }
 
-function tagsFor(ticker: string): string[] {
+function tagsFor(
+  ticker: string,
+  hold: Set<string>,
+  edge: Set<string>,
+): string[] {
   const out: string[] = [];
-  try {
-    if (isHolding(ticker)) out.push("Hold");
-  } catch {
-    /* ignore */
-  }
-  try {
-    if (isEdge(ticker)) out.push("Edge");
-  } catch {
-    /* ignore */
-  }
+  if (hold.has(ticker)) out.push("Hold");
+  if (edge.has(ticker)) out.push("Edge");
   try {
     for (const t of fundTagsForTicker(ticker)) {
       const label = FUND_WATCHLIST_LABELS[t] || t;
@@ -278,21 +295,26 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     /* ignore */
   }
 
+  const profiles = loadProfiles(wanted);
+  const taxonomy = loadTaxonomy(wanted);
+  let hold = new Set<string>();
+  let edge = new Set<string>();
+  try {
+    hold = holdingsTickerSet();
+  } catch {
+    /* ignore */
+  }
+  try {
+    edge = edgeTickerSet();
+  } catch {
+    /* ignore */
+  }
+
   return wanted.map((ticker) => {
     const m = getMetrics(ticker);
-    const profile = companyProfile(ticker);
-    let governance: IqMasterRow["governance"] = {
-      signal: null,
-      reason: "—",
-    };
-    try {
-      const g = buildGovernanceBrief(ticker);
-      governance = { signal: g.signal, reason: g.reason };
-    } catch {
-      /* ignore */
-    }
+    const profile = profiles.get(ticker) ?? emptyProfile(ticker);
+    const tax = taxonomy.get(ticker) ?? { sector: null, sub_sector: null };
     const flags = breakouts.get(ticker);
-    const tax = taxonomyFor(ticker, m?.market ?? null);
     const market =
       (m?.market && m.market.trim()) || resolveListingMarket(ticker);
     return {
@@ -310,7 +332,7 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
       ceo: profile.ceo,
       managing_director: profile.managing_director,
       founded_year: profile.founded_year,
-      tags: tagsFor(ticker),
+      tags: tagsFor(ticker, hold, edge),
       momentum_pct: flags?.mom?.momentum_pct ?? null,
       rsi_m: flags?.mrsi?.rsi ?? null,
       has_bb_w: !!flags?.has_bb_w,
@@ -325,7 +347,7 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
       has_concall: Boolean(concallByTicker.get(ticker)),
       marketiq: miqByTicker.get(ticker) ?? null,
       board: boardByTicker.get(ticker) ?? null,
-      governance,
+      governance: { signal: null, reason: "—" },
       concall: concallByTicker.get(ticker) ?? null,
     };
   });

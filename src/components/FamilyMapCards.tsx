@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FamilyGraph } from "@/components/FamilyGraph";
+import { LazyFamilyGraph } from "@/components/FamilyGraph";
 
 export type FamilyRow = {
   family_name: string;
@@ -131,7 +131,7 @@ export function FamilyMapCards({
                   </div>
                 </div>
               </header>
-              <FamilyGraph
+              <LazyFamilyGraph
                 companies={f.companies}
                 people={people}
                 outside={outside}

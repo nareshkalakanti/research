@@ -54,6 +54,24 @@ export function groupFingerprint(tickers: string[]): string {
   return crypto.createHash("sha1").update(key).digest("hex");
 }
 
+export function loadAllFamilyLabels(): Map<string, string> {
+  if (!fs.existsSync(CACHE_PATH)) return new Map();
+  const db = openCache();
+  try {
+    const rows = db
+      .prepare(`SELECT fingerprint, label FROM family_labels`)
+      .all() as Array<{ fingerprint: string; label?: string }>;
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const label = row.label?.trim();
+      if (row.fingerprint && label) map.set(row.fingerprint, label);
+    }
+    return map;
+  } finally {
+    db.close();
+  }
+}
+
 export function cachedFamilyLabel(tickers: string[]): string | null {
   const fp = groupFingerprint(tickers);
   if (!fs.existsSync(CACHE_PATH)) return null;
@@ -186,16 +204,19 @@ let refineInFlight: Promise<void> | null = null;
 
 export function scheduleFamilyGroupRefine(groups: RefineGroup[]): void {
   if (refineInFlight) return;
-  const need = groups.filter((g) => !cachedFamilyLabel(g.companies.map((c) => c.ticker)));
-  if (!need.length) return;
+  const labeled = loadAllFamilyLabels();
+  const unlabeled = (list: RefineGroup[]) =>
+    list.filter(
+      (g) => !labeled.get(groupFingerprint(g.companies.map((c) => c.ticker))),
+    );
+  if (!unlabeled(groups).length) return;
   refineInFlight = (async () => {
     try {
       for (let i = 0; i < 8; i++) {
-        const batch = groups
-          .filter((g) => !cachedFamilyLabel(g.companies.map((c) => c.ticker)))
-          .slice(0, 18);
+        const batch = unlabeled(groups).slice(0, 18);
         if (!batch.length) break;
         await refineFamilyGroupLabels(batch);
+        for (const [fp, label] of loadAllFamilyLabels()) labeled.set(fp, label);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
