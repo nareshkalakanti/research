@@ -13,8 +13,9 @@ import { fundamentalsScanTickerSet, loadFundamentalsScanMap } from "./fundamenta
 function pendingCompanies(
   market: string,
   preferTickers: string[],
+  universe: "pead" | "all",
 ): Array<{ ticker: string; market: string }> {
-  const pead = fundamentalsScanTickerSet();
+  const pead = universe === "pead" ? fundamentalsScanTickerSet() : null;
   const have = smaStackTickerSet();
   let companies = filterCompaniesByScanList(loadAllCompanies(), market);
   const byTicker = new Map(
@@ -22,7 +23,9 @@ function pendingCompanies(
   );
   const missing = companies.filter((c) => {
     const t = c.ticker.toUpperCase();
-    return pead.has(t) && !have.has(t);
+    if (have.has(t)) return false;
+    if (pead && !pead.has(t)) return false;
+    return true;
   });
   const peadMap = loadFundamentalsScanMap();
   missing.sort((a, b) => {
@@ -41,6 +44,9 @@ function pendingCompanies(
     prefer.push(row);
   }
   const rest = missing.filter((c) => !seen.has(c.ticker.toUpperCase()));
+  if (preferTickers.some((t) => t.trim())) {
+    return prefer;
+  }
   return [...prefer, ...rest];
 }
 
@@ -49,6 +55,7 @@ export async function runSmaFillBatch(opts: {
   tickers?: string[];
   limit?: number;
   concurrency?: number;
+  universe?: "pead" | "all";
 }): Promise<{
   ok: true;
   tried: number;
@@ -57,9 +64,10 @@ export async function runSmaFillBatch(opts: {
   remaining: number;
 }> {
   const market = opts.market || "All";
+  const universe = opts.universe === "all" ? "all" : "pead";
   const limit = Math.min(40, Math.max(1, opts.limit ?? 8));
   const concurrency = Math.min(4, Math.max(1, opts.concurrency ?? 2));
-  const queue = pendingCompanies(market, opts.tickers ?? []);
+  const queue = pendingCompanies(market, opts.tickers ?? [], universe);
   const pending = queue.slice(0, limit);
 
   let saved = 0;
@@ -74,7 +82,8 @@ export async function runSmaFillBatch(opts: {
     }
   });
 
-  const remaining = pendingCompanies(market, opts.tickers ?? []).length;
+  const remaining = pendingCompanies(market, opts.tickers ?? [], universe)
+    .length;
 
   return {
     ok: true,

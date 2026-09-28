@@ -156,6 +156,7 @@ export type Company = {
   fundamentals?: {
     sales_yoy: number | null;
     np_yoy: number | null;
+    eps_yoy: number | null;
     rev_growth: "High" | "Med" | "Low" | null;
     margin_exp: "High" | "Med" | "Low" | null;
     roce_impr: "High" | "Med" | "Low" | null;
@@ -163,6 +164,7 @@ export type Company = {
     pead_band: "High" | "Med" | "Low" | null;
     tech_strength: string | null;
     tech_change: string | null;
+    dma200_pct: number | null;
   };
   pead_score?: number | null;
 };

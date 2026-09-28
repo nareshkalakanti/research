@@ -700,3 +700,96 @@ export function applyDinRegistryFill(opts: {
   tx();
   return { name_updated: nameUpdated, seats_written: seatsWritten };
 }
+
+export type ManualBoardSeat = {
+  person_id: string;
+  din: string | null;
+  name: string;
+  designation: string;
+  category: string | null;
+  source: string;
+};
+
+export function listCompanyBoardSeats(ticker: string): ManualBoardSeat[] {
+  const key = safeStr(ticker).toUpperCase();
+  if (!key) return [];
+  const rows = getGovernanceWriteDb()
+    .prepare(
+      `
+      SELECT
+        s.person_id,
+        d.din,
+        d.name,
+        s.designation,
+        s.category,
+        s.source
+      FROM board_seats s
+      JOIN directors d ON d.person_id = s.person_id
+      WHERE s.ticker = ?
+      ORDER BY d.name COLLATE NOCASE
+      `,
+    )
+    .all(key) as ManualBoardSeat[];
+  return rows;
+}
+
+function directorNameForDin(din: string): string | null {
+  const row = getGovernanceWriteDb()
+    .prepare(`SELECT name FROM directors WHERE din = ?`)
+    .get(din) as { name?: string } | undefined;
+  const name = safeStr(row?.name);
+  if (!name || isPlaceholderDirectorName(name)) return null;
+  return name;
+}
+
+export function addManualDinSeats(opts: {
+  ticker: string;
+  companyName: string;
+  market?: string | null;
+  seats: Array<{ din: string; name?: string | null; designation?: string | null }>;
+}): SaveBoardResult {
+  const payload: BoardSeat[] = [];
+  for (const raw of opts.seats) {
+    const din = normDin(raw.din);
+    if (!din || din.length !== 8) {
+      throw new Error(`Invalid DIN: ${raw.din || "(empty)"}`);
+    }
+    const name =
+      safeStr(raw.name) || directorNameForDin(din) || "";
+    if (!name || isPlaceholderDirectorName(name)) {
+      throw new Error(`Director name required for DIN ${din}`);
+    }
+    payload.push({
+      din,
+      name,
+      designation: safeStr(raw.designation) || "Director",
+      category: inferCategory(safeStr(raw.designation) || "Director"),
+      source: "manual",
+      as_of: utcNow().slice(0, 10),
+    });
+  }
+  return saveCompanyBoard({
+    ticker: opts.ticker,
+    name: opts.companyName,
+    market: opts.market || undefined,
+    seats: payload,
+    replaceSeats: false,
+    protectDinBoard: false,
+  });
+}
+
+export function removeBoardSeat(opts: {
+  ticker: string;
+  personId: string;
+}): { ok: true; ticker: string; person_id: string } {
+  const ticker = safeStr(opts.ticker).toUpperCase();
+  const personId = safeStr(opts.personId);
+  if (!ticker || !personId) throw new Error("ticker and personId required");
+  const db = getGovernanceWriteDb();
+  const info = db
+    .prepare(`DELETE FROM board_seats WHERE ticker = ? AND person_id = ?`)
+    .run(ticker, personId);
+  if (!info.changes) throw new Error("Seat not found");
+  return { ok: true, ticker, person_id: personId };
+}
+
