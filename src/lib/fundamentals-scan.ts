@@ -23,6 +23,7 @@ export type ChipBand = "High" | "Med" | "Low";
 export type FundamentalsScanRow = {
   sales_yoy: number | null;
   np_yoy: number | null;
+  eps_yoy: number | null;
   rev_growth: ChipBand | null;
   margin_exp: ChipBand | null;
   roce_impr: ChipBand | null;
@@ -30,6 +31,7 @@ export type FundamentalsScanRow = {
   pead_band: ChipBand | null;
   tech_strength: string | null;
   tech_change: string | null;
+  dma200_pct: number | null;
 };
 
 export function bandGrowth(v: number | null | undefined): ChipBand | null {
@@ -206,22 +208,20 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
     inputs: PeadInputs;
     sales_yoy: number | null;
     np_yoy: number | null;
+    eps_yoy: number | null;
     opm_bps: number | null;
   }> = [];
   for (const ticker of tickers) {
     const m = metrics.get(ticker);
     const o = overlay.get(ticker);
     const sales_yoy = firstFinite(o?.sales_yoy, m?.sales_yoy);
-    const np_yoy = firstFinite(
-      o?.np_yoy,
-      m?.np_yoy,
-      o?.eps_yoy,
-      m?.eps_yoy,
-    );
+    const np_yoy = firstFinite(o?.np_yoy, m?.np_yoy);
+    const eps_yoy = firstFinite(o?.eps_yoy, m?.eps_yoy);
     rows.push({
       ticker,
       sales_yoy,
       np_yoy,
+      eps_yoy,
       opm_bps: o?.opm_bps ?? null,
       inputs: {
         returns_pct: null,
@@ -246,6 +246,7 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
     map.set(r.ticker, {
       sales_yoy: r.sales_yoy,
       np_yoy: r.np_yoy,
+      eps_yoy: r.eps_yoy,
       rev_growth: bandGrowth(r.sales_yoy),
       margin_exp: bandMarginBps(r.opm_bps),
       roce_impr: bandRoceDelta(roce.get(r.ticker) ?? null),
@@ -253,6 +254,7 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
       pead_band: bandPead(pead),
       tech_strength: null,
       tech_change: null,
+      dma200_pct: null,
     });
   });
   scanCache = { at: now, map };
@@ -277,11 +279,29 @@ export function attachFundamentalsScan(
   } | null,
 ): FundamentalsScanRow | null {
   const base = loadFundamentalsScanMap().get(ticker.trim().toUpperCase());
-  if (!base) return null;
   const tech = sma ? techFromSmaStack(sma) : null;
+  const p = sma?.price;
+  const s200 = sma?.sma200;
+  const dma200_pct =
+    p != null &&
+    Number.isFinite(p) &&
+    s200 != null &&
+    Number.isFinite(s200) &&
+    s200 !== 0
+      ? Math.round(((p / s200 - 1) * 100) * 100) / 100
+      : null;
+  if (!base && !tech && dma200_pct == null) return null;
   return {
-    ...base,
+    sales_yoy: base?.sales_yoy ?? null,
+    np_yoy: base?.np_yoy ?? null,
+    eps_yoy: base?.eps_yoy ?? null,
+    rev_growth: base?.rev_growth ?? null,
+    margin_exp: base?.margin_exp ?? null,
+    roce_impr: base?.roce_impr ?? null,
+    pead: base?.pead ?? null,
+    pead_band: base?.pead_band ?? null,
     tech_strength: tech?.strength ?? null,
     tech_change: tech?.change ?? null,
+    dma200_pct,
   };
 }

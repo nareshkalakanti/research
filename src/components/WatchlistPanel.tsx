@@ -30,9 +30,11 @@ import { formatPeDisplay, forwardPeClass } from "@/lib/valuation";
 import type { CompanyBrief, CompanyBriefContext, OfferingItem } from "@/lib/company-brief";
 import { isPlaceholderWatch } from "@/lib/brief-placeholder";
 import { useOptionalAppTab } from "@/lib/app-tab";
+import { WatchlistDashboard } from "@/components/WatchlistDashboard";
+import { crossedAbove200Dma } from "@/lib/dma200-cross";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
 
-type ChipList = "watch" | "holdings" | "named" | "common";
+type ChipList = "watch" | "holdings" | "named" | "common" | "dashboard";
 
 /** Distinct hues for named-list chips (not tied to any list label). */
 const NAMED_LIST_HUES = [
@@ -114,14 +116,6 @@ type QuoteTape = {
   dma200_alert: "below_200_breakout" | null;
   mas: QuoteTapeMa[];
 };
-
-function crossedAbove200Dma(tape: QuoteTape | null): boolean {
-  if (!tape) return false;
-  if (tape.price == null || tape.dma200 == null || tape.prev_close == null) {
-    return false;
-  }
-  return tape.prev_close <= tape.dma200 && tape.price > tape.dma200;
-}
 
 function WlQuoteTape({
   ticker,
@@ -1012,6 +1006,15 @@ export function WatchlistPanel() {
     setList("common");
   };
 
+  const selectDashboard = () => {
+    loadSeqRef.current += 1;
+    setRows([]);
+    setBusy(false);
+    setListEpoch((n) => n + 1);
+    setRenameOpen(false);
+    setList("dashboard");
+  };
+
   const addNamedTicker = useCallback(
     async (hit: {
       ticker: string;
@@ -1326,6 +1329,21 @@ export function WatchlistPanel() {
     return subscribeWatchlist(refreshTickers);
   }, [refreshTickers, refreshHoldings, refreshNamed]);
 
+  const dashTickers = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const t of [
+      ...holdTickers,
+      ...namedLists.flatMap((l) => l.tickers),
+    ]) {
+      const u = t.trim().toUpperCase();
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      out.push(u);
+    }
+    return out;
+  }, [holdTickers, namedLists]);
+
   const commonTickers = useMemo(
     () =>
       sharedAcrossLists([
@@ -1336,7 +1354,9 @@ export function WatchlistPanel() {
   );
 
   const activeTickers =
-    list === "holdings"
+    list === "dashboard"
+      ? []
+      : list === "holdings"
       ? holdTickers
       : list === "named"
         ? namedTickers
@@ -1486,18 +1506,21 @@ export function WatchlistPanel() {
         <div>
           <h1 className="wl-simple-title">Watchlist</h1>
           <p className="wl-simple-sub">
-            Search a ticker to add it. Name opens TradingView. Expand (+) for
-            price tape, about, and quarters.
+            {list === "dashboard"
+              ? "Fresh 200 DMA ↑ on Holdings and named lists. Name opens TradingView."
+              : "Search a ticker to add it. Name opens TradingView. Expand (+) for price tape, about, and quarters."}
           </p>
         </div>
         <span className="wl-simple-count" role="status">
-          {error
-            ? error
-            : busy
-              ? "Loading…"
-              : activeTickers.length === 0
-                ? "Empty"
-                : `${visible.length} of ${activeTickers.length}`}
+          {list === "dashboard"
+            ? "Dashboard"
+            : error
+              ? error
+              : busy
+                ? "Loading…"
+                : activeTickers.length === 0
+                  ? "Empty"
+                  : `${visible.length} of ${activeTickers.length}`}
         </span>
       </header>
 
@@ -1549,6 +1572,16 @@ export function WatchlistPanel() {
         >
           Common
           <span className="chip-count">{commonTickers.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={list === "dashboard"}
+          className={`chip tag-chip${list === "dashboard" ? " on" : ""}`}
+          title="200 DMA ↑ on Holdings and named lists"
+          onClick={selectDashboard}
+        >
+          Dashboard
         </button>
         {list === "named" && renameOpen ? (
           <span className="wl-new-list">
@@ -1618,6 +1651,10 @@ export function WatchlistPanel() {
         )}
       </div>
 
+      {list === "dashboard" ? (
+        <WatchlistDashboard tickers={dashTickers} />
+      ) : (
+        <>
       <div className="wl-simple-toolbar">
         <div className="theme-stock-search theme-stock-search--inline wl-add-search">
           <TickerSuggest
@@ -1760,6 +1797,8 @@ export function WatchlistPanel() {
             </tbody>
           </table>
         </div>
+      )}
+        </>
       )}
     </section>
   );

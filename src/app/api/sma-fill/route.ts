@@ -10,6 +10,7 @@ export async function POST(req: NextRequest) {
     tickers?: string[];
     limit?: number;
     concurrency?: number;
+    universe?: "pead" | "all";
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
       tickers: Array.isArray(body.tickers) ? body.tickers : [],
       limit: body.limit,
       concurrency: body.concurrency,
+      universe: body.universe === "all" ? "all" : "pead",
     });
     return NextResponse.json(result);
   } catch (e) {

@@ -32,6 +32,18 @@ function dinTone(verified: number, total: number): "full" | "part" | "none" {
   return verified >= total ? "full" : "part";
 }
 
+function uniqueByTicker<T extends { ticker: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    const t = row.ticker.trim().toUpperCase();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    out.push(row);
+  }
+  return out;
+}
+
 export function FamilyMapCards({
   rows,
   onTicker,
@@ -128,7 +140,7 @@ export function FamilyMapCards({
                 chartUrl={chartUrl}
               />
               <div className="gov-family-chips">
-                {f.companies.map((c) => {
+                {uniqueByTicker(f.companies).map((c) => {
                   const href = chartUrl?.(c.ticker);
                   const title = `${c.ticker} · ${c.din_verified ?? 0} of ${c.directors ?? 0} directors DIN-validated${href ? " · TradingView" : ""}`;
                   const body = (

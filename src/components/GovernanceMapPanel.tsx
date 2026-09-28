@@ -8,6 +8,7 @@ import {
   mcapIndicesToBounds,
 } from "@/components/MarketCapRangeBar";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
+import { GovernanceDinCrud } from "@/components/GovernanceDinCrud";
 import { onGovOpen } from "@/lib/gov-open";
 import { useOptionalAppTab, type AppTab } from "@/lib/app-tab";
 import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
@@ -728,6 +729,12 @@ export function GovernanceMapPanel() {
           onDone={async () => {
             bumpChanges();
             await load({ refresh: true });
+          }}
+        />
+        <GovernanceDinCrud
+          onChanged={() => {
+            bumpChanges();
+            void load({ refresh: true });
           }}
         />
       </div>

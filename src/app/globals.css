@@ -7413,6 +7413,57 @@ button.result-tag {
   margin-left: 0;
 }
 
+.gov-din-crud {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.gov-din-crud-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.gov-din-crud-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.gov-din-crud-row .ticker-suggest,
+.gov-din-crud-row .miq-search {
+  min-width: 180px;
+  flex: 1;
+}
+
+.gov-din-crud-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gov-din-crud-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.gov-din-crud-list .muted {
+  color: var(--muted);
+}
+
 .gov-view-tabs {
   display: inline-flex;
   gap: 4px;
@@ -23466,4 +23517,90 @@ button.otrd-co-link {
   .viq-metrics {
     gap: 12px 16px;
   }
+}
+
+.wl-dash {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wl-dash-summary {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.wl-dash-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.wl-dash-section-head h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.wl-dash-section-head span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.wl-dash-table .col-tv {
+  width: 44px;
+  text-align: right;
+}
+
+.wl-dash-table .col-tv a {
+  font-weight: 700;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.wl-dash-table .col-tv a:hover {
+  text-decoration: underline;
+}
+
+.wl-dash-table .col-signal {
+  white-space: nowrap;
+}
+
+.tag-dash-tq {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+
+.tag-dash-bbw {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+
+.tag-dash-bbm {
+  background: #ecfccb;
+  border-color: #bef264;
+  color: #4d7c0f;
+}
+
+.tag-dash-dma200 {
+  background: #fef3c7;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+
+.tag-dash-mrsi {
+  background: #ede9fe;
+  border-color: #c4b5fd;
+  color: #6d28d9;
 }

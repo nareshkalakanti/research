@@ -919,6 +919,12 @@ export function analyzeTqWeekly(
 
   if (curRsi == null || curRsi <= 55) return null;
   if (curSt == null || price <= curSt) return null;
+  const prevPrice = closes[prev];
+  const prevSt = stLine[prev];
+  // Fresh: last week at/below Supertrend, this week above (same idea as BB NEW / 200 DMA ↑).
+  if (prevSt == null || !Number.isFinite(prevPrice) || prevPrice > prevSt) {
+    return null;
+  }
   if (curAdx == null || curAdx <= 20) return null;
   if (curDiP == null || curDiM == null || curDiP <= curDiM) return null;
   if (curPma == null || price <= curPma) return null;
@@ -932,7 +938,7 @@ export function analyzeTqWeekly(
   const longX =
     (prevLrs < -0.15 && curLrs > 0.005) || (prevLrs < 0 && curLrs > 0.02);
   const shortX =
-    (prevSrs < -0.005 && curSrs > 0.005) || (prevSrs < 0.01 && curSrs > 0.02);
+    (prevSrs < -0.005 && curSrs > 0.005) || (prevSrs < 0 && curSrs > 0.02);
 
   let crossover_type: string;
   let crossover_score: number;

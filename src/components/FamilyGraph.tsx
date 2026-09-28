@@ -180,6 +180,7 @@ export function FamilyGraph({
     const list: GraphNode[] = [];
     const index = new Map<string, number>();
     const add = (node: GraphNode) => {
+      if (index.has(node.id)) return;
       index.set(node.id, list.length);
       list.push(node);
     };

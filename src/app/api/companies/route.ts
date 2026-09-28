@@ -384,6 +384,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const filterBbw = sp.get("bbw") === "1";
   const filterBbm = sp.get("bbm") === "1";
   const filterTq = sp.get("tq") === "1";
+  const filterDma200 = sp.get("dma200") === "1";
   const filterEma = sp.get("ema") === "1";
   const filterAth = sp.get("ath") === "1";
   const filterHigh52 = sp.get("high52") === "1";
@@ -457,6 +458,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const breakouts = loadBreakoutMap(bbTf);
   const operatingMetrics = operatingMetricsTickerSet();
   const peadUniverse = fundamentalsScanTickerSet();
+  const smaMapEarly = loadSmaStackMap();
   const brutalPass = brutalPassTickerSet();
   const holdings = holdingsTickerSet();
   const distressSet = distressSeedSet();
@@ -721,6 +723,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     let bb_w = 0;
     let bb_m = 0;
     let tq = 0;
+    let dma200 = 0;
     let ema = 0;
     let ath = 0;
     let high52 = 0;
@@ -798,6 +801,18 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (flags?.has_bb_w) bb_w += 1;
       if (flags?.has_bb_m) bb_m += 1;
       if (flags?.has_tq) tq += 1;
+      {
+        const sma = smaMapEarly.get(t);
+        if (
+          sma?.sma200 != null &&
+          Number.isFinite(sma.sma200) &&
+          sma.price != null &&
+          Number.isFinite(sma.price) &&
+          sma.price > sma.sma200
+        ) {
+          dma200 += 1;
+        }
+      }
       if (flags?.has_ema) ema += 1;
       if (flags?.has_ath) ath += 1;
       if (flags?.has_high52) high52 += 1;
@@ -830,6 +845,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       bb_w,
       bb_m,
       tq,
+      dma200,
       ema,
       ath,
       high52,
@@ -865,6 +881,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterBbw ||
     filterBbm ||
     filterTq ||
+    filterDma200 ||
     filterEma ||
     filterAth ||
     filterHigh52 ||
@@ -915,6 +932,16 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (filterBbm) return hasBbm;
       if (filterBb) return hasBb;
       if (filterTq) return hasTq;
+      if (filterDma200) {
+        const sma = smaMapEarly.get(t);
+        return (
+          sma?.sma200 != null &&
+          Number.isFinite(sma.sma200) &&
+          sma.price != null &&
+          Number.isFinite(sma.price) &&
+          sma.price > sma.sma200
+        );
+      }
       if (filterEma) return hasEma;
       if (filterAth) return hasAth;
       if (filterHigh52) return hasHigh52;
@@ -1151,6 +1178,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     scan &&
     !filterBb &&
     !filterTq &&
+    !filterDma200 &&
     !filterEma &&
     !filterAth &&
     !filterHigh52 &&
