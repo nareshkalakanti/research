@@ -25,6 +25,10 @@ const ScanPanel = dynamic(
   () => import("@/components/ScanPanel").then((m) => m.ScanPanel),
   { loading: PanelFallback, ssr: false },
 );
+const PeadPanel = dynamic(
+  () => import("@/components/PeadPanel").then((m) => m.PeadPanel),
+  { loading: PanelFallback, ssr: false },
+);
 const GovernanceMapPanel = dynamic(
   () =>
     import("@/components/GovernanceMapPanel").then(
@@ -70,6 +74,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
+  pead: PeadPanel,
   governance: GovernanceMapPanel,
   marketiq: MarketIqPanel,
   orderbookiq: OrderBookIqPanel,

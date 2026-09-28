@@ -72,10 +72,19 @@ export function parseGrowwQuarterLabel(label: string): string | null {
   return `${year}-${mm}-${String(day).padStart(2, "0")}`;
 }
 
-function seriesField(title: string): "revenue" | "netIncome" | null {
+function seriesField(title: string): "revenue" | "netIncome" | "eps" | "ebit" | null {
   const t = title.trim().toLowerCase();
   if (t === "revenue" || t === "sales" || t === "income") return "revenue";
   if (t === "profit" || t === "net profit" || t === "pat") return "netIncome";
+  if (t === "eps" || t === "earnings per share") return "eps";
+  if (
+    t === "operating profit" ||
+    t === "ebit" ||
+    t === "ebitda" ||
+    t === "op"
+  ) {
+    return "ebit";
+  }
   return null;
 }
 
@@ -142,17 +151,70 @@ export function parseGrowwFinancialStatement(company: Record<string, unknown>): 
   );
 }
 
+function fundLabel(item: Record<string, unknown>): string {
+  return `${str(item.name)} ${str(item.shortName)}`.toLowerCase();
+}
+
+function fundNumber(item: Record<string, unknown>): number | null {
+  const raw = item.value;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  const text = str(raw).replace(/₹/g, "").replace(/%/g, "").replace(/,/g, "").trim();
+  if (!text) return null;
+  const m = text.match(/-?[0-9]+(?:\.[0-9]+)?/);
+  if (!m) return null;
+  const n = Number(m[0]);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Groww header fundamentals — TTM PE / EPS when quarterly EPS is missing. */
+export function parseGrowwTtmValuation(company: Record<string, unknown>): {
+  pe_ttm: number | null;
+  eps_ttm: number | null;
+} {
+  let pe_ttm: number | null = null;
+  let eps_ttm: number | null = null;
+  for (const item of asArray(company.fundamentals)) {
+    const rec = asRecord(item);
+    const label = fundLabel(rec);
+    const n = fundNumber(rec);
+    if (n == null) continue;
+    if (/p\s*\/\s*e|pe ratio/.test(label) && !/industry/.test(label)) {
+      pe_ttm = n;
+    } else if (/\beps\b/.test(label)) {
+      eps_ttm = n;
+    }
+  }
+  return { pe_ttm, eps_ttm };
+}
+
 export async function fetchGrowwQuarterlyFundamentals(
   ticker: string,
   companyName?: string | null,
 ): Promise<QuarterPoint[]> {
+  const hit = await fetchGrowwPeadFill(ticker, companyName);
+  return hit?.quarters ?? [];
+}
+
+export async function fetchGrowwPeadFill(
+  ticker: string,
+  companyName?: string | null,
+): Promise<{
+  quarters: QuarterPoint[];
+  pe_ttm: number | null;
+  eps_ttm: number | null;
+} | null> {
   const key = ticker.trim().toUpperCase();
-  if (!key) return [];
+  if (!key) return null;
   try {
     const data = await growwCompanyData(key, (companyName || key).trim());
-    if (!data) return [];
-    return parseGrowwFinancialStatement(data.company);
+    if (!data) return null;
+    const ttm = parseGrowwTtmValuation(data.company);
+    return {
+      quarters: parseGrowwFinancialStatement(data.company),
+      pe_ttm: ttm.pe_ttm,
+      eps_ttm: ttm.eps_ttm,
+    };
   } catch {
-    return [];
+    return null;
   }
 }

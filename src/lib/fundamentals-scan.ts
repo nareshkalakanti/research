@@ -119,6 +119,9 @@ type QuarterOverlay = {
   eps_qoq: number | null;
   ebidt_qoq: number | null;
   opm_bps: number | null;
+  latest_date: string | null;
+  eps_values: number[];
+  quarters: QuarterPoint[];
 };
 
 function firstFinite(
@@ -134,7 +137,7 @@ let overlayCache: { at: number; map: Map<string, QuarterOverlay> } | null =
   null;
 const OVERLAY_CACHE_MS = 60_000;
 
-function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
+export function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
   const now = Date.now();
   if (overlayCache && now - overlayCache.at < OVERLAY_CACHE_MS) {
     return overlayCache.map;
@@ -165,6 +168,11 @@ function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
         ) {
           continue;
         }
+        const dated = [...quarters]
+          .map((q) => (q.date || "").slice(0, 10))
+          .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+          .sort();
+        const epsRow = panel?.rows.find((r) => r.label === "EPS in Rs");
         map.set(row.ticker.toUpperCase(), {
           sales_yoy: yoy?.sales_yoy ?? null,
           np_yoy: yoy?.np_yoy ?? null,
@@ -175,6 +183,11 @@ function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
           eps_qoq: extras?.eps_qoq ?? null,
           ebidt_qoq: extras?.ebidt_qoq ?? null,
           opm_bps: bps,
+          latest_date: dated[dated.length - 1] ?? null,
+          eps_values: (epsRow?.values ?? []).filter(
+            (v): v is number => v != null && Number.isFinite(v),
+          ),
+          quarters,
         });
       }
     } finally {

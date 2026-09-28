@@ -684,6 +684,128 @@ button.brand-btn:hover .brand-name {
   font-weight: 650;
 }
 
+.pead2-panel h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.pead2-title p {
+  margin: 2px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  max-width: 42rem;
+}
+
+.pead2-table th.col-num,
+.pead2-table td.col-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pead2-table th.col-company,
+.pead2-table td.col-company {
+  text-align: left;
+  min-width: 16rem;
+}
+
+.pead2-th {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.pead2-co {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pead2-name {
+  border: 0;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-weight: 650;
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.pead2-name:hover {
+  color: var(--accent, #2563eb);
+}
+
+.pead2-co-meta,
+.pead2-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 0.72rem;
+}
+
+.pead2-links a {
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+
+.pead2-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pead2-score-high {
+  color: #047857;
+}
+
+.pead2-score-mid {
+  color: #b45309;
+}
+
+.pead2-score-low {
+  color: #b91c1c;
+}
+
+.pead2-score-na {
+  color: var(--muted);
+}
+
+.pead-good {
+  color: #047857;
+}
+
+.pead-mid {
+  color: #b45309;
+}
+
+.pead-bad {
+  color: #b91c1c;
+}
+
+.pead-na,
+.pead2-na {
+  color: var(--muted);
+}
+
+.pead2-up {
+  color: #047857;
+}
+
+.pead2-down {
+  color: #b91c1c;
+}
+
+.pead2-warn {
+  color: #b45309;
+}
+
 .toolbar {
   display: flex;
   gap: 10px;

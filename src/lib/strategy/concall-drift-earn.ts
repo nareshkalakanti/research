@@ -1,6 +1,6 @@
 /** Which NSE announcement subjects count as post-results earn events. */
 
-const JUNK_SUBJECTS = new Set([
+export const JUNK_SUBJECTS = new Set([
   "Updates",
   "General Updates",
   "Appointment",

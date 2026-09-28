@@ -301,6 +301,37 @@ async function tickertapeLookup(
   };
 }
 
+export type TickertapeValuation = {
+  pe: number | null;
+  ttm_pe: number | null;
+  eps: number | null;
+  price: number | null;
+};
+
+/** Tickertape info ratios — TTM PE / EPS when Screener quarters have no EPS. */
+export async function tickertapeValuation(
+  symbol: string,
+  companyName: string,
+): Promise<TickertapeValuation | null> {
+  const fromTicker = await tickertapeSearchHits(symbol);
+  let chosen = pickTickertapeHit(fromTicker, symbol, companyName);
+  if (!chosen && companyName.trim() && companyName.trim().toUpperCase() !== symbol.toUpperCase()) {
+    const fromName = await tickertapeSearchHits(companyName.trim());
+    chosen = pickTickertapeHit(fromName, symbol, companyName);
+  }
+  if (!chosen) return null;
+  const infoPayload = asRecord(
+    await httpGetJson(`${TICKERTAPE_INFO}${encodeURIComponent(chosen.sid)}`),
+  );
+  const ratios = asRecord(asRecord(infoPayload.data).ratios);
+  return {
+    pe: num(ratios.pe),
+    ttm_pe: num(ratios.ttmPe) ?? num(ratios.pe),
+    eps: num(ratios.eps),
+    price: num(ratios.lastPrice),
+  };
+}
+
 export async function growwCompanyData(
   symbol: string,
   companyName: string,
