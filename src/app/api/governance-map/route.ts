@@ -5,6 +5,7 @@ import {
   loadAboutMap,
   loadGovernanceFamilyMap,
   loadGovernanceMap,
+  loadStockBoardNetwork,
   tickerMatchesSearch,
   type GovernanceMapRow,
   type GovCompanySeat,
@@ -33,7 +34,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type View = "director" | "company" | "role" | "family" | "independence";
+type View = "director" | "company" | "role" | "family" | "independence" | "network";
 
 /** Theme match uses About + products + HQ location. */
 function seatAboutText(c: GovCompanySeat): string {
@@ -500,7 +501,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const view = (sp.get("view") || "director") as View;
   const q = sp.get("q") || "";
   const page = Math.max(1, Number(sp.get("page") || 1));
-  const pageSize = Math.min(100, Math.max(10, Number(sp.get("pageSize") || 40)));
+  const pageSize = Math.min(200, Math.max(10, Number(sp.get("pageSize") || 40)));
   const namelessDin = sp.get("namelessDin") === "1";
   const minBoards = namelessDin
     ? 1
@@ -514,13 +515,16 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   const pattern = sp.get("pattern") === "1";
   const family = sp.get("family") === "1";
   const control = sp.get("control") === "1";
+  if (view === "network") {
+    const ticker = (sp.get("ticker") || q).trim().toUpperCase();
+    const row = ticker ? loadStockBoardNetwork(ticker) : null;
+    return NextResponse.json({
+      view: "network",
+      ticker: ticker || null,
+      row,
+    });
+  }
   if (view === "family") {
-    const stats = {
-      ...governanceMapStats(loadGovernanceMap({ minBoards, refresh })),
-      nameless_din: countNamelessDinDirectors(),
-      independent_boards: independentBoardCount(),
-      independence_floors: independenceFloorCounts(true),
-    };
     const families = loadGovernanceFamilyMap({
       q,
       hold: sp.get("hold") === "1",
@@ -530,7 +534,13 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     const start = (page - 1) * pageSize;
     return NextResponse.json({
       view: "family",
-      stats,
+      stats: {
+        directors: 0,
+        companies: families.reduce((n, g) => n + g.company_count, 0),
+        nameless_din: 0,
+        independent_boards: 0,
+        independence_floors: {},
+      },
       total,
       page,
       pages,

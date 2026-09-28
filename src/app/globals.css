@@ -8385,6 +8385,54 @@ button.result-tag {
   letter-spacing: -0.01em;
 }
 
+.fam-dash-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  background: #eef2f7;
+  border-radius: 10px;
+  margin-bottom: 8px;
+}
+
+.fam-dash-tabs .tab {
+  border: 0;
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.fam-dash-tabs .tab.on {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.gov-person-name-btn {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.fam-stock-search {
+  max-width: 440px;
+  margin-bottom: 16px;
+}
+
+.fam-stock-card {
+  max-width: none;
+}
+
 .fam-dash-sub {
   margin: 4px 0 0;
   color: var(--muted);
@@ -8497,6 +8545,14 @@ button.result-tag {
 
 .fam-graph {
   position: relative;
+  background-color: #fafafb;
+  background-image: radial-gradient(#e4e7ec 1px, transparent 1px);
+  background-size: 16px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.fam-graph-ph {
+  min-height: 220px;
   background-color: #fafafb;
   background-image: radial-gradient(#e4e7ec 1px, transparent 1px);
   background-size: 16px 16px;

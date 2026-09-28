@@ -18,7 +18,7 @@ import { formatInr, formatMcap, formatMomPct, formatRsiM } from "@/lib/types";
 import { fmtYoYPct, yoyClass } from "@/lib/quarter-panel";
 import { SecCell } from "@/components/SecCell";
 import { WatchButton } from "@/components/WatchButton";
-import { useOptionalAppTab } from "@/lib/app-tab";
+import { useOptionalSetAppTab } from "@/lib/app-tab";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
 
 export type SortKey =
@@ -98,7 +98,7 @@ function SortIcon({
 }
 
 function SignalTags({ company }: { company: Company }) {
-  const tabs = useOptionalAppTab();
+  const setTab = useOptionalSetAppTab();
   const fundTags = companyFundTags(company);
   return (
     <span className="result-tags">
@@ -182,14 +182,14 @@ function SignalTags({ company }: { company: Company }) {
             e.stopPropagation();
             e.preventDefault();
             writeFocusTicker(company.ticker);
-            tabs?.setTab("research", { ticker: company.ticker });
+            setTab?.("research", { ticker: company.ticker });
           }}
           onKeyDown={(e) => {
             if (e.key !== "Enter" && e.key !== " ") return;
             e.preventDefault();
             e.stopPropagation();
             writeFocusTicker(company.ticker);
-            tabs?.setTab("research", { ticker: company.ticker });
+            setTab?.("research", { ticker: company.ticker });
           }}
         >
           CC

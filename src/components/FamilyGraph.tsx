@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type Company = {
   ticker: string;
@@ -411,6 +411,38 @@ export function FamilyGraph({
         <span className="person">Person</span>
         {outside.length ? <span className="outside">Outside group</span> : null}
       </div>
+    </div>
+  );
+}
+
+type FamilyGraphProps = {
+  companies: Company[];
+  people: Person[];
+  outside: Outside[];
+  onCompany: (ticker: string) => void;
+  onPerson: (personId: string, name: string) => void;
+  chartUrl?: (ticker: string) => string;
+};
+
+/** Mount the SVG graph only when the card is near the viewport. */
+export function LazyFamilyGraph(props: FamilyGraphProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) setShow(true);
+      },
+      { rootMargin: "160px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className="fam-graph-lazy">
+      {show ? <FamilyGraph {...props} /> : <div className="fam-graph-ph" aria-hidden />}
     </div>
   );
 }

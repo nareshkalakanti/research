@@ -27,7 +27,8 @@ import {
 } from "./fund-watchlist-meta";
 import { isPlaceholderDirectorName } from "./gov-director-name";
 import {
-  cachedFamilyLabel,
+  groupFingerprint,
+  loadAllFamilyLabels,
   scheduleFamilyGroupRefine,
 } from "./family-group-refine";
 import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
@@ -446,6 +447,7 @@ function isHousePromoterSeat(designation: string, category: string | null): bool
 let govDb: Database.Database | null = null;
 let aboutDb: Database.Database | null = null;
 let mapCache: { at: number; rows: GovernanceMapRow[] } | null = null;
+let familyMapCache: { at: number; groups: GovFamilyGroup[] } | null = null;
 let boardScoreCache: { at: number; map: Map<string, number> } | null = null;
 const CACHE_MS = 60_000;
 
@@ -786,6 +788,17 @@ export function loadGovernanceFamilyMap(opts?: {
   q?: string;
   hold?: boolean;
 }): GovFamilyGroup[] {
+  const qNeedle = (opts?.q || "").trim().toLowerCase();
+  const now = Date.now();
+  if (
+    !opts?.hold &&
+    !qNeedle &&
+    familyMapCache &&
+    now - familyMapCache.at < CACHE_MS
+  ) {
+    return familyMapCache.groups;
+  }
+
   const seats = loadAllBoardSeats();
   if (!seats.length) return [];
 
@@ -1593,8 +1606,11 @@ export function loadGovernanceFamilyMap(opts?: {
       .replace(/\s+/g, " ")
       .trim();
 
+  const familyLabels = loadAllFamilyLabels();
   for (const g of groups) {
-    const cached = cachedFamilyLabel(g.companies.map((c) => c.ticker));
+    const cached =
+      familyLabels.get(groupFingerprint(g.companies.map((c) => c.ticker))) ||
+      null;
     const cacheTokens = houseContentTokens(cached || "")
       .map((w) => w.toLowerCase())
       .filter((w) => w !== "group");
@@ -1890,7 +1906,7 @@ export function loadGovernanceFamilyMap(opts?: {
     }
   }
 
-  const q = (opts?.q || "").trim().toLowerCase();
+  const q = qNeedle;
   let out = groups;
   if (q) {
     out = groups
@@ -1926,6 +1942,9 @@ export function loadGovernanceFamilyMap(opts?: {
       sensitivity: "base",
     });
   });
+  if (!opts?.hold && !qNeedle) {
+    familyMapCache = { at: Date.now(), groups: out };
+  }
   scheduleFamilyGroupRefine(
     out.map((g, i) => ({
       id: `g${i}`,
@@ -2029,6 +2048,61 @@ function loadSeatsForTickers(tickers: string[]): SeatRow[] {
     out.push(...rows);
   }
   return out;
+}
+
+export type StockBoardNetwork = {
+  ticker: string;
+  name: string;
+  market: string;
+  companies: GovCompanySeat[];
+  people: Array<{
+    person_id: string;
+    name: string;
+    din: string | null;
+    tickers: string[];
+  }>;
+};
+
+/** Ego graph: directors on this ticker plus every other listed board they sit on. */
+export function loadStockBoardNetwork(
+  raw: string,
+): StockBoardNetwork | null {
+  const ticker = raw.trim().toUpperCase();
+  if (!ticker) return null;
+  const seats = loadSeatsForTickers([ticker]);
+  const rows = buildRowsFromSeats(seats, 1);
+  if (!rows.length) return null;
+  const people = rows.map((r) => ({
+    person_id: r.person_id,
+    name: r.name,
+    din: r.din,
+    tickers: r.companies.map((c) => c.ticker),
+  }));
+  const byCo = new Map<string, GovCompanySeat>();
+  let focal: GovCompanySeat | null = null;
+  for (const r of rows) {
+    for (const c of r.companies) {
+      const key = c.ticker.toUpperCase();
+      if (!byCo.has(key)) byCo.set(key, c);
+      if (key === ticker) focal = c;
+    }
+  }
+  if (!focal) return null;
+  const rest = [...byCo.values()]
+    .filter((c) => c.ticker.toUpperCase() !== ticker)
+    .sort((a, b) => {
+      const am = a.market_cap_cr ?? -1;
+      const bm = b.market_cap_cr ?? -1;
+      if (bm !== am) return bm - am;
+      return a.ticker.localeCompare(b.ticker);
+    });
+  return {
+    ticker: focal.ticker,
+    name: focal.name,
+    market: focal.market,
+    companies: [focal, ...rest],
+    people,
+  };
 }
 
 export function loadAboutMap(tickers: string[]): Map<string, AboutBits> {
@@ -2240,6 +2314,7 @@ function buildRows(minBoards: number): GovernanceMapRow[] {
 export function invalidateGovernanceMapCache(): void {
   mapCache = null;
   boardScoreCache = null;
+  familyMapCache = null;
 }
 
 /** Directors with a DIN whose stored name is only "DIN ########". */
@@ -2373,19 +2448,10 @@ export function companyBoardScoresForTickers(
   const out = new Map<string, number>();
   if (!want.length) return out;
 
-  const cached = loadCompanyBoardScoreMap();
-  const missing: string[] = [];
-  for (const t of want) {
-    const hit = cached.get(t);
-    if (hit != null) out.set(t, hit);
-    else missing.push(t);
-  }
-  if (!missing.length) return out;
-
   const extra = boardScoresFromDirectorRows(
-    buildRowsFromSeats(loadSeatsForTickers(missing), 1),
+    buildRowsFromSeats(loadSeatsForTickers(want), 1),
   );
-  for (const t of missing) {
+  for (const t of want) {
     const hit = extra.get(t);
     if (hit != null) out.set(t, hit);
   }

@@ -10,7 +10,7 @@ import {
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
 import { GovernanceDinCrud } from "@/components/GovernanceDinCrud";
 import { onGovOpen } from "@/lib/gov-open";
-import { useOptionalAppTab, type AppTab } from "@/lib/app-tab";
+import { useOptionalSetAppTab, type AppTab } from "@/lib/app-tab";
 import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
 import { HighlightedText } from "@/components/HighlightedText";
 import { FundWatchlistTags } from "@/components/FundWatchlistTags";
@@ -527,7 +527,7 @@ export function GovernanceMapPanel() {
     setOpenId(deepPersonId);
   }, [deepPersonId, loading, data]);
 
-  const appTab = useOptionalAppTab();
+  const setTab = useOptionalSetAppTab();
   const drillRef = useRef({ drillTicker, drillDirector, depth: stack.length });
   drillRef.current = { drillTicker, drillDirector, depth: stack.length };
   const returnRef = useRef<{ depth: number; tab: AppTab } | null>(null);
@@ -614,7 +614,7 @@ export function GovernanceMapPanel() {
     const ret = returnRef.current;
     if (ret && stack.length === ret.depth) {
       returnRef.current = null;
-      appTab?.setTab(ret.tab);
+      setTab?.(ret.tab);
     }
   }
 

@@ -5,7 +5,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -14,7 +13,6 @@ import {
 export type AppTab =
   | "dashboard"
   | "scan"
-  | "pead"
   | "theme-scanner"
   | "governance"
   | "marketiq"
@@ -28,7 +26,6 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "dashboard", label: "Dashboard", short: "Dashboard" },
   { id: "theme-scanner", label: "Theme", short: "Theme" },
   { id: "scan", label: "Scan", short: "Scan" },
-  { id: "pead", label: "PEAD", short: "PEAD" },
   { id: "governance", label: "Governance", short: "Governance" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "marketiq", label: "MarketIQ", short: "Market" },
@@ -52,6 +49,7 @@ function isPageTab(id: AppTab): boolean {
 
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
+  if (raw === "pead") return "scan";
   if (
     raw === "strategy" ||
     raw === "buyback" ||
@@ -130,7 +128,8 @@ type AppTabContextValue = {
   setTab: (next: AppTab, opts?: { ticker?: string }) => void;
 };
 
-const AppTabContext = createContext<AppTabContextValue | null>(null);
+const TabStateContext = createContext<AppTab | null>(null);
+const TabSetContext = createContext<AppTabContextValue["setTab"] | null>(null);
 
 export function AppTabProvider({ children }: { children: ReactNode }) {
   const [tab, setTabState] = useState<AppTab>(readTabFromLocation);
@@ -154,19 +153,37 @@ export function AppTabProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const value = useMemo(() => ({ tab, setTab }), [tab, setTab]);
-
   return (
-    <AppTabContext.Provider value={value}>{children}</AppTabContext.Provider>
+    <TabSetContext.Provider value={setTab}>
+      <TabStateContext.Provider value={tab}>{children}</TabStateContext.Provider>
+    </TabSetContext.Provider>
   );
 }
 
 export function useAppTab(): AppTabContextValue {
-  const ctx = useContext(AppTabContext);
-  if (!ctx) throw new Error("useAppTab must be used within AppTabProvider");
-  return ctx;
+  const tab = useContext(TabStateContext);
+  const setTab = useContext(TabSetContext);
+  if (tab == null || !setTab) {
+    throw new Error("useAppTab must be used within AppTabProvider");
+  }
+  return { tab, setTab };
+}
+
+export function useSetAppTab(): AppTabContextValue["setTab"] {
+  const setTab = useContext(TabSetContext);
+  if (!setTab) {
+    throw new Error("useSetAppTab must be used within AppTabProvider");
+  }
+  return setTab;
+}
+
+export function useOptionalSetAppTab(): AppTabContextValue["setTab"] | null {
+  return useContext(TabSetContext);
 }
 
 export function useOptionalAppTab(): AppTabContextValue | null {
-  return useContext(AppTabContext);
+  const tab = useContext(TabStateContext);
+  const setTab = useContext(TabSetContext);
+  if (tab == null || !setTab) return null;
+  return { tab, setTab };
 }
