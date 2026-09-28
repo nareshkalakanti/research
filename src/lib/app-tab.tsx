@@ -14,6 +14,7 @@ import {
 export type AppTab =
   | "dashboard"
   | "scan"
+  | "pead"
   | "theme-scanner"
   | "governance"
   | "marketiq"
@@ -27,6 +28,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "dashboard", label: "Dashboard", short: "Dashboard" },
   { id: "theme-scanner", label: "Theme", short: "Theme" },
   { id: "scan", label: "Scan", short: "Scan" },
+  { id: "pead", label: "PEAD", short: "PEAD" },
   { id: "governance", label: "Governance", short: "Governance" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "marketiq", label: "MarketIQ", short: "Market" },

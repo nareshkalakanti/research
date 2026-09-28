@@ -229,3 +229,92 @@ export function peadScoreClass(score: number | null | undefined): string {
   if (score >= 45) return "pead-mid";
   return "pead-bad";
 }
+
+/** FinanciallyFree Result Monitor score (can be negative). */
+export function peadScoreFfMonitor(
+  sales_yoy: number | null,
+  sales_qoq: number | null,
+  forward_pe: number | null,
+): number | null {
+  const peCheapMax = 20;
+  const peBonusPerPoint = 2.4;
+  const growthCap = 100;
+  const parts: number[] = [];
+  for (const raw of [sales_yoy, sales_qoq]) {
+    const v = num(raw);
+    if (v == null) continue;
+    parts.push(Math.max(-growthCap, Math.min(growthCap, v)));
+  }
+  if (!parts.length) return null;
+  let score = parts.reduce((a, b) => a + b, 0) / parts.length;
+  const pe = num(forward_pe);
+  if (pe != null && pe > 0 && pe < 500 && pe < peCheapMax) {
+    score += (peCheapMax - pe) * peBonusPerPoint;
+  }
+  return Math.round(score * 10) / 10;
+}
+
+/** Same monitor formula; NP then EBIDT if sales YoY/QoQ are missing. */
+export function peadScoreFf(
+  sales_yoy: number | null,
+  sales_qoq: number | null,
+  np_yoy: number | null,
+  np_qoq: number | null,
+  ebidt_yoy: number | null,
+  ebidt_qoq: number | null,
+  forward_pe: number | null,
+): number | null {
+  return (
+    peadScoreFfMonitor(sales_yoy, sales_qoq, forward_pe) ??
+    peadScoreFfMonitor(np_yoy, np_qoq, forward_pe) ??
+    peadScoreFfMonitor(ebidt_yoy, ebidt_qoq, forward_pe)
+  );
+}
+
+/** Unusable / missing run-rate PE is blank — not a 999.0 print. */
+export function usableForwardPe(forward_pe: number | null): number | null {
+  const pe = num(forward_pe);
+  if (pe == null || pe <= 0 || pe >= 500) return null;
+  return pe;
+}
+
+/** Dashboard badge: high > 40, low if negative or very small. */
+export function pead2ScoreClass(
+  score: number | null | undefined,
+  highMin = 40,
+): string {
+  if (score == null || !Number.isFinite(score)) return "pead2-score-na";
+  if (score > highMin) return "pead2-score-high";
+  if (score < 0 || score <= highMin * 0.35) return "pead2-score-low";
+  return "pead2-score-mid";
+}
+
+/** Largest single-day % move after result date, capped like stocks-ai Daily Ret. */
+export function computeDailyRetFf(
+  bars: Array<{ date: string; close: number }>,
+  resultDate: string | null | undefined,
+  cap = 19.99,
+): number | null {
+  const rd = (resultDate || "").slice(0, 10);
+  if (!rd || !bars.length) return null;
+  const sorted = [...bars].sort((a, b) => a.date.localeCompare(b.date));
+  const onOrBefore = sorted.filter((b) => b.date <= rd);
+  let after = sorted.filter((b) => b.date > rd);
+  if (!after.length) after = sorted.filter((b) => b.date >= rd);
+  if (!after.length) return null;
+  const moves: number[] = [];
+  let prev =
+    onOrBefore.length > 0
+      ? onOrBefore[onOrBefore.length - 1]!.close
+      : null;
+  for (const bar of after) {
+    if (prev != null && prev > 0) {
+      moves.push((bar.close / prev - 1) * 100);
+    }
+    prev = bar.close;
+  }
+  if (!moves.length) return null;
+  const peak = Math.max(...moves);
+  const capped = cap > 0 ? Math.min(peak, cap) : peak;
+  return Math.round(capped * 100) / 100;
+}

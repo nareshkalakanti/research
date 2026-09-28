@@ -1,0 +1,27 @@
+export type Pead2Row = {
+  ticker: string;
+  name: string;
+  market: string;
+  sector: string | null;
+  mcap_cr: number | null;
+  price: number | null;
+  cap_code: string | null;
+  web: string | null;
+  sc: string;
+  tv: string;
+  pead_score: number | null;
+  result_date: string | null;
+  pe_ratio: number | null;
+  forward_pe: number | null;
+  returns_pct: number | null;
+  daily_ret_pct: number | null;
+  sales_yoy: number | null;
+  sales_qoq: number | null;
+  np_yoy: number | null;
+  np_qoq: number | null;
+  ebidt_yoy: number | null;
+  ebidt_qoq: number | null;
+  cf_profit: number | null;
+  has_tq: boolean;
+  has_bb: boolean;
+};
