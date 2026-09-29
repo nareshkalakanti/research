@@ -101,33 +101,16 @@ export function PeopleBoardCards({
               />
               <div className="gov-family-chips">
                 {companies.map((c) => {
-                  const href = chartUrl?.(c.ticker);
-                  const title = `${c.ticker} · ${c.name}${c.designation ? ` · ${c.designation}` : ""}`;
-                  const body = <span className="mono">{c.ticker}</span>;
-                  const cls = "gov-family-chip part";
-                  if (href) {
-                    return (
-                      <a
-                        key={c.ticker}
-                        className={cls}
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`${title} · TradingView`}
-                      >
-                        {body}
-                      </a>
-                    );
-                  }
+                  const title = `${c.ticker} · ${c.name}${c.designation ? ` · ${c.designation}` : ""} — show related boards`;
                   return (
                     <button
                       key={c.ticker}
                       type="button"
-                      className={cls}
+                      className="gov-family-chip part"
                       title={title}
                       onClick={() => onTicker(c.ticker)}
                     >
-                      {body}
+                      <span className="mono">{c.ticker}</span>
                     </button>
                   );
                 })}

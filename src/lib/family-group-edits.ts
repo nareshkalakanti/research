@@ -295,16 +295,34 @@ export function searchListedCompanies(
   try {
     const like = `%${needle.replace(/[%_]/g, "")}%`;
     const ticker = needle.trim().toUpperCase();
+    const compact = ticker.replace(/[^A-Z0-9]/g, "");
+    const compactLike = compact.length >= 2 ? `%${compact}%` : like;
     return db
       .prepare(
         `SELECT ticker, name FROM companies
          WHERE UPPER(ticker) = ?
+            OR REPLACE(REPLACE(UPPER(ticker), ' ', ''), '.', '') = ?
             OR ticker LIKE ? COLLATE NOCASE
             OR name LIKE ? COLLATE NOCASE
-         ORDER BY CASE WHEN UPPER(ticker) = ? THEN 0 ELSE 1 END, name COLLATE NOCASE
+            OR REPLACE(REPLACE(UPPER(ticker), ' ', ''), '.', '') LIKE ?
+            OR REPLACE(REPLACE(UPPER(name), ' ', ''), '.', '') LIKE ?
+         ORDER BY CASE
+           WHEN UPPER(ticker) = ? THEN 0
+           WHEN REPLACE(REPLACE(UPPER(ticker), ' ', ''), '.', '') = ? THEN 1
+           ELSE 2 END, name COLLATE NOCASE
          LIMIT ?`,
       )
-      .all(ticker, like, like, ticker, Math.min(30, Math.max(1, limit))) as Array<{
+      .all(
+        ticker,
+        compact,
+        like,
+        like,
+        compactLike,
+        compactLike,
+        ticker,
+        compact,
+        Math.min(30, Math.max(1, limit)),
+      ) as Array<{
       ticker: string;
       name: string;
     }>;

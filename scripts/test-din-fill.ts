@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { parseScreenshotBoard } from "../src/lib/din-screenshot-parse";
+import { pickUniqueListing } from "../src/lib/listing-name-match";
 import { zaubaCorpSearchQuery } from "../src/lib/links";
 
 const gold = JSON.parse(
@@ -35,5 +36,20 @@ assert.equal(html.seats[0]?.name, "ALPHA PERSON");
 assert.equal(html.seats[2]?.din, "02647994");
 
 assert.equal(zaubaCorpSearchQuery("Example Movers Ltd"), "Example Movers Ltd zauba corp");
+
+const listings = [
+  { ticker: "QUEUECO", name: "Queue Placeholder Ltd" },
+  { ticker: "EXHOT", name: "Example Hotels Limited" },
+  { ticker: "EXBLD", name: "Example Buildwell Ltd" },
+];
+assert.equal(
+  pickUniqueListing("EXAMPLE HOTELS", listings, "QUEUECO")?.ticker,
+  "EXHOT",
+);
+assert.equal(
+  pickUniqueListing("Example Buildwell", listings, "QUEUECO")?.ticker,
+  "EXBLD",
+);
+assert.equal(pickUniqueListing("Example", listings, "QUEUECO"), null);
 
 console.log("test:din-fill: ok");

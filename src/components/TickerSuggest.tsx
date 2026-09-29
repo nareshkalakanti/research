@@ -17,6 +17,7 @@ export type TickerSuggestHit = {
   market: string;
   sector?: string | null;
   mcap_cr?: number | null;
+  source?: "local" | "groww";
 };
 
 type Props = {
@@ -159,8 +160,8 @@ export function TickerSuggest({
     const id = ++reqRef.current;
     const t = window.setTimeout(() => {
       setLoading(true);
-      void fetch(`/api/tickers?q=${encodeURIComponent(q)}&limit=14`, {
-        signal: AbortSignal.timeout(8_000),
+          void fetch(`/api/tickers?q=${encodeURIComponent(q)}&limit=14`, {
+        signal: AbortSignal.timeout(14_000),
       })
         .then(async (res) => {
           const json = (await res.json()) as {
@@ -208,15 +209,41 @@ export function TickerSuggest({
 
   const pick = useCallback(
     (hit: TickerSuggestHit) => {
-      const t = hit.ticker.trim().toUpperCase();
-      pickedRef.current = t;
-      reqRef.current += 1;
-      onChange(t);
-      onSelect?.(hit);
-      setOpen(false);
-      setHits([]);
-      setSearched(false);
-      setLoading(false);
+      const finish = (resolved: TickerSuggestHit) => {
+        const t = resolved.ticker.trim().toUpperCase();
+        pickedRef.current = t;
+        reqRef.current += 1;
+        onChange(t);
+        onSelect?.(resolved);
+        setOpen(false);
+        setHits([]);
+        setSearched(false);
+        setLoading(false);
+      };
+      if (hit.source === "groww") {
+        setLoading(true);
+        void fetch("/api/tickers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ticker: hit.ticker,
+            name: hit.name,
+            market: hit.market,
+          }),
+          signal: AbortSignal.timeout(45_000),
+        })
+          .then(async (res) => {
+            const json = (await res.json()) as {
+              ok?: boolean;
+              hit?: TickerSuggestHit;
+            };
+            finish(json.hit?.ticker ? { ...hit, ...json.hit, source: "local" } : hit);
+          })
+          .catch(() => finish(hit))
+          .finally(() => setLoading(false));
+        return;
+      }
+      finish(hit);
     },
     [onChange, onSelect],
   );
@@ -276,6 +303,11 @@ export function TickerSuggest({
                             >
                               {marketLabel(h.market)}
                             </span>
+                            {h.source === "groww" ? (
+                              <span className="ticker-suggest-mkt ticker-suggest-mkt--groww">
+                                Groww
+                              </span>
+                            ) : null}
                           </div>
                           <div className="ticker-suggest-name">
                             {highlightMatch(h.name, q)}
@@ -301,6 +333,9 @@ export function TickerSuggest({
               ) : (
                 <div className="ticker-suggest-empty">
                   No matches for <strong>{q}</strong>
+                  <div className="ticker-suggest-foot">
+                    Groww listing search ran as backup — try a ticker or BSE scrip.
+                  </div>
                 </div>
               )}
               {hits.length > 0 ? (

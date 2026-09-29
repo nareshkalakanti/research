@@ -26,6 +26,7 @@ export function FamilyDashboard() {
   const [newHits, setNewHits] = useState<Array<{ ticker: string; name: string }>>([]);
   const [creating, setCreating] = useState(false);
   const [dashView, setDashView] = useState<DashView>("groups");
+  const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
 
@@ -134,14 +135,14 @@ export function FamilyDashboard() {
 
   const companySearch = useCallback(async (query: string) => {
     const res = await fetch(
-      `/api/family-groups?q=${encodeURIComponent(query)}`,
+      `/api/tickers?q=${encodeURIComponent(query)}&limit=14`,
       { cache: "no-store" },
     );
     if (!res.ok) return [];
     const json = (await res.json()) as {
-      rows?: Array<{ ticker: string; name: string }>;
+      hits?: Array<{ ticker: string; name: string }>;
     };
-    return json.rows ?? [];
+    return (json.hits ?? []).map((h) => ({ ticker: h.ticker, name: h.name }));
   }, []);
 
   useEffect(() => {
@@ -187,9 +188,11 @@ export function FamilyDashboard() {
     }
   };
 
-  const openCompany = (ticker: string) => {
-    setTab("governance");
-    requestGovOpen({ kind: "company", ticker, from: "Dashboard", returnTab: "dashboard" });
+  const showStockNetwork = (ticker: string) => {
+    const t = ticker.trim().toUpperCase();
+    if (!t) return;
+    setStockFocus(t);
+    setDashView("stock");
   };
 
   const openPerson = (personId: string, name: string) => {
@@ -232,10 +235,10 @@ export function FamilyDashboard() {
           </div>
           <p className="fam-dash-sub">
             {dashView === "groups"
-              ? "Click a group name to rename it. Add group for a new house, then add listed companies. × a ticker to drop it. Click a node for the company page; click a ticker for its TradingView chart."
+              ? "Click a ticker for that stock’s related nodes. Outside shows only external boards and those people. Show all restores the group."
               : dashView === "people"
-                ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker opens TradingView."
-                : "Search a stock. The graph is its directors plus every other listed company those directors sit on."}
+                ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
+                : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
         <div className="fam-dash-actions">
@@ -354,7 +357,7 @@ export function FamilyDashboard() {
       ) : null}
       {dashView === "stock" ? (
         <StockNetworkSearch
-          onTicker={(t) => openCompany(t)}
+          initialTicker={stockFocus}
           onPerson={(id, name) => openPerson(id, name)}
         />
       ) : dashView === "people" ? (
@@ -363,7 +366,7 @@ export function FamilyDashboard() {
         ) : (
           <PeopleBoardCards
             rows={filteredPeople}
-            onTicker={(t) => openCompany(t)}
+            onTicker={(t) => showStockNetwork(t)}
             onPerson={(id, name) => openPerson(id, name)}
             chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
           />
@@ -374,7 +377,6 @@ export function FamilyDashboard() {
         <FamilyMapCards
           rows={filtered}
           editable
-          onTicker={(t) => openCompany(t)}
           onPerson={(id, name) => openPerson(id, name)}
           chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
           companySearch={companySearch}
@@ -402,6 +404,11 @@ export function FamilyDashboard() {
           }}
           onAddCompany={async (g, ticker) => {
             if (!g.group_id) return;
+            await fetch("/api/tickers", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ticker }),
+            });
             await fetch("/api/family-groups", {
               method: "POST",
               headers: { "Content-Type": "application/json" },

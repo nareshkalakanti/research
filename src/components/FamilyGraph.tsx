@@ -16,6 +16,7 @@ type Person = {
   name: string;
   din: string | null;
   tickers: string[];
+  dir_score?: number;
 };
 
 type Outside = { ticker: string; name: string; cap_code?: string | null; market_cap_cr?: number | null };
