@@ -306,12 +306,16 @@ export function MissingDataPanel() {
         </>
       ) : null}
 
-      {gap === "scrape" ? (
+      {gap === "scrape" ||
+      gap === "scrape_empty" ||
+      gap === "scrape_failed" ||
+      gap === "scrape_bad" ? (
         <WebsiteScrapeBar
           market={market as ScanList}
           tickers={pageTickers}
           listLabel={market}
-          websiteGap
+          websiteGap={gap === "scrape"}
+          rescan={gap !== "scrape"}
           onBatch={() => load()}
           onDone={() => load({ refresh: true })}
         />

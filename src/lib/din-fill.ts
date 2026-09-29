@@ -85,7 +85,12 @@ export async function applyDinScreenshot(opts: {
   const regex = regexBoardDinsFromText(ocr);
   const seats = mergeSeats(parsed.seats, regex);
   if (!seats.length) {
-    throw new Error("No DIN + name rows in the screenshot");
+    const clip = ocr.replace(/\s+/g, " ").trim().slice(0, 220);
+    throw new Error(
+      clip
+        ? `No DIN + name rows. OCR saw: ${clip}`
+        : "No DIN + name rows (empty OCR — check vision OCR)",
+    );
   }
 
   const saved = saveCompanyBoard({

@@ -130,11 +130,63 @@ export function DinFillResearchPanel() {
     setStatus("Skipped this name — still missing until a screenshot is saved.");
   }
 
+  async function scanTickers(tickers: string[], label: string) {
+    if (!tickers.length) return;
+    setBusy(true);
+    setError(null);
+    setStatus(`${label}…`);
+    try {
+      const web = await fetch("/api/governance-web-din", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tickers,
+          limit: tickers.length,
+          missingOnly: true,
+        }),
+      });
+      const webJson = (await web.json()) as {
+        ok?: boolean;
+        saved?: number;
+        message?: string;
+        error?: string;
+      };
+      if (!web.ok) throw new Error(webJson.error || "Web DIN scan failed");
+      let msg = webJson.message || "Web DIN done";
+      if (!(webJson.saved ?? 0)) {
+        const nse = await fetch("/api/governance-scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tickers,
+            limit: tickers.length,
+            missingOnly: true,
+          }),
+        });
+        const nseJson = (await nse.json()) as {
+          ok?: boolean;
+          saved?: number;
+          message?: string;
+          error?: string;
+        };
+        if (!nse.ok) throw new Error(nseJson.error || "NSE DIN scan failed");
+        msg = `${msg} · ${nseJson.message || "NSE scan done"}`;
+      }
+      setStatus(msg);
+      setExtracted(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Scan failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="buyback-research-panel din-fill-panel">
       <p className="buyback-status">
-        One missing board at a time. Open the Zauba link, screenshot Current
-        Directors, then <strong>⌘V / Ctrl+V</strong> into the box.
+        One missing board at a time. <strong>Scan</strong> tries web + NSE DINs
+        for this name; or paste a Zauba screenshot (⌘V) into the box.
       </p>
 
       {current ? (
@@ -163,6 +215,31 @@ export function DinFillResearchPanel() {
             >
               Zauba search
             </a>
+            <button
+              type="button"
+              className={`chip chip-scan tag-chip${busy ? " busy" : ""}`}
+              disabled={busy}
+              onClick={() =>
+                void scanTickers([current.ticker], `Scan ${current.ticker}`)
+              }
+              title="Web DIN then NSE board fetch for this ticker"
+            >
+              {busy ? "…" : "Scan"}
+            </button>
+            <button
+              type="button"
+              className="chip chip-scan tag-chip"
+              disabled={busy || queue.length === 0}
+              onClick={() =>
+                void scanTickers(
+                  queue.slice(0, 8).map((j) => j.ticker),
+                  "Scan next 8",
+                )
+              }
+              title="Web DIN then NSE for the next 8 missing boards"
+            >
+              Scan 8
+            </button>
             <button
               type="button"
               className="chip tag-chip"

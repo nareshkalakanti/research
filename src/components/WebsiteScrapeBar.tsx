@@ -37,6 +37,8 @@ type Props = {
   listLabel: string;
   /** Pending count + batch scrape use website-gap queue (has URL, no stored scrape). */
   websiteGap?: boolean;
+  /** Re-fetch even if a prior scrape stored empty/failed. */
+  rescan?: boolean;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
 };
@@ -99,6 +101,7 @@ export function WebsiteScrapeBar({
   tickers,
   listLabel,
   websiteGap = false,
+  rescan = false,
   onBatch,
   onDone,
 }: Props) {
@@ -207,6 +210,7 @@ export function WebsiteScrapeBar({
             pageScan: mode === "page",
             missingOnly: mode === "pending",
             websiteGap: mode === "pending" && websiteGap,
+            rescan: rescan && mode === "page",
           });
 
           gotSaved += json.saved;
@@ -284,6 +288,7 @@ export function WebsiteScrapeBar({
       onDone,
       pending,
       refreshPending,
+      rescan,
       tickers,
       universeMarket,
       websiteGap,
@@ -304,7 +309,11 @@ export function WebsiteScrapeBar({
           className={`chip chip-scan ${busyMode === "page" ? "busy" : ""}`}
           disabled={pageDisabled}
           onClick={() => void runBatches("page")}
-          title={`Scrape company websites for rows on this page missing stored website text (${listLabel})`}
+          title={
+            rescan
+              ? `Re-scrape websites for these rows (${listLabel})`
+              : `Scrape company websites for rows on this page missing stored website text (${listLabel})`
+          }
         >
           {busyMode === "page" ? "Scanning…" : "Scan page"}
           {tickers.length > 0 ? (
