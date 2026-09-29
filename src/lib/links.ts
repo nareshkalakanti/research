@@ -115,6 +115,19 @@ export function websiteUrl(website: string | null | undefined): string | null {
   return `https://${w}`;
 }
 
+/** Google query `{company} zauba corp` — same shape you type in the search box. */
+export function zaubaCorpSearchQuery(companyName: string): string {
+  return `${clean(companyName)} zauba corp`.replace(/\s+/g, " ").trim();
+}
+
+export function zaubaCorpGoogleUrl(companyName: string): string {
+  return `https://www.google.com/search?q=${encodeURIComponent(zaubaCorpSearchQuery(companyName))}`;
+}
+
+export function zaubaCorpSiteSearchUrl(companyName: string): string {
+  return `https://www.zaubacorp.com/companysearchresults/${encodeURIComponent(clean(companyName))}`;
+}
+
 export type ResearchLinks = {
   web: string | null;
   sc: string;

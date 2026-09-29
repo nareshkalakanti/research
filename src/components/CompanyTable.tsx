@@ -37,7 +37,9 @@ export type SortKey =
   | "fund_count"
   | "pead_score"
   | "sales_yoy"
-  | "np_yoy";
+  | "np_yoy"
+  | "basket_score"
+  | "basket_rank";
 
 type ExpandPanel =
   | "about"
@@ -62,7 +64,7 @@ type Props = {
   showMatched?: boolean;
   showMissing?: boolean;
   /** Scan signal columns: 12m mom, RSI M, fund overlap count, or none. */
-  signalMode?: "mom" | "rsi" | "overlap" | "pead" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "quant" | null;
   /** @deprecated Prefer signalMode. */
   showMomentum?: boolean;
   /** Allow deleting a stock from local DBs (Missing Data). */
@@ -233,16 +235,18 @@ export function CompanyTable({
     setPanel("about");
   }, [expandTicker]);
 
-  const mode: "mom" | "rsi" | "overlap" | "pead" | null =
+  const mode: "mom" | "rsi" | "overlap" | "pead" | "quant" | null =
     signalMode ?? (showMomentum ? "mom" : null);
   const colSpan =
     mode === "pead"
       ? 8
-      : mode === "mom"
+      : mode === "quant"
         ? 10
+        : mode === "mom"
+        ? 9
         : mode === "rsi" || mode === "overlap"
-          ? 8
-          : 6;
+          ? 7
+          : 5;
   const headers = useMemo((): HeaderDef[] => {
     if (mode === "mom") {
       return [
@@ -330,6 +334,20 @@ export function CompanyTable({
         { id: "tech", key: "pead_score", label: "Tech Strength", align: "left", sortable: false },
       ];
     }
+    if (mode === "quant") {
+      return [
+        { key: "basket_rank", label: "Rank", align: "left" },
+        { key: "ticker", label: "Ticker", align: "left" },
+        { key: "name", label: "Company", align: "left" },
+        { key: "sector", label: "Sec", align: "left" },
+        { key: "mcap_cr", label: "Mcap", align: "right" },
+        { id: "wt", key: "basket_rank", label: "Wt%", align: "right", sortable: false },
+        { key: "basket_score", label: "Score", align: "right" },
+        { id: "eq", key: "basket_score", label: "EQ", align: "right", sortable: false },
+        { id: "val", key: "basket_score", label: "Val", align: "right", sortable: false },
+        { id: "gov", key: "basket_score", label: "Gov", align: "right", sortable: false },
+      ];
+    }
     return [
       { key: "ticker", label: "Ticker", align: "left" },
       { key: "name", label: "Company", align: "left" },
@@ -383,7 +401,6 @@ export function CompanyTable({
                 <col className="col-p1y" />
                 <col className="col-p1m" />
                 <col className="col-mom" />
-                <col className="col-links" />
               </>
             ) : mode === "rsi" ? (
               <>
@@ -394,7 +411,6 @@ export function CompanyTable({
                 <col className="col-mcap_cr" />
                 <col className="col-price" />
                 <col className="col-rsi-m" />
-                <col className="col-links" />
               </>
             ) : mode === "overlap" ? (
               <>
@@ -404,7 +420,6 @@ export function CompanyTable({
                 <col className="col-mcap_cr" />
                 <col className="col-price" />
                 <col className="col-fund-count" />
-                <col className="col-links" />
               </>
             ) : mode === "pead" ? (
               <>
@@ -417,6 +432,19 @@ export function CompanyTable({
                 <col className="col-pead" />
                 <col className="col-tech" />
               </>
+            ) : mode === "quant" ? (
+              <>
+                <col className="col-rank" />
+                <col className="col-ticker" />
+                <col className="col-name" />
+                <col className="col-sec" />
+                <col className="col-mcap_cr" />
+                <col className="col-price" />
+                <col className="col-price" />
+                <col className="col-price" />
+                <col className="col-price" />
+                <col className="col-price" />
+              </>
             ) : (
               <>
                 <col className="col-ticker" />
@@ -424,7 +452,6 @@ export function CompanyTable({
                 <col className="col-sec" />
                 <col className="col-mcap_cr" />
                 <col className="col-price" />
-                <col className="col-links" />
               </>
             )}
           </colgroup>
@@ -514,9 +541,6 @@ export function CompanyTable({
                   </th>
                 );
               })}
-              {mode !== "pead" ? (
-                <th className="col-links">Links</th>
-              ) : null}
             </tr>
           </thead>
         <tbody>
@@ -896,48 +920,6 @@ function techArrow(
   return "↓";
 }
 
-function CompanyLinks({
-  web,
-  sc,
-  tv,
-}: {
-  web?: string | null;
-  sc: string;
-  tv: string;
-}) {
-  return (
-    <div className="link-row link-row--compact">
-      {web ? (
-        <a
-          href={web}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="link-chip"
-        >
-          Web
-        </a>
-      ) : (
-        <span className="link-chip disabled">Web</span>
-      )}
-      <a
-        href={sc}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="link-chip"
-      >
-        SC
-      </a>
-      <a
-        href={tv}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="link-chip"
-      >
-        TV
-      </a>
-    </div>
-  );
-}
 
 function CompanyRows({
   company: r,
@@ -965,7 +947,7 @@ function CompanyRows({
   showMore: boolean;
   showMatched?: boolean;
   showMissing?: boolean;
-  signalMode?: "mom" | "rsi" | "overlap" | "pead" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "quant" | null;
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
   deleteLabel?: string;
@@ -1078,6 +1060,10 @@ function CompanyRows({
           <td className="col-rank">
             {r.rsi_rank != null ? r.rsi_rank : "—"}
           </td>
+        ) : signalMode === "quant" ? (
+          <td className="col-rank">
+            {r.basket?.rank != null ? r.basket.rank : "—"}
+          </td>
         ) : null}
         {signalMode === "pead" ? (
           <td className="col-name col-pead-co">
@@ -1179,7 +1165,33 @@ function CompanyRows({
         </td>
         </>
         )}
-        {signalMode === "mom" ? (
+        {signalMode === "quant" ? (
+          <>
+            <SecCell
+              className="cd-sec col-sec"
+              sector={displaySector}
+              subSector={displaySubSector}
+            />
+            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
+            <td className="num">
+              {r.basket?.weight == null
+                ? "—"
+                : (r.basket.weight * 100).toFixed(1)}
+            </td>
+            <td className="num">
+              {r.basket?.score == null ? "—" : r.basket.score.toFixed(2)}
+            </td>
+            <td className="num">
+              {r.basket?.eq == null ? "—" : r.basket.eq.toFixed(2)}
+            </td>
+            <td className="num">
+              {r.basket?.val == null ? "—" : r.basket.val.toFixed(2)}
+            </td>
+            <td className="num">
+              {r.basket?.gov == null ? "—" : r.basket.gov.toFixed(2)}
+            </td>
+          </>
+        ) : signalMode === "mom" ? (
           <>
             <SecCell
               className="cd-sec col-sec"
@@ -1201,9 +1213,6 @@ function CompanyRows({
             <td className="num col-p1m">{formatInr(r.price_1m)}</td>
             <td className="num col-mom">
               <MomTag value={r.momentum_score ?? r.momentum_pct} />
-            </td>
-            <td className="col-links">
-              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
             </td>
           </>
         ) : signalMode === "rsi" ? (
@@ -1227,9 +1236,6 @@ function CompanyRows({
             <td className="num col-rsi-m">
               <RsiMTag value={r.rsi_m} />
             </td>
-            <td className="col-links">
-              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
-            </td>
           </>
         ) : signalMode === "overlap" ? (
           <>
@@ -1251,9 +1257,6 @@ function CompanyRows({
             </td>
             <td className="num col-fund-count">
               <FundCountTag value={r.fund_count} />
-            </td>
-            <td className="col-links">
-              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
             </td>
           </>
         ) : signalMode === "pead" ? (
@@ -1315,9 +1318,6 @@ function CompanyRows({
               >
                 {formatInr(r.price)}
               </button>
-            </td>
-            <td className="col-links">
-              <CompanyLinks web={r.web} sc={r.sc} tv={r.tv} />
             </td>
           </>
         )}

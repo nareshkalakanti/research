@@ -1,0 +1,8 @@
+{
+  "text": "Directors & Key Managerial Personnel of EXAMPLE HOTELS\nCurrent Directors & Key Managerial Personnel of EXAMPLE HOTELS\n005552831 RUKMANI RAGHUVIRSINH GOHIL Director 1988-06-27\n00114728 ANANT NARAIN SINGH Director 2001-01-31",
+  "company": "EXAMPLE HOTELS",
+  "seats": [
+    { "din": "05552831", "name": "RUKMANI RAGHUVIRSINH GOHIL" },
+    { "din": "00114728", "name": "ANANT NARAIN SINGH" }
+  ]
+}

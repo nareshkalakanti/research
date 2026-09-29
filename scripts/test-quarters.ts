@@ -11,6 +11,7 @@ import {
   trimReportedQuarters,
   type QuarterPoint,
   yoyFromPanel,
+  yoyFromQuarters,
   yoyPct,
   profitYoyPct,
   fmtYoYPct,
@@ -112,6 +113,22 @@ function main() {
   assert.ok(yoy);
   assert.equal(yoy!.sales_yoy, 25);
   assert.equal(yoy!.eps_yoy, 40);
+
+  const noPriorYear: QuarterPoint[] = [
+    { date: "2025-09-30", revenue: 100, netIncome: 10, eps: 1, ebit: 15 },
+    { date: "2025-12-31", revenue: 110, netIncome: 11, eps: 1.1, ebit: 16 },
+    { date: "2026-03-31", revenue: 120, netIncome: 12, eps: 1.2, ebit: 17 },
+    { date: "2026-06-30", revenue: 150, netIncome: 20, eps: 2, ebit: 25 },
+  ];
+  assert.equal(yoyFromQuarters(noPriorYear), null);
+  const withPriorYear: QuarterPoint[] = [
+    { date: "2025-06-30", revenue: 100, netIncome: 10, eps: 1, ebit: 15 },
+    ...noPriorYear,
+  ];
+  const yoyFull = yoyFromQuarters(withPriorYear);
+  assert.ok(yoyFull);
+  assert.equal(yoyFull.sales_yoy, 50);
+  assert.equal(yoyFull.np_yoy, 100);
   assert.equal(yoyPct(140, 100), 40);
   assert.equal(yoyPct(4.48, -0.56), null);
   assert.equal(profitYoyPct(4.48, -0.56), 900);

@@ -413,6 +413,23 @@ export function yoyFromPanel(panel: QuarterPanel): PanelYoY | null {
   return { sales_yoy: sales, np_yoy: np, eps_yoy: eps, ebidt_yoy: ebidt };
 }
 
+/**
+ * YoY from the full reported series. The 5-column panel can drop the
+ * year-ago quarter, which makes same-month YoY null even when history exists.
+ */
+export function yoyFromQuarters(quarters: QuarterPoint[]): PanelYoY | null {
+  const panel = buildQuarterPanel(quarters, Math.max(quarters.length, PEAD2_QUARTER_PANEL));
+  return panel ? yoyFromPanel(panel) : null;
+}
+
+export function extraMetricsFromQuarters(
+  quarters: QuarterPoint[],
+  cfProfit?: number | null,
+): QuarterExtraMetrics | null {
+  const panel = buildQuarterPanel(quarters, Math.max(quarters.length, PEAD2_QUARTER_PANEL));
+  return panel ? extraMetricsFromPanel(panel, cfProfit) : null;
+}
+
 export function fmtYoYPct(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "N/M";
   const sign = v > 0 ? "+" : "";
