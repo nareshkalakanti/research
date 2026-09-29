@@ -2,17 +2,20 @@
  * Research · Fill DIN: one missing board at a time, Zauba screenshot → governance.db
  */
 import { pendingWebDinJobs, regexBoardDinsFromText } from "./board-din-web";
+import { bootstrapCompanyTicker } from "./company-ticker-bootstrap";
 import { ocrImageWithQianfan } from "./corporate-data-extract";
-import { loadAllCompanies } from "./db";
+import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import { invalidateGovernanceMapCache } from "./governance-map";
 import { invalidateBoardIndependenceCache } from "./gov-independence";
 import { parseScreenshotBoard } from "./din-screenshot-parse";
+import { pickUniqueListing } from "./listing-name-match";
 import {
   recordScanAttempt,
   saveCompanyBoard,
 } from "./governance-write";
 import type { BoardSeat } from "./nse-governance";
 import { zaubaCorpGoogleUrl, zaubaCorpSearchQuery, zaubaCorpSiteSearchUrl } from "./links";
+import { searchGrowwListings } from "./web-mcap";
 
 const OCR_PROMPT =
   "Transcribe this Current Directors table. Keep company name, each 8-digit DIN, director name, designation. Plain text, one person per line.";
@@ -66,7 +69,7 @@ function mergeSeats(a: BoardSeat[], b: BoardSeat[]): BoardSeat[] {
 }
 
 export async function applyDinScreenshot(opts: {
-  ticker: string;
+  ticker?: string;
   imageDataUrl: string;
 }): Promise<{
   ticker: string;
@@ -76,10 +79,6 @@ export async function applyDinScreenshot(opts: {
   ocr_chars: number;
   why: string;
 }> {
-  const ticker = opts.ticker.trim().toUpperCase();
-  const co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);
-  if (!co) throw new Error("Unknown ticker");
-
   const ocr = await ocrImageWithQianfan(opts.imageDataUrl, OCR_PROMPT);
   const parsed = parseScreenshotBoard(ocr);
   const regex = regexBoardDinsFromText(ocr);
@@ -93,9 +92,52 @@ export async function applyDinScreenshot(opts: {
     );
   }
 
+  const companies = loadAllCompanies();
+  let picked = parsed.company
+    ? pickUniqueListing(parsed.company, companies)
+    : null;
+  if (!picked && parsed.company) {
+    try {
+      const remote = await searchGrowwListings(parsed.company, 8);
+      const g = pickUniqueListing(parsed.company, remote);
+      if (g) {
+        await bootstrapCompanyTicker(g.ticker, {
+          name: g.name,
+          market: g.market,
+        });
+        invalidateCompanyCache();
+        picked = pickUniqueListing(parsed.company, loadAllCompanies());
+      }
+    } catch {
+      /* local listing match still usable */
+    }
+  }
+
+  let ticker = (picked?.ticker || "").trim().toUpperCase();
+  let co = ticker
+    ? loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker) ||
+      companies.find((c) => c.ticker.toUpperCase() === ticker)
+    : undefined;
+  if (!co && ticker) {
+    await bootstrapCompanyTicker(ticker, {
+      name: parsed.company || ticker,
+    });
+    invalidateCompanyCache();
+    co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);
+  }
+  if (!co) {
+    const label = (parsed.company || "").trim();
+    throw new Error(
+      label
+        ? `Could not match “${label}” to a ticker. Paste a Zauba page that shows the company name.`
+        : "No company name in the screenshot, so nothing was saved.",
+    );
+  }
+  ticker = co.ticker.toUpperCase();
+
   const saved = saveCompanyBoard({
     ticker,
-    name: co.name || ticker,
+    name: co.name || parsed.company || ticker,
     market: co.market,
     seats,
     notes: "zauba_screenshot",
@@ -106,6 +148,10 @@ export async function applyDinScreenshot(opts: {
   invalidateGovernanceMapCache();
   invalidateBoardIndependenceCache();
 
+  const matched = parsed.company
+    ? ` on ${ticker} (matched “${parsed.company}”)`
+    : ` on ${ticker}`;
+
   return {
     ticker,
     company_extracted: parsed.company,
@@ -114,6 +160,6 @@ export async function applyDinScreenshot(opts: {
     ocr_chars: ocr.length,
     why: saved.skipped
       ? saved.reason || "skipped"
-      : `Saved ${saved.seats} DIN seats`,
+      : `Saved ${saved.seats} DIN seats${matched}`,
   };
 }

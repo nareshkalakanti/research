@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { bootstrapCompanyTicker } from "@/lib/company-ticker-bootstrap";
+import { invalidateCompanyCache } from "@/lib/db";
 import {
   addManualDinSeats,
   listCompanyBoardSeats,
@@ -61,7 +63,15 @@ export async function POST(req: NextRequest) {
   if (!dins.length) {
     return NextResponse.json({ ok: false, error: "DIN required (8 digits)" }, { status: 400 });
   }
-  const metrics = getMetrics(ticker);
+  let metrics = getMetrics(ticker);
+  if (!metrics) {
+    await bootstrapCompanyTicker(ticker, {
+      name: body.name || ticker,
+      market: body.market || null,
+    });
+    invalidateCompanyCache();
+    metrics = getMetrics(ticker);
+  }
   const companyName =
     (body.name || "").trim() || metrics?.ticker || ticker;
   const directorName = (body.directorName || "").trim();

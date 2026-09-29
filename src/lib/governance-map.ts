@@ -191,6 +191,8 @@ export type GovFamilyPerson = {
   din: string | null;
   /** Tickers this person sits on (group and outside). */
   tickers: string[];
+  /** Same director score as People & boards. */
+  dir_score: number;
 };
 
 export type GovFamilyOutside = {
@@ -1745,6 +1747,21 @@ export function loadGovernanceFamilyMap(opts?: {
   for (const g of groups) {
     const inGroup = new Set(g.companies.map((c) => c.ticker));
     const people = new Map<string, GovFamilyPerson>();
+    const scorePerson = (personId: string, din: string | null) =>
+      scoreDirectorSeats(
+        (seatsByPerson.get(personId) ?? []).map((s) => {
+          const t = (s.ticker || "").toUpperCase();
+          return {
+            ticker: t,
+            market_cap_cr: metaByTicker.get(t)?.market_cap_cr ?? null,
+            person_id: personId,
+            din,
+            designation: s.designation,
+            category: s.category,
+          };
+        }),
+        { personId, din },
+      ).dir_score;
     const addPerson = (
       s: SeatRow,
       tickers: string[],
@@ -1757,11 +1774,13 @@ export function loadGovernanceFamilyMap(opts?: {
         ? tickers.filter((t) => inGroup.has(t))
         : tickers.filter((t) => metaByTicker.has(t));
       if (listed.length < 2) return;
+      const din = s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null;
       people.set(s.person_id, {
         person_id: s.person_id,
         name: s.director_name,
-        din: s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null,
+        din,
         tickers: listed,
+        dir_score: scorePerson(s.person_id, din),
       });
     };
     for (const t of inGroup) {
@@ -1864,7 +1883,12 @@ export function loadGovernanceFamilyMap(opts?: {
       if (picked.length >= FAMILY_GRAPH_MAX_PEOPLE) break;
       take(p);
     }
-    g.people = picked.sort((a, b) => b.tickers.length - a.tickers.length);
+    g.people = picked.sort(
+      (a, b) =>
+        b.dir_score - a.dir_score ||
+        b.tickers.length - a.tickers.length ||
+        a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+    );
     const linked = new Set(g.people.flatMap((p) => p.tickers));
     g.outside = outside.filter((o) => linked.has(o.ticker));
   }
@@ -2060,6 +2084,7 @@ export type StockBoardNetwork = {
     name: string;
     din: string | null;
     tickers: string[];
+    dir_score: number;
   }>;
 };
 
@@ -2077,6 +2102,7 @@ export function loadStockBoardNetwork(
     name: r.name,
     din: r.din,
     tickers: r.companies.map((c) => c.ticker),
+    dir_score: r.dir_score,
   }));
   const byCo = new Map<string, GovCompanySeat>();
   let focal: GovCompanySeat | null = null;

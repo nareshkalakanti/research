@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FamilyGraph } from "@/components/FamilyGraph";
 import {
   TickerSuggest,
@@ -25,15 +25,16 @@ type Network = {
     name: string;
     din: string | null;
     tickers: string[];
+    dir_score?: number;
   }>;
 };
 
 export function StockNetworkSearch({
-  onTicker,
   onPerson,
+  initialTicker,
 }: {
-  onTicker: (ticker: string) => void;
   onPerson: (personId: string, name: string) => void;
+  initialTicker?: string | null;
 }) {
   const [stockQ, setStockQ] = useState("");
   const [focus, setFocus] = useState<string | null>(null);
@@ -41,7 +42,7 @@ export function StockNetworkSearch({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const pick = async (sym: string) => {
+  const pick = useCallback(async (sym: string) => {
     const ticker = sym.trim().toUpperCase();
     if (!ticker) {
       setFocus(null);
@@ -67,7 +68,12 @@ export function StockNetworkSearch({
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const t = (initialTicker || "").trim().toUpperCase();
+    if (t) void pick(t);
+  }, [initialTicker, pick]);
 
   const marketByTicker = new Map(
     (row?.companies ?? []).map((c) => [c.ticker.toUpperCase(), c.market]),
@@ -120,7 +126,7 @@ export function StockNetworkSearch({
             companies={row.companies}
             people={row.people}
             outside={[]}
-            onCompany={onTicker}
+            onCompany={(t) => void pick(t)}
             onPerson={onPerson}
             chartUrl={(t) =>
               tradingviewUrl(t, marketByTicker.get(t.toUpperCase()) ?? row.market)
@@ -128,19 +134,17 @@ export function StockNetworkSearch({
           />
           <div className="gov-family-chips">
             {row.companies.map((c) => {
-              const href = tradingviewUrl(c.ticker, c.market);
               const focal = c.ticker.toUpperCase() === row.ticker.toUpperCase();
               return (
-                <a
+                <button
                   key={c.ticker}
+                  type="button"
                   className={`gov-family-chip${focal ? " full" : " part"}`}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`${c.ticker} · ${c.name} · TradingView`}
+                  title={`${c.ticker} · ${c.name} — show this stock and related boards`}
+                  onClick={() => void pick(c.ticker)}
                 >
                   <span className="mono">{c.ticker}</span>
-                </a>
+                </button>
               );
             })}
           </div>

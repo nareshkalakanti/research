@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applyDinScreenshot, listMissingDinJobs } from "@/lib/din-fill";
+import { applyDinScreenshot } from "@/lib/din-fill";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
 
 export async function GET() {
-  return NextResponse.json({ ok: true, ...listMissingDinJobs() });
+  return NextResponse.json({ ok: true });
 }
 
 export async function POST(req: NextRequest) {
@@ -32,16 +32,15 @@ export async function POST(req: NextRequest) {
       imageDataUrl = (body.image || "").trim();
     }
 
-    if (!ticker || !imageDataUrl.startsWith("data:image")) {
+    if (!imageDataUrl.startsWith("data:image")) {
       return NextResponse.json(
-        { ok: false, error: "ticker and screenshot image required" },
+        { ok: false, error: "screenshot image required" },
         { status: 400 },
       );
     }
 
     const result = await applyDinScreenshot({ ticker, imageDataUrl });
-    const next = listMissingDinJobs();
-    return NextResponse.json({ ok: true, ...result, ...next });
+    return NextResponse.json({ ok: true, ...result });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "DIN fill failed";
     return NextResponse.json({ ok: false, error: msg }, { status: 422 });

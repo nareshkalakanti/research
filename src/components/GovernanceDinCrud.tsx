@@ -131,7 +131,7 @@ export function GovernanceDinCrud({ onChanged }: { onChanged?: () => void }) {
                 setHit(sel);
                 setTickerQ(sel.ticker);
               }}
-              placeholder="Stock ticker…"
+              placeholder="Ticker or company (Groww if missing)…"
               className="theme-stock-suggest-input"
             />
             <input
