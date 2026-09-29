@@ -13,6 +13,27 @@ export function companyLabelKey(name: string): string {
     .trim();
 }
 
+function oneEditApart(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (longer.length - shorter.length !== 1) return false;
+  if (shorter.length < 5) return false;
+  let i = 0;
+  let j = 0;
+  let skipped = 0;
+  while (i < shorter.length && j < longer.length) {
+    if (shorter[i] === longer[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    skipped += 1;
+    if (skipped > 1) return false;
+    j += 1;
+  }
+  return i === shorter.length;
+}
+
 export function scoreListingName(
   query: string,
   ticker: string,
@@ -34,11 +55,17 @@ export function scoreListingName(
     return 70 + Math.round(ratio * 22);
   }
   const qTok = q.split(" ").filter((w) => w.length > 1);
-  const nTok = new Set(n.split(" ").filter((w) => w.length > 1));
+  const nTok = n.split(" ").filter((w) => w.length > 1);
+  const nSet = new Set(nTok);
   if (qTok.length < 2) return 0;
-  const hit = qTok.filter((w) => nTok.has(w)).length;
-  if (hit === qTok.length) return 88;
-  if (hit / qTok.length >= 0.8) return 75;
+  const exact = qTok.filter((w) => nSet.has(w)).length;
+  if (exact === qTok.length) return 88;
+  if (exact / qTok.length >= 0.8) return 75;
+  const fuzzy = qTok.filter(
+    (w) => nSet.has(w) || nTok.some((x) => oneEditApart(w, x)),
+  ).length;
+  if (fuzzy === qTok.length) return 82;
+  if (fuzzy / qTok.length >= 0.8) return 72;
   return 0;
 }
 

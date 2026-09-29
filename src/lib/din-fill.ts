@@ -7,18 +7,19 @@ import { ocrImageWithQianfan } from "./corporate-data-extract";
 import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import { invalidateGovernanceMapCache } from "./governance-map";
 import { invalidateBoardIndependenceCache } from "./gov-independence";
-import { parseScreenshotBoard } from "./din-screenshot-parse";
-import { pickUniqueListing } from "./listing-name-match";
+import { parseScreenshotBoard, parseCompanyLabelsFromBoardText } from "./din-screenshot-parse";
+import { pickUniqueListing, scoreListingName } from "./listing-name-match";
 import {
   recordScanAttempt,
   saveCompanyBoard,
+  tickerMostSharingDins,
 } from "./governance-write";
 import type { BoardSeat } from "./nse-governance";
 import { zaubaCorpGoogleUrl, zaubaCorpSearchQuery, zaubaCorpSiteSearchUrl } from "./links";
 import { searchGrowwListings } from "./web-mcap";
 
 const OCR_PROMPT =
-  "Transcribe the board table. Keep the company name and any NSE:/BSE: ticker. For each person keep name, role/position, and 8-digit DIN. HTML table or plain text, one person per line.";
+  "Transcribe the page heading (Personnel of COMPANY) and the directors table. Keep every 8-digit DIN, name, and designation. HTML table is fine.";
 
 export type DinFillJob = {
   ticker: string;
@@ -94,27 +95,50 @@ export async function applyDinScreenshot(opts: {
 
   const hintTicker = (parsed.ticker || "").trim().toUpperCase();
   const companies = loadAllCompanies();
+  const labels = [
+    parsed.company,
+    ...parseCompanyLabelsFromBoardText(ocr),
+  ].filter((x): x is string => Boolean(x && x.trim()));
+
   let picked = hintTicker
     ? companies.find((c) => c.ticker.toUpperCase() === hintTicker) || null
     : null;
-  if (!picked && parsed.company) {
-    picked = pickUniqueListing(parsed.company, companies, hintTicker);
+  for (const label of labels) {
+    if (picked) break;
+    picked = pickUniqueListing(label, companies, hintTicker);
   }
-  if (!picked && parsed.company) {
+  if (!picked) {
+    const scored = labels.flatMap((label) =>
+      companies.map((c) => ({
+        c,
+        s: scoreListingName(label, c.ticker, c.name),
+      })),
+    );
+    scored.sort((a, b) => b.s - a.s);
+    const best = scored[0];
+    const second = scored[1];
+    if (best && best.s >= 70 && (!second || best.s >= second.s + 3)) {
+      picked = best.c;
+    }
+  }
+  if (!picked) {
+    const dinHit = tickerMostSharingDins(seats.map((s) => s.din));
+    if (dinHit) {
+      picked =
+        companies.find((c) => c.ticker.toUpperCase() === dinHit) || null;
+    }
+  }
+  if (!picked && labels[0]) {
     try {
-      const remote = await searchGrowwListings(parsed.company, 8);
-      const g = pickUniqueListing(parsed.company, remote, hintTicker);
+      const remote = await searchGrowwListings(labels[0], 8);
+      const g = pickUniqueListing(labels[0], remote, hintTicker);
       if (g) {
         await bootstrapCompanyTicker(g.ticker, {
           name: g.name,
           market: g.market,
         });
         invalidateCompanyCache();
-        picked = pickUniqueListing(
-          parsed.company,
-          loadAllCompanies(),
-          hintTicker,
-        );
+        picked = pickUniqueListing(labels[0], loadAllCompanies(), hintTicker);
       }
     } catch {
       /* local listing match still usable */
@@ -134,7 +158,7 @@ export async function applyDinScreenshot(opts: {
     co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);
   }
   if (!co) {
-    const label = (parsed.company || "").trim();
+    const label = (parsed.company || labels[0] || "").trim();
     throw new Error(
       label
         ? `Could not match “${label}” to a ticker.`

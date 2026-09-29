@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { parseScreenshotBoard } from "../src/lib/din-screenshot-parse";
-import { pickUniqueListing } from "../src/lib/listing-name-match";
+import { pickUniqueListing, scoreListingName } from "../src/lib/listing-name-match";
 import { zaubaCorpSearchQuery } from "../src/lib/links";
 
 const gold = JSON.parse(
@@ -44,6 +44,22 @@ assert.equal(cg.seats[0]?.din, "00163054");
 assert.equal(cg.seats[0]?.name, "ALPHA PERSON");
 assert.equal(cg.seats[1]?.din, "07789972");
 
+const paren = parseScreenshotBoard(
+  "Directors & Key Managerial Personnel of EXAMPLE SUPREME (INDIA)\nCurrent Directors & Key Managerial Personnel of EXAMPLE SUPREME (INDIA)\n03481378 ALPHA PERSON Director 2011-05-16",
+);
+assert.equal(paren.company, "EXAMPLE SUPREME (INDIA)");
+assert.equal(paren.seats[0]?.din, "03481378");
+
+const amp = parseScreenshotBoard(
+  "Current Directors & Key Managerial Personnel of EXAMPLE TYRE & INDUSTRIES\nDIN Director Name Designation Appointment Date\n00026540 ALPHA PERSON Whole-time director 2010-01-20",
+);
+assert.equal(amp.company, "EXAMPLE TYRE & INDUSTRIES");
+const h2 = parseScreenshotBoard(
+  "<h2>Directors &amp; Key Managerial Personnel of EXAMPLE TYRE &amp; INDUSTRIES</h2><table class=\"table table-bordered\"><thead><tr><th>DIN</th><th>Director Name</th><th>Designation</th></tr></thead><tbody><tr><td>00026540</td><td>ALPHA PERSON</td><td>Whole-time director</td></tr></tbody></table>",
+);
+assert.equal(h2.company, "EXAMPLE TYRE & INDUSTRIES");
+assert.equal(h2.seats[0]?.din, "00026540");
+
 assert.equal(zaubaCorpSearchQuery("Example Movers Ltd"), "Example Movers Ltd zauba corp");
 
 const listings = [
@@ -60,5 +76,8 @@ assert.equal(
   "EXBLD",
 );
 assert.equal(pickUniqueListing("Example", listings, "QUEUECO"), null);
+assert.ok(
+  scoreListingName("example hottels", "EXHOT", "Example Hotels Limited") >= 70,
+);
 
 console.log("test:din-fill: ok");
