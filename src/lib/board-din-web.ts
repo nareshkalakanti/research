@@ -5,7 +5,7 @@
  */
 import fs from "fs";
 import path from "path";
-import { loadAllCompanies } from "./db";
+import { listListingCompaniesLite } from "./db";
 import { invalidateGovernanceMapCache } from "./governance-map";
 import { completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
@@ -360,7 +360,7 @@ export function pendingWebDinJobs(opts: {
 }): WebDinJob[] {
   const missingOnly = opts.missingOnly !== false;
   const dinDone = missingOnly ? dinBoardTickerSet() : new Set<string>();
-  let companies = loadAllCompanies().filter((c) => {
+  let companies = listListingCompaniesLite().filter((c) => {
     const m = (c.market || "").toUpperCase();
     return m === "NSE" || m === "NSE SME";
   });
@@ -490,6 +490,7 @@ export async function runWebDinScanBatch(opts: {
         detail: msg,
       });
     }
+    await new Promise<void>((resolve) => setImmediate(resolve));
   }
 
   const diff = diffIdentities(before);

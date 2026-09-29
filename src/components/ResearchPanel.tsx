@@ -19,6 +19,7 @@ function ResearchSection({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [mounted, setMounted] = useState(defaultOpen);
   return (
     <section
       className={open ? "research-block" : "research-block collapsed"}
@@ -28,7 +29,13 @@ function ResearchSection({
         type="button"
         className="research-block-toggle"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => {
+          setOpen((v) => {
+            const next = !v;
+            if (next) setMounted(true);
+            return next;
+          });
+        }}
       >
         <span className="research-block-title">{title}</span>
         <span className="research-block-chevron" aria-hidden>
@@ -38,13 +45,12 @@ function ResearchSection({
           {open ? "Minimise" : "Expand"}
         </span>
       </button>
-      {/* Keep mounted when minimised so Find latest / Analyze / Run keep going */}
       <div
         className="research-block-body"
         hidden={!open}
         inert={!open ? true : undefined}
       >
-        {children}
+        {mounted ? children : null}
       </div>
     </section>
   );

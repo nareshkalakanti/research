@@ -688,6 +688,44 @@ export function invalidateCompanyCache(): void {
   classDb = null;
 }
 
+/** Ticker / name / site only — skip enrichAll (theme corpus + metrics). */
+export function listListingCompaniesLite(): Array<{
+  ticker: string;
+  name: string;
+  market: string;
+  website: string | null;
+}> {
+  const rows = getAbout()
+    .prepare(
+      `SELECT ticker, name, market, website FROM company_about ORDER BY ticker`,
+    )
+    .all() as Array<{
+      ticker: string;
+      name: string | null;
+      market: string;
+      website: string | null;
+    }>;
+  const seen = new Set<string>();
+  const out: Array<{
+    ticker: string;
+    name: string;
+    market: string;
+    website: string | null;
+  }> = [];
+  for (const r of rows) {
+    const ticker = (r.ticker || "").trim().toUpperCase();
+    if (!ticker || seen.has(ticker)) continue;
+    seen.add(ticker);
+    out.push({
+      ticker,
+      name: (r.name || ticker).trim() || ticker,
+      market: r.market || "",
+      website: r.website,
+    });
+  }
+  return out;
+}
+
 export function loadAllCompanies(): CompanyRow[] {
   const now = Date.now();
   if (cache && now - cache.at < CACHE_MS) return cache.rows;
