@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AnalystResearchPanel } from "@/components/AnalystResearchPanel";
 import { BuybackResearchPanel } from "@/components/BuybackResearchPanel";
 import { ConcallResearchPanel } from "@/components/ConcallResearchPanel";
+import { DinFillResearchPanel } from "@/components/DinFillResearchPanel";
 import { OrderbookResearchPanel } from "@/components/OrderbookResearchPanel";
 
 function ResearchSection({
@@ -79,6 +80,9 @@ export function ResearchPanel() {
         defaultOpen={false}
       >
         <AnalystResearchPanel />
+      </ResearchSection>
+      <ResearchSection id="research-din" title="5 · Fill DIN" defaultOpen>
+        <DinFillResearchPanel />
       </ResearchSection>
     </div>
   );

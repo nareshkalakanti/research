@@ -110,7 +110,6 @@ export function markScreenerAnnualMiss(ticker: string): void {
   );
 }
 
-/** Latest FY ROCE minus prior FY, in percentage points. */
 export function roceYoYDeltaPp(series: ScreenerAnnualSeries): number | null {
   const pairs: number[] = [];
   const n = Math.min(series.dates.length, series.roce.length);

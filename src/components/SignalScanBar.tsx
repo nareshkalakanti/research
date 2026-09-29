@@ -22,7 +22,8 @@ export type ViewFilter =
   | "mrsi85"
   | "mrsi_empty"
   | "opm"
-  | "pead";
+  | "pead"
+  | "quant";
 
 type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi" | "all";
 type ExtraBusy = "quarters" | "sma";
@@ -60,6 +61,7 @@ type Props = {
   mrsiEmptyCount?: number;
   opmCount?: number;
   peadCount?: number;
+  quantCount?: number;
   bbDate?: string | null;
   bbWDate?: string | null;
   bbMDate?: string | null;
@@ -172,6 +174,7 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   mrsi_empty: "Empty",
   opm: "Operating Metrics",
   pead: "PEAD",
+  quant: "Basket",
 };
 
 type ScanCounts = {
@@ -277,6 +280,7 @@ export function SignalScanBar({
   mrsiEmptyCount,
   opmCount,
   peadCount,
+  quantCount,
   bbDate,
   bbWDate,
   bbMDate,
@@ -667,7 +671,7 @@ export function SignalScanBar({
         detail: `+${saved} quarters · ${failed} failed · ${scopeLabel}`,
         done: true,
       });
-      onView("opm");
+      if (view !== "pead" && view !== "quant") onView("opm");
       await onDone?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Quarters fill failed";
@@ -693,6 +697,7 @@ export function SignalScanBar({
     onBatch,
     onDone,
     onView,
+    view,
   ]);
 
   const runSmaFill = useCallback(async () => {
@@ -966,6 +971,15 @@ export function SignalScanBar({
               PEAD
               <Count n={peadCount} />
             </button>
+            <button
+              type="button"
+              className={`chip tag-chip tag-scan-quant ${view === "quant" ? "on" : ""}`}
+              onClick={() => onView("quant")}
+              title="Quant book: filters then score (board independence, stable OPM/PAT, TTM OP/mcap vs sector), then top names with sector cap and equal weights. Rules, not stories. https://www.lotusdew.in/blogs/what-is-a-quant-driven-smallcase-how-data-replaces-guesswork-in-stock-picking"
+            >
+              Basket
+              <Count n={quantCount} />
+            </button>
 
             {view !== "all" ? (
               <button
@@ -1070,7 +1084,7 @@ export function SignalScanBar({
               className={`chip chip-scan tag-chip ${busyKind === "quarters" ? "busy on" : ""}`}
               disabled={busy || (scope === "selection" && !selectionActive)}
               onClick={() => void runQuartersFill()}
-              title={`Fill missing quarterly Sales/OP (for Operating Metrics) on ${scope === "selection" ? listLabel : market} — missing-only`}
+              title={`Fill missing quarterly P&L on ${scope === "selection" ? listLabel : market} (missing-only). Then use refresh; Basket / PEAD / OPM read that cache.`}
             >
               {busyKind === "quarters" ? "…" : "Fill Quarters"}
             </button>

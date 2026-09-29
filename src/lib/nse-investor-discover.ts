@@ -98,7 +98,10 @@ function isNoise(desc: string, attachmentText: string): boolean {
   return (
     /newspaper publication|postal ballot|agm notice|dividend|record date|clarification.*delay|reasons for delayed|non-submission of financial/i.test(
       blob,
-    ) && !/financial result|unaudited|audited financial|outcome of board|investor presentation|transcript|conference call|concall/i.test(blob)
+    ) &&
+    !/financial result|unaudited|audited financial|outcome of board|investor presentation|transcript|conference call|concall|\brights?\s+(?:issue|entitlement)\b/i.test(
+      blob,
+    )
   );
 }
 

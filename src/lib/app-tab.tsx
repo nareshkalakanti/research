@@ -59,6 +59,7 @@ export function tabFromParam(raw: string | null): AppTab {
     return "watchlist";
   }
   if (raw === "fund") return "watchlist";
+  if (raw === "rights") return "dashboard";
   if (raw === "categories") return "theme-scanner";
   if (raw && APP_TABS.some((t) => t.id === raw)) return raw as AppTab;
   return "dashboard";

@@ -134,6 +134,7 @@ export function ScanPanel() {
       if (view === "mrsi_empty") params.set("mrsi_empty", "1");
       if (view === "opm") params.set("opm", "1");
       if (view === "pead") params.set("pead", "1");
+      if (view === "quant") params.set("quant", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
       if (filterGov) params.set("gov", "1");
@@ -242,21 +243,25 @@ export function ScanPanel() {
               key === "rsi_m" ||
               key === "pead_score" ||
               key === "sales_yoy" ||
-              key === "np_yoy"
+              key === "np_yoy" ||
+              key === "basket_score" ||
+              key === "basket_rank"
             ? "desc"
             : "asc",
       );
     }
   }
 
-  const signalMode: "mom" | "rsi" | "pead" | null =
+  const signalMode: "mom" | "rsi" | "pead" | "quant" | null =
     view === "mom"
       ? "mom"
       : view === "mrsi" || view === "mrsi85" || view === "mrsi_empty"
         ? "rsi"
         : view === "pead"
           ? "pead"
-          : null;
+          : view === "quant"
+            ? "quant"
+            : null;
 
   const onView = useCallback(
     (next: ViewFilter) => {
@@ -268,6 +273,9 @@ export function ScanPanel() {
       } else if (next === "pead") {
         setSort("pead_score");
         setDir("desc");
+      } else if (next === "quant") {
+        setSort("basket_rank");
+        setDir("asc");
       } else if (
         next === "mrsi" ||
         next === "mrsi85" ||
@@ -284,7 +292,9 @@ export function ScanPanel() {
         sort === "rsi_rank" ||
         sort === "pead_score" ||
         sort === "sales_yoy" ||
-        sort === "np_yoy"
+        sort === "np_yoy" ||
+        sort === "basket_score" ||
+        sort === "basket_rank"
       ) {
         setSort("name");
         setDir("asc");
@@ -497,6 +507,7 @@ export function ScanPanel() {
           mrsiEmptyCount={data?.signals?.mrsi_empty}
           opmCount={data?.signals?.operating_metrics}
           peadCount={data?.signals?.pead}
+          quantCount={data?.signals?.quant}
           bbDate={data?.session?.bb ?? null}
           bbWDate={data?.session?.bb_w ?? data?.session?.bb ?? null}
           bbMDate={data?.session?.bb_m ?? null}
@@ -530,6 +541,12 @@ export function ScanPanel() {
               {" "}
               Needs cached quarterly Sales YoY. Use{" "}
               <strong>Fill Quarters</strong>, then sort PEAD.{" "}
+            </>
+          ) : view === "quant" ? (
+            <>
+              {" "}
+              Universe ₹500–5,000 Cr mcap, ≥3y listing, ≥4 quarters; score
+              then a sector-capped equal-weight book. Fill Quarters if empty.{" "}
             </>
           ) : selectionActive ? (
             <>

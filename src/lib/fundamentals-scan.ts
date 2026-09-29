@@ -6,62 +6,32 @@ import { openSqliteNamed } from "./sqlite-utils";
 import { opmYoyDeltaBps } from "./opm-math";
 import {
   buildQuarterPanel,
-  extraMetricsFromPanel,
-  yoyFromPanel,
+  extraMetricsFromQuarters,
+  yoyFromQuarters,
   type QuarterPoint,
 } from "./quarter-panel";
 import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
 import { loadRoceDeltaMap } from "./screener-annual";
 import {
-  peadScoreClass,
   peadScoresPercentile,
   type PeadInputs,
 } from "./pead-score";
+import {
+  bandGrowth,
+  bandMarginBps,
+  bandPead,
+  bandRoceDelta,
+  type FundamentalsScanRow,
+} from "./pead-bands";
 
-export type ChipBand = "High" | "Med" | "Low";
-
-export type FundamentalsScanRow = {
-  sales_yoy: number | null;
-  np_yoy: number | null;
-  eps_yoy: number | null;
-  rev_growth: ChipBand | null;
-  margin_exp: ChipBand | null;
-  roce_impr: ChipBand | null;
-  pead: number | null;
-  pead_band: ChipBand | null;
-  tech_strength: string | null;
-  tech_change: string | null;
-  dma200_pct: number | null;
-};
-
-export function bandGrowth(v: number | null | undefined): ChipBand | null {
-  if (v == null || !Number.isFinite(v)) return null;
-  if (v >= 20) return "High";
-  if (v >= 8) return "Med";
-  return "Low";
-}
-
-export function bandMarginBps(bps: number | null | undefined): ChipBand | null {
-  if (bps == null || !Number.isFinite(bps)) return null;
-  if (bps >= 50) return "High";
-  if (bps > 0) return "Med";
-  return "Low";
-}
-
-export function bandRoceDelta(pp: number | null | undefined): ChipBand | null {
-  if (pp == null || !Number.isFinite(pp)) return null;
-  if (pp >= 1) return "High";
-  if (pp > 0) return "Med";
-  return "Low";
-}
-
-export function bandPead(score: number | null | undefined): ChipBand | null {
-  const c = peadScoreClass(score);
-  if (c === "pead-good") return "High";
-  if (c === "pead-mid") return "Med";
-  if (c === "pead-bad") return "Low";
-  return null;
-}
+export type { ChipBand, FundamentalsScanRow } from "./pead-bands";
+export {
+  bandGrowth,
+  bandMarginBps,
+  bandPead,
+  bandRoceDelta,
+  isPeadHhh,
+} from "./pead-bands";
 
 /**
  * Screenshot Tech Strength: daily SMA 20 / 50 / 200 stack vs price.
@@ -158,8 +128,8 @@ export function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
         }
         if (!Array.isArray(quarters) || !quarters.length) continue;
         const panel = buildQuarterPanel(quarters);
-        const yoy = panel ? yoyFromPanel(panel) : null;
-        const extras = panel ? extraMetricsFromPanel(panel) : null;
+        const yoy = yoyFromQuarters(quarters);
+        const extras = extraMetricsFromQuarters(quarters);
         const bps = opmYoyDeltaBps(quarters);
         if (
           !yoy &&
@@ -198,6 +168,10 @@ export function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
   }
   overlayCache = { at: now, map };
   return map;
+}
+
+export function invalidateQuarterOverlayCache(): void {
+  overlayCache = null;
 }
 
 let scanCache: {
@@ -268,10 +242,16 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
       tech_strength: null,
       tech_change: null,
       dma200_pct: null,
+      latest_date: overlay.get(r.ticker)?.latest_date ?? null,
     });
   });
   scanCache = { at: now, map };
   return map;
+}
+
+export function invalidateFundamentalsScanCache(): void {
+  overlayCache = null;
+  scanCache = null;
 }
 
 export function fundamentalsScanTickerSet(): Set<string> {
@@ -316,5 +296,6 @@ export function attachFundamentalsScan(
     tech_strength: tech?.strength ?? null,
     tech_change: tech?.change ?? null,
     dma200_pct,
+    latest_date: base?.latest_date ?? null,
   };
 }

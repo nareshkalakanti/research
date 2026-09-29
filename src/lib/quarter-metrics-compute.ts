@@ -3,7 +3,9 @@ import {
   buildQuarterPanel,
   computeCfProfit,
   extraMetricsFromPanel,
+  extraMetricsFromQuarters,
   yoyFromPanel,
+  yoyFromQuarters,
 } from "@/lib/quarter-panel";
 import {
   isQuarterMetricsFresh,
@@ -50,11 +52,18 @@ export function metricsSnapshotFromPanel(
   price: number | null,
   cfProfit?: number | null,
   resultDate?: string | null,
+  quarters?: Parameters<typeof yoyFromQuarters>[0],
 ): QuarterMetricsSnapshot {
   const eps = epsFromQuarterPanel(panel);
   const forwardPe = price ? computeForwardPe(price, eps) : null;
-  const yoy = yoyFromPanel(panel);
-  const extras = extraMetricsFromPanel(panel, cfProfit);
+  const yoy =
+    quarters && quarters.length
+      ? yoyFromQuarters(quarters)
+      : yoyFromPanel(panel);
+  const extras =
+    quarters && quarters.length
+      ? extraMetricsFromQuarters(quarters, cfProfit)
+      : extraMetricsFromPanel(panel, cfProfit);
   return {
     forward_pe: forwardPe,
     eps_yoy: yoy?.eps_yoy ?? null,
@@ -173,6 +182,7 @@ export async function resolveQuarterPanelData(
           null,
       ),
       live.quarters.at(-1)?.date ?? null,
+      live.quarters,
     );
     persistSnapshot(key, snapshot);
     return {
@@ -261,6 +271,7 @@ export async function computeAndCacheQuarterMetrics(
       price,
       cfProfit,
       quarters.at(-1)?.date ?? null,
+      quarters,
     );
     persistSnapshot(key, snapshot);
     return { ok: true, snapshot, panel, price, symbol, source };

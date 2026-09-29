@@ -167,6 +167,14 @@ export type Company = {
     dma200_pct: number | null;
   };
   pead_score?: number | null;
+  basket?: {
+    score: number | null;
+    rank: number | null;
+    eq: number | null;
+    val: number | null;
+    gov: number | null;
+    weight: number | null;
+  } | null;
 };
 
 export type CapTier = "NC" | "TI" | "MIC" | "SC" | "MC" | "LC";

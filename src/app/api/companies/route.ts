@@ -74,8 +74,14 @@ import { operatingMetricsTickerSet } from "@/lib/opm-consistency";
 import {
   attachFundamentalsScan,
   fundamentalsScanTickerSet,
+  invalidateFundamentalsScanCache,
   loadFundamentalsScanMap,
 } from "@/lib/fundamentals-scan";
+import {
+  invalidateQuantBasketCache,
+  loadQuantBasketMap,
+  quantBasketTickerSet,
+} from "@/lib/quant-basket";
 import { loadSmaStackMap, fetchAndCacheSmaStack } from "@/lib/sma-stack-cache";
 import { runConcurrent } from "@/lib/scrape-pool";
 import { brutalPassTickerSet } from "@/lib/brutal-scan";
@@ -371,6 +377,8 @@ async function buildCompaniesResponse(req: NextRequest) {
     invalidateFundWatchlistCache();
     invalidateNotesCache();
     invalidateThemeLlmScanCache();
+    invalidateFundamentalsScanCache();
+    invalidateQuantBasketCache();
   }
   const market = sp.get("market") || "All";
   const bbTf: BbTimeframe = sp.get("bbTf") === "monthly" ? "monthly" : "weekly";
@@ -397,6 +405,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     sp.get("stableOpm") === "1" ||
     sp.get("operating") === "1";
   const filterPead = sp.get("pead") === "1";
+  const filterQuant = sp.get("quant") === "1";
   const filterBrutal = sp.get("brutal") === "1";
   const filterAgeMin =
     parseAgeMin(sp.get("ageMin")) ??
@@ -458,6 +467,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const breakouts = loadBreakoutMap(bbTf);
   const operatingMetrics = operatingMetricsTickerSet();
   const peadUniverse = fundamentalsScanTickerSet();
+  const quantUniverse = quantBasketTickerSet();
   const smaMapEarly = loadSmaStackMap();
   const brutalPass = brutalPassTickerSet();
   const holdings = holdingsTickerSet();
@@ -733,6 +743,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     let mrsi_empty = 0;
     let operating_metrics = 0;
     let pead = 0;
+    let quant = 0;
     let brutal = 0;
     let age25 = 0;
     let age50 = 0;
@@ -823,6 +834,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (rsiVal == null || !Number.isFinite(rsiVal)) mrsi_empty += 1;
       if (operatingMetrics.has(t)) operating_metrics += 1;
       if (peadUniverse.has(t)) pead += 1;
+      if (quantUniverse.has(t)) quant += 1;
       if (brutalPass.has(t)) brutal += 1;
       if (holdings.has(t)) hold += 1;
       if (edge.has(t)) edgeCount += 1;
@@ -855,6 +867,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       mrsi_empty,
       operating_metrics,
       pead,
+      quant,
       brutal,
       age25,
       age50,
@@ -891,6 +904,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterMrsiEmpty ||
     filterOperatingMetrics ||
     filterPead ||
+    filterQuant ||
     filterBrutal;
 
   // Fund All / Unique / Overlap / list BEFORE signal filters so BB W ∩ Funds stays narrow.
@@ -927,6 +941,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       const t = c.ticker.toUpperCase();
       if (filterBrutal) return brutalPass.has(t);
       if (filterPead) return peadUniverse.has(t);
+      if (filterQuant) return quantUniverse.has(t);
       if (filterOperatingMetrics) return operatingMetrics.has(t);
       if (filterBbw) return hasBbw;
       if (filterBbm) return hasBbm;
@@ -1070,6 +1085,7 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const mul = dir === "desc" ? -1 : 1;
   const peadMap = loadFundamentalsScanMap();
+  const quantMap = loadQuantBasketMap();
   let smaMap = loadSmaStackMap();
   const relevanceTerms = qTerms.length
     ? qTerms
@@ -1135,6 +1151,20 @@ async function buildCompaniesResponse(req: NextRequest) {
       const bm = peadMap.get(b.ticker.toUpperCase())?.pead ?? null;
       const an = am == null ? Number.NEGATIVE_INFINITY : am;
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
+      return (an - bn) * mul;
+    }
+    if (sort === "basket_score") {
+      const am = quantMap.get(a.ticker.toUpperCase())?.score ?? null;
+      const bm = quantMap.get(b.ticker.toUpperCase())?.score ?? null;
+      const an = am == null ? Number.NEGATIVE_INFINITY : am;
+      const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
+      return (an - bn) * mul;
+    }
+    if (sort === "basket_rank") {
+      const am = quantMap.get(a.ticker.toUpperCase())?.rank ?? null;
+      const bm = quantMap.get(b.ticker.toUpperCase())?.rank ?? null;
+      const an = am == null ? Number.POSITIVE_INFINITY : am;
+      const bn = bm == null ? Number.POSITIVE_INFINITY : bm;
       return (an - bn) * mul;
     }
     if (sort === "sales_yoy") {
@@ -1390,6 +1420,18 @@ async function buildCompaniesResponse(req: NextRequest) {
       })()),
       pead_score:
         peadMap.get(row.ticker.toUpperCase())?.pead ?? null,
+      basket: (() => {
+        const q = quantMap.get(row.ticker.toUpperCase());
+        if (!q) return null;
+        return {
+          score: q.score,
+          rank: q.rank,
+          eq: q.eq,
+          val: q.val,
+          gov: q.gov,
+          weight: q.weight,
+        };
+      })(),
     };
   });
 

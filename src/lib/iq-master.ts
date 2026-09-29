@@ -14,6 +14,8 @@ import { fundTagsForTicker } from "@/lib/fund-watchlists";
 import { FUND_WATCHLIST_LABELS } from "@/lib/fund-watchlist-meta";
 import { loadBreakoutMap, type BreakoutFlags } from "@/lib/signals";
 import { resolveListingMarket } from "@/lib/listing-market";
+import { loadFundamentalsScanMap } from "@/lib/fundamentals-scan";
+import type { FundamentalsScanRow } from "@/lib/pead-bands";
 
 export type IqMasterRow = {
   ticker: string;
@@ -74,6 +76,7 @@ export type IqMasterRow = {
     highlights: Array<{ text: string; polarity: string }>;
   } | null;
   has_concall: boolean;
+  fundamentals: FundamentalsScanRow | null;
 };
 
 type CompanyProfile = {
@@ -310,6 +313,8 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
     /* ignore */
   }
 
+  const fundMap = loadFundamentalsScanMap();
+
   return wanted.map((ticker) => {
     const m = getMetrics(ticker);
     const profile = profiles.get(ticker) ?? emptyProfile(ticker);
@@ -349,6 +354,7 @@ export function buildIqMasterRows(tickers: string[]): IqMasterRow[] {
       board: boardByTicker.get(ticker) ?? null,
       governance: { signal: null, reason: "—" },
       concall: concallByTicker.get(ticker) ?? null,
+      fundamentals: fundMap.get(ticker) ?? null,
     };
   });
 }

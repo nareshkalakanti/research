@@ -1,0 +1,63 @@
+{
+  "source": "Scan PEAD table + Watchlist expand screenshots (2026-09-28)",
+  "rows": [
+    {
+      "ticker": "BLUESTONE",
+      "sales_yoy": 49.56,
+      "np_yoy": 120,
+      "rev_growth": "High",
+      "margin_exp": "High",
+      "roce_impr": "High"
+    },
+    {
+      "ticker": "SAKAR",
+      "sales_yoy": 38.36,
+      "np_yoy": 120,
+      "rev_growth": "High",
+      "margin_exp": "High",
+      "roce_impr": "High"
+    },
+    {
+      "ticker": "STLTECH",
+      "sales_yoy": 87,
+      "np_yoy": 1870,
+      "rev_growth": "High",
+      "margin_exp": "High",
+      "roce_impr": "High"
+    },
+    {
+      "ticker": "KIMS",
+      "sales_yoy": 35.33,
+      "np_yoy": -47.2,
+      "rev_growth": "High",
+      "margin_exp": "High",
+      "roce_impr": "High"
+    },
+    {
+      "ticker": "CAPILLARY",
+      "sales_yoy": 42.66,
+      "np_yoy": 2949,
+      "rev_growth": "High",
+      "margin_exp": "High",
+      "roce_impr": "High"
+    },
+    {
+      "ticker": "DEEDEV",
+      "sales_yoy": 31.6,
+      "np_yoy": 22.35,
+      "rev_growth": "High",
+      "margin_exp": "High",
+      "roce_impr": "High"
+    }
+  ],
+  "quarters": [
+    {
+      "ticker": "CUPID",
+      "labels": ["Jun '25", "Sep '25", "Dec '25", "Mar '26", "Jun '26"],
+      "sales": [60, 84, 94, 120, 155],
+      "op": [16, 28, 34, 38, 60],
+      "opm_pct": [26.7, 33.3, 36.2, 31.7, 38.7],
+      "net_profit": [15, 24, 33, 36, 44]
+    }
+  ]
+}

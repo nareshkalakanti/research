@@ -1871,6 +1871,19 @@ button.result-tag {
   color: #fff;
 }
 
+.tag-scan-quant {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.tag-scan-quant.on,
+.result-tag.tag-scan-quant {
+  background: #047857;
+  border-color: #065f46;
+  color: #fff;
+}
+
 .tag-scan-brutal {
   background: #fef2f2;
   border-color: #fecaca;
@@ -20880,7 +20893,8 @@ button.otrd-co-link {
 
 .wl-simple-table {
   width: 100%;
-  table-layout: fixed;
+  min-width: 72rem;
+  table-layout: auto;
   border-collapse: collapse;
 }
 
@@ -20894,8 +20908,45 @@ button.otrd-co-link {
   white-space: nowrap;
 }
 
-.wl-simple-table .col-name {
-  width: 38%;
+.wl-prove {
+  margin-top: 8px;
+}
+
+.wl-prove-table {
+  min-width: 56rem;
+}
+
+.wl-prove-json {
+  font-size: 0.78rem;
+  color: var(--muted);
+  max-width: 22rem;
+}
+
+.wl-prove-detail {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: #b45309;
+}
+
+tr.wl-prove-ok td {
+  background: #f0fdf4;
+}
+
+tr.wl-prove-fail td {
+  background: #fff7ed;
+}
+
+.wl-simple-table .col-revgr-pct,
+.wl-simple-table .col-patgr {
+  width: 11%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.wl-simple-table .col-revgr,
+.wl-simple-table .col-mgn,
+.wl-simple-table .col-roce {
+  width: 10%;
 }
 
 .wl-simple-table .company-watch-cell {
@@ -23781,4 +23832,65 @@ button.otrd-co-link {
   background: #ede9fe;
   border-color: #c4b5fd;
   color: #6d28d9;
+}
+
+.din-paste-well {
+  margin: 12px 0;
+  min-height: 220px;
+  border: 2px dashed var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 16px;
+  outline: none;
+  cursor: pointer;
+}
+
+.din-paste-well:focus,
+.din-paste-well.is-drag {
+  border-color: #2563eb;
+  background: color-mix(in srgb, #2563eb 6%, var(--surface));
+}
+
+.din-paste-well.is-busy {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.din-paste-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.din-paste-hint strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.din-paste-upload {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.din-paste-preview {
+  max-width: 100%;
+  max-height: 280px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.din-paste-busy {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--muted);
 }

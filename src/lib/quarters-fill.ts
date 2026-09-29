@@ -12,6 +12,8 @@ import { activeFundFilterSet, fundWatchlistAllTickers } from "./fund-watchlists"
 import { holdingsTickerSet } from "./holdings";
 import { notesTickerSet } from "./notes";
 import { invalidateOperatingMetricsCache } from "./opm-consistency";
+import { invalidateFundamentalsScanCache } from "./fundamentals-scan";
+import { invalidateQuantBasketCache } from "./quant-basket";
 import { passesStableOpmScreen } from "./opm-math";
 import { filterCompaniesByScanList } from "./scan-lists-server";
 import { runConcurrent } from "./scrape-pool";
@@ -291,6 +293,8 @@ export async function runQuartersFillBatch(opts: {
   });
 
   invalidateOperatingMetricsCache();
+  invalidateFundamentalsScanCache();
+  invalidateQuantBasketCache();
 
   const remaining = pendingQuartersFillTickers(scopeOpts).length;
 
