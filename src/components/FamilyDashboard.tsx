@@ -1,20 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FamilyMapCards, type FamilyRow, FamilyAddProgress, type FamilyAddWork } from "@/components/FamilyMapCards";
 import {
   PeopleBoardCards,
   type PersonBoardRow,
 } from "@/components/PeopleBoardCards";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
-import { useSetAppTab } from "@/lib/app-tab";
+import { useSetAppTab, useOptionalAppTab } from "@/lib/app-tab";
 import { tradingviewUrl } from "@/lib/links";
 import { requestGovOpen } from "@/lib/gov-open";
 
 type DashView = "groups" | "people" | "stock";
 
+function stubCompany(
+  ticker: string,
+  name?: string | null,
+  market?: string | null,
+  mcap?: number | null,
+): FamilyRow["companies"][number] {
+  const t = ticker.trim().toUpperCase();
+  return {
+    ticker: t,
+    name: (name || t).trim() || t,
+    market: (market || "NSE").trim() || "NSE",
+    cap_code: null,
+    market_cap_cr: mcap ?? null,
+    is_sme: false,
+    directors: 0,
+    din_verified: 0,
+  };
+}
+
 export function FamilyDashboard() {
   const setTab = useSetAppTab();
+  const tabState = useOptionalAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,16 +50,28 @@ export function FamilyDashboard() {
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
+  const hasGroups = useRef(false);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!hasGroups.current) setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ view: "family", page: "1", pageSize: "200" });
-      const res = await fetch(`/api/governance-map?${params}`, { cache: "no-store" });
+      const params = new URLSearchParams({
+        view: "family",
+        page: "1",
+        pageSize: "200",
+      });
+      const url = `/api/governance-map?${params}`;
+      let res = await fetch(url, { cache: "no-store" });
+      if (res.status === 503) {
+        await new Promise((r) => setTimeout(r, 500));
+        res = await fetch(url, { cache: "no-store" });
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { rows?: FamilyRow[] };
-      setRows(json.rows ?? []);
+      const next = json.rows ?? [];
+      hasGroups.current = next.length > 0;
+      setRows(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -90,8 +122,10 @@ export function FamilyDashboard() {
   }, []);
 
   useEffect(() => {
+    if (tabState?.tab && tabState.tab !== "dashboard") return;
+    if (hasGroups.current) return;
     void load();
-  }, [load]);
+  }, [tabState?.tab, load]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -200,17 +234,27 @@ export function FamilyDashboard() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setAddWork({
-        pct: 72,
-        label: "Refreshing map",
-        detail: label,
-      });
+      const json = (await res.json()) as { group_id?: string };
+      const gid = json.group_id;
+      if (gid) {
+        setRows((prev) => [
+          {
+            family_name: label,
+            company_count: newTickers.length,
+            group_id: gid,
+            companies: newTickers.map((t) => stubCompany(t.ticker, t.name)),
+            people: [],
+            outside: [],
+          },
+          ...prev.filter((g) => g.group_id !== gid),
+        ]);
+        hasGroups.current = true;
+      }
       setAdding(false);
       setNewName("");
       setNewTickers([]);
       setNewQ("");
       setQ(label);
-      await load();
       setAddWork({
         pct: 100,
         label: "Done",
@@ -442,16 +486,22 @@ export function FamilyDashboard() {
           companySearch={companySearch}
           onRename={async (g, label) => {
             if (!g.group_id) return;
-            await fetch("/api/family-groups", {
+            const res = await fetch("/api/family-groups", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ group_id: g.group_id, rename: true, label }),
             });
-            await load();
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const name = label.replace(/\s+/g, " ").trim();
+            setRows((prev) =>
+              prev.map((row) =>
+                row.group_id === g.group_id ? { ...row, family_name: name } : row,
+              ),
+            );
           }}
           onRemoveCompany={async (g, ticker) => {
             if (!g.group_id) return;
-            await fetch("/api/family-groups", {
+            const res = await fetch("/api/family-groups", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -460,7 +510,21 @@ export function FamilyDashboard() {
                 ticker,
               }),
             });
-            await load();
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const t = ticker.trim().toUpperCase();
+            setRows((prev) =>
+              prev.map((row) => {
+                if (row.group_id !== g.group_id) return row;
+                const companies = row.companies.filter(
+                  (c) => c.ticker.toUpperCase() !== t,
+                );
+                return {
+                  ...row,
+                  companies,
+                  company_count: companies.length,
+                };
+              }),
+            );
           }}
           onAddCompany={async (g, ticker, name) => {
             if (!g.group_id) return;
@@ -480,7 +544,16 @@ export function FamilyDashboard() {
                   name: name || shown,
                 }),
               });
-              const bootJson = (await boot.json()) as { ok?: boolean; error?: string };
+              const bootJson = (await boot.json()) as {
+                ok?: boolean;
+                error?: string;
+                hit?: {
+                  ticker: string;
+                  name: string;
+                  market: string;
+                  mcap_cr: number | null;
+                };
+              };
               if (!boot.ok || bootJson.ok === false) {
                 throw new Error(bootJson.error || `Add listing failed (${boot.status})`);
               }
@@ -500,13 +573,33 @@ export function FamilyDashboard() {
                 }),
               });
               if (!fam.ok) throw new Error(`Save group failed (${fam.status})`);
-              setAddWork({
-                groupId: g.group_id,
-                pct: 78,
-                label: "Map",
-                detail: "Refreshing groups",
-              });
-              await load();
+              const hit = bootJson.hit;
+              const extra = stubCompany(
+                hit?.ticker || shown,
+                hit?.name || name || shown,
+                hit?.market,
+                hit?.mcap_cr,
+              );
+              setRows((prev) =>
+                prev.map((row) => {
+                  if (row.group_id !== g.group_id) {
+                    return {
+                      ...row,
+                      companies: row.companies.filter(
+                        (c) => c.ticker.toUpperCase() !== extra.ticker,
+                      ),
+                      company_count: row.companies.filter(
+                        (c) => c.ticker.toUpperCase() !== extra.ticker,
+                      ).length,
+                    };
+                  }
+                  if (row.companies.some((c) => c.ticker === extra.ticker)) {
+                    return row;
+                  }
+                  const companies = [...row.companies, extra];
+                  return { ...row, companies, company_count: companies.length };
+                }),
+              );
               setAddWork({
                 groupId: g.group_id,
                 pct: 100,

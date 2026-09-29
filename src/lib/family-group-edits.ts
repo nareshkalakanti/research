@@ -141,12 +141,16 @@ function listingByTicker(): Map<string, { name: string; market: string }> {
 function persistAddedTickers(tickers: string[]): void {
   const listings = listingByTicker();
   for (const t of tickers) {
-    const hit = listings.get(t);
-    ensureGovernanceCompanyStub({
-      ticker: t,
-      name: hit?.name,
-      market: hit?.market,
-    });
+    try {
+      const hit = listings.get(t);
+      ensureGovernanceCompanyStub({
+        ticker: t,
+        name: hit?.name,
+        market: hit?.market,
+      });
+    } catch {
+      /* skip one ticker; others still persist */
+    }
   }
 }
 

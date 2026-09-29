@@ -407,6 +407,32 @@ export async function searchGrowwListings(
       const sym = str(rec.symbol).replace(/-EQ$/i, "").toUpperCase();
       ticker = LISTED_TICKER_RE.test(sym) ? sym : "";
     }
+    if (!LISTED_TICKER_RE.test(ticker)) {
+      const searchId = str(rec.search_id);
+      if (searchId) {
+        try {
+          const company = asRecord(
+            await httpGetJson(
+              `${GROWW_COMPANY}${encodeURIComponent(searchId)}`,
+            ),
+          );
+          const header = asRecord(company.header);
+          for (const cand of [
+            str(header.nseTradingSymbol),
+            str(header.bseTradingSymbol),
+            str(header.nseScriptCode),
+          ]) {
+            const t = cand.replace(/-EQ$/i, "").toUpperCase();
+            if (LISTED_TICKER_RE.test(t)) {
+              ticker = t;
+              break;
+            }
+          }
+        } catch {
+          /* search row still usable if NSE code exists */
+        }
+      }
+    }
     if (!LISTED_TICKER_RE.test(ticker)) continue;
     if (seen.has(ticker)) continue;
     seen.add(ticker);

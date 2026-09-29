@@ -33,10 +33,26 @@ export type DbCheckResult = { file: string; ok: boolean; detail: string };
 
 export function isSqliteCorrupt(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
-  const code = (err as { code?: string }).code;
+  const code = (err as { code?: string }).code || "";
   if (code === "SQLITE_CORRUPT" || code === "SQLITE_NOTADB") return true;
+  if (isSqliteWalDamage(err)) return true;
   const msg = String((err as { message?: string }).message || err);
   return /malformed|corrupt|not a database/i.test(msg);
+}
+
+/** Truncated WAL / short read — drop sidecars and reopen. */
+export function isSqliteWalDamage(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = String((err as { code?: string }).code || "");
+  if (
+    code === "SQLITE_IOERR_SHORT_READ" ||
+    code === "SQLITE_IOERR_READ" ||
+    code === "SQLITE_IOERR"
+  ) {
+    return true;
+  }
+  const msg = String((err as { message?: string }).message || err);
+  return /disk I\/O error|SHORT_READ|IOERR/i.test(msg);
 }
 
 export function corruptDbError(name: string, err: unknown): Error {

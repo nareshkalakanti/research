@@ -7,7 +7,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { DATA_DIR } from "./sqlite-utils";
-import { inferDirectorCategory, normDin, type BoardSeat } from "./nse-governance";
+import { inferDirectorCategory, isPlaceholderDin, normDin, type BoardSeat } from "./nse-governance";
 import { isPlaceholderDirectorName } from "./gov-director-name";
 
 const UA =
@@ -482,7 +482,7 @@ export function parseCurrentDirectorsTable(html: string): BoardSeat[] {
       if (cells.length <= Math.max(dinIdx, nameIdx)) return;
       const din = normDin(cells[dinIdx]);
       const name = (cells[nameIdx] || "").replace(/\s+/g, " ").trim();
-      if (!din || din.length !== 8 || !name) return;
+      if (!din || din.length !== 8 || isPlaceholderDin(din) || !name) return;
       if (isPlaceholderDirectorName(name)) return;
       if (seen.has(din)) return;
       const designation = (desigIdx >= 0 ? cells[desigIdx] : "") || "Director";

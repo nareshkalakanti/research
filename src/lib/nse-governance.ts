@@ -17,7 +17,24 @@ const CG_MASTER_URL =
 const CG_DETAIL_URL =
   "https://www.nseindia.com/api/corporate-governance";
 const TIMEOUT_MS = 30_000;
-const DUMMY_DINS = new Set(["99999999", "00000000"]);
+const DUMMY_DINS = new Set(["99999999", "00000000", "12345678", "87654321"]);
+
+/** Reject sequential / repeated placeholders the models sometimes invent. */
+export function isPlaceholderDin(raw: unknown): boolean {
+  const din = normDin(raw);
+  if (!din || din.length !== 8) return true;
+  if (DUMMY_DINS.has(din)) return true;
+  if (/^(\d)\1{7}$/.test(din)) return true;
+  const nums = [...din].map((ch) => Number(ch));
+  const step = nums[1]! - nums[0]!;
+  if (
+    step !== 0 &&
+    nums.every((n, i) => i === 0 || n === nums[i - 1]! + step)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 const MONTH_NUM: Record<string, string> = {
   JAN: "01",
@@ -254,7 +271,7 @@ export function parseGovernanceIxbrlHtml(
       if (cells.length <= maxCol) continue;
       const din = normDin(cells[col.din!]);
       const name = safeStr(cells[col.name!]);
-      if (!din || DUMMY_DINS.has(din) || !name) continue;
+      if (!din || isPlaceholderDin(din) || !name) continue;
       if (seenDin.has(din)) continue;
       const status = col.status != null ? cells[col.status] ?? "" : "";
       if (!activeStatus(status)) continue;
@@ -289,7 +306,7 @@ function parseCompositionBod(
     const r = raw as Record<string, unknown>;
     const din = normDin(r.din);
     const name = safeStr(r.directorName ?? r.name);
-    if (!din || DUMMY_DINS.has(din) || !name) continue;
+    if (!din || isPlaceholderDin(din) || !name) continue;
     if (seen.has(din)) continue;
     if (!activeStatus(r.status ?? r.currentStatus)) continue;
     const categoryRaw = safeStr(r.category);

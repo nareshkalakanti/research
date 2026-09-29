@@ -6,7 +6,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { isPlaceholderDirectorName } from "./gov-director-name";
-import { inferDirectorCategory, normDin, type BoardSeat } from "./nse-governance";
+import { inferDirectorCategory, isPlaceholderDin, normDin, type BoardSeat } from "./nse-governance";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const GOV_PATH = path.join(DATA_DIR, "governance.db");
@@ -124,6 +124,21 @@ export function getGovernanceWriteDb(): Database.Database {
   `);
   writeDb = db;
   return db;
+}
+
+export function closeGovernanceWriteDb(): void {
+  if (!writeDb) return;
+  try {
+    writeDb.pragma("wal_checkpoint(TRUNCATE)");
+  } catch {
+    /* WAL may already be truncated or locked */
+  }
+  try {
+    writeDb.close();
+  } catch {
+    /* ignore */
+  }
+  writeDb = null;
 }
 
 /** Listing row so family-map can show a ticker with no board seats yet. */
@@ -424,7 +439,7 @@ export function saveCompanyBoard(opts: {
   for (const raw of opts.seats) {
     const person = safeStr(raw.name);
     const designation = safeStr(raw.designation) || "Director";
-    const din = normDin(raw.din);
+    const din = isPlaceholderDin(raw.din) ? "" : normDin(raw.din);
     if (!person) throw new Error("Director name required");
     if (isPlaceholderDirectorName(person)) continue;
     if (din && din.length !== 8) {

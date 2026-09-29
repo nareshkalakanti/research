@@ -228,6 +228,31 @@ export function FamilyGraph({
         if (ci != null) pairs.push([pi, ci]);
       }
     }
+    const companyIdx = list
+      .map((node, i) => (node.kind === "company" ? i : -1))
+      .filter((i) => i >= 0);
+    if (companyIdx.length > 1) {
+      const hubTicker = [...companies].sort(
+        (a, b) => (b.market_cap_cr ?? -1) - (a.market_cap_cr ?? -1),
+      )[0]?.ticker;
+      const hub = hubTicker != null ? index.get(`c:${hubTicker}`) : undefined;
+      const touched = new Set<number>();
+      for (const [a, b] of pairs) {
+        touched.add(a);
+        touched.add(b);
+      }
+      if (hub != null) {
+        for (const ci of companyIdx) {
+          if (ci === hub || touched.has(ci)) continue;
+          const ticker = list[ci]!.id.replace(/^c:/, "");
+          const linked = people.some((p) =>
+            p.tickers.some((t) => t.toUpperCase() === ticker),
+          );
+          if (!linked) continue;
+          pairs.push([hub, ci]);
+        }
+      }
+    }
     const count = list.length;
     const width = Math.max(760, Math.sqrt(count) * 210);
     const height = Math.max(280, Math.sqrt(count) * 90);
