@@ -31,9 +31,14 @@ import {
   loadAllFamilyLabels,
   scheduleFamilyGroupRefine,
 } from "./family-group-refine";
-import { applyFamilyGroupEdits, loadFamilyGroupEditMap, persistAllFamilyEditListings } from "./family-group-edits";
-
-const DATA_DIR = path.join(process.cwd(), "data");
+import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
+import { closeGovernanceWriteDb } from "./governance-write";
+import {
+  DATA_DIR as SQLITE_DATA_DIR,
+  isSqliteWalDamage,
+  openSqliteNamed,
+  removeWalSidecars,
+} from "./sqlite-utils";
 
 export type GovCompanySeat = {
   ticker: string;
@@ -363,7 +368,10 @@ function declaredMergeKey(groupName: string): string {
 }
 
 function declaredCore(key: string): string {
-  return key.replace(/^(the|a|an)\s+/, "").replace(/\s+groups?$/, "").trim();
+  return key
+    .replace(/^(the|a|an)\s+/, "")
+    .replace(/\s+groups?(?:\s+of\s+.+)?$/, "")
+    .trim();
 }
 
 function displayGroupLabel(mergeKey: string): string {
@@ -408,7 +416,17 @@ function houseSurnameKey(house: string): string {
 }
 
 function houseLeadToken(house: string): string {
-  return (houseContentTokens(house)[0] || "").toUpperCase();
+  const parts = houseContentTokens(house);
+  const word = parts.find((w) => w.length >= 3) || parts[0] || "";
+  return word.toUpperCase();
+}
+
+/** "Birla KK" and "KK Birla" are the same house title. */
+function canonicalHouseLabel(name: string): string {
+  return houseContentTokens(name)
+    .map((w) => w.toLowerCase())
+    .sort()
+    .join(" ");
 }
 
 function isHouseControlSeat(designation: string, category: string | null): boolean {
@@ -453,18 +471,40 @@ let familyMapCache: { at: number; groups: GovFamilyGroup[] } | null = null;
 let boardScoreCache: { at: number; map: Map<string, number> } | null = null;
 const CACHE_MS = 60_000;
 
+function closeGovReader(): void {
+  try {
+    govDb?.close();
+  } catch {
+    /* ignore */
+  }
+  govDb = null;
+}
+
+function healGovernanceWal(): void {
+  closeGovReader();
+  closeGovernanceWriteDb();
+  removeWalSidecars(path.join(SQLITE_DATA_DIR, "governance.db"));
+}
+
 function openReadonly(name: string): Database.Database {
-  const db = new Database(path.join(DATA_DIR, name), {
+  return openSqliteNamed(name, {
     readonly: true,
     fileMustExist: true,
+    busyTimeoutMs: 8_000,
   });
-  db.pragma("query_only = ON");
-  return db;
 }
 
 function getGov(): Database.Database {
-  if (!govDb) govDb = openReadonly("governance.db");
-  return govDb;
+  if (govDb) return govDb;
+  try {
+    govDb = openReadonly("governance.db");
+    return govDb;
+  } catch (err) {
+    if (!isSqliteWalDamage(err)) throw err;
+    healGovernanceWal();
+    govDb = openReadonly("governance.db");
+    return govDb;
+  }
 }
 
 function getAbout(): Database.Database | null {
@@ -503,15 +543,23 @@ const SEAT_SELECT = `
       WHERE UPPER(c.market) IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')`;
 
 function loadAllBoardSeats(): SeatRow[] {
-  if (!fs.existsSync(path.join(DATA_DIR, "governance.db"))) return [];
-  return getGov()
-    .prepare(
-      `
+  if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) return [];
+  const run = () =>
+    getGov()
+      .prepare(
+        `
       ${SEAT_SELECT}
       ORDER BY c.name COLLATE NOCASE, d.name COLLATE NOCASE
       `,
-    )
-    .all() as SeatRow[];
+      )
+      .all() as SeatRow[];
+  try {
+    return run();
+  } catch (err) {
+    if (!isSqliteWalDamage(err)) throw err;
+    healGovernanceWal();
+    return run();
+  }
 }
 
 function loadAboutBlobByTicker(): Map<string, string> {
@@ -800,8 +848,6 @@ export function loadGovernanceFamilyMap(opts?: {
   ) {
     return familyMapCache.groups;
   }
-
-  persistAllFamilyEditListings();
 
   const seats = loadAllBoardSeats();
   if (!seats.length) return [];
@@ -1209,7 +1255,26 @@ export function loadGovernanceFamilyMap(opts?: {
     for (const set of components.values()) {
       if (set.size >= 2) out.push(set);
     }
-    return out;
+    const coreOf = (t: string) => {
+      const raw = declaredByTicker.get(t) || "";
+      const key = declaredMergeKey(raw);
+      if (!key) return "";
+      const core = declaredCore(key);
+      return declaredKeyTokens(core).length >= 2 ? core : "";
+    };
+    const coreSets = new Map<string, Set<string>>();
+    const unkeyed: Set<string>[] = [];
+    for (const set of out) {
+      const cores = [...new Set([...set].map(coreOf).filter(Boolean))];
+      if (cores.length !== 1) {
+        unkeyed.push(set);
+        continue;
+      }
+      const sink = coreSets.get(cores[0]!) ?? new Set<string>();
+      for (const t of set) sink.add(t);
+      coreSets.set(cores[0]!, sink);
+    }
+    return [...coreSets.values(), ...unkeyed].filter((s) => s.size >= 2);
   }
 
   const declaredKeyTokens = (key: string) => declaredCore(key).split(/\s+/).filter(Boolean);
@@ -1717,10 +1782,20 @@ export function loadGovernanceFamilyMap(opts?: {
   }
   for (const list of byLead.values()) {
     if (list.length < 2) continue;
+    const buckets = new Map<string, GovFamilyGroup[]>();
     for (const g of list) {
-      const tokens = houseTokensFromName(g.companies[0]?.name || "");
-      if (tokens.length >= 2) {
-        g.family_name = `${tokens[0]} ${tokens[1]}`;
+      const k = g.family_name.toLowerCase().replace(/\s+/g, " ").trim();
+      const arr = buckets.get(k) ?? [];
+      arr.push(g);
+      buckets.set(k, arr);
+    }
+    for (const same of buckets.values()) {
+      if (same.length < 2) continue;
+      for (const g of same) {
+        const tokens = houseTokensFromName(g.companies[0]?.name || "");
+        if (tokens.length >= 2) {
+          g.family_name = `${tokens[0]} ${tokens[1]}`;
+        }
       }
     }
   }
@@ -1728,7 +1803,9 @@ export function loadGovernanceFamilyMap(opts?: {
   const mergedByName = new Map<string, GovFamilyGroup>();
   const leftover: GovFamilyGroup[] = [];
   for (const g of groups) {
-    const key = g.family_name.toLowerCase().replace(/\s+/g, " ").trim();
+    const key =
+      canonicalHouseLabel(g.family_name) ||
+      g.family_name.toLowerCase().replace(/\s+/g, " ").trim();
     const hit = mergedByName.get(key);
     if (!hit) {
       mergedByName.set(key, g);
@@ -1747,6 +1824,45 @@ export function loadGovernanceFamilyMap(opts?: {
   }
   groups.length = 0;
   groups.push(...leftover.filter((g) => g.companies.length >= 2));
+
+  const declaredCoreOfGroup = (g: GovFamilyGroup): string => {
+    const votes = new Map<string, number>();
+    for (const c of g.companies) {
+      const raw = declaredByTicker.get(c.ticker) || "";
+      const key = declaredMergeKey(raw);
+      if (!key) continue;
+      const core = declaredCore(key);
+      if (declaredKeyTokens(core).length < 2) continue;
+      votes.set(core, (votes.get(core) ?? 0) + 1);
+    }
+    const top = [...votes.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    )[0];
+    return top && top[1] >= 1 ? top[0] : "";
+  };
+  const mergedByDeclared = new Map<string, GovFamilyGroup>();
+  const afterDeclared: GovFamilyGroup[] = [];
+  for (const g of groups) {
+    const key = declaredCoreOfGroup(g);
+    if (!key) {
+      afterDeclared.push(g);
+      continue;
+    }
+    const hit = mergedByDeclared.get(key);
+    if (!hit) {
+      mergedByDeclared.set(key, g);
+      afterDeclared.push(g);
+      continue;
+    }
+    for (const c of g.companies) {
+      if (hit.companies.some((x) => x.ticker === c.ticker)) continue;
+      hit.companies.push(c);
+    }
+    hit.company_count = hit.companies.length;
+    g.companies = [];
+  }
+  groups.length = 0;
+  groups.push(...afterDeclared.filter((g) => g.companies.length >= 2));
 
   const seedDisplayName = (raw: string) => {
     const key = declaredMergeKey(raw) || raw.trim().toLowerCase();
@@ -1797,6 +1913,7 @@ export function loadGovernanceFamilyMap(opts?: {
       s: SeatRow,
       tickers: string[],
       inGroupOnly: boolean,
+      minListed = 2,
     ) => {
       if (people.has(s.person_id) || isPlaceholderDirectorName(s.director_name)) {
         return;
@@ -1804,7 +1921,7 @@ export function loadGovernanceFamilyMap(opts?: {
       const listed = inGroupOnly
         ? tickers.filter((t) => inGroup.has(t))
         : tickers.filter((t) => metaByTicker.has(t));
-      if (listed.length < 2) return;
+      if (listed.length < minListed) return;
       const din = s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null;
       people.set(s.person_id, {
         person_id: s.person_id,
@@ -1872,7 +1989,15 @@ export function loadGovernanceFamilyMap(opts?: {
           bestTickers = tickers;
         }
       }
-      if (!bestPid) continue;
+      if (!bestPid) {
+        for (const s of byTicker.get(t) ?? []) {
+          if (isPlaceholderDirectorName(s.director_name)) continue;
+          addPerson(s, [t], true, 1);
+          break;
+        }
+        linkedIn = inGroupLinked();
+        continue;
+      }
       const seat = (seatsByPerson.get(bestPid) ?? []).find((x) => x.person_id === bestPid)!;
       addPerson(seat, bestTickers, false);
       for (const x of bestTickers) {
@@ -1897,7 +2022,7 @@ export function loadGovernanceFamilyMap(opts?: {
     const shown = new Set([...inGroup, ...outside.map((o) => o.ticker)]);
     const ranked = [...people.values()]
       .map((p) => ({ ...p, tickers: p.tickers.filter((x) => shown.has(x)) }))
-      .filter((p) => p.tickers.length >= 2)
+      .filter((p) => p.tickers.length >= 1)
       .sort((a, b) => b.tickers.length - a.tickers.length);
     const picked: GovFamilyPerson[] = [];
     const covered = new Set<string>();
@@ -1927,9 +2052,12 @@ export function loadGovernanceFamilyMap(opts?: {
   const editMap = loadFamilyGroupEditMap();
   const byLabel = new Map<string, GovFamilyGroup[]>();
   for (const g of groups) {
-    const list = byLabel.get(g.family_name) ?? [];
+    const key =
+      canonicalHouseLabel(g.family_name) ||
+      g.family_name.toLowerCase().replace(/\s+/g, " ").trim();
+    const list = byLabel.get(key) ?? [];
     list.push(g);
-    byLabel.set(g.family_name, list);
+    byLabel.set(key, list);
   }
   for (const list of byLabel.values()) {
     if (list.length < 2) continue;
@@ -1949,6 +2077,87 @@ export function loadGovernanceFamilyMap(opts?: {
       g.companies = [];
     }
     host.company_count = host.companies.length;
+  }
+
+  const distinctiveFamilyLabel = (
+    g: GovFamilyGroup,
+    others: GovFamilyGroup[],
+  ): string | null => {
+    const otherDeclared = new Set<string>();
+    for (const o of others) {
+      for (const c of o.companies) {
+        const raw = declaredByTicker.get(c.ticker) || "";
+        const key = declaredMergeKey(raw) || raw.trim().toLowerCase();
+        if (key) otherDeclared.add(key);
+      }
+    }
+    const declaredVotes = new Map<string, number>();
+    for (const c of g.companies) {
+      const raw = declaredByTicker.get(c.ticker) || "";
+      const key = declaredMergeKey(raw) || raw.trim().toLowerCase();
+      if (!key || otherDeclared.has(key)) continue;
+      const shown = displayGroupLabel(key);
+      if (canonicalHouseLabel(shown) === canonicalHouseLabel(g.family_name)) {
+        continue;
+      }
+      declaredVotes.set(key, (declaredVotes.get(key) ?? 0) + 1);
+    }
+    const topDeclared = [...declaredVotes.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    )[0];
+    if (topDeclared) return displayGroupLabel(topDeclared[0]);
+
+    const otherBlob = others
+      .flatMap((o) =>
+        o.companies.map(
+          (c) => `${c.name} ${declaredByTicker.get(c.ticker) || ""}`,
+        ),
+      )
+      .join(" ")
+      .toLowerCase();
+    const skip = new Set(
+      houseContentTokens(g.family_name).map((w) => w.toLowerCase()),
+    );
+    const tokVotes = new Map<string, number>();
+    for (const c of g.companies) {
+      for (const tok of houseTokensFromName(c.name)) {
+        const w = tok.toLowerCase();
+        if (skip.has(w) || HOUSE_SKIP.has(w)) continue;
+        if (otherBlob.includes(w)) continue;
+        tokVotes.set(tok, (tokVotes.get(tok) ?? 0) + 1);
+      }
+    }
+    const topTok = [...tokVotes.entries()].sort(
+      (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+    )[0];
+    if (topTok) return `${g.family_name} · ${topTok[0]}`;
+    const lead = houseTokensFromName(g.companies[0]?.name || "")[0];
+    if (lead && !skip.has(lead.toLowerCase())) {
+      return `${g.family_name} · ${lead}`;
+    }
+    return null;
+  };
+
+  const remainingByCanon = new Map<string, GovFamilyGroup[]>();
+  for (const g of groups) {
+    if (g.companies.length < 1) continue;
+    const key =
+      canonicalHouseLabel(g.family_name) ||
+      g.family_name.toLowerCase().replace(/\s+/g, " ").trim();
+    const list = remainingByCanon.get(key) ?? [];
+    list.push(g);
+    remainingByCanon.set(key, list);
+  }
+  for (const list of remainingByCanon.values()) {
+    if (list.length < 2) continue;
+    for (const g of list) {
+      if (editMap.get(g.group_id || "")?.label) continue;
+      const next = distinctiveFamilyLabel(
+        g,
+        list.filter((x) => x !== g),
+      );
+      if (next) g.family_name = next;
+    }
   }
   for (let i = groups.length - 1; i >= 0; i--) {
     const g = groups[i]!;
@@ -2080,7 +2289,7 @@ function loadSeatsForTickers(tickers: string[]): SeatRow[] {
     ...new Set(tickers.map((t) => t.toUpperCase()).filter(Boolean)),
   ];
   if (!keys.length) return [];
-  if (!fs.existsSync(path.join(DATA_DIR, "governance.db"))) return [];
+  if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) return [];
   const db = getGov();
   const out: SeatRow[] = [];
   const chunk = 200;
@@ -2372,11 +2581,12 @@ export function invalidateGovernanceMapCache(): void {
   mapCache = null;
   boardScoreCache = null;
   familyMapCache = null;
+  closeGovReader();
 }
 
 /** Directors with a DIN whose stored name is only "DIN ########". */
 export function countNamelessDinDirectors(): number {
-  if (!fs.existsSync(path.join(DATA_DIR, "governance.db"))) return 0;
+  if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) return 0;
   try {
     const row = getGov()
       .prepare(
@@ -2407,7 +2617,7 @@ export function loadGovernanceMap(opts?: {
   const q = (opts?.q || "").trim();
   const now = Date.now();
 
-  if (!fs.existsSync(path.join(DATA_DIR, "governance.db"))) {
+  if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) {
     return [];
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { bootstrapCompanyTicker } from "@/lib/company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "@/lib/db";
 import { searchGrowwListings } from "@/lib/web-mcap";
+import { scoreListingName } from "@/lib/listing-name-match";
 
 export const runtime = "nodejs";
 
@@ -29,7 +30,8 @@ function listingMatches(q: string, ticker: string, name: string): boolean {
   if (cq.length < 2) return false;
   const ct = compactSym(t);
   const cn = compactSym(n);
-  return ct === cq || ct.startsWith(cq) || ct.includes(cq) || cn.includes(cq);
+  if (ct === cq || ct.startsWith(cq) || ct.includes(cq) || cn.includes(cq)) return true;
+  return scoreListingName(q, ticker, name) >= 70;
 }
 
 function rankHit(q: string, h: TickerHit): number {

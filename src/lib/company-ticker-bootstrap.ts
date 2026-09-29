@@ -13,7 +13,7 @@ import { openSqliteNamed } from "./sqlite-utils";
 import { createNseBuybackSession } from "./nse-buybacks";
 import { fetchQuoteDetailed, fetchYfAboutProfile } from "./yfinance";
 import { cacheBseScripCode } from "./bse-investor-discover";
-import { fetchWebProfiles } from "./web-mcap";
+import { fetchWebProfiles, searchGrowwListings } from "./web-mcap";
 import { applyWebProfiles } from "./web-profile-apply";
 import {
   formatNseApiDateFromInstant,
@@ -89,7 +89,24 @@ export async function bootstrapCompanyTicker(
   ticker: string,
   opts?: { name?: string | null; market?: string | null },
 ): Promise<boolean> {
-  let key = ticker.trim().toUpperCase();
+  const raw = ticker.trim().toUpperCase();
+  if (/^\d{4,8}$/.test(raw)) {
+    const hits = await searchGrowwListings(raw, 8);
+    const matched = hits.filter((h) => (h.bse_scrip || "") === raw);
+    const hit =
+      matched.length === 1
+        ? matched[0]
+        : hits.length === 1 && hits[0]?.bse_scrip === raw
+          ? hits[0]
+          : null;
+    if (!hit || !TICKER_RE.test(hit.ticker)) return false;
+    if (hit.bse_scrip) cacheBseScripCode(hit.ticker, hit.bse_scrip);
+    return bootstrapCompanyTicker(hit.ticker, {
+      name: opts?.name || hit.name,
+      market: opts?.market || hit.market,
+    });
+  }
+  let key = raw;
   if (!TICKER_RE.test(key)) return false;
 
   const hintName = (opts?.name || "").trim();
@@ -225,5 +242,6 @@ export async function bootstrapCompanyTicker(
 }
 
 export function looksLikeTickerSearch(term: string): boolean {
-  return TICKER_RE.test(term.trim().toUpperCase());
+  const t = term.trim().toUpperCase();
+  return TICKER_RE.test(t) || /^\d{4,8}$/.test(t);
 }

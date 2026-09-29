@@ -9,7 +9,7 @@ import { listListingCompaniesLite } from "./db";
 import { invalidateGovernanceMapCache } from "./governance-map";
 import { completeJson } from "./llm-client";
 import { loadLlmConfig } from "./llm-config";
-import { normDin, type BoardSeat } from "./nse-governance";
+import { isPlaceholderDin, normDin, type BoardSeat } from "./nse-governance";
 import { lookupCompanyCurrentDirectors } from "./din-mca-lookup";
 import {
   dinBoardTickerSet,
@@ -117,7 +117,7 @@ export function regexBoardDinsFromText(text: string): BoardSeat[] {
   while ((m = re.exec(text)) != null) {
     const name = m[1]!.replace(/\s+/g, " ").trim().replace(/[,:]$/, "");
     const din = normDin(m[2]!);
-    if (!din || din.length !== 8) continue;
+    if (!din || din.length !== 8 || isPlaceholderDin(din)) continue;
     if (/^(mr|mrs|ms|dr|prof|shri|smt)\.?$/i.test(name)) continue;
     if (seen.has(din)) continue;
     seen.add(din);
@@ -136,7 +136,7 @@ export function regexBoardDinsFromText(text: string): BoardSeat[] {
     const dm = line.match(/\b([0-9]{8})\b/);
     if (!dm) continue;
     const din = normDin(dm[1]!);
-    if (!din || seen.has(din)) continue;
+    if (!din || isPlaceholderDin(din) || seen.has(din)) continue;
     const before = line.slice(0, dm.index).trim();
     const nameMatch = before.match(
       /([A-Z][A-Za-z.'\-]+(?:\s+[A-Z][A-Za-z.'\-]+){0,4})\s*$/,
@@ -205,7 +205,8 @@ async function llmExtractDirectors(
     if (!name) continue;
     if (/not found|n\/a|na|unknown/i.test(dinRaw)) continue;
     const din = normDin(dinRaw);
-    if (!din || din.length !== 8) continue;
+    if (!din || isPlaceholderDin(din)) continue;
+    if (!evidence.includes(din)) continue;
     if (seen.has(din)) continue;
     seen.add(din);
     seats.push({
@@ -225,7 +226,7 @@ function mergeSeats(...groups: BoardSeat[][]): BoardSeat[] {
   for (const g of groups) {
     for (const s of g) {
       const din = normDin(s.din);
-      if (!din || din.length !== 8) continue;
+      if (!din || din.length !== 8 || isPlaceholderDin(din)) continue;
       const prev = byDin.get(din);
       if (!prev) {
         byDin.set(din, { ...s, din });

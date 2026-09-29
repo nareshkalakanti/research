@@ -58,6 +58,13 @@ function sliceRelated(
   const people = peopleAll.filter((p) =>
     p.tickers.some((t) => t.toUpperCase() === focus),
   );
+  if (!people.length) {
+    return {
+      companies: f.companies.filter((c) => c.ticker.toUpperCase() === focus),
+      people: [],
+      outside: [],
+    };
+  }
   const keep = new Set<string>([focus]);
   for (const p of people) {
     for (const t of p.tickers) {

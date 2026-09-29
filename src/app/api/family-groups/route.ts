@@ -6,10 +6,7 @@ import {
   renameFamilyGroup,
   searchListedCompanies,
 } from "@/lib/family-group-edits";
-import {
-  invalidateGovernanceMapCache,
-  loadGovernanceFamilyMap,
-} from "@/lib/governance-map";
+import { invalidateGovernanceMapCache } from "@/lib/governance-map";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,13 +45,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "Need a group name" }, { status: 400 });
     }
     invalidateGovernanceMapCache();
-    const families = loadGovernanceFamilyMap();
-    const row = families.find((g) => g.group_id === saved.group_id) || null;
     return NextResponse.json({
       ok: true as const,
-      group: row,
       group_id: saved.group_id,
-      total: families.length,
     });
   }
   if (!groupId) {
@@ -79,7 +72,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Need rename, add, or remove" }, { status: 400 });
   }
   invalidateGovernanceMapCache();
-  const families = loadGovernanceFamilyMap();
-  const row = families.find((g) => g.group_id === groupId) || null;
-  return NextResponse.json({ ok: true as const, group: row, total: families.length });
+  return NextResponse.json({ ok: true as const, group_id: groupId });
 }

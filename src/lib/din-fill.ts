@@ -18,7 +18,7 @@ import { zaubaCorpGoogleUrl, zaubaCorpSearchQuery, zaubaCorpSiteSearchUrl } from
 import { searchGrowwListings } from "./web-mcap";
 
 const OCR_PROMPT =
-  "Transcribe this Current Directors table. Keep company name, each 8-digit DIN, director name, designation. Plain text, one person per line.";
+  "Transcribe the board table. Keep the company name and any NSE:/BSE: ticker. For each person keep name, role/position, and 8-digit DIN. HTML table or plain text, one person per line.";
 
 export type DinFillJob = {
   ticker: string;
@@ -92,28 +92,36 @@ export async function applyDinScreenshot(opts: {
     );
   }
 
+  const hintTicker = (parsed.ticker || "").trim().toUpperCase();
   const companies = loadAllCompanies();
-  let picked = parsed.company
-    ? pickUniqueListing(parsed.company, companies)
+  let picked = hintTicker
+    ? companies.find((c) => c.ticker.toUpperCase() === hintTicker) || null
     : null;
+  if (!picked && parsed.company) {
+    picked = pickUniqueListing(parsed.company, companies, hintTicker);
+  }
   if (!picked && parsed.company) {
     try {
       const remote = await searchGrowwListings(parsed.company, 8);
-      const g = pickUniqueListing(parsed.company, remote);
+      const g = pickUniqueListing(parsed.company, remote, hintTicker);
       if (g) {
         await bootstrapCompanyTicker(g.ticker, {
           name: g.name,
           market: g.market,
         });
         invalidateCompanyCache();
-        picked = pickUniqueListing(parsed.company, loadAllCompanies());
+        picked = pickUniqueListing(
+          parsed.company,
+          loadAllCompanies(),
+          hintTicker,
+        );
       }
     } catch {
       /* local listing match still usable */
     }
   }
 
-  let ticker = (picked?.ticker || "").trim().toUpperCase();
+  let ticker = (picked?.ticker || hintTicker || "").trim().toUpperCase();
   let co = ticker
     ? loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker) ||
       companies.find((c) => c.ticker.toUpperCase() === ticker)
@@ -129,8 +137,8 @@ export async function applyDinScreenshot(opts: {
     const label = (parsed.company || "").trim();
     throw new Error(
       label
-        ? `Could not match “${label}” to a ticker. Paste a Zauba page that shows the company name.`
-        : "No company name in the screenshot, so nothing was saved.",
+        ? `Could not match “${label}” to a ticker.`
+        : "No company name or NSE/BSE ticker in the screenshot, so nothing was saved.",
     );
   }
   ticker = co.ticker.toUpperCase();
