@@ -92,6 +92,40 @@ function sliceExternal(opts: {
   return { companies: [], people, outside: opts.outside };
 }
 
+export type FamilyAddWork = {
+  groupId?: string;
+  pct: number;
+  label: string;
+  detail: string;
+  done?: boolean;
+  error?: boolean;
+};
+
+export function FamilyAddProgress({
+  work,
+}: {
+  work: FamilyAddWork;
+}) {
+  return (
+    <div
+      className={`filter-progress fam-add-progress${work.error ? " is-error" : ""}${work.done ? " is-done" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="filter-progress-track">
+        <div
+          className="filter-progress-fill"
+          style={{ width: `${work.pct}%` }}
+        />
+      </div>
+      <span className="filter-progress-text">
+        <strong>{work.label}</strong>
+        {work.detail ? ` · ${work.detail}` : null}
+      </span>
+    </div>
+  );
+}
+
 export function FamilyMapCards({
   rows,
   onPerson,
@@ -101,6 +135,7 @@ export function FamilyMapCards({
   onRemoveCompany,
   onAddCompany,
   companySearch,
+  addWork,
 }: {
   rows: FamilyRow[];
   onTicker?: (ticker: string, group: FamilyRow) => void;
@@ -110,10 +145,15 @@ export function FamilyMapCards({
   editable?: boolean;
   onRename?: (group: FamilyRow, label: string) => Promise<void> | void;
   onRemoveCompany?: (group: FamilyRow, ticker: string) => Promise<void> | void;
-  onAddCompany?: (group: FamilyRow, ticker: string) => Promise<void> | void;
+  onAddCompany?: (
+    group: FamilyRow,
+    ticker: string,
+    name?: string,
+  ) => Promise<void> | void;
   companySearch?: (
     q: string,
   ) => Promise<Array<{ ticker: string; name: string }>>;
+  addWork?: FamilyAddWork | null;
 }) {
   const allCompanies = rows.flatMap((f) => f.companies);
   return (
@@ -151,6 +191,7 @@ export function FamilyMapCards({
               onRemoveCompany={onRemoveCompany}
               onAddCompany={onAddCompany}
               companySearch={companySearch}
+              addWork={addWork}
             />
           );
         })}
@@ -171,6 +212,7 @@ function FamilyGroupCard({
   onRemoveCompany,
   onAddCompany,
   companySearch,
+  addWork,
 }: {
   f: FamilyRow;
   onPerson: (personId: string, name: string, group: FamilyRow) => void;
@@ -178,10 +220,15 @@ function FamilyGroupCard({
   editable?: boolean;
   onRename?: (group: FamilyRow, label: string) => Promise<void> | void;
   onRemoveCompany?: (group: FamilyRow, ticker: string) => Promise<void> | void;
-  onAddCompany?: (group: FamilyRow, ticker: string) => Promise<void> | void;
+  onAddCompany?: (
+    group: FamilyRow,
+    ticker: string,
+    name?: string,
+  ) => Promise<void> | void;
   companySearch?: (
     q: string,
   ) => Promise<Array<{ ticker: string; name: string }>>;
+  addWork?: FamilyAddWork | null;
 }) {
   const [focus, setFocus] = useState<string | null>(null);
   const [externalOnly, setExternalOnly] = useState(false);
@@ -345,7 +392,11 @@ function FamilyGroupCard({
         <GroupAddCompany
           exclude={new Set(f.companies.map((c) => c.ticker.toUpperCase()))}
           search={companySearch}
-          onAdd={(ticker) => onAddCompany(f, ticker)}
+          busy={!!addWork && !addWork.done && addWork.groupId === f.group_id}
+          work={
+            addWork && addWork.groupId === f.group_id ? addWork : null
+          }
+          onAdd={(ticker, name) => onAddCompany(f, ticker, name)}
         />
       ) : null}
     </article>
@@ -406,10 +457,14 @@ function GroupAddCompany({
   exclude,
   search,
   onAdd,
+  busy,
+  work,
 }: {
   exclude: Set<string>;
   search: (q: string) => Promise<Array<{ ticker: string; name: string }>>;
-  onAdd: (ticker: string) => Promise<void> | void;
+  onAdd: (ticker: string, name: string) => Promise<void> | void;
+  busy?: boolean;
+  work?: FamilyAddWork | null;
 }) {
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<Array<{ ticker: string; name: string }>>([]);
@@ -418,7 +473,7 @@ function GroupAddCompany({
   );
   useEffect(() => {
     const needle = q.trim();
-    if (needle.length < 2) {
+    if (busy || needle.length < 2) {
       setHits([]);
       setAlready([]);
       return;
@@ -434,18 +489,20 @@ function GroupAddCompany({
       });
     }, 200);
     return () => window.clearTimeout(t);
-  }, [q, exclude, search]);
+  }, [q, exclude, search, busy]);
   const show = hits.length || already.length;
   return (
     <div className="gov-family-add">
       <input
         type="search"
         className="gov-family-add-input"
-        placeholder="Add company…"
+        placeholder={busy ? "Adding company…" : "Add company…"}
         value={q}
+        disabled={busy}
         onChange={(e) => setQ(e.target.value)}
       />
-      {show ? (
+      {work ? <FamilyAddProgress work={work} /> : null}
+      {show && !busy ? (
         <ul className="gov-family-add-hits">
           {already.map((h) => (
             <li key={`have-${h.ticker}`}>
@@ -460,7 +517,7 @@ function GroupAddCompany({
               <button
                 type="button"
                 onClick={() => {
-                  void onAdd(h.ticker);
+                  void onAdd(h.ticker, h.name);
                   setQ("");
                   setHits([]);
                   setAlready([]);

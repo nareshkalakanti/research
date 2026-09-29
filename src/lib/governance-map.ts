@@ -31,7 +31,7 @@ import {
   loadAllFamilyLabels,
   scheduleFamilyGroupRefine,
 } from "./family-group-refine";
-import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
+import { applyFamilyGroupEdits, loadFamilyGroupEditMap, persistAllFamilyEditListings } from "./family-group-edits";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 
@@ -801,6 +801,8 @@ export function loadGovernanceFamilyMap(opts?: {
     return familyMapCache.groups;
   }
 
+  persistAllFamilyEditListings();
+
   const seats = loadAllBoardSeats();
   if (!seats.length) return [];
 
@@ -901,6 +903,35 @@ export function loadGovernanceFamilyMap(opts?: {
     if (borrowed) declaredByTicker.delete(ticker);
   }
 
+  const listingMeta = new Map<string, GovFamilyCompany>();
+  try {
+    const rows = getGov()
+      .prepare(`SELECT ticker, name, market FROM companies`)
+      .all() as Array<{ ticker: string; name: string; market: string }>;
+    for (const r of rows) {
+      const ticker = (r.ticker || "").toUpperCase();
+      if (!ticker || metaByTicker.has(ticker) || listingMeta.has(ticker)) continue;
+      let market = (r.market || "NSE").toUpperCase();
+      const isSme = market === "NSE SME" || market === "BSE SME";
+      if (!isSme && market.startsWith("NSE")) market = "NSE";
+      else if (!isSme && market.startsWith("BSE")) market = "BSE";
+      const mcap = metrics.get(ticker)?.market_cap_cr ?? null;
+      listingMeta.set(ticker, {
+        ticker,
+        name: (r.name || ticker).trim() || ticker,
+        market,
+        cap_code: mcapCapCode(mcap),
+        market_cap_cr: mcap,
+        is_sme: isSme,
+        family_directors: 0,
+        directors: 0,
+        din_verified: 0,
+      });
+    }
+  } catch {
+    /* companies table optional */
+  }
+
   const brandHouses = new Set<string>();
   for (const seeds of seedHousesByTicker.values()) {
     for (const house of seeds) brandHouses.add(house);
@@ -949,7 +980,7 @@ export function loadGovernanceFamilyMap(opts?: {
     for (const t of tickers) {
       if (seen.has(t)) continue;
       seen.add(t);
-      const meta = metaByTicker.get(t);
+      const meta = metaByTicker.get(t) ?? listingMeta.get(t);
       if (!meta) continue;
       const needle = houseSurnameKey(house);
       const family_directors = needle
