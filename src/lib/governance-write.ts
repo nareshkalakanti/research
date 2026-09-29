@@ -830,6 +830,39 @@ export function addManualDinSeats(opts: {
   });
 }
 
+export function tickerMostSharingDins(dins: string[]): string | null {
+  const uniq = [
+    ...new Set(dins.map((d) => normDin(d)).filter((d) => d.length === 8)),
+  ];
+  if (uniq.length < 2) return null;
+  if (!fs.existsSync(GOV_PATH)) return null;
+  const db = new Database(GOV_PATH, { readonly: true, fileMustExist: true });
+  try {
+    db.pragma("query_only = ON");
+    const ph = uniq.map(() => "?").join(",");
+    const rows = db
+      .prepare(
+        `SELECT UPPER(s.ticker) AS ticker, COUNT(DISTINCT d.din) AS n
+         FROM board_seats s
+         JOIN directors d ON d.person_id = s.person_id
+         WHERE d.din IN (${ph})
+         GROUP BY UPPER(s.ticker)
+         ORDER BY n DESC`,
+      )
+      .all(...uniq) as Array<{ ticker: string; n: number }>;
+    const top = rows[0];
+    if (!top) return null;
+    const need = Math.min(3, uniq.length);
+    if (top.n < need) return null;
+    if (rows[1] && rows[1].n === top.n) return null;
+    return top.ticker;
+  } catch {
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
 export function removeBoardSeat(opts: {
   ticker: string;
   personId: string;

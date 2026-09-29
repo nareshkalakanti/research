@@ -32,6 +32,10 @@ function stripTags(s: string): string {
   return decodeEntities(s.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 }
 
+function plainBoardText(text: string): string {
+  return stripTags(text || "");
+}
+
 /** Vision OCR often returns the Zauba HTML table, not plain rows. */
 export function flattenOcrHtml(text: string): string {
   const raw = text || "";
@@ -182,11 +186,40 @@ function splitNameAndRole(rest: string): { name: string; designation: string } {
   return { name: cleaned, designation: "Director" };
 }
 
+const ZAUBA_HOUSE =
+  /(?:Directors|Personnel)\s+(?:&|and|&amp;)?\s*Key\s*Managerial\s*Personnel\s+of\s+(.+?)(?=\s+Current\s+Directors|\s+DIN\b|\s+\d{7,9}\b|$)/i;
+
 export function parseListedTickerFromBoardText(text: string): string | null {
   const blob = flattenOcrHtml(text || "");
   const m = blob.match(/\(\s*(?:NSE|BSE)\s*:\s*([A-Z][A-Z0-9-]{0,19})\s*\)/i);
   const t = (m?.[1] || "").toUpperCase();
   return t || null;
+}
+
+export function parseCompanyLabelsFromBoardText(text: string): string[] {
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  const add = (raw: string) => {
+    const name = raw.replace(/\s+/g, " ").trim();
+    if (name.length < 3 || name.length > 90) return;
+    if (/^(din|director|current)$/i.test(name)) return;
+    const key = name.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    labels.push(name);
+  };
+  const nseCo = parseCompanyFromDirectorTable(text);
+  if (nseCo) add(nseCo);
+  for (const blob of [plainBoardText(text), flattenOcrHtml(text || "")]) {
+    const titled = blob.match(ZAUBA_HOUSE);
+    if (titled) add(titled[1]!);
+    for (const m of blob.matchAll(
+      /Personnel of\s+(.+?)(?=\s+Current\s+Directors|\s+DIN\b|\s+\d{7,9}\b|<|$)/gi,
+    )) {
+      add(m[1]!);
+    }
+  }
+  return labels;
 }
 
 export function parseCompanyFromDirectorTable(text: string): string | null {
@@ -199,14 +232,18 @@ export function parseCompanyFromDirectorTable(text: string): string | null {
     const lim = bit.match(/([A-Z][A-Za-z0-9 .,'&()-]{4,90}?\bLimited)\s*$/i);
     if (lim) return lim[1]!.replace(/\s+/g, " ").trim();
   }
-  const blob = flattenOcrHtml(text || "").replace(/\s+/g, " ").trim();
-  const titled = blob.match(
-    /(?:Directors|Personnel)\s+(?:&|and)?\s*Key\s*Managerial\s*Personnel\s+of\s+([A-Za-z0-9][A-Za-z0-9 &.'/-]{2,80}?)(?:\s+Current|\s+DIN\b|$)/i,
-  );
-  if (titled) return titled[1]!.replace(/\s+/g, " ").trim();
+  const blob = [plainBoardText(text), flattenOcrHtml(text || "")]
+    .map((t) => t.replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim())
+    .filter(Boolean)
+    .join(" \n ");
+  const titled = blob.match(ZAUBA_HOUSE);
+  if (titled) {
+    const name = titled[1]!.replace(/\s+/g, " ").trim();
+    if (name.length >= 3) return name;
+  }
   if (parseListedTickerFromBoardText(text)) return null;
   const of = blob.match(
-    /\bof\s+([A-Za-z0-9][A-Za-z0-9 &.'/-]{2,80}?)(?:\s+Current|\s+DIN\b|$)/i,
+    /\bof\s+([A-Za-z0-9][A-Za-z0-9 &.'()/-]{2,80}?)(?=\s+Current\s+Directors|\s+DIN\b|\s+\d{7,9}\b|$)/i,
   );
   return of ? of[1]!.replace(/\s+/g, " ").trim() : null;
 }
@@ -252,8 +289,9 @@ export function parseDirectorSeatsFromTable(text: string): BoardSeat[] {
 }
 
 export function parseScreenshotBoard(text: string): ScreenshotBoardExtract {
+  const labels = parseCompanyLabelsFromBoardText(text);
   return {
-    company: parseCompanyFromDirectorTable(text),
+    company: labels[0] || parseCompanyFromDirectorTable(text),
     ticker: parseListedTickerFromBoardText(text),
     seats: parseDirectorSeatsFromTable(text),
   };
