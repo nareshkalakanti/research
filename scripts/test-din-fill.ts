@@ -13,6 +13,8 @@ const gold = JSON.parse(
   text: string;
   company: string;
   seats: Array<{ din: string; name: string }>;
+  zauba_table: string;
+  zauba_html: string;
 };
 
 const got = parseScreenshotBoard(gold.text);
@@ -21,6 +23,16 @@ assert.equal(got.seats.length, gold.seats.length);
 assert.equal(got.seats[0]?.din, gold.seats[0]?.din);
 assert.equal(got.seats[0]?.name, gold.seats[0]?.name);
 assert.equal(got.seats[1]?.din, gold.seats[1]?.din);
+
+const table = parseScreenshotBoard(gold.zauba_table);
+assert.equal(table.seats.length, 4);
+assert.equal(table.seats[0]?.din, "00056364");
+assert.equal(table.seats[2]?.designation.toLowerCase().includes("additional"), true);
+
+const html = parseScreenshotBoard(gold.zauba_html);
+assert.equal(html.seats.length, 4);
+assert.equal(html.seats[0]?.name, "ALPHA PERSON");
+assert.equal(html.seats[2]?.din, "02647994");
 
 assert.equal(zaubaCorpSearchQuery("Example Movers Ltd"), "Example Movers Ltd zauba corp");
 
