@@ -153,7 +153,7 @@ export function DinFillResearchPanel() {
       };
       if (!web.ok) throw new Error(webJson.error || "Web DIN scan failed");
       let msg = webJson.message || "Web DIN done";
-      if (!(webJson.saved ?? 0)) {
+      if (!(webJson.saved ?? 0) && tickers.length === 1) {
         const nse = await fetch("/api/governance-scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -185,8 +185,9 @@ export function DinFillResearchPanel() {
   return (
     <div className="buyback-research-panel din-fill-panel">
       <p className="buyback-status">
-        One missing board at a time. <strong>Scan</strong> tries web + NSE DINs
-        for this name; or paste a Zauba screenshot (⌘V) into the box.
+        One missing board at a time. <strong>Scan</strong> is this ticker
+        (web, then NSE if empty). <strong>Scan 8</strong> is web only — paste
+        Zauba if that misses. Or ⌘V a screenshot.
       </p>
 
       {current ? (
