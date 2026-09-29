@@ -9082,6 +9082,20 @@ button.result-tag {
   font-size: 0.8rem;
 }
 
+.fam-add-progress {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.fam-dash > .fam-add-progress {
+  margin: 0 0 10px;
+}
+
+.fam-dash-create .fam-add-progress {
+  flex: 1 1 100%;
+  margin-top: 4px;
+}
+
 .gov-family-add-hits {
   list-style: none;
   margin: 4px 0 0;

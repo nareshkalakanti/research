@@ -7,6 +7,8 @@ import path from "path";
 import Database from "better-sqlite3";
 import { DATA_DIR } from "./sqlite-utils";
 import { groupFingerprint } from "./family-group-refine";
+import { listListingCompaniesLite } from "./db";
+import { ensureGovernanceCompanyStub } from "./governance-write";
 
 export type FamilyGroupEdit = {
   group_id: string;
@@ -124,7 +126,37 @@ function readOne(groupId: string): FamilyGroupEdit {
   }
 }
 
+function listingByTicker(): Map<string, { name: string; market: string }> {
+  const map = new Map<string, { name: string; market: string }>();
+  try {
+    for (const c of listListingCompaniesLite()) {
+      map.set(c.ticker, { name: c.name, market: c.market });
+    }
+  } catch {
+    /* about db optional */
+  }
+  return map;
+}
+
+function persistAddedTickers(tickers: string[]): void {
+  const listings = listingByTicker();
+  for (const t of tickers) {
+    const hit = listings.get(t);
+    ensureGovernanceCompanyStub({
+      ticker: t,
+      name: hit?.name,
+      market: hit?.market,
+    });
+  }
+}
+
+/** Write listing stubs for every ticker in saved group edits (so the map can show them). */
+export function persistAllFamilyEditListings(): void {
+  for (const e of loadFamilyGroupEditMap().values()) persistAddedTickers(e.add);
+}
+
 function saveEdit(edit: FamilyGroupEdit): void {
+  persistAddedTickers(edit.add);
   const db = openWrite();
   try {
     if (!edit.label && !edit.add.length && !edit.remove.length) {

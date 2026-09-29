@@ -126,6 +126,43 @@ export function getGovernanceWriteDb(): Database.Database {
   return db;
 }
 
+/** Listing row so family-map can show a ticker with no board seats yet. */
+export function ensureGovernanceCompanyStub(opts: {
+  ticker: string;
+  name?: string | null;
+  market?: string | null;
+}): boolean {
+  const ticker = safeStr(opts.ticker).toUpperCase();
+  if (!ticker) return false;
+  let market: string;
+  try {
+    market = requireMarket(opts.market);
+  } catch {
+    market = "NSE";
+  }
+  const name = safeStr(opts.name) || ticker;
+  const now = utcNow();
+  const db = getGovernanceWriteDb();
+  db.prepare(
+    `
+    INSERT INTO companies (
+      ticker, market, name, cin, isin, notes,
+      sector, industry, sub_sector, updated_at
+    )
+    VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?)
+    ON CONFLICT(ticker) DO UPDATE SET
+      name=CASE
+        WHEN excluded.name != '' AND excluded.name != excluded.ticker
+          THEN excluded.name
+        ELSE companies.name
+      END,
+      market=excluded.market,
+      updated_at=excluded.updated_at
+    `,
+  ).run(ticker, market, name, now);
+  return true;
+}
+
 export function tickerHasDinBoard(ticker: string): boolean {
   const key = safeStr(ticker).toUpperCase();
   const row = getGovernanceWriteDb()

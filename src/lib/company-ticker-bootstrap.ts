@@ -8,6 +8,7 @@ import { ensureCompanyAboutRow, saveYfAboutProfile } from "./company-about-write
 import { upsertClassification } from "./classifications-write";
 import { invalidateCompanyCache } from "./db";
 import { upsertMetrics } from "./metrics";
+import { ensureGovernanceCompanyStub } from "./governance-write";
 import { openSqliteNamed } from "./sqlite-utils";
 import { createNseBuybackSession } from "./nse-buybacks";
 import { fetchQuoteDetailed, fetchYfAboutProfile } from "./yfinance";
@@ -168,6 +169,8 @@ export async function bootstrapCompanyTicker(
   );
   if (!nse && !hasQuote && !webOk) return false;
   if (!ensureCompanyAboutRow(key, { name, market })) return false;
+
+  ensureGovernanceCompanyStub({ ticker: key, name, market });
 
   const db = new Database(ABOUT_PATH);
   try {

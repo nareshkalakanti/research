@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FamilyMapCards, type FamilyRow } from "@/components/FamilyMapCards";
+import { FamilyMapCards, type FamilyRow, FamilyAddProgress, type FamilyAddWork } from "@/components/FamilyMapCards";
 import {
   PeopleBoardCards,
   type PersonBoardRow,
@@ -25,6 +25,7 @@ export function FamilyDashboard() {
   const [newQ, setNewQ] = useState("");
   const [newHits, setNewHits] = useState<Array<{ ticker: string; name: string }>>([]);
   const [creating, setCreating] = useState(false);
+  const [addWork, setAddWork] = useState<FamilyAddWork | null>(null);
   const [dashView, setDashView] = useState<DashView>("groups");
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
@@ -34,7 +35,7 @@ export function FamilyDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ view: "family", page: "1", pageSize: "80" });
+      const params = new URLSearchParams({ view: "family", page: "1", pageSize: "200" });
       const res = await fetch(`/api/governance-map?${params}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as { rows?: FamilyRow[] };
@@ -91,6 +92,25 @@ export function FamilyDashboard() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
+
+  useEffect(() => {
+    if (!addInFlight) return;
+    const t = window.setInterval(() => {
+      setAddWork((p) => {
+        if (!p || p.done || p.error) return p;
+        return { ...p, pct: Math.min(p.pct + 4, 86) };
+      });
+    }, 450);
+    return () => window.clearInterval(t);
+  }, [addInFlight]);
+
+  useEffect(() => {
+    if (!addWork?.done && !addWork?.error) return;
+    const t = window.setTimeout(() => setAddWork(null), addWork.error ? 3200 : 1400);
+    return () => window.clearTimeout(t);
+  }, [addWork?.done, addWork?.error]);
 
   useEffect(() => {
     if (dashView === "people") void loadPeople();
@@ -164,6 +184,11 @@ export function FamilyDashboard() {
     const label = newName.replace(/\s+/g, " ").trim();
     if (label.length < 2 || creating) return;
     setCreating(true);
+    setAddWork({
+      pct: 12,
+      label: "Saving group",
+      detail: `${label}${newTickers.length ? ` · ${newTickers.length} companies` : ""}`,
+    });
     try {
       const res = await fetch("/api/family-groups", {
         method: "POST",
@@ -175,14 +200,32 @@ export function FamilyDashboard() {
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setAddWork({
+        pct: 72,
+        label: "Refreshing map",
+        detail: label,
+      });
       setAdding(false);
       setNewName("");
       setNewTickers([]);
       setNewQ("");
       setQ(label);
       await load();
+      setAddWork({
+        pct: 100,
+        label: "Done",
+        detail: label,
+        done: true,
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+      setAddWork({
+        pct: 100,
+        label: "Failed",
+        detail: msg,
+        error: true,
+      });
     } finally {
       setCreating(false);
     }
@@ -280,6 +323,9 @@ export function FamilyDashboard() {
           ) : null}
         </div>
       </div>
+      {dashView === "groups" && addWork ? (
+        <FamilyAddProgress work={addWork} />
+      ) : null}
       {dashView === "groups" && adding ? (
         <form
           className="fam-dash-create"
@@ -350,6 +396,19 @@ export function FamilyDashboard() {
           >
             {creating ? "Saving…" : "Create group"}
           </button>
+          {creating || (addWork && !addWork.groupId) ? (
+            <FamilyAddProgress
+              work={
+                addWork && !addWork.groupId
+                  ? addWork
+                  : {
+                      pct: 18,
+                      label: "Saving group",
+                      detail: newName.trim() || "New group",
+                    }
+              }
+            />
+          ) : null}
         </form>
       ) : null}
       {error && dashView !== "stock" ? (
@@ -377,6 +436,7 @@ export function FamilyDashboard() {
         <FamilyMapCards
           rows={filtered}
           editable
+          addWork={addWork}
           onPerson={(id, name) => openPerson(id, name)}
           chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
           companySearch={companySearch}
@@ -402,19 +462,69 @@ export function FamilyDashboard() {
             });
             await load();
           }}
-          onAddCompany={async (g, ticker) => {
+          onAddCompany={async (g, ticker, name) => {
             if (!g.group_id) return;
-            await fetch("/api/tickers", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ ticker }),
+            const shown = ticker.trim().toUpperCase();
+            setAddWork({
+              groupId: g.group_id,
+              pct: 8,
+              label: "Listing",
+              detail: `${shown} · exchange, quote, profile`,
             });
-            await fetch("/api/family-groups", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ group_id: g.group_id, add: true, ticker }),
-            });
-            await load();
+            try {
+              const boot = await fetch("/api/tickers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  ticker: shown,
+                  name: name || shown,
+                }),
+              });
+              const bootJson = (await boot.json()) as { ok?: boolean; error?: string };
+              if (!boot.ok || bootJson.ok === false) {
+                throw new Error(bootJson.error || `Add listing failed (${boot.status})`);
+              }
+              setAddWork({
+                groupId: g.group_id,
+                pct: 58,
+                label: "Group",
+                detail: `${shown} → ${g.family_name}`,
+              });
+              const fam = await fetch("/api/family-groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  group_id: g.group_id,
+                  add: true,
+                  ticker: shown,
+                }),
+              });
+              if (!fam.ok) throw new Error(`Save group failed (${fam.status})`);
+              setAddWork({
+                groupId: g.group_id,
+                pct: 78,
+                label: "Map",
+                detail: "Refreshing groups",
+              });
+              await load();
+              setAddWork({
+                groupId: g.group_id,
+                pct: 100,
+                label: "Done",
+                detail: `${shown} in ${g.family_name}`,
+                done: true,
+              });
+            } catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              setError(msg);
+              setAddWork({
+                groupId: g.group_id,
+                pct: 100,
+                label: "Failed",
+                detail: msg,
+                error: true,
+              });
+            }
           }}
         />
       )}
