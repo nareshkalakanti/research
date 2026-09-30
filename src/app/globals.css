@@ -8561,6 +8561,7 @@ button.result-tag {
 
 .fam-graph {
   position: relative;
+  overflow: hidden;
   background-color: #fafafb;
   background-image: radial-gradient(#e4e7ec 1px, transparent 1px);
   background-size: 16px 16px;
@@ -8711,10 +8712,18 @@ button.result-tag {
 }
 
 .fam-node.person text {
-  fill: #475467;
+  fill: #101828;
   font-family: var(--font-ui, inherit);
-  font-weight: 500;
-  font-size: 9px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.fam-node text.fam-mcap-tip {
+  fill: #344054;
+  font-family: var(--font-ui, inherit);
+  font-weight: 600;
+  font-size: 10px;
+  stroke-width: 3px;
 }
 
 .fam-legend {
@@ -8779,8 +8788,96 @@ button.result-tag {
 }
 
 .fam-legend .outside::before {
-  background: #fff;
-  border: 1.5px dashed #667085;
+  background: transparent;
+  border: 1.5px dashed #98a2b3;
+}
+
+.fam-zoom {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+}
+
+.fam-legend .fam-zoom button::before {
+  display: none;
+}
+
+.fam-legend .fam-zoom button {
+  min-width: 28px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.holdings-mv {
+  padding: 18px 20px 32px;
+  max-width: 1100px;
+}
+
+.holdings-mv-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.holdings-mv-head h1 {
+  margin: 0 0 8px;
+  font-size: 1.2rem;
+}
+
+.holdings-mv-head p {
+  margin: 0;
+  max-width: 52rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.holdings-mv-lambda {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
+  font-size: 0.84rem;
+}
+
+.holdings-mv-table-wrap {
+  overflow-x: auto;
+}
+
+.holdings-mv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.holdings-mv-table th,
+.holdings-mv-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.holdings-mv-table .is-up {
+  color: #047857;
+}
+
+.holdings-mv-table .is-down {
+  color: #b91c1c;
+}
+
+.holdings-mv-tv {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.holdings-mv-tv:hover {
+  color: var(--accent, #2563eb);
+  text-decoration: underline;
 }
 
 .gov-family-chips {
@@ -24008,4 +24105,59 @@ tr.wl-prove-fail td {
   margin: 0;
   font-size: 0.84rem;
   color: var(--muted);
+}
+
+.din-fill-review .din-fill-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.din-fill-review .din-fill-field input,
+.din-fill-review .ticker-suggest {
+  width: 100%;
+}
+
+.din-fill-listing {
+  margin: -4px 0 12px;
+  font-size: 0.84rem;
+  color: var(--text);
+}
+
+.din-fill-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.din-fill-btn {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  background: #2563eb;
+  color: #fff;
+  cursor: pointer;
+}
+
+.din-fill-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.din-fill-btn-quiet {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.din-fill-saved {
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  color: #047857;
 }

@@ -98,6 +98,77 @@ export async function shrinkImageDataUrlForOcr(
   }
 }
 
+async function sipsPixelSize(
+  file: string,
+): Promise<{ w: number; h: number } | null> {
+  try {
+    const { stdout } = await execFileAsync(
+      "sips",
+      ["-g", "pixelWidth", "-g", "pixelHeight", file],
+      { timeout: 8_000 },
+    );
+    const w = Number(/pixelWidth:\s*(\d+)/.exec(stdout)?.[1]);
+    const h = Number(/pixelHeight:\s*(\d+)/.exec(stdout)?.[1]);
+    if (!w || !h) return null;
+    return { w, h };
+  } catch {
+    return null;
+  }
+}
+
+/** Top band of a screenshot (card heading) for a second OCR pass. */
+export async function cropImageDataUrlTop(
+  dataUrl: string,
+  fraction = 0.38,
+): Promise<string | null> {
+  const m = /^data:(image\/(?:png|jpeg|jpg));base64,(.+)$/i.exec(dataUrl);
+  if (!m) return null;
+  const mime = m[1]!.toLowerCase().includes("png") ? "png" : "jpeg";
+  const raw = Buffer.from(m[2]!, "base64");
+  const frac = Math.min(0.55, Math.max(0.18, fraction));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ocr-crop-"));
+  const input = path.join(dir, `in.${mime === "png" ? "png" : "jpg"}`);
+  const output = path.join(dir, "out.jpg");
+  try {
+    fs.writeFileSync(input, raw);
+    const size = await sipsPixelSize(input);
+    if (!size) return null;
+    const ch = Math.max(64, Math.round(size.h * frac));
+    await execFileAsync(
+      "sips",
+      [
+        "--cropOffset",
+        "0",
+        "0",
+        "--cropToHeightWidth",
+        String(ch),
+        String(size.w),
+        "-s",
+        "format",
+        "jpeg",
+        "-s",
+        "formatOptions",
+        "75",
+        input,
+        "--out",
+        output,
+      ],
+      { timeout: 20_000 },
+    );
+    const out = fs.readFileSync(output);
+    if (!out.length) return null;
+    return `data:image/jpeg;base64,${out.toString("base64")}`;
+  } catch {
+    return null;
+  } finally {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
 /**
  * Render first `maxPages` of a PDF to image data URLs via pdftoppm.
  * Default JPEG @ 110 DPI keeps vision-OCR prompts under small contexts.

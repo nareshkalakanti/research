@@ -217,6 +217,8 @@ export type GovFamilyGroup = {
   people?: GovFamilyPerson[];
   /** Outside companies where those people also sit. */
   outside?: GovFamilyOutside[];
+  /** Cap / name for every ticker on this map (group + outside). */
+  listings?: GovFamilyOutside[];
 };
 
 const FAMILY_GRAPH_MAX_OUTSIDE = 24;
@@ -2025,9 +2027,11 @@ export function loadGovernanceFamilyMap(opts?: {
         cap_code: metaByTicker.get(t)!.cap_code,
         market_cap_cr: metaByTicker.get(t)!.market_cap_cr,
       }));
-    const shown = new Set([...inGroup, ...outside.map((o) => o.ticker)]);
     const ranked = [...people.values()]
-      .map((p) => ({ ...p, tickers: p.tickers.filter((x) => shown.has(x)) }))
+      .map((p) => ({
+        ...p,
+        tickers: p.tickers.filter((x) => metaByTicker.has(x)),
+      }))
       .filter((p) => p.tickers.length >= 1)
       .sort((a, b) => b.tickers.length - a.tickers.length);
     const picked: GovFamilyPerson[] = [];
@@ -2053,6 +2057,20 @@ export function loadGovernanceFamilyMap(opts?: {
     );
     const linked = new Set(g.people.flatMap((p) => p.tickers));
     g.outside = outside.filter((o) => linked.has(o.ticker));
+    const listingKeys = new Set<string>();
+    for (const c of g.companies) listingKeys.add(c.ticker.toUpperCase());
+    for (const p of g.people) {
+      for (const t of p.tickers) listingKeys.add(t.toUpperCase());
+    }
+    g.listings = [...listingKeys]
+      .map((t) => metaByTicker.get(t))
+      .filter((row): row is GovFamilyCompany => Boolean(row))
+      .map((row) => ({
+        ticker: row.ticker,
+        name: row.name,
+        cap_code: row.cap_code,
+        market_cap_cr: row.market_cap_cr ?? null,
+      }));
   }
 
   const editMap = loadFamilyGroupEditMap();

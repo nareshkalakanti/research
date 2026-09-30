@@ -129,6 +129,70 @@ function qianfanConfig(): { base: string; model: string } | null {
   return { base, model };
 }
 
+const OCR_PLAIN_RETRY =
+  "Transcribe visible text as plain lines. For tables: one row per line, columns separated by tab. Never emit HTML or repeat markup.";
+
+function isOcrRepeatAbort(msg: string): boolean {
+  return /token repeat|repeat limit|repetition/i.test(msg);
+}
+
+async function ocrChatCompletions(opts: {
+  base: string;
+  model: string;
+  image: string;
+  prompt: string;
+  maxTokens: number;
+  numCtx: number;
+  repeatPenalty: number;
+}): Promise<string> {
+  const shortPrompt =
+    opts.prompt.length > 280 ? `${opts.prompt.slice(0, 280)}…` : opts.prompt;
+  const res = await fetch(`${opts.base}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: opts.model,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: shortPrompt },
+            { type: "image_url", image_url: { url: opts.image } },
+          ],
+        },
+      ],
+      max_tokens: opts.maxTokens,
+      temperature: 0,
+      frequency_penalty: 0.4,
+      stop: ["</table>", "<html", "```"],
+      options: {
+        num_ctx: opts.numCtx,
+        repeat_penalty: opts.repeatPenalty,
+        frequency_penalty: 0.4,
+      },
+    }),
+    signal: AbortSignal.timeout(180_000),
+  });
+  const raw = await res.text().catch(() => "");
+  if (!res.ok) {
+    throw new Error(`Vision OCR ${res.status}: ${raw.slice(0, 280)}`);
+  }
+  let json: {
+    error?: { message?: string };
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  try {
+    json = JSON.parse(raw) as typeof json;
+  } catch {
+    throw new Error(`Vision OCR: invalid JSON (${raw.slice(0, 120)})`);
+  }
+  const errMsg = json.error?.message?.trim();
+  if (errMsg) throw new Error(`Vision OCR: ${errMsg}`);
+  const text = json.choices?.[0]?.message?.content?.trim() || "";
+  if (!text) throw new Error("Empty vision OCR response");
+  return text;
+}
+
 export async function ocrImageWithQianfan(
   imageDataUrl: string,
   prompt: string = OCR_PROMPT,
@@ -141,45 +205,33 @@ export async function ocrImageWithQianfan(
   }
   const { shrinkImageDataUrlForOcr } = await import("./pdf-rasterize");
   const image = await shrinkImageDataUrlForOcr(imageDataUrl, 1280);
-  // Keep prompt short — image tokens dominate context
-  const shortPrompt =
-    prompt.length > 280 ? `${prompt.slice(0, 280)}…` : prompt;
   const numCtx = Math.max(
     8192,
     Number(process.env.OLLAMA_OCR_NUM_CTX || 16384) || 16384,
   );
-  const res = await fetch(`${cfg.base}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  try {
+    return await ocrChatCompletions({
+      base: cfg.base,
       model: cfg.model,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: shortPrompt },
-            { type: "image_url", image_url: { url: image } },
-          ],
-        },
-      ],
-      // Completion budget — do not set near full context (Ollama counts both)
-      max_tokens: 1536,
-      temperature: 0,
-      // Ollama OpenAI-compat: raise context above default 4096
-      options: { num_ctx: numCtx },
-    }),
-    signal: AbortSignal.timeout(180_000),
-  });
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`Vision OCR ${res.status}: ${t.slice(0, 280)}`);
+      image,
+      prompt,
+      maxTokens: 1536,
+      numCtx,
+      repeatPenalty: 1.12,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!isOcrRepeatAbort(msg)) throw err;
+    return ocrChatCompletions({
+      base: cfg.base,
+      model: cfg.model,
+      image,
+      prompt: OCR_PLAIN_RETRY,
+      maxTokens: 768,
+      numCtx,
+      repeatPenalty: 1.35,
+    });
   }
-  const json = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const text = json.choices?.[0]?.message?.content?.trim() || "";
-  if (!text) throw new Error("Empty vision OCR response");
-  return text;
 }
 
 async function ocrPdfWithVision(pdf: Buffer): Promise<string> {

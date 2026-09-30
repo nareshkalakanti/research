@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { APP_TABS, hrefForTab, useAppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
@@ -25,6 +26,7 @@ export function AppChrome({
 }) {
   const { user, logout } = useAuth();
   const { tab } = useAppTab();
+  const path = usePathname();
 
   return (
     <div className="app">
@@ -56,6 +58,16 @@ export function AppChrome({
                 <span className="tab-label-short">{t.short}</span>
               </a>
             ))}
+            <a
+              className={(path ?? "").startsWith("/portfolio") ? "tab on" : "tab"}
+              href="/portfolio"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Holdings mean-variance · new tab"
+            >
+              <span className="tab-label-full">Portfolio</span>
+              <span className="tab-label-short">P*</span>
+            </a>
           </div>
         </nav>
 
