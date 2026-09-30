@@ -1,6 +1,6 @@
 "use client";
 
-import { APP_TABS, useAppTab, type AppTab } from "@/lib/app-tab";
+import { APP_TABS, hrefForTab, useAppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
 import { OllamaBar } from "@/components/OllamaBar";
@@ -24,37 +24,37 @@ export function AppChrome({
   layout?: "default" | "wide" | "tracker";
 }) {
   const { user, logout } = useAuth();
-  const { tab, setTab } = useAppTab();
+  const { tab } = useAppTab();
 
   return (
     <div className="app">
       <header className="topbar">
-        <button
-          type="button"
+        <a
           className="brand brand-btn"
-          onClick={() => setTab("dashboard")}
-          title="Home"
+          href="/dashboard"
+          title="Dashboard"
         >
           <BrandMark />
           <div className="brand-text">
             <div className="brand-name">Research</div>
             <div className="brand-sub">India equities · theme scan</div>
           </div>
-        </button>
+        </a>
 
         <nav className="tabs" aria-label="Main">
           <div className="tabs-group" role="group" aria-label="Research">
             {APP_TABS.map((t) => (
-              <button
+              <a
                 key={t.id}
-                type="button"
                 className={tab === t.id ? "tab on" : "tab"}
-                title={t.label}
-                onClick={() => setTab(t.id)}
+                href={hrefForTab(t.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`${t.label} · new tab`}
               >
                 <span className="tab-label-full">{t.label}</span>
                 <span className="tab-label-short">{t.short}</span>
-              </button>
+              </a>
             ))}
           </div>
         </nav>

@@ -1,6 +1,7 @@
 /**
  * User edits on business-group cards (rename / add / remove).
- * Keyed by the auto-grouped ticker fingerprint, not by label.
+ * Keyed by auto-group ticker fingerprint; rebound by house label when
+ * membership (and the fingerprint) changes after a data pull.
  */
 import fs from "fs";
 import path from "path";
@@ -248,6 +249,16 @@ export function removeFamilyGroupTicker(
   return cur;
 }
 
+function labelKey(s: string | null | undefined): string {
+  return (s || "")
+    .split("·")[0]
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\s+group of companies$/i, "")
+    .replace(/\s+group$/i, "")
+    .trim();
+}
+
 export function applyFamilyGroupEdits<
   C extends { ticker: string },
   G extends {
@@ -265,6 +276,32 @@ export function applyFamilyGroupEdits<
     if (!g.group_id) {
       g.group_id = groupFingerprint(g.companies.map((c) => c.ticker));
     }
+  }
+  const used = new Set<string>();
+  for (const g of groups) {
+    if (g.group_id && edits.has(g.group_id)) used.add(g.group_id);
+  }
+  for (const edit of edits.values()) {
+    if (used.has(edit.group_id) || !edit.label) continue;
+    const want = labelKey(edit.label);
+    if (want.length < 2) continue;
+    const cands = groups
+      .filter(
+        (g) =>
+          labelKey(g.family_name) === want &&
+          !(g.group_id && used.has(g.group_id)),
+      )
+      .sort(
+        (a, b) =>
+          b.companies.length - a.companies.length ||
+          a.family_name.localeCompare(b.family_name),
+      );
+    if (!cands.length) continue;
+    if (cands.length > 1 && cands[0]!.companies.length === cands[1]!.companies.length) {
+      continue;
+    }
+    cands[0]!.group_id = edit.group_id;
+    used.add(edit.group_id);
   }
   for (const g of groups) {
     const edit = g.group_id ? edits.get(g.group_id) : undefined;

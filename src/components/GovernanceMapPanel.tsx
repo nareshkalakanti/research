@@ -262,13 +262,19 @@ export function GovernanceMapPanel() {
     const digits = raw.replace(/\D/g, "");
     return digits.length === 8 ? digits : raw.trim() || null;
   }, [searchParams]);
+  const deepTicker = useMemo(() => {
+    const t = (searchParams.get("ticker") || "").trim().toUpperCase();
+    return t || null;
+  }, [searchParams]);
   const deepQ = searchParams.get("q")?.trim() || "";
 
   const [view, setView] = useState<View>(() =>
     deepPersonId ? "director" : "company",
   );
-  const [q, setQ] = useState(() => deepPersonId || deepQ || "");
-  const [debouncedQ, setDebouncedQ] = useState(() => deepPersonId || deepQ || "");
+  const [q, setQ] = useState(() => deepPersonId || deepTicker || deepQ || "");
+  const [debouncedQ, setDebouncedQ] = useState(
+    () => deepPersonId || deepTicker || deepQ || "",
+  );
   const [page, setPage] = useState(1);
   const [minBoards, setMinBoards] = useState(() => (deepPersonId ? 1 : 2));
   const [filterIndependence, setFilterIndependence] = useState(false);
@@ -526,6 +532,21 @@ export function GovernanceMapPanel() {
     pendingOpenRef.current = deepPersonId;
     setOpenId(deepPersonId);
   }, [deepPersonId, loading, data]);
+
+  useEffect(() => {
+    if (!deepTicker || deepPersonId) return;
+    setView("company");
+    setQ(deepTicker);
+    setDebouncedQ(deepTicker);
+  }, [deepTicker, deepPersonId]);
+
+  useEffect(() => {
+    if (!deepTicker || deepPersonId) return;
+    const key = `t:${deepTicker}`;
+    if (deepDrillDoneRef.current === key) return;
+    deepDrillDoneRef.current = key;
+    drillTicker(deepTicker, "link");
+  }, [deepTicker, deepPersonId]);
 
   const setTab = useOptionalSetAppTab();
   const drillRef = useRef({ drillTicker, drillDirector, depth: stack.length });

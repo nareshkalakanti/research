@@ -44,7 +44,7 @@ export const IQ_TABS: AppTab[] = [
 ];
 
 function isPageTab(id: AppTab): boolean {
-  return id === "watchlist";
+  return id === "watchlist" || id === "dashboard";
 }
 
 export function tabFromParam(raw: string | null): AppTab {
@@ -75,6 +75,7 @@ export function readTabFromLocation(): AppTab {
   if (typeof window === "undefined") return "dashboard";
   const path = pathOnly();
   if (path === "/watchlist" || path === "/fund") return "watchlist";
+  if (path === "/dashboard") return "dashboard";
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
 
@@ -92,16 +93,23 @@ function buildHomeSearch(
     params.delete("din");
   }
   const t = (ticker || "").trim().toUpperCase();
-  if (t && next === "research") {
+  if (t && (next === "research" || next === "governance")) {
     params.set("ticker", t);
-  } else if (next !== "research") {
+  } else if (next !== "research" && next !== "governance") {
     params.delete("ticker");
   }
   return params.toString();
 }
 
+export function hrefForTab(next: AppTab): string {
+  if (next === "watchlist") return "/watchlist";
+  if (next === "dashboard") return "/dashboard";
+  return `/?tab=${encodeURIComponent(next)}`;
+}
+
 function urlForTab(next: AppTab, ticker?: string | null): string {
   if (next === "watchlist") return "/watchlist";
+  if (next === "dashboard") return "/dashboard";
   const fromHome =
     pathOnly() === "/"
       ? new URLSearchParams(window.location.search)

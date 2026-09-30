@@ -366,6 +366,9 @@ button.brand-btn:hover .brand-name {
   flex-shrink: 0;
   white-space: nowrap;
   line-height: 1.2;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
 }
 
 .tab:hover {

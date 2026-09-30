@@ -59,7 +59,21 @@ export function bseIndiaQuoteUrl(scripCode: string): string {
 export function governanceDinUrl(din: string): string | null {
   const digits = (din || "").replace(/\D/g, "");
   if (digits.length !== 8) return null;
-  return `/?tab=governance&personId=${encodeURIComponent(digits)}`;
+  return governancePersonUrl(digits);
+}
+
+/** Deep-link into Governance map for a person (DIN or person_id). */
+export function governancePersonUrl(personId: string): string {
+  const id = (personId || "").trim();
+  if (!id) return "/?tab=governance";
+  return `/?tab=governance&personId=${encodeURIComponent(id)}`;
+}
+
+/** Deep-link into Governance map for a listed ticker. */
+export function governanceCompanyUrl(ticker: string): string {
+  const t = (ticker || "").trim().toUpperCase();
+  if (!t) return "/?tab=governance";
+  return `/?tab=governance&ticker=${encodeURIComponent(t)}`;
 }
 
 export function tradingviewUrl(
