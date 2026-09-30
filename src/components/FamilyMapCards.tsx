@@ -27,6 +27,7 @@ export type FamilyRow = {
     dir_score?: number;
   }>;
   outside?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;
+  pattern?: string | null;
 };
 
 function dinTone(verified: number, total: number): "full" | "part" | "none" {
@@ -146,6 +147,7 @@ export function FamilyMapCards({
   addWork,
   onRefresh,
   refreshing,
+  onDeleteGroup,
 }: {
   rows: FamilyRow[];
   onTicker?: (ticker: string, group: FamilyRow) => void;
@@ -166,6 +168,7 @@ export function FamilyMapCards({
   addWork?: FamilyAddWork | null;
   onRefresh?: (group: FamilyRow) => void | Promise<void>;
   refreshing?: string | null;
+  onDeleteGroup?: (group: FamilyRow) => Promise<void> | void;
 }) {
   const allCompanies = rows.flatMap((f) => f.companies);
   return (
@@ -209,6 +212,7 @@ export function FamilyMapCards({
                 refreshing === "*" ||
                 refreshing === (f.group_id || f.family_name)
               }
+              onDeleteGroup={onDeleteGroup}
             />
           );
         })}
@@ -232,6 +236,7 @@ function FamilyGroupCard({
   addWork,
   onRefresh,
   refreshing,
+  onDeleteGroup,
 }: {
   f: FamilyRow;
   onPerson: (personId: string, name: string, group: FamilyRow) => void;
@@ -250,6 +255,7 @@ function FamilyGroupCard({
   addWork?: FamilyAddWork | null;
   onRefresh?: (group: FamilyRow) => void | Promise<void>;
   refreshing?: boolean;
+  onDeleteGroup?: (group: FamilyRow) => Promise<void> | void;
 }) {
   const [focus, setFocus] = useState<string | null>(null);
   const [externalOnly, setExternalOnly] = useState(false);
@@ -302,6 +308,7 @@ function FamilyGroupCard({
                 <>
                   {f.company_count} companies · {peopleAll.length} linking people
                   {outsideAll.length ? ` · ${outsideAll.length} outside boards` : ""}
+                  {f.pattern ? ` · ${f.pattern}` : ""}
                 </>
               )}
             </span>
@@ -312,6 +319,24 @@ function FamilyGroupCard({
                 busy={refreshing}
                 onRefresh={() => onRefresh(f)}
               />
+            ) : null}
+            {editable && onDeleteGroup && f.group_id ? (
+              <button
+                type="button"
+                className="btn-box-remove"
+                title="Remove this whole group"
+                onClick={() => {
+                  if (
+                    typeof window !== "undefined" &&
+                    !window.confirm(`Remove group “${f.family_name}”?`)
+                  ) {
+                    return;
+                  }
+                  void onDeleteGroup(f);
+                }}
+              >
+                ×
+              </button>
             ) : null}
             <div
               className={`gov-family-din ${dinTone(dinTotal, dirTotal)}`}
