@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
   const hits = localHits(q, limit);
   const have = new Set(hits.map((h) => h.ticker));
 
-  if (q.length >= 2 && hits.length < limit) {
+  if (q.length >= 2) {
     try {
       const remote = await searchGrowwListings(q, limit);
       for (const r of remote) {
@@ -120,7 +120,6 @@ export async function GET(req: NextRequest) {
           mcap_cr: null,
           source: "groww",
         });
-        if (hits.length >= limit) break;
       }
     } catch {
       /* local hits still usable */

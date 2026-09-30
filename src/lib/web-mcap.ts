@@ -433,7 +433,10 @@ export async function searchGrowwListings(
         }
       }
     }
-    if (!LISTED_TICKER_RE.test(ticker)) continue;
+    if (!LISTED_TICKER_RE.test(ticker) && /^\d{4,8}$/.test(bse)) {
+      ticker = bse;
+    }
+    if (!LISTED_TICKER_RE.test(ticker) && !/^\d{4,8}$/.test(ticker)) continue;
     if (seen.has(ticker)) continue;
     seen.add(ticker);
     const blob = `${str(rec.exchange)} ${str(rec.sub_entity_type)}`;

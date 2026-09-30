@@ -7,9 +7,12 @@ import {
   type PersonBoardRow,
 } from "@/components/PeopleBoardCards";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
-import { useSetAppTab, useOptionalAppTab } from "@/lib/app-tab";
-import { tradingviewUrl } from "@/lib/links";
-import { requestGovOpen } from "@/lib/gov-open";
+import { useOptionalAppTab } from "@/lib/app-tab";
+import {
+  tradingviewUrl,
+  governancePersonUrl,
+  governanceCompanyUrl,
+} from "@/lib/links";
 import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
 
 type DashView = "groups" | "people" | "stock";
@@ -34,7 +37,6 @@ function stubCompany(
 }
 
 export function FamilyDashboard() {
-  const setTab = useSetAppTab();
   const tabState = useOptionalAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -294,16 +296,12 @@ export function FamilyDashboard() {
     }
   };
 
-  const showStockNetwork = (ticker: string) => {
-    const t = ticker.trim().toUpperCase();
-    if (!t) return;
-    setStockFocus(t);
-    setDashView("stock");
+  const openPerson = (personId: string, _name: string) => {
+    window.open(governancePersonUrl(personId), "_blank", "noopener,noreferrer");
   };
 
-  const openPerson = (personId: string, name: string) => {
-    setTab("governance");
-    requestGovOpen({ kind: "director", personId, name, from: "Dashboard", returnTab: "dashboard" });
+  const openCompany = (ticker: string) => {
+    window.open(governanceCompanyUrl(ticker), "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -490,7 +488,7 @@ export function FamilyDashboard() {
         ) : (
           <PeopleBoardCards
             rows={filteredPeople}
-            onTicker={(t) => showStockNetwork(t)}
+            onTicker={(t) => openCompany(t)}
             onPerson={(id, name) => openPerson(id, name)}
             chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
             onRefresh={(row) => {
