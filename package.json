@@ -18,6 +18,7 @@
     "test:quarters": "tsx scripts/test-quarters.ts",
     "test:quant-basket": "tsx scripts/test-quant-basket.ts",
     "test:din-fill": "tsx scripts/test-din-fill.ts",
+    "test:holdings-mv": "tsx scripts/test-holdings-mv.ts",
     "test:corporate-extract": "tsx scripts/test-corporate-extract.ts",
     "test:buyback-screen": "tsx scripts/test-buyback-screen.ts",
     "test:orderbook-screen": "tsx scripts/test-orderbook-screen.ts",

@@ -23,7 +23,23 @@ import { zaubaCorpGoogleUrl, zaubaCorpSearchQuery, zaubaCorpSiteSearchUrl } from
 import { searchGrowwListings } from "./web-mcap";
 
 const OCR_PROMPT =
-  "Transcribe the page heading (Personnel of COMPANY) and the directors table. Keep every 8-digit DIN, name, and designation. HTML table is fine.";
+  "Transcribe the heading (Personnel of COMPANY) then one director per line: 8-digit DIN, name, designation, appointment date. Tab-separated. No HTML.";
+
+const HEADING_OCR =
+  "Read the card title only. Output the company after Personnel of. One line. No table.";
+
+async function ocrDinScreenshot(imageDataUrl: string): Promise<string> {
+  const chunks: string[] = [];
+  try {
+    const { cropImageDataUrlTop } = await import("./pdf-rasterize");
+    const top = await cropImageDataUrlTop(imageDataUrl, 0.4);
+    if (top) chunks.push(await ocrImageWithQianfan(top, HEADING_OCR));
+  } catch {
+    /* table OCR still runs */
+  }
+  chunks.push(await ocrImageWithQianfan(imageDataUrl, OCR_PROMPT));
+  return chunks.filter((t) => t.trim()).join("\n");
+}
 
 export type DinFillJob = {
   ticker: string;
@@ -73,38 +89,39 @@ function mergeSeats(a: BoardSeat[], b: BoardSeat[]): BoardSeat[] {
   return [...byDin.values()];
 }
 
-export async function applyDinScreenshot(opts: {
-  ticker?: string;
-  imageDataUrl: string;
-}): Promise<{
+export type DinFillListing = {
   ticker: string;
+  name: string;
+  market: string;
+};
+
+export type DinFillPreview = {
   company_extracted: string | null;
+  labels: string[];
+  ticker: string | null;
+  listing_name: string | null;
+  market: string | null;
+  groww: DinFillListing | null;
   seats: BoardSeat[];
-  saved: number;
   ocr_chars: number;
   why: string;
+};
+
+type ListingRow = { ticker: string; name: string; market?: string };
+
+async function matchListing(opts: {
+  labels: string[];
+  hintTicker?: string;
+  dins?: string[];
+}): Promise<{
+  local: ListingRow | null;
+  groww: DinFillListing | null;
 }> {
-  const ocr = await ocrImageWithQianfan(opts.imageDataUrl, OCR_PROMPT);
-  const parsed = parseScreenshotBoard(ocr);
-  const regex = regexBoardDinsFromText(ocr);
-  const seats = mergeSeats(parsed.seats, regex);
-  if (!seats.length) {
-    const clip = ocr.replace(/\s+/g, " ").trim().slice(0, 220);
-    throw new Error(
-      clip
-        ? `No DIN + name rows. OCR saw: ${clip}`
-        : "No DIN + name rows (empty OCR — check vision OCR)",
-    );
-  }
-
-  const hintTicker = (parsed.ticker || "").trim().toUpperCase();
+  const hintTicker = (opts.hintTicker || "").trim().toUpperCase();
   const companies = loadAllCompanies();
-  const labels = [
-    parsed.company,
-    ...parseCompanyLabelsFromBoardText(ocr),
-  ].filter((x): x is string => Boolean(x && x.trim()));
+  const labels = opts.labels.filter((x) => x && x.trim());
 
-  let picked = hintTicker
+  let picked: ListingRow | null = hintTicker
     ? companies.find((c) => c.ticker.toUpperCase() === hintTicker) || null
     : null;
   for (const label of labels) {
@@ -125,13 +142,15 @@ export async function applyDinScreenshot(opts: {
       picked = best.c;
     }
   }
-  if (!picked) {
-    const dinHit = tickerMostSharingDins(seats.map((s) => s.din));
+  if (!picked && opts.dins?.length) {
+    const dinHit = tickerMostSharingDins(opts.dins);
     if (dinHit) {
       picked =
         companies.find((c) => c.ticker.toUpperCase() === dinHit) || null;
     }
   }
+
+  let groww: DinFillListing | null = null;
   if (!picked && labels.length) {
     try {
       const queries = listingQueryVariants(labels.join(" "));
@@ -155,49 +174,154 @@ export async function applyDinScreenshot(opts: {
         g = pickUniqueListing(label, remote, hintTicker);
         if (g) break;
       }
+      if (!g && remote.length === 1) g = remote[0]!;
       if (g) {
-        await bootstrapCompanyTicker(g.ticker, {
-          name: g.name,
-          market: g.market,
-        });
-        invalidateCompanyCache();
-        const fresh = loadAllCompanies();
-        for (const label of [...labels, ...queries]) {
-          picked = pickUniqueListing(label, fresh, hintTicker);
-          if (picked) break;
-        }
+        groww = { ticker: g.ticker, name: g.name, market: g.market };
+        picked = companies.find(
+          (c) => c.ticker.toUpperCase() === g!.ticker.toUpperCase(),
+        ) || { ticker: g.ticker, name: g.name, market: g.market };
       }
     } catch {
       /* local listing match still usable */
     }
   }
 
-  let ticker = (picked?.ticker || hintTicker || "").trim().toUpperCase();
-  let co = ticker
-    ? loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker) ||
-      companies.find((c) => c.ticker.toUpperCase() === ticker)
-    : undefined;
-  if (!co && ticker) {
+  return { local: picked, groww };
+}
+
+export async function resolveDinCompany(opts: {
+  company: string;
+  ticker?: string;
+}): Promise<DinFillPreview> {
+  const company = opts.company.trim();
+  const hint = (opts.ticker || "").trim().toUpperCase();
+  const { local, groww } = await matchListing({
+    labels: company ? [company] : [],
+    hintTicker: hint,
+  });
+  const ticker = (local?.ticker || groww?.ticker || hint || "").toUpperCase() || null;
+  const listing_name = local?.name || groww?.name || null;
+  return {
+    company_extracted: company || null,
+    labels: company ? [company] : [],
+    ticker,
+    listing_name,
+    market: local?.market || groww?.market || null,
+    groww,
+    seats: [],
+    ocr_chars: 0,
+    why: ticker
+      ? `Matched ${ticker}${listing_name ? ` · ${listing_name}` : ""}`
+      : company
+        ? `No listing match for “${company}”. Edit the name or pick a ticker.`
+        : "Enter a company name or ticker.",
+  };
+}
+
+export async function previewDinScreenshot(opts: {
+  ticker?: string;
+  imageDataUrl: string;
+}): Promise<DinFillPreview> {
+  const ocr = await ocrDinScreenshot(opts.imageDataUrl);
+  const parsed = parseScreenshotBoard(ocr);
+  const regex = regexBoardDinsFromText(ocr);
+  const seats = mergeSeats(parsed.seats, regex);
+  if (!seats.length) {
+    const clip = ocr.replace(/\s+/g, " ").trim().slice(0, 220);
+    throw new Error(
+      clip
+        ? `No DIN + name rows. OCR saw: ${clip}`
+        : "No DIN + name rows (empty OCR — check vision OCR)",
+    );
+  }
+
+  const hintTicker = (
+    opts.ticker ||
+    parsed.ticker ||
+    ""
+  ).trim().toUpperCase();
+  const labels = [
+    parsed.company,
+    ...parseCompanyLabelsFromBoardText(ocr),
+  ].filter((x): x is string => Boolean(x && x.trim()));
+  const { local, groww } = await matchListing({
+    labels,
+    hintTicker,
+    dins: seats.map((s) => s.din),
+  });
+  const ticker =
+    (local?.ticker || groww?.ticker || hintTicker || "").toUpperCase() || null;
+  const listing_name = local?.name || groww?.name || null;
+  const company = parsed.company || labels[0] || null;
+  let why = `Read ${seats.length} DIN row(s). Approve to save.`;
+  if (ticker) {
+    why = `Matched ${ticker}${listing_name ? ` · ${listing_name}` : ""}. Approve to save.`;
+  } else if (company) {
+    why = `Read ${seats.length} DIN row(s). Could not match “${company}” — edit the name or pick a ticker.`;
+  } else {
+    why = `Read ${seats.length} DIN row(s). No company in OCR — type the name or pick a ticker.`;
+  }
+  return {
+    company_extracted: company,
+    labels,
+    ticker,
+    listing_name,
+    market: local?.market || groww?.market || null,
+    groww,
+    seats,
+    ocr_chars: ocr.length,
+    why,
+  };
+}
+
+export async function saveDinSeats(opts: {
+  ticker?: string;
+  company?: string;
+  seats: BoardSeat[];
+}): Promise<{
+  ticker: string;
+  company_extracted: string | null;
+  seats: BoardSeat[];
+  saved: number;
+  why: string;
+}> {
+  const seats = mergeSeats(opts.seats, []);
+  if (!seats.length) throw new Error("No DIN seats to save");
+  const hint = (opts.ticker || "").trim().toUpperCase();
+  const company = (opts.company || "").trim();
+  const { local, groww } = await matchListing({
+    labels: company ? [company] : [],
+    hintTicker: hint,
+    dins: seats.map((s) => s.din),
+  });
+  let ticker = (local?.ticker || groww?.ticker || hint).toUpperCase();
+  let listingName = local?.name || groww?.name || company;
+  let market = local?.market || groww?.market || "";
+  if (!ticker) {
+    throw new Error(
+      company
+        ? `Could not match “${company}” to a ticker.`
+        : "Pick a ticker or enter a company name before saving.",
+    );
+  }
+  let co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);
+  if (!co) {
     await bootstrapCompanyTicker(ticker, {
-      name: parsed.company || ticker,
+      name: listingName || ticker,
+      market: market || undefined,
     });
     invalidateCompanyCache();
     co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);
   }
-  if (!co) {
-    const label = (parsed.company || labels[0] || "").trim();
-    throw new Error(
-      label
-        ? `Could not match “${label}” to a ticker.`
-        : "No company name or NSE/BSE ticker in the screenshot, so nothing was saved.",
-    );
-  }
+  if (!co) throw new Error(`Could not add listing ${ticker}.`);
   ticker = co.ticker.toUpperCase();
+  listingName = co.name || listingName;
+  market = co.market || market;
 
   const saved = saveCompanyBoard({
     ticker,
-    name: co.name || parsed.company || ticker,
-    market: co.market,
+    name: listingName || ticker,
+    market,
     seats,
     notes: "zauba_screenshot",
     replaceSeats: true,
@@ -207,18 +331,34 @@ export async function applyDinScreenshot(opts: {
   invalidateGovernanceMapCache();
   invalidateBoardIndependenceCache();
 
-  const matched = parsed.company
-    ? ` on ${ticker} (matched “${parsed.company}”)`
-    : ` on ${ticker}`;
-
   return {
     ticker,
-    company_extracted: parsed.company,
+    company_extracted: company || listingName,
     seats,
     saved: saved.seats,
-    ocr_chars: ocr.length,
     why: saved.skipped
       ? saved.reason || "skipped"
-      : `Saved ${saved.seats} DIN seats${matched}`,
+      : `Saved ${saved.seats} DIN seats on ${ticker}`,
+  };
+}
+
+export async function applyDinScreenshot(opts: {
+  ticker?: string;
+  imageDataUrl: string;
+  save?: boolean;
+}): Promise<DinFillPreview & { saved: number }> {
+  const preview = await previewDinScreenshot(opts);
+  if (!opts.save) return { ...preview, saved: 0 };
+  const saved = await saveDinSeats({
+    ticker: preview.ticker || opts.ticker,
+    company: preview.company_extracted || undefined,
+    seats: preview.seats,
+  });
+  return {
+    ...preview,
+    ticker: saved.ticker,
+    listing_name: saved.company_extracted,
+    saved: saved.saved,
+    why: saved.why,
   };
 }

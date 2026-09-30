@@ -50,6 +50,17 @@ const paren = parseScreenshotBoard(
 assert.equal(paren.company, "EXAMPLE SUPREME (INDIA)");
 assert.equal(paren.seats[0]?.din, "03481378");
 
+const wrap = parseScreenshotBoard(
+  "Directors & Key Managerial Personnel of EXAMPLE CAPITAL FINANCIAL\nSERVICES\nCurrent Directors & Key Managerial Personnel of EXAMPLE CAPITAL FINANCIAL SERVICES\n00056364 ALPHA PERSON Director 2019-06-17",
+);
+assert.equal(wrap.company, "EXAMPLE CAPITAL FINANCIAL SERVICES");
+assert.equal(wrap.seats[0]?.din, "00056364");
+
+const wrapOnly = parseScreenshotBoard(
+  "Directors & Key Managerial Personnel of EXAMPLE CAPITAL FINANCIAL\nSERVICES\n00056364 ALPHA PERSON Director 2019-06-17",
+);
+assert.equal(wrapOnly.company, "EXAMPLE CAPITAL FINANCIAL SERVICES");
+
 const amp = parseScreenshotBoard(
   "Current Directors & Key Managerial Personnel of EXAMPLE TYRE & INDUSTRIES\nDIN Director Name Designation Appointment Date\n00026540 ALPHA PERSON Whole-time director 2010-01-20",
 );
@@ -105,5 +116,13 @@ assert.equal(
   "ALPHACO",
 );
 assert.ok(scoreListingName("ALPHACO SERVICES", "ALPHRCO", "ALPHRCO CAPITAL SERVICES LIMITED") < 70);
+
+const tsv = parseScreenshotBoard(
+  "Directors & Key Managerial Personnel of EXAMPLE TYRE & INDUSTRIES\n00056364\tALPHA PERSON\tDirector\t2023-11-22\n02647994\tBETA PERSON\tManaging Director\t2019-08-06",
+);
+assert.equal(tsv.company, "EXAMPLE TYRE & INDUSTRIES");
+assert.equal(tsv.seats.length, 2);
+assert.equal(tsv.seats[0]?.din, "00056364");
+assert.equal(tsv.seats[1]?.din, "02647994");
 
 console.log("test:din-fill: ok");

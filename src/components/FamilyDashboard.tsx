@@ -369,7 +369,7 @@ export function FamilyDashboard() {
           </div>
           <p className="fam-dash-sub">
             {dashView === "groups"
-              ? "Click a ticker for that stock’s related nodes. Outside shows only external boards and those people. Show all restores the group."
+              ? "Click a ticker for that stock’s full board and related nodes. Outside shows only external boards and those people. Show all restores the group."
               : dashView === "people"
                 ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
                 : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}

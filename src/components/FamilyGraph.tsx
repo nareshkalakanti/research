@@ -28,6 +28,7 @@ type GraphNode = {
   kind: NodeKind;
   label: string;
   title: string;
+  hint: string;
   cap: string | null;
   r: number;
   x: number;
@@ -47,6 +48,39 @@ const CAP_LEGEND = [
   ["sub500", "Under ₹500 Cr"],
 ] as const;
 
+function fmtMcapCr(cr: number | null | undefined): string {
+  const n = cr == null ? NaN : Number(cr);
+  if (!Number.isFinite(n) || n <= 0) return "";
+  if (n >= 10_000) return `₹${(n / 1000).toFixed(1)}k Cr`;
+  if (n >= 100) return `₹${Math.round(n).toLocaleString("en-IN")} Cr`;
+  if (n >= 10) return `₹${n.toFixed(0)} Cr`;
+  return `₹${n.toFixed(1)} Cr`;
+}
+
+function capLabel(cap: string | null): string {
+  if (cap === "lc") return "Large";
+  if (cap === "mc") return "Mid";
+  if (cap === "sc") return "Small";
+  if (cap === "sub500") return "Under ₹500 Cr";
+  return "";
+}
+
+function listingTitle(
+  ticker: string,
+  name: string,
+  opts: {
+    cap: string | null;
+    mcap: number | null | undefined;
+    extra?: string;
+  },
+): { title: string; hint: string } {
+  const mcap = fmtMcapCr(opts.mcap);
+  const band = capLabel(opts.cap);
+  const hint = [mcap, band].filter(Boolean).join(" · ");
+  const bits = [ticker, name, opts.extra, hint].filter(Boolean);
+  return { title: bits.join(" · "), hint };
+}
+
 function capBand(
   cap_code?: string | null,
   market_cap_cr?: number | null,
@@ -58,11 +92,6 @@ function capBand(
   const cap = (cap_code || "").toLowerCase();
   if (cap === "ti" || cap === "mic") return "sub500";
   return cap || null;
-}
-
-function shortName(name: string): string {
-  const bits = name.split(/\s+/).filter(Boolean);
-  return bits.length > 2 ? `${bits[0]} ${bits[bits.length - 1]}` : name;
 }
 
 function layout(
@@ -177,6 +206,9 @@ export function FamilyGraph({
   const [legendOn, setLegendOn] = useState<Set<string>>(() => new Set());
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
   const justDragged = useRef(false);
+  const [zoom, setZoom] = useState(1);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const clampZoom = (z: number) => Math.min(4, Math.max(0.55, Math.round(z * 100) / 100));
 
   const { nodes, edges, view } = useMemo(() => {
     const list: GraphNode[] = [];
@@ -187,25 +219,40 @@ export function FamilyGraph({
       list.push(node);
     };
     for (const c of companies) {
+      const cap = capBand(c.cap_code, c.market_cap_cr);
+      const { title, hint } = listingTitle(c.ticker, c.name, {
+        cap,
+        mcap: c.market_cap_cr,
+        extra: c.directors
+          ? `DIN ${c.din_verified ?? 0}/${c.directors}`
+          : undefined,
+      });
       add({
         id: `c:${c.ticker}`,
         kind: "company",
         label: c.ticker,
-        cap: capBand(c.cap_code, c.market_cap_cr),
-        title: `${c.ticker} · ${c.name}${c.directors ? ` · DIN ${c.din_verified ?? 0}/${c.directors}` : ""
-          }`,
+        cap,
+        title,
+        hint,
         r: RADIUS.company,
         x: 0,
         y: 0,
       });
     }
     for (const o of outside) {
+      const cap = capBand(o.cap_code, o.market_cap_cr);
+      const { title, hint } = listingTitle(o.ticker, o.name, {
+        cap,
+        mcap: o.market_cap_cr,
+        extra: "outside group",
+      });
       add({
         id: `c:${o.ticker}`,
         kind: "outside",
         label: o.ticker,
-        cap: capBand(o.cap_code, o.market_cap_cr),
-        title: `${o.ticker} · ${o.name} · outside the group`,
+        cap,
+        title,
+        hint,
         r: RADIUS.outside,
         x: 0,
         y: 0,
@@ -216,9 +263,10 @@ export function FamilyGraph({
       add({
         id: `p:${p.person_id}`,
         kind: "person",
-        label: shortName(p.name),
+        label: "",
         cap: null,
         title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""} · ${p.tickers.length} boards`,
+        hint: "",
         r: RADIUS.person,
         x: 0,
         y: 0,
@@ -365,11 +413,29 @@ export function FamilyGraph({
     }
   };
 
+  const z = zoom;
+  const vbW = view.w / z;
+  const vbH = view.h / z;
+  const vbX = view.x + (view.w - vbW) / 2;
+  const vbY = view.y + (view.h - vbH) / 2;
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? 0.9 : 1.12;
+      setZoom((cur) => clampZoom(cur * dir));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+
   return (
-    <div className="fam-graph">
+    <div className="fam-graph" ref={wrapRef}>
       <svg
         ref={svgRef}
-        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
+        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
         style={{ aspectRatio: `${view.w} / ${view.h}` }}
         onPointerMove={(e) => {
           if (!drag.current) return;
@@ -432,25 +498,63 @@ export function FamilyGraph({
             >
               <title>{node.title}</title>
               <circle r={node.r} />
-              {chartUrl && node.kind !== "person" ? (
-                <a
-                  href={chartUrl(node.id.slice(2))}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <text y={node.r + 10} className="fam-link">
-                    {node.label}
+              {node.kind === "person" ? (
+                hover === node.id ? (
+                  <text y={node.r + 11} className="fam-person-tip">
+                    {node.title.split(" · ")[0]}
                   </text>
-                </a>
+                ) : null
               ) : (
-                <text y={node.r + 10}>{node.label}</text>
+                <>
+                  {chartUrl ? (
+                    <a
+                      href={chartUrl(node.id.slice(2))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <text y={node.r + 10} className="fam-link">
+                        {node.label}
+                      </text>
+                    </a>
+                  ) : (
+                    <text y={node.r + 10}>{node.label}</text>
+                  )}
+                  {node.kind === "outside" && hover === node.id ? (
+                    <text y={node.r + 22} className="fam-mcap-tip">
+                      {node.hint || "mcap —"}
+                    </text>
+                  ) : null}
+                </>
               )}
             </g>
           );
         })}
       </svg>
       <div className="fam-legend">
+        <span className="fam-zoom">
+          <button
+            type="button"
+            title="Zoom out"
+            onClick={() => setZoom((cur) => clampZoom(cur / 1.2))}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            title="Reset zoom"
+            onClick={() => setZoom(1)}
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            title="Zoom in"
+            onClick={() => setZoom((cur) => clampZoom(cur * 1.2))}
+          >
+            +
+          </button>
+        </span>
         {CAP_LEGEND.map(([code, label]) => (
           <button
             key={code}

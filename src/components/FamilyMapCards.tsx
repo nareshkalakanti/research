@@ -27,6 +27,7 @@ export type FamilyRow = {
     dir_score?: number;
   }>;
   outside?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;
+  listings?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;
   pattern?: string | null;
 };
 
@@ -81,6 +82,133 @@ function sliceRelated(
     return keep.has(u) && !inGroup.has(u);
   });
   return { companies, people, outside };
+}
+
+function overlayNetwork(
+  f: FamilyRow,
+  net: {
+    companies: Array<{
+      ticker: string;
+      name: string;
+      market?: string;
+      cap_code?: string | null;
+      market_cap_cr?: number | null;
+      is_sme?: boolean;
+      directors?: number;
+      din_verified?: number;
+    }>;
+    people: NonNullable<FamilyRow["people"]>;
+  },
+): {
+  companies: FamilyRow["companies"];
+  people: NonNullable<FamilyRow["people"]>;
+  outside: NonNullable<FamilyRow["outside"]>;
+} {
+  const group = new Set(f.companies.map((c) => c.ticker.toUpperCase()));
+  const fam = new Map(f.companies.map((c) => [c.ticker.toUpperCase(), c]));
+  const info = new Map<
+    string,
+    {
+      ticker: string;
+      name: string;
+      cap_code?: string | null;
+      market_cap_cr?: number | null;
+      market?: string;
+      is_sme?: boolean;
+      directors?: number;
+      din_verified?: number;
+    }
+  >();
+  for (const c of net.companies) {
+    const u = c.ticker.toUpperCase();
+    if (u) info.set(u, c);
+  }
+  for (const c of f.listings ?? []) {
+    const u = c.ticker.toUpperCase();
+    if (u && !info.has(u)) info.set(u, c);
+  }
+  const companies: FamilyRow["companies"] = [];
+  const seenCo = new Set<string>();
+  const outside: NonNullable<FamilyRow["outside"]> = [];
+  const seenOut = new Set<string>();
+  const addCompany = (u: string) => {
+    if (seenCo.has(u)) return;
+    seenCo.add(u);
+    const hit = fam.get(u);
+    const n = info.get(u);
+    companies.push(
+      hit ?? {
+        ticker: n?.ticker || u,
+        name: n?.name || u,
+        market: n?.market || "",
+        cap_code: n?.cap_code ?? null,
+        market_cap_cr: n?.market_cap_cr,
+        is_sme: Boolean(n?.is_sme),
+        directors: n?.directors,
+        din_verified: n?.din_verified,
+      },
+    );
+  };
+  const addOutside = (u: string) => {
+    if (seenOut.has(u) || group.has(u)) return;
+    seenOut.add(u);
+    const n = info.get(u);
+    outside.push({
+      ticker: n?.ticker || u,
+      name: n?.name || u,
+      cap_code: n?.cap_code ?? null,
+      market_cap_cr: n?.market_cap_cr,
+    });
+  };
+  for (const c of net.companies) {
+    const u = c.ticker.toUpperCase();
+    if (!u) continue;
+    if (group.has(u)) addCompany(u);
+    else addOutside(u);
+  }
+  for (const p of net.people) {
+    for (const t of p.tickers) {
+      const u = t.toUpperCase();
+      if (!u) continue;
+      if (group.has(u)) addCompany(u);
+      else addOutside(u);
+    }
+  }
+  return { companies, people: net.people, outside };
+}
+
+function outsideFromPeople(
+  group: Set<string>,
+  people: NonNullable<FamilyRow["people"]>,
+  known: Array<{
+    ticker: string;
+    name: string;
+    cap_code?: string | null;
+    market_cap_cr?: number | null;
+  }>,
+): NonNullable<FamilyRow["outside"]> {
+  const info = new Map<string, (typeof known)[number]>();
+  for (const row of known) {
+    const u = row.ticker.toUpperCase();
+    if (u) info.set(u, row);
+  }
+  const out: NonNullable<FamilyRow["outside"]> = [];
+  const seen = new Set<string>();
+  for (const p of people) {
+    for (const t of p.tickers) {
+      const u = t.toUpperCase();
+      if (!u || group.has(u) || seen.has(u)) continue;
+      seen.add(u);
+      const n = info.get(u);
+      out.push({
+        ticker: n?.ticker || u,
+        name: n?.name || u,
+        cap_code: n?.cap_code ?? null,
+        market_cap_cr: n?.market_cap_cr,
+      });
+    }
+  }
+  return out;
 }
 
 function sliceExternal(opts: {
@@ -259,12 +387,55 @@ function FamilyGroupCard({
 }) {
   const [focus, setFocus] = useState<string | null>(null);
   const [externalOnly, setExternalOnly] = useState(false);
+  const [net, setNet] = useState<{
+    companies: Array<{
+      ticker: string;
+      name: string;
+      market?: string;
+      cap_code?: string | null;
+      market_cap_cr?: number | null;
+      is_sme?: boolean;
+    }>;
+    people: NonNullable<FamilyRow["people"]>;
+  } | null>(null);
   const peopleAll = f.people ?? [];
-  const outsideAll = f.outside ?? [];
+  useEffect(() => {
+    setNet(null);
+    if (!focus) return;
+    const ticker = focus;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/governance-map?view=network&ticker=${encodeURIComponent(ticker)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const json = (await res.json()) as { row?: typeof net };
+        if (cancelled) return;
+        setNet(json.row ?? null);
+      } catch {
+        if (!cancelled) setNet(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [focus]);
   const sliced = focus ? sliceRelated(f, focus) : null;
-  let companies = sliced?.companies ?? f.companies;
-  let people = sliced?.people ?? peopleAll;
-  let outside = sliced?.outside ?? outsideAll;
+  const ego = focus && net ? overlayNetwork(f, net) : null;
+  let companies = ego?.companies ?? sliced?.companies ?? f.companies;
+  let people = ego?.people ?? sliced?.people ?? peopleAll;
+  const groupSet = new Set(f.companies.map((c) => c.ticker.toUpperCase()));
+  let outside = uniqueByTicker(
+    outsideFromPeople(groupSet, people, [
+      ...(net?.companies ?? []),
+      ...f.companies,
+      ...(f.listings ?? []),
+      ...(f.outside ?? []),
+      ...(ego?.outside ?? []),
+    ]),
+  );
   if (externalOnly) {
     const ext = sliceExternal({ companies, people, outside });
     companies = ext.companies;
@@ -275,6 +446,9 @@ function FamilyGroupCard({
   const dirTotal = f.companies.reduce((n, c) => n + (c.directors ?? 0), 0);
   const dinTotal = f.companies.reduce((n, c) => n + (c.din_verified ?? 0), 0);
   const dinPct = dirTotal ? Math.round((dinTotal / dirTotal) * 100) : 0;
+
+  const outsideShown = uniqueByTicker(outside);
+  const outsideN = outsideShown.length;
 
   const pickTicker = (ticker: string) => {
     const u = ticker.trim().toUpperCase();
@@ -301,13 +475,14 @@ function FamilyGroupCard({
                   {externalOnly && focus ? " · " : null}
                   {focus ? `${focus} and related` : null}
                   {" · "}
-                  {companies.length} in group · {outside.length} outside ·{" "}
+                  {companies.length} in group · {outsideN} outside ·{" "}
                   {people.length} people
+                  {focus ? " (full board)" : ""}
                 </>
               ) : (
                 <>
                   {f.company_count} companies · {peopleAll.length} linking people
-                  {outsideAll.length ? ` · ${outsideAll.length} outside boards` : ""}
+                  {outsideN ? ` · ${outsideN} outside boards` : ""}
                   {f.pattern ? ` · ${f.pattern}` : ""}
                 </>
               )}
@@ -357,8 +532,8 @@ function FamilyGroupCard({
               {externalOnly && focus ? " · " : null}
               {focus ? (
                 <>
-                  Showing <strong className="mono">{focus}</strong> and connected
-                  nodes
+                  Showing <strong className="mono">{focus}</strong> board and
+                  connected nodes
                 </>
               ) : null}
             </span>
@@ -378,7 +553,7 @@ function FamilyGroupCard({
       <LazyFamilyGraph
         companies={companies}
         people={people}
-        outside={outside}
+        outside={outsideShown}
         onCompany={pickTicker}
         onPerson={(id, name) => onPerson(id, name, f)}
         chartUrl={chartUrl}
@@ -387,9 +562,9 @@ function FamilyGroupCard({
         <button
           type="button"
           className={`gov-family-chip part${externalOnly ? " is-focus" : ""}`}
-          disabled={!outsideAll.length}
+          disabled={!outsideN}
           title={
-            outsideAll.length
+            outsideN
               ? externalOnly
                 ? "Show the full group again"
                 : "Show only outside-group boards and the people on them"
@@ -398,7 +573,7 @@ function FamilyGroupCard({
           onClick={() => setExternalOnly((v) => !v)}
         >
           <span>Outside</span>
-          <span className="gov-family-chip-din">{outsideAll.length}</span>
+          <span className="gov-family-chip-din">{outsideN}</span>
         </button>
         {uniqueByTicker(f.companies).map((c) => {
           const on = focus === c.ticker.toUpperCase();
