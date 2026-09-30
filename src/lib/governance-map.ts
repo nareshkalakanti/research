@@ -837,12 +837,18 @@ function normCompanyKey(name: string): string {
 export function loadGovernanceFamilyMap(opts?: {
   q?: string;
   hold?: boolean;
+  refresh?: boolean;
 }): GovFamilyGroup[] {
   const qNeedle = (opts?.q || "").trim().toLowerCase();
   const now = Date.now();
+  if (opts?.refresh) {
+    familyMapCache = null;
+    closeGovReader();
+  }
   if (
     !opts?.hold &&
     !qNeedle &&
+    !opts?.refresh &&
     familyMapCache &&
     now - familyMapCache.at < CACHE_MS
   ) {

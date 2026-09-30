@@ -10,6 +10,7 @@ import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { useSetAppTab, useOptionalAppTab } from "@/lib/app-tab";
 import { tradingviewUrl } from "@/lib/links";
 import { requestGovOpen } from "@/lib/gov-open";
+import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
 
 type DashView = "groups" | "people" | "stock";
 
@@ -50,10 +51,13 @@ export function FamilyDashboard() {
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
+  const [refreshingBox, setRefreshingBox] = useState<string | null>(null);
   const hasGroups = useRef(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { refresh?: boolean }) => {
+    const hard = opts?.refresh === true;
     if (!hasGroups.current) setLoading(true);
+    if (hard) setRefreshingBox((cur) => cur || "*");
     setError(null);
     try {
       const params = new URLSearchParams({
@@ -61,6 +65,7 @@ export function FamilyDashboard() {
         page: "1",
         pageSize: "200",
       });
+      if (hard) params.set("refresh", "1");
       const url = `/api/governance-map?${params}`;
       let res = await fetch(url, { cache: "no-store" });
       if (res.status === 503) {
@@ -76,11 +81,13 @@ export function FamilyDashboard() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+      setRefreshingBox(null);
     }
   }, []);
 
-  const loadPeople = useCallback(async () => {
+  const loadPeople = useCallback(async (opts?: { refresh?: boolean }) => {
     setPeopleLoading(true);
+    if (opts?.refresh) setRefreshingBox((cur) => cur || "*");
     setError(null);
     try {
       const collected: PersonBoardRow[] = [];
@@ -94,6 +101,7 @@ export function FamilyDashboard() {
           page: String(page),
           pageSize: "40",
         });
+        if (opts?.refresh) params.set("refresh", "1");
         const res = await fetch(`/api/governance-map?${params}`, {
           cache: "no-store",
         });
@@ -118,6 +126,7 @@ export function FamilyDashboard() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setPeopleLoading(false);
+      setRefreshingBox(null);
     }
   }, []);
 
@@ -126,6 +135,15 @@ export function FamilyDashboard() {
     if (hasGroups.current) return;
     void load();
   }, [tabState?.tab, load]);
+
+  useEffect(() => {
+    const onChange = () => {
+      if (dashView === "people") void loadPeople({ refresh: true });
+      else if (dashView === "groups") void load({ refresh: true });
+    };
+    window.addEventListener(GOV_MAP_CHANGED, onChange);
+    return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
+  }, [dashView, load, loadPeople]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -261,6 +279,7 @@ export function FamilyDashboard() {
         detail: label,
         done: true,
       });
+      notifyGovMapChanged();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -355,7 +374,9 @@ export function FamilyDashboard() {
             type="button"
             className="btn-ghost"
             onClick={() =>
-              void (dashView === "people" ? loadPeople() : load())
+              void (dashView === "people"
+                ? loadPeople({ refresh: true })
+                : load({ refresh: true }))
             }
             disabled={dashView === "people" ? peopleLoading : loading}
           >
@@ -472,6 +493,11 @@ export function FamilyDashboard() {
             onTicker={(t) => showStockNetwork(t)}
             onPerson={(id, name) => openPerson(id, name)}
             chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+            onRefresh={(row) => {
+              setRefreshingBox(row.person_id);
+              void loadPeople({ refresh: true });
+            }}
+            refreshingId={refreshingBox}
           />
         )
       ) : loading && !rows.length ? (
@@ -484,6 +510,11 @@ export function FamilyDashboard() {
           onPerson={(id, name) => openPerson(id, name)}
           chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
           companySearch={companySearch}
+          onRefresh={(g) => {
+            setRefreshingBox(g.group_id || g.family_name);
+            void load({ refresh: true });
+          }}
+          refreshing={refreshingBox}
           onRename={async (g, label) => {
             if (!g.group_id) return;
             const res = await fetch("/api/family-groups", {
@@ -607,6 +638,7 @@ export function FamilyDashboard() {
                 detail: `${shown} in ${g.family_name}`,
                 done: true,
               });
+              notifyGovMapChanged();
             } catch (e) {
               const msg = e instanceof Error ? e.message : String(e);
               setError(msg);

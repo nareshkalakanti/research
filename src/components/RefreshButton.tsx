@@ -18,3 +18,30 @@ export function RefreshButton({ onRefresh, busy }: Props) {
     </button>
   );
 }
+
+/** Compact ↻ for a graph/card. */
+export function BoxRefreshButton({
+  onRefresh,
+  busy,
+  title = "Reload this graph from saved boards",
+}: {
+  onRefresh: () => void | Promise<void>;
+  busy?: boolean;
+  title?: string;
+}) {
+  return (
+    <button
+      type="button"
+      className="btn-box-refresh"
+      disabled={busy}
+      onClick={(e) => {
+        e.stopPropagation();
+        void onRefresh();
+      }}
+      title={title}
+      aria-label={title}
+    >
+      {busy ? "…" : "↻"}
+    </button>
+  );
+}

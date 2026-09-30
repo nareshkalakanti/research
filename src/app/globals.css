@@ -8818,6 +8818,34 @@ button.result-tag {
   gap: 12px;
 }
 
+.gov-family-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-box-refresh {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  border-radius: 8px;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+.btn-box-refresh:hover:not(:disabled) {
+  background: var(--accent-soft, #eef4ff);
+}
+
+.btn-box-refresh:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
 .gov-family-focus-bar {
   display: flex;
   align-items: center;
