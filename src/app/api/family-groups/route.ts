@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   addFamilyGroupTicker,
   createFamilyGroup,
+  deleteFamilyGroup,
   removeFamilyGroupTicker,
   renameFamilyGroup,
   searchListedCompanies,
@@ -32,6 +33,7 @@ export async function POST(req: NextRequest) {
     add?: boolean;
     remove?: boolean;
     create?: boolean;
+    deleteGroup?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -62,6 +64,14 @@ export async function POST(req: NextRequest) {
     const saved = addFamilyGroupTicker(groupId, body.ticker || "");
     if (!saved) {
       return NextResponse.json({ ok: false, error: "Need a ticker" }, { status: 400 });
+    }
+  } else if (body.deleteGroup) {
+    const ok = deleteFamilyGroup(groupId, body.tickers || []);
+    if (!ok) {
+      return NextResponse.json(
+        { ok: false, error: "Could not remove group" },
+        { status: 400 },
+      );
     }
   } else if (body.remove) {
     const saved = removeFamilyGroupTicker(groupId, body.ticker || "");

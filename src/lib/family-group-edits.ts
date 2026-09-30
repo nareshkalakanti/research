@@ -236,6 +236,39 @@ export function addFamilyGroupTicker(
   return cur;
 }
 
+export function deleteFamilyGroup(
+  groupId: string,
+  tickers: string[] = [],
+): boolean {
+  const id = groupId.trim();
+  if (!id) return false;
+  if (id.startsWith("user-")) {
+    const db = openWrite();
+    try {
+      db.prepare(`DELETE FROM family_group_edits WHERE group_id = ?`).run(id);
+    } finally {
+      db.close();
+    }
+    return true;
+  }
+  const drop = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter((t) => /^[A-Z0-9][A-Z0-9.&-]{0,20}$/.test(t)),
+    ),
+  ];
+  if (!drop.length) return false;
+  const cur = readOne(id);
+  const gone = new Set(drop);
+  cur.add = cur.add.filter((t) => !gone.has(t));
+  for (const t of drop) {
+    if (!cur.remove.includes(t)) cur.remove.push(t);
+  }
+  saveEdit(cur);
+  return true;
+}
+
 export function removeFamilyGroupTicker(
   groupId: string,
   ticker: string,

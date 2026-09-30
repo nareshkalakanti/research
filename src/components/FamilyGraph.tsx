@@ -174,6 +174,7 @@ export function FamilyGraph({
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [hover, setHover] = useState<string | null>(null);
   const [dragged, setDragged] = useState<Record<string, { x: number; y: number }>>({});
+  const [legendOn, setLegendOn] = useState<Set<string>>(() => new Set());
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
   const justDragged = useRef(false);
 
@@ -329,6 +330,25 @@ export function FamilyGraph({
   const lit = (id: string) =>
     !hover || id === hover || Boolean(neighbours.get(hover)?.has(id));
 
+  const nodeShown = (node: GraphNode) => {
+    if (!legendOn.size) return true;
+    if (node.kind === "person") return legendOn.has("person");
+    if (node.kind === "outside") {
+      if (legendOn.has("outside")) return true;
+      return Boolean(node.cap && legendOn.has(node.cap));
+    }
+    return Boolean(node.cap && legendOn.has(node.cap));
+  };
+
+  const toggleLegend = (key: string) => {
+    setLegendOn((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
   const toSvg = (e: React.PointerEvent) => {
     const svg = svgRef.current;
     const ctm = svg?.getScreenCTM();
@@ -375,6 +395,7 @@ export function FamilyGraph({
             const pa = pos(na);
             const pb = pos(nb);
             const on = hover != null && (na.id === hover || nb.id === hover);
+            if (!nodeShown(na) || !nodeShown(nb)) return null;
             return (
               <line
                 key={`${na.id}-${nb.id}`}
@@ -388,6 +409,7 @@ export function FamilyGraph({
           })}
         </g>
         {nodes.map((node) => {
+          if (!nodeShown(node)) return null;
           const p = pos(node);
           return (
             <g
@@ -430,12 +452,49 @@ export function FamilyGraph({
       </svg>
       <div className="fam-legend">
         {CAP_LEGEND.map(([code, label]) => (
-          <span key={code} className={`cap-${code}`}>
+          <button
+            key={code}
+            type="button"
+            className={`cap-${code}${legendOn.has(code) ? " is-on" : ""}`}
+            aria-pressed={legendOn.has(code)}
+            title={
+              legendOn.has(code)
+                ? `Show all nodes again (hide ${label})`
+                : `Show only ${label} nodes`
+            }
+            onClick={() => toggleLegend(code)}
+          >
             {label}
-          </span>
+          </button>
         ))}
-        <span className="person">Person</span>
-        {outside.length ? <span className="outside">Outside group</span> : null}
+        <button
+          type="button"
+          className={`person${legendOn.has("person") ? " is-on" : ""}`}
+          aria-pressed={legendOn.has("person")}
+          title={
+            legendOn.has("person")
+              ? "Show all nodes again (hide people)"
+              : "Show only people"
+          }
+          onClick={() => toggleLegend("person")}
+        >
+          Person
+        </button>
+        {outside.length ? (
+          <button
+            type="button"
+            className={`outside${legendOn.has("outside") ? " is-on" : ""}`}
+            aria-pressed={legendOn.has("outside")}
+            title={
+              legendOn.has("outside")
+                ? "Show all nodes again (hide outside)"
+                : "Show only outside-group companies"
+            }
+            onClick={() => toggleLegend("outside")}
+          >
+            Outside group
+          </button>
+        ) : null}
       </div>
     </div>
   );

@@ -54,6 +54,10 @@ export function FamilyDashboard() {
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [refreshingBox, setRefreshingBox] = useState<string | null>(null);
+  const [holdPattern, setHoldPattern] = useState<{
+    tickers: string[];
+    lines: string[];
+  } | null>(null);
   const hasGroups = useRef(false);
 
   const load = useCallback(async (opts?: { refresh?: boolean }) => {
@@ -170,6 +174,20 @@ export function FamilyDashboard() {
     if (dashView === "people") void loadPeople();
   }, [dashView, loadPeople]);
 
+  useEffect(() => {
+    void fetch("/api/holdings-pattern", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((json: { tickers?: string[]; lines?: string[] }) => {
+        setHoldPattern({
+          tickers: (json.tickers ?? []).map((t) => t.toUpperCase()),
+          lines: json.lines ?? [],
+        });
+      })
+      .catch(() => {
+        /* pattern is optional */
+      });
+  }, []);
+
   const marketByTicker = useMemo(() => {
     const map = new Map<string, string>();
     for (const f of rows) for (const c of f.companies) map.set(c.ticker, c.market);
@@ -191,6 +209,18 @@ export function FamilyDashboard() {
         (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)),
     );
   }, [rows, q]);
+
+  const filteredWithPattern = useMemo(() => {
+    const set = new Set(holdPattern?.tickers ?? []);
+    const text = (holdPattern?.lines ?? []).filter(Boolean).join(" · ");
+    if (!set.size || !text) return filtered;
+    return filtered.map((f) => {
+      const n = f.companies.filter((c) => set.has(c.ticker.toUpperCase())).length;
+      const share = n / Math.max(1, f.company_count);
+      if (n < 3 || share < 0.4) return f;
+      return { ...f, pattern: text };
+    });
+  }, [filtered, holdPattern]);
 
   const filteredPeople = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -502,7 +532,7 @@ export function FamilyDashboard() {
         <div className="table-meta">Loading business groups…</div>
       ) : (
         <FamilyMapCards
-          rows={filtered}
+          rows={filteredWithPattern}
           editable
           addWork={addWork}
           onPerson={(id, name) => openPerson(id, name)}
@@ -513,6 +543,21 @@ export function FamilyDashboard() {
             void load({ refresh: true });
           }}
           refreshing={refreshingBox}
+          onDeleteGroup={async (g) => {
+            if (!g.group_id) return;
+            const res = await fetch("/api/family-groups", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                group_id: g.group_id,
+                deleteGroup: true,
+                tickers: g.companies.map((c) => c.ticker),
+              }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            setRows((prev) => prev.filter((row) => row.group_id !== g.group_id));
+            notifyGovMapChanged();
+          }}
           onRename={async (g, label) => {
             if (!g.group_id) return;
             const res = await fetch("/api/family-groups", {

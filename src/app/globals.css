@@ -8720,14 +8720,31 @@ button.result-tag {
 .fam-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 8px;
   padding: 6px 12px 8px;
   font-size: 0.7rem;
   color: var(--muted);
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.fam-legend span::before {
+.fam-legend button {
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.fam-legend button:hover,
+.fam-legend button.is-on {
+  border-color: var(--line-strong);
+  background: var(--surface, #fff);
+  color: var(--ink);
+}
+
+.fam-legend button::before {
   content: "";
   display: inline-block;
   width: 9px;
@@ -8847,6 +8864,22 @@ button.result-tag {
 .btn-box-refresh:disabled {
   opacity: 0.55;
   cursor: default;
+}
+
+.btn-box-remove {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line-strong);
+  background: #fff;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #b42318;
+}
+
+.btn-box-remove:hover {
+  background: #fef3f2;
 }
 
 .gov-family-focus-bar {
