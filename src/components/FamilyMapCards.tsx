@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { LazyFamilyGraph } from "@/components/FamilyGraph";
+import { BoxRefreshButton } from "@/components/RefreshButton";
 
 export type FamilyRow = {
   family_name: string;
@@ -143,6 +144,8 @@ export function FamilyMapCards({
   onAddCompany,
   companySearch,
   addWork,
+  onRefresh,
+  refreshing,
 }: {
   rows: FamilyRow[];
   onTicker?: (ticker: string, group: FamilyRow) => void;
@@ -161,6 +164,8 @@ export function FamilyMapCards({
     q: string,
   ) => Promise<Array<{ ticker: string; name: string }>>;
   addWork?: FamilyAddWork | null;
+  onRefresh?: (group: FamilyRow) => void | Promise<void>;
+  refreshing?: string | null;
 }) {
   const allCompanies = rows.flatMap((f) => f.companies);
   return (
@@ -199,6 +204,11 @@ export function FamilyMapCards({
               onAddCompany={onAddCompany}
               companySearch={companySearch}
               addWork={addWork}
+              onRefresh={onRefresh}
+              refreshing={
+                refreshing === "*" ||
+                refreshing === (f.group_id || f.family_name)
+              }
             />
           );
         })}
@@ -220,6 +230,8 @@ function FamilyGroupCard({
   onAddCompany,
   companySearch,
   addWork,
+  onRefresh,
+  refreshing,
 }: {
   f: FamilyRow;
   onPerson: (personId: string, name: string, group: FamilyRow) => void;
@@ -236,6 +248,8 @@ function FamilyGroupCard({
     q: string,
   ) => Promise<Array<{ ticker: string; name: string }>>;
   addWork?: FamilyAddWork | null;
+  onRefresh?: (group: FamilyRow) => void | Promise<void>;
+  refreshing?: boolean;
 }) {
   const [focus, setFocus] = useState<string | null>(null);
   const [externalOnly, setExternalOnly] = useState(false);
@@ -292,15 +306,23 @@ function FamilyGroupCard({
               )}
             </span>
           </div>
-          <div
-            className={`gov-family-din ${dinTone(dinTotal, dirTotal)}`}
-            title={`${dinTotal} of ${dirTotal} directors have a validated DIN`}
-          >
-            <span className="gov-family-din-label">DIN</span>
-            <span className="gov-family-din-val">
-              {dinTotal}/{dirTotal}
-            </span>
-            <span className="gov-family-din-pct">{dinPct}%</span>
+          <div className="gov-family-head-actions">
+            {onRefresh ? (
+              <BoxRefreshButton
+                busy={refreshing}
+                onRefresh={() => onRefresh(f)}
+              />
+            ) : null}
+            <div
+              className={`gov-family-din ${dinTone(dinTotal, dirTotal)}`}
+              title={`${dinTotal} of ${dirTotal} directors have a validated DIN`}
+            >
+              <span className="gov-family-din-label">DIN</span>
+              <span className="gov-family-din-val">
+                {dinTotal}/{dirTotal}
+              </span>
+              <span className="gov-family-din-pct">{dinPct}%</span>
+            </div>
           </div>
         </div>
         {filtered ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import { LazyFamilyGraph } from "@/components/FamilyGraph";
+import { BoxRefreshButton } from "@/components/RefreshButton";
 
 export type PersonBoardRow = {
   person_id: string;
@@ -37,11 +38,15 @@ export function PeopleBoardCards({
   onTicker,
   onPerson,
   chartUrl,
+  onRefresh,
+  refreshingId,
 }: {
   rows: PersonBoardRow[];
   onTicker: (ticker: string) => void;
   onPerson: (personId: string, name: string) => void;
   chartUrl?: (ticker: string) => string;
+  onRefresh?: (row: PersonBoardRow) => void | Promise<void>;
+  refreshingId?: string | null;
 }) {
   const boardTotal = rows.reduce((n, r) => n + r.board_count, 0);
   return (
@@ -89,6 +94,12 @@ export function PeopleBoardCards({
                         : ""}
                     </span>
                   </div>
+                  {onRefresh ? (
+                    <BoxRefreshButton
+                      busy={refreshingId === "*" || refreshingId === r.person_id}
+                      onRefresh={() => onRefresh(r)}
+                    />
+                  ) : null}
                 </div>
               </header>
               <LazyFamilyGraph

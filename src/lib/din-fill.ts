@@ -8,7 +8,11 @@ import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import { invalidateGovernanceMapCache } from "./governance-map";
 import { invalidateBoardIndependenceCache } from "./gov-independence";
 import { parseScreenshotBoard, parseCompanyLabelsFromBoardText } from "./din-screenshot-parse";
-import { pickUniqueListing, scoreListingName } from "./listing-name-match";
+import {
+  listingQueryVariants,
+  pickUniqueListing,
+  scoreListingName,
+} from "./listing-name-match";
 import {
   recordScanAttempt,
   saveCompanyBoard,
@@ -128,17 +132,40 @@ export async function applyDinScreenshot(opts: {
         companies.find((c) => c.ticker.toUpperCase() === dinHit) || null;
     }
   }
-  if (!picked && labels[0]) {
+  if (!picked && labels.length) {
     try {
-      const remote = await searchGrowwListings(labels[0], 8);
-      const g = pickUniqueListing(labels[0], remote, hintTicker);
+      const queries = listingQueryVariants(labels.join(" "));
+      for (const label of labels) {
+        for (const v of listingQueryVariants(label)) {
+          if (!queries.includes(v)) queries.push(v);
+        }
+      }
+      const remote: Awaited<ReturnType<typeof searchGrowwListings>> = [];
+      const seenT = new Set<string>();
+      for (const q of queries) {
+        for (const hit of await searchGrowwListings(q, 8)) {
+          const k = hit.ticker.toUpperCase();
+          if (seenT.has(k)) continue;
+          seenT.add(k);
+          remote.push(hit);
+        }
+      }
+      let g = null as (typeof remote)[number] | null;
+      for (const label of [...labels, ...queries]) {
+        g = pickUniqueListing(label, remote, hintTicker);
+        if (g) break;
+      }
       if (g) {
         await bootstrapCompanyTicker(g.ticker, {
           name: g.name,
           market: g.market,
         });
         invalidateCompanyCache();
-        picked = pickUniqueListing(labels[0], loadAllCompanies(), hintTicker);
+        const fresh = loadAllCompanies();
+        for (const label of [...labels, ...queries]) {
+          picked = pickUniqueListing(label, fresh, hintTicker);
+          if (picked) break;
+        }
       }
     } catch {
       /* local listing match still usable */

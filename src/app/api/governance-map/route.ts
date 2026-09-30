@@ -529,6 +529,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     const families = loadGovernanceFamilyMap({
       q,
       hold: sp.get("hold") === "1",
+      refresh,
     });
     const total = families.length;
     const pages = Math.max(1, Math.ceil(total / pageSize));

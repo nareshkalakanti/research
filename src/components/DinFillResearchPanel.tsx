@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { notifyGovMapChanged } from "@/lib/gov-map-sync";
 
 type Seat = { din: string; name: string; designation: string };
 
@@ -61,6 +62,7 @@ export function DinFillResearchPanel() {
       });
       setStatus(json.why || "Saved");
       setPreview(null);
+      notifyGovMapChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Extract failed");
     } finally {

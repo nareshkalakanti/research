@@ -79,5 +79,31 @@ assert.equal(pickUniqueListing("Example", listings, "QUEUECO"), null);
 assert.ok(
   scoreListingName("example hottels", "EXHOT", "Example Hotels Limited") >= 70,
 );
+const dotted = [
+  { ticker: "QUEUECO", name: "Queue Placeholder Ltd" },
+  { ticker: "EXHOT", name: "Example Hotels Limited" },
+  { ticker: "ABMACH", name: "AB Buildwel Machine Works Ltd" },
+];
+assert.equal(
+  pickUniqueListing("A. B. BUILDWELL PROPERTIES", dotted)?.ticker,
+  "ABMACH",
+);
+assert.ok(
+  scoreListingName(
+    "G. G. EXAMPLEKER PROPERTIES",
+    "EXMACH",
+    "GG Examplekar Machine Works Ltd",
+  ) >= 70,
+);
+const tickerAsName = [
+  { ticker: "QUEUECO", name: "Queue Placeholder Ltd" },
+  { ticker: "ALPHACO", name: "ALPHACO" },
+  { ticker: "ALPHRCO", name: "ALPHRCO CAPITAL SERVICES LIMITED" },
+];
+assert.equal(
+  pickUniqueListing("ALPHACO SERVICES", tickerAsName)?.ticker,
+  "ALPHACO",
+);
+assert.ok(scoreListingName("ALPHACO SERVICES", "ALPHRCO", "ALPHRCO CAPITAL SERVICES LIMITED") < 70);
 
 console.log("test:din-fill: ok");

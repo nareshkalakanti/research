@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { FamilyGraph } from "@/components/FamilyGraph";
+import { BoxRefreshButton } from "@/components/RefreshButton";
+import { GOV_MAP_CHANGED } from "@/lib/gov-map-sync";
 import {
   TickerSuggest,
   type TickerSuggestHit,
@@ -75,6 +77,14 @@ export function StockNetworkSearch({
     if (t) void pick(t);
   }, [initialTicker, pick]);
 
+  useEffect(() => {
+    const onChange = () => {
+      if (focus) void pick(focus);
+    };
+    window.addEventListener(GOV_MAP_CHANGED, onChange);
+    return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
+  }, [focus, pick]);
+
   const marketByTicker = new Map(
     (row?.companies ?? []).map((c) => [c.ticker.toUpperCase(), c.market]),
   );
@@ -120,6 +130,10 @@ export function StockNetworkSearch({
                   {row.companies.length} connected companies
                 </span>
               </div>
+              <BoxRefreshButton
+                busy={loading}
+                onRefresh={() => void pick(row.ticker)}
+              />
             </div>
           </header>
           <FamilyGraph

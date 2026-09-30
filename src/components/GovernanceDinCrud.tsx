@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
+import { notifyGovMapChanged } from "@/lib/gov-map-sync";
 
 type Seat = {
   person_id: string;
@@ -75,6 +76,7 @@ export function GovernanceDinCrud({ onChanged }: { onChanged?: () => void }) {
       setDinText("");
       setDirectorName("");
       onChanged?.();
+      notifyGovMapChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not add DIN");
     } finally {
@@ -101,6 +103,7 @@ export function GovernanceDinCrud({ onChanged }: { onChanged?: () => void }) {
       }
       setSeats(json.seats ?? []);
       onChanged?.();
+      notifyGovMapChanged();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not remove");
     } finally {
