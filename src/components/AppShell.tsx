@@ -122,6 +122,7 @@ function AppShellPanels() {
     <div className="tab-panels">
       {[...visited].map((id) => {
         const Panel = PANELS[id];
+        if (!Panel) return null;
         const active = id === tab;
         return (
           <div
@@ -161,6 +162,12 @@ export function AppShell() {
     }
     if (t === "categories") {
       params.set("tab", "theme-scanner");
+      const qs = params.toString();
+      window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
+      return;
+    }
+    if (t === "radar") {
+      params.delete("tab");
       const qs = params.toString();
       window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
     }
