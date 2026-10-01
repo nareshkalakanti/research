@@ -8561,7 +8561,6 @@ button.result-tag {
 
 .fam-graph {
   position: relative;
-  overflow: hidden;
   background-color: #fafafb;
   background-image: radial-gradient(#e4e7ec 1px, transparent 1px);
   background-size: 16px 16px;
@@ -8790,23 +8789,6 @@ button.result-tag {
 .fam-legend .outside::before {
   background: transparent;
   border: 1.5px dashed #98a2b3;
-}
-
-.fam-zoom {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  margin-right: 6px;
-}
-
-.fam-legend .fam-zoom button::before {
-  display: none;
-}
-
-.fam-legend .fam-zoom button {
-  min-width: 28px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
 }
 
 .holdings-mv {
@@ -24096,7 +24078,7 @@ tr.wl-prove-fail td {
 
 .din-paste-preview {
   max-width: 100%;
-  max-height: 280px;
+  max-height: min(72vh, 640px);
   object-fit: contain;
   border-radius: 8px;
 }
@@ -24105,6 +24087,57 @@ tr.wl-prove-fail td {
   margin: 0;
   font-size: 0.84rem;
   color: var(--muted);
+}
+
+.din-fill-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.05fr) minmax(260px, 1fr);
+  gap: 16px 20px;
+  align-items: start;
+}
+
+.din-fill-approve {
+  min-width: 0;
+}
+
+.din-fill-split .din-paste-well {
+  min-height: 220px;
+  max-height: min(78vh, 720px);
+  overflow: auto;
+}
+
+.din-fill-split .din-paste-preview {
+  max-width: 100%;
+  max-height: none;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 860px) {
+  .din-fill-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.din-fill-review {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.din-fill-review-form {
+  min-width: 0;
+}
+
+.din-fill-seats {
+  margin: 0;
+  padding: 0 0 0 18px;
+  max-height: min(420px, 70vh);
+  overflow: auto;
+  font-size: 0.84rem;
+  line-height: 1.45;
 }
 
 .din-fill-review .din-fill-field {
@@ -24118,7 +24151,17 @@ tr.wl-prove-fail td {
 
 .din-fill-review .din-fill-field input,
 .din-fill-review .ticker-suggest {
+  display: block;
   width: 100%;
+  flex: none;
+  max-width: none;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .din-fill-review {
+    grid-template-columns: 1fr;
+  }
 }
 
 .din-fill-listing {

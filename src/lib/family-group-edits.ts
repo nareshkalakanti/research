@@ -314,11 +314,19 @@ export function applyFamilyGroupEdits<
   for (const g of groups) {
     if (g.group_id && edits.has(g.group_id)) used.add(g.group_id);
   }
+  const leadKey = (s: string) => {
+    const skip = new Set(["group", "groups", "house", "houses", "the", "of", "and"]);
+    const parts = labelKey(s)
+      .split(/\s+/)
+      .filter((w) => w && !skip.has(w) && /^[a-z]{3,}$/.test(w));
+    return (parts[0] || "").toUpperCase();
+  };
   for (const edit of edits.values()) {
     if (used.has(edit.group_id) || !edit.label) continue;
     const want = labelKey(edit.label);
     if (want.length < 2) continue;
-    const cands = groups
+    const wantLead = leadKey(edit.label);
+    let cands = groups
       .filter(
         (g) =>
           labelKey(g.family_name) === want &&
@@ -329,6 +337,19 @@ export function applyFamilyGroupEdits<
           b.companies.length - a.companies.length ||
           a.family_name.localeCompare(b.family_name),
       );
+    if (!cands.length && wantLead.length >= 3) {
+      cands = groups
+        .filter(
+          (g) =>
+            leadKey(g.family_name) === wantLead &&
+            !(g.group_id && used.has(g.group_id)),
+        )
+        .sort(
+          (a, b) =>
+            b.companies.length - a.companies.length ||
+            a.family_name.localeCompare(b.family_name),
+        );
+    }
     if (!cands.length) continue;
     if (cands.length > 1 && cands[0]!.companies.length === cands[1]!.companies.length) {
       continue;

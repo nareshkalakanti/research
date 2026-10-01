@@ -49,6 +49,8 @@ export function DinFillResearchPanel() {
       const form = new FormData();
       form.set("file", file);
       form.set("action", "preview");
+      form.set("ticker", ticker);
+      form.set("company", company);
       const res = await fetch("/api/din-fill", { method: "POST", body: form });
       const json = (await res.json()) as {
         ok?: boolean;
@@ -62,15 +64,15 @@ export function DinFillResearchPanel() {
       if (!res.ok || !json.ok) throw new Error(json.error || "Extract failed");
       setSeats(json.seats ?? []);
       setCompany(json.company_extracted ?? "");
-      setTicker((json.ticker || "").toUpperCase());
-      setListingName(json.listing_name ?? null);
+      setTicker((prev) => (json.ticker || prev || "").toUpperCase());
+      setListingName((prev) => json.listing_name ?? prev);
       setStatus(json.why || "Review and approve to save.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Extract failed");
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [company, ticker]);
 
   const resolveCompany = useCallback(async (name: string, hint?: string) => {
     const q = name.trim();
@@ -106,10 +108,10 @@ export function DinFillResearchPanel() {
       setSavedWhy(null);
       if (resolveTimer.current) window.clearTimeout(resolveTimer.current);
       resolveTimer.current = window.setTimeout(() => {
-        void resolveCompany(value);
+        void resolveCompany(value, ticker);
       }, 450);
     },
-    [resolveCompany],
+    [resolveCompany, ticker],
   );
 
   const approve = useCallback(async () => {
@@ -166,113 +168,121 @@ export function DinFillResearchPanel() {
         listing, then approve to save. Rescan re-reads the same image.
       </p>
 
-      <div
-        ref={wellRef}
-        className={`din-paste-well${dragOver ? " is-drag" : ""}${busy ? " is-busy" : ""}`}
-        tabIndex={0}
-        role="button"
-        onClick={() => wellRef.current?.focus()}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragOver(false);
-          const file = e.dataTransfer.files[0];
-          if (file?.type.startsWith("image/")) void sendImage(file);
-        }}
-      >
-        {preview ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="din-paste-preview" src={preview} alt="" />
-        ) : (
-          <div className="din-paste-hint">
-            <strong>Paste screenshot here</strong>
-            <span>⌘V · Ctrl+V · or drop an image</span>
-            <label className="din-paste-upload">
-              Choose file
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                disabled={busy}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void sendImage(f);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          </div>
-        )}
-        {busy ? <p className="din-paste-busy">Reading…</p> : null}
-      </div>
+      <div className="din-fill-split">
+        <div className="din-fill-approve">
+          {status ? <p className="buyback-status">{status}</p> : null}
+          {error ? <p className="buyback-error">{error}</p> : null}
 
-      {status ? <p className="buyback-status">{status}</p> : null}
-      {error ? <p className="buyback-error">{error}</p> : null}
-
-      {seats.length ? (
-        <div className="buyback-result-card din-fill-review">
-          <label className="din-fill-field">
-            <span>Company in image</span>
-            <input
-              className="buyback-url-input"
-              value={company}
-              disabled={busy}
-              onChange={(e) => onCompanyChange(e.target.value)}
-              placeholder="Correct the extracted company name"
-            />
-          </label>
-          <label className="din-fill-field">
-            <span>Save on listing</span>
-            <TickerSuggest
-              value={ticker}
-              disabled={busy}
-              placeholder="Ticker or company"
-              onChange={(t) => {
-                setTicker(t.toUpperCase());
-                setSavedWhy(null);
-              }}
-              onSelect={(hit) => {
-                setTicker(hit.ticker.toUpperCase());
-                setListingName(hit.name);
-                setSavedWhy(null);
-              }}
-            />
-          </label>
-          {listingName ? (
-            <p className="din-fill-listing">{listingName}</p>
+          {seats.length ? (
+            <div className="buyback-result-card din-fill-review">
+              <div className="din-fill-review-form">
+                <label className="din-fill-field">
+                  <span>Company in image</span>
+                  <input
+                    className="buyback-url-input"
+                    value={company}
+                    disabled={busy}
+                    onChange={(e) => onCompanyChange(e.target.value)}
+                    placeholder="Correct the extracted company name"
+                  />
+                </label>
+                <label className="din-fill-field">
+                  <span>Save on listing</span>
+                  <TickerSuggest
+                    value={ticker}
+                    disabled={busy}
+                    placeholder="Ticker or company"
+                    onChange={(t) => {
+                      setTicker(t.toUpperCase());
+                      setSavedWhy(null);
+                    }}
+                    onSelect={(hit) => {
+                      setTicker(hit.ticker.toUpperCase());
+                      setListingName(hit.name);
+                      setSavedWhy(null);
+                    }}
+                  />
+                </label>
+                {listingName ? (
+                  <p className="din-fill-listing">{listingName}</p>
+                ) : null}
+                <div className="din-fill-actions">
+                  <button
+                    type="button"
+                    className="din-fill-btn din-fill-btn-quiet"
+                    disabled={busy || !fileRef.current}
+                    onClick={() =>
+                      fileRef.current && void sendImage(fileRef.current)
+                    }
+                  >
+                    Rescan
+                  </button>
+                  <button
+                    type="button"
+                    className="din-fill-btn"
+                    disabled={busy || !canSave}
+                    onClick={() => void approve()}
+                  >
+                    Approve & save
+                  </button>
+                </div>
+                {savedWhy ? <p className="din-fill-saved">{savedWhy}</p> : null}
+              </div>
+              <ul className="din-fill-seats">
+                {seats.map((s) => (
+                  <li key={s.din}>
+                    {s.din} · {s.name} · {s.designation}
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : null}
-          <div className="din-fill-actions">
-            <button
-              type="button"
-              className="din-fill-btn din-fill-btn-quiet"
-              disabled={busy || !fileRef.current}
-              onClick={() => fileRef.current && void sendImage(fileRef.current)}
-            >
-              Rescan
-            </button>
-            <button
-              type="button"
-              className="din-fill-btn"
-              disabled={busy || !canSave}
-              onClick={() => void approve()}
-            >
-              Approve & save
-            </button>
-          </div>
-          {savedWhy ? <p className="din-fill-saved">{savedWhy}</p> : null}
-          <ul>
-            {seats.map((s) => (
-              <li key={s.din}>
-                {s.din} · {s.name} · {s.designation}
-              </li>
-            ))}
-          </ul>
         </div>
-      ) : null}
+
+        <div
+          ref={wellRef}
+          className={`din-paste-well${dragOver ? " is-drag" : ""}${busy ? " is-busy" : ""}`}
+          tabIndex={0}
+          role="button"
+          onClick={() => wellRef.current?.focus()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            const file = e.dataTransfer.files[0];
+            if (file?.type.startsWith("image/")) void sendImage(file);
+          }}
+        >
+          {preview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img className="din-paste-preview" src={preview} alt="" />
+          ) : (
+            <div className="din-paste-hint">
+              <strong>Paste screenshot here</strong>
+              <span>⌘V · Ctrl+V · or drop an image</span>
+              <label className="din-paste-upload">
+                Choose file
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  disabled={busy}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void sendImage(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          )}
+          {busy ? <p className="din-paste-busy">Reading…</p> : null}
+        </div>
+      </div>
     </div>
   );
 }

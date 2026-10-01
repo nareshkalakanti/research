@@ -229,13 +229,21 @@ export function openSqlite(
   }
 }
 
-/** Copy `data/seeds/<name>` → `data/<name>` when the working file is missing. */
+/** Copy `data/seeds/<name>` → `data/<name>` when missing or the seed is newer. */
 export function hydrateWorkingDbFromSeed(name: string): boolean {
   const file = name.endsWith(".db") ? name : `${name}.db`;
   const dest = path.join(DATA_DIR, file);
   const seed = path.join(DB_SEED_DIR, file);
-  if (fs.existsSync(dest) || !fs.existsSync(seed)) return false;
+  if (!fs.existsSync(seed)) return false;
+  if (fs.existsSync(dest)) {
+    const destStat = fs.statSync(dest);
+    const seedStat = fs.statSync(seed);
+    if (destStat.mtimeMs >= seedStat.mtimeMs && destStat.size === seedStat.size) {
+      return false;
+    }
+  }
   fs.copyFileSync(seed, dest);
+  removeWalSidecars(dest);
   return true;
 }
 

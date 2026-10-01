@@ -206,9 +206,6 @@ export function FamilyGraph({
   const [legendOn, setLegendOn] = useState<Set<string>>(() => new Set());
   const drag = useRef<{ id: string; moved: boolean } | null>(null);
   const justDragged = useRef(false);
-  const [zoom, setZoom] = useState(1);
-  const wrapRef = useRef<HTMLDivElement | null>(null);
-  const clampZoom = (z: number) => Math.min(4, Math.max(0.55, Math.round(z * 100) / 100));
 
   const { nodes, edges, view } = useMemo(() => {
     const list: GraphNode[] = [];
@@ -413,29 +410,11 @@ export function FamilyGraph({
     }
   };
 
-  const z = zoom;
-  const vbW = view.w / z;
-  const vbH = view.h / z;
-  const vbX = view.x + (view.w - vbW) / 2;
-  const vbY = view.y + (view.h - vbH) / 2;
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const dir = e.deltaY > 0 ? 0.9 : 1.12;
-      setZoom((cur) => clampZoom(cur * dir));
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
-
   return (
-    <div className="fam-graph" ref={wrapRef}>
+    <div className="fam-graph">
       <svg
         ref={svgRef}
-        viewBox={`${vbX} ${vbY} ${vbW} ${vbH}`}
+        viewBox={`${view.x} ${view.y} ${view.w} ${view.h}`}
         style={{ aspectRatio: `${view.w} / ${view.h}` }}
         onPointerMove={(e) => {
           if (!drag.current) return;
@@ -532,29 +511,6 @@ export function FamilyGraph({
         })}
       </svg>
       <div className="fam-legend">
-        <span className="fam-zoom">
-          <button
-            type="button"
-            title="Zoom out"
-            onClick={() => setZoom((cur) => clampZoom(cur / 1.2))}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            title="Reset zoom"
-            onClick={() => setZoom(1)}
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <button
-            type="button"
-            title="Zoom in"
-            onClick={() => setZoom((cur) => clampZoom(cur * 1.2))}
-          >
-            +
-          </button>
-        </span>
         {CAP_LEGEND.map(([code, label]) => (
           <button
             key={code}

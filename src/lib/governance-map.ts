@@ -1420,7 +1420,9 @@ export function loadGovernanceFamilyMap(opts?: {
         return (byTicker.get(t) ?? []).some((s) => hostControl.has(s.person_id));
       };
       if (host) {
-        const extraTickers = leftover.filter((t) => sharesHost(t));
+        const extraTickers = leftover.filter(
+          (t) => sharesHost(t) || companyCarriesHouseName(t, house),
+        );
         if (extraTickers.length) {
           const extra = packCompanies(extraTickers, house);
           for (const c of extra) {
@@ -1678,9 +1680,44 @@ export function loadGovernanceFamilyMap(opts?: {
     for (const [ticker, houses] of nameHousesByTicker) {
       if (covered.has(ticker)) continue;
       if ((houses[0] || "").toUpperCase() !== lead) continue;
-      if (boardAffinity(ticker, g) <= 0) continue;
       addChildToGroup(g, ticker, g.family_name);
     }
+  }
+  const namedByLead = new Map<string, GovFamilyGroup[]>();
+  for (const g of groups) {
+    const lead = houseLeadToken(g.family_name.split(" · ")[0] || g.family_name);
+    if (!lead) continue;
+    const namedN = g.companies.filter(
+      (c) => (nameHousesByTicker.get(c.ticker)?.[0] || "").toUpperCase() === lead,
+    ).length;
+    if (!namedN || namedN * 2 < g.companies.length) continue;
+    const list = namedByLead.get(lead) ?? [];
+    list.push(g);
+    namedByLead.set(lead, list);
+  }
+  for (const list of namedByLead.values()) {
+    if (list.length < 2) continue;
+    list.sort(
+      (a, b) =>
+        b.companies.length - a.companies.length ||
+        a.family_name.localeCompare(b.family_name),
+    );
+    const host = list[0]!;
+    const labels = list.map((g) => g.family_name.trim()).filter(Boolean);
+    for (const g of list.slice(1)) {
+      for (const c of g.companies) {
+        if (host.companies.some((x) => x.ticker === c.ticker)) continue;
+        host.companies.push(c);
+        covered.add(c.ticker);
+      }
+      g.companies = [];
+    }
+    host.company_count = host.companies.length;
+    labels.sort(
+      (a, b) => a.length - b.length || a.localeCompare(b, undefined, { sensitivity: "base" }),
+    );
+    const compact = labels.find((n) => /\bgroup\b/i.test(n)) || labels[0];
+    if (compact) host.family_name = compact;
   }
   for (let i = groups.length - 1; i >= 0; i--) {
     if (groups[i]!.companies.length < 2) groups.splice(i, 1);
