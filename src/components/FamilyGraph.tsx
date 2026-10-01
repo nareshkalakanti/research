@@ -225,7 +225,7 @@ export function FamilyGraph({
           : undefined,
       });
       add({
-        id: `c:${c.ticker}`,
+        id: `c:${c.ticker.toUpperCase()}`,
         kind: "company",
         label: c.ticker,
         cap,
@@ -244,7 +244,7 @@ export function FamilyGraph({
         extra: "outside group",
       });
       add({
-        id: `c:${o.ticker}`,
+        id: `c:${o.ticker.toUpperCase()}`,
         kind: "outside",
         label: o.ticker,
         cap,
@@ -270,7 +270,7 @@ export function FamilyGraph({
       });
       const pi = index.get(`p:${p.person_id}`)!;
       for (const t of p.tickers) {
-        const ci = index.get(`c:${t}`);
+        const ci = index.get(`c:${t.toUpperCase()}`);
         if (ci != null) pairs.push([pi, ci]);
       }
     }

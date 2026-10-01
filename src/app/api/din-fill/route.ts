@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  applyPersonRoleNotes,
   previewDinScreenshot,
   resolveDinCompany,
   saveDinSeats,
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
         ticker?: string;
         company?: string;
         image?: string;
+        text?: string;
         seats?: unknown;
       };
       action = (body.action || "preview").trim() || "preview";
@@ -76,6 +78,17 @@ export async function POST(req: NextRequest) {
       company = (body.company || "").trim();
       imageDataUrl = (body.image || "").trim();
       seats = asSeats(body.seats);
+      if (action === "kmp-note") {
+        const note = (body.text || company || "").trim();
+        if (!note) {
+          return NextResponse.json(
+            { ok: false, error: "text required" },
+            { status: 400 },
+          );
+        }
+        const result = await applyPersonRoleNotes(note);
+        return NextResponse.json({ ok: true, ...result });
+      }
     }
 
     if (action === "resolve") {

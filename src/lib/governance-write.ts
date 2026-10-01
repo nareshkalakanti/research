@@ -44,8 +44,7 @@ export function personIdFor(opts: {
 
 function requireMarket(market: string | null | undefined): string {
   const m = safeStr(market).toUpperCase() || "NSE";
-  if (m === "BSE SME") return "BSE";
-  if (m === "NSE" || m === "NSE SME" || m === "BSE") return m;
+  if (m === "NSE" || m === "NSE SME" || m === "BSE" || m === "BSE SME") return m;
   throw new Error(`Unsupported governance market: ${m}`);
 }
 
@@ -63,7 +62,7 @@ export function getGovernanceWriteDb(): Database.Database {
     CREATE TABLE IF NOT EXISTS companies (
       ticker TEXT PRIMARY KEY,
       market TEXT NOT NULL DEFAULT 'NSE'
-        CHECK (market IN ('NSE', 'NSE SME', 'BSE')),
+        CHECK (market IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')),
       name TEXT NOT NULL,
       cin TEXT,
       isin TEXT,
@@ -122,8 +121,107 @@ export function getGovernanceWriteDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_seat_events_ticker
       ON board_seat_events(ticker);
   `);
+  migrateCompaniesMarketCheck(db);
+  syncListedSmeFromAbout(db);
   writeDb = db;
   return db;
+}
+
+function syncListedSmeFromAbout(db: Database.Database): void {
+  const aboutPath = path.join(DATA_DIR, "company_about.db");
+  if (!fs.existsSync(aboutPath)) return;
+  let about: Database.Database | null = null;
+  try {
+    about = new Database(aboutPath, { readonly: true, fileMustExist: true });
+    about.pragma("query_only = ON");
+    const rows = about
+      .prepare(
+        `SELECT ticker, name, market FROM company_about
+         WHERE UPPER(TRIM(COALESCE(market, ''))) IN ('NSE SME', 'BSE SME')`,
+      )
+      .all() as Array<{ ticker: string; name: string | null; market: string }>;
+    if (!rows.length) return;
+    const now = utcNow();
+    const ins = db.prepare(
+      `
+      INSERT INTO companies (
+        ticker, market, name, cin, isin, notes,
+        sector, industry, sub_sector, updated_at
+      )
+      VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?)
+      ON CONFLICT(ticker) DO UPDATE SET
+        market = CASE
+          WHEN excluded.market LIKE '%SME%'
+            AND companies.market NOT LIKE '%SME%'
+          THEN excluded.market
+          ELSE companies.market
+        END,
+        name = CASE
+          WHEN excluded.name != '' AND excluded.name != excluded.ticker
+          THEN excluded.name
+          ELSE companies.name
+        END
+      `,
+    );
+    const tx = db.transaction(() => {
+      for (const r of rows) {
+        const ticker = safeStr(r.ticker).toUpperCase();
+        if (!ticker) continue;
+        let market: string;
+        try {
+          market = requireMarket(r.market);
+        } catch {
+          continue;
+        }
+        ins.run(ticker, market, safeStr(r.name) || ticker, now);
+      }
+    });
+    tx();
+  } catch {
+    /* about snapshot optional */
+  } finally {
+    try {
+      about?.close();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+function migrateCompaniesMarketCheck(db: Database.Database): void {
+  const row = db
+    .prepare(
+      `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'companies'`,
+    )
+    .get() as { sql?: string } | undefined;
+  const sql = row?.sql || "";
+  if (sql.includes("'BSE SME'")) return;
+  db.exec(`PRAGMA foreign_keys = OFF`);
+  db.exec(`
+    CREATE TABLE companies_mkt (
+      ticker TEXT PRIMARY KEY,
+      market TEXT NOT NULL DEFAULT 'NSE'
+        CHECK (market IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')),
+      name TEXT NOT NULL,
+      cin TEXT,
+      isin TEXT,
+      notes TEXT,
+      sector TEXT,
+      industry TEXT,
+      sub_sector TEXT,
+      updated_at TEXT NOT NULL
+    );
+    INSERT INTO companies_mkt (
+      ticker, market, name, cin, isin, notes,
+      sector, industry, sub_sector, updated_at
+    )
+    SELECT ticker, market, name, cin, isin, notes,
+      sector, industry, sub_sector, updated_at
+    FROM companies;
+    DROP TABLE companies;
+    ALTER TABLE companies_mkt RENAME TO companies;
+  `);
+  db.exec(`PRAGMA foreign_keys = ON`);
 }
 
 export function closeGovernanceWriteDb(): void {
