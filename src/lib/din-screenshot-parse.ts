@@ -343,6 +343,85 @@ export function parseDirectorSeatsFromTable(text: string): BoardSeat[] {
   return seats;
 }
 
+export type PersonCompanyRole = {
+  name: string;
+  din: string;
+  designation: string;
+  company: string;
+};
+
+function compactRole(raw: string): string {
+  const t = raw.replace(/\s+/g, " ").trim();
+  if (/\bcfo\b|chief financial/i.test(t)) return "CFO";
+  if (/\bceo\b|chief executive/i.test(t)) return "CEO";
+  if (/managing director|\bmd\b/i.test(t)) return "Managing Director";
+  if (/company secretary|\bcs\b/i.test(t)) return "Company Secretary";
+  if (/chair(?:man|person)?/i.test(t)) return "Chairperson";
+  if (/director/i.test(t)) {
+    const bits = t.match(
+      /((?:non[-\s]?executive|independent|executive|additional|nominee|whole[-\s]?time)\s+)*director/i,
+    );
+    const rawRole = bits?.[0]?.replace(/\s+/g, " ").trim() || "Director";
+    return rawRole.replace(/\b\w/g, (ch) => ch.toUpperCase());
+  }
+  return t || "Director";
+}
+
+function splitRoleCompany(clause: string): { designation: string; company: string } | null {
+  const t = clause.replace(/[,.;]+$/g, "").replace(/\s+/g, " ").trim();
+  if (!t) return null;
+  const ofBoard = t.match(
+    /^(.*?director(?:\s+on(?:\s+the)?\s+board)?)\s+(?:of\s+)(.+)$/i,
+  );
+  if (ofBoard?.[2]) {
+    return { designation: compactRole(ofBoard[1]!), company: ofBoard[2].trim() };
+  }
+  const dash = t.match(/^(.+?)\s*[-–—]\s*(.+)$/);
+  if (dash?.[2] && /director|cfo|ceo|officer|secretary|chair|kmp|md\b/i.test(dash[1]!)) {
+    return { designation: compactRole(dash[1]!), company: dash[2].trim() };
+  }
+  const of = t.match(/^(.+?)\s+of\s+(.+)$/i);
+  if (of?.[2] && /director|cfo|ceo|officer|secretary|chair|kmp|md\b/i.test(of[1]!)) {
+    return { designation: compactRole(of[1]!), company: of[2].trim() };
+  }
+  return null;
+}
+
+/** Bios: "Name (DIN) - director of Company A & CFO - Company B". */
+export function parsePersonCompanyRoles(text: string): PersonCompanyRole[] {
+  const blob = plainBoardText(text || "").replace(/[–—]/g, "-");
+  const out: PersonCompanyRole[] = [];
+  const seen = new Set<string>();
+  const personRe =
+    /([A-Za-z][A-Za-z .'-]{2,80}?)\s*\((\d{8})\)\s*(?:[-,:]\s*)?([\s\S]*?)(?=(?:[A-Za-z][A-Za-z .'-]{2,80}?\s*\(\d{8}\))|$)/g;
+  let m: RegExpExecArray | null;
+  while ((m = personRe.exec(blob)) != null) {
+    const name = m[1]!.replace(/\s+/g, " ").trim();
+    const din = m[2]!;
+    const rest = (m[3] || "").trim();
+    const clauses = rest
+      .split(
+        /\s*(?:&|;|\n)\s*(?=(?:Chief|CFO|CEO|Director|Managing|Company Secretary|KMP|Chair))/i,
+      )
+      .map((c) => c.trim())
+      .filter(Boolean);
+    for (const clause of clauses) {
+      const split = splitRoleCompany(clause);
+      if (!split || split.company.length < 3) continue;
+      const key = `${din}|${split.company.toLowerCase()}|${split.designation.toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        name,
+        din,
+        designation: split.designation,
+        company: split.company.replace(/\s+/g, " ").trim(),
+      });
+    }
+  }
+  return out;
+}
+
 export function parseScreenshotBoard(text: string): ScreenshotBoardExtract {
   const labels = parseCompanyLabelsFromBoardText(text);
   return {

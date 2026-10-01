@@ -95,8 +95,8 @@ export function inferDirectorCategory(text: string): string {
   const nonIndependent = /non[-\s]?independent/.test(low);
   if (!nonIndependent && low.includes("independent")) return "Independent";
   if (
-    ["executive", "managing", "ceo", "md", "whole"].some((x) =>
-      low.includes(x),
+    ["executive", "managing", "ceo", "cfo", "chief financial", "md", "whole"].some(
+      (x) => low.includes(x),
     ) &&
     !/non[-\s]?executive/.test(low)
   ) {

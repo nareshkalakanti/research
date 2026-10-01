@@ -427,8 +427,9 @@ function FamilyGroupCard({
   let companies = ego?.companies ?? sliced?.companies ?? f.companies;
   let people = ego?.people ?? sliced?.people ?? peopleAll;
   const groupSet = new Set(f.companies.map((c) => c.ticker.toUpperCase()));
+  const shownSet = new Set(companies.map((c) => c.ticker.toUpperCase()));
   let outside = uniqueByTicker(
-    outsideFromPeople(groupSet, people, [
+    outsideFromPeople(shownSet.size ? shownSet : groupSet, people, [
       ...(net?.companies ?? []),
       ...f.companies,
       ...(f.listings ?? []),

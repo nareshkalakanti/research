@@ -32,7 +32,7 @@ import {
   scheduleFamilyGroupRefine,
 } from "./family-group-refine";
 import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
-import { closeGovernanceWriteDb } from "./governance-write";
+import { closeGovernanceWriteDb, getGovernanceWriteDb } from "./governance-write";
 import {
   DATA_DIR as SQLITE_DATA_DIR,
   isSqliteWalDamage,
@@ -221,7 +221,6 @@ export type GovFamilyGroup = {
   listings?: GovFamilyOutside[];
 };
 
-const FAMILY_GRAPH_MAX_OUTSIDE = 24;
 const FAMILY_GRAPH_MAX_PEOPLE = 40;
 
 function titleCaseSurname(raw: string): string {
@@ -438,7 +437,11 @@ function isHouseControlSeat(designation: string, category: string | null): boole
   if (/independent/.test(text) && !/non[-\s]?independent/.test(text)) {
     return false;
   }
-  if (/promoter|chair|managing|whole[-\s]?time|founder|\bceo\b|\bmd\b/.test(text)) {
+  if (
+    /promoter|chair|managing|whole[-\s]?time|founder|\bceo\b|\bcfo\b|chief financial|\bmd\b/.test(
+      text,
+    )
+  ) {
     return true;
   }
   if (/non[-\s]?executive/.test(text)) return false;
@@ -856,6 +859,13 @@ export function loadGovernanceFamilyMap(opts?: {
   ) {
     return familyMapCache.groups;
   }
+  try {
+    getGovernanceWriteDb();
+    closeGovernanceWriteDb();
+    closeGovReader();
+  } catch {
+    /* SME listing stubs optional */
+  }
 
   const seats = loadAllBoardSeats();
   if (!seats.length) return [];
@@ -958,32 +968,78 @@ export function loadGovernanceFamilyMap(opts?: {
   }
 
   const listingMeta = new Map<string, GovFamilyCompany>();
+  const addListingRow = (r: {
+    ticker: string;
+    name: string;
+    market: string;
+  }) => {
+    const ticker = (r.ticker || "").toUpperCase();
+    if (!ticker) return;
+    let market = (r.market || "NSE").toUpperCase();
+    const isSme = market === "NSE SME" || market === "BSE SME";
+    if (!isSme && market.startsWith("NSE")) market = "NSE";
+    else if (!isSme && market.startsWith("BSE")) market = "BSE";
+    const existing = metaByTicker.get(ticker);
+    if (existing) {
+      existing.market = market || existing.market;
+      existing.is_sme = isSme || existing.is_sme;
+      if (r.name?.trim() && r.name.trim() !== ticker) existing.name = r.name.trim();
+      return;
+    }
+    if (listingMeta.has(ticker)) {
+      const row = listingMeta.get(ticker)!;
+      row.market = market || row.market;
+      row.is_sme = isSme || row.is_sme;
+      return;
+    }
+    const mcap = metrics.get(ticker)?.market_cap_cr ?? null;
+    listingMeta.set(ticker, {
+      ticker,
+      name: (r.name || ticker).trim() || ticker,
+      market,
+      cap_code: mcapCapCode(mcap),
+      market_cap_cr: mcap,
+      is_sme: isSme,
+      family_directors: 0,
+      directors: 0,
+      din_verified: 0,
+    });
+    if (!nameHousesByTicker.has(ticker)) {
+      nameHousesByTicker.set(ticker, houseTokensFromName(r.name || ticker));
+    }
+    if (!declaredByTicker.has(ticker)) {
+      const declared = declaredMergeKey(groupNames.get(ticker) || "");
+      if (declared) declaredByTicker.set(ticker, declared);
+    }
+  };
   try {
     const rows = getGov()
       .prepare(`SELECT ticker, name, market FROM companies`)
       .all() as Array<{ ticker: string; name: string; market: string }>;
-    for (const r of rows) {
-      const ticker = (r.ticker || "").toUpperCase();
-      if (!ticker || metaByTicker.has(ticker) || listingMeta.has(ticker)) continue;
-      let market = (r.market || "NSE").toUpperCase();
-      const isSme = market === "NSE SME" || market === "BSE SME";
-      if (!isSme && market.startsWith("NSE")) market = "NSE";
-      else if (!isSme && market.startsWith("BSE")) market = "BSE";
-      const mcap = metrics.get(ticker)?.market_cap_cr ?? null;
-      listingMeta.set(ticker, {
-        ticker,
-        name: (r.name || ticker).trim() || ticker,
-        market,
-        cap_code: mcapCapCode(mcap),
-        market_cap_cr: mcap,
-        is_sme: isSme,
-        family_directors: 0,
-        directors: 0,
-        din_verified: 0,
-      });
-    }
+    for (const r of rows) addListingRow(r);
   } catch {
     /* companies table optional */
+  }
+  try {
+    const about = getAbout();
+    if (about) {
+      const rows = about
+        .prepare(
+          `SELECT ticker, name, market FROM company_about
+           WHERE UPPER(TRIM(COALESCE(market, '')))
+             IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')`,
+        )
+        .all() as Array<{ ticker: string; name: string | null; market: string | null }>;
+      for (const r of rows) {
+        addListingRow({
+          ticker: r.ticker,
+          name: (r.name || r.ticker || "").trim() || r.ticker,
+          market: r.market || "NSE",
+        });
+      }
+    }
+  } catch {
+    /* about listings optional */
   }
 
   const brandHouses = new Set<string>();
@@ -1070,7 +1126,12 @@ export function loadGovernanceFamilyMap(opts?: {
         for (const seat of seatsByPerson.get(pid) ?? []) {
           const other = (seat.ticker || "").toUpperCase();
           if (!other || members.has(other)) continue;
-          if (!isHouseLinkSeat(seat.designation, seat.category)) continue;
+          if (
+            !isHouseLinkSeat(seat.designation, seat.category) &&
+            !expanderMatchesControl
+          ) {
+            continue;
+          }
           const otherLead = nameHousesByTicker.get(other)?.[0];
           if (
             otherLead &&
@@ -1937,7 +1998,7 @@ export function loadGovernanceFamilyMap(opts?: {
   });
 
   for (const g of groups) {
-    const inGroup = new Set(g.companies.map((c) => c.ticker));
+    const inGroup = new Set(g.companies.map((c) => c.ticker.toUpperCase()));
     const people = new Map<string, GovFamilyPerson>();
     const scorePerson = (personId: string, din: string | null) =>
       scoreDirectorSeats(
@@ -1965,7 +2026,7 @@ export function loadGovernanceFamilyMap(opts?: {
       }
       const listed = inGroupOnly
         ? tickers.filter((t) => inGroup.has(t))
-        : tickers.filter((t) => metaByTicker.has(t));
+        : tickers.filter((t) => metaByTicker.has(t) || listingMeta.has(t));
       if (listed.length < minListed) return;
       const din = s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null;
       people.set(s.person_id, {
@@ -1978,12 +2039,17 @@ export function loadGovernanceFamilyMap(opts?: {
     };
     for (const t of inGroup) {
       for (const s of byTicker.get(t) ?? []) {
-        if (!isHousePromoterSeat(s.designation, s.category)) continue;
+        if (
+          !isHouseFamilySeat(s.designation, s.category) &&
+          !isHouseControlSeat(s.designation, s.category)
+        ) {
+          continue;
+        }
         const tickers = [
           ...new Set(
             (seatsByPerson.get(s.person_id) ?? [])
               .map((x) => (x.ticker || "").toUpperCase())
-              .filter((x) => metaByTicker.has(x)),
+              .filter((x) => metaByTicker.has(x) || listingMeta.has(x)),
           ),
         ];
         addPerson(s, tickers, false);
@@ -1991,14 +2057,15 @@ export function loadGovernanceFamilyMap(opts?: {
     }
     for (const t of inGroup) {
       for (const s of byTicker.get(t) ?? []) {
-        const inGroupTickers = [
+        const tickers = [
           ...new Set(
             (seatsByPerson.get(s.person_id) ?? [])
               .map((x) => (x.ticker || "").toUpperCase())
-              .filter((x) => inGroup.has(x)),
+              .filter((x) => metaByTicker.has(x) || listingMeta.has(x)),
           ),
         ];
-        addPerson(s, inGroupTickers, true);
+        if (!tickers.some((x) => inGroup.has(x))) continue;
+        addPerson(s, tickers, false);
       }
     }
     const outsideLinks = new Map<string, number>();
@@ -2025,7 +2092,7 @@ export function loadGovernanceFamilyMap(opts?: {
           ...new Set(
             (seatsByPerson.get(s.person_id) ?? [])
               .map((x) => (x.ticker || "").toUpperCase())
-              .filter((x) => metaByTicker.has(x)),
+              .filter((x) => metaByTicker.has(x) || listingMeta.has(x)),
           ),
         ];
         if (tickers.length < 2) continue;
@@ -2044,30 +2111,40 @@ export function loadGovernanceFamilyMap(opts?: {
         continue;
       }
       const seat = (seatsByPerson.get(bestPid) ?? []).find((x) => x.person_id === bestPid)!;
-      addPerson(seat, bestTickers, false);
-      for (const x of bestTickers) {
-        if (!inGroup.has(x)) outsideLinks.set(x, (outsideLinks.get(x) ?? 0) + 2);
-      }
+      addPerson(
+        seat,
+        bestTickers.filter((x) => inGroup.has(x)),
+        true,
+        1,
+      );
       linkedIn = inGroupLinked();
     }
     const outside = [...outsideLinks.entries()]
       .sort(
         (a, b) =>
           b[1] - a[1] ||
-          (metaByTicker.get(b[0])?.market_cap_cr ?? -1) -
-            (metaByTicker.get(a[0])?.market_cap_cr ?? -1),
+          (metaByTicker.get(b[0])?.market_cap_cr ??
+            listingMeta.get(b[0])?.market_cap_cr ??
+            -1) -
+            (metaByTicker.get(a[0])?.market_cap_cr ??
+              listingMeta.get(a[0])?.market_cap_cr ??
+              -1),
       )
-      .slice(0, FAMILY_GRAPH_MAX_OUTSIDE)
-      .map(([t]) => ({
-        ticker: t,
-        name: metaByTicker.get(t)!.name,
-        cap_code: metaByTicker.get(t)!.cap_code,
-        market_cap_cr: metaByTicker.get(t)!.market_cap_cr,
-      }));
+      .map(([t]) => {
+        const meta = metaByTicker.get(t) ?? listingMeta.get(t);
+        if (!meta) return null;
+        return {
+          ticker: t,
+          name: meta.name,
+          cap_code: meta.cap_code,
+          market_cap_cr: meta.market_cap_cr,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => Boolean(row));
     const ranked = [...people.values()]
       .map((p) => ({
         ...p,
-        tickers: p.tickers.filter((x) => metaByTicker.has(x)),
+        tickers: p.tickers.filter((x) => metaByTicker.has(x) || listingMeta.has(x)),
       }))
       .filter((p) => p.tickers.length >= 1)
       .sort((a, b) => b.tickers.length - a.tickers.length);
@@ -2100,7 +2177,7 @@ export function loadGovernanceFamilyMap(opts?: {
       for (const t of p.tickers) listingKeys.add(t.toUpperCase());
     }
     g.listings = [...listingKeys]
-      .map((t) => metaByTicker.get(t))
+      .map((t) => metaByTicker.get(t) ?? listingMeta.get(t))
       .filter((row): row is GovFamilyCompany => Boolean(row))
       .map((row) => ({
         ticker: row.ticker,

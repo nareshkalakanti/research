@@ -7,18 +7,23 @@ import { ocrImageWithQianfan } from "./corporate-data-extract";
 import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import { invalidateGovernanceMapCache } from "./governance-map";
 import { invalidateBoardIndependenceCache } from "./gov-independence";
-import { parseScreenshotBoard, parseCompanyLabelsFromBoardText } from "./din-screenshot-parse";
+import {
+  parseScreenshotBoard,
+  parseCompanyLabelsFromBoardText,
+  parsePersonCompanyRoles,
+} from "./din-screenshot-parse";
 import {
   listingQueryVariants,
   pickUniqueListing,
   scoreListingName,
 } from "./listing-name-match";
 import {
+  listCompanyBoardSeats,
   recordScanAttempt,
   saveCompanyBoard,
   tickerMostSharingDins,
 } from "./governance-write";
-import type { BoardSeat } from "./nse-governance";
+import { inferDirectorCategory, normDin, type BoardSeat } from "./nse-governance";
 import { zaubaCorpGoogleUrl, zaubaCorpSearchQuery, zaubaCorpSiteSearchUrl } from "./links";
 import { searchGrowwListings } from "./web-mcap";
 
@@ -340,6 +345,81 @@ export async function saveDinSeats(opts: {
       ? saved.reason || "skipped"
       : `Saved ${saved.seats} DIN seats on ${ticker}`,
   };
+}
+
+function isControlKmpRole(designation: string): boolean {
+  return /\bcfo\b|\bceo\b|chief financial|chief executive|managing director|\bmd\b/i.test(
+    designation,
+  );
+}
+
+/** Merge KMP/board bios onto existing boards (never replace a listed board). */
+export async function applyPersonRoleNotes(text: string): Promise<{
+  parsed: number;
+  saved: number;
+  skipped: number;
+  details: string[];
+}> {
+  const rows = parsePersonCompanyRoles(text);
+  const details: string[] = [];
+  let saved = 0;
+  let skipped = 0;
+  for (const row of rows) {
+    const { local, groww } = await matchListing({ labels: [row.company] });
+    const ticker = (local?.ticker || groww?.ticker || "").toUpperCase();
+    const listingName = local?.name || groww?.name || row.company;
+    const market = local?.market || groww?.market || "";
+    if (!ticker) {
+      skipped += 1;
+      details.push(`No listing for “${row.company}”`);
+      continue;
+    }
+    const din = normDin(row.din);
+    const existing = listCompanyBoardSeats(ticker);
+    const prior = existing.find((s) => normDin(s.din || "") === din);
+    if (prior && !isControlKmpRole(row.designation)) {
+      skipped += 1;
+      details.push(`Kept ${ticker} seat ${din}`);
+      continue;
+    }
+    if (prior && isControlKmpRole(prior.designation || "")) {
+      skipped += 1;
+      details.push(`Already ${ticker} ${prior.designation}`);
+      continue;
+    }
+    const seats: BoardSeat[] = [
+      {
+        din,
+        name: row.name,
+        designation: row.designation,
+        category: inferDirectorCategory(row.designation),
+        source: "kmp_note",
+        as_of: "",
+      },
+    ];
+    const result = saveCompanyBoard({
+      ticker,
+      name: listingName || ticker,
+      market: market || undefined,
+      seats,
+      notes: "kmp_note",
+      replaceSeats: false,
+      protectDinBoard: false,
+    });
+    if (result.skipped) {
+      skipped += 1;
+      details.push(result.reason || `skipped ${ticker}`);
+      continue;
+    }
+    saved += 1;
+    recordScanAttempt(ticker, "ok", `kmp note ${din} ${row.designation}`);
+    details.push(`Saved ${row.designation} on ${ticker}`);
+  }
+  if (saved) {
+    invalidateGovernanceMapCache();
+    invalidateBoardIndependenceCache();
+  }
+  return { parsed: rows.length, saved, skipped, details };
 }
 
 export async function applyDinScreenshot(opts: {

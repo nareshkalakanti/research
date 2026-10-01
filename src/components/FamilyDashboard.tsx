@@ -30,7 +30,10 @@ function stubCompany(
     market: (market || "NSE").trim() || "NSE",
     cap_code: null,
     market_cap_cr: mcap ?? null,
-    is_sme: false,
+    is_sme: Boolean(
+      (market || "").toUpperCase().includes("SME") ||
+        (market || "").toUpperCase().includes("EMERGE"),
+    ),
     directors: 0,
     din_verified: 0,
   };
