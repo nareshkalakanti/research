@@ -401,6 +401,24 @@ export function applyLoadedFamilyGroupEdits<
     }
     shell.company_count = shell.companies.length;
   }
+  const editedTickers = new Set<string>();
+  for (const g of groups) {
+    if (g.group_id && edits.has(g.group_id)) {
+      for (const c of g.companies) editedTickers.add(c.ticker.toUpperCase());
+    }
+  }
+  if (editedTickers.size) {
+    for (let i = groups.length - 1; i >= 0; i--) {
+      const g = groups[i]!;
+      if (g.group_id && edits.has(g.group_id)) continue;
+      if (
+        g.companies.length &&
+        g.companies.every((c) => editedTickers.has(c.ticker.toUpperCase()))
+      ) {
+        groups.splice(i, 1);
+      }
+    }
+  }
   for (let i = groups.length - 1; i >= 0; i--) {
     const g = groups[i]!;
     const edit = g.group_id ? edits.get(g.group_id) : undefined;

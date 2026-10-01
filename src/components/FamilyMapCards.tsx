@@ -458,7 +458,7 @@ function FamilyGroupCard({
   };
 
   return (
-    <article className="gov-card gov-family-card">
+    <article className="gov-card gov-family-card" data-fam-key={f.group_id || f.family_name}>
       <header className="gov-family-head">
         <div className="gov-family-head-row">
           <div className="gov-family-title-text">

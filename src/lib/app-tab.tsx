@@ -20,7 +20,8 @@ export type AppTab =
   | "boardroomiq"
   | "missing"
   | "research"
-  | "watchlist";
+  | "watchlist"
+  | "napkin";
 
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "dashboard", label: "Dashboard", short: "Dashboard" },
@@ -28,6 +29,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "governance", label: "Governance", short: "Governance" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
+  { id: "napkin", label: "Napkin", short: "Napkin" },
   { id: "marketiq", label: "MarketIQ", short: "Market" },
   { id: "orderbookiq", label: "OrderBookIQ", short: "Orders" },
   { id: "boardroomiq", label: "BoardRoomIQ", short: "Board" },
@@ -93,7 +95,9 @@ function buildHomeSearch(
     params.delete("din");
   }
   const t = (ticker || "").trim().toUpperCase();
-  if (t && (next === "research" || next === "governance")) {
+  if (next === "napkin") {
+    params.delete("ticker");
+  } else if (t && (next === "research" || next === "governance")) {
     params.set("ticker", t);
   } else if (next !== "research" && next !== "governance") {
     params.delete("ticker");

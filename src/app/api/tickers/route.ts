@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bootstrapCompanyTicker } from "@/lib/company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "@/lib/db";
+import { listingQueryMatches, rankListingQuery } from "@/lib/listing-name-match";
+import { openSqliteNamed } from "@/lib/sqlite-utils";
 import { searchGrowwListings } from "@/lib/web-mcap";
-import { scoreListingName } from "@/lib/listing-name-match";
 
 export const runtime = "nodejs";
 
@@ -15,46 +16,29 @@ export type TickerHit = {
   source?: "local" | "groww";
 };
 
-function compactSym(s: string): string {
-  return s.toUpperCase().replace(/[^A-Z0-9]/g, "");
-}
-
 function listingMatches(q: string, ticker: string, name: string): boolean {
-  const Q = q.trim().toUpperCase();
-  if (!Q) return false;
-  const t = ticker.toUpperCase();
-  const n = name.toUpperCase();
-  if (t === Q || t.startsWith(Q) || t.includes(Q)) return true;
-  if (`${t} ${n}`.includes(Q) || n.includes(Q)) return true;
-  const cq = compactSym(Q);
-  if (cq.length < 2) return false;
-  const ct = compactSym(t);
-  const cn = compactSym(n);
-  if (ct === cq || ct.startsWith(cq) || ct.includes(cq) || cn.includes(cq)) return true;
-  return scoreListingName(q, ticker, name) >= 70;
+  return listingQueryMatches(q, ticker, name);
 }
 
 function rankHit(q: string, h: TickerHit): number {
-  const t = h.ticker.toUpperCase();
-  const n = h.name.toUpperCase();
-  const cq = compactSym(q);
-  const ct = compactSym(t);
-  if (t === q || (cq.length >= 2 && ct === cq)) return 0;
-  if (t.startsWith(q) || (cq.length >= 2 && ct.startsWith(cq))) return 1;
-  if (n.startsWith(q)) return 2;
-  if (t.includes(q) || n.includes(q)) return 3;
-  if (cq.length >= 2 && (ct.includes(cq) || compactSym(n).includes(cq))) return 4;
-  return 9;
+  return rankListingQuery(q, h.ticker, h.name);
 }
 
 function localHits(q: string, limit: number): TickerHit[] {
   const hits: TickerHit[] = [];
+  const have = new Set<string>();
+  const push = (row: TickerHit) => {
+    const ticker = row.ticker.toUpperCase();
+    if (have.has(ticker)) return;
+    have.add(ticker);
+    hits.push({ ...row, ticker });
+  };
   for (const c of loadAllCompanies()) {
     const ticker = String(c.ticker || "").toUpperCase();
     const name = String(c.name || "").trim();
     if (!ticker) continue;
     if (!listingMatches(q, ticker, name)) continue;
-    hits.push({
+    push({
       ticker,
       name: name || ticker,
       market: String(c.market || ""),
@@ -63,6 +47,31 @@ function localHits(q: string, limit: number): TickerHit[] {
         c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
       source: "local",
     });
+  }
+  try {
+    const db = openSqliteNamed("governance.db", {
+      readonly: true,
+      fileMustExist: true,
+    });
+    const rows = db
+      .prepare(`SELECT ticker, name, market FROM companies`)
+      .all() as Array<{ ticker: string; name: string; market: string }>;
+    db.close();
+    for (const c of rows) {
+      const ticker = String(c.ticker || "").toUpperCase();
+      const name = String(c.name || "").trim();
+      if (!ticker || !listingMatches(q, ticker, name)) continue;
+      push({
+        ticker,
+        name: name || ticker,
+        market: String(c.market || ""),
+        sector: null,
+        mcap_cr: null,
+        source: "local",
+      });
+    }
+  } catch {
+    /* about rows still usable */
   }
   hits.sort((a, b) => {
     const ra = rankHit(q, a);
@@ -111,6 +120,7 @@ export async function GET(req: NextRequest) {
       const remote = await searchGrowwListings(q, limit);
       for (const r of remote) {
         if (have.has(r.ticker)) continue;
+        if (!listingMatches(q, r.ticker, r.name)) continue;
         have.add(r.ticker);
         hits.push({
           ticker: r.ticker,

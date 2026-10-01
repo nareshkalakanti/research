@@ -137,6 +137,59 @@ export function scoreListingName(
   return 0;
 }
 
+export function hintListingFitsQuery(
+  query: string,
+  hintTicker: string,
+  hintName: string,
+): boolean {
+  if (!query.trim() || !hintTicker.trim()) return false;
+  return scoreListingName(query, hintTicker, hintName) >= 70;
+}
+
+export function compactTicker(s: string): string {
+  return s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+/** Typed query vs listing ticker/name — includes a short extra suffix on a real ticker. */
+export function listingQueryMatches(q: string, ticker: string, name: string): boolean {
+  const Q = q.trim().toUpperCase();
+  if (!Q) return false;
+  const t = ticker.toUpperCase();
+  const n = name.toUpperCase();
+  if (t === Q || t.startsWith(Q) || t.includes(Q)) return true;
+  if (`${t} ${n}`.includes(Q) || n.includes(Q)) return true;
+  const cq = compactTicker(Q);
+  if (cq.length < 2) return false;
+  const ct = compactTicker(t);
+  const cn = compactTicker(n);
+  if (ct === cq || ct.startsWith(cq) || ct.includes(cq) || cn.includes(cq)) return true;
+  if (ct.length >= 3 && cq.startsWith(ct) && cq.length - ct.length <= 2) return true;
+  return scoreListingName(q, ticker, name) >= 70;
+}
+
+export function rankListingQuery(
+  q: string,
+  ticker: string,
+  name: string,
+): number {
+  const Q = q.trim().toUpperCase();
+  const t = ticker.toUpperCase();
+  const n = name.toUpperCase();
+  const cq = compactTicker(Q);
+  const ct = compactTicker(t);
+  if (t === Q || (cq.length >= 2 && ct === cq)) return 0;
+  const nameScore = scoreListingName(q, ticker, name);
+  if (nameScore >= 96) return 0;
+  if (t.startsWith(Q) || (cq.length >= 2 && ct.startsWith(cq))) return 1;
+  if (nameScore >= 88) return 1;
+  if (ct.length >= 3 && cq.startsWith(ct) && cq.length - ct.length <= 2) return 2;
+  if (nameScore >= 80) return 2;
+  if (n.startsWith(Q) || nameScore >= 70) return 3;
+  if (t.includes(Q) || n.includes(Q)) return 4;
+  if (cq.length >= 2 && (ct.includes(cq) || compactTicker(n).includes(cq))) return 5;
+  return 9;
+}
+
 export function pickUniqueListing<T extends { ticker: string; name: string }>(
   query: string,
   rows: T[],

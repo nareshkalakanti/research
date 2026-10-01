@@ -88,6 +88,78 @@ function seriesField(title: string): "revenue" | "netIncome" | "eps" | "ebit" | 
   return null;
 }
 
+function yearlyKeyCount(rows: unknown[]): number {
+  let n = 0;
+  for (const item of rows) {
+    n += Object.keys(asRecord(asRecord(item).yearly)).length;
+  }
+  return n;
+}
+
+function yearlyStatementRows(raw: unknown, fallback: unknown[]): unknown[] {
+  const rec = asRecord(raw);
+  const candidates = [
+    asArray(rec.CONSOLIDATED),
+    asArray(rec.consolidated),
+    asArray(rec.STANDALONE),
+    asArray(rec.standalone),
+    Array.isArray(raw) ? raw : [],
+    fallback,
+  ];
+  let best: unknown[] = [];
+  let bestN = -1;
+  for (const rows of candidates) {
+    const n = yearlyKeyCount(rows);
+    if (n > bestN) {
+      bestN = n;
+      best = rows;
+    }
+  }
+  return bestN > 0 ? best : fallback;
+}
+
+export type GrowwAnnualPoint = {
+  year: string;
+  revenue: number | null;
+  netIncome: number | null;
+  eps: number | null;
+};
+
+export function parseGrowwYearlyFinancialStatement(
+  company: Record<string, unknown>,
+): GrowwAnnualPoint[] {
+  const fallback = asArray(company.financialStatement);
+  const series = yearlyStatementRows(company.financialStatementV2, fallback);
+  const byYear = new Map<string, GrowwAnnualPoint>();
+
+  for (const item of series) {
+    const rec = asRecord(item);
+    const field = seriesField(str(rec.title));
+    if (!field || field === "ebit") continue;
+    const yearly = asRecord(rec.yearly);
+    for (const [label, value] of Object.entries(yearly)) {
+      const date = parseGrowwQuarterLabel(label);
+      const year = (date || label).match(/(19|20)\d{2}/)?.[0];
+      const n = num(value);
+      if (!year || n == null) continue;
+      const prev = byYear.get(year) ?? {
+        year,
+        revenue: null,
+        netIncome: null,
+        eps: null,
+      };
+      if (field === "revenue") prev.revenue = n;
+      if (field === "netIncome") prev.netIncome = n;
+      if (field === "eps") prev.eps = n;
+      byYear.set(year, prev);
+    }
+  }
+
+  return [...byYear.values()]
+    .filter((r) => r.revenue != null || r.netIncome != null || r.eps != null)
+    .sort((a, b) => a.year.localeCompare(b.year));
+}
+
 function quarterlyKeyCount(rows: unknown[]): number {
   let n = 0;
   for (const item of rows) {
