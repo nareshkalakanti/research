@@ -15,6 +15,7 @@
     "test:gov": "tsx scripts/test-gov-map.ts",
     "test:gov-changes": "tsx scripts/test-gov-changes.ts",
     "test:gov-scan": "tsx scripts/test-gov-scan.ts",
+    "test:family-group-edits": "tsx scripts/test-family-group-edits.ts",
     "test:quarters": "tsx scripts/test-quarters.ts",
     "test:quant-basket": "tsx scripts/test-quant-basket.ts",
     "test:din-fill": "tsx scripts/test-din-fill.ts",

@@ -16,6 +16,7 @@ export type FamilyGroupEdit = {
   label: string | null;
   add: string[];
   remove: string[];
+  updated_at: string | null;
 };
 
 const DB_PATH = path.join(DATA_DIR, "family_group_edits.db");
@@ -63,12 +64,14 @@ function rowToEdit(row: {
   label: string | null;
   add_json: string;
   remove_json: string;
+  updated_at?: string | null;
 }): FamilyGroupEdit {
   return {
     group_id: row.group_id,
     label: row.label?.trim() || null,
     add: parseTickers(row.add_json),
     remove: parseTickers(row.remove_json),
+    updated_at: row.updated_at?.trim() || null,
   };
 }
 
@@ -78,13 +81,14 @@ export function loadFamilyGroupEditMap(): Map<string, FamilyGroupEdit> {
   try {
     const rows = db
       .prepare(
-        `SELECT group_id, label, add_json, remove_json FROM family_group_edits`,
+        `SELECT group_id, label, add_json, remove_json, updated_at FROM family_group_edits`,
       )
       .all() as Array<{
       group_id: string;
       label: string | null;
       add_json: string;
       remove_json: string;
+      updated_at: string | null;
     }>;
     return new Map(rows.map((r) => [r.group_id, rowToEdit(r)]));
   } finally {
@@ -104,13 +108,14 @@ function readOne(groupId: string): FamilyGroupEdit {
     label: null,
     add: [],
     remove: [],
+    updated_at: null,
   };
   const db = openRead();
   if (!db) return empty;
   try {
     const row = db
       .prepare(
-        `SELECT group_id, label, add_json, remove_json FROM family_group_edits
+        `SELECT group_id, label, add_json, remove_json, updated_at FROM family_group_edits
          WHERE group_id = ?`,
       )
       .get(groupId) as
@@ -119,6 +124,7 @@ function readOne(groupId: string): FamilyGroupEdit {
           label: string | null;
           add_json: string;
           remove_json: string;
+          updated_at: string | null;
         }
       | undefined;
     return row ? rowToEdit(row) : empty;
@@ -209,6 +215,7 @@ export function createFamilyGroup(
     label: name,
     add,
     remove: [],
+    updated_at: null,
   };
   saveEdit(cur);
   return cur;
@@ -292,7 +299,7 @@ function labelKey(s: string | null | undefined): string {
     .trim();
 }
 
-export function applyFamilyGroupEdits<
+export function applyLoadedFamilyGroupEdits<
   C extends { ticker: string },
   G extends {
     family_name: string;
@@ -302,9 +309,9 @@ export function applyFamilyGroupEdits<
   },
 >(
   groups: G[],
+  edits: Map<string, FamilyGroupEdit>,
   resolveCompany: (ticker: string) => C | null,
 ): void {
-  const edits = loadFamilyGroupEditMap();
   for (const g of groups) {
     if (!g.group_id) {
       g.group_id = groupFingerprint(g.companies.map((c) => c.ticker));
@@ -357,56 +364,63 @@ export function applyFamilyGroupEdits<
     cands[0]!.group_id = edit.group_id;
     used.add(edit.group_id);
   }
+  const placeOn = (g: G, ticker: string) => {
+    if (g.companies.some((c) => c.ticker.toUpperCase() === ticker)) return;
+    const extra = resolveCompany(ticker);
+    if (!extra) return;
+    g.companies.push(extra);
+  };
   for (const g of groups) {
     const edit = g.group_id ? edits.get(g.group_id) : undefined;
     if (!edit) continue;
     if (edit.label) g.family_name = edit.label;
     const drop = new Set(edit.remove);
     g.companies = g.companies.filter((c) => !drop.has(c.ticker.toUpperCase()));
-    for (const ticker of edit.add) {
-      if (g.companies.some((c) => c.ticker.toUpperCase() === ticker)) continue;
-      const extra = resolveCompany(ticker);
-      if (!extra) continue;
-      for (const other of groups) {
-        if (other === g) continue;
-        other.companies = other.companies.filter(
-          (c) => c.ticker.toUpperCase() !== ticker,
-        );
-        other.company_count = other.companies.length;
-      }
-      g.companies.push(extra);
-    }
+    for (const ticker of edit.add) placeOn(g, ticker);
     g.company_count = g.companies.length;
   }
   const seen = new Set(groups.map((g) => g.group_id).filter(Boolean));
   for (const edit of edits.values()) {
     if (!edit.group_id.startsWith("user-") || seen.has(edit.group_id)) continue;
     const companies: C[] = [];
-    for (const ticker of edit.add) {
-      if (companies.some((c) => c.ticker.toUpperCase() === ticker)) continue;
-      const extra = resolveCompany(ticker);
-      if (!extra) continue;
-      for (const other of groups) {
-        other.companies = other.companies.filter(
-          (c) => c.ticker.toUpperCase() !== ticker,
-        );
-        other.company_count = other.companies.length;
-      }
-      companies.push(extra);
-    }
-    if (!edit.label && companies.length < 1) continue;
-    groups.push({
-      family_name: edit.label || companies[0]!.ticker,
-      company_count: companies.length,
+    const shell = {
+      family_name: edit.label || "",
+      company_count: 0,
       companies,
       group_id: edit.group_id,
-    } as G);
+    } as G;
+    groups.push(shell);
+    seen.add(edit.group_id);
+    for (const ticker of edit.add) placeOn(shell, ticker);
+    if (!edit.label && shell.companies.length < 1) {
+      groups.pop();
+      continue;
+    }
+    if (!shell.family_name) {
+      shell.family_name = shell.companies[0]?.ticker || edit.group_id;
+    }
+    shell.company_count = shell.companies.length;
   }
   for (let i = groups.length - 1; i >= 0; i--) {
     const g = groups[i]!;
     const edit = g.group_id ? edits.get(g.group_id) : undefined;
     if (g.companies.length < 1 && !edit?.label) groups.splice(i, 1);
   }
+}
+
+export function applyFamilyGroupEdits<
+  C extends { ticker: string },
+  G extends {
+    family_name: string;
+    company_count: number;
+    companies: C[];
+    group_id?: string;
+  },
+>(
+  groups: G[],
+  resolveCompany: (ticker: string) => C | null,
+): void {
+  applyLoadedFamilyGroupEdits(groups, loadFamilyGroupEditMap(), resolveCompany);
 }
 
 export function searchListedCompanies(
