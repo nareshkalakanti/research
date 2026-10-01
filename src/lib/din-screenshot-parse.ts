@@ -110,6 +110,27 @@ function seatsFromHtmlTables(
   }
 }
 
+function followOnDesignation(
+  lines: string[],
+  dinLineIdx: number,
+  fallback: string,
+): string {
+  for (let j = dinLineIdx + 1; j < lines.length; j++) {
+    const line = lines[j]!;
+    if (!line) continue;
+    if (/^\d{7,9}\b/.test(line) || /\b\d{8}\b/.test(line)) break;
+    const labeled = line.match(/^(?:designation|role)\s*:\s*(.+)$/i);
+    if (!labeled) {
+      if (/^(note|notes)\s*:/i.test(line)) continue;
+      break;
+    }
+    const val = labeled[1]!.trim();
+    if (ROLE.test(val) || ROLE_HEAD.test(val)) return val;
+    if (/^(designation|role)$/i.test(labeled[1] || "")) continue;
+  }
+  return fallback;
+}
+
 /** Director | Position | DIN with no usable header. */
 function guessNameRoleDin(
   cells: string[],
@@ -315,20 +336,39 @@ export function parseDirectorSeatsFromTable(text: string): BoardSeat[] {
     .replace(/\|/g, " ")
     .replace(/[–—]/g, "-");
 
-  for (const rawLine of normalized.split(/\n+/)) {
-    const row = rawLine.replace(/\s+/g, " ").trim();
+  const lines = normalized.split(/\n+/).map((rawLine) =>
+    rawLine
+      .replace(/^\s*[•·●▪◦]\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
+
+  for (let i = 0; i < lines.length; i++) {
+    const row = lines[i]!;
     if (!row) continue;
     const trailing = row.match(/^(.*?)\s+(\d{8})\s*$/);
     if (trailing && !/^\d{7,9}\s/.test(row)) {
       const rest = trailing[1]!.replace(/^\d{1,3}\s+/, "");
       const { name, designation } = splitNameThenRole(rest);
-      addSeat(seats, seen, trailing[2]!, name, designation);
+      addSeat(
+        seats,
+        seen,
+        trailing[2]!,
+        name,
+        followOnDesignation(lines, i, designation),
+      );
       continue;
     }
-    const m = row.match(/^(\d{7,9})\s+(.+)$/);
+    const m = row.match(/^(\d{7,9})\s+-?\s*(.+)$/);
     if (!m) continue;
     const { name, designation } = splitNameAndRole(m[2]!);
-    addSeat(seats, seen, m[1]!, name, designation);
+    addSeat(
+      seats,
+      seen,
+      m[1]!,
+      name,
+      followOnDesignation(lines, i, designation),
+    );
   }
 
   const packed = new RegExp(

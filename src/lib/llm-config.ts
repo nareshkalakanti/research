@@ -49,6 +49,7 @@ export function loadLlmConfig(): LlmConfig {
   // Prefer smallest local models by default (cost = $0). Override via env / UI.
   const cheapText =
     runtime.llmModel ||
+    envStr("QWEN_MODEL") ||
     envStr("LLM_MODEL") ||
     "qwen2.5:3b-instruct";
   const cheapVision =

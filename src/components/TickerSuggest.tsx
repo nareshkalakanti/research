@@ -31,6 +31,8 @@ type Props = {
   placeholder?: string;
   className?: string;
   style?: React.CSSProperties;
+  /** Footer hint on Enter (e.g. analyse vs add). */
+  submitLabel?: string;
 };
 
 type PanelPos = { top: number; left: number; width: number };
@@ -61,13 +63,23 @@ function marketLabel(market: string): string {
 
 function highlightMatch(text: string, q: string): ReactNode {
   if (!q || !text) return text;
-  const i = text.toUpperCase().indexOf(q.toUpperCase());
+  const hay = text.toUpperCase();
+  const needle = q.toUpperCase();
+  let i = hay.indexOf(needle);
+  let len = q.length;
+  if (i < 0) {
+    const first = q.trim().split(/\s+/).find((w) => w.length >= 2);
+    if (first) {
+      i = hay.indexOf(first.toUpperCase());
+      len = first.length;
+    }
+  }
   if (i < 0) return text;
   return (
     <>
       {text.slice(0, i)}
-      <mark className="ticker-suggest-mark">{text.slice(i, i + q.length)}</mark>
-      {text.slice(i + q.length)}
+      <mark className="ticker-suggest-mark">{text.slice(i, i + len)}</mark>
+      {text.slice(i + len)}
     </>
   );
 }
@@ -81,6 +93,7 @@ export function TickerSuggest({
   placeholder = "Search ticker or company…",
   className = "buyback-url-input",
   style,
+  submitLabel = "add",
 }: Props) {
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -107,7 +120,7 @@ export function TickerSuggest({
     const el = fieldRef.current;
     if (!el) return;
     const r = el.getBoundingClientRect();
-    const width = Math.min(Math.max(r.width, 320), 440);
+    const width = Math.max(r.width, 280);
     let left = r.left;
     if (left + width > window.innerWidth - 12) {
       left = Math.max(12, window.innerWidth - width - 12);
@@ -142,7 +155,15 @@ export function TickerSuggest({
   }, [showPanel, updatePos]);
 
   useEffect(() => {
-    if (disabled || q.length < 1) {
+    if (disabled) {
+      if (q) pickedRef.current = q;
+      setHits([]);
+      setOpen(false);
+      setSearched(false);
+      setLoading(false);
+      return;
+    }
+    if (q.length < 1) {
       setHits([]);
       setOpen(false);
       setSearched(false);
@@ -150,7 +171,6 @@ export function TickerSuggest({
       return;
     }
     if (pickedRef.current && q === pickedRef.current) {
-      pickedRef.current = null;
       setHits([]);
       setOpen(false);
       setSearched(false);
@@ -345,7 +365,7 @@ export function TickerSuggest({
                     <kbd>↓</kbd> move
                   </span>
                   <span>
-                    <kbd>↵</kbd> add
+                    <kbd>↵</kbd> {submitLabel}
                   </span>
                   <span>
                     <kbd>esc</kbd> close
@@ -387,11 +407,12 @@ export function TickerSuggest({
               : undefined
           }
           onChange={(e) => {
-            onChange(e.target.value.toUpperCase());
+            pickedRef.current = null;
+            onChange(e.target.value);
             setOpen(true);
           }}
           onFocus={() => {
-            if (q.length >= 1) setOpen(true);
+            if (q.length >= 1 && pickedRef.current !== q) setOpen(true);
           }}
           onKeyDown={(e) => {
             if (e.key === "ArrowDown") {
@@ -430,6 +451,7 @@ export function TickerSuggest({
             disabled={disabled}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => {
+              pickedRef.current = null;
               onChange("");
               setHits([]);
               setOpen(false);

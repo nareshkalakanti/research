@@ -353,6 +353,51 @@ function houseTokensFromName(name: string): string[] {
   return out;
 }
 
+/** First legal-name token shared by 2+ companies — a brand even if not a surname. */
+export function sharedFirstHouseTokens(companyNames: string[]): Set<string> {
+  const counts = new Map<string, number>();
+  for (const name of companyNames) {
+    const house = houseTokensFromName(name)[0];
+    if (!house) continue;
+    counts.set(house, (counts.get(house) ?? 0) + 1);
+  }
+  const out = new Set<string>();
+  for (const [house, n] of counts) {
+    if (n >= 2 && house.length >= 7) out.add(house);
+  }
+  return out;
+}
+
+function houseTokenStem(house: string): string {
+  const u = house.trim().toUpperCase();
+  if (u.endsWith("S") && u.length >= 6) return u.slice(0, -1);
+  return u;
+}
+
+/** Skip gluing every same-first-name listing when a saved edit already split that house. */
+export function nameBrandForcedMergeAllowed(
+  house: string,
+  edits: Array<{ label: string | null; add: string[]; remove: string[] }>,
+  firstHouseOf: (ticker: string) => string | undefined,
+): boolean {
+  const stem = houseTokenStem(house);
+  if (!stem) return true;
+  for (const edit of edits) {
+    if (!edit.remove.length) continue;
+    const labelLead = (edit.label || "")
+      .split(/\s+/)
+      .map((w) => w.replace(/[^A-Za-z]/g, ""))
+      .find((w) => w.length >= 3);
+    if (labelLead && houseTokenStem(labelLead) === stem) return false;
+    if (
+      edit.remove.some((t) => houseTokenStem(firstHouseOf(t) || "") === stem)
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Keep distinct houses that share a surname ("Patel Group" ≠ "Patel Group of Companies"). */
 function declaredMergeKey(groupName: string): string {
   let s = groupName.trim().toLowerCase();
@@ -1046,6 +1091,24 @@ export function loadGovernanceFamilyMap(opts?: {
   for (const seeds of seedHousesByTicker.values()) {
     for (const house of seeds) brandHouses.add(house);
   }
+  const seatedNames: string[] = [];
+  for (const ticker of byTicker.keys()) {
+    const meta = metaByTicker.get(ticker);
+    if (meta?.name) seatedNames.push(meta.name);
+  }
+  const nameBrandHouses = sharedFirstHouseTokens(seatedNames);
+  for (const house of nameBrandHouses) brandHouses.add(house);
+  const familyEdits = [...loadFamilyGroupEditMap().values()];
+  const nameBrandUnite = new Set<string>();
+  for (const house of nameBrandHouses) {
+    if (
+      nameBrandForcedMergeAllowed(house, familyEdits, (ticker) =>
+        nameHousesByTicker.get(ticker)?.[0],
+      )
+    ) {
+      nameBrandUnite.add(house);
+    }
+  }
 
   type Uf = { parent: Map<string, string> };
   const makeUf = (): Uf => ({ parent: new Map() });
@@ -1441,6 +1504,10 @@ export function loadGovernanceFamilyMap(opts?: {
     for (const list of peopleToTickers.values()) {
       for (let i = 1; i < list.length; i++) unite(uf, list[0]!, list[i]!);
     }
+    if (nameBrandUnite.has(house)) {
+      const seated = uniq.filter((t) => byTicker.has(t));
+      for (let i = 1; i < seated.length; i++) unite(uf, seated[0]!, seated[i]!);
+    }
     const components = new Map<string, Set<string>>();
     for (const t of uniq) {
       if (!seedHousesByTicker.get(t)?.has(house) && nameHousesByTicker.get(t)?.[0] !== house) {
@@ -1482,7 +1549,9 @@ export function loadGovernanceFamilyMap(opts?: {
       };
       if (host) {
         const extraTickers = leftover.filter(
-          (t) => sharesHost(t) || companyCarriesHouseName(t, house),
+          (t) =>
+            sharesHost(t) ||
+            (nameBrandUnite.has(house) && companyCarriesHouseName(t, house)),
         );
         if (extraTickers.length) {
           const extra = packCompanies(extraTickers, house);
@@ -1721,6 +1790,13 @@ export function loadGovernanceFamilyMap(opts?: {
     if (groups[i]!.companies.length < 2) groups.splice(i, 1);
   }
 
+  const nameBrandLeadBlocked = (lead: string) =>
+    [...nameBrandHouses].some(
+      (h) =>
+        !nameBrandUnite.has(h) &&
+        (h.toUpperCase() === lead || houseTokenStem(h) === houseTokenStem(lead)),
+    );
+
   for (const g of groups) {
     const lead = houseLeadToken(g.family_name.split(" · ")[0] || g.family_name);
     if (!lead) continue;
@@ -1738,6 +1814,7 @@ export function loadGovernanceFamilyMap(opts?: {
   for (const g of groups) {
     const lead = houseLeadToken(g.family_name.split(" · ")[0] || g.family_name);
     if (!lead) continue;
+    if (nameBrandLeadBlocked(lead)) continue;
     for (const [ticker, houses] of nameHousesByTicker) {
       if (covered.has(ticker)) continue;
       if ((houses[0] || "").toUpperCase() !== lead) continue;
@@ -1756,8 +1833,9 @@ export function loadGovernanceFamilyMap(opts?: {
     list.push(g);
     namedByLead.set(lead, list);
   }
-  for (const list of namedByLead.values()) {
+  for (const [lead, list] of namedByLead) {
     if (list.length < 2) continue;
+    if (nameBrandLeadBlocked(lead)) continue;
     list.sort(
       (a, b) =>
         b.companies.length - a.companies.length ||

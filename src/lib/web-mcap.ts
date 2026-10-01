@@ -350,11 +350,11 @@ export async function growwCompanyData(
     );
     for (const hit of asArray(payload.content)) {
       const rec = asRecord(hit);
-      const nse = str(rec.nse_scrip_code).toUpperCase();
+      const nse = listedSym(str(rec.nse_scrip_code));
       const bse = str(rec.bse_scrip_code).toUpperCase();
       const title = str(rec.title) || str(rec.company_short_name);
       const searchId = str(rec.search_id) || str(rec.id);
-      if (nse === sym || bse === sym) {
+      if (nse === sym || bse === sym || listedSym(searchId) === sym) {
         exact.push(rec);
       } else if (
         namesMatch(companyName || symbol, title) ||
@@ -378,6 +378,26 @@ export async function growwCompanyData(
 
 const LISTED_TICKER_RE = /^[A-Z][A-Z0-9-]{0,19}$/;
 
+function listedSym(raw: string): string {
+  return str(raw)
+    .replace(/-(EQ|ST|BE|BZ|SM)$/i, "")
+    .toUpperCase();
+}
+
+function smeFromGroww(
+  rec: Record<string, unknown>,
+  header?: Record<string, unknown>,
+): boolean {
+  const blob = [
+    str(rec.exchange),
+    str(rec.sub_entity_type),
+    str(header?.nseTradingSymbol),
+    str(header?.bseTradingSymbol),
+    str(header?.sessionSchedule),
+  ].join(" ");
+  return /sme|emerge|\-ST\b/i.test(blob);
+}
+
 export type GrowwListingHit = {
   ticker: string;
   name: string;
@@ -399,12 +419,13 @@ export async function searchGrowwListings(
   const seen = new Set<string>();
   for (const hit of asArray(payload.content)) {
     const rec = asRecord(hit);
-    const nse = str(rec.nse_scrip_code).replace(/-EQ$/i, "").toUpperCase();
+    const nse = listedSym(str(rec.nse_scrip_code));
     const bse = str(rec.bse_scrip_code).toUpperCase();
     const title = str(rec.title) || str(rec.company_short_name);
     let ticker = nse;
+    let header: Record<string, unknown> | undefined;
     if (!LISTED_TICKER_RE.test(ticker)) {
-      const sym = str(rec.symbol).replace(/-EQ$/i, "").toUpperCase();
+      const sym = listedSym(str(rec.symbol));
       ticker = LISTED_TICKER_RE.test(sym) ? sym : "";
     }
     if (!LISTED_TICKER_RE.test(ticker)) {
@@ -416,13 +437,13 @@ export async function searchGrowwListings(
               `${GROWW_COMPANY}${encodeURIComponent(searchId)}`,
             ),
           );
-          const header = asRecord(company.header);
+          header = asRecord(company.header);
           for (const cand of [
+            str(header.nseScriptCode),
             str(header.nseTradingSymbol),
             str(header.bseTradingSymbol),
-            str(header.nseScriptCode),
           ]) {
-            const t = cand.replace(/-EQ$/i, "").toUpperCase();
+            const t = listedSym(cand);
             if (LISTED_TICKER_RE.test(t)) {
               ticker = t;
               break;
@@ -439,8 +460,7 @@ export async function searchGrowwListings(
     if (!LISTED_TICKER_RE.test(ticker) && !/^\d{4,8}$/.test(ticker)) continue;
     if (seen.has(ticker)) continue;
     seen.add(ticker);
-    const blob = `${str(rec.exchange)} ${str(rec.sub_entity_type)}`;
-    const sme = /sme|emerge/i.test(blob);
+    const sme = smeFromGroww(rec, header);
     const market = nse
       ? sme
         ? "NSE SME"
@@ -455,6 +475,40 @@ export async function searchGrowwListings(
       bse_scrip: /^\d{4,8}$/.test(bse) ? bse : null,
     });
     if (out.length >= limit) break;
+  }
+  const want = listedSym(q);
+  if (LISTED_TICKER_RE.test(want) && !seen.has(want)) {
+    try {
+      const data = await growwCompanyData(want, want);
+      if (data) {
+        const header = asRecord(data.company.header);
+        const ticker =
+          listedSym(str(header.nseScriptCode)) ||
+          listedSym(str(header.nseTradingSymbol)) ||
+          want;
+        if (LISTED_TICKER_RE.test(ticker) && !seen.has(ticker)) {
+          const sme = smeFromGroww(data.hit, header);
+          const nseOn = Boolean(header.isNseTradable);
+          out.unshift({
+            ticker,
+            name:
+              str(header.displayName) ||
+              str(data.hit.title) ||
+              ticker,
+            market: nseOn
+              ? sme
+                ? "NSE SME"
+                : "NSE"
+              : sme
+                ? "BSE SME"
+                : "BSE",
+            bse_scrip: str(header.bseScriptCode) || null,
+          });
+        }
+      }
+    } catch {
+      /* keyword hits still usable */
+    }
   }
   return out;
 }

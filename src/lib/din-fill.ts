@@ -114,6 +114,17 @@ export type DinFillPreview = {
 
 type ListingRow = { ticker: string; name: string; market?: string };
 
+function hintFitsLabels(
+  hint: ListingRow | null,
+  labels: string[],
+): boolean {
+  if (!hint) return false;
+  if (!labels.length) return true;
+  return labels.some(
+    (label) => scoreListingName(label, hint.ticker, hint.name) >= 70,
+  );
+}
+
 async function matchListing(opts: {
   labels: string[];
   hintTicker?: string;
@@ -125,13 +136,15 @@ async function matchListing(opts: {
   const hintTicker = (opts.hintTicker || "").trim().toUpperCase();
   const companies = loadAllCompanies();
   const labels = opts.labels.filter((x) => x && x.trim());
-
-  let picked: ListingRow | null = hintTicker
+  const hintRow = hintTicker
     ? companies.find((c) => c.ticker.toUpperCase() === hintTicker) || null
     : null;
+  const preferHint = hintFitsLabels(hintRow, labels) ? hintTicker : undefined;
+
+  let picked: ListingRow | null = null;
   for (const label of labels) {
+    picked = pickUniqueListing(label, companies, preferHint);
     if (picked) break;
-    picked = pickUniqueListing(label, companies, hintTicker);
   }
   if (!picked) {
     const scored = labels.flatMap((label) =>
@@ -145,13 +158,6 @@ async function matchListing(opts: {
     const second = scored[1];
     if (best && best.s >= 70 && (!second || best.s >= second.s + 3)) {
       picked = best.c;
-    }
-  }
-  if (!picked && opts.dins?.length) {
-    const dinHit = tickerMostSharingDins(opts.dins);
-    if (dinHit) {
-      picked =
-        companies.find((c) => c.ticker.toUpperCase() === dinHit) || null;
     }
   }
 
@@ -176,7 +182,7 @@ async function matchListing(opts: {
       }
       let g = null as (typeof remote)[number] | null;
       for (const label of [...labels, ...queries]) {
-        g = pickUniqueListing(label, remote, hintTicker);
+        g = pickUniqueListing(label, remote, preferHint);
         if (g) break;
       }
       if (!g && remote.length === 1) g = remote[0]!;
@@ -188,6 +194,17 @@ async function matchListing(opts: {
       }
     } catch {
       /* local listing match still usable */
+    }
+  }
+
+  if (!picked && hintFitsLabels(hintRow, labels)) {
+    picked = hintRow;
+  }
+  if (!picked && !labels.length && opts.dins?.length) {
+    const dinHit = tickerMostSharingDins(opts.dins);
+    if (dinHit) {
+      picked =
+        companies.find((c) => c.ticker.toUpperCase() === dinHit) || null;
     }
   }
 

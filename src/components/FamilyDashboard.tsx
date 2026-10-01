@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { FamilyMapCards, type FamilyRow, FamilyAddProgress, type FamilyAddWork } from "@/components/FamilyMapCards";
+import { FamilyDashSearch, type DashSuggestHit } from "@/components/FamilyDashSearch";
 import {
   PeopleBoardCards,
   type PersonBoardRow,
@@ -45,6 +47,10 @@ export function FamilyDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [dashHits, setDashHits] = useState<DashSuggestHit[]>([]);
+  const [dashHitLoading, setDashHitLoading] = useState(false);
+  const [searchDocked, setSearchDocked] = useState(false);
+  const searchAnchorRef = useRef<HTMLDivElement>(null);
   const [adding, setAdding] = useState(false);
   const [newName, setNewName] = useState("");
   const [newTickers, setNewTickers] = useState<Array<{ ticker: string; name: string }>>([]);
@@ -240,6 +246,137 @@ export function FamilyDashboard() {
     );
   }, [people, q]);
 
+  useEffect(() => {
+    const needle = q.trim();
+    if (needle.length < 1) {
+      setDashHits([]);
+      setDashHitLoading(false);
+      return;
+    }
+    const low = needle.toLowerCase();
+    const local: DashSuggestHit[] = [];
+    const seenG = new Set<string>();
+    for (const f of rows) {
+      const key = f.group_id || f.family_name;
+      if (seenG.has(key)) continue;
+      if (
+        f.family_name.toLowerCase().includes(low) ||
+        f.companies.some(
+          (c) =>
+            c.ticker.toLowerCase().startsWith(low) ||
+            c.name.toLowerCase().includes(low),
+        )
+      ) {
+        seenG.add(key);
+        local.push({
+          kind: "group",
+          key,
+          label: f.family_name,
+          detail: `${f.company_count} companies`,
+        });
+      }
+    }
+    const seenP = new Set<string>();
+    const personPool: Array<{ person_id: string; name: string; din: string | null }> = [
+      ...people.map((p) => ({
+        person_id: p.person_id,
+        name: p.name,
+        din: p.din ?? null,
+      })),
+      ...rows.flatMap((f) =>
+        (f.people ?? []).map((p) => ({
+          person_id: p.person_id,
+          name: p.name,
+          din: p.din,
+        })),
+      ),
+    ];
+    for (const p of personPool) {
+      if (seenP.has(p.person_id)) continue;
+      if (
+        p.name.toLowerCase().includes(low) ||
+        (p.din || "").includes(needle.replace(/\D/g, "") || needle)
+      ) {
+        seenP.add(p.person_id);
+        local.push({
+          kind: "person",
+          person_id: p.person_id,
+          label: p.name,
+          detail: p.din ? `DIN ${p.din}` : "Director",
+        });
+      }
+    }
+    let cancelled = false;
+    setDashHitLoading(true);
+    const t = window.setTimeout(() => {
+      void fetch(`/api/tickers?q=${encodeURIComponent(needle)}&limit=8`, {
+        cache: "no-store",
+      })
+        .then(async (res) => {
+          const json = (await res.json()) as {
+            hits?: Array<{ ticker: string; name: string; market?: string }>;
+          };
+          if (cancelled) return;
+          const tickers: DashSuggestHit[] = [];
+          const haveT = new Set<string>();
+          for (const h of json.hits ?? []) {
+            const ticker = (h.ticker || "").toUpperCase();
+            if (!ticker || haveT.has(ticker)) continue;
+            haveT.add(ticker);
+            tickers.push({
+              kind: "ticker",
+              ticker,
+              label: ticker,
+              detail: h.name || ticker,
+            });
+          }
+          setDashHits([...local.slice(0, 8), ...tickers].slice(0, 14));
+        })
+        .catch(() => {
+          if (!cancelled) setDashHits(local.slice(0, 14));
+        })
+        .finally(() => {
+          if (!cancelled) setDashHitLoading(false);
+        });
+    }, 120);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [q, rows, people]);
+
+  useEffect(() => {
+    const el = searchAnchorRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setSearchDocked(!entry.isIntersecting),
+      { threshold: 0, rootMargin: "-8px 0px 0px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [dashView]);
+
+  const onDashPick = useCallback((hit: DashSuggestHit) => {
+    if (hit.kind === "group") {
+      setDashView("groups");
+      setQ(hit.label);
+      window.setTimeout(() => {
+        document
+          .querySelector(`[data-fam-key="${CSS.escape(hit.key)}"]`)
+          ?.scrollIntoView({ block: "start", behavior: "smooth" });
+      }, 50);
+      return;
+    }
+    if (hit.kind === "person") {
+      setDashView("people");
+      setQ(hit.label);
+      return;
+    }
+    setDashView("stock");
+    setStockFocus(hit.ticker);
+    setQ("");
+  }, []);
+
   const companySearch = useCallback(async (query: string) => {
     const res = await fetch(
       `/api/tickers?q=${encodeURIComponent(query)}&limit=14`,
@@ -378,20 +515,23 @@ export function FamilyDashboard() {
                 : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
-        <div className="fam-dash-actions">
+        <div className="fam-dash-actions" ref={searchAnchorRef}>
           {dashView !== "stock" ? (
             <>
-          <input
-            type="search"
-            className="fam-dash-search"
+          {!searchDocked ? (
+          <FamilyDashSearch
+            value={q}
+            onChange={setQ}
             placeholder={
               dashView === "people"
                 ? "Person, DIN, ticker or company…"
                 : "Group, ticker, company or director…"
             }
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            hits={dashHits}
+            loading={dashHitLoading}
+            onPick={onDashPick}
           />
+          ) : null}
           {dashView === "groups" ? (
           <button
             type="button"
@@ -419,6 +559,36 @@ export function FamilyDashboard() {
           ) : null}
         </div>
       </div>
+      {searchDocked && dashView !== "stock"
+        ? createPortal(
+            <div className="fam-dash-search-float">
+              <FamilyDashSearch
+                value={q}
+                onChange={setQ}
+                placeholder={
+                  dashView === "people"
+                    ? "Person, DIN, ticker or company…"
+                    : "Group, ticker, company or director…"
+                }
+                hits={dashHits}
+                loading={dashHitLoading}
+                onPick={onDashPick}
+              />
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() =>
+                  document
+                    .querySelector(".fam-dash")
+                    ?.scrollIntoView({ block: "start", behavior: "smooth" })
+                }
+              >
+                Top
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
       {dashView === "groups" && addWork ? (
         <FamilyAddProgress work={addWork} />
       ) : null}

@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Napkin Research</title>
+
+<style>
+    * {
+        box-sizing: border-box;
+    }
+
+    body {
+        margin: 0;
+        font-family: Inter, Arial, sans-serif;
+        background: #f5f7fa;
+        color: #1f2937;
+    }
+
+    .header {
+        background: #ffffff;
+        border-bottom: 1px solid #e5e7eb;
+        padding: 18px 30px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .logo {
+        font-size: 21px;
+        font-weight: 700;
+    }
+
+    .subtitle {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: 3px;
+    }
+
+    .container {
+        max-width: 1450px;
+        margin: auto;
+        padding: 25px;
+    }
+
+    .search-box {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+
+    .label {
+        font-size: 11px;
+        font-weight: 700;
+        color: #6b7280;
+        letter-spacing: 0.08em;
+        margin-bottom: 8px;
+    }
+
+    .search-row {
+        display: flex;
+        gap: 10px;
+    }
+
+    input {
+        flex: 1;
+        padding: 12px 14px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        font-size: 14px;
+    }
+
+    button {
+        border: 0;
+        border-radius: 8px;
+        padding: 11px 18px;
+        background: #111827;
+        color: white;
+        font-weight: 600;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: #374151;
+    }
+
+    .stock-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+    }
+
+    .ticker {
+        font-size: 27px;
+        font-weight: 700;
+    }
+
+    .company {
+        color: #6b7280;
+        font-size: 13px;
+    }
+
+    .cards {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+
+    .card {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 10px;
+        padding: 16px;
+    }
+
+    .card-title {
+        font-size: 11px;
+        color: #6b7280;
+        margin-bottom: 8px;
+    }
+
+    .card-value {
+        font-size: 20px;
+        font-weight: 700;
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        margin-bottom: 18px;
+    }
+
+    .section {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+
+    .section-header {
+        padding: 14px 18px;
+        border-bottom: 1px solid #e5e7eb;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .section-body {
+        padding: 18px;
+    }
+
+    .napkin-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+    }
+
+    .napkin-box {
+        background: #f9fafb;
+        border-radius: 8px;
+        padding: 15px;
+    }
+
+    .napkin-label {
+        color: #6b7280;
+        font-size: 11px;
+        margin-bottom: 7px;
+    }
+
+    .napkin-number {
+        font-size: 23px;
+        font-weight: 700;
+    }
+
+    .formula {
+        margin-top: 15px;
+        background: #111827;
+        color: white;
+        border-radius: 8px;
+        padding: 14px;
+        font-family: monospace;
+        font-size: 13px;
+    }
+
+    .status {
+        margin-top: 16px;
+        padding: 12px;
+        border-radius: 8px;
+        text-align: center;
+        font-weight: 700;
+        background: #ecfdf5;
+        color: #047857;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+    }
+
+    th {
+        text-align: left;
+        color: #6b7280;
+        font-size: 11px;
+        padding: 10px;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    td {
+        padding: 11px 10px;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .badge {
+        padding: 4px 8px;
+        border-radius: 20px;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .result {
+        background: #eff6ff;
+        color: #2563eb;
+    }
+
+    .concall {
+        background: #f5f3ff;
+        color: #7c3aed;
+    }
+
+    .picked {
+        background: #ecfdf5;
+        color: #059669;
+    }
+
+    .analysis {
+        line-height: 1.6;
+        font-size: 13px;
+    }
+
+    .analysis h4 {
+        margin-bottom: 5px;
+    }
+
+    .evidence {
+        border-left: 3px solid #d1d5db;
+        padding-left: 12px;
+        margin: 10px 0;
+        color: #4b5563;
+    }
+
+    .scenario {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+    }
+
+    .scenario-box {
+        padding: 15px;
+        border-radius: 8px;
+        background: #f9fafb;
+    }
+
+    .scenario-title {
+        font-size: 11px;
+        color: #6b7280;
+    }
+
+    .scenario-value {
+        font-size: 22px;
+        font-weight: 700;
+        margin-top: 5px;
+    }
+
+    .monitor {
+        display: flex;
+        gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid #f1f5f9;
+    }
+
+    .number {
+        font-weight: 700;
+    }
+
+    .progress {
+        height: 5px;
+        background: #e5e7eb;
+        border-radius: 10px;
+        margin-top: 10px;
+        overflow: hidden;
+    }
+
+    .progress-bar {
+        height: 100%;
+        width: 72%;
+        background: #111827;
+    }
+
+    @media(max-width: 1000px) {
+        .cards {
+            grid-template-columns: repeat(3, 1fr);
+        }
+
+        .grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+</head>
+
+<body>
+
+<header class="header">
+    <div>
+        <div class="logo">NAPKIN RESEARCH</div>
+        <div class="subtitle">
+            India Equities · Yahoo Finance · NSE/BSE · Local Qwen
+        </div>
+    </div>
+
+    <div>
+        <span class="badge picked">QWEN LOCAL</span>
+    </div>
+</header>
+
+
+<div class="container">
+
+    <!-- SEARCH -->
+
+    <div class="search-box">
+
+        <div class="label">STOCK</div>
+
+        <div class="search-row">
+
+            <input
+                id="ticker"
+                value="CORDSCABLE"
+                placeholder="NSE ticker e.g. CORDSCABLE"
+            >
+
+            <button onclick="analyseStock()">
+                Analyse
+            </button>
+
+        </div>
+
+    </div>
+
+
+    <!-- STOCK HEADER -->
+
+    <div class="stock-header">
+
+        <div>
+            <div class="ticker" id="stockTicker">
+                CORDSCABLE
+            </div>
+
+            <div class="company">
+                Cords Cable Industries Ltd · NSE
+            </div>
+        </div>
+
+        <div>
+            <span class="badge picked">
+                DATA LOADED
+            </span>
+        </div>
+
+    </div>
+
+
+    <!-- FINANCIAL CARDS -->
+
+    <div class="cards">
+
+        <div class="card">
+            <div class="card-title">PRICE</div>
+            <div class="card-value">₹315.90</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">MARKET CAP</div>
+            <div class="card-value">₹650 Cr</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">P/E</div>
+            <div class="card-value">17.5x</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">EPS</div>
+            <div class="card-value">₹18.0</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">ROE</div>
+            <div class="card-value">21.4%</div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">ROCE</div>
+            <div class="card-value">28.1%</div>
+        </div>
+
+    </div>
+
+
+    <!-- NAPKIN + EARNINGS -->
+
+    <div class="grid">
+
+        <div class="section">
+
+            <div class="section-header">
+                NAPKIN VALUATION
+            </div>
+
+            <div class="section-body">
+
+                <div class="napkin-grid">
+
+                    <div class="napkin-box">
+                        <div class="napkin-label">
+                            CURRENT P/E
+                        </div>
+                        <div class="napkin-number">
+                            17.5x
+                        </div>
+                    </div>
+
+                    <div class="napkin-box">
+                        <div class="napkin-label">
+                            BASIC REQUIRED CAGR
+                        </div>
+                        <div class="napkin-number">
+                            39.2%
+                        </div>
+                    </div>
+
+                    <div class="napkin-box">
+                        <div class="napkin-label">
+                            ADJUSTED REQUIRED CAGR
+                        </div>
+                        <div class="napkin-number">
+                            18.0%
+                        </div>
+                    </div>
+
+                    <div class="napkin-box">
+                        <div class="napkin-label">
+                            EPS CAGR 3Y
+                        </div>
+                        <div class="napkin-number">
+                            42.1%
+                        </div>
+                    </div>
+
+                    <div class="napkin-box">
+                        <div class="napkin-label">
+                            EPS CAGR 5Y
+                        </div>
+                        <div class="napkin-number">
+                            34.0%
+                        </div>
+                    </div>
+
+                    <div class="napkin-box">
+                        <div class="napkin-label">
+                            BASE GROWTH GAP
+                        </div>
+                        <div class="napkin-number">
+                            +3.0%
+                        </div>
+                    </div>
+
+                </div>
+
+
+                <div class="formula">
+
+                    Basic:
+                    (17.5 × 0.30)^(1/5) - 1 = 39.2%
+
+                    <br><br>
+
+                    Adjusted:
+                    (17.5 × 4.5/34.5)^(1/5) - 1 = 18.0%
+
+                </div>
+
+
+                <div class="status">
+                    REVIEW — BUSINESS EVIDENCE REQUIRED
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- EARNINGS -->
+
+        <div class="section">
+
+            <div class="section-header">
+                EARNINGS & GROWTH
+            </div>
+
+            <div class="section-body">
+
+                <table>
+
+                    <tr>
+                        <th>METRIC</th>
+                        <th>3Y</th>
+                        <th>5Y</th>
+                    </tr>
+
+                    <tr>
+                        <td>Revenue CAGR</td>
+                        <td>18.4%</td>
+                        <td>16.7%</td>
+                    </tr>
+
+                    <tr>
+                        <td>EPS CAGR</td>
+                        <td>42.1%</td>
+                        <td>34.0%</td>
+                    </tr>
+
+                    <tr>
+                        <td>Profit CAGR</td>
+                        <td>39.8%</td>
+                        <td>31.5%</td>
+                    </tr>
+
+                    <tr>
+                        <td>ROE</td>
+                        <td>—</td>
+                        <td>21.4%</td>
+                    </tr>
+
+                    <tr>
+                        <td>ROCE</td>
+                        <td>—</td>
+                        <td>28.1%</td>
+                    </tr>
+
+                </table>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- FILINGS -->
+
+    <div class="section" style="margin-bottom:18px;">
+
+        <div class="section-header">
+            LATEST FILINGS
+        </div>
+
+        <div class="section-body">
+
+            <table>
+
+                <tr>
+                    <th>DATE</th>
+                    <th>DOCUMENT</th>
+                    <th>TYPE</th>
+                    <th>STATUS</th>
+                    <th>ACTION</th>
+                </tr>
+
+                <tr>
+                    <td>13-Aug-2026</td>
+                    <td>Q1 FY27 Results / Outcome</td>
+                    <td>
+                        <span class="badge result">
+                            RESULT
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge picked">
+                            PICKED
+                        </span>
+                    </td>
+                    <td>
+                        <button onclick="analysePDF()">
+                            Analyse
+                        </button>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>28-May-2026</td>
+                    <td>FY26 Financial Results</td>
+                    <td>
+                        <span class="badge result">
+                            RESULT
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge picked">
+                            PICKED
+                        </span>
+                    </td>
+                    <td>
+                        <button>
+                            Analyse
+                        </button>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>2026</td>
+                    <td>Investor Presentation</td>
+                    <td>
+                        <span class="badge result">
+                            PRESENTATION
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge picked">
+                            PICKED
+                        </span>
+                    </td>
+                    <td>
+                        <button>
+                            Analyse
+                        </button>
+                    </td>
+                </tr>
+
+                <tr>
+                    <td>2026</td>
+                    <td>Management Concall Transcript</td>
+                    <td>
+                        <span class="badge concall">
+                            CONCALL
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge picked">
+                            PICKED
+                        </span>
+                    </td>
+                    <td>
+                        <button>
+                            Analyse
+                        </button>
+                    </td>
+                </tr>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <!-- QWEN -->
+
+    <div class="grid">
+
+        <div class="section">
+
+            <div class="section-header">
+                QWEN — BUSINESS RESEARCH
+            </div>
+
+            <div class="section-body analysis">
+
+                <h4>Growth Drivers</h4>
+
+                <div class="evidence">
+                    <b>Capacity expansion</b><br>
+                    Management commentary indicates additional capacity
+                    is being added to support future volume growth.
+                    <br>
+                    <small>
+                        Source: Q1 FY27 management commentary · Page 7
+                    </small>
+                </div>
+
+                <div class="evidence">
+                    <b>Customer additions</b><br>
+                    New customer wins could support incremental revenue,
+                    subject to ramp-up.
+                </div>
+
+                <h4>Market Share</h4>
+
+                <div class="evidence">
+                    <b>MODERATE EVIDENCE</b><br>
+                    Company growth appears higher than the broader industry
+                    based on supplied evidence. Direct market-share data
+                    should be verified.
+                </div>
+
+                <h4>Margins</h4>
+
+                <div class="evidence">
+                    Margin expansion is possible if utilization improves,
+                    but this requires confirmation from subsequent results.
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <!-- SCENARIOS -->
+
+        <div class="section">
+
+            <div class="section-header">
+                QWEN — EPS SCENARIOS
+            </div>
+
+            <div class="section-body">
+
+                <div class="scenario">
+
+                    <div class="scenario-box">
+                        <div class="scenario-title">
+                            BEAR
+                        </div>
+
+                        <div class="scenario-value">
+                            12%
+                        </div>
+                    </div>
+
+                    <div class="scenario-box">
+                        <div class="scenario-title">
+                            BASE
+                        </div>
+
+                        <div class="scenario-value">
+                            21%
+                        </div>
+                    </div>
+
+                    <div class="scenario-box">
+                        <div class="scenario-title">
+                            BULL
+                        </div>
+
+                        <div class="scenario-value">
+                            28%
+                        </div>
+                    </div>
+
+                </div>
+
+
+                <br>
+
+                <h4>Base Case</h4>
+
+                <div class="evidence">
+                    Base case assumes continued revenue growth,
+                    stable margins and successful capacity ramp-up.
+                </div>
+
+                <h4>Growth Gap</h4>
+
+                <div class="evidence">
+                    Base EPS CAGR: <b>21%</b><br>
+                    Adjusted Napkin hurdle: <b>18%</b><br><br>
+
+                    Growth Gap:
+                    <b>+3 percentage points</b>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- MANAGEMENT -->
+
+    <div class="section" style="margin-bottom:18px;">
+
+        <div class="section-header">
+            MANAGEMENT TRACK RECORD
+        </div>
+
+        <div class="section-body">
+
+            <table>
+
+                <tr>
+                    <th>CLAIM</th>
+                    <th>QUARTER</th>
+                    <th>RESULT</th>
+                    <th>STATUS</th>
+                </tr>
+
+                <tr>
+                    <td>Capacity expansion</td>
+                    <td>Q2 FY26</td>
+                    <td>Capacity increased</td>
+                    <td>✓ Achieved</td>
+                </tr>
+
+                <tr>
+                    <td>New customer contribution</td>
+                    <td>Q4 FY26</td>
+                    <td>Partial ramp-up</td>
+                    <td>◐ Partial</td>
+                </tr>
+
+                <tr>
+                    <td>Margin improvement</td>
+                    <td>Q4 FY26</td>
+                    <td>Below target</td>
+                    <td>✕ Missed</td>
+                </tr>
+
+            </table>
+
+        </div>
+
+    </div>
+
+
+    <!-- RISKS + MONITOR -->
+
+    <div class="grid">
+
+        <div class="section">
+
+            <div class="section-header">
+                KEY RISKS
+            </div>
+
+            <div class="section-body analysis">
+
+                <div class="monitor">
+                    <span class="number">1.</span>
+                    Customer concentration
+                </div>
+
+                <div class="monitor">
+                    <span class="number">2.</span>
+                    Margin pressure
+                </div>
+
+                <div class="monitor">
+                    <span class="number">3.</span>
+                    Capacity execution
+                </div>
+
+                <div class="monitor">
+                    <span class="number">4.</span>
+                    Working-capital requirements
+                </div>
+
+                <div class="monitor">
+                    <span class="number">5.</span>
+                    Industry slowdown
+                </div>
+
+            </div>
+
+        </div>
+
+
+        <div class="section">
+
+            <div class="section-header">
+                NEXT QUARTER — WHAT TO MONITOR
+            </div>
+
+            <div class="section-body">
+
+                <div class="monitor">
+                    <span class="number">1.</span>
+                    Revenue growth > 15%
+                </div>
+
+                <div class="monitor">
+                    <span class="number">2.</span>
+                    EBITDA margin
+                </div>
+
+                <div class="monitor">
+                    <span class="number">3.</span>
+                    Capacity utilization
+                </div>
+
+                <div class="monitor">
+                    <span class="number">4.</span>
+                    New customer ramp-up
+                </div>
+
+                <div class="monitor">
+                    <span class="number">5.</span>
+                    Management guidance
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- FINAL CARD -->
+
+    <div class="section">
+
+        <div class="section-header">
+            NAPKIN RESEARCH CARD
+        </div>
+
+        <div class="section-body">
+
+            <div class="napkin-grid">
+
+                <div class="napkin-box">
+                    <div class="napkin-label">
+                        REQUIRED EPS CAGR
+                    </div>
+                    <div class="napkin-number">
+                        18.0%
+                    </div>
+                </div>
+
+                <div class="napkin-box">
+                    <div class="napkin-label">
+                        BASE EPS CAGR
+                    </div>
+                    <div class="napkin-number">
+                        21.0%
+                    </div>
+                </div>
+
+                <div class="napkin-box">
+                    <div class="napkin-label">
+                        GROWTH GAP
+                    </div>
+                    <div class="napkin-number">
+                        +3.0%
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="status">
+                REVIEW — VERIFY FUTURE EARNINGS GROWTH
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+function analyseStock() {
+
+    const ticker =
+        document.getElementById("ticker").value
+        .toUpperCase()
+        .trim();
+
+    if (!ticker) {
+        alert("Enter an NSE ticker");
+        return;
+    }
+
+    document.getElementById("stockTicker").innerText =
+        ticker;
+
+    /*
+        Later:
+
+        fetch(`/api/napkin?ticker=${ticker}`)
+            .then(...)
+            .then(...)
+    */
+
+    alert(
+        "Demo mode: " +
+        ticker +
+        "\n\nConnect this button to your yfinance/API backend."
+    );
+}
+
+
+function analysePDF() {
+
+    /*
+        Later:
+
+        POST /api/napkin/extract
+
+        {
+            url: filingUrl
+        }
+
+        Then:
+
+        POST /api/napkin/qwen
+    */
+
+    alert(
+        "Demo PDF analysis.\n\n" +
+        "Next step: connect this to PDF extraction + local Ollama/Qwen."
+    );
+}
+
+</script>
+
+</body>
+</html>

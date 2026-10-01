@@ -65,11 +65,17 @@ const FamilyDashboard = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const NapkinPanel = dynamic(
+  () => import("@/components/napkin/NapkinPanel").then((m) => m.NapkinPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
   governance: GovernanceMapPanel,
+  napkin: NapkinPanel,
   marketiq: MarketIqPanel,
   orderbookiq: OrderBookIqPanel,
   boardroomiq: BoardRoomIqPanel,

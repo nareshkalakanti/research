@@ -64,8 +64,8 @@ export function DinFillResearchPanel() {
       if (!res.ok || !json.ok) throw new Error(json.error || "Extract failed");
       setSeats(json.seats ?? []);
       setCompany(json.company_extracted ?? "");
-      setTicker((prev) => (json.ticker || prev || "").toUpperCase());
-      setListingName((prev) => json.listing_name ?? prev);
+      setTicker((json.ticker || "").toUpperCase());
+      setListingName(json.listing_name ?? null);
       setStatus(json.why || "Review and approve to save.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Extract failed");
