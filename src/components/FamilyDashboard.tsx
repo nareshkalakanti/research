@@ -523,7 +523,7 @@ export function FamilyDashboard() {
               : dashView === "people"
                 ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
                 : dashView === "network"
-                  ? "Board connectivity from board seats: which companies have directors who also sit on other listed boards, which pairs share directors, and who those connectors are."
+                  ? "Board connectivity from board seats, plus companies that recently gained a director who already sits on other listed boards. Counts are facts, not scores."
                   : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
@@ -694,8 +694,12 @@ export function FamilyDashboard() {
       ) : null}
       {dashView === "network" ? (
         <CompanyNetworkTable
-          onTicker={(t) => openCompany(t)}
           onPerson={(id, name) => openPerson(id, name)}
+          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+          onTargetTicker={(t) => {
+            setStockFocus(t);
+            setDashView("stock");
+          }}
         />
       ) : dashView === "stock" ? (
         <StockNetworkSearch

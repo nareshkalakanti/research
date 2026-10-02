@@ -41,6 +41,7 @@
     "sync:fund-watchlists": "tsx scripts/sync-fund-watchlists.ts",
     "add:fund-watchlist": "tsx scripts/add-fund-watchlist-tickers.ts",
     "sync:bse-sme": "tsx scripts/sync-bse-sme.ts",
+    "sync:nse-sme": "tsx scripts/sync-nse-sme-universe.ts",
     "sync:bse-about": "tsx scripts/sync-bse-about.ts",
     "refresh:board": "tsx scripts/refresh-company-board.ts",
     "scan:concall-drift": "tsx scripts/scan-concall-drift.ts",

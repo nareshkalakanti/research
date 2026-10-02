@@ -181,4 +181,159 @@ assert.equal(napkin.status, "N/A");
 assert.equal(networkNapkin({ pe: null, eps_cagr_5y: 0.27 }, undefined).growth_gap, null);
 assert.equal(LARGE_CONNECTION_MCAP_CR, 10_000);
 
+db.exec(`
+  CREATE TABLE board_seat_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticker TEXT NOT NULL,
+    person_id TEXT NOT NULL,
+    director_name TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    detected_at TEXT NOT NULL
+  );
+  INSERT INTO board_seat_events (ticker, person_id, director_name, event_type, detected_at) VALUES
+    ('AAA','p1','One','joined','2026-09-01T00:00:00Z'),
+    ('AAA','p1','One','joined','2026-10-01T00:00:00Z'),
+    ('AAA','p9','Gone','joined','2026-10-01T00:00:00Z'),
+    ('BBB','p1','One','resigned','2026-10-01T00:00:00Z');
+`);
+db.exec(COMPANY_GROUPS_TABLE_SQL);
+
+const newConnSql = `
+  WITH latest_joined AS (
+    SELECT e.ticker, e.person_id, e.director_name, e.detected_at
+    FROM board_seat_events e
+    JOIN (
+      SELECT ticker, person_id, MAX(id) AS id
+      FROM board_seat_events
+      WHERE event_type = 'joined'
+      GROUP BY ticker, person_id
+    ) x ON x.id = e.id
+  )
+  SELECT
+    lj.ticker AS target_ticker,
+    o.ticker AS connected_ticker,
+    lj.detected_at AS event_date,
+    ROUND(cm.market_cap / tm.market_cap, 1) AS market_cap_ratio,
+    CASE
+      WHEN NOT EXISTS (SELECT 1 FROM company_groups g1 WHERE g1.ticker = lj.ticker)
+        OR NOT EXISTS (SELECT 1 FROM company_groups g2 WHERE g2.ticker = o.ticker)
+        THEN 'unclassified'
+      WHEN EXISTS (
+        SELECT 1 FROM company_groups g1
+        JOIN company_groups g2 ON g2.group_key = g1.group_key
+        WHERE g1.ticker = lj.ticker AND g2.ticker = o.ticker
+      ) THEN 'same_group'
+      ELSE 'cross_group'
+    END AS connection_type
+  FROM latest_joined lj
+  JOIN board_seats here ON here.ticker = lj.ticker AND here.person_id = lj.person_id
+  JOIN board_seats o ON o.person_id = lj.person_id AND o.ticker <> lj.ticker
+  JOIN company_metrics tm ON tm.ticker = lj.ticker
+  JOIN company_metrics cm ON cm.ticker = o.ticker
+  WHERE tm.market_cap > 0 AND tm.market_cap < 5000 AND cm.market_cap > 0
+  ORDER BY connected_ticker
+`;
+const newRows = db.prepare(newConnSql).all() as Array<{
+  target_ticker: string;
+  connected_ticker: string;
+  event_date: string;
+  market_cap_ratio: number;
+  connection_type: string;
+}>;
+assert.ok(newRows.every((r) => r.target_ticker === "AAA"));
+assert.ok(!newRows.some((r) => r.target_ticker === "AAA" && r.connected_ticker === "AAA"));
+assert.equal(newRows.filter((r) => r.event_date < "2026-10-01").length, 0);
+assert.equal(
+  new Set(newRows.map((r) => `${r.target_ticker}|${r.connected_ticker}`)).size,
+  newRows.length,
+);
+assert.ok(!newRows.some((r) => r.connected_ticker === "CCC" && r.market_cap_ratio == null));
+const gone = db
+  .prepare(
+    `SELECT COUNT(*) AS n FROM board_seat_events e
+     LEFT JOIN board_seats s ON s.ticker=e.ticker AND s.person_id=e.person_id
+     WHERE e.event_type='joined' AND e.person_id='p9' AND s.person_id IS NULL`,
+  )
+  .get() as { n: number };
+assert.equal(gone.n, 1);
+assert.ok(!newRows.some((r) => r.target_ticker === "AAA" && r.connected_ticker === "p9"));
+
+db.exec(`
+  INSERT INTO companies VALUES ('DDD','Ddd Ltd');
+  INSERT INTO company_metrics (ticker, market_cap, updated_at) VALUES ('DDD', 60000, 'x');
+  INSERT INTO board_seats (ticker, person_id) VALUES ('DDD','p1');
+  INSERT INTO company_groups VALUES ('DDD','gz','Group Z','x');
+`);
+const gapSql = `
+  WITH latest_joined AS (
+    SELECT e.ticker, e.person_id, e.director_name, e.detected_at, e.id
+    FROM board_seat_events e
+    JOIN (
+      SELECT ticker, person_id, MAX(id) AS id
+      FROM board_seat_events
+      WHERE event_type = 'joined'
+      GROUP BY ticker, person_id
+    ) x ON x.id = e.id
+  ),
+  new_edges AS (
+    SELECT
+      lj.ticker AS target_ticker,
+      o.ticker AS connected_ticker,
+      cm.market_cap AS connected_market_cap,
+      ROUND(cm.market_cap / tm.market_cap, 1) AS market_cap_ratio,
+      CASE
+        WHEN NOT EXISTS (SELECT 1 FROM company_groups g1 WHERE g1.ticker = lj.ticker)
+          OR NOT EXISTS (SELECT 1 FROM company_groups g2 WHERE g2.ticker = o.ticker)
+          THEN 'unclassified'
+        WHEN EXISTS (
+          SELECT 1 FROM company_groups g1
+          JOIN company_groups g2 ON g2.group_key = g1.group_key
+          WHERE g1.ticker = lj.ticker AND g2.ticker = o.ticker
+        ) THEN 'same_group'
+        ELSE 'cross_group'
+      END AS connection_type,
+      dn.company_count AS board_count,
+      lj.person_id
+    FROM latest_joined lj
+    JOIN board_seats here ON here.ticker = lj.ticker AND here.person_id = lj.person_id
+    JOIN board_seats o ON o.person_id = lj.person_id AND o.ticker <> lj.ticker
+    JOIN company_metrics tm ON tm.ticker = lj.ticker
+    JOIN company_metrics cm ON cm.ticker = o.ticker
+    LEFT JOIN director_network dn ON dn.person_id = lj.person_id
+    WHERE tm.market_cap > 0 AND tm.market_cap < 5000 AND cm.market_cap > 0
+  )
+  SELECT
+    target_ticker,
+    COUNT(DISTINCT connected_ticker) AS connected_companies,
+    COUNT(DISTINCT CASE WHEN connected_market_cap >= 10000 THEN connected_ticker END) AS n_10k,
+    COUNT(DISTINCT CASE WHEN connected_market_cap >= 25000 THEN connected_ticker END) AS n_25k,
+    COUNT(DISTINCT CASE WHEN connected_market_cap >= 50000 THEN connected_ticker END) AS n_50k,
+    MAX(connected_market_cap) AS largest_connected_mcap,
+    MAX(market_cap_ratio) AS largest_ratio,
+    COUNT(DISTINCT CASE WHEN connection_type = 'cross_group' THEN connected_ticker END) AS cross_group_count,
+    COUNT(DISTINCT CASE WHEN IFNULL(board_count, 0) >= 3 THEN person_id END) AS multi_board_director_count
+  FROM new_edges
+  GROUP BY target_ticker
+`;
+const gap = db.prepare(gapSql).get() as {
+  target_ticker: string;
+  connected_companies: number;
+  n_10k: number;
+  n_25k: number;
+  n_50k: number;
+  largest_connected_mcap: number;
+  largest_ratio: number;
+  cross_group_count: number;
+  multi_board_director_count: number;
+};
+assert.equal(gap.target_ticker, "AAA");
+assert.equal(gap.connected_companies, 2);
+assert.equal(gap.n_10k, 2);
+assert.equal(gap.n_25k, 2);
+assert.equal(gap.n_50k, 1);
+assert.equal(gap.largest_connected_mcap, 60000);
+assert.equal(gap.largest_ratio, 85.7);
+assert.equal(gap.cross_group_count, 1);
+assert.equal(gap.multi_board_director_count, 1);
+
 console.log("company-network.test.ts ok");
