@@ -97,18 +97,17 @@ assert.ok(simple.sources.includes("Screener"));
 assert.deepEqual(
   napkinMathNotes({
     historicalEpsCagr: "-23.2%",
-    growthGap: "-199.7%",
     usedFiveYear: true,
+    aboveHistory: true,
   }),
   [
     "EPS declined over the 5-year period",
-    "Required growth is above historical growth",
+    "Your assumption requires EPS growth significantly above history",
   ],
 );
 assert.deepEqual(
   napkinMathNotes({
     historicalEpsCagr: "12.0%",
-    growthGap: "1.0%",
     usedFiveYear: true,
   }),
   [],

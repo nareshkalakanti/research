@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
-import { napkinAnalysis, napkinScreenVerdict } from "../src/lib/napkin/engine";
+import {
+  napkinAnalysis,
+  napkinCompound,
+  napkinForwardScenario,
+  napkinImpliedPrice,
+  napkinRequiredEpsCagr,
+  napkinScreenVerdict,
+} from "../src/lib/napkin/engine";
 
 function close(a: number | null, b: number, d = 1e-12) {
   assert.ok(a != null && Math.abs(a - b) < d, `${a} ≉ ${b}`);
@@ -42,10 +49,11 @@ const pe348 = napkinAnalysis(
   },
   defaults,
 );
-close(pe348.basic_required_cagr, (34.8 * 0.3) ** (1 / 5) - 1);
+close(pe348.basic_required_cagr, Math.pow(34.8 * 0.3, 1 / 5) - 1);
+close(napkinRequiredEpsCagr(34.8), Math.pow(34.8 * 0.3, 1 / 5) - 1);
 assert.ok(
   Math.abs((pe348.basic_required_cagr ?? 0) * 100 - 59.9) < 0.15,
-  "Math.pow(pe * 0.30, 1/5) - 1 at 34.8x is ~59.9%, not ~27.9%",
+  "Math.pow(pe * 0.30, 1/5) - 1 at 34.8x is ~59.9%",
 );
 
 const pe175 = napkinAnalysis(
@@ -103,5 +111,33 @@ const screenFail = napkinAnalysis(
   { near_term_ratio: 0.3, years: 5, pass_gap_pp: 10, hold_min_gap_pp: -10 },
 );
 assert.equal(screenFail.screen_verdict, "FAIL");
+
+close(napkinCompound(31.1, 0.25, 5), 31.1 * 1.25 ** 5, 1e-9);
+close(napkinImpliedPrice(31.1 * 1.25 ** 5, 34.8), 31.1 * 1.25 ** 5 * 34.8, 1e-9);
+const req348 = napkinRequiredEpsCagr(34.8);
+const fwd = napkinForwardScenario({
+  eps: 31.1,
+  pe: 34.8,
+  price: 1082,
+  expected_cagr: 0.25,
+  required_cagr: req348,
+  historical_cagr: 0.05,
+  years: 5,
+  significant_pp: 10,
+});
+assert.ok(fwd.above_history);
+close(fwd.eps_end!, 31.1 * 1.25 ** 5, 1e-6);
+close(fwd.vs_required!, 0.25 - req348!, 1e-12);
+close(fwd.vs_historical!, 0.2, 1e-12);
+const at30 = napkinForwardScenario({
+  eps: 31.1,
+  pe: 34.8,
+  price: 1082,
+  expected_cagr: 0.3,
+  required_cagr: req348,
+  historical_cagr: 0.05,
+});
+close(at30.vs_historical!, 0.25, 1e-12);
+close(at30.vs_required!, 0.3 - req348!, 1e-12);
 
 console.log("ok");

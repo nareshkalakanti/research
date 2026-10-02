@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Napkin Research Scanner</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f7f8fa;color:#182033;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.app{max-width:1500px;margin:auto;padding:28px}h1{font-size:25px;margin:0 0 18px}.tabs{display:flex;gap:10px;margin-bottom:20px}.tab,.btn{border:1px solid #d9dee7;background:#fff;border-radius:10px;padding:10px 16px;font-weight:700}.active,.primary{background:#111;color:#fff;border-color:#111}.card{background:#fff;border:1px solid #e1e5ec;border-radius:14px;padding:18px;margin-bottom:18px}.filters{display:flex;flex-wrap:wrap;gap:14px;align-items:end}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:12px;font-weight:700;color:#657089}.field input,.field select{height:40px;width:125px;border:1px solid #d8dde6;border-radius:9px;padding:0 10px}.actions{display:flex;gap:8px}.status{font-size:13px;color:#27734d;margin-top:13px}.summary{display:flex;gap:10px;flex-wrap:wrap}.pill{border:1px solid #e0e4eb;border-radius:999px;padding:7px 11px;font-size:13px}.table-wrap{overflow:auto}table{width:100%;min-width:1250px;border-collapse:collapse}th,td{padding:11px 9px;border-bottom:1px solid #edf0f4;text-align:right;font-size:13px;white-space:nowrap}th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}th{font-size:11px;color:#69758a;text-transform:uppercase;letter-spacing:.06em}.company{font-weight:650}.pos{font-weight:700}.neg{color:#a04a4a}.tag{font-size:11px;font-weight:750;padding:4px 8px;border-radius:999px;background:#e9f6ee;color:#21633f}.watch{background:#f3f4f6;color:#596273}.title{font-weight:750;font-size:16px;margin-bottom:10px}.muted{color:#6c7688;font-size:12px}
+</style></head><body><div class="app">
+<h1>Napkin Research</h1>
+<div class="tabs"><button class="tab">Single stock</button><button class="tab active">Stock scanner</button></div>
+<div class="card"><div class="filters">
+<div class="field"><label>Minimum history</label><select id="history"><option>5Y+</option><option>3Y+</option><option>1Y+</option><option>Any</option></select></div>
+<div class="field"><label>Market cap min</label><input id="mmin" value="500"></div><div class="field"><label>Market cap max</label><input id="mmax" value="20000"></div>
+<div class="field"><label>P/E max</label><input id="pe" value="40"></div><div class="field"><label>5Y EPS CAGR min</label><input id="e5" value="15"></div>
+<div class="field"><label>3Y EPS CAGR min</label><input id="e3" value="10"></div><div class="field"><label>Revenue CAGR 5Y min</label><input id="rv" value="10"></div>
+<div class="field"><label>ROCE min</label><input id="rc" value="15"></div><div class="field"><label>Growth gap min</label><input id="gg" value="-10"></div>
+<div class="actions"><button class="btn" onclick="resetF()">Reset filters</button><button class="btn primary" onclick="scan()">Scan</button></div>
+</div><div class="status" id="status">Financial data loaded · Live quotes available</div></div>
+<div class="card"><div class="summary"><span class="pill"><b id="count">6</b> research candidates</span><span class="pill">5Y+ history</span><span class="pill">Growth gap ≥ -10%</span></div></div>
+<div class="card"><div class="title">Research shortlist</div><div class="muted">Candidates satisfy the selected screening criteria. This is a research filter, not a buy recommendation.</div><br>
+<div class="table-wrap"><table><thead><tr><th>Company</th><th>Ticker</th><th>Market Cap</th><th>P/E</th><th>5Y EPS CAGR</th><th>3Y EPS CAGR</th><th>Revenue CAGR 5Y</th><th>ROCE</th><th>Required CAGR</th><th>Growth Gap</th><th>Current Price</th><th>Max Buy Price</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+<div class="card"><div class="title">Workflow</div><div class="muted">1. Screen quality and growth → 2. Compare historical growth with required growth → 3. Open the stock → 4. Test your own EPS CAGR, exit P/E and target return → 5. Review the business before making a decision.</div></div>
+</div>
+<script>
+const D=[
+["Arrow Greentech Limited","ARROWGREEN",1305,20.5,47.1,56.8,31.1,30,43.7,3.4],
+["Ashapura Minechem Limited","ASHAPURMIN",4680,11.5,33.1,48.7,35.5,21,28.1,5.0],
+["Balu Forge Industries Limited","BALUFORGE",5936,20.1,80.6,65.9,50.8,23,43.2,37.4],
+["BLS International Services Ltd.","BLS",8910,12.7,68.7,50.5,44.4,29,30.6,38.1],
+["Ceinsys Tech Limited","CEINSYS",1370,9.9,104.3,47.1,29,27,24.2,80.1],
+["Dynacons Systems & Solutions Limited","DSSL",1208,14.2,51.2,36.2,26.7,30,33.7,17.5]
+];
+function render(a){document.getElementById("count").textContent=a.length;document.getElementById("rows").innerHTML=a.map(x=>`<tr><td class="company">${x[0]}</td><td>${x[1]}</td><td>₹${x[2].toLocaleString()} Cr</td><td>${x[3].toFixed(1)}x</td><td>${x[4].toFixed(1)}%</td><td>${x[5].toFixed(1)}%</td><td>${x[6].toFixed(1)}%</td><td>${x[7].toFixed(1)}%</td><td>${x[8].toFixed(1)}%</td><td class="${x[9]>=0?'pos':'neg'}">${x[9]>=0?'+':''}${x[9].toFixed(1)}%</td><td>N/A</td><td>N/A</td><td><span class="tag ${x[9]<0?'watch':''}">${x[9]>=0?'Research':'Watch'}</span></td></tr>`).join("")}
+function n(id){let v=parseFloat(document.getElementById(id).value);return Number.isFinite(v)?v:null}
+function scan(){let a=D.filter(x=>(n("mmin")==null||x[2]>=n("mmin"))&&(n("mmax")==null||x[2]<=n("mmax"))&&(n("pe")==null||x[3]<=n("pe"))&&(n("e5")==null||x[4]>=n("e5"))&&(n("e3")==null||x[5]>=n("e3"))&&(n("rv")==null||x[6]>=n("rv"))&&(n("rc")==null||x[7]>=n("rc"))&&(n("gg")==null||x[9]>=n("gg")));render(a);document.getElementById("status").textContent=`Financial data loaded · ${a.length} stocks match the current filters`}
+function resetF(){let v={mmin:500,mmax:20000,pe:40,e5:15,e3:10,rv:10,rc:15,gg:-10};Object.keys(v).forEach(k=>document.getElementById(k).value=v[k]);document.getElementById("history").value="5Y+";scan()}render(D);
+</script></body></html>

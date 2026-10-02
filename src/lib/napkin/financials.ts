@@ -50,6 +50,8 @@ export const REASON_SHORT_5Y =
   "Yahoo Finance provides insufficient annual history for a true 5Y CAGR.";
 export const REASON_SHORT_3Y =
   "Yahoo Finance provides insufficient annual history for a true 3Y CAGR.";
+export const REASON_SHORT_1Y =
+  "Insufficient annual history for a true 1Y EPS CAGR.";
 export const REASON_NONPOSITIVE =
   "Start or end annual value is zero or negative; CAGR is not defined.";
 export const REASON_NO_EPS =
@@ -105,7 +107,8 @@ export function annualCagr(
   if (values.length < need) {
     return {
       value: null,
-      reason: years >= 5 ? REASON_SHORT_5Y : REASON_SHORT_3Y,
+      reason:
+        years >= 5 ? REASON_SHORT_5Y : years >= 3 ? REASON_SHORT_3Y : REASON_SHORT_1Y,
     };
   }
   const start = values[values.length - need]!;

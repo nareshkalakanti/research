@@ -94,10 +94,106 @@ function finite(v: number | null | undefined): number | null {
   return v;
 }
 
+export const NAPKIN_EXPECTED_CAGR_PRESETS = [0.1, 0.15, 0.2, 0.25, 0.3, 0.4];
+export const NAPKIN_DEFAULT_EXPECTED_CAGR = 0.15;
+
 function requiredCagr(multiple: number | null, years: number): number | null {
   if (multiple == null || years <= 0) return null;
   if (multiple <= 0) return null;
   return multiple ** (1 / years) - 1;
+}
+
+/** Required EPS CAGR: Math.pow(pe * 0.30, 1 / 5) - 1 */
+export function napkinRequiredEpsCagr(
+  pe: number | null | undefined,
+): number | null {
+  const p = finite(pe);
+  if (p == null || p <= 0) return null;
+  return Math.pow(p * 0.3, 1 / 5) - 1;
+}
+
+export function napkinCompound(
+  start: number | null,
+  cagr: number | null,
+  years: number,
+): number | null {
+  if (start == null || cagr == null || years <= 0) return null;
+  if (!Number.isFinite(start) || !Number.isFinite(cagr)) return null;
+  return start * (1 + cagr) ** years;
+}
+
+export function napkinImpliedPrice(
+  futureEps: number | null,
+  exitPe: number | null,
+): number | null {
+  if (futureEps == null || exitPe == null) return null;
+  if (!Number.isFinite(futureEps) || !Number.isFinite(exitPe) || exitPe <= 0) {
+    return null;
+  }
+  return futureEps * exitPe;
+}
+
+export function napkinCagrFromLevels(
+  start: number | null,
+  end: number | null,
+  years: number,
+): number | null {
+  if (start == null || end == null || years <= 0) return null;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start <= 0 || end <= 0) {
+    return null;
+  }
+  return end ** (1 / years) / start ** (1 / years) - 1;
+}
+
+export type NapkinForwardScenario = {
+  years: number;
+  expected_cagr: number | null;
+  eps_now: number | null;
+  eps_end: number | null;
+  pe: number | null;
+  implied_price: number | null;
+  price_now: number | null;
+  price_cagr: number | null;
+  vs_required: number | null;
+  vs_historical: number | null;
+  above_history: boolean;
+};
+
+export function napkinForwardScenario(input: {
+  eps: number | null;
+  pe: number | null;
+  price: number | null;
+  expected_cagr: number | null;
+  required_cagr: number | null;
+  historical_cagr: number | null;
+  years?: number;
+  significant_pp?: number;
+}): NapkinForwardScenario {
+  const years = input.years && input.years > 0 ? input.years : DEFAULT_NAPKIN_CONFIG.years;
+  const sig =
+    input.significant_pp != null && Number.isFinite(input.significant_pp)
+      ? input.significant_pp
+      : DEFAULT_NAPKIN_CONFIG.pass_gap_pp;
+  const expected = finite(input.expected_cagr);
+  const hist = finite(input.historical_cagr);
+  const req = finite(input.required_cagr);
+  const epsEnd = napkinCompound(finite(input.eps), expected, years);
+  const implied = napkinImpliedPrice(epsEnd, finite(input.pe));
+  const vsHist =
+    expected != null && hist != null ? expected - hist : null;
+  return {
+    years,
+    expected_cagr: expected,
+    eps_now: finite(input.eps),
+    eps_end: epsEnd,
+    pe: finite(input.pe),
+    implied_price: implied,
+    price_now: finite(input.price),
+    price_cagr: napkinCagrFromLevels(finite(input.price), implied, years),
+    vs_required: expected != null && req != null ? expected - req : null,
+    vs_historical: vsHist,
+    above_history: vsHist != null && vsHist * 100 >= sig,
+  };
 }
 
 function gap(expected: number | null, required: number | null): number | null {
@@ -155,7 +251,7 @@ export function napkinAnalysis(
     adjusted = terminal != null ? pe * factor * terminal : pe * factor;
   }
 
-  const basic = requiredCagr(nearTerm, cfg.years);
+  const basic = napkinRequiredEpsCagr(pe);
   const adjCagr = requiredCagr(adjusted, cfg.years);
   const gap3 = gap(hist3, basic);
   const gap5 = gap(hist5, basic);

@@ -39,7 +39,7 @@ export const GOV_MULTI_LC_LABEL = "Multi-LC";
 export const GOV_MULTI_LC_TITLE =
   "Director on 2+ large-cap boards (≥ ₹20,000 Cr) — group chairs, cross-holdings";
 
-const CAP_CODE_BANDS: Array<{
+export const CAP_CODE_BANDS: Array<{
   lo: number | null;
   hi: number | null;
   code: string;

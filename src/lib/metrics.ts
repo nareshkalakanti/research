@@ -185,8 +185,10 @@ export function upsertMetrics(
       ON CONFLICT(ticker) DO UPDATE SET
         market = COALESCE(excluded.market, stock_metrics.market),
         yf_symbol = COALESCE(excluded.yf_symbol, stock_metrics.yf_symbol),
-        price = COALESCE(excluded.price, stock_metrics.price),
-        market_cap_cr = COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr),
+        price = CASE WHEN @untraded = 1 THEN NULL
+                     ELSE COALESCE(excluded.price, stock_metrics.price) END,
+        market_cap_cr = CASE WHEN @untraded = 1 THEN NULL
+                     ELSE COALESCE(excluded.market_cap_cr, stock_metrics.market_cap_cr) END,
         sector = COALESCE(excluded.sector, stock_metrics.sector),
         change_pct = COALESCE(excluded.change_pct, stock_metrics.change_pct),
         fetched_at = excluded.fetched_at
@@ -195,8 +197,9 @@ export function upsertMetrics(
     const tx = db.transaction((rows: YfQuote[]) => {
       let n = 0;
       for (const q of rows) {
-        if (q.price == null && q.mcap_cr == null) continue;
+        if (q.price == null && q.mcap_cr == null && !q.untraded) continue;
         stmt.run({
+          untraded: q.untraded ? 1 : 0,
           ticker: q.ticker.toUpperCase(),
           market:
             marketByTicker?.[q.ticker] ??

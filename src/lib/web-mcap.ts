@@ -35,6 +35,8 @@ export type WebProfile = {
   nse_tradable?: boolean;
   bse_tradable?: boolean;
   bse_scrip?: string;
+  /** No trade in 52 weeks: last price is stale, so price × shares is not a market cap. */
+  untraded?: boolean;
 };
 
 function sleep(ms: number): Promise<void> {
@@ -45,6 +47,11 @@ function num(v: unknown): number | null {
   if (v == null || v === "") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function positive(v: unknown): boolean {
+  const n = num(v);
+  return n != null && n > 0;
 }
 
 function asRecord(v: unknown): Record<string, unknown> {
@@ -274,6 +281,11 @@ async function tickertapeLookup(
   const gic = asRecord(data.gic);
   const sectorLabel = asRecord(asRecord(data.labels).sector);
   const marketCap = num(ratios.marketCap) ?? num(ratios.mrktCapf);
+  const untraded =
+    "52wHigh" in ratios &&
+    "52wLow" in ratios &&
+    !positive(ratios["52wHigh"]) &&
+    !positive(ratios["52wLow"]);
 
   return {
     ticker: symbol.toUpperCase(),
@@ -298,6 +310,7 @@ async function tickertapeLookup(
         ? Math.round(marketCap * 10_000) / 10_000
         : null,
     source: "tickertape",
+    untraded,
   };
 }
 
@@ -555,7 +568,7 @@ function mcapPriceFromGroww(
 async function growwLivePrice(
   company: Record<string, unknown>,
   fallbackSymbol: string,
-): Promise<number | null> {
+): Promise<{ price: number | null; untraded: boolean } | null> {
   const header = asRecord(company.header);
   const exchange = header.isNseTradable
     ? "NSE"
@@ -574,7 +587,14 @@ async function growwLivePrice(
         `${GROWW_PRICE}${encodeURIComponent(exchange)}/segment/CASH/${encodeURIComponent(liveSymbol)}/latest`,
       ),
     );
-    return num(pricePayload.ltp) ?? num(pricePayload.close);
+    return {
+      price: num(pricePayload.ltp) ?? num(pricePayload.close),
+      untraded:
+        "yearHighPrice" in pricePayload &&
+        "yearLowPrice" in pricePayload &&
+        !positive(pricePayload.yearHighPrice) &&
+        !positive(pricePayload.yearLowPrice),
+    };
   } catch {
     return null;
   }
@@ -618,7 +638,7 @@ async function growwLookup(
   const header = asRecord(company.header);
   const bits = listingBitsFromGroww(hit, company);
   const { mcap_cr } = mcapPriceFromGroww(company);
-  const price = await growwLivePrice(company, bits.listed_ticker || symbol);
+  const live = await growwLivePrice(company, bits.listed_ticker || symbol);
 
   return {
     ...emptyProfile(symbol),
@@ -627,9 +647,10 @@ async function growwLookup(
     isin: firstText(header.isin, hit.isin),
     subsector: firstText(header.industryName),
     ...profileFromGroww(company),
-    price,
+    price: live?.price ?? null,
     mcap_cr,
     source: "groww",
+    untraded: live?.untraded ?? false,
   };
 }
 
@@ -688,7 +709,8 @@ async function fetchOne(
         }
         if (found.price == null) {
           const live = await growwLivePrice(groww.company, symbol);
-          if (live != null) found.price = live;
+          if (live?.price != null) found.price = live.price;
+          if (live?.untraded) found.untraded = true;
         }
         found.source =
           found.ceo ||
@@ -713,6 +735,16 @@ async function fetchOne(
 }
 
 export function webProfileToQuote(p: WebProfile): YfQuote | null {
+  if (p.untraded) {
+    return {
+      ticker: p.ticker,
+      yf_symbol: `${p.source}:${p.ticker}`,
+      price: null,
+      mcap_cr: null,
+      sector: p.sector || null,
+      untraded: true,
+    };
+  }
   if (p.mcap_cr == null && p.price == null) return null;
   return {
     ticker: p.ticker,

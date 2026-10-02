@@ -22,15 +22,40 @@ export function formatNapkinPct(v: number | null, signed = false): string {
   return signed && v > 0 ? `+${core}` : core;
 }
 
+export function parseDisplayedMoney(s: string | undefined): number | null {
+  if (!s || s === "N/A") return null;
+  if (/\bcr\b/i.test(s)) return null;
+  const n = Number(s.replace(/[₹$,]/g, "").trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+export function parseDisplayedPe(s: string | undefined): number | null {
+  if (!s || s === "N/A") return null;
+  const n = Number(s.replace(/x$/i, "").trim());
+  return Number.isFinite(n) ? n : null;
+}
+
+export function formatNapkinRupee(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "N/A";
+  const digits = Math.abs(v) >= 100 ? 0 : 1;
+  return `₹${v.toLocaleString("en-IN", { maximumFractionDigits: digits })}`;
+}
+
+export function formatNapkinPctWhole(v: number | null): string {
+  if (v == null || !Number.isFinite(v)) return "N/A";
+  const p = v * 100;
+  const digits = Number.isInteger(p) || Math.abs(p - Math.round(p)) < 1e-9 ? 0 : 1;
+  return `${p.toFixed(digits)}%`;
+}
+
 /** Fact notes from displayed CAGRs only. No buy/sell language. */
 export function napkinMathNotes(input: {
   historicalEpsCagr: string;
-  growthGap: string;
   usedFiveYear: boolean;
+  aboveHistory?: boolean;
 }): string[] {
   const notes: string[] = [];
   const hist = parseDisplayedPct(input.historicalEpsCagr);
-  const gap = parseDisplayedPct(input.growthGap);
   if (hist != null && hist < 0) {
     notes.push(
       input.usedFiveYear
@@ -38,8 +63,10 @@ export function napkinMathNotes(input: {
         : "EPS declined over the 3-year period",
     );
   }
-  if (gap != null && gap < 0) {
-    notes.push("Required growth is above historical growth");
+  if (input.aboveHistory) {
+    notes.push(
+      "Your assumption requires EPS growth significantly above history",
+    );
   }
   return notes;
 }

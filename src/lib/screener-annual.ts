@@ -615,16 +615,8 @@ export async function fetchScreenerAnnual(
       writeCache(key, series);
     }
     return series;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (/blocked|429|403|captcha/i.test(msg)) {
-      const until = new Date(Date.now() + BLOCK_MS).toISOString();
-      writeCache(
-        key,
-        { dates: [], sales: [], eps: [], roce: [] },
-        until,
-      );
-    }
+  } catch {
+    // Blocks pause every Screener fetch in screener-fetch; no per-ticker mark.
     return { dates: [], sales: [], eps: [], roce: [] };
   }
 }
