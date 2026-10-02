@@ -8427,6 +8427,121 @@ button.result-tag {
   box-shadow: 0 0 0 1px var(--line);
 }
 
+.company-network-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 12px;
+}
+
+.company-network-bar input {
+  width: min(360px, 100%);
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.company-network-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.company-network-table th,
+.company-network-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.company-network-table th:last-child,
+.company-network-table td:last-child {
+  text-align: right;
+  width: 8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.company-network-table button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+}
+
+.company-network-bar .fam-dash-tabs {
+  margin-bottom: 0;
+}
+
+.company-network-caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.company-network-caps button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.company-network-caps button.on {
+  border-color: var(--ink);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.company-network-table--conn th:not(:first-child),
+.company-network-table--conn td:not(:first-child) {
+  text-align: right;
+  width: 9rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.company-network-table--disc th:nth-child(n + 4),
+.company-network-table--disc td:nth-child(n + 4) {
+  text-align: right;
+  width: 10rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.company-network-table .net-company button {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.company-network-table td.net-ratio {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.company-network-tickers button {
+  margin-right: 10px;
+  font-weight: 600;
+}
+
+.company-network-table td span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.company-network-pager {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .gov-person-name-btn {
   display: inline-flex;
   flex-wrap: wrap;
@@ -24958,6 +25073,256 @@ tr.wl-prove-fail td {
 .napkin-simple .napkin-dl {
   border: 0;
   background: transparent;
+}
+
+.napkin-subhead {
+  margin: 18px 0 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.napkin-cagr-label {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+}
+
+.napkin-cagr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+
+.napkin-cagr-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.napkin-cagr-chip + .napkin-cagr-chip {
+  margin-left: 0;
+}
+
+.napkin-cagr-chip.is-on {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+}
+
+.napkin-cagr-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 8px;
+  font-weight: 700;
+}
+
+.napkin-cagr-custom input {
+  width: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.napkin-mode {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+
+.napkin-mode button {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.napkin-mode button.is-on {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.napkin-scan-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+  font-weight: 700;
+}
+
+.napkin-scan-filter select {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.napkin-scan-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 14px;
+  margin: 12px 0;
+}
+
+.napkin-scan-filter input {
+  width: 7.5rem;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.napkin-scan-reset {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.napkin-scan-note {
+  margin: 8px 0 12px;
+  color: var(--muted, #667);
+  font-size: 13px;
+}
+
+.napkin-scan-row {
+  cursor: pointer;
+}
+
+.napkin-scan-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 750;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef1f5;
+  color: #596273;
+}
+
+.napkin-scan-tag--research {
+  background: #e9f6ee;
+  color: #21633f;
+}
+
+.napkin-scan-tag--watch {
+  background: #f3f4f6;
+  color: #596273;
+}
+
+.napkin-sort {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  font-weight: inherit;
+  cursor: pointer;
+  text-align: inherit;
+}
+
+.napkin-simple--scan {
+  max-width: 1760px;
+}
+
+.napkin-scan-table {
+  overflow-x: auto;
+}
+
+.napkin-scan-table .napkin-table {
+  table-layout: fixed;
+  width: 1440px;
+  min-width: 1440px;
+}
+
+.napkin-col-ticker { width: 132px; }
+.napkin-col-mcap { width: 118px; }
+.napkin-col-pe { width: 72px; }
+.napkin-col-hist { width: 76px; }
+.napkin-col-cagr { width: 112px; }
+.napkin-col-rev { width: 132px; }
+.napkin-col-roce { width: 84px; }
+.napkin-col-req { width: 132px; }
+.napkin-col-gap { width: 108px; }
+.napkin-col-price { width: 112px; }
+.napkin-col-buy { width: 148px; }
+.napkin-col-status { width: 96px; }
+
+.napkin-scan-table th,
+.napkin-scan-table td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.napkin-scan-tv {
+  font-weight: 700;
+  color: inherit;
+  text-decoration: none;
+}
+
+.napkin-scan-tv:hover {
+  text-decoration: underline;
+}
+
+.napkin-scan-table .napkin-scan-text {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.napkin-buy-hero {
+  margin: 16px 0;
+  padding: 16px 18px;
+  border: 1px solid #111;
+  border-radius: 12px;
+  background: #111;
+  color: #fff;
+}
+
+.napkin-buy-kicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.napkin-buy-value {
+  margin-top: 4px;
+  font-size: 2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.napkin-buy-note {
+  margin: 8px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: #e5e7eb;
+}
+
+.napkin-table tr.is-on td {
+  font-weight: 800;
 }
 
 @media (max-width: 1000px) {

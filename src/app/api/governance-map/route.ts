@@ -25,6 +25,22 @@ import {
   matchedKeywords,
   patternMatches,
 } from "@/lib/pattern";
+import {
+  connectivityCapBands,
+  loadCompanyConnectivity,
+  loadCompanyNetwork,
+  loadDirectorNetwork,
+  loadNetworkDiscovery,
+} from "@/lib/company-network";
+import {
+  SCREEN_SORT_KEYS,
+  loadNetworkCandidates,
+  loadNetworkInvestigation,
+  loadNetworkScreen,
+  type CandidateSort,
+  type ScreenConnection,
+  type ScreenSortKey,
+} from "@/lib/network-profile";
 import { FUND_WATCHLIST_KEYS } from "@/lib/fund-watchlist-meta";
 import {
   anyFundFilterActive,
@@ -35,7 +51,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
-type View = "director" | "company" | "role" | "family" | "independence" | "network";
+type View = "director" | "company" | "role" | "family" | "independence" | "network" | "company-network"   | "director-network"
+  | "company-connectivity"
+  | "network-discovery"
+  | "network-candidates"
+  | "network-screen"
+  | "network-investigation";
 
 /** Theme match uses About + products + HQ location. */
 function seatAboutText(c: GovCompanySeat): string {
@@ -524,6 +545,78 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       ticker: ticker || null,
       row,
     });
+  }
+  if (view === "company-network") {
+    const result = loadCompanyNetwork({ q, page, pageSize });
+    return NextResponse.json({ view: "company-network", ...result });
+  }
+  if (view === "company-connectivity") {
+    const caps = (sp.get("caps") || "")
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const result = loadCompanyConnectivity({ q, caps, page, pageSize });
+    return NextResponse.json({
+      view: "company-connectivity",
+      bands: connectivityCapBands(),
+      ...result,
+    });
+  }
+  if (view === "network-candidates") {
+    const sortRaw = sp.get("sort") || "";
+    const result = loadNetworkCandidates({
+      q,
+      page,
+      pageSize,
+      refresh,
+      passingOnly: sp.get("passing") === "1",
+      sort: (["cross_group", "large", "ratio", "external"] as const).includes(
+        sortRaw as CandidateSort,
+      )
+        ? (sortRaw as CandidateSort)
+        : "cross_group",
+    });
+    return NextResponse.json({ view: "network-candidates", ...result });
+  }
+  if (view === "network-screen") {
+    const sortRaw = sp.get("sort") || "";
+    const connRaw = sp.get("connection") || "";
+    const result = loadNetworkScreen({
+      q,
+      page,
+      pageSize,
+      group: sp.get("group") || null,
+      cap: sp.get("cap") || null,
+      connection: (["same_group", "cross_group", "unclassified"] as const).includes(
+        connRaw as Exclude<ScreenConnection, "any">,
+      )
+        ? (connRaw as ScreenConnection)
+        : "any",
+      sort: (SCREEN_SORT_KEYS as readonly string[]).includes(sortRaw)
+        ? (sortRaw as ScreenSortKey)
+        : "max_mcap_ratio",
+      dir: sp.get("dir") === "asc" ? "asc" : "desc",
+    });
+    return NextResponse.json({ view: "network-screen", ...result });
+  }
+  if (view === "network-investigation") {
+    const ticker = (sp.get("ticker") || "").trim();
+    if (!ticker) {
+      return NextResponse.json({ error: "ticker required" }, { status: 400 });
+    }
+    return NextResponse.json({
+      view: "network-investigation",
+      ticker: ticker.toUpperCase(),
+      ...(await loadNetworkInvestigation(ticker)),
+    });
+  }
+  if (view === "network-discovery") {
+    const result = loadNetworkDiscovery({ q, page, pageSize, refresh });
+    return NextResponse.json({ view: "network-discovery", ...result });
+  }
+  if (view === "director-network") {
+    const result = loadDirectorNetwork({ q, page, pageSize });
+    return NextResponse.json({ view: "director-network", ...result });
   }
   if (view === "family") {
     const families = loadGovernanceFamilyMap({

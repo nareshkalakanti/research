@@ -7,12 +7,9 @@ import {
   rankListingQuery,
 } from "@/lib/listing-name-match";
 import { loadNapkinResearch, type NapkinLoadDebug } from "@/lib/napkin/client";
-import {
-  napkinMathNotes,
-  napkinMetric,
-  napkinPeDisplay,
-} from "@/lib/napkin/format";
+import { napkinMetric, napkinPeDisplay } from "@/lib/napkin/format";
 import type { NapkinResearch } from "@/lib/napkin/types";
+import { NapkinValuation } from "@/components/napkin/NapkinValuation";
 
 function na(v: string | undefined): string {
   return !v || v === "N/A" ? "N/A" : v;
@@ -120,29 +117,18 @@ export function NapkinPanel() {
 
   useEffect(() => {
     const url = new URL(window.location.href);
+    const initial = (url.searchParams.get("ticker") || "").trim();
     if (url.searchParams.has("ticker")) {
       url.searchParams.delete("ticker");
       window.history.replaceState(window.history.state, "", url);
     }
+    if (initial) void run(initial);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const hist5 = data ? napkinMetric(data.financials, "eps5") : "N/A";
-  const hist3 = data ? napkinMetric(data.financials, "eps3") : "N/A";
-  const historical = hist5 !== "N/A" ? hist5 : hist3;
-  const gap =
-    data && hist5 !== "N/A"
-      ? data.napkin.growth_gap_5y
-      : data?.napkin.growth_gap_3y ?? "N/A";
-  const required = data?.napkin.basic_required_cagr ?? "N/A";
   const status = data?.data_status ?? "insufficient";
   const dq = data?.data_quality;
-  const notes = data
-    ? napkinMathNotes({
-        historicalEpsCagr: historical,
-        growthGap: gap,
-        usedFiveYear: hist5 !== "N/A",
-      })
-    : [];
   const statusLine =
     status === "complete"
       ? "✓ Data complete"
@@ -154,7 +140,6 @@ export function NapkinPanel() {
     <div className="napkin-dash napkin-simple">
       <div className="napkin-sheet">
         <div className="napkin-logo">Napkin Research</div>
-
         <form
           className="napkin-bar"
           onSubmit={(e: FormEvent) => {
@@ -269,42 +254,7 @@ export function NapkinPanel() {
               </div>
             </div>
 
-            <div className="napkin-sheet-section">
-              <h2 className="napkin-block-title">Napkin valuation</h2>
-              <dl className="napkin-dl napkin-val">
-                <div className="napkin-dl-row">
-                  <dt>Required EPS CAGR</dt>
-                  <dd>{required}</dd>
-                </div>
-                <div className="napkin-dl-row">
-                  <dt>Historical EPS CAGR</dt>
-                  <dd>{historical}</dd>
-                </div>
-                <div className="napkin-dl-row">
-                  <dt>Growth Gap</dt>
-                  <dd>{gap}</dd>
-                </div>
-              </dl>
-              <div
-                className={`napkin-verdict napkin-verdict--${
-                  data.napkin.verdict === "INSUFFICIENT DATA"
-                    ? "insufficient"
-                    : data.napkin.verdict.toLowerCase()
-                }`}
-              >
-                <div className="napkin-verdict-kicker">Verdict</div>
-                <div className="napkin-verdict-label">{data.napkin.verdict}</div>
-                <p className="napkin-verdict-note">{data.napkin.verdict_note}</p>
-              </div>
-            </div>
-
-            {notes.length ? (
-              <div className="napkin-sheet-section napkin-warns">
-                {notes.map((note) => (
-                  <p key={note}>⚠ {note}</p>
-                ))}
-              </div>
-            ) : null}
+            <NapkinValuation data={data} />
 
             <div className="napkin-sheet-section napkin-foot">
               <p className={`napkin-status-line napkin-status-line--${status}`}>

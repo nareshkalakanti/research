@@ -76,6 +76,12 @@ export function governanceCompanyUrl(ticker: string): string {
   return `/?tab=governance&ticker=${encodeURIComponent(t)}`;
 }
 
+export function napkinUrl(ticker: string): string {
+  const t = (ticker || "").trim().toUpperCase();
+  if (!t) return "/?tab=napkin";
+  return `/?tab=napkin&ticker=${encodeURIComponent(t)}`;
+}
+
 export function tradingviewUrl(
   ticker: string,
   market?: string | null,

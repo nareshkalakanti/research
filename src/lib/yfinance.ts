@@ -16,6 +16,8 @@ export type YfQuote = {
   sector: string | null;
   /** Daily % change (Yahoo regularMarketChangePercent). */
   change_pct?: number | null;
+  /** No trade in 52 weeks: clear any saved price and market cap. */
+  untraded?: boolean;
   error?: string;
 };
 
@@ -391,6 +393,72 @@ export async function fetchLivePrices(
     bits = { ...bits, mcap };
     return yfQuoteFromBits(ticker, used, bits);
   });
+}
+
+/** Reported trailing-12-month EPS and price from one Yahoo quote. */
+export async function fetchQuoteEpsTtm(
+  ticker: string,
+  market?: string | null,
+): Promise<{ eps: number | null; price: number | null }> {
+  const out = { eps: null as number | null, price: null as number | null };
+  for (const sym of yfSymbolCandidates(ticker, market).slice(0, 2)) {
+    try {
+      const q = await withTimeout(yf.quote(sym), 7000);
+      if (!q) continue;
+      const eps = num((q as { epsTrailingTwelveMonths?: unknown }).epsTrailingTwelveMonths);
+      const price = num(q.regularMarketPrice);
+      if (out.eps == null && eps != null) out.eps = eps;
+      if (out.price == null && price != null) out.price = price;
+      if (out.eps != null && out.price != null) break;
+    } catch {
+      /* next symbol */
+    }
+  }
+  return out;
+}
+
+export type YfPeQuote = {
+  ticker: string;
+  pe: number | null;
+  price: number | null;
+  mcap_cr: number | null;
+};
+
+/**
+ * Current P/E from one Yahoo quote. Trailing P/E, then forward P/E.
+ * Does not derive P/E from price and EPS.
+ */
+export async function fetchQuotePe(
+  ticker: string,
+  market?: string | null,
+): Promise<YfPeQuote> {
+  const symbols = yfSymbolCandidates(ticker, market).slice(0, 2);
+  const out: YfPeQuote = {
+    ticker: ticker.toUpperCase(),
+    pe: null,
+    price: null,
+    mcap_cr: null,
+  };
+  if (!symbols.length) return out;
+  for (const sym of symbols) {
+    try {
+      const q = await withTimeout(yf.quote(sym), 7000);
+      if (!q) continue;
+      const price = num(q.regularMarketPrice);
+      const mcap = num(q.marketCap);
+      const pe =
+        num((q as { trailingPE?: unknown }).trailingPE) ??
+        num((q as { trailingPe?: unknown }).trailingPe) ??
+        num((q as { forwardPE?: unknown }).forwardPE);
+      if (out.price == null && price != null) out.price = price;
+      if (out.mcap_cr == null && mcap != null) out.mcap_cr = mcapToCr(mcap);
+      if (out.pe == null && pe != null) out.pe = pe;
+      if (out.pe != null && out.price != null) break;
+    } catch {
+      /* next symbol */
+    }
+  }
+  return out;
 }
 
 /**

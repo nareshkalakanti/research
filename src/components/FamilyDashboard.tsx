@@ -8,6 +8,7 @@ import {
   PeopleBoardCards,
   type PersonBoardRow,
 } from "@/components/PeopleBoardCards";
+import { CompanyNetworkTable } from "@/components/CompanyNetworkTable";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import {
@@ -17,7 +18,7 @@ import {
 } from "@/lib/links";
 import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
 
-type DashView = "groups" | "people" | "stock";
+type DashView = "groups" | "people" | "stock" | "network";
 
 function stubCompany(
   ticker: string,
@@ -506,17 +507,28 @@ export function FamilyDashboard() {
             >
               Stock
             </button>
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "network" ? "tab on" : "tab"}
+              aria-selected={dashView === "network"}
+              onClick={() => setDashView("network")}
+            >
+              Network
+            </button>
           </div>
           <p className="fam-dash-sub">
             {dashView === "groups"
               ? "Click a ticker for that stock’s full board and related nodes. Outside shows only external boards and those people. Show all restores the group."
               : dashView === "people"
                 ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
-                : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
+                : dashView === "network"
+                  ? "Board connectivity from board seats: which companies have directors who also sit on other listed boards, which pairs share directors, and who those connectors are."
+                  : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
         <div className="fam-dash-actions" ref={searchAnchorRef}>
-          {dashView !== "stock" ? (
+          {dashView !== "stock" && dashView !== "network" ? (
             <>
           {!searchDocked ? (
           <FamilyDashSearch
@@ -559,7 +571,7 @@ export function FamilyDashboard() {
           ) : null}
         </div>
       </div>
-      {searchDocked && dashView !== "stock"
+      {searchDocked && dashView !== "stock" && dashView !== "network"
         ? createPortal(
             <div className="fam-dash-search-float">
               <FamilyDashSearch
@@ -677,10 +689,15 @@ export function FamilyDashboard() {
           ) : null}
         </form>
       ) : null}
-      {error && dashView !== "stock" ? (
+      {error && dashView !== "stock" && dashView !== "network" ? (
         <div className="table-meta">Could not load: {error}</div>
       ) : null}
-      {dashView === "stock" ? (
+      {dashView === "network" ? (
+        <CompanyNetworkTable
+          onTicker={(t) => openCompany(t)}
+          onPerson={(id, name) => openPerson(id, name)}
+        />
+      ) : dashView === "stock" ? (
         <StockNetworkSearch
           initialTicker={stockFocus}
           onPerson={(id, name) => openPerson(id, name)}
