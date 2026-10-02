@@ -31,6 +31,7 @@ import {
   loadCompanyNetwork,
   loadDirectorNetwork,
   loadNetworkDiscovery,
+  loadNewConnections,
 } from "@/lib/company-network";
 import {
   SCREEN_SORT_KEYS,
@@ -56,7 +57,8 @@ type View = "director" | "company" | "role" | "family" | "independence" | "netwo
   | "network-discovery"
   | "network-candidates"
   | "network-screen"
-  | "network-investigation";
+  | "network-investigation"
+  | "network-new-connections";
 
 /** Theme match uses About + products + HQ location. */
 function seatAboutText(c: GovCompanySeat): string {
@@ -609,6 +611,51 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       ticker: ticker.toUpperCase(),
       ...(await loadNetworkInvestigation(ticker)),
     });
+  }
+  if (view === "network-new-connections") {
+    const daysRaw = Number(sp.get("days") || 180);
+    const days = sp.get("days") === "all" || daysRaw < 0 ? null : daysRaw || 180;
+    const connRaw = sp.get("connection") || "any";
+    const minConn = Number(sp.get("minConnected") || 0);
+    const minRatio = Number(sp.get("minRatio") || 0);
+    const maxTargetRaw = sp.get("maxTarget");
+    const maxTargetMcap =
+      maxTargetRaw === "all"
+        ? null
+        : maxTargetRaw != null && maxTargetRaw !== ""
+          ? Number(maxTargetRaw)
+          : undefined;
+    const minBoards = Number(sp.get("minBoards") || 0);
+    const minN10k = Number(sp.get("minN10k") || 0);
+    const sortRaw = sp.get("sort") || "event";
+    const sort =
+      sortRaw === "ratio" || sortRaw === "boards" ? sortRaw : "event";
+    const targetTicker = (sp.get("targetTicker") || "").trim();
+    const result = loadNewConnections({
+      q,
+      page,
+      pageSize,
+      days,
+      connection: (["same_group", "cross_group", "unclassified"] as const).includes(
+        connRaw as "same_group",
+      )
+        ? (connRaw as "same_group" | "cross_group" | "unclassified")
+        : "any",
+      minConnectedMcap: Number.isFinite(minConn) ? minConn : 0,
+      minRatio: Number.isFinite(minRatio) ? minRatio : 0,
+      maxTargetMcap:
+        maxTargetMcap === undefined
+          ? undefined
+          : maxTargetMcap == null || !Number.isFinite(maxTargetMcap)
+            ? null
+            : maxTargetMcap,
+      minBoards: Number.isFinite(minBoards) ? minBoards : 0,
+      sort,
+      aggregate: sp.get("agg") === "targets" ? "targets" : "edges",
+      minN10k: Number.isFinite(minN10k) ? minN10k : 0,
+      targetTicker: targetTicker || null,
+    });
+    return NextResponse.json({ view: "network-new-connections", ...result });
   }
   if (view === "network-discovery") {
     const result = loadNetworkDiscovery({ q, page, pageSize, refresh });

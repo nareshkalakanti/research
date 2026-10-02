@@ -8498,6 +8498,93 @@ button.result-tag {
   font-weight: 700;
 }
 
+.company-network-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 8px 0 10px;
+}
+
+.company-network-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.company-network-filters select {
+  min-width: 8rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink);
+  background: #fff;
+}
+
+.company-network-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.company-network-summary strong {
+  color: var(--ink);
+}
+
+.net-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.net-badge {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.company-network-table--gap th:nth-child(n + 2),
+.company-network-table--gap td:nth-child(n + 2) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.net-gap-profile td {
+  text-align: left !important;
+  background: color-mix(in srgb, var(--panel, #111) 88%, transparent);
+}
+
+.net-gap-profile-inner {
+  padding: 0.4rem 0 0.2rem;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.company-network-table--new th:nth-child(2),
+.company-network-table--new td:nth-child(2),
+.company-network-table--new th:nth-child(n + 6),
+.company-network-table--new td:nth-child(n + 6) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .company-network-table--conn th:not(:first-child),
 .company-network-table--conn td:not(:first-child) {
   text-align: right;
@@ -8512,21 +8599,39 @@ button.result-tag {
   font-variant-numeric: tabular-nums;
 }
 
-.company-network-table .net-company button {
+.company-network-table .net-company a {
   font-size: 1rem;
   font-weight: 800;
   color: var(--ink);
+  text-decoration: none;
+}
+
+.company-network-table .net-company a:hover {
+  text-decoration: underline;
+}
+
+.company-network-table .net-company a.net-company-name {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.company-network-tickers a {
+  margin-right: 10px;
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.company-network-tickers a:hover {
+  text-decoration: underline;
 }
 
 .company-network-table td.net-ratio {
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--ink);
-}
-
-.company-network-tickers button {
-  margin-right: 10px;
-  font-weight: 600;
 }
 
 .company-network-table td span {

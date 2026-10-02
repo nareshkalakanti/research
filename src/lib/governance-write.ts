@@ -244,6 +244,7 @@ export function ensureGovernanceCompanyStub(opts: {
   ticker: string;
   name?: string | null;
   market?: string | null;
+  isin?: string | null;
 }): boolean {
   const ticker = safeStr(opts.ticker).toUpperCase();
   if (!ticker) return false;
@@ -254,6 +255,7 @@ export function ensureGovernanceCompanyStub(opts: {
     market = "NSE";
   }
   const name = safeStr(opts.name) || ticker;
+  const isin = safeStr(opts.isin).toUpperCase() || null;
   const now = utcNow();
   const db = getGovernanceWriteDb();
   db.prepare(
@@ -262,7 +264,7 @@ export function ensureGovernanceCompanyStub(opts: {
       ticker, market, name, cin, isin, notes,
       sector, industry, sub_sector, updated_at
     )
-    VALUES (?, ?, ?, NULL, NULL, NULL, NULL, NULL, NULL, ?)
+    VALUES (?, ?, ?, NULL, ?, NULL, NULL, NULL, NULL, ?)
     ON CONFLICT(ticker) DO UPDATE SET
       name=CASE
         WHEN excluded.name != '' AND excluded.name != excluded.ticker
@@ -270,9 +272,10 @@ export function ensureGovernanceCompanyStub(opts: {
         ELSE companies.name
       END,
       market=excluded.market,
+      isin=COALESCE(NULLIF(excluded.isin, ''), companies.isin),
       updated_at=excluded.updated_at
     `,
-  ).run(ticker, market, name, now);
+  ).run(ticker, market, name, isin, now);
   return true;
 }
 
