@@ -60,6 +60,7 @@ export function FamilyDashboard() {
   const [creating, setCreating] = useState(false);
   const [addWork, setAddWork] = useState<FamilyAddWork | null>(null);
   const [dashView, setDashView] = useState<DashView>("groups");
+  const [groupFilter, setGroupFilter] = useState("");
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -79,7 +80,7 @@ export function FamilyDashboard() {
       const params = new URLSearchParams({
         view: "family",
         page: "1",
-        pageSize: "200",
+        pageSize: "5000",
       });
       if (hard) params.set("refresh", "1");
       const url = `/api/governance-map?${params}`;
@@ -205,20 +206,39 @@ export function FamilyDashboard() {
     return map;
   }, [rows, people]);
 
+  const groupOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ key: string; label: string; n: number }> = [];
+    for (const f of rows) {
+      const key = f.group_id || f.family_name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ key, label: f.family_name, n: f.company_count });
+    }
+    out.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    );
+    return out;
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter(
-      (f) =>
+    return rows.filter((f) => {
+      if (groupFilter && (f.group_id || f.family_name) !== groupFilter) {
+        return false;
+      }
+      if (!needle) return true;
+      return (
         f.family_name.toLowerCase().includes(needle) ||
         f.companies.some(
           (c) =>
             c.ticker.toLowerCase().startsWith(needle) ||
             c.name.toLowerCase().includes(needle),
         ) ||
-        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)),
-    );
-  }, [rows, q]);
+        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle))
+      );
+    });
+  }, [rows, q, groupFilter]);
 
   const filteredWithPattern = useMemo(() => {
     const set = new Set(holdPattern?.tickers ?? []);
@@ -360,7 +380,8 @@ export function FamilyDashboard() {
   const onDashPick = useCallback((hit: DashSuggestHit) => {
     if (hit.kind === "group") {
       setDashView("groups");
-      setQ(hit.label);
+      setGroupFilter(hit.key);
+      setQ("");
       window.setTimeout(() => {
         document
           .querySelector(`[data-fam-key="${CSS.escape(hit.key)}"]`)
@@ -523,13 +544,30 @@ export function FamilyDashboard() {
               : dashView === "people"
                 ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
                 : dashView === "network"
-                  ? "Board connectivity from board seats, plus companies that recently gained a director who already sits on other listed boards. Counts are facts, not scores."
+                  ? "Capital Gap: smaller listed companies linked through a current director to a much larger board. Counts are facts, not scores."
                   : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
         <div className="fam-dash-actions" ref={searchAnchorRef}>
           {dashView !== "stock" && dashView !== "network" ? (
             <>
+          {dashView === "groups" ? (
+            <label className="fam-dash-group-filter">
+              <select
+                className="fam-dash-search fam-dash-group-select"
+                value={groupFilter}
+                onChange={(e) => setGroupFilter(e.target.value)}
+                aria-label="Filter by business group"
+              >
+                <option value="">All groups ({groupOptions.length})</option>
+                {groupOptions.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label} ({g.n})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {!searchDocked ? (
           <FamilyDashSearch
             value={q}

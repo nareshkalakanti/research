@@ -1,7 +1,8 @@
 /**
  * company_groups on governance.db: ticker → business group, copied from the
- * dashboard family map (auto groups plus user edits). A ticker may sit in more
- * than one group; a ticker in no group is standalone.
+ * dashboard family map (auto groups plus user edits). A ticker is in at most
+ * one group unless a user add placed it on a second house; a ticker in no
+ * group is standalone.
  */
 import type Database from "better-sqlite3";
 import { loadGovernanceFamilyMap } from "@/lib/governance-map";

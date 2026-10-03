@@ -964,6 +964,107 @@ export function tickerMostSharingDins(dins: string[]): string | null {
   }
 }
 
+export function personNameTokens(name: string): string[] {
+  return nameKey(name).split(" ").filter((t) => t.length >= 2);
+}
+
+function namesAlign(source: string, existing: string): boolean {
+  const a = personNameTokens(source);
+  const b = personNameTokens(existing);
+  if (!a.length || !b.length) return false;
+  const setA = new Set(a);
+  const setB = new Set(b);
+  const contained =
+    b.every((t) => setA.has(t)) || a.every((t) => setB.has(t));
+  if (!contained) return false;
+  const lastA = a[a.length - 1];
+  const lastB = b[b.length - 1];
+  return Boolean(lastA && lastA === lastB);
+}
+
+/** Point an existing named seat at a source DIN (does not replace the board). */
+export function relinkSeatToSourceDin(opts: {
+  ticker: string;
+  name: string;
+  din: string;
+  designation?: string;
+  source?: string;
+}): { ok: boolean; reason: string } {
+  const ticker = safeStr(opts.ticker).toUpperCase();
+  const din = normDin(opts.din);
+  const sourceName = safeStr(opts.name);
+  if (!ticker || din.length !== 8 || sourceName.length < 5) {
+    return { ok: false, reason: "Need ticker, name, and DIN" };
+  }
+  const seats = listCompanyBoardSeats(ticker);
+  const hits = seats.filter((s) => namesAlign(sourceName, s.name));
+  if (hits.length !== 1) {
+    return {
+      ok: false,
+      reason:
+        hits.length === 0
+          ? `No name match on ${ticker}`
+          : `Ambiguous name on ${ticker}`,
+    };
+  }
+  const hit = hits[0]!;
+  const oldDin = normDin(hit.din || "");
+  if (oldDin === din) {
+    return { ok: true, reason: `Already ${din} on ${ticker}` };
+  }
+  const now = utcNow();
+  const newPid = personIdFor({ din, name: sourceName });
+  const db = getGovernanceWriteDb();
+  const tx = db.transaction(() => {
+    db.prepare(
+      `
+      INSERT INTO directors (person_id, din, name, name_key, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(person_id) DO UPDATE SET
+        din=COALESCE(NULLIF(excluded.din, ''), directors.din),
+        name=CASE
+          WHEN length(excluded.name) > length(directors.name) THEN excluded.name
+          ELSE directors.name
+        END,
+        name_key=CASE
+          WHEN length(excluded.name) > length(directors.name) THEN excluded.name_key
+          ELSE directors.name_key
+        END,
+        updated_at=excluded.updated_at
+      `,
+    ).run(newPid, din, sourceName, nameKey(sourceName), now);
+    const hasNew = db
+      .prepare(`SELECT 1 AS n FROM board_seats WHERE ticker = ? AND person_id = ?`)
+      .get(ticker, newPid) as { n?: number } | undefined;
+    if (hasNew) {
+      db.prepare(`DELETE FROM board_seats WHERE ticker = ? AND person_id = ?`).run(
+        ticker,
+        hit.person_id,
+      );
+    } else {
+      db.prepare(
+        `UPDATE board_seats SET person_id = ?, source = ?, fetched_at = ?
+         WHERE ticker = ? AND person_id = ?`,
+      ).run(
+        newPid,
+        safeStr(opts.source) || "din_note",
+        now,
+        ticker,
+        hit.person_id,
+      );
+    }
+    db.prepare(
+      `
+      DELETE FROM directors
+      WHERE person_id = ?
+        AND NOT EXISTS (SELECT 1 FROM board_seats s WHERE s.person_id = directors.person_id)
+      `,
+    ).run(hit.person_id);
+  });
+  tx();
+  return { ok: true, reason: `${ticker} ${hit.name} ${oldDin || "—"} → ${din}` };
+}
+
 export function removeBoardSeat(opts: {
   ticker: string;
   personId: string;

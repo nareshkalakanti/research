@@ -16,6 +16,8 @@ type Person = {
   name: string;
   din: string | null;
   tickers: string[];
+  /** Same-group listings this house-control person spans without a shared seat. */
+  span_tickers?: string[];
   dir_score?: number;
 };
 
@@ -269,34 +271,14 @@ export function FamilyGraph({
         y: 0,
       });
       const pi = index.get(`p:${p.person_id}`)!;
-      for (const t of p.tickers) {
-        const ci = index.get(`c:${t.toUpperCase()}`);
+      const linked = [
+        ...new Set(
+          [...p.tickers, ...(p.span_tickers ?? [])].map((t) => t.toUpperCase()),
+        ),
+      ];
+      for (const t of linked) {
+        const ci = index.get(`c:${t}`);
         if (ci != null) pairs.push([pi, ci]);
-      }
-    }
-    const companyIdx = list
-      .map((node, i) => (node.kind === "company" ? i : -1))
-      .filter((i) => i >= 0);
-    if (companyIdx.length > 1) {
-      const hubTicker = [...companies].sort(
-        (a, b) => (b.market_cap_cr ?? -1) - (a.market_cap_cr ?? -1),
-      )[0]?.ticker;
-      const hub = hubTicker != null ? index.get(`c:${hubTicker}`) : undefined;
-      const touched = new Set<number>();
-      for (const [a, b] of pairs) {
-        touched.add(a);
-        touched.add(b);
-      }
-      if (hub != null) {
-        for (const ci of companyIdx) {
-          if (ci === hub || touched.has(ci)) continue;
-          const ticker = list[ci]!.id.replace(/^c:/, "");
-          const linked = people.some((p) =>
-            p.tickers.some((t) => t.toUpperCase() === ticker),
-          );
-          if (!linked) continue;
-          pairs.push([hub, ci]);
-        }
       }
     }
     const count = list.length;
