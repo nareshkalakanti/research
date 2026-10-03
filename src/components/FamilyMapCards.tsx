@@ -24,6 +24,7 @@ export type FamilyRow = {
     name: string;
     din: string | null;
     tickers: string[];
+    span_tickers?: string[];
     dir_score?: number;
   }>;
   outside?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;

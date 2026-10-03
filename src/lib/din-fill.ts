@@ -11,6 +11,7 @@ import {
   parseScreenshotBoard,
   parseCompanyLabelsFromBoardText,
   parsePersonCompanyRoles,
+  parseTickerBoardNotes,
 } from "./din-screenshot-parse";
 import {
   listingQueryVariants,
@@ -20,6 +21,7 @@ import {
 import {
   listCompanyBoardSeats,
   recordScanAttempt,
+  relinkSeatToSourceDin,
   saveCompanyBoard,
   tickerMostSharingDins,
 } from "./governance-write";
@@ -368,6 +370,42 @@ function isControlKmpRole(designation: string): boolean {
   return /\bcfo\b|\bceo\b|chief financial|chief executive|managing director|\bmd\b/i.test(
     designation,
   );
+}
+
+/** Relink existing named seats to DINs from labeled company notes. Never replaces a board. */
+export function applyTickerBoardDinNotes(text: string): {
+  parsed: number;
+  updated: number;
+  skipped: number;
+  details: string[];
+} {
+  const chunks = parseTickerBoardNotes(text);
+  const details: string[] = [];
+  let parsed = 0;
+  let updated = 0;
+  let skipped = 0;
+  for (const chunk of chunks) {
+    const ticker = (chunk.ticker || "").toUpperCase();
+    for (const seat of chunk.seats) {
+      parsed += 1;
+      const result = relinkSeatToSourceDin({
+        ticker,
+        name: seat.name,
+        din: seat.din,
+        designation: seat.designation,
+        source: "din_note",
+      });
+      details.push(result.reason);
+      if (result.ok && /→/.test(result.reason)) updated += 1;
+      else if (result.ok) skipped += 1;
+      else skipped += 1;
+    }
+  }
+  if (updated) {
+    invalidateGovernanceMapCache();
+    invalidateBoardIndependenceCache();
+  }
+  return { parsed, updated, skipped, details };
 }
 
 /** Merge KMP/board bios onto existing boards (never replace a listed board). */

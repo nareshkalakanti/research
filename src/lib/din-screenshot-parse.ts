@@ -263,7 +263,13 @@ export function parseListedTickerFromBoardText(text: string): string | null {
   const blob = flattenOcrHtml(text || "");
   const m = blob.match(/\(\s*(?:NSE|BSE)\s*:\s*([A-Z][A-Z0-9-]{0,19})\s*\)/i);
   const t = (m?.[1] || "").toUpperCase();
-  return t || null;
+  if (t) return t;
+  const listed = blob.match(
+    /\bLimited\s*\(\s*([A-Z][A-Z0-9-]{1,19})\s*\)/i,
+  );
+  const sym = (listed?.[1] || "").toUpperCase();
+  if (sym && !/^(NSE|BSE|DIN|CEO|CFO|KMP)$/.test(sym)) return sym;
+  return null;
 }
 
 export function parseCompanyLabelsFromBoardText(text: string): string[] {
@@ -346,6 +352,25 @@ export function parseDirectorSeatsFromTable(text: string): BoardSeat[] {
   for (let i = 0; i < lines.length; i++) {
     const row = lines[i]!;
     if (!row) continue;
+    const labeledDin = row.match(
+      /^(.*?)\s*\(([^)]+)\)\s*(?:\||DIN)\s*:?\s*(?:DIN\s*:?\s*)?(\d{7,9})\s*$/i,
+    );
+    if (!labeledDin) {
+      const alt = row.match(/^(.*?)\s+DIN\s*:\s*(\d{7,9})\s*$/i);
+      if (alt) {
+        addSeat(seats, seen, alt[2]!, alt[1]!, "Director");
+        continue;
+      }
+    } else {
+      addSeat(
+        seats,
+        seen,
+        labeledDin[3]!,
+        labeledDin[1]!.replace(/^\d+[.)]\s*/, "").trim(),
+        labeledDin[2]!.trim() || "Director",
+      );
+      continue;
+    }
     const trailing = row.match(/^(.*?)\s+(\d{8})\s*$/);
     if (trailing && !/^\d{7,9}\s/.test(row)) {
       const rest = trailing[1]!.replace(/^\d{1,3}\s+/, "");
@@ -381,6 +406,42 @@ export function parseDirectorSeatsFromTable(text: string): BoardSeat[] {
   }
 
   return seats;
+}
+
+const LISTED_HEAD =
+  /^[^\n]*?\b([A-Za-z0-9][A-Za-z0-9 .,'&()-]{3,90}?\bLimited)\s*\(\s*([A-Z][A-Z0-9-]{1,19})\s*\)\s*$/i;
+
+/** One or more listed companies, each with Name (role) | DIN: lines. */
+export function parseTickerBoardNotes(text: string): ScreenshotBoardExtract[] {
+  const lines = flattenOcrHtml(text || "")
+    .replace(/\u00a0/g, " ")
+    .split(/\n+/);
+  const chunks: Array<{ company: string; ticker: string; body: string[] }> = [];
+  let cur: { company: string; ticker: string; body: string[] } | null = null;
+  for (const raw of lines) {
+    const line = raw.replace(/^\s*[•·●▪◦💊⚡🏢\d.)]+\s*/, "").trim();
+    if (!line) continue;
+    const head = line.match(LISTED_HEAD) || raw.match(LISTED_HEAD);
+    if (head) {
+      const ticker = head[2]!.toUpperCase();
+      if (/^(NSE|BSE|DIN|CEO|CFO|KMP)$/.test(ticker)) continue;
+      cur = {
+        company: head[1]!.replace(/\s+/g, " ").trim(),
+        ticker,
+        body: [],
+      };
+      chunks.push(cur);
+      continue;
+    }
+    if (cur) cur.body.push(raw);
+  }
+  return chunks
+    .map((c) => ({
+      company: c.company,
+      ticker: c.ticker,
+      seats: parseDirectorSeatsFromTable(c.body.join("\n")),
+    }))
+    .filter((c) => c.seats.length > 0);
 }
 
 export type PersonCompanyRole = {

@@ -8560,15 +8560,87 @@ button.result-tag {
   white-space: nowrap;
 }
 
-.company-network-table--gap th:nth-child(n + 2),
-.company-network-table--gap td:nth-child(n + 2) {
+.company-network-table--hubs th:nth-child(n + 2),
+.company-network-table--hubs td:nth-child(n + 2) {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.net-gap-profile td {
-  text-align: left !important;
-  background: color-mix(in srgb, var(--panel, #111) 88%, transparent);
+.company-network-table--hubs .net-sort-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: right;
+}
+
+.company-network-table--xg-bridge {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.company-network-table--gap .net-sort-btn {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: right;
+}
+
+.company-network-table--gap .net-sort-btn.on {
+  font-weight: 700;
+}
+
+.company-network-table--moves th:nth-child(n + 4):nth-child(-n + 9),
+.company-network-table--moves td:nth-child(n + 4):nth-child(-n + 9) {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.company-network-table--moves {
+  font-size: 0.84rem;
+}
+
+.company-network-table--moves th,
+.company-network-table--moves td {
+  padding: 6px 8px;
+}
+
+.company-network-table--moves th {
+  font-size: 0.76rem;
+  line-height: 1.25;
+}
+
+.company-network-table--moves td:first-child button {
+  text-align: left;
+}
+
+.company-network-table--moves td:nth-child(10) {
+  min-width: 12rem;
+  max-width: 18rem;
+  font-size: 0.78rem;
+}
+
+.company-network-table--moves .net-company a {
+  font-size: 0.9rem;
+}
+
+.company-network-table .net-gap-profile > td {
+  text-align: left;
+  width: auto;
+  background: #fafbfd;
+  padding: 10px 16px 14px;
+}
+
+.net-gap-profile-inner .company-network-table {
+  background: #fff;
 }
 
 .net-gap-profile-inner {
@@ -8592,11 +8664,25 @@ button.result-tag {
   font-variant-numeric: tabular-nums;
 }
 
-.company-network-table--disc th:nth-child(n + 4),
-.company-network-table--disc td:nth-child(n + 4) {
+.company-network-table--disc th:nth-child(n + 2):nth-child(-n + 5),
+.company-network-table--disc td:nth-child(n + 2):nth-child(-n + 5) {
   text-align: right;
-  width: 10rem;
+  width: auto;
   font-variant-numeric: tabular-nums;
+}
+
+.gov-disc-title {
+  margin: 4px 0 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.gov-disc-search input {
+  min-width: 16rem;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
 }
 
 .company-network-table .net-company a {
@@ -8618,10 +8704,26 @@ button.result-tag {
 }
 
 .company-network-tickers a {
-  margin-right: 10px;
+  display: inline-block;
+  margin: 0 6px 4px 0;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
   font-weight: 600;
-  color: var(--ink);
+  color: #1d4ed8;
   text-decoration: none;
+}
+
+.company-network-table .net-company a.net-tv {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1d4ed8;
+  vertical-align: middle;
 }
 
 .company-network-tickers a:hover {
@@ -8681,6 +8783,18 @@ button.result-tag {
   gap: 8px;
   align-items: center;
   flex: 0 0 auto;
+}
+
+.fam-dash-group-filter {
+  flex: 0 0 auto;
+  min-width: 220px;
+  max-width: 320px;
+}
+
+.fam-dash-group-select {
+  width: 100%;
+  cursor: pointer;
+  appearance: auto;
 }
 
 .fam-dash-search {

@@ -196,6 +196,8 @@ export type GovFamilyPerson = {
   din: string | null;
   /** Tickers this person sits on (group and outside). */
   tickers: string[];
+  /** Same-group listings spanned by this house-control person (no extra legal seat). */
+  span_tickers?: string[];
   /** Same director score as People & boards. */
   dir_score: number;
 };
@@ -220,6 +222,84 @@ export type GovFamilyGroup = {
   /** Cap / name for every ticker on this map (group + outside). */
   listings?: GovFamilyOutside[];
 };
+
+/** One listing per house, except an "X and Y" legal name that a user also placed on another house. */
+export function exclusiveGroupMembership<
+  G extends {
+    family_name: string;
+    group_id?: string;
+    companies: Array<{ ticker: string }>;
+    company_count: number;
+  },
+>(
+  groups: G[],
+  opts: {
+    addedByGroupId: Map<string, Set<string>>;
+    rank: (ticker: string, group: G) => number;
+    companyName?: (ticker: string) => string;
+  },
+): void {
+  const leadOf = (g: G) =>
+    (g.family_name.split(/[·(/]/)[0] || g.family_name)
+      .trim()
+      .split(/\s+/)
+      .filter((w) => !/^(the|a|an|and|of|group|groups)$/i.test(w))[0]
+      ?.toLowerCase() || "";
+  const jvParts = (ticker: string): Set<string> => {
+    const name = opts.companyName?.(ticker) || "";
+    const m = name.match(
+      /^([A-Za-z][A-Za-z.'’-]*[A-Za-z])\s+and\s+([A-Za-z][A-Za-z.'’-]*[A-Za-z])/i,
+    );
+    if (!m) return new Set();
+    return new Set([m[1]!.toLowerCase(), m[2]!.toLowerCase()]);
+  };
+  const byTicker = new Map<string, G[]>();
+  for (const g of groups) {
+    const seen = new Set<string>();
+    g.companies = g.companies.filter((c) => {
+      const t = (c.ticker || "").toUpperCase();
+      if (!t || seen.has(t)) return false;
+      seen.add(t);
+      return true;
+    });
+    g.company_count = g.companies.length;
+    for (const c of g.companies) {
+      const t = c.ticker.toUpperCase();
+      const list = byTicker.get(t) ?? [];
+      list.push(g);
+      byTicker.set(t, list);
+    }
+  }
+  for (const [ticker, owners] of byTicker) {
+    const uniq = [...new Set(owners)];
+    if (uniq.length < 2) continue;
+    uniq.sort(
+      (a, b) =>
+        opts.rank(ticker, b) - opts.rank(ticker, a) ||
+        Number(Boolean(b.group_id?.startsWith("user-"))) -
+          Number(Boolean(a.group_id?.startsWith("user-"))) ||
+        Number(Boolean(opts.addedByGroupId.get(b.group_id || "")?.has(ticker))) -
+          Number(Boolean(opts.addedByGroupId.get(a.group_id || "")?.has(ticker))) ||
+        b.companies.length - a.companies.length ||
+        a.family_name.localeCompare(b.family_name),
+    );
+    const home = uniq[0]!;
+    const keep = new Set<G>([home]);
+    const parts = jvParts(ticker);
+    const homeLead = leadOf(home);
+    if (parts.size) {
+      for (const g of uniq.slice(1)) {
+        const lead = leadOf(g);
+        if (lead && parts.has(lead) && lead !== homeLead) keep.add(g);
+      }
+    }
+    for (const g of uniq) {
+      if (keep.has(g)) continue;
+      g.companies = g.companies.filter((c) => c.ticker.toUpperCase() !== ticker);
+      g.company_count = g.companies.length;
+    }
+  }
+}
 
 const FAMILY_GRAPH_MAX_PEOPLE = 40;
 
@@ -300,6 +380,119 @@ const HOUSE_SKIP = new Set([
   "western",
 ]);
 
+/** Shared first-name glue: sector / filler words, not a house. */
+const GENERIC_HOUSE_TOKEN = new Set([
+  "advanced",
+  "agriculture",
+  "agri",
+  "auto",
+  "automobile",
+  "bang",
+  "brewery",
+  "breweries",
+  "cement",
+  "century",
+  "chemical",
+  "chemicals",
+  "commercial",
+  "concord",
+  "consolidated",
+  "construction",
+  "country",
+  "creative",
+  "defence",
+  "defense",
+  "dynamic",
+  "electronics",
+  "engineering",
+  "exchange",
+  "federal",
+  "fertilizer",
+  "fertilizers",
+  "fmcg",
+  "healthcare",
+  "hospital",
+  "hospitals",
+  "hotel",
+  "hotels",
+  "housing",
+  "infra",
+  "infrastructure",
+  "infotech",
+  "infraprojects",
+  "insurance",
+  "landmark",
+  "logistics",
+  "media",
+  "metal",
+  "metals",
+  "mining",
+  "natural",
+  "oil",
+  "pearl",
+  "petrochemical",
+  "petrochemicals",
+  "petroleum",
+  "pharma",
+  "pharmaceutical",
+  "precision",
+  "premier",
+  "quality",
+  "railway",
+  "railways",
+  "realty",
+  "retail",
+  "shipping",
+  "software",
+  "spectrum",
+  "standard",
+  "sterling",
+  "sugar",
+  "systems",
+  "telecom",
+  "textile",
+  "textiles",
+  "tourism",
+  "transformer",
+  "transformers",
+  "transport",
+  "transportation",
+  "universal",
+]);
+
+export function isBareGenericHouseLabel(name: string): boolean {
+  const s = name
+    .toLowerCase()
+    .replace(/[.,/&'’]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(the|a|an)\s+/, "")
+    .replace(/\s+groups?$/, "")
+    .trim();
+  if (!s) return true;
+  const parts = s.split(" ").filter((w) => w && w !== "of" && w !== "and");
+  if (parts.length !== 1) return false;
+  const w = parts[0]!;
+  return HOUSE_SKIP.has(w) || GENERIC_HOUSE_TOKEN.has(w);
+}
+
+const NAME_MODIFIER_TOKEN = new Set([
+  "blue",
+  "digital",
+  "east",
+  "eastern",
+  "green",
+  "north",
+  "northern",
+  "renewable",
+  "smart",
+  "south",
+  "southern",
+  "west",
+  "western",
+  "yellow",
+]);
+
 function companyNameTokens(name: string): string[] {
   return name
     .replace(/[().,'’/&-]+/g, " ")
@@ -340,7 +533,7 @@ function houseTokensFromName(name: string): string[] {
   const seen = new Set<string>();
   for (const token of companyNameTokens(name)) {
     const key = token.toLowerCase();
-    if (HOUSE_SKIP.has(key)) continue;
+    if (HOUSE_SKIP.has(key) || GENERIC_HOUSE_TOKEN.has(key)) continue;
     if (!/^[a-z]{3,}$/i.test(token)) continue;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -366,6 +559,104 @@ export function sharedFirstHouseTokens(companyNames: string[]): Set<string> {
     if (n >= 2 && house.length >= 7) out.add(house);
   }
   return out;
+}
+
+const LABEL_FILLER = new Set([
+  "a",
+  "an",
+  "and",
+  "allied",
+  "cluster",
+  "family",
+  "families",
+  "group",
+  "groups",
+  "house",
+  "of",
+  "the",
+]);
+
+function majorityMemberFirstToken(memberNames: string[]): string {
+  const votes = new Map<string, number>();
+  for (const name of memberNames) {
+    const tok = houseTokensFromName(name)[0];
+    if (!tok) continue;
+    const k = tok.toLowerCase();
+    votes.set(k, (votes.get(k) ?? 0) + 1);
+  }
+  const top = [...votes.entries()].sort(
+    (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
+  )[0];
+  if (!top) return "";
+  const shown = houseTokensFromName(
+    memberNames.find((n) => houseTokensFromName(n)[0]?.toLowerCase() === top[0]) ||
+      "",
+  )[0];
+  return shown || "";
+}
+
+/** Drop person-paren / cluster / leftover codes; retitle if the brand belongs on another card. */
+export function tidyHouseDisplayLabel(
+  label: string,
+  memberNames: string[],
+  opts?: {
+    otherMemberFirsts?: Iterable<string>;
+    directorSurnames?: Iterable<string>;
+  },
+): string {
+  let s = label.replace(/\s+/g, " ").trim();
+  s = s.replace(/\(([^)]*)\)/g, (_, inner: string) => {
+    if (/\b(family|families)\b/i.test(inner) || /\//.test(inner)) return " ";
+    return `(${inner})`;
+  });
+  s = s
+    .replace(/\s*&\s*allied\s+cluster\b/gi, " ")
+    .replace(/\ballied\s+cluster\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  s = s.replace(/^(the|a|an)\s+/i, "").trim();
+  const memberBlob = memberNames.join(" ").toLowerCase();
+  s = s
+    .split(/\s+/)
+    .filter((w) => {
+      if (!/^[A-Z]{2,4}$/.test(w)) return true;
+      return memberBlob.includes(w.toLowerCase());
+    })
+    .join(" ")
+    .trim();
+  const content = s
+    .split(/\s+/)
+    .map((w) => w.toLowerCase().replace(/[^a-z0-9]+/g, ""))
+    .filter((w) => w && !LABEL_FILLER.has(w));
+  const memberFirsts = new Set(
+    memberNames
+      .map((n) => houseTokensFromName(n)[0]?.toLowerCase())
+      .filter((t): t is string => Boolean(t)),
+  );
+  const otherFirsts = new Set(
+    [...(opts?.otherMemberFirsts ?? [])].map((t) => t.toLowerCase()),
+  );
+  const directors = new Set(
+    [...(opts?.directorSurnames ?? [])].map((t) => t.toLowerCase()),
+  );
+  const lead = content[0] || "";
+  const stolen =
+    Boolean(lead) && otherFirsts.has(lead) && !memberFirsts.has(lead);
+  const hadGroup = /\bgroups?\b/i.test(label);
+  const directorOnly =
+    content.length === 1 &&
+    Boolean(lead) &&
+    !memberBlob.includes(lead) &&
+    !hadGroup;
+  if (stolen || directorOnly) {
+    const next = majorityMemberFirstToken(memberNames);
+    if (next) return /group$/i.test(next) ? next : `${next} Group`;
+  }
+  if (!s) {
+    const next = majorityMemberFirstToken(memberNames);
+    if (next) return /group$/i.test(next) ? next : `${next} Group`;
+  }
+  return s;
 }
 
 function houseTokenStem(house: string): string {
@@ -409,7 +700,7 @@ function declaredMergeKey(groupName: string): string {
   if (/,/.test(s)) return "";
   s = s.replace(/[.,/&'’]+/g, " ").replace(/\s+/g, " ").trim();
   s = s.replace(/^(the|a|an)\s+/, "").trim();
-  if (!s || HOUSE_SKIP.has(s)) return "";
+  if (!s || HOUSE_SKIP.has(s) || isBareGenericHouseLabel(s)) return "";
   return s;
 }
 
@@ -437,6 +728,93 @@ function displayGroupLabel(mergeKey: string): string {
     return rest.join(" ");
   }
   return words.join(" ");
+}
+
+function tokenEditDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 1) return 2;
+  if (a.length === b.length) {
+    let n = 0;
+    let swap = -1;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] === b[i]) continue;
+      n++;
+      if (n === 1) swap = i;
+      else if (
+        n === 2 &&
+        swap === i - 1 &&
+        a[swap] === b[i] &&
+        a[i] === b[swap]
+      ) {
+        continue;
+      } else return n;
+    }
+    return n <= 2 && swap >= 0 ? Math.min(n, 1) : n;
+  }
+  const [short, long] = a.length < b.length ? [a, b] : [b, a];
+  let i = 0;
+  let j = 0;
+  let n = 0;
+  while (i < short.length && j < long.length) {
+    if (short[i] === long[j]) {
+      i++;
+      j++;
+      continue;
+    }
+    n++;
+    j++;
+    if (n > 1) return n;
+  }
+  return n + (long.length - j);
+}
+
+/** Copy spelling/casing from member company names (HDFC not Hdfc; Aegis not Ageis). */
+export function alignHouseLabelToMembers(
+  label: string,
+  memberNames: string[],
+): string {
+  const votes = new Map<string, Map<string, number>>();
+  for (const name of memberNames) {
+    for (const raw of companyNameTokens(name)) {
+      const key = raw.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      if (key.length < 2 || HOUSE_SKIP.has(key)) continue;
+      const forms = votes.get(key) ?? new Map<string, number>();
+      forms.set(raw, (forms.get(raw) ?? 0) + 1);
+      votes.set(key, forms);
+    }
+  }
+  const bestForm = (key: string): string | null => {
+    const forms = votes.get(key);
+    if (!forms?.size) return null;
+    return [...forms.entries()].sort(
+      (a, b) =>
+        b[1] - a[1] ||
+        Number(b[0] === b[0].toUpperCase()) - Number(a[0] === a[0].toUpperCase()) ||
+        a[0].localeCompare(b[0]),
+    )[0]![0];
+  };
+  const keep = new Set(["group", "groups", "house", "of", "and", "the", "family"]);
+  return label
+    .split(/(\s+)/)
+    .map((part) => {
+      if (!part.trim() || /^\s+$/.test(part)) return part;
+      const punct = part.match(/^([^A-Za-z0-9]*)(.*?)([^A-Za-z0-9]*)$/);
+      const core = punct?.[2] || part;
+      const lead = punct?.[1] || "";
+      const trail = punct?.[3] || "";
+      const key = core.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      if (!key || keep.has(key) || HOUSE_SKIP.has(key)) return part;
+      const exact = bestForm(key);
+      if (exact) return `${lead}${exact}${trail}`;
+      if (key.length < 4) return part;
+      const near = [...votes.keys()].filter(
+        (k) => k.length >= 4 && tokenEditDistance(key, k) === 1,
+      );
+      if (near.length !== 1) return part;
+      const fixed = bestForm(near[0]!);
+      return fixed ? `${lead}${fixed}${trail}` : part;
+    })
+    .join("");
 }
 
 function houseContentTokens(house: string): string[] {
@@ -2247,6 +2625,34 @@ export function loadGovernanceFamilyMap(opts?: {
         b.tickers.length - a.tickers.length ||
         a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
     );
+    const seatedInGroup = new Set<string>();
+    for (const p of g.people) {
+      const on = p.tickers.filter((t) => inGroup.has(t));
+      if (on.length < 2) continue;
+      for (const t of on) seatedInGroup.add(t);
+    }
+    const anchors = g.people.filter((p) => {
+      const on = p.tickers.filter((t) => inGroup.has(t));
+      if (on.length < 2) return false;
+      return on.some((t) =>
+        (byTicker.get(t) ?? []).some(
+          (s) =>
+            s.person_id === p.person_id &&
+            isHouseControlSeat(s.designation, s.category),
+        ),
+      );
+    });
+    if (anchors.length) {
+      for (const t of inGroup) {
+        if (seatedInGroup.has(t)) continue;
+        for (const p of anchors) {
+          const extra = p.span_tickers ?? [];
+          if (!extra.includes(t) && !p.tickers.includes(t)) {
+            p.span_tickers = [...extra, t];
+          }
+        }
+      }
+    }
     const linked = new Set(g.people.flatMap((p) => p.tickers));
     g.outside = outside.filter((o) => linked.has(o.ticker));
     const listingKeys = new Set<string>();
@@ -2278,12 +2684,16 @@ export function loadGovernanceFamilyMap(opts?: {
   for (const list of byLabel.values()) {
     if (list.length < 2) continue;
     const host = list[0]!;
+    const removedBy = (g: GovFamilyGroup) =>
+      new Set(editMap.get(g.group_id || "")?.remove ?? []);
     for (const g of list.slice(1)) {
-      if (!groupsShareControl(host, g)) continue;
-      if (
-        editMap.has(host.group_id || "") ||
-        editMap.has(g.group_id || "")
-      ) {
+      const hostRm = removedBy(host);
+      const otherRm = removedBy(g);
+      if (g.companies.some((c) => hostRm.has(c.ticker.toUpperCase()))) continue;
+      if (host.companies.some((c) => otherRm.has(c.ticker.toUpperCase()))) {
+        continue;
+      }
+      if (!groupsShareControl(host, g) && (hostRm.size || otherRm.size)) {
         continue;
       }
       for (const c of g.companies) {
@@ -2346,7 +2756,9 @@ export function loadGovernanceFamilyMap(opts?: {
     const topTok = [...tokVotes.entries()].sort(
       (a, b) => b[1] - a[1] || a[0].localeCompare(b[0]),
     )[0];
-    if (topTok) return `${g.family_name} · ${topTok[0]}`;
+    if (topTok) {
+      return /group$/i.test(topTok[0]) ? topTok[0] : `${topTok[0]} Group`;
+    }
     const lead = houseTokensFromName(g.companies[0]?.name || "")[0];
     if (lead && !skip.has(lead.toLowerCase())) {
       return `${g.family_name} · ${lead}`;
@@ -2381,7 +2793,110 @@ export function loadGovernanceFamilyMap(opts?: {
       if (!editMap.get(g.group_id || "")?.label) groups.splice(i, 1);
       continue;
     }
-    if (g.companies.length < 2 && !editMap.has(g.group_id || "")) {
+    if (g.companies.length < 2) {
+      groups.splice(i, 1);
+      continue;
+    }
+    const editedLabel = (editMap.get(g.group_id || "")?.label || "").trim();
+    if (isBareGenericHouseLabel(g.family_name) && !editedLabel) {
+      groups.splice(i, 1);
+    }
+  }
+
+  const majorityHouseToken = (g: GovFamilyGroup, index: number) => {
+    const votes = new Map<string, number>();
+    for (const c of g.companies) {
+      const tok = houseTokensFromName(c.name)[index];
+      if (!tok) continue;
+      const k = tok.toLowerCase();
+      votes.set(k, (votes.get(k) ?? 0) + 1);
+    }
+    const top = [...votes.entries()].sort((a, b) => b[1] - a[1])[0];
+    if (!top || top[1] * 2 < g.companies.length) return "";
+    return top[0];
+  };
+  for (const g of groups) {
+    const otherFirsts: string[] = [];
+    const directors: string[] = [];
+    for (const o of groups) {
+      if (o === g) continue;
+      for (const c of o.companies) {
+        const tok = houseTokensFromName(c.name)[0];
+        if (tok) otherFirsts.push(tok);
+      }
+    }
+    for (const c of g.companies) {
+      for (const s of byTicker.get(c.ticker) ?? []) {
+        const sur = normalizedSurname(s.director_name);
+        if (sur) directors.push(sur);
+      }
+    }
+    g.family_name = tidyHouseDisplayLabel(
+      g.family_name,
+      g.companies.map((c) => c.name),
+      { otherMemberFirsts: otherFirsts, directorSurnames: directors },
+    );
+  }
+  for (const g of groups) {
+    const labelToks = houseTokensFromName(g.family_name);
+    const lf = (labelToks[0] || "").toLowerCase();
+    const ls = (labelToks[1] || "").toLowerCase();
+    const skipSecond = (b: string) =>
+      !b ||
+      HOUSE_SKIP.has(b) ||
+      GENERIC_HOUSE_TOKEN.has(b) ||
+      NAME_MODIFIER_TOKEN.has(b);
+    if (lf && ls) {
+      g.companies = g.companies.filter((c) => {
+        const toks = houseTokensFromName(c.name);
+        if ((toks[0] || "").toLowerCase() !== lf) return true;
+        const b = (toks[1] || "").toLowerCase();
+        if (skipSecond(b)) return true;
+        return b === ls;
+      });
+      g.company_count = g.companies.length;
+      continue;
+    }
+    const first = majorityHouseToken(g, 0);
+    const second = majorityHouseToken(g, 1);
+    if (!first || !second) continue;
+    g.companies = g.companies.filter((c) => {
+      const toks = houseTokensFromName(c.name);
+      const a = (toks[0] || "").toLowerCase();
+      const b = (toks[1] || "").toLowerCase();
+      if (a !== first) return true;
+      if (skipSecond(b) || b === second) return true;
+      return false;
+    });
+    g.company_count = g.companies.length;
+  }
+
+  const addedByGroupId = new Map<string, Set<string>>();
+  for (const [id, edit] of editMap) {
+    addedByGroupId.set(id, new Set(edit.add));
+  }
+  exclusiveGroupMembership(groups, {
+    addedByGroupId,
+    rank: (ticker, g) => {
+      const firstHouse = (nameHousesByTicker.get(ticker)?.[0] || "").toLowerCase();
+      const named =
+        firstHouse !== "" && g.family_name.toLowerCase().startsWith(firstHouse)
+          ? 50
+          : 0;
+      const user = g.group_id?.startsWith("user-") ? 1000 : 0;
+      const added = addedByGroupId.get(g.group_id || "")?.has(ticker) ? 500 : 0;
+      return user + added + named + boardAffinity(ticker, g);
+    },
+    companyName: (ticker) =>
+      metaByTicker.get(ticker)?.name || listingMeta.get(ticker)?.name || "",
+  });
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i]!;
+    if (g.companies.length < 1) {
+      if (!editMap.get(g.group_id || "")?.label) groups.splice(i, 1);
+      continue;
+    }
+    if (g.companies.length < 2) {
       groups.splice(i, 1);
     }
   }
@@ -2409,6 +2924,30 @@ export function loadGovernanceFamilyMap(opts?: {
   }
 
   for (const g of out) {
+    const otherFirsts: string[] = [];
+    const directors: string[] = [];
+    for (const o of out) {
+      if (o === g) continue;
+      for (const c of o.companies) {
+        const tok = houseTokensFromName(c.name)[0];
+        if (tok) otherFirsts.push(tok);
+      }
+    }
+    for (const c of g.companies) {
+      for (const s of byTicker.get(c.ticker) ?? []) {
+        const sur = normalizedSurname(s.director_name);
+        if (sur) directors.push(sur);
+      }
+    }
+    g.family_name = tidyHouseDisplayLabel(
+      g.family_name,
+      g.companies.map((c) => c.name),
+      { otherMemberFirsts: otherFirsts, directorSurnames: directors },
+    );
+    g.family_name = alignHouseLabelToMembers(
+      g.family_name,
+      g.companies.map((c) => c.name),
+    );
     g.companies.sort((a, b) => {
       const am = a.market_cap_cr ?? -1;
       const bm = b.market_cap_cr ?? -1;

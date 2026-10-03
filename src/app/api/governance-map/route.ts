@@ -29,10 +29,26 @@ import {
   connectivityCapBands,
   loadCompanyConnectivity,
   loadCompanyNetwork,
+  loadDirectorHubs,
+  loadDirectorHubSeats,
   loadDirectorNetwork,
+  loadCrossGroupNetwork,
+  loadCrossGroupPairEdges,
+  loadNetworkClusters,
+  loadNetworkClusterDetail,
+  loadNetworkClusterSharedDirectors,
   loadNetworkDiscovery,
   loadNewConnections,
+  loadTinyCapitalGap,
+  loadTinyCapitalGapDetail,
 } from "@/lib/company-network";
+import {
+  confirmMappingWrites,
+  loadGroupMappingReview,
+  loadGroupReviewCompany,
+  loadGroupReviewGroup,
+  previewMappingChange,
+} from "@/lib/group-mapping-review";
 import {
   SCREEN_SORT_KEYS,
   loadNetworkCandidates,
@@ -58,7 +74,20 @@ type View = "director" | "company" | "role" | "family" | "independence" | "netwo
   | "network-candidates"
   | "network-screen"
   | "network-investigation"
-  | "network-new-connections";
+  | "network-new-connections"
+  | "director-hubs"
+  | "director-hub-seats"
+  | "cross-group-network"
+  | "cross-group-edges"
+  | "network-clusters"
+  | "network-cluster-detail"
+  | "network-cluster-shared"
+  | "group-mapping-review"
+  | "group-mapping-company"
+  | "group-mapping-group"
+  | "group-mapping-preview"
+  | "tiny-capital-gap"
+  | "tiny-capital-gap-detail";
 
 /** Theme match uses About + products + HQ location. */
 function seatAboutText(c: GovCompanySeat): string {
@@ -628,9 +657,24 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     const minBoards = Number(sp.get("minBoards") || 0);
     const minN10k = Number(sp.get("minN10k") || 0);
     const sortRaw = sp.get("sort") || "event";
-    const sort =
-      sortRaw === "ratio" || sortRaw === "boards" ? sortRaw : "event";
+    const sortAllow = [
+      "ratio",
+      "boards",
+      "connected",
+      "mcap",
+      "n10k",
+      "n25k",
+      "n50k",
+      "cross",
+      "multi",
+    ] as const;
+    const sort = sortAllow.includes(
+      sortRaw as (typeof sortAllow)[number],
+    )
+      ? (sortRaw as (typeof sortAllow)[number])
+      : "event";
     const targetTicker = (sp.get("targetTicker") || "").trim();
+    const aggRaw = sp.get("agg");
     const result = loadNewConnections({
       q,
       page,
@@ -651,15 +695,229 @@ async function buildGovernanceMapResponse(req: NextRequest) {
             : maxTargetMcap,
       minBoards: Number.isFinite(minBoards) ? minBoards : 0,
       sort,
-      aggregate: sp.get("agg") === "targets" ? "targets" : "edges",
+      aggregate:
+        aggRaw === "targets" ? "targets" : aggRaw === "gap" ? "gap" : "edges",
       minN10k: Number.isFinite(minN10k) ? minN10k : 0,
       targetTicker: targetTicker || null,
+      includeFormerSeats: sp.get("former") === "1",
     });
     return NextResponse.json({ view: "network-new-connections", ...result });
   }
   if (view === "network-discovery") {
-    const result = loadNetworkDiscovery({ q, page, pageSize, refresh });
+    const mcapRaw = sp.get("mcap") || "all";
+    const signalRaw = sp.get("signal") || "all";
+    const mcapAllow = [
+      "all",
+      "lt100",
+      "b100_500",
+      "b500_1000",
+      "b1000_5000",
+      "gte5000",
+    ] as const;
+    const signalAllow = [
+      "all",
+      "boards3",
+      "c5k",
+      "c10k",
+      "xgroup",
+      "cos2",
+      "dirs2",
+    ] as const;
+    const result = loadNetworkDiscovery({
+      q,
+      page,
+      pageSize,
+      refresh,
+      companies: sp.get("agg") === "companies",
+      mcap: mcapAllow.includes(mcapRaw as (typeof mcapAllow)[number])
+        ? (mcapRaw as (typeof mcapAllow)[number])
+        : "all",
+      signal: signalAllow.includes(signalRaw as (typeof signalAllow)[number])
+        ? (signalRaw as (typeof signalAllow)[number])
+        : "all",
+    });
     return NextResponse.json({ view: "network-discovery", ...result });
+  }
+  if (view === "director-hubs") {
+    const minBoards = Number(sp.get("minBoards") || 3);
+    const minGroups = Number(sp.get("minGroups") || 0);
+    const minSpread = Number(sp.get("minSpread") || 0);
+    const crossRaw = sp.get("cross") || "any";
+    const sortRaw = sp.get("sort") || "boards";
+    const sortAllow = [
+      "boards",
+      "groups",
+      "largest",
+      "smallest",
+      "spread",
+      "new",
+      "cross",
+    ] as const;
+    const result = loadDirectorHubs({
+      q,
+      page,
+      pageSize,
+      minBoards: Number.isFinite(minBoards) ? minBoards : 3,
+      minGroups: Number.isFinite(minGroups) ? minGroups : 0,
+      minSpread: Number.isFinite(minSpread) ? minSpread : 0,
+      cross:
+        crossRaw === "yes" || crossRaw === "no" ? crossRaw : "any",
+      sort: sortAllow.includes(sortRaw as (typeof sortAllow)[number])
+        ? (sortRaw as (typeof sortAllow)[number])
+        : "boards",
+    });
+    return NextResponse.json({ view: "director-hubs", ...result });
+  }
+  if (view === "director-hub-seats") {
+    const personId = (sp.get("personId") || "").trim();
+    const seats = loadDirectorHubSeats(personId);
+    return NextResponse.json({ view: "director-hub-seats", personId, rows: seats });
+  }
+  if (view === "cross-group-network") {
+    const paneRaw = sp.get("pane") || "groups";
+    const minMcap = Number(sp.get("minMcap") || 0);
+    const minXg = Number(sp.get("minXg") || 0);
+    const result = loadCrossGroupNetwork({
+      pane:
+        paneRaw === "companies" || paneRaw === "directors" ? paneRaw : "groups",
+      q,
+      page,
+      pageSize,
+      groupKey: (sp.get("group") || "").trim() || null,
+      minMcap: Number.isFinite(minMcap) ? minMcap : 0,
+      minXgCompanies: Number.isFinite(minXg) ? minXg : 0,
+    });
+    return NextResponse.json({ view: "cross-group-network", ...result });
+  }
+  if (view === "cross-group-edges") {
+    const edges = loadCrossGroupPairEdges({
+      groupA: (sp.get("groupA") || "").trim(),
+      groupB: (sp.get("groupB") || "").trim(),
+    });
+    return NextResponse.json({ view: "cross-group-edges", rows: edges });
+  }
+  if (view === "tiny-capital-gap") {
+    const daysRaw = Number(sp.get("days") || 180);
+    const days = sp.get("days") === "all" || daysRaw < 0 ? null : daysRaw || 180;
+    const bandRaw = sp.get("band") || "all";
+    const bandAllow = ["lt100", "100_250", "250_500", "500_1000"] as const;
+    const sortRaw = sp.get("sort") || "mcap";
+    const sortAllow = [
+      "mcap",
+      "connected",
+      "directors",
+      "largest",
+      "ratio",
+      "n10k",
+      "n25k",
+      "n50k",
+      "cross",
+    ] as const;
+    const minConn = Number(sp.get("minConnected") || 0);
+    const minRatio = Number(sp.get("minRatio") || 0);
+    const minCos = Number(sp.get("minCos") || 0);
+    const minDirs = Number(sp.get("minDirs") || 0);
+    const crossRaw = sp.get("cross") || "any";
+    const result = loadTinyCapitalGap({
+      q,
+      page,
+      pageSize,
+      days,
+      band: bandAllow.includes(bandRaw as (typeof bandAllow)[number])
+        ? (bandRaw as (typeof bandAllow)[number])
+        : "all",
+      minConnectedMcap: Number.isFinite(minConn) ? minConn : 0,
+      minRatio: Number.isFinite(minRatio) ? minRatio : 0,
+      cross: crossRaw === "yes" || crossRaw === "no" ? crossRaw : "any",
+      minConnectedCompanies: Number.isFinite(minCos) ? minCos : 0,
+      minDirectors: Number.isFinite(minDirs) ? minDirs : 0,
+      sort: sortAllow.includes(sortRaw as (typeof sortAllow)[number])
+        ? (sortRaw as (typeof sortAllow)[number])
+        : "mcap",
+    });
+    const { edges: _edges, ...rest } = result;
+    return NextResponse.json({ view: "tiny-capital-gap", ...rest });
+  }
+  if (view === "tiny-capital-gap-detail") {
+    const ticker = (sp.get("ticker") || "").trim();
+    const daysRaw = Number(sp.get("days") || 180);
+    const days = sp.get("days") === "all" || daysRaw < 0 ? null : daysRaw || 180;
+    const result = loadTinyCapitalGapDetail(ticker, { days });
+    return NextResponse.json({ view: "tiny-capital-gap-detail", ...result });
+  }
+  if (view === "network-clusters") {
+    const minCompanies = Number(sp.get("minCompanies") || 2);
+    const minDirectors = Number(sp.get("minDirectors") || 0);
+    const minGroups = Number(sp.get("minGroups") || 0);
+    const minLargest = Number(sp.get("minLargest") || 0);
+    const crossRaw = sp.get("cross") || "any";
+    const minConnections = Number(sp.get("minConnections") || 0);
+    const result = loadNetworkClusters({
+      q,
+      qCompany: sp.get("qCompany"),
+      qTicker: sp.get("qTicker"),
+      qDirector: sp.get("qDirector"),
+      qGroup: sp.get("qGroup"),
+      page,
+      pageSize,
+      minCompanies: Number.isFinite(minCompanies) ? minCompanies : 2,
+      minDirectors: Number.isFinite(minDirectors) ? minDirectors : 0,
+      minGroups: Number.isFinite(minGroups) ? minGroups : 0,
+      minConnections: Number.isFinite(minConnections) ? minConnections : 0,
+      minLargestMcap: Number.isFinite(minLargest) ? minLargest : 0,
+      multiGroups: sp.get("multiGroups") === "1",
+      cross: crossRaw === "yes" || crossRaw === "no" ? crossRaw : "any",
+    });
+    return NextResponse.json({ view: "network-clusters", ...result });
+  }
+  if (view === "network-cluster-detail") {
+    const cluster = (sp.get("cluster") || "").trim();
+    const result = loadNetworkClusterDetail(cluster);
+    return NextResponse.json({ view: "network-cluster-detail", ...result });
+  }
+  if (view === "network-cluster-shared") {
+    const result = loadNetworkClusterSharedDirectors(
+      (sp.get("a") || "").trim(),
+      (sp.get("b") || "").trim(),
+    );
+    return NextResponse.json({ view: "network-cluster-shared", ...result });
+  }
+  if (view === "group-mapping-review") {
+    const result = loadGroupMappingReview({
+      q,
+      page,
+      pageSize,
+      priority: sp.get("priority") || "all",
+      kind: sp.get("kind") || "all",
+    });
+    return NextResponse.json({ view: "group-mapping-review", ...result });
+  }
+  if (view === "group-mapping-company") {
+    const ticker = (sp.get("ticker") || "").trim();
+    return NextResponse.json({
+      view: "group-mapping-company",
+      ...loadGroupReviewCompany(ticker),
+    });
+  }
+  if (view === "group-mapping-group") {
+    const group = (sp.get("group") || "").trim();
+    return NextResponse.json({
+      view: "group-mapping-group",
+      ...loadGroupReviewGroup(group),
+    });
+  }
+  if (view === "group-mapping-preview") {
+    const action = sp.get("action") || "remove";
+    if (action !== "remove" && action !== "reassign" && action !== "insert") {
+      return NextResponse.json({ error: "invalid action" }, { status: 400 });
+    }
+    const result = previewMappingChange({
+      action,
+      ticker: (sp.get("ticker") || "").trim(),
+      group_key: (sp.get("group_key") || "").trim(),
+      new_group_key: (sp.get("new_group_key") || "").trim() || undefined,
+    });
+    return NextResponse.json({ view: "group-mapping-preview", ...result });
   }
   if (view === "director-network") {
     const result = loadDirectorNetwork({ q, page, pageSize });
@@ -672,8 +930,12 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       refresh,
     });
     const total = families.length;
-    const pages = Math.max(1, Math.ceil(total / pageSize));
-    const start = (page - 1) * pageSize;
+    const famPageSize = Math.min(
+      5000,
+      Math.max(10, Number(sp.get("pageSize") || 40) || 40),
+    );
+    const pages = Math.max(1, Math.ceil(total / famPageSize));
+    const start = (page - 1) * famPageSize;
     return NextResponse.json({
       view: "family",
       stats: {
@@ -687,7 +949,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       page,
       pages,
       themePattern: themePattern || null,
-      rows: families.slice(start, start + pageSize),
+      rows: families.slice(start, start + famPageSize),
     });
   }
   const all = loadGovernanceMap({ minBoards, refresh, q });
@@ -1001,4 +1263,52 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     themePattern: themePattern || null,
     rows,
   });
+}
+
+export async function POST(req: NextRequest) {
+  const body = (await req.json()) as {
+    view?: string;
+    confirm?: boolean;
+    action?: string;
+    ticker?: string;
+    group_key?: string;
+    new_group_key?: string;
+    expected_group_name?: string;
+    changes?: Array<{
+      action: string;
+      ticker: string;
+      group_key: string;
+      new_group_key?: string;
+      expected_group_name?: string;
+    }>;
+  };
+  if (body.view !== "group-mapping-apply") {
+    return NextResponse.json({ error: "unsupported view" }, { status: 400 });
+  }
+  const raw = Array.isArray(body.changes) && body.changes.length
+    ? body.changes
+    : [
+        {
+          action: body.action,
+          ticker: body.ticker || "",
+          group_key: body.group_key || "",
+          new_group_key: body.new_group_key,
+          expected_group_name: body.expected_group_name,
+        },
+      ];
+  const changes = [];
+  for (const c of raw) {
+    if (c.action !== "remove" && c.action !== "reassign" && c.action !== "insert") {
+      return NextResponse.json({ error: "invalid action" }, { status: 400 });
+    }
+    changes.push({
+      action: c.action,
+      ticker: c.ticker || "",
+      group_key: c.group_key || "",
+      new_group_key: c.new_group_key,
+      expected_group_name: c.expected_group_name,
+    });
+  }
+  const result = confirmMappingWrites(changes, { confirm: body.confirm === true });
+  return NextResponse.json({ view: "group-mapping-apply", ...result });
 }

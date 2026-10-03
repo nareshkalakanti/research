@@ -336,4 +336,46 @@ assert.equal(gap.largest_ratio, 85.7);
 assert.equal(gap.cross_group_count, 1);
 assert.equal(gap.multi_board_director_count, 1);
 
+const capitalGap = db.prepare(`
+  WITH latest_joined AS (
+    SELECT e.ticker, e.person_id, e.director_name, e.detected_at, e.id
+    FROM board_seat_events e
+    JOIN (
+      SELECT ticker, person_id, MAX(id) AS id
+      FROM board_seat_events
+      WHERE event_type = 'joined'
+      GROUP BY ticker, person_id
+    ) x ON x.id = e.id
+  ),
+  new_edges AS (
+    SELECT
+      lj.ticker AS target_ticker,
+      o.ticker AS connected_ticker,
+      cm.market_cap AS connected_market_cap,
+      ROUND(cm.market_cap / tm.market_cap, 1) AS market_cap_ratio,
+      lj.person_id
+    FROM latest_joined lj
+    JOIN board_seats here ON here.ticker = lj.ticker AND here.person_id = lj.person_id
+    JOIN board_seats o ON o.person_id = lj.person_id AND o.ticker <> lj.ticker
+    JOIN company_metrics tm ON tm.ticker = lj.ticker
+    JOIN company_metrics cm ON cm.ticker = o.ticker
+    WHERE tm.market_cap > 0 AND tm.market_cap < 5000 AND cm.market_cap > 0
+  )
+  SELECT
+    COUNT(DISTINCT connected_ticker) AS connected_companies,
+    COUNT(DISTINCT person_id) AS multi_board,
+    MAX(connected_market_cap) AS largest_connected_mcap,
+    MAX(market_cap_ratio) AS largest_ratio
+  FROM new_edges
+`).get() as {
+  connected_companies: number;
+  multi_board: number;
+  largest_connected_mcap: number;
+  largest_ratio: number;
+};
+assert.equal(capitalGap.connected_companies, 2);
+assert.equal(capitalGap.multi_board, 1);
+assert.equal(capitalGap.largest_connected_mcap, 60000);
+assert.equal(capitalGap.largest_ratio, 85.7);
+
 console.log("company-network.test.ts ok");
