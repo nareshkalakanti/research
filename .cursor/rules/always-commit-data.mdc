@@ -1,0 +1,26 @@
+---
+description: Always git-add tracked data DBs and caches on commit/push.
+alwaysApply: true
+---
+
+# Always ship data with git add / commit / push
+
+When the user asks to **git add**, **commit**, or **push**, include **tracked data changes** in the same commit. Do not leave DBs or caches unstaged.
+
+**Always add if modified (tracked):**
+
+- `data/governance.db`
+- `data/family_group_edits.db`
+- `data/family_group_refine.db`
+- other tracked `data/*.db` (not gitignored)
+- `data/nifty-weekly-cache.json`
+- `data/seeds/*` when publishing a seed
+
+**Never add (gitignored / machine-local):**
+
+- `data/company_about.db` — publish via `npm run db:publish-seed -- company_about.db` then commit `data/seeds/company_about.db`
+- `data/marketiq.db`, `data/orderbookiq.db`, `data/boardroomiq.db`
+- `**/*.db-wal`, `**/*.db-shm`
+- `.tmp/`, `.env*`, `logs/`
+
+Do not skip a tracked data file because it is binary, “just a cache”, or a small JSON diff. Other machines need the same research state.
