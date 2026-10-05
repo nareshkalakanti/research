@@ -131,7 +131,7 @@ export function PeopleBoardCards({
         })}
       </div>
       {rows.length === 0 ? (
-        <div className="table-meta">No multi-board people found.</div>
+        <div className="table-meta">No people found.</div>
       ) : null}
     </>
   );

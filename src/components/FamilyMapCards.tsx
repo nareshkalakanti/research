@@ -347,7 +347,7 @@ export function FamilyMapCards({
         })}
       </div>
       {rows.length === 0 ? (
-        <div className="table-meta">No family groups found.</div>
+        <div className="table-meta">No maps found.</div>
       ) : null}
     </>
   );

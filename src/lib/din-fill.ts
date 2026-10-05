@@ -30,7 +30,7 @@ import { zaubaCorpGoogleUrl, zaubaCorpSearchQuery, zaubaCorpSiteSearchUrl } from
 import { searchGrowwListings } from "./web-mcap";
 
 const OCR_PROMPT =
-  "Transcribe the heading (Personnel of COMPANY) then one director per line: 8-digit DIN, name, designation, appointment date. Tab-separated. No HTML.";
+  "Transcribe the heading (Personnel of COMPANY) then every director row in Current and Past tables: 8-digit DIN, name, designation, dates. One row per line, tab-separated. Plain text only. No HTML or markdown fences.";
 
 const HEADING_OCR =
   "Read the card title only. Output the company after Personnel of. One line. No table.";
@@ -40,7 +40,13 @@ async function ocrDinScreenshot(imageDataUrl: string): Promise<string> {
   try {
     const { cropImageDataUrlTop } = await import("./pdf-rasterize");
     const top = await cropImageDataUrlTop(imageDataUrl, 0.4);
-    if (top) chunks.push(await ocrImageWithQianfan(top, HEADING_OCR));
+    if (top) {
+      try {
+        chunks.push(await ocrImageWithQianfan(top, HEADING_OCR));
+      } catch {
+        /* heading crop often has no rows; table OCR still runs */
+      }
+    }
   } catch {
     /* table OCR still runs */
   }

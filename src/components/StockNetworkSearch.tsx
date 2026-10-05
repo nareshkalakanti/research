@@ -88,6 +88,13 @@ export function StockNetworkSearch({
   const marketByTicker = new Map(
     (row?.companies ?? []).map((c) => [c.ticker.toUpperCase(), c.market]),
   );
+  const focalTicker = (row?.ticker || "").toUpperCase();
+  const hub = (row?.companies ?? []).filter(
+    (c) => c.ticker.toUpperCase() === focalTicker,
+  );
+  const connected = (row?.companies ?? []).filter(
+    (c) => c.ticker.toUpperCase() !== focalTicker,
+  );
 
   return (
     <div className="fam-stock-net">
@@ -127,7 +134,8 @@ export function StockNetworkSearch({
                 <span className="gov-family-name">{row.name}</span>
                 <span className="gov-family-sub">
                   {row.ticker} · {row.people.length} directors ·{" "}
-                  {row.companies.length} connected companies
+                  {connected.length} connected{" "}
+                  {connected.length === 1 ? "company" : "companies"}
                 </span>
               </div>
               <BoxRefreshButton
@@ -137,9 +145,9 @@ export function StockNetworkSearch({
             </div>
           </header>
           <FamilyGraph
-            companies={row.companies}
+            companies={hub.length ? hub : row.companies.slice(0, 1)}
             people={row.people}
-            outside={[]}
+            outside={connected}
             onCompany={(t) => void pick(t)}
             onPerson={onPerson}
             chartUrl={(t) =>

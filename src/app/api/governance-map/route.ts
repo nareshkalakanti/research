@@ -4,6 +4,8 @@ import {
   governanceMapStats,
   loadAboutMap,
   loadGovernanceFamilyMap,
+  loadUngroupedCompanyMaps,
+  loadHoldingCompanyMaps,
   loadGovernanceMap,
   loadStockBoardNetwork,
   tickerMatchesSearch,
@@ -68,7 +70,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
-type View = "director" | "company" | "role" | "family" | "independence" | "network" | "company-network"   | "director-network"
+type View = "director" | "company" | "role" | "family" | "ungrouped" | "holdings" | "independence" | "network" | "company-network"   | "director-network"
   | "company-connectivity"
   | "network-discovery"
   | "network-candidates"
@@ -289,7 +291,11 @@ function filterRows(
     }
 
     if (q) {
-      const nameHit = r.name.toLowerCase().includes(q);
+      const nameHit = r.name
+        .toLowerCase()
+        .replace(/[.,]+/g, " ")
+        .replace(/\s+/g, " ")
+        .includes(q.replace(/[.,]+/g, " ").replace(/\s+/g, " ").trim());
       const dinHit = Boolean(r.din && r.din.toLowerCase().includes(q));
       const matchingCos = companies.filter(
         (c) =>
@@ -922,6 +928,56 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   if (view === "director-network") {
     const result = loadDirectorNetwork({ q, page, pageSize });
     return NextResponse.json({ view: "director-network", ...result });
+  }
+  if (view === "holdings") {
+    const holds = loadHoldingCompanyMaps({ q, refresh });
+    const total = holds.length;
+    const famPageSize = Math.min(
+      5000,
+      Math.max(10, Number(sp.get("pageSize") || 40) || 40),
+    );
+    const pages = Math.max(1, Math.ceil(total / famPageSize));
+    const start = (page - 1) * famPageSize;
+    return NextResponse.json({
+      view: "holdings",
+      stats: {
+        directors: 0,
+        companies: holds.length,
+        nameless_din: 0,
+        independent_boards: 0,
+        independence_floors: {},
+      },
+      total,
+      page,
+      pages,
+      themePattern: themePattern || null,
+      rows: holds.slice(start, start + famPageSize),
+    });
+  }
+  if (view === "ungrouped") {
+    const solos = loadUngroupedCompanyMaps({ q, refresh });
+    const total = solos.length;
+    const famPageSize = Math.min(
+      5000,
+      Math.max(10, Number(sp.get("pageSize") || 40) || 40),
+    );
+    const pages = Math.max(1, Math.ceil(total / famPageSize));
+    const start = (page - 1) * famPageSize;
+    return NextResponse.json({
+      view: "ungrouped",
+      stats: {
+        directors: 0,
+        companies: solos.length,
+        nameless_din: 0,
+        independent_boards: 0,
+        independence_floors: {},
+      },
+      total,
+      page,
+      pages,
+      themePattern: themePattern || null,
+      rows: solos.slice(start, start + famPageSize),
+    });
   }
   if (view === "family") {
     const families = loadGovernanceFamilyMap({

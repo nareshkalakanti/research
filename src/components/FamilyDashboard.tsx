@@ -18,7 +18,7 @@ import {
 } from "@/lib/links";
 import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
 
-type DashView = "groups" | "people" | "stock" | "network";
+type DashView = "groups" | "ungrouped" | "holdings" | "people" | "stock" | "network";
 
 function stubCompany(
   ticker: string,
@@ -45,7 +45,11 @@ function stubCompany(
 export function FamilyDashboard() {
   const tabState = useOptionalAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
+  const [solos, setSolos] = useState<FamilyRow[]>([]);
+  const [holdings, setHoldings] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [solosLoading, setSolosLoading] = useState(false);
+  const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [dashHits, setDashHits] = useState<DashSuggestHit[]>([]);
@@ -61,6 +65,8 @@ export function FamilyDashboard() {
   const [addWork, setAddWork] = useState<FamilyAddWork | null>(null);
   const [dashView, setDashView] = useState<DashView>("groups");
   const [groupFilter, setGroupFilter] = useState("");
+  const [soloFilter, setSoloFilter] = useState("");
+  const [holdingFilter, setHoldingFilter] = useState("");
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -70,6 +76,8 @@ export function FamilyDashboard() {
     lines: string[];
   } | null>(null);
   const hasGroups = useRef(false);
+  const hasSolos = useRef(false);
+  const hasHoldings = useRef(false);
 
   const load = useCallback(async (opts?: { refresh?: boolean }) => {
     const hard = opts?.refresh === true;
@@ -102,22 +110,85 @@ export function FamilyDashboard() {
     }
   }, []);
 
-  const loadPeople = useCallback(async (opts?: { refresh?: boolean }) => {
+  const loadSolos = useCallback(async (opts?: { refresh?: boolean }) => {
+    const hard = opts?.refresh === true;
+    if (!hasSolos.current) setSolosLoading(true);
+    if (hard) setRefreshingBox((cur) => cur || "*");
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        view: "ungrouped",
+        page: "1",
+        pageSize: "5000",
+      });
+      if (hard) params.set("refresh", "1");
+      const res = await fetch(`/api/governance-map?${params}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { rows?: FamilyRow[] };
+      const next = json.rows ?? [];
+      hasSolos.current = next.length > 0;
+      setSolos(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSolosLoading(false);
+      setRefreshingBox(null);
+    }
+  }, []);
+
+  const loadHoldingMaps = useCallback(async (opts?: { refresh?: boolean }) => {
+    const hard = opts?.refresh === true;
+    if (!hasHoldings.current) setHoldingsLoading(true);
+    if (hard) setRefreshingBox((cur) => cur || "*");
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        view: "holdings",
+        page: "1",
+        pageSize: "5000",
+      });
+      if (hard) params.set("refresh", "1");
+      const res = await fetch(`/api/governance-map?${params}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { rows?: FamilyRow[] };
+      const next = json.rows ?? [];
+      hasHoldings.current = next.length > 0;
+      setHoldings(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHoldingsLoading(false);
+      setRefreshingBox(null);
+    }
+  }, []);
+
+  const loadPeople = useCallback(async (opts?: { refresh?: boolean; q?: string }) => {
     setPeopleLoading(true);
     if (opts?.refresh) setRefreshingBox((cur) => cur || "*");
     setError(null);
     try {
       const collected: PersonBoardRow[] = [];
+      const needle = (opts?.q || "").trim();
+      const searching = needle.length >= 2;
       let page = 1;
       let pages = 1;
-      while (page <= pages && page <= 1) {
+      const maxPages = searching ? 3 : 1;
+      while (page <= pages && page <= maxPages) {
         const params = new URLSearchParams({
           view: "director",
-          sort: "boards",
-          minBoards: "2",
+          sort: searching ? "name" : "boards",
+          minBoards: searching ? "1" : "2",
           page: String(page),
-          pageSize: "40",
+          pageSize: searching ? "40" : "40",
         });
+        if (searching) {
+          params.set("q", needle);
+          params.set("hideCollision", "0");
+        }
         if (opts?.refresh) params.set("refresh", "1");
         const res = await fetch(`/api/governance-map?${params}`, {
           cache: "no-store",
@@ -155,12 +226,20 @@ export function FamilyDashboard() {
 
   useEffect(() => {
     const onChange = () => {
-      if (dashView === "people") void loadPeople({ refresh: true });
+      if (dashView === "people") {
+        const needle = q.trim();
+        void loadPeople({
+          refresh: true,
+          q: needle.length >= 2 ? needle : undefined,
+        });
+      }
+      else if (dashView === "ungrouped") void loadSolos({ refresh: true });
+      else if (dashView === "holdings") void loadHoldingMaps({ refresh: true });
       else if (dashView === "groups") void load({ refresh: true });
     };
     window.addEventListener(GOV_MAP_CHANGED, onChange);
     return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
-  }, [dashView, load, loadPeople]);
+  }, [dashView, q, load, loadPeople, loadSolos, loadHoldingMaps]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -182,8 +261,25 @@ export function FamilyDashboard() {
   }, [addWork?.done, addWork?.error]);
 
   useEffect(() => {
-    if (dashView === "people") void loadPeople();
-  }, [dashView, loadPeople]);
+    if (dashView !== "people") return;
+    const needle = q.trim();
+    if (needle.length < 2) {
+      void loadPeople();
+      return;
+    }
+    const t = window.setTimeout(() => {
+      void loadPeople({ q: needle });
+    }, 220);
+    return () => window.clearTimeout(t);
+  }, [dashView, q, loadPeople]);
+
+  useEffect(() => {
+    if (dashView === "ungrouped") void loadSolos();
+  }, [dashView, loadSolos]);
+
+  useEffect(() => {
+    if (dashView === "holdings") void loadHoldingMaps();
+  }, [dashView, loadHoldingMaps]);
 
   useEffect(() => {
     void fetch("/api/holdings-pattern", { cache: "no-store" })
@@ -202,9 +298,11 @@ export function FamilyDashboard() {
   const marketByTicker = useMemo(() => {
     const map = new Map<string, string>();
     for (const f of rows) for (const c of f.companies) map.set(c.ticker, c.market);
+    for (const f of solos) for (const c of f.companies) map.set(c.ticker, c.market);
+    for (const f of holdings) for (const c of f.companies) map.set(c.ticker, c.market);
     for (const p of people) for (const c of p.companies) map.set(c.ticker, c.market);
     return map;
-  }, [rows, people]);
+  }, [rows, solos, holdings, people]);
 
   const groupOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -220,6 +318,25 @@ export function FamilyDashboard() {
     );
     return out;
   }, [rows]);
+
+  const soloOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ key: string; label: string; n: number }> = [];
+    for (const f of solos) {
+      const key = f.group_id || f.family_name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        key,
+        label: f.companies[0]?.ticker || f.family_name,
+        n: f.outside?.length ?? 0,
+      });
+    }
+    out.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    );
+    return out;
+  }, [solos]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -252,19 +369,89 @@ export function FamilyDashboard() {
     });
   }, [filtered, holdPattern]);
 
-  const filteredPeople = useMemo(() => {
+  const filteredSolos = useMemo(() => {
     const needle = q.trim().toLowerCase();
+    return solos.filter((f) => {
+      if (soloFilter && (f.group_id || f.family_name) !== soloFilter) {
+        return false;
+      }
+      if (!needle) return true;
+      return (
+        f.family_name.toLowerCase().includes(needle) ||
+        f.companies.some(
+          (c) =>
+            c.ticker.toLowerCase().startsWith(needle) ||
+            c.name.toLowerCase().includes(needle),
+        ) ||
+        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
+        (f.outside ?? []).some(
+          (o) =>
+            o.ticker.toLowerCase().startsWith(needle) ||
+            o.name.toLowerCase().includes(needle),
+        )
+      );
+    });
+  }, [solos, q, soloFilter]);
+
+  const holdingOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Array<{ key: string; label: string; n: number }> = [];
+    for (const f of holdings) {
+      const key = f.group_id || f.family_name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        key,
+        label: f.companies[0]?.ticker || f.family_name,
+        n: f.outside?.length ?? 0,
+      });
+    }
+    out.sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    );
+    return out;
+  }, [holdings]);
+
+  const filteredHoldings = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return holdings.filter((f) => {
+      if (holdingFilter && (f.group_id || f.family_name) !== holdingFilter) {
+        return false;
+      }
+      if (!needle) return true;
+      return (
+        f.family_name.toLowerCase().includes(needle) ||
+        f.companies.some(
+          (c) =>
+            c.ticker.toLowerCase().startsWith(needle) ||
+            c.name.toLowerCase().includes(needle),
+        ) ||
+        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
+        (f.outside ?? []).some(
+          (o) =>
+            o.ticker.toLowerCase().startsWith(needle) ||
+            o.name.toLowerCase().includes(needle),
+        )
+      );
+    });
+  }, [holdings, q, holdingFilter]);
+
+  const filteredPeople = useMemo(() => {
+    const needle = q.trim().toLowerCase().replace(/[.,]+/g, " ").replace(/\s+/g, " ").trim();
     if (!needle) return people;
-    return people.filter(
-      (p) =>
-        p.name.toLowerCase().includes(needle) ||
-        (p.din || "").includes(needle.replace(/\D/g, "") || needle) ||
+    const dinQ = needle.replace(/\D/g, "");
+    return people.filter((p) => {
+      const name = p.name.toLowerCase().replace(/[.,]+/g, " ").replace(/\s+/g, " ");
+      return (
+        name.includes(needle) ||
+        (dinQ && (p.din || "").includes(dinQ)) ||
         p.companies.some(
           (c) =>
             c.ticker.toLowerCase().startsWith(needle) ||
             c.name.toLowerCase().includes(needle),
-        ),
-    );
+        )
+      );
+    });
   }, [people, q]);
 
   useEffect(() => {
@@ -297,6 +484,27 @@ export function FamilyDashboard() {
         });
       }
     }
+    for (const f of solos) {
+      const key = f.group_id || f.family_name;
+      if (seenG.has(key)) continue;
+      const t = f.companies[0]?.ticker || "";
+      if (
+        f.family_name.toLowerCase().includes(low) ||
+        f.companies.some(
+          (c) =>
+            c.ticker.toLowerCase().startsWith(low) ||
+            c.name.toLowerCase().includes(low),
+        )
+      ) {
+        seenG.add(key);
+        local.push({
+          kind: "group",
+          key,
+          label: t || f.family_name,
+          detail: "Ungrouped",
+        });
+      }
+    }
     const seenP = new Set<string>();
     const personPool: Array<{ person_id: string; name: string; din: string | null }> = [
       ...people.map((p) => ({
@@ -315,7 +523,7 @@ export function FamilyDashboard() {
     for (const p of personPool) {
       if (seenP.has(p.person_id)) continue;
       if (
-        p.name.toLowerCase().includes(low) ||
+        p.name.toLowerCase().replace(/[.,]+/g, " ").includes(low.replace(/[.,]+/g, " ").trim()) ||
         (p.din || "").includes(needle.replace(/\D/g, "") || needle)
       ) {
         seenP.add(p.person_id);
@@ -330,17 +538,35 @@ export function FamilyDashboard() {
     let cancelled = false;
     setDashHitLoading(true);
     const t = window.setTimeout(() => {
-      void fetch(`/api/tickers?q=${encodeURIComponent(needle)}&limit=8`, {
-        cache: "no-store",
-      })
-        .then(async (res) => {
+      void Promise.all([
+        fetch(`/api/tickers?q=${encodeURIComponent(needle)}&limit=8`, {
+          cache: "no-store",
+        }).then(async (res) => {
           const json = (await res.json()) as {
             hits?: Array<{ ticker: string; name: string; market?: string }>;
           };
+          return json.hits ?? [];
+        }),
+        fetch(
+          `/api/governance-map?view=director&q=${encodeURIComponent(needle)}&minBoards=1&hideCollision=0&pageSize=8`,
+          { cache: "no-store" },
+        ).then(async (res) => {
+          const json = (await res.json()) as {
+            rows?: Array<{
+              person_id: string;
+              name: string;
+              din: string | null;
+              board_count?: number;
+            }>;
+          };
+          return json.rows ?? [];
+        }),
+      ])
+        .then(([tickerHits, directorHits]) => {
           if (cancelled) return;
           const tickers: DashSuggestHit[] = [];
           const haveT = new Set<string>();
-          for (const h of json.hits ?? []) {
+          for (const h of tickerHits) {
             const ticker = (h.ticker || "").toUpperCase();
             if (!ticker || haveT.has(ticker)) continue;
             haveT.add(ticker);
@@ -351,7 +577,22 @@ export function FamilyDashboard() {
               detail: h.name || ticker,
             });
           }
-          setDashHits([...local.slice(0, 8), ...tickers].slice(0, 14));
+          const persons: DashSuggestHit[] = [];
+          for (const r of directorHits) {
+            if (!r.person_id || seenP.has(r.person_id)) continue;
+            seenP.add(r.person_id);
+            persons.push({
+              kind: "person",
+              person_id: r.person_id,
+              label: r.name,
+              detail: r.din
+                ? `DIN ${r.din}${r.board_count ? ` · ${r.board_count} boards` : ""}`
+                : "Director",
+            });
+          }
+          setDashHits(
+            [...local.slice(0, 6), ...persons.slice(0, 6), ...tickers].slice(0, 14),
+          );
         })
         .catch(() => {
           if (!cancelled) setDashHits(local.slice(0, 14));
@@ -364,7 +605,7 @@ export function FamilyDashboard() {
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [q, rows, people]);
+  }, [q, rows.length, solos.length, people.length]);
 
   useEffect(() => {
     const el = searchAnchorRef.current;
@@ -378,15 +619,28 @@ export function FamilyDashboard() {
   }, [dashView]);
 
   const onDashPick = useCallback((hit: DashSuggestHit) => {
+    const scrollKey = (key: string) => {
+      window.setTimeout(() => {
+        document
+          .querySelector(`[data-fam-key="${CSS.escape(key)}"]`)
+          ?.scrollIntoView({ block: "start", behavior: "smooth" });
+      }, 50);
+    };
     if (hit.kind === "group") {
+      const solo = solos.some(
+        (f) => (f.group_id || f.family_name) === hit.key,
+      );
+      if (solo) {
+        setDashView("ungrouped");
+        setSoloFilter(hit.key);
+        setQ("");
+        scrollKey(hit.key);
+        return;
+      }
       setDashView("groups");
       setGroupFilter(hit.key);
       setQ("");
-      window.setTimeout(() => {
-        document
-          .querySelector(`[data-fam-key="${CSS.escape(hit.key)}"]`)
-          ?.scrollIntoView({ block: "start", behavior: "smooth" });
-      }, 50);
+      scrollKey(hit.key);
       return;
     }
     if (hit.kind === "person") {
@@ -394,10 +648,57 @@ export function FamilyDashboard() {
       setQ(hit.label);
       return;
     }
+    const ticker = hit.ticker.toUpperCase();
+    if (dashView === "ungrouped") {
+      const solo = solos.find((f) =>
+        f.companies.some((c) => c.ticker.toUpperCase() === ticker),
+      );
+      if (solo) {
+        setSoloFilter(solo.group_id || solo.family_name);
+        setQ("");
+        scrollKey(solo.group_id || solo.family_name);
+        return;
+      }
+      setQ(ticker);
+      setAdding(true);
+      setNewTickers((prev) =>
+        prev.some((x) => x.ticker.toUpperCase() === ticker)
+          ? prev
+          : [...prev, { ticker, name: hit.detail || ticker }],
+      );
+      setNewName((cur) => (cur.trim() ? cur : (hit.detail || ticker).trim()));
+      return;
+    }
+    if (dashView === "groups") {
+      const group = rows.find((f) =>
+        f.companies.some((c) => c.ticker.toUpperCase() === ticker),
+      );
+      if (group) {
+        const key = group.group_id || group.family_name;
+        setGroupFilter(key);
+        setQ("");
+        scrollKey(key);
+        return;
+      }
+      setQ(ticker);
+      return;
+    }
+    if (dashView === "holdings") {
+      const hold = holdings.find((f) =>
+        f.companies.some((c) => c.ticker.toUpperCase() === ticker),
+      );
+      if (hold) {
+        setHoldingFilter(hold.group_id || hold.family_name);
+        setQ("");
+        return;
+      }
+      setQ(ticker);
+      return;
+    }
     setDashView("stock");
-    setStockFocus(hit.ticker);
+    setStockFocus(ticker);
     setQ("");
-  }, []);
+  }, [dashView, solos, rows, holdings]);
 
   const companySearch = useCallback(async (query: string) => {
     const res = await fetch(
@@ -409,6 +710,28 @@ export function FamilyDashboard() {
       hits?: Array<{ ticker: string; name: string }>;
     };
     return (json.hits ?? []).map((h) => ({ ticker: h.ticker, name: h.name }));
+  }, []);
+
+  const ensureUserGroup = useCallback(async (g: FamilyRow) => {
+    if (g.group_id?.startsWith("user-")) return g.group_id;
+    const res = await fetch("/api/family-groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        create: true,
+        label: g.family_name,
+        tickers: g.companies.map((c) => c.ticker),
+      }),
+    });
+    const json = (await res.json()) as {
+      ok?: boolean;
+      group_id?: string;
+      error?: string;
+    };
+    if (!res.ok || !json.group_id) {
+      throw new Error(json.error || `Save group failed (${res.status})`);
+    }
+    return json.group_id;
   }, []);
 
   useEffect(() => {
@@ -474,6 +797,11 @@ export function FamilyDashboard() {
         done: true,
       });
       notifyGovMapChanged();
+      void loadSolos({ refresh: true });
+      if (newTickers.length >= 2 && gid) {
+        setGroupFilter(gid);
+        setDashView("groups");
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -513,6 +841,24 @@ export function FamilyDashboard() {
             <button
               type="button"
               role="tab"
+              className={dashView === "ungrouped" ? "tab on" : "tab"}
+              aria-selected={dashView === "ungrouped"}
+              onClick={() => setDashView("ungrouped")}
+            >
+              Ungrouped
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "holdings" ? "tab on" : "tab"}
+              aria-selected={dashView === "holdings"}
+              onClick={() => setDashView("holdings")}
+            >
+              Holdings
+            </button>
+            <button
+              type="button"
+              role="tab"
               className={dashView === "people" ? "tab on" : "tab"}
               aria-selected={dashView === "people"}
               onClick={() => setDashView("people")}
@@ -541,6 +887,10 @@ export function FamilyDashboard() {
           <p className="fam-dash-sub">
             {dashView === "groups"
               ? "Click a ticker for that stock’s full board and related nodes. Outside shows only external boards and those people. Show all restores the group."
+              : dashView === "ungrouped"
+                ? "One listed company that is not in a business group, plus other listed boards its directors sit on (outside). Houses stay 2+ companies."
+              : dashView === "holdings"
+                ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
                 ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
                 : dashView === "network"
@@ -568,6 +918,40 @@ export function FamilyDashboard() {
               </select>
             </label>
           ) : null}
+          {dashView === "ungrouped" ? (
+            <label className="fam-dash-group-filter">
+              <select
+                className="fam-dash-search fam-dash-group-select"
+                value={soloFilter}
+                onChange={(e) => setSoloFilter(e.target.value)}
+                aria-label="Filter by ungrouped company"
+              >
+                <option value="">All ungrouped ({soloOptions.length})</option>
+                {soloOptions.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label} ({g.n})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {dashView === "holdings" ? (
+            <label className="fam-dash-group-filter">
+              <select
+                className="fam-dash-search fam-dash-group-select"
+                value={holdingFilter}
+                onChange={(e) => setHoldingFilter(e.target.value)}
+                aria-label="Filter by holding"
+              >
+                <option value="">All holdings ({holdingOptions.length})</option>
+                {holdingOptions.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label} ({g.n})
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
           {!searchDocked ? (
           <FamilyDashSearch
             value={q}
@@ -575,14 +959,16 @@ export function FamilyDashboard() {
             placeholder={
               dashView === "people"
                 ? "Person, DIN, ticker or company…"
-                : "Group, ticker, company or director…"
+                : dashView === "ungrouped" || dashView === "holdings"
+                  ? "Ticker, company, director or outside board…"
+                  : "Group, ticker, company or director…"
             }
             hits={dashHits}
             loading={dashHitLoading}
             onPick={onDashPick}
           />
           ) : null}
-          {dashView === "groups" ? (
+          {dashView === "groups" || dashView === "ungrouped" ? (
           <button
             type="button"
             className="btn-ghost"
@@ -596,12 +982,33 @@ export function FamilyDashboard() {
             className="btn-ghost"
             onClick={() =>
               void (dashView === "people"
-                ? loadPeople({ refresh: true })
-                : load({ refresh: true }))
+                ? loadPeople({
+                    refresh: true,
+                    q: q.trim().length >= 2 ? q.trim() : undefined,
+                  })
+                : dashView === "ungrouped"
+                  ? loadSolos({ refresh: true })
+                  : dashView === "holdings"
+                    ? loadHoldingMaps({ refresh: true })
+                    : load({ refresh: true }))
             }
-            disabled={dashView === "people" ? peopleLoading : loading}
+            disabled={
+              dashView === "people"
+                ? peopleLoading
+                : dashView === "ungrouped"
+                  ? solosLoading
+                  : dashView === "holdings"
+                    ? holdingsLoading
+                    : loading
+            }
           >
-            {(dashView === "people" ? peopleLoading : loading)
+            {(dashView === "people"
+              ? peopleLoading
+              : dashView === "ungrouped"
+                ? solosLoading
+                : dashView === "holdings"
+                  ? holdingsLoading
+                  : loading)
               ? "Loading…"
               : "Refresh"}
           </button>
@@ -618,7 +1025,9 @@ export function FamilyDashboard() {
                 placeholder={
                   dashView === "people"
                     ? "Person, DIN, ticker or company…"
-                    : "Group, ticker, company or director…"
+                    : dashView === "ungrouped" || dashView === "holdings"
+                      ? "Ticker, company, director or outside board…"
+                      : "Group, ticker, company or director…"
                 }
                 hits={dashHits}
                 loading={dashHitLoading}
@@ -639,10 +1048,12 @@ export function FamilyDashboard() {
             document.body,
           )
         : null}
-      {dashView === "groups" && addWork ? (
-        <FamilyAddProgress work={addWork} />
+      {dashView === "groups" || dashView === "ungrouped" ? (
+        addWork ? (
+          <FamilyAddProgress work={addWork} />
+        ) : null
       ) : null}
-      {dashView === "groups" && adding ? (
+      {(dashView === "groups" || dashView === "ungrouped") && adding ? (
         <form
           className="fam-dash-create"
           onSubmit={(e) => {
@@ -744,6 +1155,188 @@ export function FamilyDashboard() {
           initialTicker={stockFocus}
           onPerson={(id, name) => openPerson(id, name)}
         />
+      ) : dashView === "ungrouped" ? (
+        solosLoading && !solos.length ? (
+          <div className="table-meta">Loading ungrouped companies…</div>
+        ) : (
+          <FamilyMapCards
+            rows={filteredSolos}
+            editable
+            addWork={addWork}
+            onPerson={(id, name) => openPerson(id, name)}
+            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+            companySearch={companySearch}
+            onRefresh={(g) => {
+              setRefreshingBox(g.group_id || g.family_name);
+              void loadSolos({ refresh: true });
+            }}
+            refreshing={refreshingBox}
+            onDeleteGroup={async (g) => {
+              const id = g.group_id?.startsWith("user-") ? g.group_id : null;
+              if (!id) {
+                setSolos((prev) =>
+                  prev.filter((row) => (row.group_id || row.family_name) !== (g.group_id || g.family_name)),
+                );
+                return;
+              }
+              const res = await fetch("/api/family-groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  group_id: id,
+                  deleteGroup: true,
+                  tickers: g.companies.map((c) => c.ticker),
+                }),
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              setSolos((prev) => prev.filter((row) => row.group_id !== id));
+              notifyGovMapChanged();
+            }}
+            onRename={async (g, label) => {
+              const id = await ensureUserGroup(g);
+              const res = await fetch("/api/family-groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ group_id: id, rename: true, label }),
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const name = label.replace(/\s+/g, " ").trim();
+              setSolos((prev) =>
+                prev.map((row) =>
+                  (row.group_id || row.family_name) === (g.group_id || g.family_name)
+                    ? { ...row, family_name: name, group_id: id }
+                    : row,
+                ),
+              );
+            }}
+            onRemoveCompany={async (g, ticker) => {
+              const id = g.group_id?.startsWith("user-") ? g.group_id : await ensureUserGroup(g);
+              const res = await fetch("/api/family-groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  group_id: id,
+                  remove: true,
+                  ticker,
+                }),
+              });
+              if (!res.ok) throw new Error(`HTTP ${res.status}`);
+              const t = ticker.trim().toUpperCase();
+              setSolos((prev) =>
+                prev
+                  .map((row) => {
+                    if ((row.group_id || row.family_name) !== (g.group_id || g.family_name) && row.group_id !== id) {
+                      return row;
+                    }
+                    const companies = row.companies.filter(
+                      (c) => c.ticker.toUpperCase() !== t,
+                    );
+                    return {
+                      ...row,
+                      group_id: id,
+                      companies,
+                      company_count: companies.length,
+                    };
+                  })
+                  .filter((row) => row.company_count >= 1),
+              );
+            }}
+            onAddCompany={async (g, ticker, name) => {
+              const shown = ticker.trim().toUpperCase();
+              setAddWork({
+                groupId: g.group_id || shown,
+                pct: 8,
+                label: "Listing",
+                detail: `${shown} · exchange, quote, profile`,
+              });
+              try {
+                const boot = await fetch("/api/tickers", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    ticker: shown,
+                    name: name || shown,
+                  }),
+                });
+                const bootJson = (await boot.json()) as {
+                  ok?: boolean;
+                  error?: string;
+                  hit?: {
+                    ticker: string;
+                    name: string;
+                    market: string;
+                    mcap_cr: number | null;
+                  };
+                };
+                if (!boot.ok || bootJson.ok === false) {
+                  throw new Error(bootJson.error || `Add listing failed (${boot.status})`);
+                }
+                const id = await ensureUserGroup(g);
+                setAddWork({
+                  groupId: id,
+                  pct: 58,
+                  label: "Group",
+                  detail: `${shown} → ${g.family_name}`,
+                });
+                const fam = await fetch("/api/family-groups", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    group_id: id,
+                    add: true,
+                    ticker: shown,
+                  }),
+                });
+                if (!fam.ok) throw new Error(`Save group failed (${fam.status})`);
+                const hit = bootJson.hit;
+                const extra = stubCompany(
+                  hit?.ticker || shown,
+                  hit?.name || name || shown,
+                  hit?.market,
+                  hit?.mcap_cr,
+                );
+                setAddWork({
+                  groupId: id,
+                  pct: 100,
+                  label: "Done",
+                  detail: `${shown} in ${g.family_name}`,
+                  done: true,
+                });
+                notifyGovMapChanged();
+                setGroupFilter(id);
+                setDashView("groups");
+                void load({ refresh: true });
+                void loadSolos({ refresh: true });
+                void extra;
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                setError(msg);
+                setAddWork({
+                  groupId: g.group_id || shown,
+                  pct: 100,
+                  label: "Failed",
+                  detail: msg,
+                  error: true,
+                });
+              }
+            }}
+          />
+        )
+      ) : dashView === "holdings" ? (
+        holdingsLoading && !holdings.length ? (
+          <div className="table-meta">Loading holdings graphs…</div>
+        ) : (
+          <FamilyMapCards
+            rows={filteredHoldings}
+            onPerson={(id, name) => openPerson(id, name)}
+            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+            onRefresh={(g) => {
+              setRefreshingBox(g.group_id || g.family_name);
+              void loadHoldingMaps({ refresh: true });
+            }}
+            refreshing={refreshingBox}
+          />
+        )
       ) : dashView === "people" ? (
         peopleLoading && !people.length ? (
           <div className="table-meta">Loading people and boards…</div>
@@ -753,9 +1346,12 @@ export function FamilyDashboard() {
             onTicker={(t) => openCompany(t)}
             onPerson={(id, name) => openPerson(id, name)}
             chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-            onRefresh={(row) => {
-              setRefreshingBox(row.person_id);
-              void loadPeople({ refresh: true });
+            onRefresh={() => {
+              const needle = q.trim();
+              void loadPeople({
+                refresh: true,
+                q: needle.length >= 2 ? needle : undefined,
+              });
             }}
             refreshingId={refreshingBox}
           />

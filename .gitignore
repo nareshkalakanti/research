@@ -50,6 +50,9 @@ next-env.d.ts
 *.db-wal
 *.db-shm
 
+# Nifty OHLC is fetched on scan — do not commit a JSON cache
+/data/nifty-weekly-cache.json
+
 # Live About DB (scrapes/WAL). Snapshot: data/seeds/company_about.db
 /data/company_about.db
 
