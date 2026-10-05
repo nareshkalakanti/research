@@ -195,6 +195,7 @@ function addSeat(
 function splitNameAndRole(rest: string): { name: string; designation: string } {
   const cleaned = rest
     .replace(/\d{4}-\d{2}-\d{2}\s*$/, "")
+    .replace(/\s+[-–—.]\s*$/, "")
     .replace(/\s+/g, " ")
     .trim();
   const m = cleaned.match(new RegExp(`^(.*?)\\s+(${ROLE.source})\\s*$`, "i"));

@@ -130,10 +130,51 @@ function qianfanConfig(): { base: string; model: string } | null {
 }
 
 const OCR_PLAIN_RETRY =
-  "Transcribe visible text as plain lines. For tables: one row per line, columns separated by tab. Never emit HTML or repeat markup.";
+  "Transcribe visible text as plain lines. For tables: one row per line, columns separated by tab. Never emit HTML, markdown fences, or repeat markup.";
 
 function isOcrRepeatAbort(msg: string): boolean {
   return /token repeat|repeat limit|repetition/i.test(msg);
+}
+
+function isOcrEmptyAbort(msg: string): boolean {
+  return /empty vision ocr/i.test(msg);
+}
+
+function fromVisionContent(content: unknown): string {
+  if (typeof content === "string") return content.trim();
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) => {
+      if (typeof part === "string") return part;
+      if (!part || typeof part !== "object") return "";
+      const row = part as { text?: unknown; content?: unknown };
+      if (typeof row.text === "string") return row.text;
+      if (typeof row.content === "string") return row.content;
+      return "";
+    })
+    .join("\n")
+    .trim();
+}
+
+/** OpenAI-compat + Ollama chat payloads (string or content parts). */
+export function visionChoiceText(json: unknown): string {
+  if (!json || typeof json !== "object") return "";
+  const root = json as {
+    error?: { message?: string };
+    choices?: Array<{
+      text?: unknown;
+      message?: { content?: unknown; reasoning?: unknown };
+    }>;
+    message?: { content?: unknown };
+  };
+  const choice = root.choices?.[0];
+  const msg = choice?.message;
+  return (
+    fromVisionContent(msg?.content) ||
+    fromVisionContent(choice?.text) ||
+    fromVisionContent(msg?.reasoning) ||
+    fromVisionContent(root.message?.content)
+  );
 }
 
 async function ocrChatCompletions(opts: {
@@ -144,51 +185,58 @@ async function ocrChatCompletions(opts: {
   maxTokens: number;
   numCtx: number;
   repeatPenalty: number;
+  stop?: string[];
 }): Promise<string> {
   const shortPrompt =
     opts.prompt.length > 280 ? `${opts.prompt.slice(0, 280)}…` : opts.prompt;
+  const body: Record<string, unknown> = {
+    model: opts.model,
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: shortPrompt },
+          { type: "image_url", image_url: { url: opts.image } },
+        ],
+      },
+    ],
+    max_tokens: opts.maxTokens,
+    temperature: 0,
+    frequency_penalty: 0.4,
+    options: {
+      num_ctx: opts.numCtx,
+      repeat_penalty: opts.repeatPenalty,
+      frequency_penalty: 0.4,
+    },
+  };
+  if (opts.stop?.length) body.stop = opts.stop;
   const res = await fetch(`${opts.base}/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: opts.model,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: shortPrompt },
-            { type: "image_url", image_url: { url: opts.image } },
-          ],
-        },
-      ],
-      max_tokens: opts.maxTokens,
-      temperature: 0,
-      frequency_penalty: 0.4,
-      stop: ["</table>", "<html", "```"],
-      options: {
-        num_ctx: opts.numCtx,
-        repeat_penalty: opts.repeatPenalty,
-        frequency_penalty: 0.4,
-      },
-    }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(180_000),
   });
   const raw = await res.text().catch(() => "");
   if (!res.ok) {
     throw new Error(`Vision OCR ${res.status}: ${raw.slice(0, 280)}`);
   }
-  let json: {
-    error?: { message?: string };
-    choices?: Array<{ message?: { content?: string } }>;
-  };
+  let json: unknown;
   try {
-    json = JSON.parse(raw) as typeof json;
+    json = JSON.parse(raw) as unknown;
   } catch {
     throw new Error(`Vision OCR: invalid JSON (${raw.slice(0, 120)})`);
   }
-  const errMsg = json.error?.message?.trim();
+  const errMsg =
+    json &&
+    typeof json === "object" &&
+    "error" in json &&
+    json.error &&
+    typeof json.error === "object" &&
+    "message" in json.error
+      ? String((json.error as { message?: unknown }).message || "").trim()
+      : "";
   if (errMsg) throw new Error(`Vision OCR: ${errMsg}`);
-  const text = json.choices?.[0]?.message?.content?.trim() || "";
+  const text = visionChoiceText(json);
   if (!text) throw new Error("Empty vision OCR response");
   return text;
 }
@@ -209,25 +257,27 @@ export async function ocrImageWithQianfan(
     8192,
     Number(process.env.OLLAMA_OCR_NUM_CTX || 16384) || 16384,
   );
+  const first = {
+    base: cfg.base,
+    model: cfg.model,
+    image,
+    prompt,
+    maxTokens: 1536,
+    numCtx,
+    repeatPenalty: 1.12,
+    stop: ["</table>", "<html"],
+  };
   try {
-    return await ocrChatCompletions({
-      base: cfg.base,
-      model: cfg.model,
-      image,
-      prompt,
-      maxTokens: 1536,
-      numCtx,
-      repeatPenalty: 1.12,
-    });
+    return await ocrChatCompletions(first);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    if (!isOcrRepeatAbort(msg)) throw err;
+    if (!isOcrRepeatAbort(msg) && !isOcrEmptyAbort(msg)) throw err;
     return ocrChatCompletions({
       base: cfg.base,
       model: cfg.model,
       image,
       prompt: OCR_PLAIN_RETRY,
-      maxTokens: 768,
+      maxTokens: 1024,
       numCtx,
       repeatPenalty: 1.35,
     });

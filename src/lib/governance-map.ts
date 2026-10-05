@@ -6,7 +6,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { pickAboutText } from "./db";
-import { holdingsTickerSet } from "./holdings";
+import { holdingsTickerSet, loadHoldings } from "./holdings";
 import { edgeTickerSet } from "./edge";
 import { fundTagsForTicker, fundChangesForTicker } from "./fund-watchlists";
 import { researchLinks } from "./links";
@@ -207,6 +207,7 @@ export type GovFamilyOutside = {
   name: string;
   cap_code: string | null;
   market_cap_cr?: number | null;
+  is_sme?: boolean;
 };
 
 export type GovFamilyGroup = {
@@ -221,6 +222,7 @@ export type GovFamilyGroup = {
   outside?: GovFamilyOutside[];
   /** Cap / name for every ticker on this map (group + outside). */
   listings?: GovFamilyOutside[];
+  pattern?: string | null;
 };
 
 /** One listing per house, except an "X and Y" legal name that a user also placed on another house. */
@@ -895,7 +897,12 @@ function isHousePromoterSeat(designation: string, category: string | null): bool
 let govDb: Database.Database | null = null;
 let aboutDb: Database.Database | null = null;
 let mapCache: { at: number; rows: GovernanceMapRow[] } | null = null;
-let familyMapCache: { at: number; groups: GovFamilyGroup[] } | null = null;
+let familyMapCache: {
+  at: number;
+  groups: GovFamilyGroup[];
+  solos: GovFamilyGroup[];
+  holdings: GovFamilyGroup[];
+} | null = null;
 let boardScoreCache: { at: number; map: Map<string, number> } | null = null;
 const CACHE_MS = 60_000;
 
@@ -2453,7 +2460,7 @@ export function loadGovernanceFamilyMap(opts?: {
     return packed[0] ?? null;
   });
 
-  for (const g of groups) {
+  const attachFamilyGraphLinks = (g: GovFamilyGroup) => {
     const inGroup = new Set(g.companies.map((c) => c.ticker.toUpperCase()));
     const people = new Map<string, GovFamilyPerson>();
     const scorePerson = (personId: string, din: string | null) =>
@@ -2594,6 +2601,7 @@ export function loadGovernanceFamilyMap(opts?: {
           name: meta.name,
           cap_code: meta.cap_code,
           market_cap_cr: meta.market_cap_cr,
+          is_sme: meta.is_sme,
         };
       })
       .filter((row): row is NonNullable<typeof row> => Boolean(row));
@@ -2619,7 +2627,7 @@ export function loadGovernanceFamilyMap(opts?: {
       if (picked.length >= FAMILY_GRAPH_MAX_PEOPLE) break;
       take(p);
     }
-    g.people = picked.sort(
+    g.people = collapseSameBoardDirectors(picked).sort(
       (a, b) =>
         b.dir_score - a.dir_score ||
         b.tickers.length - a.tickers.length ||
@@ -2668,8 +2676,10 @@ export function loadGovernanceFamilyMap(opts?: {
         name: row.name,
         cap_code: row.cap_code,
         market_cap_cr: row.market_cap_cr ?? null,
+        is_sme: row.is_sme,
       }));
-  }
+  };
+  for (const g of groups) attachFamilyGraphLinks(g);
 
   const editMap = loadFamilyGroupEditMap();
   const byLabel = new Map<string, GovFamilyGroup[]>();
@@ -2961,8 +2971,81 @@ export function loadGovernanceFamilyMap(opts?: {
       sensitivity: "base",
     });
   });
+  const groupedTickers = new Set<string>();
+  for (const g of groups) {
+    for (const c of g.companies) groupedTickers.add(c.ticker.toUpperCase());
+  }
+  const solos: GovFamilyGroup[] = [];
+  for (const [ticker, meta] of metaByTicker) {
+    if (groupedTickers.has(ticker)) continue;
+    const g: GovFamilyGroup = {
+      family_name: meta.name,
+      company_count: 1,
+      companies: [{ ...meta }],
+      group_id: `solo-${ticker}`,
+    };
+    attachFamilyGraphLinks(g);
+    if (!(g.outside?.length)) continue;
+    solos.push(g);
+  }
+  solos.sort((a, b) => {
+    const ao = a.outside?.length ?? 0;
+    const bo = b.outside?.length ?? 0;
+    if (bo !== ao) return bo - ao;
+    const am = a.companies[0]?.market_cap_cr ?? -1;
+    const bm = b.companies[0]?.market_cap_cr ?? -1;
+    if (bm !== am) return bm - am;
+    return a.family_name.localeCompare(b.family_name, undefined, {
+      sensitivity: "base",
+    });
+  });
+  const soloByTicker = new Map<string, GovFamilyGroup>();
+  for (const g of solos) {
+    const t = g.companies[0]?.ticker.toUpperCase();
+    if (t) soloByTicker.set(t, g);
+  }
+  for (const edit of editMap.values()) {
+    if (!edit.group_id.startsWith("user-")) continue;
+    const add = [
+      ...new Set(edit.add.map((t) => t.trim().toUpperCase()).filter(Boolean)),
+    ];
+    if (add.length !== 1) continue;
+    const hit = soloByTicker.get(add[0]!);
+    if (!hit) continue;
+    hit.group_id = edit.group_id;
+    if (edit.label) hit.family_name = edit.label;
+  }
+  const holdingMaps: GovFamilyGroup[] = [];
+  if (!holdings) {
+    for (const h of loadHoldings()) {
+      const ticker = (h.ticker || "").toUpperCase();
+      if (!ticker) continue;
+      const packed = packCompanies([ticker], "");
+      const meta = packed[0] ?? metaByTicker.get(ticker) ?? listingMeta.get(ticker);
+      if (!meta) continue;
+      const g: GovFamilyGroup = {
+        family_name: meta.name || h.name || ticker,
+        company_count: 1,
+        companies: [{ ...meta }],
+        group_id: `hold-${ticker}`,
+      };
+      attachFamilyGraphLinks(g);
+      holdingMaps.push(g);
+    }
+    holdingMaps.sort((a, b) => {
+      const am = a.companies[0]?.market_cap_cr ?? -1;
+      const bm = b.companies[0]?.market_cap_cr ?? -1;
+      if (bm !== am) return bm - am;
+      const ao = a.outside?.length ?? 0;
+      const bo = b.outside?.length ?? 0;
+      if (bo !== ao) return bo - ao;
+      return a.family_name.localeCompare(b.family_name, undefined, {
+        sensitivity: "base",
+      });
+    });
+  }
   if (!opts?.hold && !qNeedle) {
-    familyMapCache = { at: Date.now(), groups: out };
+    familyMapCache = { at: Date.now(), groups: out, solos, holdings: holdingMaps };
   }
   scheduleFamilyGroupRefine(
     out.map((g, i) => ({
@@ -2976,6 +3059,64 @@ export function loadGovernanceFamilyMap(opts?: {
     })),
   );
   return out;
+}
+
+/** One listed company not in a 2+ house, plus other listed boards its directors sit on. */
+export function loadUngroupedCompanyMaps(opts?: {
+  q?: string;
+  refresh?: boolean;
+}): GovFamilyGroup[] {
+  loadGovernanceFamilyMap({ refresh: opts?.refresh });
+  let rows = familyMapCache?.solos ?? [];
+  const q = (opts?.q || "").trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((g) => {
+    if (g.family_name.toLowerCase().includes(q)) return true;
+    if (
+      g.companies.some(
+        (c) =>
+          tickerMatchesSearch(c.ticker, q) || c.name.toLowerCase().includes(q),
+      )
+    ) {
+      return true;
+    }
+    if ((g.people ?? []).some((p) => p.name.toLowerCase().includes(q))) {
+      return true;
+    }
+    return (g.outside ?? []).some(
+      (o) =>
+        tickerMatchesSearch(o.ticker, q) || o.name.toLowerCase().includes(q),
+    );
+  });
+}
+
+/** One graph per personal holding: the listing plus other listed boards its directors sit on. */
+export function loadHoldingCompanyMaps(opts?: {
+  q?: string;
+  refresh?: boolean;
+}): GovFamilyGroup[] {
+  loadGovernanceFamilyMap({ refresh: opts?.refresh });
+  let rows = familyMapCache?.holdings ?? [];
+  const q = (opts?.q || "").trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((g) => {
+    if (g.family_name.toLowerCase().includes(q)) return true;
+    if (
+      g.companies.some(
+        (c) =>
+          tickerMatchesSearch(c.ticker, q) || c.name.toLowerCase().includes(q),
+      )
+    ) {
+      return true;
+    }
+    if ((g.people ?? []).some((p) => p.name.toLowerCase().includes(q))) {
+      return true;
+    }
+    return (g.outside ?? []).some(
+      (o) =>
+        tickerMatchesSearch(o.ticker, q) || o.name.toLowerCase().includes(q),
+    );
+  });
 }
 
 function loadMultiBoardSeats(minBoards: number): SeatRow[] {
@@ -3010,11 +3151,109 @@ export function tickerMatchesSearch(ticker: string, q: string): boolean {
   return t === n || t.startsWith(n);
 }
 
+function foldDirectorQuery(q: string): string {
+  return q
+    .toLowerCase()
+    .replace(/[.,/'"’]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** 8-digit DIN that is a calendar day — usual scrape-date stand-in, not an MCA id. */
+export function dateShapedDin(din: string | null | undefined): boolean {
+  const d = (din || "").trim();
+  if (!/^\d{8}$/.test(d)) return false;
+  const y = Number(d.slice(0, 4));
+  const mo = Number(d.slice(4, 6));
+  const da = Number(d.slice(6, 8));
+  if (y < 1990 || y > 2035) return false;
+  if (mo < 1 || mo > 12 || da < 1 || da > 31) return false;
+  return true;
+}
+
+function directorKeepScore(row: {
+  person_id: string;
+  din: string | null;
+  tickers?: string[] | string;
+  companies?: Array<{ ticker: string }>;
+  board_count?: number;
+  dir_score?: number;
+}): number {
+  const din = (row.din || "").trim();
+  const boards = row.board_count ?? directorBoardTickers(row).length;
+  let n = boards * 10 + (row.dir_score ?? 0);
+  if (/^\d{8}$/.test(din) && !dateShapedDin(din)) n += 1000;
+  else if (/^\d{8}$/.test(din)) n += 10;
+  if (row.person_id === din) n += 5;
+  return n;
+}
+
+function directorBoardTickers(row: {
+  tickers?: string[] | string;
+  companies?: Array<{ ticker: string }>;
+}): string[] {
+  if (row.companies?.length) {
+    return [
+      ...new Set(
+        row.companies.map((c) => c.ticker.toUpperCase()).filter(Boolean),
+      ),
+    ].sort();
+  }
+  const raw = row.tickers;
+  const list = Array.isArray(raw)
+    ? raw
+    : String(raw || "")
+        .split(",")
+        .map((t) => t.trim());
+  return [...new Set(list.map((t) => t.toUpperCase()).filter(Boolean))].sort();
+}
+
+function directorBoardKey(row: {
+  name: string;
+  tickers?: string[] | string;
+  companies?: Array<{ ticker: string }>;
+}): string {
+  return `${foldDirectorQuery(row.name)}\0${directorBoardTickers(row).join(",")}`;
+}
+
+/** One row per folded name + listed-board set (keep the better DIN). */
+export function collapseSameBoardDirectors<
+  T extends {
+    person_id: string;
+    name: string;
+    din: string | null;
+    tickers?: string[] | string;
+    companies?: Array<{ ticker: string }>;
+    board_count?: number;
+    dir_score?: number;
+  },
+>(rows: T[]): T[] {
+  const buckets = new Map<string, T[]>();
+  for (const r of rows) {
+    const key = directorBoardKey(r);
+    const list = buckets.get(key) ?? [];
+    list.push(r);
+    buckets.set(key, list);
+  }
+  const out: T[] = [];
+  for (const list of buckets.values()) {
+    list.sort(
+      (a, b) =>
+        directorKeepScore(b) - directorKeepScore(a) ||
+        a.person_id.localeCompare(b.person_id),
+    );
+    out.push(list[0]!);
+  }
+  return out;
+}
+
 function loadSeatsForSearchQuery(q: string): SeatRow[] {
   const term = q.trim();
   if (!term) return [];
   const needle = term.toLowerCase();
+  const folded = foldDirectorQuery(term);
   const like = `%${needle}%`;
+  const foldedLike = folded ? `%${folded}%` : like;
   const db = getGov();
   return db
     .prepare(
@@ -3027,6 +3266,7 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
           LEFT JOIN companies c2 ON c2.ticker = s2.ticker
             AND UPPER(c2.market) IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')
           WHERE LOWER(d2.name) LIKE ?
+             OR LOWER(REPLACE(REPLACE(REPLACE(d2.name, '.', ' '), ',', ' '), '  ', ' ')) LIKE ?
              OR (d2.din IS NOT NULL AND LOWER(d2.din) LIKE ?)
              OR (c2.ticker IS NOT NULL AND (
                LOWER(c2.ticker) = ? OR LOWER(c2.ticker) LIKE ?
@@ -3036,7 +3276,7 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
       ORDER BY d.name COLLATE NOCASE, c.name COLLATE NOCASE
       `,
     )
-    .all(like, like, needle, `${needle}%`, like) as SeatRow[];
+    .all(like, foldedLike, like, needle, `${needle}%`, like) as SeatRow[];
 }
 
 function loadSeatsForTickers(tickers: string[]): SeatRow[] {
@@ -3325,7 +3565,7 @@ function buildRowsFromSeats(
     return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   });
 
-  return rows;
+  return collapseSameBoardDirectors(rows);
 }
 
 function buildRows(minBoards: number): GovernanceMapRow[] {

@@ -1,6 +1,4 @@
 import YahooFinance from "yahoo-finance2";
-import fs from "fs";
-import path from "path";
 import type { Bar } from "./indicators";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
@@ -17,10 +15,6 @@ const NIFTY_WEEKLY_SYMBOLS = [
   "^NSEBANK",
 ];
 const NIFTY_DAILY_SYMBOLS = ["^NSEI", "NIFTYBEES.NS", "^BSESN"];
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const NIFTY_WEEKLY_DISK = path.join(DATA_DIR, "nifty-weekly-cache.json");
-const NIFTY_DISK_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -537,35 +531,6 @@ function chartQuotesToBars(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function readNiftyWeeklyDisk(): Bar[] | null {
-  try {
-    if (!fs.existsSync(NIFTY_WEEKLY_DISK)) return null;
-    const raw = JSON.parse(fs.readFileSync(NIFTY_WEEKLY_DISK, "utf8")) as {
-      at?: number;
-      bars?: Bar[];
-    };
-    if (!raw?.bars?.length || !raw.at) return null;
-    if (Date.now() - raw.at > NIFTY_DISK_MAX_AGE_MS) return null;
-    if (raw.bars.length < NIFTY_MIN_WEEKLY) return null;
-    return raw.bars;
-  } catch {
-    return null;
-  }
-}
-
-function writeNiftyWeeklyDisk(bars: Bar[]): void {
-  try {
-    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(
-      NIFTY_WEEKLY_DISK,
-      JSON.stringify({ at: Date.now(), bars }),
-      "utf8",
-    );
-  } catch {
-    /* ignore disk cache write */
-  }
-}
-
 async function fetchIndexWeeklyOnce(
   symbol: string,
   yearsBack: number,
@@ -591,8 +556,8 @@ async function fetchIndexWeeklyOnce(
 }
 
 /**
- * Nifty weekly for TQ RS — stocks-ai style: retries, shorter periods,
- * ETF proxy, then last-good disk cache so a Yahoo blip doesn't kill TQ.
+ * Nifty weekly for TQ RS — retries, shorter periods, ETF proxy.
+ * Scan fetches live; in-process memory cache only (no disk JSON).
  */
 export async function fetchNiftyWeeklyBars(): Promise<Bar[]> {
   const now = Date.now();
@@ -612,7 +577,6 @@ export async function fetchNiftyWeeklyBars(): Promise<Bar[]> {
           const cleaned = await fetchIndexWeeklyOnce(symbol, yearsBack);
           if (cleaned.length >= NIFTY_MIN_WEEKLY) {
             niftyCache = { at: now, bars: cleaned };
-            writeNiftyWeeklyDisk(cleaned);
             return cleaned;
           }
         } catch {
@@ -623,11 +587,6 @@ export async function fetchNiftyWeeklyBars(): Promise<Bar[]> {
     await sleep(400 + attempt * 600);
   }
 
-  const disk = readNiftyWeeklyDisk();
-  if (disk) {
-    niftyCache = { at: now, bars: disk };
-    return disk;
-  }
   return [];
 }
 

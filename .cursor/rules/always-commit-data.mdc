@@ -13,7 +13,6 @@ When the user asks to **git add**, **commit**, or **push**, include **tracked da
 - `data/family_group_edits.db`
 - `data/family_group_refine.db`
 - other tracked `data/*.db` (not gitignored)
-- `data/nifty-weekly-cache.json`
 - `data/seeds/*` when publishing a seed
 
 **Never add (gitignored / machine-local):**
