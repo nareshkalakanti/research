@@ -12,7 +12,8 @@ import {
 import { useAuth } from "@/lib/auth";
 
 function PanelFallback() {
-  return <div className="boot panel-boot">Loading…</div>;
+  // Quiet placeholder inside an already-mounted chrome — avoid full-page flash.
+  return <div className="panel-boot" aria-busy="true">Loading…</div>;
 }
 
 const ThemeScanner = dynamic(

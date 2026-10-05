@@ -4,7 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -19,18 +19,22 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 const STORAGE_KEY = "research_demo_user";
 
+function readSavedUser(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
 /** Demo-only credentials — any email works with password `demo`. */
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setUser(saved);
-    } catch {
-      /* ignore */
-    }
+  // Before paint so AppShell does not flash a full-page Loading… on remount/HMR.
+  useLayoutEffect(() => {
+    setUser(readSavedUser());
     setReady(true);
   }, []);
 

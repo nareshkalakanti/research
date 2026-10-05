@@ -633,6 +633,8 @@ button.brand-btn:hover .brand-name {
   padding: 28px 8px;
   color: var(--muted);
   font-size: 0.92rem;
+  min-height: 12rem;
+  background: transparent;
 }
 
 .app-footer {
@@ -8387,11 +8389,18 @@ button.result-tag {
 }
 
 .fam-dash-head {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+  padding: 8px 0 10px;
+  margin: -8px 0 0;
+  background: color-mix(in srgb, var(--bg, #f6f7f9) 92%, #fff);
+  backdrop-filter: blur(8px);
 }
 
 .fam-dash-title {
