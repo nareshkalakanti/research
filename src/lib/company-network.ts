@@ -6,6 +6,7 @@ import type Database from "better-sqlite3";
 import { ensureCompanyGroupsTable } from "@/lib/company-groups";
 import { ensureCompanyMetricsFresh } from "@/lib/company-metrics";
 import { CAP_CODE_BANDS, mcapCapCode } from "@/lib/gov-score";
+import { loadHoldings } from "@/lib/holdings";
 import { loadMetricsMap } from "@/lib/metrics";
 import { openSqliteNamed } from "@/lib/sqlite-utils";
 
@@ -1197,6 +1198,330 @@ export function loadNewConnections(opts?: {
         mega_connections: Number(summary.mega_connections || 0),
       },
     };
+  } finally {
+    db.close();
+  }
+}
+
+const HOLD_CONNECTION_CASE = `
+  CASE
+    WHEN NOT EXISTS (SELECT 1 FROM company_groups g1 WHERE g1.ticker = h.ticker)
+      OR NOT EXISTS (SELECT 1 FROM company_groups g2 WHERE g2.ticker = o.ticker)
+      THEN 'unclassified'
+    WHEN EXISTS (
+      SELECT 1
+      FROM company_groups g1
+      JOIN company_groups g2 ON g2.group_key = g1.group_key
+      WHERE g1.ticker = h.ticker AND g2.ticker = o.ticker
+    ) THEN 'same_group'
+    ELSE 'cross_group'
+  END`;
+
+export type HoldingsCapitalGapSort =
+  | "ratio"
+  | "mcap"
+  | "connected"
+  | "n10k"
+  | "n25k"
+  | "n50k"
+  | "cross"
+  | "multi"
+  | "target";
+
+/**
+ * Capital Gap columns for personal holdings, from current board seats
+ * (not latest-join new_edges). Every holding appears; zeros mean no
+ * other listed boards through current directors.
+ */
+export function loadHoldingsCapitalGap(opts?: {
+  q?: string | null;
+  page?: number;
+  pageSize?: number;
+  minConnectedMcap?: number;
+  minRatio?: number;
+  sort?: HoldingsCapitalGapSort;
+}): {
+  targets: NewConnectionTargetRow[];
+  rows: NewConnectionRow[];
+  total: number;
+  page: number;
+  pages: number;
+  summary: NewConnectionSummary;
+  holdings_count: number;
+} {
+  const pageSize = Math.min(200, Math.max(1, opts?.pageSize ?? 50));
+  const page = Math.max(1, opts?.page ?? 1);
+  const q = (opts?.q || "").trim();
+  const minConnected = opts?.minConnectedMcap ?? 0;
+  const minRatio = opts?.minRatio ?? 0;
+  const sort: HoldingsCapitalGapSort = opts?.sort || "ratio";
+  const holdings = loadHoldings();
+  const empty = {
+    targets: [] as NewConnectionTargetRow[],
+    rows: [] as NewConnectionRow[],
+    total: 0,
+    page: 1,
+    pages: 1,
+    summary: {
+      edges: 0,
+      unique_targets: 0,
+      unique_directors: 0,
+      cross_group: 0,
+      mega_connections: 0,
+      n_10k_connections: 0,
+      n_25k_connections: 0,
+    },
+    holdings_count: holdings.length,
+  };
+  if (!holdings.length) return empty;
+
+  const db = openSqliteNamed("governance.db", { wal: true });
+  try {
+    ensureCompanyGroupsTable(db);
+    db.exec(ifNotExists(DIRECTOR_NETWORK_VIEW_SQL, "director_network"));
+    db.exec(`CREATE TEMP TABLE IF NOT EXISTS _hold_tickers (
+      ticker TEXT PRIMARY KEY,
+      name TEXT
+    )`);
+    db.exec(`DELETE FROM _hold_tickers`);
+    const ins = db.prepare(
+      `INSERT OR IGNORE INTO _hold_tickers (ticker, name) VALUES (?, ?)`,
+    );
+    for (const h of holdings) {
+      const t = (h.ticker || "").trim().toUpperCase();
+      if (!t) continue;
+      ins.run(t, (h.name || t).trim() || t);
+    }
+
+    const params: Record<string, string | number> = {
+      mega: NEW_CONNECTION_MEGA_MCAP_CR,
+      large: NEW_CONNECTION_LARGE_MCAP_CR,
+      mid: NEW_CONNECTION_MID_MCAP_CR,
+      minConnected,
+      minRatio,
+    };
+    if (q) params.like = likePattern(q);
+
+    const cte = `
+      WITH hold_edges AS (
+        SELECT
+          h.ticker AS target_ticker,
+          COALESCE(c1.name, h.name) AS target_company,
+          tm.market_cap AS target_market_cap,
+          IFNULL(d.name, bs.person_id) AS director,
+          bs.person_id,
+          o.ticker AS connected_ticker,
+          c2.name AS connected_company,
+          cm.market_cap AS connected_market_cap,
+          ROUND(cm.market_cap / tm.market_cap, 1) AS market_cap_ratio,
+          ${HOLD_CONNECTION_CASE} AS connection_type,
+          IFNULL(dn.company_count, 0) AS board_count
+        FROM _hold_tickers h
+        JOIN board_seats bs ON bs.ticker = h.ticker
+        JOIN board_seats o
+          ON o.person_id = bs.person_id AND o.ticker <> h.ticker
+        JOIN company_metrics tm
+          ON tm.ticker = h.ticker AND tm.market_cap > 0
+        JOIN company_metrics cm
+          ON cm.ticker = o.ticker AND cm.market_cap > 0
+        LEFT JOIN directors d ON d.person_id = bs.person_id
+        LEFT JOIN companies c1 ON c1.ticker = h.ticker
+        LEFT JOIN companies c2 ON c2.ticker = o.ticker
+        LEFT JOIN director_network dn ON dn.person_id = bs.person_id
+      ),
+      capital_gap AS (
+        SELECT
+          h.ticker AS target_ticker,
+          COALESCE(MAX(c.name), MAX(h.name)) AS target_company,
+          MAX(tm.market_cap) AS target_market_cap,
+          COUNT(DISTINCT e.connected_ticker) AS connected_companies,
+          COUNT(DISTINCT CASE WHEN e.connected_market_cap >= @large THEN e.connected_ticker END) AS n_10k,
+          COUNT(DISTINCT CASE WHEN e.connected_market_cap >= @mid THEN e.connected_ticker END) AS n_25k,
+          COUNT(DISTINCT CASE WHEN e.connected_market_cap >= @mega THEN e.connected_ticker END) AS n_50k,
+          MAX(e.connected_market_cap) AS largest_connected_mcap,
+          MAX(e.market_cap_ratio) AS largest_ratio,
+          COUNT(DISTINCT CASE WHEN e.connection_type = 'cross_group' THEN e.connected_ticker END) AS cross_group_count,
+          COUNT(DISTINCT CASE WHEN IFNULL(e.board_count, 0) >= 3 THEN e.person_id END) AS multi_board_director_count
+        FROM _hold_tickers h
+        LEFT JOIN companies c ON c.ticker = h.ticker
+        LEFT JOIN company_metrics tm ON tm.ticker = h.ticker
+        LEFT JOIN hold_edges e ON e.target_ticker = h.ticker
+        GROUP BY h.ticker
+        HAVING IFNULL(MAX(e.connected_market_cap), 0) >= @minConnected
+           AND IFNULL(MAX(e.market_cap_ratio), 0) >= @minRatio
+      )`;
+
+    const search = q
+      ? `WHERE (
+           g.target_ticker LIKE @like ESCAPE '\\'
+           OR IFNULL(g.target_company, '') LIKE @like ESCAPE '\\'
+         )`
+      : "";
+    const order =
+      sort === "mcap"
+        ? "IFNULL(largest_connected_mcap, -1) DESC, IFNULL(largest_ratio, -1) DESC, target_ticker"
+        : sort === "connected"
+          ? "connected_companies DESC, IFNULL(largest_ratio, -1) DESC, target_ticker"
+          : sort === "n10k"
+            ? "n_10k DESC, IFNULL(largest_ratio, -1) DESC, target_ticker"
+            : sort === "n25k"
+              ? "n_25k DESC, IFNULL(largest_ratio, -1) DESC, target_ticker"
+              : sort === "n50k"
+                ? "n_50k DESC, IFNULL(largest_ratio, -1) DESC, target_ticker"
+                : sort === "cross"
+                  ? "cross_group_count DESC, IFNULL(largest_ratio, -1) DESC, target_ticker"
+                  : sort === "multi"
+                    ? "multi_board_director_count DESC, IFNULL(largest_ratio, -1) DESC, target_ticker"
+                    : sort === "target"
+                      ? "IFNULL(target_market_cap, -1) DESC, target_ticker"
+                      : "IFNULL(largest_ratio, -1) DESC, IFNULL(largest_connected_mcap, -1) DESC, target_ticker";
+
+    const grouped = db
+      .prepare(
+        `${cte}
+         SELECT * FROM capital_gap g
+         ${search}
+         ORDER BY ${order}`,
+      )
+      .all(params) as NewConnectionTargetRow[];
+
+    const mcapHits = db
+      .prepare(
+        `${cte}
+         SELECT e.target_ticker, e.connected_ticker, e.connected_company
+         FROM hold_edges e
+         JOIN (
+           SELECT target_ticker, MAX(connected_market_cap) AS mx
+           FROM hold_edges
+           GROUP BY target_ticker
+         ) m
+           ON m.target_ticker = e.target_ticker
+          AND e.connected_market_cap = m.mx`,
+      )
+      .all(params) as Array<{
+      target_ticker: string;
+      connected_ticker: string;
+      connected_company: string | null;
+    }>;
+    const maxByTarget = new Map<
+      string,
+      { connected_ticker: string; connected_company: string | null }
+    >();
+    for (const hit of mcapHits) {
+      if (!maxByTarget.has(hit.target_ticker)) {
+        maxByTarget.set(hit.target_ticker, hit);
+      }
+    }
+    for (const row of grouped) {
+      const hit = maxByTarget.get(row.target_ticker);
+      row.largest_connected_ticker = hit?.connected_ticker ?? null;
+      row.largest_connected_company = hit?.connected_company ?? null;
+      row.connected_companies = Number(row.connected_companies || 0);
+      row.n_10k = Number(row.n_10k || 0);
+      row.n_25k = Number(row.n_25k || 0);
+      row.n_50k = Number(row.n_50k || 0);
+      row.cross_group_count = Number(row.cross_group_count || 0);
+      row.multi_board_director_count = Number(
+        row.multi_board_director_count || 0,
+      );
+    }
+
+    const stats = db
+      .prepare(
+        `${cte}
+         SELECT
+           (SELECT COUNT(*) FROM capital_gap g ${search}) AS unique_targets,
+           COUNT(*) AS edges,
+           COUNT(DISTINCT e.person_id) AS unique_directors,
+           SUM(CASE WHEN e.connection_type = 'cross_group' THEN 1 ELSE 0 END) AS cross_group,
+           SUM(CASE WHEN e.connected_market_cap >= @mega THEN 1 ELSE 0 END) AS mega_connections,
+           SUM(CASE WHEN e.connected_market_cap >= @large THEN 1 ELSE 0 END) AS n_10k_connections,
+           SUM(CASE WHEN e.connected_market_cap >= @mid THEN 1 ELSE 0 END) AS n_25k_connections
+         FROM hold_edges e
+         WHERE e.target_ticker IN (
+           SELECT g.target_ticker FROM capital_gap g ${search}
+         )`,
+      )
+      .get(params) as NewConnectionSummary;
+
+    const total = grouped.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    const safePage = Math.min(page, pages);
+    const start = (safePage - 1) * pageSize;
+    return {
+      targets: grouped.slice(start, start + pageSize),
+      rows: [],
+      total,
+      page: safePage,
+      pages,
+      holdings_count: holdings.length,
+      summary: {
+        edges: Number(stats.edges || 0),
+        unique_targets: Number(stats.unique_targets || 0),
+        unique_directors: Number(stats.unique_directors || 0),
+        cross_group: Number(stats.cross_group || 0),
+        mega_connections: Number(stats.mega_connections || 0),
+        n_10k_connections: Number(stats.n_10k_connections || 0),
+        n_25k_connections: Number(stats.n_25k_connections || 0),
+      },
+    };
+  } finally {
+    db.close();
+  }
+}
+
+export function loadHoldingsCapitalGapDetail(
+  ticker: string,
+  opts?: { sort?: "ratio" | "mcap" },
+): { rows: NewConnectionRow[] } {
+  const t = (ticker || "").trim().toUpperCase();
+  if (!t || !loadHoldings().some((h) => h.ticker.toUpperCase() === t)) {
+    return { rows: [] };
+  }
+  const db = openSqliteNamed("governance.db", { wal: true });
+  try {
+    ensureCompanyGroupsTable(db);
+    db.exec(ifNotExists(DIRECTOR_NETWORK_VIEW_SQL, "director_network"));
+    const order =
+      opts?.sort === "mcap"
+        ? "connected_market_cap DESC, market_cap_ratio DESC"
+        : "market_cap_ratio DESC, connected_market_cap DESC";
+    const rows = db
+      .prepare(
+        `SELECT
+           h.ticker AS target_ticker,
+           COALESCE(c1.name, h.ticker) AS target_company,
+           tm.market_cap AS target_market_cap,
+           IFNULL(d.name, bs.person_id) AS director,
+           bs.person_id,
+           '' AS event_date,
+           o.ticker AS connected_ticker,
+           c2.name AS connected_company,
+           cm.market_cap AS connected_market_cap,
+           ROUND(cm.market_cap / tm.market_cap, 1) AS market_cap_ratio,
+           ${HOLD_CONNECTION_CASE} AS connection_type,
+           IFNULL(dn.company_count, 0) AS board_count,
+           bs.designation AS target_designation,
+           o.designation AS connected_designation,
+           1 AS connected_current,
+           NULL AS connected_joined_at,
+           NULL AS connected_resigned_at
+         FROM (SELECT ? AS ticker) h
+         JOIN board_seats bs ON bs.ticker = h.ticker
+         JOIN board_seats o
+           ON o.person_id = bs.person_id AND o.ticker <> h.ticker
+         JOIN company_metrics tm
+           ON tm.ticker = h.ticker AND tm.market_cap > 0
+         JOIN company_metrics cm
+           ON cm.ticker = o.ticker AND cm.market_cap > 0
+         LEFT JOIN directors d ON d.person_id = bs.person_id
+         LEFT JOIN companies c1 ON c1.ticker = h.ticker
+         LEFT JOIN companies c2 ON c2.ticker = o.ticker
+         LEFT JOIN director_network dn ON dn.person_id = bs.person_id
+         ORDER BY ${order}, connected_ticker`,
+      )
+      .all(t) as NewConnectionRow[];
+    return { rows };
   } finally {
     db.close();
   }

@@ -482,7 +482,18 @@ type GapSort =
   | "cross"
   | "multi";
 
-type Mode = "connectivity" | "discovery" | "new" | "gap" | "tiny" | "pairs" | "directors" | "xgroup" | "clusters" | "gmap";
+type Mode =
+  | "connectivity"
+  | "discovery"
+  | "new"
+  | "gap"
+  | "holdings"
+  | "tiny"
+  | "pairs"
+  | "directors"
+  | "xgroup"
+  | "clusters"
+  | "gmap";
 type NewPane = "connections" | "anomalies";
 type AnomalyKind = "gap" | "multi" | "cross" | "boards" | "large";
 
@@ -494,6 +505,7 @@ const VIEW_BY_MODE: Record<Mode, string> = {
   discovery: "network-discovery",
   new: "network-new-connections",
   gap: "network-new-connections",
+  holdings: "holdings-capital-gap",
   tiny: "tiny-capital-gap",
   pairs: "company-network",
   directors: "director-hubs",
@@ -507,6 +519,7 @@ const NOUN_BY_MODE: Record<Mode, string> = {
   discovery: "companies",
   new: "new connections",
   gap: "companies",
+  holdings: "holdings",
   tiny: "companies",
   pairs: "pairs",
   directors: "directors",
@@ -670,6 +683,7 @@ export function CompanyNetworkTable({
   const [gapMinConnected, setGapMinConnected] = useState("0");
   const [gapMinRatio, setGapMinRatio] = useState("0");
   const [gapSort, setGapSort] = useState<GapSort>("ratio");
+  const [holdingsCount, setHoldingsCount] = useState(0);
   const [tinyRows, setTinyRows] = useState<TinyGapRow[]>([]);
   const [tinySummary, setTinySummary] = useState<TinyGapSummary | null>(null);
   const [tinyBand, setTinyBand] = useState("all");
@@ -754,6 +768,11 @@ export function CompanyNetworkTable({
       params.set("minCos", tinyMinCos);
       params.set("minDirs", tinyMinDirs);
       params.set("sort", tinySort);
+    }
+    if (mode === "holdings") {
+      params.set("minConnected", gapMinConnected);
+      params.set("minRatio", gapMinRatio);
+      params.set("sort", gapSort);
     }
     if (mode === "new" || mode === "gap") {
       params.set("days", days);
@@ -848,11 +867,18 @@ export function CompanyNetworkTable({
           setTargets(Array.isArray(json.targets) ? json.targets : []);
           setSummary(json.summary ?? null);
           setMaxTarget(json.max_target_mcap ?? null);
-        } else if (mode === "gap") {
+        } else if (mode === "gap" || mode === "holdings") {
           setNews([]);
           setTargets(Array.isArray(json.targets) ? json.targets : []);
           setSummary(json.summary ?? null);
           setMaxTarget(json.max_target_mcap ?? null);
+          setHoldingsCount(
+            mode === "holdings"
+              ? Number(
+                  (json as { holdings_count?: number }).holdings_count || 0,
+                )
+              : 0,
+          );
         } else if (mode === "tiny") {
           setTinyRows(rows as TinyGapRow[]);
           setTinySummary(
@@ -888,6 +914,7 @@ export function CompanyNetworkTable({
         setNews([]);
         setTargets([]);
         setSummary(null);
+        setHoldingsCount(0);
         setProfileRows([]);
         setError(e instanceof Error ? e.message : String(e));
       })
@@ -950,24 +977,31 @@ export function CompanyNetworkTable({
   ]);
 
   useEffect(() => {
-    if (mode !== "gap" || !drillTicker) {
+    if ((mode !== "gap" && mode !== "holdings") || !drillTicker) {
       setProfileRows([]);
       return;
     }
     let cancelled = false;
-    const params = new URLSearchParams({
-      view: "network-new-connections",
-      page: "1",
-      pageSize: "200",
-      days,
-      connection: "any",
-      minConnected: "0",
-      minRatio: "0",
-      maxTarget: maxTargetFilter,
-      minBoards: "0",
-      sort: "ratio",
-      targetTicker: drillTicker,
-    });
+    const params =
+      mode === "holdings"
+        ? new URLSearchParams({
+            view: "holdings-capital-gap-detail",
+            ticker: drillTicker,
+            sort: "ratio",
+          })
+        : new URLSearchParams({
+            view: "network-new-connections",
+            page: "1",
+            pageSize: "200",
+            days,
+            connection: "any",
+            minConnected: "0",
+            minRatio: "0",
+            maxTarget: maxTargetFilter,
+            minBoards: "0",
+            sort: "ratio",
+            targetTicker: drillTicker,
+          });
     void fetch(`/api/governance-map?${params}`, { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1339,9 +1373,37 @@ export function CompanyNetworkTable({
     );
   };
 
+  const applyMode = (next: Mode) => {
+    if (next === mode) return;
+    setMode(next);
+    setPage(1);
+    setDrillTicker(null);
+    setProfileRows([]);
+  };
+
   return (
     <div className="company-network">
       <div className="company-network-bar">
+        <div className="fam-dash-tabs" role="tablist" aria-label="Network views">
+          <button
+            type="button"
+            role="tab"
+            className={mode === "gap" ? "tab on" : "tab"}
+            aria-selected={mode === "gap"}
+            onClick={() => applyMode("gap")}
+          >
+            Cap Gap
+          </button>
+          <button
+            type="button"
+            role="tab"
+            className={mode === "holdings" ? "tab on" : "tab"}
+            aria-selected={mode === "holdings"}
+            onClick={() => applyMode("holdings")}
+          >
+            Holdings
+          </button>
+        </div>
         <input
           value={q}
           placeholder="Director, ticker or company…"
@@ -1353,7 +1415,9 @@ export function CompanyNetworkTable({
         <span className="table-meta">
           {loading
             ? "Loading…"
-            : `${total.toLocaleString("en-IN")} ${NOUN_BY_MODE[mode]}`}
+            : mode === "holdings" && holdingsCount
+              ? `${total.toLocaleString("en-IN")} of ${holdingsCount.toLocaleString("en-IN")} holdings`
+              : `${total.toLocaleString("en-IN")} ${NOUN_BY_MODE[mode]}`}
         </span>
       </div>
       {mode === "connectivity" ? (
@@ -2009,49 +2073,55 @@ export function CompanyNetworkTable({
           ) : null}
         </>
       ) : null}
-      {mode === "gap" ? (
+      {mode === "gap" || mode === "holdings" ? (
         <>
           <p className="table-meta">{GOVERNANCE_NETWORK_COVERAGE_NOTE}</p>
           <p className="table-meta">
-            Company-level measurements on the same latest-join edges as New
-            Connections. These are counts and ratios, not a network score.
-            {maxTargetFilter !== "all"
-              ? ` Target market cap < ₹${Number(maxTargetFilter).toLocaleString("en-IN")} Cr.`
-              : ""}
+            {mode === "holdings"
+              ? "Your holdings with Capital Gap columns from current board seats (not latest-join edges). Zero connected means no other listed boards through current directors."
+              : `Company-level measurements on the same latest-join edges as New Connections. These are counts and ratios, not a network score.${
+                  maxTargetFilter !== "all"
+                    ? ` Target market cap < ₹${Number(maxTargetFilter).toLocaleString("en-IN")} Cr.`
+                    : ""
+                }`}
           </p>
           <div className="company-network-filters">
-            <label>
-              Time
-              <select
-                value={days}
-                onChange={(e) => {
-                  setPage(1);
-                  setDays(e.target.value);
-                }}
-              >
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="180">180 days</option>
-                <option value="365">365 days</option>
-                <option value="all">All</option>
-              </select>
-            </label>
-            <label>
-              Target MCap
-              <select
-                value={maxTargetFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  setMaxTargetFilter(e.target.value);
-                }}
-              >
-                <option value="500">{"<₹500 Cr"}</option>
-                <option value="1000">{"<₹1,000 Cr"}</option>
-                <option value="2000">{"<₹2,000 Cr"}</option>
-                <option value="5000">{"<₹5,000 Cr"}</option>
-                <option value="all">All</option>
-              </select>
-            </label>
+            {mode === "gap" ? (
+              <>
+                <label>
+                  Time
+                  <select
+                    value={days}
+                    onChange={(e) => {
+                      setPage(1);
+                      setDays(e.target.value);
+                    }}
+                  >
+                    <option value="30">30 days</option>
+                    <option value="90">90 days</option>
+                    <option value="180">180 days</option>
+                    <option value="365">365 days</option>
+                    <option value="all">All</option>
+                  </select>
+                </label>
+                <label>
+                  Target MCap
+                  <select
+                    value={maxTargetFilter}
+                    onChange={(e) => {
+                      setPage(1);
+                      setMaxTargetFilter(e.target.value);
+                    }}
+                  >
+                    <option value="500">{"<₹500 Cr"}</option>
+                    <option value="1000">{"<₹1,000 Cr"}</option>
+                    <option value="2000">{"<₹2,000 Cr"}</option>
+                    <option value="5000">{"<₹5,000 Cr"}</option>
+                    <option value="all">All</option>
+                  </select>
+                </label>
+              </>
+            ) : null}
             <label>
               Minimum connected MCap
               <select
@@ -2092,7 +2162,7 @@ export function CompanyNetworkTable({
             <div className="company-network-summary">
               <span>
                 <strong>{summary.unique_targets.toLocaleString("en-IN")}</strong>{" "}
-                companies
+                {mode === "holdings" ? "holdings" : "companies"}
               </span>
               <span>
                 <strong>{summary.edges.toLocaleString("en-IN")}</strong>{" "}
@@ -2554,7 +2624,7 @@ export function CompanyNetworkTable({
               ))}
             </tbody>
           </table>
-        ) : mode === "gap" ? (
+        ) : mode === "gap" || mode === "holdings" ? (
           <table className="company-network-table company-network-table--gap">
             <thead>
               <tr>
@@ -2646,7 +2716,11 @@ export function CompanyNetworkTable({
                                   <th>Connected MCap</th>
                                   <th>Ratio</th>
                                   <th>Connection Type</th>
-                                  <th>Join Date</th>
+                                  <th>
+                                    {mode === "holdings"
+                                      ? "Seat"
+                                      : "Join Date"}
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -2681,7 +2755,9 @@ export function CompanyNetworkTable({
                                       {connLabel(edge.connection_type)}
                                     </td>
                                     <td>
-                                      {fmtEventDate(edge.event_date)}
+                                      {mode === "holdings"
+                                        ? "Current"
+                                        : fmtEventDate(edge.event_date)}
                                     </td>
                                   </tr>
                                 ))}

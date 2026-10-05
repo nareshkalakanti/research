@@ -6,6 +6,7 @@ import {
   loadGovernanceFamilyMap,
   loadUngroupedCompanyMaps,
   loadHoldingCompanyMaps,
+  loadSmeCompanyMaps,
   loadGovernanceMap,
   loadStockBoardNetwork,
   tickerMatchesSearch,
@@ -41,6 +42,8 @@ import {
   loadNetworkClusterSharedDirectors,
   loadNetworkDiscovery,
   loadNewConnections,
+  loadHoldingsCapitalGap,
+  loadHoldingsCapitalGapDetail,
   loadTinyCapitalGap,
   loadTinyCapitalGapDetail,
 } from "@/lib/company-network";
@@ -89,7 +92,9 @@ type View = "director" | "company" | "role" | "family" | "ungrouped" | "holdings
   | "group-mapping-group"
   | "group-mapping-preview"
   | "tiny-capital-gap"
-  | "tiny-capital-gap-detail";
+  | "tiny-capital-gap-detail"
+  | "holdings-capital-gap"
+  | "holdings-capital-gap-detail";
 
 /** Theme match uses About + products + HQ location. */
 function seatAboutText(c: GovCompanySeat): string {
@@ -709,6 +714,45 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     });
     return NextResponse.json({ view: "network-new-connections", ...result });
   }
+  if (view === "holdings-capital-gap") {
+    const minConn = Number(sp.get("minConnected") || 0);
+    const minRatio = Number(sp.get("minRatio") || 0);
+    const sortRaw = sp.get("sort") || "ratio";
+    const sortAllow = [
+      "ratio",
+      "mcap",
+      "connected",
+      "n10k",
+      "n25k",
+      "n50k",
+      "cross",
+      "multi",
+      "target",
+    ] as const;
+    const sort = sortAllow.includes(sortRaw as (typeof sortAllow)[number])
+      ? (sortRaw as (typeof sortAllow)[number])
+      : "ratio";
+    const result = loadHoldingsCapitalGap({
+      q,
+      page,
+      pageSize,
+      minConnectedMcap: Number.isFinite(minConn) ? minConn : 0,
+      minRatio: Number.isFinite(minRatio) ? minRatio : 0,
+      sort,
+    });
+    return NextResponse.json({ view: "holdings-capital-gap", ...result });
+  }
+  if (view === "holdings-capital-gap-detail") {
+    const ticker = (sp.get("ticker") || "").trim();
+    const sortRaw = sp.get("sort") || "ratio";
+    const result = loadHoldingsCapitalGapDetail(ticker, {
+      sort: sortRaw === "mcap" ? "mcap" : "ratio",
+    });
+    return NextResponse.json({
+      view: "holdings-capital-gap-detail",
+      ...result,
+    });
+  }
   if (view === "network-discovery") {
     const mcapRaw = sp.get("mcap") || "all";
     const signalRaw = sp.get("signal") || "all";
@@ -977,6 +1021,31 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       pages,
       themePattern: themePattern || null,
       rows: solos.slice(start, start + famPageSize),
+    });
+  }
+  if (view === "sme") {
+    const sme = loadSmeCompanyMaps({ q, refresh });
+    const total = sme.length;
+    const famPageSize = Math.min(
+      5000,
+      Math.max(10, Number(sp.get("pageSize") || 40) || 40),
+    );
+    const pages = Math.max(1, Math.ceil(total / famPageSize));
+    const start = (page - 1) * famPageSize;
+    return NextResponse.json({
+      view: "sme",
+      stats: {
+        directors: 0,
+        companies: sme.length,
+        nameless_din: 0,
+        independent_boards: 0,
+        independence_floors: {},
+      },
+      total,
+      page,
+      pages,
+      themePattern: themePattern || null,
+      rows: sme.slice(start, start + famPageSize),
     });
   }
   if (view === "family") {

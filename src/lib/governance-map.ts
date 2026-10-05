@@ -902,6 +902,7 @@ let familyMapCache: {
   groups: GovFamilyGroup[];
   solos: GovFamilyGroup[];
   holdings: GovFamilyGroup[];
+  sme: GovFamilyGroup[];
 } | null = null;
 let boardScoreCache: { at: number; map: Map<string, number> } | null = null;
 const CACHE_MS = 60_000;
@@ -1411,15 +1412,24 @@ export function loadGovernanceFamilyMap(opts?: {
     else if (!isSme && market.startsWith("BSE")) market = "BSE";
     const existing = metaByTicker.get(ticker);
     if (existing) {
-      existing.market = market || existing.market;
-      existing.is_sme = isSme || existing.is_sme;
+      // Prefer an SME market label over a later main-board stub (about drift).
+      if (isSme || !existing.is_sme) {
+        existing.market = market || existing.market;
+        existing.is_sme = isSme;
+      } else if (!existing.market) {
+        existing.market = market;
+      }
       if (r.name?.trim() && r.name.trim() !== ticker) existing.name = r.name.trim();
       return;
     }
     if (listingMeta.has(ticker)) {
       const row = listingMeta.get(ticker)!;
-      row.market = market || row.market;
-      row.is_sme = isSme || row.is_sme;
+      if (isSme || !row.is_sme) {
+        row.market = market || row.market;
+        row.is_sme = isSme;
+      } else if (!row.market) {
+        row.market = market;
+      }
       return;
     }
     const mcap = metrics.get(ticker)?.market_cap_cr ?? null;
@@ -3044,8 +3054,39 @@ export function loadGovernanceFamilyMap(opts?: {
       });
     });
   }
+  const smeMaps: GovFamilyGroup[] = [];
+  for (const [ticker, meta] of metaByTicker) {
+    const market = (meta.market || "").toUpperCase();
+    if (market !== "NSE SME" && market !== "BSE SME") continue;
+    const g: GovFamilyGroup = {
+      family_name: meta.name,
+      company_count: 1,
+      companies: [{ ...meta, market, is_sme: true }],
+      group_id: `sme-${ticker}`,
+    };
+    attachFamilyGraphLinks(g);
+    smeMaps.push(g);
+  }
+  smeMaps.sort((a, b) => {
+    const ao = a.outside?.length ?? 0;
+    const bo = b.outside?.length ?? 0;
+    if (bo !== ao) return bo - ao;
+    const am = a.companies[0]?.market_cap_cr ?? -1;
+    const bm = b.companies[0]?.market_cap_cr ?? -1;
+    if (bm !== am) return bm - am;
+    return a.family_name.localeCompare(b.family_name, undefined, {
+      sensitivity: "base",
+    });
+  });
+
   if (!opts?.hold && !qNeedle) {
-    familyMapCache = { at: Date.now(), groups: out, solos, holdings: holdingMaps };
+    familyMapCache = {
+      at: Date.now(),
+      groups: out,
+      solos,
+      holdings: holdingMaps,
+      sme: smeMaps,
+    };
   }
   scheduleFamilyGroupRefine(
     out.map((g, i) => ({
@@ -3097,6 +3138,38 @@ export function loadHoldingCompanyMaps(opts?: {
 }): GovFamilyGroup[] {
   loadGovernanceFamilyMap({ refresh: opts?.refresh });
   let rows = familyMapCache?.holdings ?? [];
+  const q = (opts?.q || "").trim().toLowerCase();
+  if (!q) return rows;
+  return rows.filter((g) => {
+    if (g.family_name.toLowerCase().includes(q)) return true;
+    if (
+      g.companies.some(
+        (c) =>
+          tickerMatchesSearch(c.ticker, q) || c.name.toLowerCase().includes(q),
+      )
+    ) {
+      return true;
+    }
+    if ((g.people ?? []).some((p) => p.name.toLowerCase().includes(q))) {
+      return true;
+    }
+    return (g.outside ?? []).some(
+      (o) =>
+        tickerMatchesSearch(o.ticker, q) || o.name.toLowerCase().includes(q),
+    );
+  });
+}
+
+/**
+ * One graph per SME listing that has board seats (NSE SME / BSE SME).
+ * BSE SME usually has no seats — those stubs stay out until governance exists.
+ */
+export function loadSmeCompanyMaps(opts?: {
+  q?: string;
+  refresh?: boolean;
+}): GovFamilyGroup[] {
+  loadGovernanceFamilyMap({ refresh: opts?.refresh });
+  let rows = familyMapCache?.sme ?? [];
   const q = (opts?.q || "").trim().toLowerCase();
   if (!q) return rows;
   return rows.filter((g) => {

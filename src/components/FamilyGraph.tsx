@@ -551,22 +551,26 @@ type FamilyGraphProps = {
   chartUrl?: (ticker: string) => string;
 };
 
-/** Mount the SVG graph only when the card is near the viewport. */
+/** Mount the SVG graph only when the card is near the viewport; keep it once shown. */
 export function LazyFamilyGraph(props: FamilyGraphProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [show, setShow] = useState(false);
   useEffect(() => {
+    if (show) return;
     const el = ref.current;
     if (!el) return;
     const io = new IntersectionObserver(
       ([entry]) => {
-        if (entry?.isIntersecting) setShow(true);
+        if (entry?.isIntersecting) {
+          setShow(true);
+          io.disconnect();
+        }
       },
-      { rootMargin: "160px" },
+      { rootMargin: "240px" },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [show]);
   return (
     <div ref={ref} className="fam-graph-lazy">
       {show ? <FamilyGraph {...props} /> : <div className="fam-graph-ph" aria-hidden />}
