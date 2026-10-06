@@ -65,9 +65,10 @@ const rowJson = parseSectorScreenshot(`
 { "Name": "Tilaknagar Industries Ltd", "Industry": "Alcoholic Beverages", "Close Price": "1,18
 `);
 assert.equal(rowJson.industry, "Alcoholic Beverages");
-assert.equal(rowJson.names.length, 2);
+assert.equal(rowJson.names.length, 3);
 assert.ok(rowJson.names.some((n) => /United Spirits/i.test(n)));
 assert.ok(rowJson.names.some((n) => /United Breweries/i.test(n)));
+assert.ok(rowJson.names.some((n) => /Tilaknagar/i.test(n)));
 
 const ampName = parseSectorScreenshot(`
 {"Name":"Foo Investment &amp; Consultancy Ltd.","Industry":"Other Financial Services"}
@@ -123,4 +124,39 @@ const parenRow = parseSectorScreenshot(`
 {"Name":"Foo Motor Agency (Delhi) Ltd","Industry":"Auto Others"}
 `);
 assert.ok(parenRow.names.some((n) => /Foo Motor Agency/i.test(n)));
+
+const jsonMissesTop = parseSectorScreenshot(`
+{"industry":"Widgets","names":["Echo Widgets Ltd","Fox Widgets Ltd"]}
+1 Alpha Widgets Ltd
+2 Bravo Widgets Ltd
+3 Echo Widgets Ltd
+4 Fox Widgets Ltd
+`);
+assert.equal(jsonMissesTop.industry, "Widgets");
+assert.equal(jsonMissesTop.names.length, 4);
+assert.ok(jsonMissesTop.names.some((n) => /Alpha Widgets/i.test(n)));
+assert.ok(jsonMissesTop.names.some((n) => /Bravo Widgets/i.test(n)));
+
+const scripQuote = parseSectorScreenshot(`
+Stock Price Quote
+Foo Biotech	524001	Not listed on NSE. Makes culture media.
+Bar Bio Tech	511002	Listed on BSE, not NSE.
+Baz Ganesh Bio-Tech (India)	539003	Not listed on NSE.
+`);
+assert.ok(scripQuote.names.some((n) => /Foo Biotech/i.test(n)));
+assert.ok(scripQuote.names.some((n) => /Bar Bio Tech/i.test(n)));
+assert.ok(scripQuote.names.some((n) => /Baz Ganesh Bio-Tech/i.test(n)));
+assert.ok(scripQuote.names.includes("524001"));
+assert.ok(scripQuote.names.includes("511002"));
+assert.ok(scripQuote.names.includes("539003"));
+assert.ok(!scripQuote.names.some((n) => /Stock Price Quote/i.test(n)));
+
+const numberedMapTrunc = parseSectorScreenshot(`
+\`\`\`json
+{ "1": "Alpha Cable Ltd", "2": "Bravo Industries Ltd", "3": "Charlie Kabel Ltd", "4": "Delta Power Ltd", "5": "Echo Cables Ltd", "6": "Foxtrot Infra Ltd", "7": "Golf Cables Ltd", "8": "Hotel Power Ltd", "9": "India Cables Ltd", "10": "System
+`);
+assert.ok(numberedMapTrunc.names.length >= 9);
+assert.ok(numberedMapTrunc.names.some((n) => /Alpha Cable/i.test(n)));
+assert.ok(numberedMapTrunc.names.some((n) => /India Cables/i.test(n)));
+assert.ok(!numberedMapTrunc.names.some((n) => /^System$/i.test(n)));
 console.log("ok");

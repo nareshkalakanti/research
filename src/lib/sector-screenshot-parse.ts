@@ -12,7 +12,7 @@ export type SectorShotExtract = {
 };
 
 const NOISE =
-  /showing\s+\d+\s+results|edit columns|download|^default\b|performance|technical|valuation|holdings|growth|profit\/loss|balance sheet|cash flow|ratios|^chart$|^scores$/i;
+  /showing\s+\d+\s+results|edit columns|download|^default\b|performance|technical|valuation|holdings|growth|profit\/loss|balance sheet|cash flow|ratios|^chart$|^scores$|^stock\s+price\s+quote$/i;
 
 const HEADER_NAME = /^(?:#|no\.?|s\.?\s*no\.?|name|stock name|company)$/i;
 const HEADER_IND = /^industry$|^sector$|^theme$/i;
@@ -123,6 +123,7 @@ function fieldByKey(
 
 function keepRecoveredName(s: string): boolean {
   const t = cleanExtractedName(s);
+  if (/[{}"\[\]]/.test(t)) return false;
   if (t.length < 6) return false;
   if (/^(industry|names|name|sector|companies)$/i.test(t)) return false;
   const words = t.split(/\s+/).filter(Boolean);
@@ -155,7 +156,7 @@ function recoverPartialBasket(text: string): SectorShotExtract | null {
       if (keepRecoveredName(s)) names.push(s);
     }
     const dangling = block.match(/"((?:\\.|[^"\\])+)$/);
-    if (dangling?.[1]) {
+    if (dangling?.[1] && !/[{}\[\]]/.test(dangling[1])) {
       const s = cleanExtractedName(dangling[1]);
       if (keepRecoveredName(s)) names.push(s);
     }
@@ -177,6 +178,45 @@ function recoverPartialBasket(text: string): SectorShotExtract | null {
   return { industry, names: uniq, rowIndustries };
 }
 
+function namesFromNumberedMap(obj: Record<string, unknown>): string[] {
+  const pairs: Array<{ i: number; name: string }> = [];
+  for (const [k, v] of Object.entries(obj)) {
+    if (!/^\d{1,2}$/.test(k)) continue;
+    if (typeof v !== "string") continue;
+    const s = cleanExtractedName(v);
+    if (s.length < 3) continue;
+    if (!looksIssuerLabel(s) && !keepRecoveredName(s)) continue;
+    pairs.push({ i: Number(k), name: s });
+  }
+  pairs.sort((a, b) => a.i - b.i);
+  return pairs.map((p) => p.name);
+}
+
+function recoverNumberedJsonNames(text: string): string[] {
+  const raw = decodeFence(text);
+  const pairs: Array<{ i: number; name: string }> = [];
+  const seen = new Set<number>();
+  for (const m of raw.matchAll(/"(\d{1,2})"\s*:\s*"((?:\\.|[^"\\])*)"/g)) {
+    const i = Number(m[1]);
+    const s = cleanExtractedName((m[2] || "").replace(/\\"/g, '"'));
+    if (s.length < 3) continue;
+    if (!looksIssuerLabel(s) && !keepRecoveredName(s)) continue;
+    if (seen.has(i)) continue;
+    seen.add(i);
+    pairs.push({ i, name: s });
+  }
+  const dangling = raw.match(/"(\d{1,2})"\s*:\s*"((?:\\.|[^"\\])+)$/);
+  if (dangling?.[1] && dangling[2] && !/[{}\[\]]/.test(dangling[2])) {
+    const i = Number(dangling[1]);
+    const s = cleanExtractedName(dangling[2].replace(/\\"/g, '"'));
+    if (!seen.has(i) && (looksIssuerLabel(s) || keepRecoveredName(s))) {
+      pairs.push({ i, name: s });
+    }
+  }
+  pairs.sort((a, b) => a.i - b.i);
+  return pairs.map((p) => p.name);
+}
+
 function tryJson(text: string): SectorShotExtract | null {
   const objs = allJsonObjects(text);
   if (!objs.length) return null;
@@ -190,6 +230,15 @@ function tryJson(text: string): SectorShotExtract | null {
         const s = cleanExtractedName(String(n || ""));
         if (s.length >= 2) names.push(s);
       }
+      const one = String(obj.industry || obj.sector || "")
+        .replace(/\s+/g, " ")
+        .trim();
+      if (one) bundled.push(one);
+      continue;
+    }
+    const numbered = namesFromNumberedMap(obj);
+    if (numbered.length >= 2) {
+      names.push(...numbered);
       const one = String(obj.industry || obj.sector || "")
         .replace(/\s+/g, " ")
         .trim();
@@ -248,6 +297,7 @@ function looksName(s: string): boolean {
   if (t.length < 3) return false;
   if (/[{}"\[\]]/.test(t)) return false;
   if (HEADER_NAME.test(t) || HEADER_IND.test(t)) return false;
+  if (NOISE.test(t)) return false;
   if (PRICEISH.test(t)) return false;
   if (/^market\s+cap/i.test(t) || /^close\s+price/i.test(t)) return false;
   if (!/[A-Za-z]/.test(t)) return false;
@@ -255,11 +305,12 @@ function looksName(s: string): boolean {
 }
 
 function nameFromLine(line: string, cells: string[]): string | null {
-  const legal = line.match(
-    /(?:^|\s)(\d+\s+)?([A-Za-z][A-Za-z0-9 .,&+\uFF06'/-]{2,}(?:Ltd|Limited|Plc|Inc|LLP)\.?)/i,
+  const stripped = line.replace(/^\s*\d+\s+/, "").trim();
+  const legal = stripped.match(
+    /^([A-Za-z][A-Za-z0-9 .,&+\uFF06'()/-]{2,}(?:Ltd|Limited|Plc|Inc|LLP)\.?)/i,
   );
   if (legal) {
-    const n = legal[2]!.replace(/\s+/g, " ").trim();
+    const n = legal[1]!.replace(/\s+/g, " ").trim();
     if (looksName(n)) return n;
   }
   const first = (cells[0] || "").replace(/^\d+\s+/, "").trim();
@@ -376,6 +427,7 @@ function fromTable(text: string): SectorShotExtract {
   const industries: string[] = [];
 
   for (const line of lines) {
+    if (/[{}\[\]]/.test(line) && /"/.test(line)) continue;
     const cells = cellsOf(line);
     const joined = cells.join(" ").toLowerCase();
     if (
@@ -409,6 +461,37 @@ function fromTable(text: string): SectorShotExtract {
   };
 }
 
+function numberedNames(text: string): string[] {
+  const out: string[] = [];
+  for (const line of (text || "").split(/\n/)) {
+    const m = line.match(
+      /^\s*\d{1,2}\s+([A-Za-z][A-Za-z0-9 .,&'()+/-]{2,}?\b(?:Ltd|Limited)\.?)\s*$/i,
+    );
+    if (!m?.[1]) continue;
+    const s = cleanExtractedName(m[1]);
+    if (s.split(/\s+/).filter(Boolean).length >= 2) out.push(s);
+  }
+  return out;
+}
+
+/** Quote tables: issuer + 5–7 digit BSE scrip, often without Ltd. */
+function namesFromScripRows(text: string): string[] {
+  const out: string[] = [];
+  for (const line of (text || "").split(/\n/)) {
+    const m = line.match(
+      /^\s*(?:\d{1,2}[.)]\s+)?([A-Za-z][A-Za-z0-9 .,&'()+/-]{2,}?)\s+(\d{5,7})(?!\s*(?:Cr|Crore|\.\d))/i,
+    );
+    if (!m?.[1] || !m[2]) continue;
+    const name = cleanExtractedName(m[1]);
+    if (/[₹{}"\[\]]/.test(name) || PRICEISH.test(name)) continue;
+    if (name.split(/\s+/).filter(Boolean).length < 2) continue;
+    if (name.length > 80) continue;
+    out.push(name);
+    out.push(m[2]);
+  }
+  return out;
+}
+
 export function parseSectorScreenshot(text: string): SectorShotExtract {
   const json = tryJson(text);
   const partial = recoverPartialBasket(text);
@@ -419,9 +502,12 @@ export function parseSectorScreenshot(text: string): SectorShotExtract {
       : [];
   const names = uniqNames([
     ...issuerAsName,
-    ...(json?.names?.length ? json.names : []),
-    ...(json?.names?.length ? [] : partial?.names ?? []),
-    ...(json?.names?.length ? [] : table.names),
+    ...(json?.names ?? []),
+    ...(partial?.names ?? []),
+    ...(table.names ?? []),
+    ...numberedNames(text),
+    ...namesFromScripRows(text),
+    ...recoverNumberedJsonNames(text),
   ]);
   const rowIndustries = [
     ...(json?.rowIndustries ?? []),
