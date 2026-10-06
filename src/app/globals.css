@@ -25865,12 +25865,21 @@ tr.wl-prove-fail td {
   align-items: stretch;
   width: 100%;
 }
+.rot-shot-simple-side .fam-dash-create-cos {
+  width: 100%;
+  flex: 1 1 100%;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+}
 .rot-shot-simple-side .fam-dash-search,
 .rot-shot-simple-side .ticker-suggest,
 .rot-shot-simple-side .ticker-suggest-field,
 .rot-shot-simple-side .ticker-suggest-field input {
+  flex: 1 1 100%;
   width: 100%;
   max-width: none;
+  min-width: 0;
 }
 .rot-shot-simple-side .btn-ghost {
   width: 100%;

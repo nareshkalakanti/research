@@ -19,10 +19,15 @@ Output JSON only, no markdown. Prefer one object per data row:
 The Industry field MUST be the repeating Industry *column cell* on the rows (same text on most rows).
 Do not use a parent group, breadcrumb, sidebar, or filter (a broader heading above the table).
 Never set industry to a company name (nothing ending Ltd/Limited). Skip headers, tab bars, and prices.
-You may also output {"industry":"<column cell>","names":["..."]} but industry is still the column cell, not a parent heading.`;
+If the Name column is numbered, output every numbered row from 1 through the last visible number. Do not drop the first rows.
+You may also output {"industry":"<column cell>","names":["..."]} but industry is still the column cell, not a parent heading. names.length must match the row count.
+Do not use {"1":"...","2":"..."} numbered keys.`;
+
+const NAMES_OCR = `List every company in the Name column of this stock table, top to bottom.
+One company per line. Keep Ltd/Limited. Include the first row. No JSON, no prices, no industry.`;
 
 const INDUSTRY_OCR = `Read only the Industry column of this stock table (the repeated theme on the right of names, not the company names).
-Output that industry text on one line. If the cell is truncated with …, copy the visible words only. No JSON. No company names ending Ltd.`;
+One line. Not a parent group or breadcrumb.`;
 
 export type SectorShotImport = {
   ocr: string;
@@ -61,15 +66,24 @@ export async function importSectorFromScreenshot(
   onEvent?.({ t: "ocr" });
   const beat = setInterval(() => onEvent?.({ t: "ocr" }), 12_000);
   let ocr = "";
+  let nameOcr = "";
   try {
-    ocr = await ocrImageWithQianfan(imageDataUrl, OCR_PROMPT, 2560, {
-      maxEdge: 1152,
-      numCtx: 8192,
-    });
+    const pair = await Promise.all([
+      ocrImageWithQianfan(imageDataUrl, OCR_PROMPT, 2560, {
+        maxEdge: 1152,
+        numCtx: 8192,
+      }),
+      ocrImageWithQianfan(imageDataUrl, NAMES_OCR, 2048, {
+        maxEdge: 1152,
+        numCtx: 8192,
+      }),
+    ]);
+    ocr = pair[0];
+    nameOcr = pair[1];
   } finally {
     clearInterval(beat);
   }
-  const parsed = parseSectorScreenshot(ocr);
+  const parsed = parseSectorScreenshot(`${ocr}\n${nameOcr}`);
   let industry = tidyIndustry(parsed.industry) || "";
   const weakColumn =
     !parsed.rowIndustries.length && industry.split(/\s+/).filter(Boolean).length === 1;
@@ -88,17 +102,18 @@ export async function importSectorFromScreenshot(
     }
   }
   industry = preferBatchIndustry(priorIndustry || "", industry);
+  const names = parsed.names;
   if (industry.length < 2) {
     throw new Error(
       `Could not read Industry from the screenshot${ocr.trim() ? `: ${ocr.replace(/\s+/g, " ").slice(0, 280)}` : ""}`,
     );
   }
-  if (!parsed.names.length) {
+  if (!names.length) {
     throw new Error(
       `Could not read company names from the screenshot${ocr.trim() ? `: ${ocr.replace(/\s+/g, " ").slice(0, 280)}` : ""}`,
     );
   }
-  onEvent?.({ t: "parsed", industry, names: parsed.names });
+  onEvent?.({ t: "parsed", industry, names });
   const prior =
     listRotationSectors().find(
       (s) => s.label.toLowerCase() === industry.toLowerCase(),
@@ -106,11 +121,9 @@ export async function importSectorFromScreenshot(
   const unresolved: string[] = [];
   const members: Array<{ ticker: string; name: string; market: string }> = [];
   const have = new Set<string>();
-  const hits = await runConcurrent(parsed.names, 6, (q) =>
-    resolveListingQuery(q),
-  );
-  for (let i = 0; i < parsed.names.length; i++) {
-    const q = parsed.names[i]!;
+  const hits = await runConcurrent(names, 6, (q) => resolveListingQuery(q));
+  for (let i = 0; i < names.length; i++) {
+    const q = names[i]!;
     const hit = hits[i];
     if (!hit) {
       unresolved.push(q);
@@ -128,13 +141,13 @@ export async function importSectorFromScreenshot(
   }
   if (!members.length) {
     throw new Error(
-      `None of the names resolved: ${parsed.names.slice(0, 8).join(", ")}`,
+      `None of the names resolved: ${names.slice(0, 8).join(", ")}`,
     );
   }
   const sector = mergeRotationSectorByLabel(industry, members);
   onEvent?.({
     t: "count",
-    extracted: parsed.names.length,
+    extracted: names.length,
     resolved: members.length,
     unresolved: unresolved.length,
     before: prior,
@@ -160,7 +173,7 @@ export async function importSectorFromScreenshot(
   return {
     ocr,
     industry,
-    names: parsed.names,
+    names: names,
     unresolved,
     sector,
   };

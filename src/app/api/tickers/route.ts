@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bootstrapCompanyTicker } from "@/lib/company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "@/lib/db";
-import { listingQueryMatches, rankListingQuery } from "@/lib/listing-name-match";
+import { listingQueryMatches, rankListingQuery, shouldAugmentListingSearch } from "@/lib/listing-name-match";
 import { openSqliteNamed } from "@/lib/sqlite-utils";
 import { searchGrowwListings } from "@/lib/web-mcap";
 
@@ -124,11 +124,7 @@ export async function GET(req: NextRequest) {
     );
   }
   const have = new Set(hits.map((h) => h.ticker));
-  const localStrong =
-    hits.length >= limit ||
-    hits.some((h) => rankHit(q, h) <= 2);
-
-  if (q.length >= 2 && !localStrong) {
+  if (shouldAugmentListingSearch(q, hits, limit)) {
     try {
       const remote = await searchGrowwListings(q, limit);
       for (const r of remote) {

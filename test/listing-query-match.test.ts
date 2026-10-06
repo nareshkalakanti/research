@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   listingQueryMatches,
   rankListingQuery,
+  scoreListingName,
+  shouldAugmentListingSearch,
 } from "../src/lib/listing-name-match";
 
 assert.equal(
@@ -52,11 +54,67 @@ assert.equal(
   true,
 );
 assert.ok(
-  rankListingQuery("Foo Auto International Ltd", "FOOAUTO", "Foo Auto International Ltd") <
+  rankListingQuery(
+    "Foo Auto International Ltd",
+    "FOOAUTO",
+    "Foo Auto International Ltd",
+  ) <
     rankListingQuery(
       "Foo Auto International Ltd",
       "FOOAUTO-RE",
       "Foo Auto International Ltd",
     ),
+);
+assert.ok(
+  rankListingQuery(
+    "Baz Ganesh Bio-Tech (India)",
+    "BAZBIO",
+    "Baz Ganesh Biotech India Ltd",
+  ) <= 1,
+);
+assert.ok(
+  scoreListingName(
+    "Foo Breweries Distilleries Ltd",
+    "FOO",
+    "Foo Limited",
+  ) < 70,
+);
+assert.ok(
+  rankListingQuery(
+    "Foo Breweries Distilleries Ltd",
+    "FOO",
+    "Foo Limited",
+  ) > 3,
+);
+assert.ok(
+  scoreListingName(
+    "Foo Breweries And Distilleries Ltd",
+    "FOOBREW",
+    "Foo Breweries And Distilleries Ltd",
+  ) >= 88,
+);
+assert.equal(
+  listingQueryMatches(
+    "Ravikumar Distilleries Ltd",
+    "FOORK",
+    "Ravi Kumar Distilleries Limited",
+  ),
+  true,
+);
+assert.equal(
+  listingQueryMatches("FOO", "FOO", "Foo Limited"),
+  true,
+);
+assert.equal(
+  shouldAugmentListingSearch("FOO", [{ ticker: "FOO", name: "Foo Limited" }], 12),
+  true,
+);
+assert.equal(
+  shouldAugmentListingSearch(
+    "Foo Motor Agency",
+    [{ ticker: "FOOMA", name: "Foo Motor Agency Ltd" }],
+    12,
+  ),
+  false,
 );
 console.log("ok");

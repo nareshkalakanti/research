@@ -4,6 +4,10 @@ import {
   listingQueryMatches,
   listingQueryVariants,
 } from "./listing-name-match";
+import {
+  resolveTickerFromBseScrip,
+  tickerFromBseScrip,
+} from "./bse-investor-discover";
 import { searchGrowwListings } from "./web-mcap";
 import type { SectorMember } from "./sector-rotation";
 
@@ -17,11 +21,62 @@ function localListings(): CompanyRow[] {
   }
 }
 
+async function resolveByBseScrip(
+  scrip: string,
+): Promise<Omit<ResolvedListing, "query"> | null> {
+  const cached = tickerFromBseScrip(scrip);
+  if (cached) {
+    const row = localListings().find(
+      (c) => c.ticker.toUpperCase() === cached,
+    );
+    return {
+      ticker: cached,
+      name: row?.name || cached,
+      market: String(row?.market || "BSE"),
+      source: "bse-scrip",
+    };
+  }
+  try {
+    const remote = await searchGrowwListings(scrip, 8);
+    const hit = remote.find(
+      (r) => (r.bse_scrip || "") === scrip || r.ticker === scrip,
+    );
+    if (hit) {
+      return {
+        ticker: hit.ticker,
+        name: hit.name,
+        market: hit.market || "BSE",
+        source: "groww",
+      };
+    }
+  } catch {
+    /* BSE identity next */
+  }
+  try {
+    const live = await resolveTickerFromBseScrip(scrip);
+    if (live?.ticker) {
+      return {
+        ticker: live.ticker,
+        name: live.name || live.ticker,
+        market: "BSE",
+        source: "bse-scrip",
+      };
+    }
+  } catch {
+    /* unresolved */
+  }
+  return null;
+}
+
 export async function resolveListingQuery(
   query: string,
 ): Promise<ResolvedListing | null> {
   const q = query.trim();
   if (q.length < 2) return null;
+  if (/^\d{5,7}$/.test(q)) {
+    const fromScrip = await resolveByBseScrip(q);
+    if (fromScrip) return { ...fromScrip, query: q };
+  }
   type Cand = SectorMember & { source: string; rank: number };
   const cands: Cand[] = [];
   const have = new Set<string>();
@@ -89,7 +144,9 @@ export async function resolveListingQuery(
             name: r.name,
             market: r.market || "NSE",
           },
-          "groww",
+          r.bse_scrip && /^\d{5,7}$/.test(q) && r.bse_scrip === q
+            ? "groww-scrip"
+            : "groww",
         );
       }
     } catch {

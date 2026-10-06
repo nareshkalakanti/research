@@ -304,7 +304,7 @@ export type BseMarketOrderHit = {
 };
 
 /** Reverse-lookup NSE/BSE ticker from cached BSE scrip code. */
-function tickerFromBseScrip(scrip: string): string | null {
+export function tickerFromBseScrip(scrip: string): string | null {
   const code = scrip.trim();
   if (!code) return null;
   try {

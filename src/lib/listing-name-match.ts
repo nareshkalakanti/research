@@ -101,15 +101,22 @@ export function scoreListingName(
   const t = ticker.toUpperCase().replace(/[^A-Z0-9]/g, "");
   const n = companyLabelKey(name);
   const qCompact = q.replace(/ /g, "");
+  const nCompact = n.replace(/ /g, "");
   if (qCompact.length >= 3 && t === qCompact) return 100;
   if (n === q) return 100;
+  if (qCompact.length >= 8 && nCompact === qCompact) return 100;
   const qTokEarly = q.split(" ").filter((w) => w.length > 1);
   const tKey = t.toLowerCase();
-  if (
-    tKey.length >= 4 &&
-    (qTokEarly[0] === tKey || qCompact === tKey || qCompact.startsWith(`${tKey}`))
-  ) {
-    if (qTokEarly[0] === tKey || qCompact === tKey) return 96;
+  const nTokEarly = n.split(" ").filter((w) => w.length > 1);
+  if (tKey.length >= 4 && qTokEarly[0] === tKey) {
+    const extra = qTokEarly.slice(1);
+    if (extra.length === 0) return 96;
+    const nSetEarly = new Set(nTokEarly);
+    if (
+      extra.every((w) => nSetEarly.has(w) || nCompact.includes(w))
+    ) {
+      return 96;
+    }
   }
   if (n && (n.startsWith(q) || q.startsWith(n)) && Math.min(n.length, q.length) >= 8) {
     return 92;
@@ -205,6 +212,24 @@ export function rankListingQuery(
   if (t.includes(Q) || n.includes(Q)) return 4;
   if (cq.length >= 2 && (ct.includes(cq) || compactTicker(n).includes(cq))) return 5;
   return 9;
+}
+
+/** Typeahead: still search Groww when an exact ticker hit may hide a longer symbol. */
+export function shouldAugmentListingSearch(
+  q: string,
+  hits: Array<{ ticker: string; name: string }>,
+  limit: number,
+): boolean {
+  const Q = q.trim().toUpperCase();
+  if (Q.length < 2) return false;
+  if (hits.length >= limit) return false;
+  if (hits.some((h) => h.ticker.toUpperCase() === Q)) return true;
+  if (!hits.length) return true;
+  const best = hits.reduce(
+    (m, h) => Math.min(m, rankListingQuery(q, h.ticker, h.name)),
+    9,
+  );
+  return best > 2;
 }
 
 export function pickUniqueListing<T extends { ticker: string; name: string }>(
