@@ -25846,10 +25846,11 @@ tr.wl-prove-fail td {
 }
 .rot-shot-simple {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
-  gap: 16px 20px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 36rem);
+  gap: 16px 24px;
   align-items: start;
-  max-width: 72rem;
+  max-width: none;
+  width: 100%;
 }
 .rot-shot-simple-main {
   min-width: 0;
@@ -25857,12 +25858,21 @@ tr.wl-prove-fail td {
 .rot-shot-simple-side {
   position: sticky;
   top: 12px;
+  min-width: 0;
 }
 .rot-shot-simple-side .fam-dash-create {
   flex-direction: column;
   align-items: stretch;
+  width: 100%;
 }
-.rot-shot-simple-side .ticker-suggest {
+.rot-shot-simple-side .fam-dash-search,
+.rot-shot-simple-side .ticker-suggest,
+.rot-shot-simple-side .ticker-suggest-field,
+.rot-shot-simple-side .ticker-suggest-field input {
+  width: 100%;
+  max-width: none;
+}
+.rot-shot-simple-side .btn-ghost {
   width: 100%;
 }
 .rot-shot-simple-side .rot-create-pick {
