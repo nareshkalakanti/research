@@ -1,0 +1,23 @@
+[
+  {
+    "label": "Energy - Transformers",
+    "queries": [
+      "Atlanta Electricals",
+      "VOLTAMP",
+      "TARIL",
+      "Shilchar",
+      "INDOTECH",
+      "Yash Highvoltage",
+      "Modern Insulators",
+      "Marsons",
+      "DANISH",
+      "ELECTHERM",
+      "Vilas Transcore",
+      "Mangal Electrical"
+    ]
+  },
+  {
+    "label": "CNC Machines",
+    "queries": ["JYOTICNC", "MACPOWER", "Lokesh Machines"]
+  }
+]

@@ -12,6 +12,7 @@ When the user asks to **git add**, **commit**, or **push**, include **tracked da
 - `data/governance.db`
 - `data/family_group_edits.db`
 - `data/family_group_refine.db`
+- `data/sector_rotation.db`
 - other tracked `data/*.db` (not gitignored)
 - `data/seeds/*` when publishing a seed
 
