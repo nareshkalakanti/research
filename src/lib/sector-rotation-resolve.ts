@@ -18,15 +18,28 @@ export async function resolveListingQuery(
   const cands: Cand[] = [];
   const have = new Set<string>();
   const push = (row: SectorMember, source: string) => {
-    const ticker = row.ticker.toUpperCase();
+    let ticker = row.ticker.toUpperCase();
+    let name = row.name;
+    let market = row.market;
+    const stem = ticker.replace(/-(?:RE|PP)$/i, "");
+    if (stem !== ticker) {
+      const primary = loadAllCompanies().find(
+        (c) => c.ticker.toUpperCase() === stem,
+      );
+      if (primary) {
+        ticker = stem;
+        name = primary.name;
+        market = String(primary.market || market);
+      }
+    }
     if (!ticker || have.has(ticker)) return;
     have.add(ticker);
     cands.push({
       ticker,
-      name: row.name,
-      market: row.market,
+      name,
+      market,
       source,
-      rank: rankListingQuery(q, ticker, row.name),
+      rank: rankListingQuery(q, ticker, name),
     });
   };
   for (const c of loadAllCompanies()) {
@@ -42,6 +55,20 @@ export async function resolveListingQuery(
       },
       "local",
     );
+  }
+  const localBest = [...cands].sort(
+    (a, b) =>
+      a.rank - b.rank ||
+      (a.source === "local" ? 0 : 1) - (b.source === "local" ? 0 : 1),
+  )[0];
+  if (localBest && localBest.rank <= 1) {
+    return {
+      query: q,
+      ticker: localBest.ticker,
+      name: localBest.name,
+      market: localBest.market,
+      source: localBest.source,
+    };
   }
   const growwQs = listingQueryVariants(q).slice(0, 4);
   for (const gq of growwQs) {
@@ -60,6 +87,13 @@ export async function resolveListingQuery(
     } catch {
       /* local still usable */
     }
+    cands.sort(
+      (a, b) =>
+        a.rank - b.rank ||
+        (a.source === "local" ? 0 : 1) - (b.source === "local" ? 0 : 1),
+    );
+    const mid = cands[0];
+    if (mid && mid.rank <= 1) break;
   }
   cands.sort(
     (a, b) =>

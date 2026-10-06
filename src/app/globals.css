@@ -8901,6 +8901,7 @@ button.result-tag {
   flex: 1;
   min-width: 160px;
   padding: 0;
+  overflow: visible;
 }
 
 .gov-family-summary {
@@ -9625,12 +9626,17 @@ button.result-tag {
 
 .gov-family-add-hits {
   list-style: none;
+  position: absolute;
+  z-index: 12;
+  left: 0;
+  right: 0;
   margin: 4px 0 0;
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  max-height: 180px;
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.12);
+  max-height: 220px;
   overflow: auto;
 }
 
@@ -25586,18 +25592,85 @@ tr.wl-prove-fail td {
   font-size: 0.88rem;
   max-width: 52rem;
 }
-.rot-ranges {
+.rot-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+  border-radius: var(--radius, 12px);
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+}
+.rot-bar-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
   align-items: center;
 }
-.rot-create {
-  display: flex;
-  gap: 8px;
-  margin: 0 0 16px;
-  flex-wrap: wrap;
-  max-width: 56rem;
+.rot-bar-k {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-left: 6px;
+}
+.rot-bar-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--line-strong);
+  margin: 0 4px;
+}
+.rot-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--badge);
+  color: var(--badge-ink);
+  cursor: pointer;
+}
+.rot-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+.rot-chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.rot-bar-search {
+  flex: 1 1 160px;
+  min-width: 140px;
+  max-width: 280px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 0.82rem;
+}
+.rot-bar-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.rot-bar-sort {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: var(--badge);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.rot-dash .fam-dash-create {
+  margin: 0 0 14px;
 }
 .rot-grid {
   display: grid;
@@ -25606,11 +25679,13 @@ tr.wl-prove-fail td {
 }
 .rot-card {
   text-align: left;
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 12px);
   padding: 12px 12px 8px;
-  background: var(--card, #fff);
+  background: var(--surface);
   cursor: pointer;
+  color: var(--ink);
+  box-shadow: var(--shadow);
 }
 .rot-card-top {
   display: flex;
@@ -25630,10 +25705,10 @@ tr.wl-prove-fail td {
   color: #94a3b8;
 }
 .rot-detail {
-  border: 1px solid var(--line, #e2e8f0);
-  border-radius: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 12px);
   padding: 12px 14px 8px;
-  background: var(--card, #fff);
+  background: var(--surface);
 }
 .rot-detail-bar {
   display: flex;
@@ -25672,11 +25747,11 @@ tr.wl-prove-fail td {
 }
 .rot-table .pos,
 .rot-card .pos {
-  color: #15803d;
+  color: var(--ok);
 }
 .rot-table .neg,
 .rot-card .neg {
-  color: #b91c1c;
+  color: var(--danger);
 }
 .rot-legend {
   display: flex;
@@ -25699,13 +25774,45 @@ tr.wl-prove-fail td {
 .rot-leg-b::before {
   background: #94a3b8;
 }
-.rot-count {
+.rot-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.rot-card-ret {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rot-star {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.05rem;
+  line-height: 1;
+  padding: 0;
+}
+.rot-star.on {
+  color: var(--gold);
+}
+.rot-up,
+.rot-dn {
   display: inline-block;
-  padding: 1px 7px;
+  margin-left: 6px;
+  padding: 1px 6px;
   border-radius: 999px;
-  background: #ecfdf5;
-  color: #166534;
+  font-size: 0.72rem;
   font-weight: 600;
+}
+.rot-up {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.rot-dn {
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 .rot-row {
   cursor: pointer;
@@ -25713,6 +25820,12 @@ tr.wl-prove-fail td {
 .rot-member-filter {
   margin: 0 0 10px;
   max-width: 22rem;
+}
+.rot-shot-mini {
+  flex: 1 1 100%;
+  min-height: 0;
+  padding: 8px 10px;
+  margin: 4px 0 0;
 }
 .rot-shot.is-busy {
   opacity: 1;

@@ -102,7 +102,9 @@ export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "")
     .trim()
     .toUpperCase()
-    .replace(/[^A-Z0-9.& -]/g, "");
+    .replace(/[^A-Z0-9.& -]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
   const limit = Math.min(
     30,
     Math.max(1, Number(req.nextUrl.searchParams.get("limit") || 12) || 12),
@@ -114,8 +116,11 @@ export async function GET(req: NextRequest) {
 
   const hits = localHits(q, limit);
   const have = new Set(hits.map((h) => h.ticker));
+  const localStrong =
+    hits.length >= limit ||
+    hits.some((h) => rankHit(q, h) <= 2);
 
-  if (q.length >= 2) {
+  if (q.length >= 2 && !localStrong) {
     try {
       const remote = await searchGrowwListings(q, limit);
       for (const r of remote) {

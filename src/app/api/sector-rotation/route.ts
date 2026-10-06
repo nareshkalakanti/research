@@ -9,6 +9,7 @@ import {
   listRotationSectors,
   removeRotationMember,
   renameRotationSector,
+  setRotationStarred,
 } from "@/lib/sector-rotation";
 import {
   buildRotationBoard,
@@ -20,6 +21,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const range = sp.get("range") || "6M";
+  const weight = sp.get("weight") === "cap" ? "cap" : "equal";
   const id = (sp.get("id") || "").trim();
   try {
     if (id) {
@@ -27,10 +29,10 @@ export async function GET(req: NextRequest) {
       if (!sector) {
         return NextResponse.json({ error: "not found" }, { status: 404 });
       }
-      const detail = await buildRotationDetail(sector, range);
+      const detail = await buildRotationDetail(sector, range, weight);
       return NextResponse.json({ ok: true, ...detail });
     }
-    const board = await buildRotationBoard(range);
+    const board = await buildRotationBoard(range, weight);
     return NextResponse.json({
       ok: true,
       list: listRotationSectors(),
@@ -51,6 +53,8 @@ export async function POST(req: NextRequest) {
     deleteSector?: boolean;
     add?: boolean;
     remove?: boolean;
+    star?: boolean;
+    starred?: boolean;
     ticker?: string;
     name?: string;
     market?: string;
@@ -71,6 +75,10 @@ export async function POST(req: NextRequest) {
     }
     if (body.rename) {
       renameRotationSector(id, body.label || "");
+      return NextResponse.json({ ok: true, sector: getRotationSector(id) });
+    }
+    if (body.star) {
+      setRotationStarred(id, Boolean(body.starred));
       return NextResponse.json({ ok: true, sector: getRotationSector(id) });
     }
     if (body.deleteSector) {

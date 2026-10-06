@@ -7,6 +7,8 @@ import { flattenOcrHtml } from "./din-screenshot-parse";
 export type SectorShotExtract = {
   industry: string | null;
   names: string[];
+  /** Industry-column cells (not a page heading / parent group). */
+  rowIndustries: string[];
 };
 
 const NOISE =
@@ -121,14 +123,19 @@ function fieldByKey(
 
 function keepRecoveredName(s: string): boolean {
   const t = cleanExtractedName(s);
-  if (t.length < 5) return false;
+  if (t.length < 6) return false;
   if (/^(industry|names|name|sector|companies)$/i.test(t)) return false;
-  const words = t.split(/\s+/);
-  if (!looksIssuerLabel(t)) return false;
-  return (
-    words.length >= 3 ||
-    (words.length === 2 && (words[0] || "").length >= 6)
-  );
+  const words = t.split(/\s+/).filter(Boolean);
+  if (looksIssuerLabel(t)) {
+    return (
+      words.length >= 3 ||
+      (words.length === 2 && (words[0] || "").length >= 6)
+    );
+  }
+  if (PRICEISH.test(t) || HEADER_NAME.test(t) || HEADER_IND.test(t)) return false;
+  const first = words[0] || "";
+  if (words.length >= 3 && first.length >= 3 && /^[A-Za-z]/.test(first)) return true;
+  return false;
 }
 
 function recoverPartialBasket(text: string): SectorShotExtract | null {
@@ -140,28 +147,42 @@ function recoverPartialBasket(text: string): SectorShotExtract | null {
   for (const m of raw.matchAll(/"Industry"\s*:\s*"((?:\\.|[^"\\])*)"/g)) {
     if (m[1]) industries.push(m[1].replace(/\s+/g, " ").trim());
   }
-  const namesBlock = raw.match(/"names"\s*:\s*\[([\s\S]*?)(?:\]|$)/i);
+  const namesBlock = raw.match(/"names"\s*:\s*\[([\s\S]*)/i);
   if (namesBlock?.[1]) {
-    for (const m of namesBlock[1].matchAll(/"((?:\\.|[^"\\])*)"/g)) {
+    const block = namesBlock[1];
+    for (const m of block.matchAll(/"((?:\\.|[^"\\])*)"/g)) {
       const s = cleanExtractedName(m[1] || "");
       if (keepRecoveredName(s)) names.push(s);
     }
+    const dangling = block.match(/"((?:\\.|[^"\\])+)$/);
+    if (dangling?.[1]) {
+      const s = cleanExtractedName(dangling[1]);
+      if (keepRecoveredName(s)) names.push(s);
+    }
+  }
+  for (const m of raw.matchAll(/"Name"\s*:\s*"((?:\\.|[^"\\])*)(?:"|$)/gi)) {
+    const s = cleanExtractedName(m[1] || "");
+    if (keepRecoveredName(s)) names.push(s);
   }
   const extra: string[] = [];
   for (const i of industries) {
     if (looksIssuerLabel(i)) extra.push(cleanExtractedName(i));
   }
   const uniq = uniqNames([...extra, ...names].filter(keepRecoveredName));
-  const industry = tidyIndustry(pickIndustry(industries));
+  const rowIndustries = industries.filter(
+    (i) => i && !isIndustryHeader(i) && !looksIssuerLabel(i),
+  );
+  const industry = tidyIndustry(pickIndustry(rowIndustries));
   if (!industry && !uniq.length) return null;
-  return { industry, names: uniq };
+  return { industry, names: uniq, rowIndustries };
 }
 
 function tryJson(text: string): SectorShotExtract | null {
   const objs = allJsonObjects(text);
   if (!objs.length) return null;
   const names: string[] = [];
-  const industries: string[] = [];
+  const bundled: string[] = [];
+  const rowIndustries: string[] = [];
   for (const obj of objs) {
     const list = obj.names ?? obj.companies;
     if (Array.isArray(list)) {
@@ -169,24 +190,28 @@ function tryJson(text: string): SectorShotExtract | null {
         const s = cleanExtractedName(String(n || ""));
         if (s.length >= 2) names.push(s);
       }
-      const bundled = String(obj.industry || obj.sector || "")
+      const one = String(obj.industry || obj.sector || "")
         .replace(/\s+/g, " ")
         .trim();
-      if (bundled) industries.push(bundled);
+      if (one) bundled.push(one);
       continue;
     }
     const name = cleanExtractedName(fieldByKey(obj, /^(name|company|stock name)$/i));
     const ind = fieldByKey(obj, /^(industry|sector|theme)$/i);
     if (name.length >= 3) names.push(name);
-    if (ind) industries.push(ind);
+    if (ind) rowIndustries.push(ind);
   }
   const uniq = uniqNames(names);
-  const industry = tidyIndustry(pickIndustry(industries));
-  const extra = industries.filter(looksIssuerLabel).map(cleanExtractedName);
-  if (!industry && !uniq.length && !extra.length) return null;
+  const extra = [...bundled, ...rowIndustries]
+    .filter(looksIssuerLabel)
+    .map(cleanExtractedName);
+  const voted = tidyIndustry(pickIndustry(rowIndustries));
+  const fallback = tidyIndustry(pickIndustry(bundled));
+  if (!voted && !fallback && !uniq.length && !extra.length) return null;
   return {
-    industry,
+    industry: voted || fallback,
     names: uniqNames([...extra, ...uniq]),
+    rowIndustries,
   };
 }
 
@@ -306,7 +331,14 @@ function fromHtml(text: string): SectorShotExtract | null {
     if (ind && ind.toLowerCase() !== name.toLowerCase()) industries.push(ind);
   }
   if (!names.length) return null;
-  return { industry: pickIndustry(industries), names: uniqNames(names) };
+  const rowIndustries = industries.filter(
+    (i) => i && !isIndustryHeader(i) && !looksIssuerLabel(i),
+  );
+  return {
+    industry: pickIndustry(rowIndustries),
+    names: uniqNames(names),
+    rowIndustries,
+  };
 }
 
 function pickIndustry(industries: string[]): string | null {
@@ -368,7 +400,13 @@ function fromTable(text: string): SectorShotExtract {
     const ind = industryFromCells(cells, indIdx);
     if (ind && ind.toLowerCase() !== name.toLowerCase()) industries.push(ind);
   }
-  return { industry: tidyIndustry(pickIndustry(industries)), names: uniqNames(names) };
+  return {
+    industry: tidyIndustry(pickIndustry(industries)),
+    names: uniqNames(names),
+    rowIndustries: industries.filter(
+      (i) => i && !isIndustryHeader(i) && !looksIssuerLabel(i),
+    ),
+  };
 }
 
 export function parseSectorScreenshot(text: string): SectorShotExtract {
@@ -385,13 +423,37 @@ export function parseSectorScreenshot(text: string): SectorShotExtract {
     ...(json?.names?.length ? [] : partial?.names ?? []),
     ...(json?.names?.length ? [] : table.names),
   ]);
+  const rowIndustries = [
+    ...(json?.rowIndustries ?? []),
+    ...(partial?.rowIndustries ?? []),
+    ...(table.rowIndustries ?? []),
+  ];
+  const fromRows = tidyIndustry(pickIndustry(rowIndustries));
+  const bundled = tidyIndustry(
+    !json?.industry || looksIssuerLabel(json.industry) ? null : json.industry,
+  );
   const industry = tidyIndustry(
-    (!json?.industry || looksIssuerLabel(json.industry)
-      ? null
-      : json.industry) ||
+    fromRows ||
+      bundled ||
       partial?.industry ||
       table.industry ||
       (text.match(/(?:^|\n)\s*(?:industry|sector)\s*:\s*(.+)$/im)?.[1] ?? null),
   );
-  return { industry, names };
+  return { industry, names, rowIndustries };
+}
+
+/** Later pages in a multi-screenshot batch often OCR a parent group instead of the Industry column. */
+export function preferBatchIndustry(prior: string, next: string): string {
+  const a = (prior || "").replace(/\s+/g, " ").trim();
+  const b = (next || "").replace(/\s+/g, " ").trim();
+  if (!a) return b;
+  if (!b) return a;
+  if (a.toLowerCase() === b.toLowerCase()) return b;
+  const aw = a.split(/\s+/).length;
+  const bw = b.split(/\s+/).length;
+  if (aw >= 2 && bw === 1) return a;
+  if (bw >= 2 && aw === 1) return b;
+  if (b.toLowerCase().includes(a.toLowerCase()) && b.length > a.length) return b;
+  if (a.toLowerCase().includes(b.toLowerCase()) && a.length > b.length) return a;
+  return b;
 }

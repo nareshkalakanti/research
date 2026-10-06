@@ -20,12 +20,16 @@ async function imageFromForm(form: FormData): Promise<string> {
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
   let imageDataUrl = "";
+  let priorIndustry = "";
   if (contentType.includes("multipart/form-data")) {
-    imageDataUrl = await imageFromForm(await req.formData());
+    const form = await req.formData();
+    imageDataUrl = await imageFromForm(form);
+    priorIndustry = String(form.get("priorIndustry") || "").trim();
   } else {
     try {
-      const body = (await req.json()) as { image?: string };
+      const body = (await req.json()) as { image?: string; priorIndustry?: string };
       imageDataUrl = (body.image || "").trim();
+      priorIndustry = (body.priorIndustry || "").trim();
     } catch {
       imageDataUrl = "";
     }
@@ -38,7 +42,11 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode(`${JSON.stringify(ev)}\n`));
       };
       try {
-        const result = await importSectorFromScreenshot(imageDataUrl, send);
+        const result = await importSectorFromScreenshot(
+          imageDataUrl,
+          send,
+          priorIndustry,
+        );
         send({
           t: "done",
           industry: result.industry,
