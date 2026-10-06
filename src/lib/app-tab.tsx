@@ -24,27 +24,30 @@ export type AppTab =
   | "napkin"
   | "rotation";
 
+/** Top nav tabs only — other panels stay wired but are not listed here. */
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
-  { id: "dashboard", label: "Dashboard", short: "Dashboard" },
-  { id: "theme-scanner", label: "Theme", short: "Theme" },
-  { id: "scan", label: "Scan", short: "Scan" },
-  { id: "governance", label: "Governance", short: "Governance" },
-  { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "napkin", label: "Napkin", short: "Napkin" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
-  { id: "marketiq", label: "MarketIQ", short: "Market" },
-  { id: "orderbookiq", label: "OrderBookIQ", short: "Orders" },
-  { id: "boardroomiq", label: "BoardRoomIQ", short: "Board" },
+  { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "research", label: "Research", short: "Research" },
+  { id: "scan", label: "Scan", short: "Scan" },
+  { id: "theme-scanner", label: "Themes", short: "Themes" },
   { id: "missing", label: "Missing data", short: "Missing" },
+  { id: "dashboard", label: "Dashboard", short: "Dash" },
 ];
 
 export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [];
 
+/** Hidden from top nav; still reachable via `?tab=` / path and AppShell panels. */
 export const IQ_TABS: AppTab[] = [
   "marketiq",
   "orderbookiq",
   "boardroomiq",
+];
+
+const HIDDEN_TABS: AppTab[] = [
+  "governance",
+  ...IQ_TABS,
 ];
 
 function isPageTab(id: AppTab): boolean {
@@ -66,8 +69,14 @@ export function tabFromParam(raw: string | null): AppTab {
   if (raw === "rights") return "dashboard";
   if (raw === "radar") return "dashboard";
   if (raw === "categories") return "theme-scanner";
-  if (raw && APP_TABS.some((t) => t.id === raw)) return raw as AppTab;
-  return "dashboard";
+  if (
+    raw &&
+    (APP_TABS.some((t) => t.id === raw) ||
+      HIDDEN_TABS.includes(raw as AppTab))
+  ) {
+    return raw as AppTab;
+  }
+  return "napkin";
 }
 
 function pathOnly(): string {
@@ -76,7 +85,7 @@ function pathOnly(): string {
 }
 
 export function readTabFromLocation(): AppTab {
-  if (typeof window === "undefined") return "dashboard";
+  if (typeof window === "undefined") return "napkin";
   const path = pathOnly();
   if (path === "/watchlist" || path === "/fund") return "watchlist";
   if (path === "/dashboard") return "dashboard";
@@ -89,7 +98,7 @@ function buildHomeSearch(
   ticker?: string | null,
 ): string {
   const params = new URLSearchParams(current.toString());
-  if (next === "dashboard") params.delete("tab");
+  if (next === "napkin") params.delete("tab");
   else params.set("tab", next);
   if (next !== "orderbookiq") params.delete("ordersView");
   if (next !== "governance") {
@@ -110,6 +119,7 @@ function buildHomeSearch(
 export function hrefForTab(next: AppTab): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "dashboard") return "/dashboard";
+  if (next === "napkin") return "/";
   return `/?tab=${encodeURIComponent(next)}`;
 }
 

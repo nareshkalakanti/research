@@ -17,9 +17,7 @@ import { useExpandBrief } from "@/lib/use-expand-brief";
 import {
   cfProfitClass,
   fmtQVal,
-  fmtYoYPct,
   qCellClass,
-  yoyClass,
   type QuarterPanel,
 } from "@/lib/quarter-panel";
 import {
@@ -33,9 +31,9 @@ import { isPlaceholderWatch } from "@/lib/brief-placeholder";
 import { useOptionalSetAppTab } from "@/lib/app-tab";
 import { WatchlistDashboard } from "@/components/WatchlistDashboard";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
-import { isPeadHhh, type FundamentalsScanRow } from "@/lib/pead-bands";
+import type { FundamentalsScanRow } from "@/lib/pead-bands";
 
-type ChipList = "watch" | "holdings" | "named" | "common" | "dashboard" | "prove";
+type ChipList = "watch" | "holdings" | "named" | "common" | "dashboard";
 
 /** Distinct hues for named-list chips (not tied to any list label). */
 const NAMED_LIST_HUES = [
@@ -89,30 +87,9 @@ type WatchRow = {
   fundamentals?: FundamentalsScanRow | null;
 };
 
-function BandChip({ band }: { band: "High" | "Med" | "Low" | null | undefined }) {
-  if (!band) return <span className="fund-chip fund-chip--na">—</span>;
-  return (
-    <span className={`fund-chip fund-chip--${band.toLowerCase()}`}>{band}</span>
-  );
-}
-
 function industryLine(sector?: string | null, sub?: string | null): string | null {
   const line = (sub || sector || "").trim();
   return line || null;
-}
-
-function numGot(got: Record<string, unknown> | null, key: string): number | null {
-  const v = got?.[key];
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-function bandGot(
-  got: Record<string, unknown> | null,
-  key: string,
-): "High" | "Med" | "Low" | null {
-  const v = got?.[key];
-  if (v === "High" || v === "Med" || v === "Low") return v;
-  return null;
 }
 
 function fmtCr(n: number | null | undefined): string {
@@ -793,25 +770,6 @@ function WatchlistRow({
             )}
           </td>
         ) : null}
-        <td className={`num col-revgr-pct ${yoyClass(r.fundamentals?.sales_yoy)}`}>
-          {r.fundamentals?.sales_yoy == null
-            ? "—"
-            : fmtYoYPct(r.fundamentals.sales_yoy)}
-        </td>
-        <td className={`num col-patgr ${yoyClass(r.fundamentals?.np_yoy)}`}>
-          {r.fundamentals?.np_yoy == null
-            ? "—"
-            : fmtYoYPct(r.fundamentals.np_yoy)}
-        </td>
-        <td className="col-revgr">
-          <BandChip band={r.fundamentals?.rev_growth} />
-        </td>
-        <td className="col-mgn">
-          <BandChip band={r.fundamentals?.margin_exp} />
-        </td>
-        <td className="col-roce">
-          <BandChip band={r.fundamentals?.roce_impr} />
-        </td>
         <td className="col-remove">
           {canRemove ? (
             <button
@@ -942,26 +900,6 @@ export function WatchlistPanel() {
   const [q, setQ] = useState("");
   const [addQ, setAddQ] = useState("");
   const [listEpoch, setListEpoch] = useState(0);
-  const [hhhOnly, setHhhOnly] = useState(false);
-  const [goldBusy, setGoldBusy] = useState(false);
-  const [goldNote, setGoldNote] = useState<string | null>(null);
-  const [prove, setProve] = useState<{
-    matched: number;
-    total: number;
-    ok: boolean;
-    checks: Array<{
-      id: string;
-      ticker: string;
-      company?: string;
-      sector?: string | null;
-      sub_sector?: string | null;
-      kind: "pead" | "quarters";
-      ok: boolean;
-      detail: string;
-      want: Record<string, unknown>;
-      got: Record<string, unknown> | null;
-    }>;
-  } | null>(null);
   const loadSeqRef = useRef(0);
 
   const namedTickers =
@@ -1080,15 +1018,6 @@ export function WatchlistPanel() {
     setListEpoch((n) => n + 1);
     setRenameOpen(false);
     setList("dashboard");
-  };
-
-  const selectProve = () => {
-    loadSeqRef.current += 1;
-    setRows([]);
-    setBusy(false);
-    setListEpoch((n) => n + 1);
-    setRenameOpen(false);
-    setList("prove");
   };
 
   const addNamedTicker = useCallback(
@@ -1373,19 +1302,22 @@ export function WatchlistPanel() {
     return subscribeWatchlist(refreshTickers);
   }, [refreshTickers, refreshHoldings, refreshNamed]);
 
-  const dashTickers = useMemo(() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const t of [
-      ...holdTickers,
-      ...namedLists.flatMap((l) => l.tickers),
-    ]) {
-      const u = t.trim().toUpperCase();
-      if (!u || seen.has(u)) continue;
-      seen.add(u);
-      out.push(u);
+  const dashEntries = useMemo(() => {
+    const map = new Map<string, string[]>();
+    const add = (raw: string, label: string) => {
+      const u = raw.trim().toUpperCase();
+      if (!u) return;
+      const cur = map.get(u) ?? [];
+      if (!cur.includes(label)) cur.push(label);
+      map.set(u, cur);
+    };
+    for (const t of holdTickers) add(t, "Holdings");
+    for (const nl of namedLists) {
+      for (const t of nl.tickers) add(t, nl.label);
     }
-    return out;
+    return [...map.entries()]
+      .map(([ticker, sources]) => ({ ticker, sources }))
+      .sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [holdTickers, namedLists]);
 
   const commonTickers = useMemo(
@@ -1398,7 +1330,7 @@ export function WatchlistPanel() {
   );
 
   const activeTickers =
-    list === "dashboard" || list === "prove"
+    list === "dashboard"
       ? []
       : list === "holdings"
       ? holdTickers
@@ -1535,7 +1467,6 @@ export function WatchlistPanel() {
 
   const needle = q.trim().toLowerCase();
   const visible = sortedRows.filter((r) => {
-    if (hhhOnly && !isPeadHhh(r.fundamentals)) return false;
     if (!needle) return true;
     return (
       r.ticker.toLowerCase().includes(needle) ||
@@ -1545,55 +1476,6 @@ export function WatchlistPanel() {
     );
   });
 
-  const runPeadGold = useCallback(async () => {
-    setGoldBusy(true);
-    setGoldNote(null);
-    try {
-      const res = await fetch("/api/scan-pead-gold", { cache: "no-store" });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        matched?: number;
-        total?: number;
-        error?: string;
-        checks?: Array<{
-          id: string;
-          ticker: string;
-          company?: string;
-          sector?: string | null;
-          sub_sector?: string | null;
-          kind: "pead" | "quarters";
-          ok: boolean;
-          detail: string;
-          want: Record<string, unknown>;
-          got: Record<string, unknown> | null;
-        }>;
-      };
-      if (!res.ok) {
-        setProve(null);
-        setGoldNote(json.error || "Prove failed");
-        return;
-      }
-      const checks = json.checks ?? [];
-      const matched = json.matched ?? checks.filter((c) => c.ok).length;
-      const total = json.total ?? checks.length;
-      setProve({ matched, total, ok: matched === total, checks });
-      setGoldNote(
-        matched === total
-          ? `Prove ${matched}/${total} match`
-          : `Prove ${matched}/${total}`,
-      );
-    } catch (e) {
-      setProve(null);
-      setGoldNote(e instanceof Error ? e.message : "Prove failed");
-    } finally {
-      setGoldBusy(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (list === "prove") void runPeadGold();
-  }, [list, runPeadGold]);
-
   return (
     <section className="panel wl-panel wl-panel--simple">
       <header className="wl-simple-head">
@@ -1601,22 +1483,14 @@ export function WatchlistPanel() {
           <h1 className="wl-simple-title">Watchlist</h1>
           <p className="wl-simple-sub">
             {list === "dashboard"
-              ? "Fresh 200 DMA ↑ on Holdings and named lists. Name opens TradingView."
-              : list === "prove"
-                ? "Screenshot names vs this app: Rev Gr, PAT Gr, High chips. Industry sits under the company name."
-                : "Search a ticker to add it. Industry sits under the name. Expand (+) for tape and quarters."}
+              ? "200 DMA ↑, BB W, and TQ W on Holdings and named lists. From shows which list. Name opens TradingView."
+              : "Search a ticker to add it. Industry sits under the name. Expand (+) for tape and quarters."}
           </p>
         </div>
         <span className="wl-simple-count" role="status">
           {list === "dashboard"
             ? "Dashboard"
-            : list === "prove"
-              ? goldBusy
-                ? "Proving…"
-                : prove
-                  ? `${prove.matched}/${prove.total}`
-                  : goldNote || "Prove"
-              : error
+            : error
               ? error
               : busy
                 ? "Loading…"
@@ -1680,25 +1554,10 @@ export function WatchlistPanel() {
           role="tab"
           aria-selected={list === "dashboard"}
           className={`chip tag-chip${list === "dashboard" ? " on" : ""}`}
-          title="200 DMA ↑ on Holdings and named lists"
+          title="200 DMA ↑, BB W, TQ W on Holdings and named lists"
           onClick={selectDashboard}
         >
           Dashboard
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={list === "prove"}
-          className={`chip tag-chip tag-scan-pead${list === "prove" ? " on" : ""}`}
-          title="Screenshot names: compare Rev/PAT YoY and High chips to local caches"
-          onClick={selectProve}
-        >
-          Prove
-          {prove ? (
-            <span className="chip-count">
-              {prove.matched}/{prove.total}
-            </span>
-          ) : null}
         </button>
         {list === "named" && renameOpen ? (
           <span className="wl-new-list">
@@ -1769,81 +1628,7 @@ export function WatchlistPanel() {
       </div>
 
       {list === "dashboard" ? (
-        <WatchlistDashboard tickers={dashTickers} />
-      ) : list === "prove" ? (
-        <div className="wl-prove">
-          {goldNote ? (
-            <p className="hint tight" role="status">
-              {goldNote}
-            </p>
-          ) : null}
-          {goldBusy && !prove ? (
-            <p className="miq-empty-hint">Comparing screenshot gold…</p>
-          ) : null}
-          {prove ? (
-            <div className="table-wrap">
-              <table className="data-table wl-simple-table wl-prove-table">
-                <thead>
-                  <tr>
-                    <th className="col-name">Company</th>
-                    <th className="num col-revgr-pct">Rev Gr.</th>
-                    <th className="num col-patgr">PAT Gr.</th>
-                    <th className="col-revgr">Rev Growth</th>
-                    <th className="col-mgn">Margin Exp.</th>
-                    <th className="col-roce">ROCE Impr.</th>
-                    <th>Check</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {prove.checks
-                    .filter((c) => c.kind !== "quarters")
-                    .map((c) => {
-                      const industry = industryLine(c.sector, c.sub_sector);
-                      return (
-                    <tr key={c.id} className={c.ok ? "wl-prove-ok" : "wl-prove-fail"}>
-                      <td className="col-name">
-                        <div className="pead-co-text">
-                          <span className="company-name">{c.company || c.ticker}</span>
-                          {industry ? (
-                            <span className="pead-sector">{industry}</span>
-                          ) : null}
-                        </div>
-                      </td>
-                      <td className={`num ${yoyClass(numGot(c.got, "sales_yoy"))}`}>
-                        {numGot(c.got, "sales_yoy") == null
-                          ? "—"
-                          : fmtYoYPct(numGot(c.got, "sales_yoy"))}
-                      </td>
-                      <td className={`num ${yoyClass(numGot(c.got, "np_yoy"))}`}>
-                        {numGot(c.got, "np_yoy") == null
-                          ? "—"
-                          : fmtYoYPct(numGot(c.got, "np_yoy"))}
-                      </td>
-                      <td>
-                        <BandChip band={bandGot(c.got, "rev_growth")} />
-                      </td>
-                      <td>
-                        <BandChip band={bandGot(c.got, "margin_exp")} />
-                      </td>
-                      <td>
-                        <BandChip band={bandGot(c.got, "roce_impr")} />
-                      </td>
-                      <td>
-                        <span className={c.ok ? "result-tag tag-scan-pead" : "result-tag tag-distress"}>
-                          {c.ok ? "Match" : "Fail"}
-                        </span>
-                        {c.ok ? null : (
-                          <p className="wl-prove-detail">{c.detail}</p>
-                        )}
-                      </td>
-                    </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
-          ) : null}
-        </div>
+        <WatchlistDashboard entries={dashEntries} />
       ) : (
         <>
       <div className="wl-simple-toolbar">
@@ -1918,17 +1703,6 @@ export function WatchlistPanel() {
         >
           {fillQtrBusy ? "…" : "Fill Quarters"}
         </button>
-        <button
-          type="button"
-          className={`chip tag-chip tag-scan-pead${hhhOnly ? " on" : ""}`}
-          onClick={() => setHhhOnly((v) => !v)}
-          title="Rev Growth, Margin Exp, and ROCE Impr all High"
-        >
-          HHH
-          <span className="chip-count">
-            {sortedRows.filter((r) => isPeadHhh(r.fundamentals)).length}
-          </span>
-        </button>
       </div>
       {fillQtrLabel ? (
         <p className="hint tight wl-qtr-fill-status" role="status">
@@ -1955,11 +1729,6 @@ export function WatchlistPanel() {
               <col className="col-price" />
               <col className="col-chg" />
               {showMomentumColumn ? <col className="col-mom" /> : null}
-              <col className="col-revgr-pct" />
-              <col className="col-patgr" />
-              <col className="col-revgr" />
-              <col className="col-mgn" />
-              <col className="col-roce" />
               <col className="col-remove" />
             </colgroup>
             <thead>
@@ -1975,11 +1744,6 @@ export function WatchlistPanel() {
                     Mom
                   </th>
                 ) : null}
-                <th className="num col-revgr-pct">Rev Gr.</th>
-                <th className="num col-patgr">PAT Gr.</th>
-                <th className="col-revgr">Rev Growth</th>
-                <th className="col-mgn">Margin Exp.</th>
-                <th className="col-roce">ROCE Impr.</th>
                 <th className="col-remove" />
               </tr>
             </thead>

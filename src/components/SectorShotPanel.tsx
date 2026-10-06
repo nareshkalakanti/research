@@ -471,13 +471,13 @@ export function SectorShotPanel() {
                       submitLabel="add"
                     />
                     {members.length ? (
-                      <table className="rot-table rot-shot-members">
+                      <table className="rot-table rot-shot-members rot-table--members">
                         <thead>
                           <tr>
-                            <th>#</th>
-                            <th>Stock</th>
-                            <th>Symbol</th>
-                            <th />
+                            <th className="rot-col-num">#</th>
+                            <th className="rot-col-stock">Stock</th>
+                            <th className="rot-col-sym">Symbol</th>
+                            <th className="rot-col-act" />
                           </tr>
                         </thead>
                         <tbody>

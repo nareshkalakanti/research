@@ -219,12 +219,14 @@ a {
   position: sticky;
   top: 0;
   z-index: 20;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, max-content) minmax(0, 1fr) minmax(0, max-content);
   align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
+  column-gap: 16px;
+  row-gap: 8px;
+  padding: 8px clamp(10px, 2vw, 20px);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--line);
 }
 
@@ -234,6 +236,8 @@ a {
   gap: 10px;
   flex-shrink: 0;
   min-width: 0;
+  text-decoration: none;
+  color: inherit;
 }
 
 .brand-text {
@@ -260,7 +264,8 @@ a {
   white-space: nowrap;
 }
 
-button.brand-btn {
+button.brand-btn,
+a.brand-btn {
   appearance: none;
   border: 0;
   background: transparent;
@@ -270,9 +275,11 @@ button.brand-btn {
   text-align: left;
   font: inherit;
   color: inherit;
+  text-decoration: none;
 }
 
-button.brand-btn:hover .brand-mark {
+button.brand-btn:hover .brand-mark,
+a.brand-btn:hover .brand-mark {
   transform: translateY(-1px);
   box-shadow:
     0 2px 4px rgba(16, 24, 40, 0.08),
@@ -280,27 +287,22 @@ button.brand-btn:hover .brand-mark {
   border-color: #c5d7f0;
 }
 
-button.brand-btn:hover .brand-name {
+button.brand-btn:hover .brand-name,
+a.brand-btn:hover .brand-name {
   color: var(--accent-ink);
 }
 
 .tabs {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
   justify-content: center;
+  min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
   flex-wrap: nowrap;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
-  mask-image: linear-gradient(90deg,
-      transparent 0,
-      #000 10px,
-      #000 calc(100% - 10px),
-      transparent 100%);
+  overscroll-behavior-x: contain;
 }
 
 .tabs::-webkit-scrollbar {
@@ -314,15 +316,17 @@ button.brand-btn:hover .brand-name {
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
-  padding: 2px;
-  border-radius: 10px;
-  background: #f2f4f7;
+  padding: 3px;
+  border-radius: 12px;
+  background: #eef1f5;
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04);
 }
 
 .tabs-group-routes {
   background: transparent;
   padding: 0;
   gap: 2px;
+  box-shadow: none;
 }
 
 /* Always-visible workspace links (Watchlist / Fund) — outside scroll mask. */
@@ -357,10 +361,10 @@ button.brand-btn:hover .brand-name {
   border: 0;
   background: transparent;
   color: var(--muted);
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 7px 11px;
+  border-radius: 9px;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   letter-spacing: -0.01em;
   cursor: pointer;
   flex-shrink: 0;
@@ -369,10 +373,11 @@ button.brand-btn:hover .brand-name {
   text-decoration: none;
   display: inline-flex;
   align-items: center;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .tab:hover {
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.9);
   color: var(--ink);
 }
 
@@ -383,7 +388,9 @@ button.brand-btn:hover .brand-name {
 .tab.on {
   background: #fff;
   color: var(--accent-ink);
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.08),
+    0 0 0 1px rgba(15, 23, 42, 0.04);
 }
 
 .tabs-group-routes .tab.on {
@@ -395,10 +402,32 @@ button.brand-btn:hover .brand-name {
   display: none;
 }
 
-/* Short labels only on tighter widths — names stay recognizable. */
-@media (max-width: 1240px) {
+.user-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.user-email {
+  font-size: 0.78rem;
+  color: var(--muted);
+  max-width: min(160px, 18vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-logout {
+  flex-shrink: 0;
+}
+
+/* Compact labels before the bar wraps — 7 tabs still fit full names longer. */
+@media (max-width: 980px) {
   .tab {
-    padding: 6px 8px;
+    padding: 6px 9px;
     font-size: 0.78rem;
   }
 
@@ -409,23 +438,88 @@ button.brand-btn:hover .brand-name {
   .tab-label-short {
     display: inline;
   }
+
+  .brand-sub {
+    display: none;
+  }
+
+  .user-email {
+    display: none;
+  }
 }
 
-.user-block {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-  justify-content: flex-end;
+@media (max-width: 720px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding: 8px 10px 10px;
+  }
+
+  .tabs {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    margin: 0 -10px;
+    padding: 0 10px;
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0,
+      #000 12px,
+      #000 calc(100% - 12px),
+      transparent 100%
+    );
+  }
+
+  .tabs-group {
+    width: max-content;
+  }
+
+  .tab {
+    padding: 7px 10px;
+    font-size: 0.8rem;
+  }
+
+  .tab-label-full {
+    display: inline;
+  }
+
+  .tab-label-short {
+    display: none;
+  }
+
+  .btn-logout {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+  }
+
+  .ollama-chip {
+    max-width: 120px;
+    padding: 5px 8px;
+  }
+
+  .ollama-chip-model {
+    display: none;
+  }
 }
 
-.user-email {
-  font-size: 0.8rem;
-  color: var(--muted);
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+@media (max-width: 420px) {
+  .brand-name {
+    font-size: 0.95rem;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+    font-size: 0.95rem;
+    border-radius: 9px;
+  }
+
+  .tab {
+    padding: 6px 9px;
+    font-size: 0.76rem;
+  }
+
+  .btn-logout {
+    padding: 5px 7px;
+  }
 }
 
 .btn-ghost {
@@ -11892,45 +11986,10 @@ tr.sm-row-sme-hit td {
 }
 
 @media (max-width: 900px) {
-  .topbar {
-    flex-wrap: wrap;
-    gap: 8px;
-    padding: 10px 12px;
-  }
-
-  .brand-sub {
-    display: none;
-  }
-
-  .tabs {
-    order: 3;
-    width: 100%;
-    justify-content: flex-start;
-    mask-image: none;
-  }
-
-  .tabs-group {
-    background: transparent;
-    padding: 0;
-  }
-
-  .tab.on {
-    background: var(--accent-soft);
-    box-shadow: none;
-  }
-
   .pager {
     margin-left: 0;
     width: 100%;
     justify-content: space-between;
-  }
-
-  .user-email {
-    display: none;
-  }
-
-  .ollama-chip-model {
-    display: none;
   }
 
   .ss-stats {
@@ -11956,12 +12015,6 @@ tr.sm-row-sme-hit td {
 
   .ss-scan-btn {
     width: 100%;
-  }
-}
-
-@media (max-width: 1200px) {
-  .brand-sub {
-    display: none;
   }
 }
 
@@ -24384,8 +24437,34 @@ tr.wl-prove-fail td {
   text-decoration: underline;
 }
 
-.wl-dash-table .col-signal {
-  white-space: nowrap;
+.wl-dash-table .col-signal,
+.wl-dash-table .col-from {
+  white-space: normal;
+  min-width: 7rem;
+}
+
+.wl-dash-signal-tags,
+.wl-dash-from-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.wl-dash-from-tags .result-tag {
+  font-size: 0.72rem;
+}
+
+.wl-dash-from-tags .result-tag.tag-hold {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
+}
+
+.wl-dash-from-tags .result-tag.tag-named {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
 }
 
 .tag-dash-tq {
@@ -25726,6 +25805,12 @@ tr.wl-prove-fail td {
 }
 .rot-spark {
   color: #94a3b8;
+  max-width: 42rem;
+  display: block;
+}
+.rot-spark-wrap {
+  margin: 0 0 10px;
+  max-width: 42rem;
 }
 .rot-detail {
   border: 1px solid var(--line);
@@ -25747,9 +25832,26 @@ tr.wl-prove-fail td {
   max-width: 22rem;
   font-weight: 600;
 }
+.rot-add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.rot-add-row .ticker-suggest {
+  flex: 1 1 16rem;
+  max-width: 22rem;
+  min-width: 12rem;
+}
+.rot-add-row .rot-member-filter {
+  flex: 1 1 12rem;
+  max-width: 18rem;
+  margin: 0;
+}
 .rot-add {
   position: relative;
-  margin: 12px 0;
+  margin: 8px 0;
   max-width: 28rem;
 }
 .rot-table {
@@ -25760,8 +25862,37 @@ tr.wl-prove-fail td {
 .rot-table th,
 .rot-table td {
   text-align: left;
-  padding: 8px 6px;
+  padding: 6px 8px;
   border-top: 1px solid var(--line, #e2e8f0);
+  vertical-align: middle;
+}
+.rot-table--members {
+  width: auto;
+  max-width: 100%;
+  table-layout: auto;
+}
+.rot-table--members .rot-col-num {
+  width: 1%;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.rot-table--members .rot-col-stock {
+  width: auto;
+  min-width: 10rem;
+  max-width: 22rem;
+}
+.rot-table--members .rot-col-sym {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 16px;
+}
+.rot-table--members .rot-col-trend {
+  width: 1%;
+  white-space: nowrap;
+}
+.rot-table--members .rot-col-act {
+  width: 1%;
+  white-space: nowrap;
 }
 .rot-table .rot-name {
   display: block;
@@ -25851,21 +25982,18 @@ tr.wl-prove-fail td {
 .rot-shot-open-inner {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-width: 36rem;
+  gap: 8px;
+  max-width: 40rem;
 }
 .rot-shot-open-inner .ticker-suggest,
 .rot-shot-open-inner .ticker-suggest-field,
 .rot-shot-open-inner .fam-dash-search {
   width: 100%;
-  max-width: none;
+  max-width: 22rem;
 }
 .rot-shot-members {
   margin: 0;
-}
-.rot-member-filter {
-  margin: 0 0 10px;
-  max-width: 22rem;
+  width: auto;
 }
 .rot-shot-simple {
   display: grid;

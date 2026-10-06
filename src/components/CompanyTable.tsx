@@ -15,7 +15,6 @@ import { matchTagSource } from "@/lib/pattern";
 import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap, formatMomPct, formatRsiM } from "@/lib/types";
-import { fmtYoYPct, yoyClass } from "@/lib/quarter-panel";
 import { SecCell } from "@/components/SecCell";
 import { WatchButton } from "@/components/WatchButton";
 import { useOptionalSetAppTab } from "@/lib/app-tab";
@@ -325,11 +324,6 @@ export function CompanyTable({
     if (mode === "pead") {
       return [
         { key: "name", label: "Company", align: "left" },
-        { key: "sales_yoy", label: "Rev Gr.", align: "right" },
-        { id: "pat", key: "np_yoy", label: "PAT Gr.", align: "right" },
-        { id: "revgr", key: "sales_yoy", label: "Rev Growth", align: "left", sortable: false },
-        { id: "mgn", key: "sales_yoy", label: "Margin Exp.", align: "left", sortable: false },
-        { id: "roce", key: "sales_yoy", label: "ROCE Impr.", align: "left", sortable: false },
         { key: "pead_score", label: "PEAD Potential", align: "left" },
         { id: "tech", key: "pead_score", label: "Tech Strength", align: "left", sortable: false },
       ];
@@ -424,11 +418,6 @@ export function CompanyTable({
             ) : mode === "pead" ? (
               <>
                 <col className="col-name" />
-                <col className="col-revgr-pct" />
-                <col className="col-patgr" />
-                <col className="col-revgr" />
-                <col className="col-mgn" />
-                <col className="col-roce" />
                 <col className="col-pead" />
                 <col className="col-tech" />
               </>
@@ -459,21 +448,11 @@ export function CompanyTable({
             <tr>
               {headers.map((h) => {
                 const colClass =
-                  h.id === "pat"
-                    ? "col-patgr"
-                    : h.id === "revgr"
-                      ? "col-revgr"
-                      : h.id === "mgn"
-                        ? "col-mgn"
-                        : h.id === "roce"
-                          ? "col-roce"
-                          : h.id === "tech"
-                            ? "col-tech"
-                            : h.key === "sales_yoy" && !h.id
-                              ? "col-revgr-pct"
-                            : h.key === "pead_score"
-                              ? "col-pead"
-                  : h.key === "sector"
+                  h.id === "tech"
+                    ? "col-tech"
+                    : h.key === "pead_score"
+                      ? "col-pead"
+                      : h.key === "sector"
                     ? "col-sec"
                     : h.key === "momentum_pct"
                       ? "col-mom"
@@ -1261,25 +1240,6 @@ function CompanyRows({
           </>
         ) : signalMode === "pead" ? (
           <>
-            <td className={`num col-revgr-pct ${yoyClass(r.fundamentals?.sales_yoy)}`}>
-              {r.fundamentals?.sales_yoy == null
-                ? "—"
-                : fmtYoYPct(r.fundamentals.sales_yoy)}
-            </td>
-            <td className={`num col-patgr ${yoyClass(r.fundamentals?.np_yoy)}`}>
-              {r.fundamentals?.np_yoy == null
-                ? "—"
-                : fmtYoYPct(r.fundamentals.np_yoy)}
-            </td>
-            <td className="col-revgr">
-              <BandChip band={r.fundamentals?.rev_growth} />
-            </td>
-            <td className="col-mgn">
-              <BandChip band={r.fundamentals?.margin_exp} />
-            </td>
-            <td className="col-roce">
-              <BandChip band={r.fundamentals?.roce_impr} />
-            </td>
             <td className="col-pead">
               <BandChip band={r.fundamentals?.pead_band} solid />
             </td>
