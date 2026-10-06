@@ -1,4 +1,4 @@
-import { loadAllCompanies } from "./db";
+import { loadAllCompanies, type CompanyRow } from "./db";
 import {
   rankListingQuery,
   listingQueryMatches,
@@ -8,6 +8,14 @@ import { searchGrowwListings } from "./web-mcap";
 import type { SectorMember } from "./sector-rotation";
 
 export type ResolvedListing = SectorMember & { query: string; source: string };
+
+function localListings(): CompanyRow[] {
+  try {
+    return loadAllCompanies();
+  } catch {
+    return [];
+  }
+}
 
 export async function resolveListingQuery(
   query: string,
@@ -23,7 +31,7 @@ export async function resolveListingQuery(
     let market = row.market;
     const stem = ticker.replace(/-(?:RE|PP)$/i, "");
     if (stem !== ticker) {
-      const primary = loadAllCompanies().find(
+      const primary = localListings().find(
         (c) => c.ticker.toUpperCase() === stem,
       );
       if (primary) {
@@ -42,7 +50,7 @@ export async function resolveListingQuery(
       rank: rankListingQuery(q, ticker, name),
     });
   };
-  for (const c of loadAllCompanies()) {
+  for (const c of localListings()) {
     const ticker = String(c.ticker || "").toUpperCase();
     const name = String(c.name || ticker).trim();
     if (!ticker) continue;

@@ -131,13 +131,6 @@ export async function importSectorFromScreenshot(
       `None of the names resolved: ${parsed.names.slice(0, 8).join(", ")}`,
     );
   }
-  await runConcurrent(members, 4, (m) =>
-    bootstrapCompanyTicker(m.ticker, {
-      name: m.name,
-      market: m.market,
-    }),
-  );
-  invalidateCompanyCache();
   const sector = mergeRotationSectorByLabel(industry, members);
   onEvent?.({
     t: "count",
@@ -148,6 +141,22 @@ export async function importSectorFromScreenshot(
     after: sector.members.length,
   });
   onEvent?.({ t: "save", label: sector.label, n: sector.members.length });
+  void Promise.all(
+    members.map(async (m) => {
+      try {
+        await bootstrapCompanyTicker(m.ticker, {
+          name: m.name,
+          market: m.market,
+        });
+      } catch (err) {
+        console.warn(
+          "[sector-shot] about bootstrap skipped:",
+          m.ticker,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }),
+  ).then(() => invalidateCompanyCache());
   return {
     ocr,
     industry,

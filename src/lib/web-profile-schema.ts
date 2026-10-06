@@ -15,7 +15,8 @@ export function ensureWebProfileSchema(): boolean {
     return false;
   }
   let migrated = false;
-  const db = openSqliteNamed("company_about.db", { readonly: false, wal: true });
+  try {
+    const db = openSqliteNamed("company_about.db", { readonly: false, wal: true });
   try {
     const cols = db
       .prepare(`PRAGMA table_info(company_about)`)
@@ -29,6 +30,12 @@ export function ensureWebProfileSchema(): boolean {
     }
   } finally {
     db.close();
+  }
+  } catch (err) {
+    console.warn(
+      "[db] web-profile schema skipped:",
+      err instanceof Error ? err.message : err,
+    );
   }
   ensured = true;
   return migrated;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { ROTATION_MA_PERIODS, ROTATION_RANGES } from "@/lib/sector-rotation-series";
 
 type Point = { date: string; value: number };
@@ -292,10 +293,8 @@ export function SectorRotationPanel() {
   const [newName, setNewName] = useState("");
   const [newTickers, setNewTickers] = useState<Hit[]>([]);
   const [newQ, setNewQ] = useState("");
-  const [newHits, setNewHits] = useState<Hit[]>([]);
   const [adding, setAdding] = useState(false);
   const [addQ, setAddQ] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
@@ -384,39 +383,12 @@ export function SectorRotationPanel() {
     if (openId) void loadDetail(openId);
   }, [openId, loadDetail]);
 
-  useEffect(() => {
-    const q = addQ.trim();
-    if (!openId || q.length < 1) {
-      setHits([]);
-      return;
-    }
-    const t = window.setTimeout(() => {
-      void fetch(`/api/tickers?q=${encodeURIComponent(q)}&limit=8`, {
-        cache: "no-store",
-      })
-        .then((r) => r.json())
-        .then((json: { hits?: Hit[] }) => setHits(json.hits ?? []))
-        .catch(() => setHits([]));
-    }, 160);
-    return () => window.clearTimeout(t);
-  }, [addQ, openId]);
-
-  useEffect(() => {
-    const q = newQ.trim();
-    if (!adding || openId || q.length < 2) {
-      setNewHits([]);
-      return;
-    }
-    const t = window.setTimeout(() => {
-      void fetch(`/api/tickers?q=${encodeURIComponent(q)}&limit=8`, {
-        cache: "no-store",
-      })
-        .then((r) => r.json())
-        .then((json: { hits?: Hit[] }) => setNewHits(json.hits ?? []))
-        .catch(() => setNewHits([]));
-    }, 160);
-    return () => window.clearTimeout(t);
-  }, [newQ, adding, openId]);
+  const pickCreateTicker = (h: TickerSuggestHit) => {
+    setNewTickers((rows) =>
+      rows.some((x) => x.ticker === h.ticker) ? rows : [...rows, h],
+    );
+    setNewQ("");
+  };
 
   const create = async () => {
     const label = newName.replace(/\s+/g, " ").trim();
@@ -440,7 +412,6 @@ export function SectorRotationPanel() {
       setNewName("");
       setNewTickers([]);
       setNewQ("");
-      setNewHits([]);
       setAdding(false);
       setOpenId(json.sector.id);
       for (const h of newTickers) {
@@ -696,6 +667,7 @@ export function SectorRotationPanel() {
   const addTicker = async (h: Hit) => {
     if (!openId) return;
     setError(null);
+    setAddQ("");
     const res = await fetch("/api/sector-rotation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -713,8 +685,8 @@ export function SectorRotationPanel() {
       return;
     }
     setAddQ("");
-    setHits([]);
-    await Promise.all([loadBoard({ silent: true }), loadDetail(openId)]);
+    await loadDetail(openId);
+    void loadBoard({ silent: true });
   };
 
   const removeTicker = async (ticker: string) => {
@@ -772,7 +744,6 @@ export function SectorRotationPanel() {
     setOpenId(null);
     setDetail(null);
     setAddQ("");
-    setHits([]);
     setMemberQ("");
     setEditLabel("");
   }, []);
@@ -1027,6 +998,7 @@ export function SectorRotationPanel() {
           void create();
         }}
       >
+        <div className="rot-create-top">
         <input
           className="fam-dash-search"
           placeholder="Sector name"
@@ -1034,6 +1006,14 @@ export function SectorRotationPanel() {
           onChange={(e) => setNewName(e.target.value)}
           aria-label="New sector name"
         />
+        <button
+          type="submit"
+          className="btn-ghost"
+          disabled={creating || newName.trim().length < 2}
+        >
+          {creating ? "Saving…" : "Create sector"}
+        </button>
+        </div>
         <div className="fam-dash-create-cos">
           {newTickers.map((t) => (
             <span key={t.ticker} className="fam-dash-create-chip">
@@ -1051,46 +1031,17 @@ export function SectorRotationPanel() {
               </button>
             </span>
           ))}
-          <div className="gov-family-add fam-dash-create-add">
-            <input
-              type="search"
-              className="gov-family-add-input"
-              placeholder="Add company…"
-              value={newQ}
-              onChange={(e) => setNewQ(e.target.value)}
-            />
-            {newHits.length ? (
-              <ul className="gov-family-add-hits">
-                {newHits.map((h) => (
-                  <li key={h.ticker}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setNewTickers((rows) =>
-                          rows.some((x) => x.ticker === h.ticker)
-                            ? rows
-                            : [...rows, h],
-                        );
-                        setNewQ("");
-                        setNewHits([]);
-                      }}
-                    >
-                      <span className="mono">{h.ticker}</span>
-                      <span>{h.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+          <TickerSuggest
+            value={newQ}
+            onChange={setNewQ}
+            onSelect={pickCreateTicker}
+            clearOnSelect
+            persistGroww={false}
+            placeholder="Add company…"
+            className="fam-dash-search"
+            submitLabel="add"
+          />
         </div>
-        <button
-          type="submit"
-          className="btn-ghost"
-          disabled={creating || newName.trim().length < 2}
-        >
-          {creating ? "Saving…" : "Create sector"}
-        </button>
         <div
           ref={shotWell}
           className={`din-paste-well rot-shot rot-shot-mini${shotDrag ? " is-drag" : ""}${shotBusy ? " is-busy" : ""}`}
@@ -1224,30 +1175,16 @@ export function SectorRotationPanel() {
           ) : (
             <div className="table-meta">Loading sector…</div>
           )}
-          <div className="rot-add gov-family-add">
-            <input
-              type="search"
-              className="gov-family-add-input"
-              placeholder="Add stock (name or ticker)…"
-              value={addQ}
-              onChange={(e) => setAddQ(e.target.value)}
-            />
-            {hits.length ? (
-              <ul className="gov-family-add-hits">
-                {hits.map((h) => (
-                  <li key={h.ticker}>
-                    <button type="button" onClick={() => void addTicker(h)}>
-                      <span className="mono">{h.ticker}</span>
-                      <span>
-                        {h.name}
-                        {h.source === "groww" ? " · Groww" : ""}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </div>
+          <TickerSuggest
+            value={addQ}
+            onChange={setAddQ}
+            onSelect={(h) => void addTicker(h)}
+            clearOnSelect
+            persistGroww={false}
+            placeholder="Add company…"
+            className="fam-dash-search"
+            submitLabel="add"
+          />
           <input
             className="fam-dash-search rot-member-filter"
             placeholder="Search by name or code…"

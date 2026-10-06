@@ -1,6 +1,7 @@
 import { execSync } from "child_process";
 import Database from "better-sqlite3";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 export const DATA_DIR = path.join(process.cwd(), "data");
@@ -137,17 +138,32 @@ function readQuickCheck(db: Database.Database): string {
   return String(row);
 }
 
+function sqliteFileUri(dbPath: string, query: string): string {
+  return `file:${path.resolve(dbPath)}?${query}`;
+}
+
 function openRaw(
   dbPath: string,
   opts: OpenSqliteOpts,
+  uriQuery?: string,
 ): Database.Database {
   const readonly = opts.readonly ?? false;
-  const db = new Database(dbPath, {
+  const source = uriQuery ? sqliteFileUri(dbPath, uriQuery) : dbPath;
+  const db = new Database(source, {
     readonly,
     fileMustExist: opts.fileMustExist ?? readonly,
   });
   db.pragma(`busy_timeout = ${opts.busyTimeoutMs ?? 5000}`);
-  if (!readonly && (opts.wal ?? true)) db.pragma("journal_mode = WAL");
+  const about = path.basename(dbPath) === "company_about.db";
+  if (about) {
+    try {
+      db.pragma("journal_mode = DELETE");
+    } catch {
+      /* readonly copies may refuse this */
+    }
+  } else if (!readonly && (opts.wal ?? true)) {
+    db.pragma("journal_mode = WAL");
+  }
   if (readonly) db.pragma("query_only = ON");
   if (opts.quickCheck ?? true) {
     const detail = readQuickCheck(db);
@@ -203,17 +219,32 @@ export function recoverCorruptDb(dbPath: string): boolean {
  * Open a SQLite DB. On corruption: drop WAL sidecars and retry; if still bad,
  * run sqlite3 .recover once, then reopen. Prevents 503s from stale WAL/sync damage.
  */
+/** Empty WAL/SHM files make SQLite throw disk I/O even when the main .db is fine. */
+export function stripEmptyWalSidecars(dbPath: string): void {
+  for (const suffix of ["-wal", "-shm"]) {
+    const p = dbPath + suffix;
+    try {
+      if (fs.existsSync(p) && fs.statSync(p).size === 0) fs.unlinkSync(p);
+    } catch {
+      /* held by another process */
+    }
+  }
+}
+
 export function openSqlite(
   dbPath: string,
   opts: OpenSqliteOpts = {},
 ): Database.Database {
   const autoRecover = opts.autoRecover ?? true;
+  stripEmptyWalSidecars(dbPath);
+  if (path.basename(dbPath) === "company_about.db") {
+    removeWalSidecars(dbPath);
+  }
   try {
     return openRaw(dbPath, opts);
   } catch (err) {
     if (!autoRecover || !isSqliteCorrupt(err)) throw err;
 
-    // 1) Stale/corrupt WAL is the usual cause — strip and retry.
     removeWalSidecars(dbPath);
     try {
       return openRaw(dbPath, opts);
@@ -221,11 +252,32 @@ export function openSqlite(
       if (!isSqliteCorrupt(err2)) throw err2;
     }
 
-    // 2) Main file damaged — rebuild from recoverable pages.
-    if (!recoverCorruptDb(dbPath)) {
-      throw corruptDbError(path.basename(dbPath), err);
+    if (recoverCorruptDb(dbPath)) {
+      return openRaw(dbPath, opts);
     }
-    return openRaw(dbPath, opts);
+
+    if (opts.readonly) {
+      try {
+        return openRaw(
+          dbPath,
+          { ...opts, quickCheck: false },
+          "mode=ro&immutable=1",
+        );
+      } catch {
+        /* copy the main file and read that */
+      }
+      try {
+        const tmp = path.join(
+          os.tmpdir(),
+          `sqlite-ro-${path.basename(dbPath)}-${process.pid}`,
+        );
+        fs.copyFileSync(dbPath, tmp);
+        return openRaw(tmp, { ...opts, quickCheck: false, fileMustExist: true });
+      } catch {
+        /* fall through */
+      }
+    }
+    throw corruptDbError(path.basename(dbPath), err);
   }
 }
 
