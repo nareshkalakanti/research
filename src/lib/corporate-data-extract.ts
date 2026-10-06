@@ -245,6 +245,7 @@ export async function ocrImageWithQianfan(
   imageDataUrl: string,
   prompt: string = OCR_PROMPT,
   maxTokens = 1536,
+  opts?: { maxEdge?: number; numCtx?: number },
 ): Promise<string> {
   const cfg = qianfanConfig();
   if (!cfg) {
@@ -253,10 +254,13 @@ export async function ocrImageWithQianfan(
     );
   }
   const { shrinkImageDataUrlForOcr } = await import("./pdf-rasterize");
-  const image = await shrinkImageDataUrlForOcr(imageDataUrl, 1280);
+  const image = await shrinkImageDataUrlForOcr(
+    imageDataUrl,
+    opts?.maxEdge ?? 1280,
+  );
   const numCtx = Math.max(
     8192,
-    Number(process.env.OLLAMA_OCR_NUM_CTX || 16384) || 16384,
+    Number(opts?.numCtx ?? process.env.OLLAMA_OCR_NUM_CTX ?? 16384) || 16384,
   );
   const first = {
     base: cfg.base,

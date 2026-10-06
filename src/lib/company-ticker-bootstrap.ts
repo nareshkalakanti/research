@@ -108,6 +108,7 @@ export async function bootstrapCompanyTicker(
   }
   let key = raw;
   if (!TICKER_RE.test(key)) return false;
+  if (companyExists(key)) return true;
 
   const hintName = (opts?.name || "").trim();
   const hintMarket = (opts?.market || "").trim().toUpperCase();

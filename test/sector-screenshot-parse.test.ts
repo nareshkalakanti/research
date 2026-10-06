@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseSectorScreenshot } from "../src/lib/sector-screenshot-parse";
+import { parseSectorScreenshot, preferBatchIndustry } from "../src/lib/sector-screenshot-parse";
 
 const json = parseSectorScreenshot(`
 {"industry":"Advertisement","names":["Signpost India Ltd","Mobavenue AI Tech Ltd","Affle 3i Ltd"]}
@@ -94,4 +94,33 @@ assert.ok(ellipsisInd.names.some((n) => /Foo Sheets/i.test(n)));
 const prefixed = parseSectorScreenshot(`Industry: Aluminium Sheets and Coils and Wires`);
 assert.equal(prefixed.industry, "Aluminium Sheets and Coils and Wires");
 
+const parentVsColumn = parseSectorScreenshot(`
+{"industry":"Manufacturing","names":["G S Auto International Ltd","Enincoare Autotech Ltd"]}
+{"Name":"G S Auto International Ltd","Industry":"Auto Others"}
+{"Name":"Enincoare Autotech Ltd","Industry":"Auto Others"}
+{"Name":"Coramandel Technologies Ltd","Industry":"Auto Others"}
+`);
+assert.equal(parentVsColumn.industry, "Auto Others");
+assert.ok(parentVsColumn.names.some((n) => /G S Auto/i.test(n)));
+
+const tsvColumn = parseSectorScreenshot(`
+{"industry":"Manufacturing","names":["G S Auto International Ltd"]}
+Name\tIndustry
+G S Auto International Ltd\tAuto Others
+Enincoare Autotech Ltd\tAuto Others
+`);
+assert.equal(tsvColumn.industry, "Auto Others");
+
+assert.equal(preferBatchIndustry("Auto Plastic", "Manufacturing"), "Auto Plastic");
+assert.equal(preferBatchIndustry("Manufacturing", "Auto Plastic"), "Auto Plastic");
+
+const parenTrunc = parseSectorScreenshot(`
+{"names":["Foo Motor Agency (Del
+`);
+assert.ok(parenTrunc.names.some((n) => /Foo Motor Agency/i.test(n)));
+
+const parenRow = parseSectorScreenshot(`
+{"Name":"Foo Motor Agency (Delhi) Ltd","Industry":"Auto Others"}
+`);
+assert.ok(parenRow.names.some((n) => /Foo Motor Agency/i.test(n)));
 console.log("ok");

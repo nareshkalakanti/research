@@ -43,4 +43,20 @@ assert.equal(
   ),
   true,
 );
+assert.equal(
+  listingQueryMatches(
+    "Foo Motor Agency (Delhi) Ltd",
+    "FOOMA",
+    "Foo Motor Agency (Delhi) Limited",
+  ),
+  true,
+);
+assert.ok(
+  rankListingQuery("Foo Auto International Ltd", "FOOAUTO", "Foo Auto International Ltd") <
+    rankListingQuery(
+      "Foo Auto International Ltd",
+      "FOOAUTO-RE",
+      "Foo Auto International Ltd",
+    ),
+);
 console.log("ok");

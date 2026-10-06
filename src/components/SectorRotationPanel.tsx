@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ROTATION_RANGES } from "@/lib/sector-rotation-series";
+import { ROTATION_MA_PERIODS, ROTATION_RANGES } from "@/lib/sector-rotation-series";
 
 type Point = { date: string; value: number };
 
@@ -9,8 +9,13 @@ type Card = {
   id: string;
   label: string;
   n: number;
+  up?: number;
+  down?: number;
+  starred?: boolean;
   sector_pct: number | null;
   bench_pct: number | null;
+  today_pct?: number | null;
+  search?: string;
   sector: Point[];
   bench: Point[];
 };
@@ -40,6 +45,20 @@ function fmtCr(n: number | null): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })} Cr`;
 }
 
+function sma(pts: Point[], n: number): Point[] {
+  if (n < 2 || pts.length < n) return [];
+  const out: Point[] = [];
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    sum += pts[i]!.value;
+    if (i >= n) sum -= pts[i - n]!.value;
+    if (i >= n - 1) {
+      out.push({ date: pts[i]!.date, value: sum / n });
+    }
+  }
+  return out;
+}
+
 function DualSpark({
   a,
   b,
@@ -48,6 +67,8 @@ function DualSpark({
   showEnd = true,
   aLabel = "Sector",
   bLabel = "Nifty",
+  logScale = false,
+  ma = [],
 }: {
   a: Point[];
   b: Point[];
@@ -56,14 +77,36 @@ function DualSpark({
   showEnd?: boolean;
   aLabel?: string;
   bLabel?: string;
+  logScale?: boolean;
+  ma?: number[];
 }) {
   const [hover, setHover] = useState<number | null>(null);
-  const dates = [...new Set([...a, ...b].map((p) => p.date))].sort();
-  const mapA = new Map(a.map((p) => [p.date, p.value]));
-  const mapB = new Map(b.map((p) => [p.date, p.value]));
-  const ys = [...a, ...b].map((p) => p.value);
-  const lo = Math.min(100, ...ys, 80);
-  const hi = Math.max(100, ...ys, 120);
+  const plotFrom = b[0]?.date ?? a[0]?.date ?? "";
+  const firstVis = a.find((p) => !plotFrom || p.date >= plotFrom);
+  const k = firstVis && firstVis.value > 0 ? 100 / firstVis.value : 1;
+  const scaledA = a.map((p) => ({ date: p.date, value: p.value * k }));
+  const visA = scaledA.filter((p) => !plotFrom || p.date >= plotFrom);
+  const visB = b;
+  const dates = [...new Set([...visA, ...visB].map((p) => p.date))].sort();
+  const mapA = new Map(visA.map((p) => [p.date, p.value]));
+  const mapB = new Map(visB.map((p) => [p.date, p.value]));
+  const maLines = ma.map((n) => ({
+    n,
+    pts: sma(scaledA, n).filter((p) => !plotFrom || p.date >= plotFrom),
+  }));
+  const ys = [
+    ...visA,
+    ...visB,
+    ...maLines.flatMap((m) => m.pts),
+  ].map((p) => p.value);
+  const rawLo = Math.min(...ys, 80);
+  const rawHi = Math.max(...ys, 120);
+  const yMap = (v: number) => {
+    if (!logScale) return v;
+    return Math.log(Math.max(v, 1e-6));
+  };
+  const lo = yMap(rawLo);
+  const hi = yMap(rawHi);
   const pad = (hi - lo) * 0.1 || 2;
   const y0 = lo - pad;
   const y1 = hi + pad;
@@ -79,7 +122,7 @@ function DualSpark({
   const xAt = (d: string) =>
     left + ((new Date(`${d}T00:00:00Z`).getTime() - t0) / span) * (width - left - right);
   const yAt = (v: number) =>
-    height - 14 - ((v - y0) / (y1 - y0)) * (height - 22);
+    height - 14 - ((yMap(v) - y0) / (y1 - y0)) * (height - 22);
   const line = (pts: Point[]) =>
     pts.length < 2
       ? ""
@@ -89,8 +132,8 @@ function DualSpark({
               `${i === 0 ? "M" : "L"}${xAt(p.date).toFixed(1)} ${yAt(p.value).toFixed(1)}`,
           )
           .join(" ");
-  const lastA = a[a.length - 1];
-  const lastB = b[b.length - 1];
+  const lastA = visA[visA.length - 1];
+  const lastB = visB[visB.length - 1];
   const hoverDate = hover != null ? dates[hover] : null;
   const ha = hoverDate ? mapA.get(hoverDate) : null;
   const hb = hoverDate ? mapB.get(hoverDate) : null;
@@ -117,17 +160,29 @@ function DualSpark({
           setHover(best);
         }}
       >
-        {line(b) ? (
+        {line(visB) ? (
           <path
-            d={line(b)}
+            d={line(visB)}
             fill="none"
             stroke="#94a3b8"
             strokeDasharray="3 3"
             strokeWidth="1.5"
           />
         ) : null}
-        {line(a) ? (
-          <path d={line(a)} fill="none" stroke="#22c55e" strokeWidth="2" />
+        {maLines.map((m) =>
+          line(m.pts) ? (
+            <path
+              key={m.n}
+              d={line(m.pts)}
+              fill="none"
+              stroke={m.n === 20 ? "#38bdf8" : m.n === 50 ? "#a78bfa" : "#f59e0b"}
+              strokeWidth="1.2"
+              opacity="0.85"
+            />
+          ) : null,
+        )}
+        {line(visA) ? (
+          <path d={line(visA)} fill="none" stroke="#22c55e" strokeWidth="2" />
         ) : null}
         {lastA && showEnd ? (
           <g>
@@ -235,10 +290,25 @@ export function SectorRotationPanel() {
     members: Member[];
   } | null>(null);
   const [newName, setNewName] = useState("");
+  const [newTickers, setNewTickers] = useState<Hit[]>([]);
+  const [newQ, setNewQ] = useState("");
+  const [newHits, setNewHits] = useState<Hit[]>([]);
+  const [adding, setAdding] = useState(false);
   const [addQ, setAddQ] = useState("");
   const [hits, setHits] = useState<Hit[]>([]);
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState("");
+  const [stockFilter, setStockFilter] = useState("");
+  const [boardFilter, setBoardFilter] = useState<
+    "all" | "top" | "bottom" | "starred"
+  >("all");
+  const [aboveOn, setAboveOn] = useState(false);
+  const [sortKey, setSortKey] = useState<"return" | "today" | "name" | "n">(
+    "return",
+  );
+  const [scale, setScale] = useState<"lin" | "log">("lin");
+  const [maOn, setMaOn] = useState<number[]>([]);
+  const [weight, setWeight] = useState<"equal" | "cap">("equal");
   const [memberQ, setMemberQ] = useState("");
   const [view, setView] = useState<"grid" | "table">("grid");
   const [editLabel, setEditLabel] = useState("");
@@ -258,7 +328,7 @@ export function SectorRotationPanel() {
     if (!opts?.silent) setError(null);
     try {
       const res = await fetch(
-        `/api/sector-rotation?range=${encodeURIComponent(range)}`,
+        `/api/sector-rotation?range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
         { cache: "no-store" },
       );
       const json = (await res.json()) as {
@@ -279,14 +349,14 @@ export function SectorRotationPanel() {
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [range]);
+  }, [range, weight]);
 
   const loadDetail = useCallback(
     async (id: string) => {
       setError(null);
       try {
         const res = await fetch(
-          `/api/sector-rotation?id=${encodeURIComponent(id)}&range=${encodeURIComponent(range)}`,
+          `/api/sector-rotation?id=${encodeURIComponent(id)}&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
           { cache: "no-store" },
         );
         const json = (await res.json()) as {
@@ -303,7 +373,7 @@ export function SectorRotationPanel() {
         setError(e instanceof Error ? e.message : String(e));
       }
     },
-    [range],
+    [range, weight],
   );
 
   useEffect(() => {
@@ -331,6 +401,23 @@ export function SectorRotationPanel() {
     return () => window.clearTimeout(t);
   }, [addQ, openId]);
 
+  useEffect(() => {
+    const q = newQ.trim();
+    if (!adding || openId || q.length < 2) {
+      setNewHits([]);
+      return;
+    }
+    const t = window.setTimeout(() => {
+      void fetch(`/api/tickers?q=${encodeURIComponent(q)}&limit=8`, {
+        cache: "no-store",
+      })
+        .then((r) => r.json())
+        .then((json: { hits?: Hit[] }) => setNewHits(json.hits ?? []))
+        .catch(() => setNewHits([]));
+    }, 160);
+    return () => window.clearTimeout(t);
+  }, [newQ, adding, openId]);
+
   const create = async () => {
     const label = newName.replace(/\s+/g, " ").trim();
     if (label.length < 2 || creating) return;
@@ -351,7 +438,24 @@ export function SectorRotationPanel() {
         throw new Error(json.error || `HTTP ${res.status}`);
       }
       setNewName("");
+      setNewTickers([]);
+      setNewQ("");
+      setNewHits([]);
+      setAdding(false);
       setOpenId(json.sector.id);
+      for (const h of newTickers) {
+        await fetch("/api/sector-rotation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            id: json.sector.id,
+            add: true,
+            ticker: h.ticker,
+            name: h.name,
+            market: h.market || "NSE",
+          }),
+        });
+      }
       await loadBoard();
       await loadDetail(json.sector.id);
     } catch (e) {
@@ -361,7 +465,7 @@ export function SectorRotationPanel() {
     }
   };
 
-  const runScreenshot = useCallback(async (file: File) => {
+  const runScreenshot = useCallback(async (file: File, priorIndustry = "") => {
     if (file.type && !file.type.startsWith("image/") && file.type) return;
     if (shotUrl.current) URL.revokeObjectURL(shotUrl.current);
     const url = URL.createObjectURL(file);
@@ -378,6 +482,7 @@ export function SectorRotationPanel() {
     try {
       const form = new FormData();
       form.set("file", file);
+      if (priorIndustry) form.set("priorIndustry", priorIndustry);
       const res = await fetch("/api/sector-rotation/screenshot", {
         method: "POST",
         body: form,
@@ -423,7 +528,15 @@ export function SectorRotationPanel() {
           } catch {
             continue;
           }
-          if (ev.t === "ocr") pushLog("OCR…");
+          if (ev.t === "ocr") {
+            setShotLog((prev) => {
+              const last = prev[prev.length - 1] || "";
+              if (last.startsWith("OCR")) {
+                return [...prev, "OCR still running (vision model)…"];
+              }
+              return [...prev, "OCR (vision; often 30–90s)…"];
+            });
+          }
           else if (ev.t === "parsed") {
             pushLog(
               `Industry “${ev.industry}” · ${ev.names?.length ?? 0} names`,
@@ -511,26 +624,35 @@ export function SectorRotationPanel() {
         loadDetail(json.sector.id),
       ]);
       pushLog("Done");
+      return (
+        json.industry ||
+        json.sector.label ||
+        ""
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
       setShotLog((prev) => [...prev, `Failed: ${msg}`]);
+      return "";
     }
   }, [loadBoard, loadDetail]);
 
   const enqueueShot = useCallback((file: File) => {
     if (file.type && !file.type.startsWith("image/") && file.type) return;
+    setAdding(true);
     shotQueue.current.push(file);
     setShotQueued(shotQueue.current.length);
     if (shotRunning.current) return;
     shotRunning.current = true;
     setShotBusy(true);
     void (async () => {
+      let batchIndustry = "";
       try {
         while (shotQueue.current.length) {
           const next = shotQueue.current.shift()!;
           setShotQueued(shotQueue.current.length);
-          await runScreenshot(next);
+          const label = await runScreenshot(next, batchIndustry);
+          if (label) batchIndustry = label;
         }
       } finally {
         shotRunning.current = false;
@@ -608,14 +730,33 @@ export function SectorRotationPanel() {
   const openCard = detail?.card;
   const sortedCards = useMemo(() => {
     const needle = filter.trim().toLowerCase();
-    return [...cards]
-      .filter(
+    const stock = stockFilter.trim().toLowerCase();
+    let rows = [...cards].filter((c) => {
+      if (needle && !c.label.toLowerCase().includes(needle)) return false;
+      if (stock && !(c.search || "").includes(stock) && !c.label.toLowerCase().includes(stock)) {
+        return false;
+      }
+      return true;
+    });
+    rows.sort((a, b) => {
+      if (sortKey === "today") return (b.today_pct ?? -999) - (a.today_pct ?? -999);
+      if (sortKey === "name") return a.label.localeCompare(b.label);
+      if (sortKey === "n") return b.n - a.n;
+      return (b.sector_pct ?? -999) - (a.sector_pct ?? -999);
+    });
+    if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
+    if (aboveOn) {
+      rows = rows.filter(
         (c) =>
-          !needle ||
-          c.label.toLowerCase().includes(needle),
-      )
-      .sort((a, b) => (b.sector_pct ?? -999) - (a.sector_pct ?? -999));
-  }, [cards, filter]);
+          c.sector_pct != null &&
+          c.bench_pct != null &&
+          c.sector_pct > c.bench_pct,
+      );
+    }
+    if (boardFilter === "top") rows = rows.slice(0, 20);
+    if (boardFilter === "bottom") rows = rows.slice(-20).reverse();
+    return rows;
+  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey]);
   const shownMembers = useMemo(() => {
     const needle = memberQ.trim().toLowerCase();
     const rows = detail?.members ?? [];
@@ -674,6 +815,17 @@ export function SectorRotationPanel() {
     await loadBoard({ silent: true });
   };
 
+  const toggleStar = async (id: string, next: boolean) => {
+    setCards((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, starred: next } : c)),
+    );
+    await fetch("/api/sector-rotation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, star: true, starred: next }),
+    });
+  };
+
   useEffect(() => {
     if (!openId) return;
     function onKey(e: KeyboardEvent) {
@@ -690,11 +842,11 @@ export function SectorRotationPanel() {
     <section className="rot-dash">
       <header className="rot-head">
         <div>
-          <h2 className="rot-title">Sector rotation</h2>
+          <h2 className="rot-title">All Sectors Dashboard</h2>
           <p className="rot-sub">
-            Equal-weight indexes vs {benchLabel}, rebased to 100
-            {asOf ? ` · EOD ${asOf}` : ""}. Search and add listings from the
-            book or Groww.
+            {weight === "cap" ? "Free-float cap" : "Equal-weight"} vs {benchLabel}
+            {asOf ? ` · as of ${asOf}` : ""}
+            {loading ? " · loading…" : ""}
           </p>
           {openId ? (
             <button
@@ -704,41 +856,172 @@ export function SectorRotationPanel() {
             >
               ← Back to sectors
             </button>
-          ) : null}
-        </div>
-        <div className="rot-ranges" role="group" aria-label="Range">
-          {ROTATION_RANGES.map((r) => (
+          ) : (
             <button
-              key={r}
               type="button"
-              className={range === r ? "tab on" : "tab"}
-              onClick={() => setRange(r)}
+              className="btn-ghost"
+              onClick={() => setAdding((v) => !v)}
             >
-              {r}
+              {adding ? "Cancel" : "Add sector"}
             </button>
-          ))}
+          )}
+        </div>
+      </header>
+
+      <div className="rot-bar">
+        <div className="rot-bar-row">
           <button
             type="button"
-            className={view === "grid" ? "tab on" : "tab"}
+            className="rot-chip"
+            onClick={() => void loadBoard()}
+          >
+            ↻ Refresh
+          </button>
+          <span className="rot-bar-sep" />
+          <button
+            type="button"
+            className={view === "grid" ? "rot-chip on" : "rot-chip"}
             onClick={() => setView("grid")}
           >
             Grid
           </button>
           <button
             type="button"
-            className={view === "table" ? "tab on" : "tab"}
+            className={view === "table" ? "rot-chip on" : "rot-chip"}
             onClick={() => setView("table")}
           >
             Table
           </button>
-          <button type="button" className="btn-ghost" onClick={() => void loadBoard()}>
-            {loading ? "Loading…" : "Refresh"}
+          <span className="rot-bar-k">Scale</span>
+          <button
+            type="button"
+            className={scale === "lin" ? "rot-chip on" : "rot-chip"}
+            onClick={() => setScale("lin")}
+          >
+            Lin
           </button>
+          <button
+            type="button"
+            className={scale === "log" ? "rot-chip on" : "rot-chip"}
+            onClick={() => setScale("log")}
+          >
+            Log
+          </button>
+          <span className="rot-bar-k">MA</span>
+          {ROTATION_MA_PERIODS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={maOn.includes(n) ? "rot-chip on" : "rot-chip"}
+              onClick={() =>
+                setMaOn((prev) =>
+                  prev.includes(n)
+                    ? prev.filter((x) => x !== n)
+                    : [...prev, n].sort((a, b) => a - b),
+                )
+              }
+            >
+              {n}
+            </button>
+          ))}
+          <span className="rot-bar-k">Index type</span>
+          <button
+            type="button"
+            className={weight === "equal" ? "rot-chip on" : "rot-chip"}
+            onClick={() => setWeight("equal")}
+          >
+            Equal Weight
+          </button>
+          <button
+            type="button"
+            className={weight === "cap" ? "rot-chip on" : "rot-chip"}
+            onClick={() => setWeight("cap")}
+          >
+            Free-Float Cap
+          </button>
+          <span className="rot-bar-sep" />
+          {ROTATION_RANGES.map((r) => (
+            <button
+              key={r}
+              type="button"
+              className={range === r ? "rot-chip on" : "rot-chip"}
+              onClick={() => setRange(r)}
+            >
+              {r}
+            </button>
+          ))}
         </div>
-      </header>
+        {!openId ? (
+          <div className="rot-bar-row">
+            <span className="rot-bar-k">Search</span>
+            <input
+              className="rot-bar-search"
+              placeholder="Search sector or industry"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Search sector"
+            />
+            <input
+              className="rot-bar-search"
+              placeholder="Search stock (name, NS)"
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value)}
+              aria-label="Search stock"
+            />
+            <span className="rot-bar-k">Filter</span>
+            {(
+              [
+                ["all", "All"],
+                ["top", "Top 20"],
+                ["bottom", "Bottom 20"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={boardFilter === id ? "rot-chip on" : "rot-chip"}
+                onClick={() => setBoardFilter(id)}
+              >
+                {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className={aboveOn ? "rot-chip on" : "rot-chip"}
+              onClick={() => setAboveOn((v) => !v)}
+            >
+              Above: {aboveOn ? "On" : "Off"}
+            </button>
+            <button
+              type="button"
+              className={boardFilter === "starred" ? "rot-chip on" : "rot-chip"}
+              onClick={() =>
+                setBoardFilter((v) => (v === "starred" ? "all" : "starred"))
+              }
+            >
+              ★ Starred
+            </button>
+            <span className="rot-bar-k">Sort</span>
+            <select
+              className="rot-bar-sort"
+              value={sortKey}
+              onChange={(e) =>
+                setSortKey(e.target.value as typeof sortKey)
+              }
+              aria-label="Sort"
+            >
+              <option value="return">Return</option>
+              <option value="today">Today</option>
+              <option value="name">Name</option>
+              <option value="n">Stocks</option>
+            </select>
+          </div>
+        ) : null}
+      </div>
 
+      {!openId && adding ? (
       <form
-        className="rot-create"
+        className="fam-dash-create"
         onSubmit={(e) => {
           e.preventDefault();
           void create();
@@ -746,108 +1029,146 @@ export function SectorRotationPanel() {
       >
         <input
           className="fam-dash-search"
-          placeholder="New sector name…"
+          placeholder="Sector name"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           aria-label="New sector name"
         />
+        <div className="fam-dash-create-cos">
+          {newTickers.map((t) => (
+            <span key={t.ticker} className="fam-dash-create-chip">
+              <span className="mono">{t.ticker}</span>
+              <button
+                type="button"
+                title={`Remove ${t.ticker}`}
+                onClick={() =>
+                  setNewTickers((rows) =>
+                    rows.filter((x) => x.ticker !== t.ticker),
+                  )
+                }
+              >
+                ×
+              </button>
+            </span>
+          ))}
+          <div className="gov-family-add fam-dash-create-add">
+            <input
+              type="search"
+              className="gov-family-add-input"
+              placeholder="Add company…"
+              value={newQ}
+              onChange={(e) => setNewQ(e.target.value)}
+            />
+            {newHits.length ? (
+              <ul className="gov-family-add-hits">
+                {newHits.map((h) => (
+                  <li key={h.ticker}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewTickers((rows) =>
+                          rows.some((x) => x.ticker === h.ticker)
+                            ? rows
+                            : [...rows, h],
+                        );
+                        setNewQ("");
+                        setNewHits([]);
+                      }}
+                    >
+                      <span className="mono">{h.ticker}</span>
+                      <span>{h.name}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </div>
         <button
           type="submit"
           className="btn-ghost"
           disabled={creating || newName.trim().length < 2}
         >
-            {creating ? "Saving…" : "Create sector"}
+          {creating ? "Saving…" : "Create sector"}
         </button>
-        {!openId ? (
-          <input
-            className="fam-dash-search"
-            placeholder="Search sector…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            aria-label="Search sector"
-          />
-        ) : null}
-      </form>
-
-      <div
-        ref={shotWell}
-        className={`din-paste-well rot-shot${shotDrag ? " is-drag" : ""}${shotBusy ? " is-busy" : ""}`}
-        tabIndex={0}
-        role="button"
-        aria-label="Paste sector screenshot"
-        onClick={() => shotWell.current?.focus()}
-        onPaste={(e) => {
-          const file =
-            [...e.clipboardData.items]
-              .find((i) => i.type.startsWith("image/"))
-              ?.getAsFile() ??
-            [...e.clipboardData.files].find((f) => f.type.startsWith("image/")) ??
-            null;
-          if (file) {
+        <div
+          ref={shotWell}
+          className={`din-paste-well rot-shot rot-shot-mini${shotDrag ? " is-drag" : ""}${shotBusy ? " is-busy" : ""}`}
+          tabIndex={0}
+          role="button"
+          aria-label="Paste sector screenshot"
+          onClick={() => shotWell.current?.focus()}
+          onPaste={(e) => {
+            const file =
+              [...e.clipboardData.items]
+                .find((i) => i.type.startsWith("image/"))
+                ?.getAsFile() ??
+              [...e.clipboardData.files].find((f) => f.type.startsWith("image/")) ??
+              null;
+            if (file) {
+              e.preventDefault();
+              void enqueueShot(file);
+            }
+          }}
+          onDragOver={(e) => {
             e.preventDefault();
-            void enqueueShot(file);
-          }
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setShotDrag(true);
-        }}
-        onDragLeave={() => setShotDrag(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setShotDrag(false);
-          const file = e.dataTransfer.files[0];
-          if (file) void enqueueShot(file);
-        }}
-      >
-        {shotPreview ? (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="din-paste-preview rot-shot-preview" src={shotPreview} alt="" />
-            <label className="din-paste-upload">
-              Add more images
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                hidden
-                onChange={(e) => {
-                  const files = [...(e.target.files ?? [])];
-                  for (const f of files) enqueueShot(f);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          </>
-        ) : (
-          <div className="din-paste-hint">
-            <strong>Paste screener screenshots</strong>
-            <span>
-              Same industry merges. Paste the next page while this one runs.
-            </span>
-            <label className="din-paste-upload">
-              Choose images
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                hidden
-                onChange={(e) => {
-                  const files = [...(e.target.files ?? [])];
-                  for (const f of files) enqueueShot(f);
-                  e.target.value = "";
-                }}
-              />
-            </label>
-          </div>
-        )}
-        {shotBusy ? (
-          <p className="din-paste-busy">
-            {shotLog[shotLog.length - 1] || "Working…"}
-            {shotQueued ? ` · ${shotQueued} waiting` : ""}
-          </p>
-        ) : null}
-      </div>
+            setShotDrag(true);
+          }}
+          onDragLeave={() => setShotDrag(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setShotDrag(false);
+            const file = e.dataTransfer.files[0];
+            if (file) void enqueueShot(file);
+          }}
+        >
+          {shotPreview ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="din-paste-preview rot-shot-preview" src={shotPreview} alt="" />
+              <label className="din-paste-upload">
+                Add images
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    const files = [...(e.target.files ?? [])];
+                    for (const f of files) enqueueShot(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </>
+          ) : (
+            <div className="din-paste-hint">
+              <span>Or paste / drop a screener screenshot</span>
+              <label className="din-paste-upload">
+                Choose images
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  hidden
+                  onChange={(e) => {
+                    const files = [...(e.target.files ?? [])];
+                    for (const f of files) enqueueShot(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+          )}
+          {shotBusy ? (
+            <p className="din-paste-busy">
+              {shotLog[shotLog.length - 1] || "Working…"}
+              {shotQueued ? ` · ${shotQueued} waiting` : ""}
+            </p>
+          ) : null}
+        </div>
+      </form>
+      ) : null}
       {shotLog.length ? (
         <ol className="rot-shot-log" aria-live="polite">
           {shotLog.map((line, i) => (
@@ -897,6 +1218,8 @@ export function SectorRotationPanel() {
               height={160}
               aLabel={openCard.label}
               bLabel={benchLabel}
+              logScale={scale === "log"}
+              ma={maOn}
             />
           ) : (
             <div className="table-meta">Loading sector…</div>
@@ -989,8 +1312,10 @@ export function SectorRotationPanel() {
         <table className="rot-table">
           <thead>
             <tr>
+              <th></th>
               <th>Sector</th>
               <th>Stocks</th>
+              <th>Today</th>
               <th>Return</th>
               <th>{benchLabel}</th>
             </tr>
@@ -998,8 +1323,31 @@ export function SectorRotationPanel() {
           <tbody>
             {sortedCards.map((c) => (
               <tr key={c.id} className="rot-row" onClick={() => setOpenId(c.id)}>
+                <td>
+                  <button
+                    type="button"
+                    className={c.starred ? "rot-star on" : "rot-star"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void toggleStar(c.id, !c.starred);
+                    }}
+                  >
+                    ★
+                  </button>
+                </td>
                 <td>{c.label}</td>
-                <td>{c.n}</td>
+                <td>
+                  {c.n}
+                  {(c.up ?? 0) > 0 ? (
+                    <span className="rot-up">▲ {c.up}</span>
+                  ) : null}
+                  {(c.down ?? 0) > 0 ? (
+                    <span className="rot-dn">▼ {c.down}</span>
+                  ) : null}
+                </td>
+                <td className={(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                  {fmtPct(c.today_pct ?? null)}
+                </td>
                 <td className={(c.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
                   {fmtPct(c.sector_pct)}
                 </td>
@@ -1014,22 +1362,49 @@ export function SectorRotationPanel() {
             <div className="table-meta">Loading sectors…</div>
           ) : null}
           {sortedCards.map((c) => (
-            <button
+            <article
               key={c.id}
-              type="button"
               className="rot-card"
+              tabIndex={0}
+              role="button"
               onClick={() => setOpenId(c.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setOpenId(c.id);
+                }
+              }}
             >
               <div className="rot-card-top">
                 <strong>{c.label}</strong>
-                <span className={(c.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
-                  {fmtPct(c.sector_pct)}
+                <span className="rot-card-ret">
+                  <span className={(c.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                    {fmtPct(c.sector_pct)}
+                  </span>
+                  <button
+                    type="button"
+                    className={c.starred ? "rot-star on" : "rot-star"}
+                    aria-label={c.starred ? "Unstar" : "Star"}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void toggleStar(c.id, !c.starred);
+                    }}
+                  >
+                    ★
+                  </button>
                 </span>
               </div>
               <div className="rot-muted">
                 <span className="rot-count">{c.n} stocks</span>
-                {" · "}
-                {benchLabel} {fmtPct(c.bench_pct)}
+                {(c.up ?? 0) > 0 ? (
+                  <span className="rot-up">▲ {c.up}</span>
+                ) : null}
+                {(c.down ?? 0) > 0 ? (
+                  <span className="rot-dn">▼ {c.down}</span>
+                ) : null}
+                <span className={(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                  Today {fmtPct(c.today_pct ?? null)}
+                </span>
               </div>
               <DualSpark
                 a={c.sector}
@@ -1037,8 +1412,10 @@ export function SectorRotationPanel() {
                 height={110}
                 aLabel={c.label}
                 bLabel={benchLabel}
+                logScale={scale === "log"}
+                ma={maOn}
               />
-            </button>
+            </article>
           ))}
         </div>
       )}

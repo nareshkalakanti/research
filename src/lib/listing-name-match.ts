@@ -50,6 +50,7 @@ export function listingQueryVariants(query: string): string[] {
     out.push(s);
   };
   push(raw);
+  push(raw.replace(/\((?:[^)]|\n)*\)?/g, " ").replace(/\s+/g, " "));
   push(key);
   const words = key.split(" ").filter((w) => w.length >= 3);
   if (words.length >= 2) push(words.slice(0, 2).join(" "));
@@ -174,6 +175,14 @@ export function listingQueryMatches(q: string, ticker: string, name: string): bo
   return scoreListingName(q, ticker, name) >= 70;
 }
 
+export function listingQualityPenalty(ticker: string, name: string): number {
+  const t = (ticker || "").toUpperCase();
+  const n = (name || "").toLowerCase();
+  if (/-(?:RE|PP)$/.test(t)) return 3;
+  if (/\bpartly paid\b/.test(n) || /\bright[s]?\s+entitlement\b/.test(n)) return 3;
+  return 0;
+}
+
 export function rankListingQuery(
   q: string,
   ticker: string,
@@ -184,14 +193,15 @@ export function rankListingQuery(
   const n = name.toUpperCase();
   const cq = compactTicker(Q);
   const ct = compactTicker(t);
-  if (t === Q || (cq.length >= 2 && ct === cq)) return 0;
+  if (t === Q || (cq.length >= 2 && ct === cq)) return listingQualityPenalty(ticker, name);
   const nameScore = scoreListingName(q, ticker, name);
-  if (nameScore >= 96) return 0;
-  if (t.startsWith(Q) || (cq.length >= 2 && ct.startsWith(cq))) return 1;
-  if (nameScore >= 88) return 1;
-  if (ct.length >= 3 && cq.startsWith(ct) && cq.length - ct.length <= 2) return 2;
-  if (nameScore >= 80) return 2;
-  if (n.startsWith(Q) || nameScore >= 70) return 3;
+  const pen = listingQualityPenalty(ticker, name);
+  if (nameScore >= 96) return 0 + pen;
+  if (t.startsWith(Q) || (cq.length >= 2 && ct.startsWith(cq))) return 1 + pen;
+  if (nameScore >= 88) return 1 + pen;
+  if (ct.length >= 3 && cq.startsWith(ct) && cq.length - ct.length <= 2) return 2 + pen;
+  if (nameScore >= 80) return 2 + pen;
+  if (n.startsWith(Q) || nameScore >= 70) return 3 + pen;
   if (t.includes(Q) || n.includes(Q)) return 4;
   if (cq.length >= 2 && (ct.includes(cq) || compactTicker(n).includes(cq))) return 5;
   return 9;

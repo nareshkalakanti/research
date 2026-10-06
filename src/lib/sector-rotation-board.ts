@@ -9,8 +9,10 @@ import {
 } from "./sector-rotation";
 import { NIFTY_INDEX_META } from "./nse-index-constituents";
 import {
+  capWeightIndex,
   equalWeightIndex,
   rebaseCloses,
+  rotationMaLookbackStart,
   rotationWindowStart,
   rotationYearsBack,
   seriesReturnPct,
@@ -33,11 +35,39 @@ export type RotationSectorCard = {
   id: string;
   label: string;
   n: number;
+  up: number;
+  down: number;
+  starred: boolean;
   sector_pct: number | null;
   bench_pct: number | null;
+  today_pct: number | null;
+  search: string;
   sector: SeriesPoint[];
   bench: SeriesPoint[];
 };
+
+function dayStats(
+  members: SectorMember[],
+  metrics: ReturnType<typeof loadMetricsMap>,
+): { today_pct: number | null; up: number; down: number } {
+  let up = 0;
+  let down = 0;
+  let sum = 0;
+  let n = 0;
+  for (const m of members) {
+    const ch = metrics.get(m.ticker.toUpperCase())?.change_pct;
+    if (ch == null || !Number.isFinite(ch)) continue;
+    n += 1;
+    sum += ch;
+    if (ch > 0) up += 1;
+    else if (ch < 0) down += 1;
+  }
+  return {
+    today_pct: n ? sum / n : null,
+    up,
+    down,
+  };
+}
 
 async function memberBars(members: SectorMember[], years: number) {
   const bars = await runConcurrent(members, 4, async (m) => {
@@ -50,7 +80,33 @@ async function memberBars(members: SectorMember[], years: number) {
   return members.map((m, i) => ({ member: m, bars: bars[i] ?? [] }));
 }
 
-export async function buildRotationBoard(range: string): Promise<{
+export type RotationWeight = "equal" | "cap";
+
+function sectorIndex(
+  packed: Array<{ member: SectorMember; bars: Array<{ date: string; close: number }> }>,
+  start: string,
+  weight: RotationWeight,
+  metrics: ReturnType<typeof loadMetricsMap>,
+) {
+  if (weight === "cap") {
+    return capWeightIndex(
+      packed.map((p) => ({
+        bars: p.bars,
+        mcap: metrics.get(p.member.ticker.toUpperCase())?.market_cap_cr ?? null,
+      })),
+      start,
+    );
+  }
+  return equalWeightIndex(
+    packed.map((p) => p.bars),
+    start,
+  );
+}
+
+export async function buildRotationBoard(
+  range: string,
+  weight: RotationWeight = "equal",
+): Promise<{
   range: string;
   as_of: string | null;
   bench_label: string;
@@ -58,25 +114,38 @@ export async function buildRotationBoard(range: string): Promise<{
 }> {
   const years = rotationYearsBack(range);
   const sectors = listRotationSectors();
+  const metrics = loadMetricsMap();
   const nifty = await fetchNifty500DailyBars(years);
   const last = nifty[nifty.length - 1]?.date || "";
   const start = rotationWindowStart(last, range);
+  const lookback = rotationMaLookbackStart(start);
   const bench = rebaseCloses(nifty, start);
   const bench_pct = seriesReturnPct(bench);
   const cards: RotationSectorCard[] = [];
   for (const s of sectors) {
     const packed = await memberBars(s.members, years);
-    const series = equalWeightIndex(
-      packed.map((p) => p.bars),
-      start,
-    );
+    const seriesLong = sectorIndex(packed, lookback, weight, metrics);
+    const first = seriesLong.find((p) => p.date >= start);
+    const lastPt = seriesLong[seriesLong.length - 1];
+    const sector_pct =
+      first && lastPt && first.value > 0
+        ? ((lastPt.value - first.value) / first.value) * 100
+        : null;
+    const day = dayStats(s.members, metrics);
     cards.push({
       id: s.id,
       label: s.label,
       n: s.members.length,
-      sector_pct: seriesReturnPct(series),
+      up: day.up,
+      down: day.down,
+      starred: s.starred,
+      sector_pct,
       bench_pct,
-      sector: series,
+      today_pct: day.today_pct,
+      search: [s.label, ...s.members.map((m) => `${m.ticker} ${m.name}`)]
+        .join(" ")
+        .toLowerCase(),
+      sector: seriesLong,
       bench,
     });
   }
@@ -91,6 +160,7 @@ export async function buildRotationBoard(range: string): Promise<{
 export async function buildRotationDetail(
   sector: RotationSector,
   range: string,
+  weight: RotationWeight = "equal",
 ): Promise<{
   range: string;
   as_of: string | null;
@@ -103,12 +173,16 @@ export async function buildRotationDetail(
   const nifty = await fetchNifty500DailyBars(years);
   const last = nifty[nifty.length - 1]?.date || "";
   const start = rotationWindowStart(last, range);
+  const lookback = rotationMaLookbackStart(start);
   const bench = rebaseCloses(nifty, start);
   const packed = await memberBars(sector.members, years);
-  const series = equalWeightIndex(
-    packed.map((p) => p.bars),
-    start,
-  );
+  const seriesLong = sectorIndex(packed, lookback, weight, metrics);
+  const first = seriesLong.find((p) => p.date >= start);
+  const lastPt = seriesLong[seriesLong.length - 1];
+  const sector_pct =
+    first && lastPt && first.value > 0
+      ? ((lastPt.value - first.value) / first.value) * 100
+      : null;
   const members: RotationMemberRow[] = packed.map(({ member, bars }) => {
     const m = metrics.get(member.ticker.toUpperCase());
     const spark = rebaseCloses(bars, start);
@@ -125,6 +199,7 @@ export async function buildRotationDetail(
     };
   });
   members.sort((a, b) => (b.mcap_cr ?? -1) - (a.mcap_cr ?? -1));
+  const day = dayStats(sector.members, metrics);
   return {
     range: (range || "6M").toUpperCase(),
     as_of: nifty[nifty.length - 1]?.date ?? null,
@@ -133,9 +208,14 @@ export async function buildRotationDetail(
       id: sector.id,
       label: sector.label,
       n: sector.members.length,
-      sector_pct: seriesReturnPct(series),
+      up: day.up,
+      down: day.down,
+      starred: sector.starred,
+      sector_pct,
       bench_pct: seriesReturnPct(bench),
-      sector: series,
+      today_pct: day.today_pct,
+      search: "",
+      sector: seriesLong,
       bench,
     },
     members,

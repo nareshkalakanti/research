@@ -17,6 +17,7 @@ export type SectorMember = {
 export type RotationSector = {
   id: string;
   label: string;
+  starred: boolean;
   members: SectorMember[];
 };
 
@@ -38,6 +39,12 @@ function openWrite(): Database.Database {
       PRIMARY KEY (sector_id, ticker)
     );
   `);
+  const cols = db
+    .prepare(`PRAGMA table_info(sectors)`)
+    .all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "starred")) {
+    db.exec(`ALTER TABLE sectors ADD COLUMN starred INTEGER NOT NULL DEFAULT 0`);
+  }
   return db;
 }
 
@@ -54,8 +61,11 @@ function newId(): string {
 
 function loadSectorsFrom(db: Database.Database): RotationSector[] {
   const heads = db
-    .prepare(`SELECT id, label FROM sectors ORDER BY created_at, label COLLATE NOCASE`)
-    .all() as Array<{ id: string; label: string }>;
+    .prepare(
+      `SELECT id, label, COALESCE(starred, 0) AS starred FROM sectors
+       ORDER BY created_at, label COLLATE NOCASE`,
+    )
+    .all() as Array<{ id: string; label: string; starred: number }>;
   const mems = db
     .prepare(
       `SELECT sector_id, ticker, name, market FROM sector_members
@@ -82,11 +92,14 @@ function loadSectorsFrom(db: Database.Database): RotationSector[] {
   return heads.map((h) => ({
     id: h.id,
     label: h.label,
+    starred: Boolean(h.starred),
     members: by.get(h.id) ?? [],
   }));
 }
 
 export function listRotationSectors(): RotationSector[] {
+  const migrate = openWrite();
+  migrate.close();
   const db = openRead();
   if (!db) return [];
   try {
@@ -113,7 +126,7 @@ export function createRotationSector(label: string): RotationSector {
       name,
       new Date().toISOString(),
     );
-    return { id, label: name, members: [] };
+    return { id, label: name, starred: false, members: [] };
   } finally {
     db.close();
   }
@@ -127,6 +140,18 @@ export function renameRotationSector(id: string, label: string): void {
     const info = db
       .prepare(`UPDATE sectors SET label = ? WHERE id = ?`)
       .run(name, id);
+    if (!info.changes) throw new Error("Sector not found");
+  } finally {
+    db.close();
+  }
+}
+
+export function setRotationStarred(id: string, starred: boolean): void {
+  const db = openWrite();
+  try {
+    const info = db
+      .prepare(`UPDATE sectors SET starred = ? WHERE id = ?`)
+      .run(starred ? 1 : 0, id);
     if (!info.changes) throw new Error("Sector not found");
   } finally {
     db.close();

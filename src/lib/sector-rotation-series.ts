@@ -26,11 +26,23 @@ export function rotationRangeDays(range: string): number {
   return 186;
 }
 
+export const ROTATION_MA_PERIODS = [20, 50, 200] as const;
+
+export function rotationMaLookbackStart(windowStart: string): string {
+  const last = (windowStart || "").slice(0, 10);
+  if (!last) return "1970-01-01";
+  const period = Math.max(...ROTATION_MA_PERIODS);
+  const d = new Date(`${last}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - Math.ceil(period * 1.6));
+  return d.toISOString().slice(0, 10);
+}
+
 export function rotationYearsBack(range: string): number {
   const key = (range || "6M").toUpperCase();
-  if (key === "5Y") return 5;
-  if (key === "1Y" || key === "YTD") return 2;
-  return 1;
+  const maYears = Math.max(1, Math.ceil((Math.max(...ROTATION_MA_PERIODS) * 1.6) / 365));
+  if (key === "5Y") return 5 + maYears;
+  if (key === "1Y" || key === "YTD") return 2 + maYears;
+  return 1 + maYears;
 }
 
 export function rotationWindowStart(lastDate: string, range: string): string {
@@ -89,6 +101,44 @@ export function equalWeightIndex(
     }
     if (n < 1) continue;
     out.push({ date, value: sum / n });
+  }
+  return out;
+}
+
+/** Free-float / cap-weighted average of rebased closes. Falls back to equal weight. */
+export function capWeightIndex(
+  members: Array<{
+    bars: Array<{ date: string; close: number }>;
+    mcap: number | null;
+  }>,
+  startDate: string,
+  base = 100,
+): SeriesPoint[] {
+  const packed = members
+    .map((m) => ({
+      series: rebaseCloses(m.bars, startDate, base),
+      w: m.mcap != null && Number.isFinite(m.mcap) && m.mcap > 0 ? m.mcap : 0,
+    }))
+    .filter((p) => p.series.length >= 2);
+  const weighted = packed.filter((p) => p.w > 0);
+  const use = weighted.length ? weighted : packed.map((p) => ({ ...p, w: 1 }));
+  if (!use.length) return [];
+  const dates = new Set<string>();
+  for (const p of use) for (const pt of p.series) dates.add(pt.date);
+  const ordered = [...dates].sort();
+  const maps = use.map((p) => new Map(p.series.map((pt) => [pt.date, pt.value])));
+  const out: SeriesPoint[] = [];
+  for (const date of ordered) {
+    let sum = 0;
+    let wsum = 0;
+    use.forEach((p, i) => {
+      const v = maps[i]!.get(date);
+      if (v == null || !Number.isFinite(v)) return;
+      sum += v * p.w;
+      wsum += p.w;
+    });
+    if (wsum <= 0) continue;
+    out.push({ date, value: sum / wsum });
   }
   return out;
 }
