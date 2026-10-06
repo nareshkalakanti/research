@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { APP_TABS, hrefForTab, useAppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
@@ -25,21 +24,33 @@ export function AppChrome({
   layout?: "default" | "wide" | "tracker";
 }) {
   const { user, logout } = useAuth();
-  const { tab } = useAppTab();
-  const path = usePathname();
+  const { tab, setTab } = useAppTab();
 
   return (
     <div className="app">
       <header className="topbar">
         <a
           className="brand brand-btn"
-          href="/dashboard"
-          title="Dashboard"
+          href="/"
+          title="Napkin"
+          onClick={(e) => {
+            if (
+              e.metaKey ||
+              e.ctrlKey ||
+              e.shiftKey ||
+              e.altKey ||
+              e.button !== 0
+            ) {
+              return;
+            }
+            e.preventDefault();
+            setTab("napkin");
+          }}
         >
           <BrandMark />
           <div className="brand-text">
             <div className="brand-name">Research</div>
-            <div className="brand-sub">India equities · theme scan</div>
+            <div className="brand-sub">India equities</div>
           </div>
         </a>
 
@@ -50,32 +61,38 @@ export function AppChrome({
                 key={t.id}
                 className={tab === t.id ? "tab on" : "tab"}
                 href={hrefForTab(t.id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`${t.label} · new tab`}
+                aria-current={tab === t.id ? "page" : undefined}
+                title={t.label}
+                onClick={(e) => {
+                  if (
+                    e.metaKey ||
+                    e.ctrlKey ||
+                    e.shiftKey ||
+                    e.altKey ||
+                    e.button !== 0
+                  ) {
+                    return;
+                  }
+                  e.preventDefault();
+                  setTab(t.id);
+                }}
               >
                 <span className="tab-label-full">{t.label}</span>
                 <span className="tab-label-short">{t.short}</span>
               </a>
             ))}
-            <a
-              className={(path ?? "").startsWith("/portfolio") ? "tab on" : "tab"}
-              href="/portfolio"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Holdings mean-variance · new tab"
-            >
-              <span className="tab-label-full">Portfolio</span>
-              <span className="tab-label-short">P*</span>
-            </a>
           </div>
         </nav>
 
         <div className="user-block">
           <OllamaBar />
-          {user ? <span className="user-email">{user}</span> : null}
           {user ? (
-            <button type="button" className="btn-ghost" onClick={logout}>
+            <span className="user-email" title={user}>
+              {user}
+            </span>
+          ) : null}
+          {user ? (
+            <button type="button" className="btn-ghost btn-logout" onClick={logout}>
               Log out
             </button>
           ) : null}

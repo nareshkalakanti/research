@@ -8,6 +8,7 @@ import { yfSymbolCandidates } from "./yfinance";
 import YahooFinance from "yahoo-finance2";
 import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
 import { computeReturnsPct } from "./pead-score";
+import { crossedAbove200DmaFromCloses } from "./dma200-cross";
 
 const yf = new YahooFinance({
   suppressNotices: ["yahooSurvey"],
@@ -31,6 +32,8 @@ export type QuoteTape = {
   dma200: number | null;
   breakout20: number | null;
   dma200_alert: "below_200_breakout" | null;
+  /** Fresh close above 200 DMA after ≥2 prior closes below — not a one-day dip reclaim. */
+  crossed_above_200dma: boolean;
   mas: QuoteTapeMa[];
   returns_pct: number | null;
   result_date: string | null;
@@ -96,6 +99,7 @@ export async function loadQuoteTape(
     dma200: null,
     breakout20: null,
     dma200_alert: null,
+    crossed_above_200dma: false,
     mas: [
       { period: 20, value: null, above: null },
       { period: 50, value: null, above: null },
@@ -139,6 +143,7 @@ export async function loadQuoteTape(
     prev_close <= breakout20
       ? "below_200_breakout"
       : null;
+  const crossed_above_200dma = crossedAbove200DmaFromCloses(closes);
 
   let week52_low = quote.low;
   let week52_high = quote.high;
@@ -190,6 +195,7 @@ export async function loadQuoteTape(
     dma200,
     breakout20,
     dma200_alert,
+    crossed_above_200dma,
     mas,
     returns_pct,
     result_date,

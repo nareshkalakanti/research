@@ -1166,7 +1166,7 @@ export function SectorRotationPanel() {
             <DualSpark
               a={openCard.sector}
               b={openCard.bench}
-              height={160}
+              height={140}
               aLabel={openCard.label}
               bLabel={benchLabel}
               logScale={scale === "log"}
@@ -1175,35 +1175,37 @@ export function SectorRotationPanel() {
           ) : (
             <div className="table-meta">Loading sector…</div>
           )}
-          <TickerSuggest
-            value={addQ}
-            onChange={setAddQ}
-            onSelect={(h) => void addTicker(h)}
-            clearOnSelect
-            persistGroww={false}
-            placeholder="Add company…"
-            className="fam-dash-search"
-            submitLabel="add"
-          />
-          <input
-            className="fam-dash-search rot-member-filter"
-            placeholder="Search by name or code…"
-            value={memberQ}
-            onChange={(e) => setMemberQ(e.target.value)}
-            aria-label="Filter constituents"
-          />
-          <table className="rot-table">
+          <div className="rot-add-row">
+            <TickerSuggest
+              value={addQ}
+              onChange={setAddQ}
+              onSelect={(h) => void addTicker(h)}
+              clearOnSelect
+              persistGroww={false}
+              placeholder="Add company…"
+              className="fam-dash-search"
+              submitLabel="add"
+            />
+            <input
+              className="fam-dash-search rot-member-filter"
+              placeholder="Search by name or code…"
+              value={memberQ}
+              onChange={(e) => setMemberQ(e.target.value)}
+              aria-label="Filter constituents"
+            />
+          </div>
+          <table className="rot-table rot-table--members">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Stock name</th>
-                <th>Symbol</th>
-                <th>Mcap</th>
-                <th>Price</th>
-                <th>Today %</th>
-                <th>Change %</th>
-                <th>Trend</th>
-                <th />
+                <th className="rot-col-num">#</th>
+                <th className="rot-col-stock">Stock name</th>
+                <th className="rot-col-sym">Symbol</th>
+                <th className="rot-col-num">Mcap</th>
+                <th className="rot-col-num">Price</th>
+                <th className="rot-col-num">Today %</th>
+                <th className="rot-col-num">Change %</th>
+                <th className="rot-col-trend">Trend</th>
+                <th className="rot-col-act" />
               </tr>
             </thead>
             <tbody>
