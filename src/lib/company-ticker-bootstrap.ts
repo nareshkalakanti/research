@@ -1,7 +1,6 @@
 /**
  * Bootstrap missing NSE/BSE tickers into company_about.db from exchange + Yahoo.
  */
-import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { ensureCompanyAboutRow, saveYfAboutProfile } from "./company-about-write";
@@ -31,14 +30,21 @@ const TICKER_RE = /^[A-Z][A-Z0-9-]{0,19}$/;
 
 function companyExists(ticker: string): boolean {
   if (!fs.existsSync(ABOUT_PATH)) return false;
-  const db = new Database(ABOUT_PATH, { readonly: true });
   try {
-    const row = db
-      .prepare(`SELECT 1 AS ok FROM company_about WHERE UPPER(ticker) = ?`)
-      .get(ticker.toUpperCase()) as { ok: number } | undefined;
-    return !!row;
-  } finally {
-    db.close();
+    const db = openSqliteNamed("company_about.db", {
+      readonly: true,
+      fileMustExist: true,
+    });
+    try {
+      const row = db
+        .prepare(`SELECT 1 AS ok FROM company_about WHERE UPPER(ticker) = ?`)
+        .get(ticker.toUpperCase()) as { ok: number } | undefined;
+      return !!row;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
   }
 }
 
@@ -108,6 +114,18 @@ export async function bootstrapCompanyTicker(
   }
   let key = raw;
   if (!TICKER_RE.test(key)) return false;
+  try {
+    return await bootstrapListedTicker(key, opts);
+  } catch {
+    return false;
+  }
+}
+
+async function bootstrapListedTicker(
+  keyIn: string,
+  opts?: { name?: string | null; market?: string | null },
+): Promise<boolean> {
+  let key = keyIn;
   if (companyExists(key)) return true;
 
   const hintName = (opts?.name || "").trim();
@@ -159,14 +177,18 @@ export async function bootstrapCompanyTicker(
 
   const searched = ticker.trim().toUpperCase();
   if (key !== searched && companyExists(searched)) {
-    const dbDrop = new Database(ABOUT_PATH);
     try {
-      dbDrop.pragma("busy_timeout = 5000");
-      dbDrop
-        .prepare(`DELETE FROM company_about WHERE ticker = ?`)
-        .run(searched);
-    } finally {
-      dbDrop.close();
+      const dbDrop = openSqliteNamed("company_about.db", {
+        readonly: false,
+        wal: false,
+      });
+      try {
+        dbDrop.prepare(`DELETE FROM company_about WHERE ticker = ?`).run(searched);
+      } finally {
+        dbDrop.close();
+      }
+    } catch {
+      /* about write optional */
     }
     try {
       const mdb = openSqliteNamed("metrics.db", { readonly: false, wal: true });
@@ -190,14 +212,20 @@ export async function bootstrapCompanyTicker(
 
   ensureGovernanceCompanyStub({ ticker: key, name, market });
 
-  const db = new Database(ABOUT_PATH);
   try {
-    db.pragma("busy_timeout = 5000");
-    db.prepare(
-      `UPDATE company_about SET source = 'exchange-bootstrap', fetched_at = @at WHERE ticker = @ticker`,
-    ).run({ ticker: key, at: new Date().toISOString() });
-  } finally {
-    db.close();
+    const db = openSqliteNamed("company_about.db", {
+      readonly: false,
+      wal: false,
+    });
+    try {
+      db.prepare(
+        `UPDATE company_about SET source = 'exchange-bootstrap', fetched_at = @at WHERE ticker = @ticker`,
+      ).run({ ticker: key, at: new Date().toISOString() });
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* listing is already in rotation even if about write fails */
   }
 
   try {

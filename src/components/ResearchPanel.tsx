@@ -6,6 +6,7 @@ import { BuybackResearchPanel } from "@/components/BuybackResearchPanel";
 import { ConcallResearchPanel } from "@/components/ConcallResearchPanel";
 import { DinFillResearchPanel } from "@/components/DinFillResearchPanel";
 import { OrderbookResearchPanel } from "@/components/OrderbookResearchPanel";
+import { SectorShotPanel } from "@/components/SectorShotPanel";
 
 function ResearchSection({
   id,
@@ -87,8 +88,15 @@ export function ResearchPanel() {
       >
         <AnalystResearchPanel />
       </ResearchSection>
-      <ResearchSection id="research-din" title="5 · Fill DIN" defaultOpen>
+      <ResearchSection id="research-din" title="5 · Fill DIN" defaultOpen={false}>
         <DinFillResearchPanel />
+      </ResearchSection>
+      <ResearchSection
+        id="research-sector"
+        title="6 · Add sector"
+        defaultOpen
+      >
+        <SectorShotPanel />
       </ResearchSection>
     </div>
   );

@@ -17,7 +17,8 @@ export function ensureInvestorMaterialsSchema(): boolean {
     return migrated;
   }
 
-  const db = openSqliteNamed("company_about.db", { readonly: false, wal: true });
+  try {
+    const db = openSqliteNamed("company_about.db", { readonly: false, wal: true });
   try {
     const tables = db
       .prepare(
@@ -44,6 +45,12 @@ export function ensureInvestorMaterialsSchema(): boolean {
     }
   } finally {
     db.close();
+  }
+  } catch (err) {
+    console.warn(
+      "[db] investor-materials schema skipped:",
+      err instanceof Error ? err.message : err,
+    );
   }
 
   ensured = true;

@@ -6,6 +6,7 @@ let schemaEnsured = false;
 export function ensureLlmAboutSchema(): boolean {
   if (schemaEnsured) return false;
   let migrated = false;
+  try {
   const db = openSqliteNamed("company_about.db", { readonly: false, wal: true });
   try {
     const cols = db
@@ -28,6 +29,12 @@ export function ensureLlmAboutSchema(): boolean {
     }
   } finally {
     db.close();
+  }
+  } catch (err) {
+    console.warn(
+      "[db] llm-about schema skipped:",
+      err instanceof Error ? err.message : err,
+    );
   }
   schemaEnsured = true;
   return migrated;

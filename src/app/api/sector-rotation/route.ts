@@ -24,6 +24,19 @@ export async function GET(req: NextRequest) {
   const weight = sp.get("weight") === "cap" ? "cap" : "equal";
   const id = (sp.get("id") || "").trim();
   try {
+    if (sp.get("summary") === "1") {
+      const rows = listRotationSectors().map((s) => ({
+        id: s.id,
+        label: s.label,
+        n: s.members.length,
+        starred: s.starred,
+      }));
+      return NextResponse.json({
+        ok: true,
+        n: rows.length,
+        sectors: rows,
+      });
+    }
     if (id) {
       const sector = getRotationSector(id);
       if (!sector) {
@@ -93,16 +106,22 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      await bootstrapCompanyTicker(ticker, {
-        name: body.name || ticker,
-        market: body.market || null,
-      });
-      invalidateCompanyCache();
       addRotationMember(id, {
         ticker,
         name: body.name || ticker,
         market: body.market || "NSE",
       });
+      void bootstrapCompanyTicker(ticker, {
+        name: body.name || ticker,
+        market: body.market || null,
+      })
+        .then(() => invalidateCompanyCache())
+        .catch((err) =>
+          console.warn(
+            "[rotation] about bootstrap skipped:",
+            err instanceof Error ? err.message : err,
+          ),
+        );
       return NextResponse.json({ ok: true, sector: getRotationSector(id) });
     }
     if (body.remove) {

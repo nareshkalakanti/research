@@ -25,6 +25,10 @@ type Props = {
   onChange: (ticker: string) => void;
   /** Called when user picks a suggestion (includes company name). */
   onSelect?: (hit: TickerSuggestHit) => void;
+  /** Clear the field after a pick (rotation add). Default keeps the ticker. */
+  clearOnSelect?: boolean;
+  /** POST /api/tickers to persist a Groww hit. Off for rotation add. */
+  persistGroww?: boolean;
   /** Called when user picks a suggestion or presses Enter with a value. */
   onSubmit?: (ticker: string) => void;
   disabled?: boolean;
@@ -94,6 +98,8 @@ export function TickerSuggest({
   className = "buyback-url-input",
   style,
   submitLabel = "add",
+  clearOnSelect = false,
+  persistGroww = true,
 }: Props) {
   const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -231,16 +237,16 @@ export function TickerSuggest({
     (hit: TickerSuggestHit) => {
       const finish = (resolved: TickerSuggestHit) => {
         const t = resolved.ticker.trim().toUpperCase();
-        pickedRef.current = t;
+        pickedRef.current = clearOnSelect ? null : t;
         reqRef.current += 1;
-        onChange(t);
+        onChange(clearOnSelect ? "" : t);
         onSelect?.(resolved);
         setOpen(false);
         setHits([]);
         setSearched(false);
         setLoading(false);
       };
-      if (hit.source === "groww") {
+      if (hit.source === "groww" && persistGroww) {
         setLoading(true);
         void fetch("/api/tickers", {
           method: "POST",
@@ -265,7 +271,7 @@ export function TickerSuggest({
       }
       finish(hit);
     },
-    [onChange, onSelect],
+    [onChange, onSelect, clearOnSelect, persistGroww],
   );
 
   const submitCurrent = useCallback(() => {

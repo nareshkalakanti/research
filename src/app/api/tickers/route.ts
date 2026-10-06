@@ -114,7 +114,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, q, hits: [] as TickerHit[] });
   }
 
-  const hits = localHits(q, limit);
+  let hits: TickerHit[] = [];
+  try {
+    hits = localHits(q, limit);
+  } catch (err) {
+    console.warn(
+      "[tickers] local listings unavailable:",
+      err instanceof Error ? err.message : err,
+    );
+  }
   const have = new Set(hits.map((h) => h.ticker));
   const localStrong =
     hits.length >= limit ||
@@ -170,15 +178,31 @@ export async function POST(req: NextRequest) {
   if (!ticker) {
     return NextResponse.json({ ok: false, error: "ticker required" }, { status: 400 });
   }
-  const before = new Set(
-    loadAllCompanies().map((c) => c.ticker.toUpperCase()),
-  );
-  const ok = await bootstrapCompanyTicker(ticker, {
-    name: body.name || ticker,
-    market: body.market || null,
-  });
-  invalidateCompanyCache();
-  const all = loadAllCompanies();
+  let before = new Set<string>();
+  try {
+    before = new Set(loadAllCompanies().map((c) => c.ticker.toUpperCase()));
+  } catch {
+    /* about db may be briefly unreadable */
+  }
+  let ok = false;
+  try {
+    ok = await bootstrapCompanyTicker(ticker, {
+      name: body.name || ticker,
+      market: body.market || null,
+    });
+    invalidateCompanyCache();
+  } catch (err) {
+    console.warn(
+      "[tickers] bootstrap skipped:",
+      err instanceof Error ? err.message : err,
+    );
+  }
+  let all: ReturnType<typeof loadAllCompanies> = [];
+  try {
+    all = loadAllCompanies();
+  } catch {
+    all = [];
+  }
   const added = all.filter((c) => !before.has(c.ticker.toUpperCase()));
   const co =
     all.find((c) => c.ticker.toUpperCase() === ticker) ||
@@ -196,7 +220,7 @@ export async function POST(req: NextRequest) {
     mcap_cr: null,
     source: "local",
   });
-  if (!ok && !co) {
+  if (!ok && !co && !hit.ticker) {
     return NextResponse.json(
       { ok: false, error: "Could not add listing from Groww / exchange", hit },
       { status: 422 },

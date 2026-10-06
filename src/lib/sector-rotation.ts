@@ -21,6 +21,62 @@ export type RotationSector = {
   members: SectorMember[];
 };
 
+function collapseSectorLabel(label: string): string {
+  return label.replace(/\s+/g, " ").trim();
+}
+
+function labelKey(label: string): string {
+  return collapseSectorLabel(label).toLowerCase();
+}
+
+function foldDuplicateSectors(db: Database.Database): void {
+  const heads = db
+    .prepare(
+      `SELECT id, label, created_at FROM sectors ORDER BY created_at, id`,
+    )
+    .all() as Array<{ id: string; label: string; created_at: string }>;
+  const keep = new Map<string, string>();
+  for (const h of heads) {
+    const k = labelKey(h.label);
+    if (!k) continue;
+    const winner = keep.get(k);
+    if (!winner) {
+      keep.set(k, h.id);
+      continue;
+    }
+    db.prepare(
+      `INSERT INTO sector_members (sector_id, ticker, name, market, updated_at)
+       SELECT ?, ticker, name, market, updated_at FROM sector_members WHERE sector_id = ?
+       ON CONFLICT(sector_id, ticker) DO NOTHING`,
+    ).run(winner, h.id);
+    db.prepare(`DELETE FROM sector_members WHERE sector_id = ?`).run(h.id);
+    db.prepare(`DELETE FROM sectors WHERE id = ?`).run(h.id);
+  }
+  const tickers = db
+    .prepare(
+      `SELECT UPPER(ticker) AS ticker FROM sector_members GROUP BY UPPER(ticker) HAVING COUNT(*) > 1`,
+    )
+    .all() as Array<{ ticker: string }>;
+  for (const row of tickers) {
+    const places = db
+      .prepare(
+        `SELECT m.sector_id AS id FROM sector_members m
+         JOIN sectors s ON s.id = m.sector_id
+         WHERE UPPER(m.ticker) = ?
+         ORDER BY s.created_at, s.id`,
+      )
+      .all(row.ticker) as Array<{ id: string }>;
+    const keepId = places[0]?.id;
+    if (!keepId || places.length < 2) continue;
+    db.prepare(
+      `DELETE FROM sector_members WHERE UPPER(ticker) = ? AND sector_id != ?`,
+    ).run(row.ticker, keepId);
+  }
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS sectors_label_nocase ON sectors(label COLLATE NOCASE)`,
+  );
+}
+
 function openWrite(): Database.Database {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const db = new Database(DB_PATH);
@@ -45,6 +101,7 @@ function openWrite(): Database.Database {
   if (!cols.some((c) => c.name === "starred")) {
     db.exec(`ALTER TABLE sectors ADD COLUMN starred INTEGER NOT NULL DEFAULT 0`);
   }
+  foldDuplicateSectors(db);
   return db;
 }
 
@@ -69,7 +126,7 @@ function loadSectorsFrom(db: Database.Database): RotationSector[] {
   const mems = db
     .prepare(
       `SELECT sector_id, ticker, name, market FROM sector_members
-       ORDER BY ticker COLLATE NOCASE`,
+       ORDER BY updated_at, ticker COLLATE NOCASE`,
     )
     .all() as Array<{
       sector_id: string;
@@ -82,6 +139,7 @@ function loadSectorsFrom(db: Database.Database): RotationSector[] {
     const t = (m.ticker || "").toUpperCase();
     if (!t) continue;
     const list = by.get(m.sector_id) ?? [];
+    if (list.some((x) => x.ticker === t)) continue;
     list.push({
       ticker: t,
       name: (m.name || t).trim() || t,
@@ -116,16 +174,28 @@ export function getRotationSector(id: string): RotationSector | null {
 }
 
 export function createRotationSector(label: string): RotationSector {
-  const name = label.replace(/\s+/g, " ").trim();
+  const name = collapseSectorLabel(label);
   if (name.length < 2) throw new Error("Name the sector (2+ characters)");
   const db = openWrite();
   try {
+    const have = db
+      .prepare(`SELECT id FROM sectors WHERE label = ? COLLATE NOCASE`)
+      .get(name) as { id: string } | undefined;
+    if (have?.id) {
+      return getRotationSector(have.id)!;
+    }
     const id = newId();
-    db.prepare(`INSERT INTO sectors (id, label, created_at) VALUES (?, ?, ?)`).run(
-      id,
-      name,
-      new Date().toISOString(),
-    );
+    try {
+      db.prepare(
+        `INSERT INTO sectors (id, label, created_at) VALUES (?, ?, ?)`,
+      ).run(id, name, new Date().toISOString());
+    } catch {
+      const again = db
+        .prepare(`SELECT id FROM sectors WHERE label = ? COLLATE NOCASE`)
+        .get(name) as { id: string } | undefined;
+      if (again?.id) return getRotationSector(again.id)!;
+      throw new Error("Could not create sector");
+    }
     return { id, label: name, starred: false, members: [] };
   } finally {
     db.close();
@@ -133,10 +203,25 @@ export function createRotationSector(label: string): RotationSector {
 }
 
 export function renameRotationSector(id: string, label: string): void {
-  const name = label.replace(/\s+/g, " ").trim();
+  const name = collapseSectorLabel(label);
   if (name.length < 2) throw new Error("Name the sector (2+ characters)");
   const db = openWrite();
   try {
+    const clash = db
+      .prepare(
+        `SELECT id FROM sectors WHERE label = ? COLLATE NOCASE AND id != ?`,
+      )
+      .get(name, id) as { id: string } | undefined;
+    if (clash?.id) {
+      db.prepare(
+        `INSERT INTO sector_members (sector_id, ticker, name, market, updated_at)
+         SELECT ?, ticker, name, market, updated_at FROM sector_members WHERE sector_id = ?
+         ON CONFLICT(sector_id, ticker) DO NOTHING`,
+      ).run(clash.id, id);
+      db.prepare(`DELETE FROM sector_members WHERE sector_id = ?`).run(id);
+      db.prepare(`DELETE FROM sectors WHERE id = ?`).run(id);
+      return;
+    }
     const info = db
       .prepare(`UPDATE sectors SET label = ? WHERE id = ?`)
       .run(name, id);
@@ -180,6 +265,9 @@ export function addRotationMember(
       .prepare(`SELECT id FROM sectors WHERE id = ?`)
       .get(sectorId) as { id: string } | undefined;
     if (!row) throw new Error("Sector not found");
+    db.prepare(
+      `DELETE FROM sector_members WHERE UPPER(ticker) = ? AND sector_id != ?`,
+    ).run(t, sectorId);
     db.prepare(
       `INSERT INTO sector_members (sector_id, ticker, name, market, updated_at)
        VALUES (?, ?, ?, ?, ?)
@@ -232,7 +320,7 @@ export function mergeRotationSectorByLabel(
   label: string,
   members: SectorMember[],
 ): RotationSector {
-  const name = label.replace(/\s+/g, " ").trim();
+  const name = collapseSectorLabel(label);
   const have = listRotationSectors().find(
     (s) => s.label.toLowerCase() === name.toLowerCase(),
   );
@@ -246,7 +334,7 @@ export function upsertRotationSectorByLabel(
   label: string,
   members: SectorMember[],
 ): RotationSector {
-  const name = label.replace(/\s+/g, " ").trim();
+  const name = collapseSectorLabel(label);
   const have = listRotationSectors().find(
     (s) => s.label.toLowerCase() === name.toLowerCase(),
   );

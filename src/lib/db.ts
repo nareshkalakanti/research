@@ -3,11 +3,7 @@ import fs from "fs";
 import path from "path";
 import { researchLinks } from "./links";
 import { loadMetricsMap } from "./metrics";
-import { ensureScrapeCleanSchema } from "./scrape-clean-schema";
-import { ensureInvestorMaterialsSchema } from "./investor-materials-schema";
-import { ensureLlmAboutSchema } from "./llm-about-schema";
-import { ensureWebProfileSchema } from "./web-profile-schema";
-import { openSqliteNamed } from "./sqlite-utils";
+import { openSqliteNamed, isSqliteCorrupt, removeWalSidecars } from "./sqlite-utils";
 import {
   dropIfConflictsListing,
   listingAboutCorpus,
@@ -98,10 +94,36 @@ function openReadonly(name: string): Database.Database {
   return openSqliteNamed(name, { readonly: true, fileMustExist: true });
 }
 
+function resetAboutHandle(): void {
+  try {
+    aboutDb?.close();
+  } catch {
+    /* ignore */
+  }
+  aboutDb = null;
+  cache = null;
+  removeWalSidecars(path.join(DATA_DIR, "company_about.db"));
+}
+
 function getAbout(): Database.Database {
-  if (aboutDb) return aboutDb;
-  aboutDb = openReadonly("company_about.db");
-  return aboutDb;
+  if (aboutDb) {
+    try {
+      aboutDb.prepare("SELECT 1").get();
+      return aboutDb;
+    } catch (err) {
+      if (!isSqliteCorrupt(err)) throw err;
+      resetAboutHandle();
+    }
+  }
+  try {
+    aboutDb = openReadonly("company_about.db");
+    return aboutDb;
+  } catch (err) {
+    if (!isSqliteCorrupt(err)) throw err;
+    resetAboutHandle();
+    aboutDb = openReadonly("company_about.db");
+    return aboutDb;
+  }
 }
 
 function getGov(): Database.Database | null {
@@ -730,53 +752,36 @@ export function loadAllCompanies(): CompanyRow[] {
   const now = Date.now();
   if (cache && now - cache.at < CACHE_MS) return cache.rows;
 
-  if (ensureScrapeCleanSchema() && aboutDb) {
-    try {
-      aboutDb.close();
-    } catch {
-      /* ignore */
-    }
-    aboutDb = null;
-  }
-  if (ensureLlmAboutSchema() && aboutDb) {
-    try {
-      aboutDb.close();
-    } catch {
-      /* ignore */
-    }
-    aboutDb = null;
-  }
-  if (ensureWebProfileSchema() && aboutDb) {
-    try {
-      aboutDb.close();
-    } catch {
-      /* ignore */
-    }
-    aboutDb = null;
-  }
-
-  ensureInvestorMaterialsSchema();
-
-  const db = getAbout();
-  const rows = db
-    .prepare(
-      `SELECT ticker, name, market, website, about, yf_about, scraped_about,
+  const sql = `SELECT ticker, name, market, website, about, yf_about, scraped_about,
               scraped_about_clean, llm_about,
               company_sector, company_industry, headquarters,
               ceo, managing_director, founded_year,
               products, end_markets, theme_tags,
               group_name, recent_moves, business_model
-       FROM company_about ORDER BY ticker`,
-    )
-    .all() as RawAbout[];
-
-  const seen = new Set<string>();
-  const unique: RawAbout[] = [];
-  for (const row of rows) {
-    const key = row.ticker.toUpperCase();
-    if (seen.has(key)) continue;
-    seen.add(key);
-    unique.push(row);
+       FROM company_about ORDER BY ticker`;
+  let unique: RawAbout[] = [];
+  try {
+    const db = getAbout();
+    const rows = db.prepare(sql).all() as RawAbout[];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const key = row.ticker.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(row);
+    }
+  } catch (err) {
+    if (!isSqliteCorrupt(err)) throw err;
+    resetAboutHandle();
+    const db = getAbout();
+    const rows = db.prepare(sql).all() as RawAbout[];
+    const seen = new Set<string>();
+    for (const row of rows) {
+      const key = row.ticker.toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(row);
+    }
   }
   unique.sort((a, b) =>
     (a.name || a.ticker).localeCompare(b.name || b.ticker, undefined, {
