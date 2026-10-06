@@ -25840,6 +25840,29 @@ tr.wl-prove-fail td {
 .rot-row {
   cursor: pointer;
 }
+.rot-row.is-on td {
+  font-weight: 600;
+}
+.rot-shot-open td {
+  cursor: default;
+  background: var(--surface-2, #f6f7f8);
+  padding: 10px 12px 14px;
+}
+.rot-shot-open-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 36rem;
+}
+.rot-shot-open-inner .ticker-suggest,
+.rot-shot-open-inner .ticker-suggest-field,
+.rot-shot-open-inner .fam-dash-search {
+  width: 100%;
+  max-width: none;
+}
+.rot-shot-members {
+  margin: 0;
+}
 .rot-member-filter {
   margin: 0 0 10px;
   max-width: 22rem;

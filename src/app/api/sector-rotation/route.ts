@@ -42,6 +42,9 @@ export async function GET(req: NextRequest) {
       if (!sector) {
         return NextResponse.json({ error: "not found" }, { status: 404 });
       }
+      if (sp.get("members") === "1") {
+        return NextResponse.json({ ok: true, sector });
+      }
       const detail = await buildRotationDetail(sector, range, weight);
       return NextResponse.json({ ok: true, ...detail });
     }

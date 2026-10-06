@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 
 type Row = { id: string; label: string; n: number; starred?: boolean };
+type Member = { ticker: string; name: string; market: string };
 
 type ShotEvent = {
   t: string;
@@ -42,6 +43,7 @@ export function SectorShotPanel() {
   const [addQ, setAddQ] = useState("");
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
 
   const loadList = useCallback(async () => {
     try {
@@ -66,6 +68,26 @@ export function SectorShotPanel() {
   useEffect(() => {
     void loadList();
   }, [loadList]);
+
+  const loadMembers = useCallback(async (id: string) => {
+    const res = await fetch(
+      `/api/sector-rotation?id=${encodeURIComponent(id)}&members=1`,
+      { cache: "no-store" },
+    );
+    const json = (await res.json()) as {
+      ok?: boolean;
+      sector?: { members?: Member[] };
+    };
+    setMembers(json.sector?.members ?? []);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setMembers([]);
+      return;
+    }
+    void loadMembers(selectedId);
+  }, [selectedId, loadMembers]);
 
   const runScreenshot = useCallback(
     async (file: File, priorIndustry = "") => {
@@ -304,6 +326,24 @@ export function SectorShotPanel() {
       return;
     }
     await loadList();
+    await loadMembers(selectedId);
+  };
+
+  const removeFromSelected = async (ticker: string) => {
+    if (!selectedId) return;
+    setError(null);
+    const res = await fetch("/api/sector-rotation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: selectedId, remove: true, ticker }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    if (!res.ok || json.ok === false) {
+      setError(json.error || `HTTP ${res.status}`);
+      return;
+    }
+    await loadList();
+    await loadMembers(selectedId);
   };
 
   return (
@@ -405,15 +445,71 @@ export function SectorShotPanel() {
         </thead>
         <tbody>
           {rows.map((r, i) => (
+            <Fragment key={r.id}>
             <tr
-              key={r.id}
               className={r.id === selectedId ? "rot-row is-on" : "rot-row"}
-              onClick={() => setSelectedId(r.id)}
+              onClick={() =>
+                setSelectedId((cur) => (cur === r.id ? null : r.id))
+              }
             >
               <td>{i + 1}</td>
               <td>{r.label}</td>
               <td>{r.n}</td>
             </tr>
+            {r.id === selectedId ? (
+              <tr className="rot-shot-open">
+                <td colSpan={3}>
+                  <div className="rot-shot-open-inner">
+                    <TickerSuggest
+                      value={addQ}
+                      onChange={setAddQ}
+                      onSelect={(h) => void addToSelected(h)}
+                      clearOnSelect
+                      persistGroww={false}
+                      placeholder="Add company…"
+                      className="fam-dash-search"
+                      submitLabel="add"
+                    />
+                    {members.length ? (
+                      <table className="rot-table rot-shot-members">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Stock</th>
+                            <th>Symbol</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {members.map((m, mi) => (
+                            <tr key={m.ticker}>
+                              <td>{mi + 1}</td>
+                              <td>{m.name}</td>
+                              <td className="mono">{m.ticker}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn-ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void removeFromSelected(m.ticker);
+                                  }}
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <p className="rot-create-pick">No stocks yet.</p>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ) : null}
+            </Fragment>
           ))}
         </tbody>
       </table>
