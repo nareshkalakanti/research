@@ -28,4 +28,19 @@ assert.ok(
   rankListingQuery("alpha beta ltd", "ALPHABETA", "Alpha Beta Limited") <=
     rankListingQuery("alpha", "ALPHANUM", "Alphanum Limited"),
 );
+assert.ok(
+  rankListingQuery(
+    "Foo Investment Consultancy Ltd",
+    "FOOINV",
+    "Foo Investment & Consultancy Ltd.",
+  ) <= 3,
+);
+assert.equal(
+  listingQueryMatches(
+    "Foo Investment &amp; Consultancy Ltd.",
+    "FOOINV",
+    "Foo Investment & Consultancy Ltd.",
+  ),
+  true,
+);
 console.log("ok");

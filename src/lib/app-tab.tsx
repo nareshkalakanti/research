@@ -21,7 +21,8 @@ export type AppTab =
   | "missing"
   | "research"
   | "watchlist"
-  | "napkin";
+  | "napkin"
+  | "rotation";
 
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "dashboard", label: "Dashboard", short: "Dashboard" },
@@ -30,6 +31,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "governance", label: "Governance", short: "Governance" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "napkin", label: "Napkin", short: "Napkin" },
+  { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "marketiq", label: "MarketIQ", short: "Market" },
   { id: "orderbookiq", label: "OrderBookIQ", short: "Orders" },
   { id: "boardroomiq", label: "BoardRoomIQ", short: "Board" },

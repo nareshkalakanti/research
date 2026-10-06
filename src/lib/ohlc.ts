@@ -15,6 +15,8 @@ const NIFTY_WEEKLY_SYMBOLS = [
   "^NSEBANK",
 ];
 const NIFTY_DAILY_SYMBOLS = ["^NSEI", "NIFTYBEES.NS", "^BSESN"];
+/** Yahoo chart id for the Nifty 500 total-return / price index. */
+const NIFTY_500_DAILY_SYMBOLS = ["^CRSLDX"];
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -493,7 +495,8 @@ export async function fetchDailyBars(
 }
 
 let niftyCache: { at: number; bars: Bar[] } | null = null;
-let niftyDailyCache: { at: number; bars: Bar[] } | null = null;
+let niftyDailyCache: { at: number; years: number; bars: Bar[] } | null = null;
+let nifty500DailyCache: { at: number; years: number; bars: Bar[] } | null = null;
 const NIFTY_CACHE_MS = 60 * 60 * 1000;
 const NIFTY_MIN_WEEKLY = 52;
 
@@ -590,26 +593,62 @@ export async function fetchNiftyWeeklyBars(): Promise<Bar[]> {
   return [];
 }
 
-export async function fetchNiftyDailyBars(): Promise<Bar[]> {
+export async function fetchNiftyDailyBars(yearsBack = 2): Promise<Bar[]> {
+  const years = Math.max(1, Math.min(8, yearsBack));
   const now = Date.now();
   if (
     niftyDailyCache &&
+    niftyDailyCache.years >= years &&
     niftyDailyCache.bars.length >= 40 &&
     now - niftyDailyCache.at < NIFTY_CACHE_MS
   ) {
     return niftyDailyCache.bars;
   }
   for (let attempt = 0; attempt < 3; attempt += 1) {
-    for (const yearsBack of [2, 1]) {
+    for (const y of [years, Math.max(1, years - 1)]) {
       for (const symbol of NIFTY_DAILY_SYMBOLS) {
         try {
           const chart = await yf.chart(symbol, {
-            period1: periodStart(yearsBack),
+            period1: periodStart(y),
             interval: "1d",
           });
           const bars = chartQuotesToBars(chart.quotes ?? []);
           if (bars.length >= 40) {
-            niftyDailyCache = { at: now, bars };
+            niftyDailyCache = { at: now, years: y, bars };
+            return bars;
+          }
+        } catch {
+          /* try next */
+        }
+      }
+    }
+    await sleep(300 + attempt * 400);
+  }
+  return [];
+}
+
+export async function fetchNifty500DailyBars(yearsBack = 2): Promise<Bar[]> {
+  const years = Math.max(1, Math.min(8, yearsBack));
+  const now = Date.now();
+  if (
+    nifty500DailyCache &&
+    nifty500DailyCache.years >= years &&
+    nifty500DailyCache.bars.length >= 40 &&
+    now - nifty500DailyCache.at < NIFTY_CACHE_MS
+  ) {
+    return nifty500DailyCache.bars;
+  }
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (const y of [years, Math.max(1, years - 1)]) {
+      for (const symbol of NIFTY_500_DAILY_SYMBOLS) {
+        try {
+          const chart = await yf.chart(symbol, {
+            period1: periodStart(y),
+            interval: "1d",
+          });
+          const bars = chartQuotesToBars(chart.quotes ?? []);
+          if (bars.length >= 40) {
+            nifty500DailyCache = { at: now, years: y, bars };
             return bars;
           }
         } catch {

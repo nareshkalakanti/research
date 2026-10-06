@@ -244,6 +244,7 @@ async function ocrChatCompletions(opts: {
 export async function ocrImageWithQianfan(
   imageDataUrl: string,
   prompt: string = OCR_PROMPT,
+  maxTokens = 1536,
 ): Promise<string> {
   const cfg = qianfanConfig();
   if (!cfg) {
@@ -262,7 +263,7 @@ export async function ocrImageWithQianfan(
     model: cfg.model,
     image,
     prompt,
-    maxTokens: 1536,
+    maxTokens,
     numCtx,
     repeatPenalty: 1.12,
     stop: ["</table>", "<html"],

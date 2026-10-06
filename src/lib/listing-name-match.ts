@@ -21,7 +21,9 @@ function collapseSingleLetterRuns(tokens: string[]): string[] {
 export function companyLabelKey(name: string): string {
   const raw = name
     .toLowerCase()
+    .replace(/&amp;/g, " and ")
     .replace(/&/g, " and ")
+    .replace(/[\uFF06\uFE60+＋]/g, " and ")
     .replace(/[^a-z0-9]+/g, " ")
     .replace(
       /\b(limited|ltd|pvt|private|plc|llc|inc|corp|corporation|company|co)\b/g,
@@ -39,14 +41,19 @@ export function listingQueryVariants(query: string): string[] {
   const key = companyLabelKey(raw);
   const seen = new Set<string>();
   const out: string[] = [];
-  for (const q of [raw, key]) {
-    const t = q.trim();
-    if (!t) continue;
-    const k = t.toLowerCase();
-    if (seen.has(k)) continue;
+  const push = (t: string) => {
+    const s = t.trim();
+    if (!s) return;
+    const k = s.toLowerCase();
+    if (seen.has(k)) return;
     seen.add(k);
-    out.push(t);
-  }
+    out.push(s);
+  };
+  push(raw);
+  push(key);
+  const words = key.split(" ").filter((w) => w.length >= 3);
+  if (words.length >= 2) push(words.slice(0, 2).join(" "));
+  if (words.length >= 3) push(words.slice(0, 3).join(" "));
   return out;
 }
 

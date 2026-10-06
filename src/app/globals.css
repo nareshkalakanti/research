@@ -25564,3 +25564,172 @@ tr.wl-prove-fail td {
     grid-template-columns: 1fr;
   }
 }
+
+.rot-dash {
+  padding: 12px 0 32px;
+}
+.rot-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+.rot-title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+.rot-sub {
+  margin: 4px 0 0;
+  color: var(--muted, #64748b);
+  font-size: 0.88rem;
+  max-width: 52rem;
+}
+.rot-ranges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.rot-create {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 16px;
+  flex-wrap: wrap;
+  max-width: 56rem;
+}
+.rot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+.rot-card {
+  text-align: left;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
+  padding: 12px 12px 8px;
+  background: var(--card, #fff);
+  cursor: pointer;
+}
+.rot-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+.rot-muted {
+  font-size: 0.78rem;
+  color: var(--muted, #64748b);
+  margin: 4px 0 8px;
+}
+.rot-pct {
+  font-variant-numeric: tabular-nums;
+}
+.rot-spark {
+  color: #94a3b8;
+}
+.rot-detail {
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 12px;
+  padding: 12px 14px 8px;
+  background: var(--card, #fff);
+}
+.rot-detail-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.rot-back {
+  font-weight: 600;
+}
+.rot-rename {
+  max-width: 22rem;
+  font-weight: 600;
+}
+.rot-add {
+  position: relative;
+  margin: 12px 0;
+  max-width: 28rem;
+}
+.rot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.rot-table th,
+.rot-table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-top: 1px solid var(--line, #e2e8f0);
+}
+.rot-table .rot-name {
+  display: block;
+  color: var(--muted, #64748b);
+  font-size: 0.78rem;
+}
+.rot-table .pos,
+.rot-card .pos {
+  color: #15803d;
+}
+.rot-table .neg,
+.rot-card .neg {
+  color: #b91c1c;
+}
+.rot-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  font-size: 0.72rem;
+  color: var(--muted, #64748b);
+  margin-top: 2px;
+}
+.rot-leg-a::before,
+.rot-leg-b::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: #22c55e;
+}
+.rot-leg-b::before {
+  background: #94a3b8;
+}
+.rot-count {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #166534;
+  font-weight: 600;
+}
+.rot-row {
+  cursor: pointer;
+}
+.rot-member-filter {
+  margin: 0 0 10px;
+  max-width: 22rem;
+}
+.rot-shot.is-busy {
+  opacity: 1;
+  pointer-events: auto;
+}
+.rot-shot-preview {
+  max-height: 88px;
+}
+.rot-shot-log {
+  margin: 0 0 16px;
+  padding: 8px 12px 8px 1.6rem;
+  max-width: 56rem;
+  max-height: 12rem;
+  overflow: auto;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--muted, #64748b);
+  background: var(--surface, #f8fafc);
+  border-radius: 8px;
+}
