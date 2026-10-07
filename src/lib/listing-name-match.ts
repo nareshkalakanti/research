@@ -87,8 +87,24 @@ function oneEditApart(a: string, b: string): boolean {
   return i === shorter.length;
 }
 
+function adjacentTranspose(a: string, b: string): boolean {
+  if (a.length !== b.length || a.length < 4) return false;
+  let i = 0;
+  while (i < a.length && a[i] === b[i]) i += 1;
+  if (i >= a.length - 1) return false;
+  if (a[i] !== b[i + 1] || a[i + 1] !== b[i]) return false;
+  return a.slice(i + 2) === b.slice(i + 2);
+}
+
 function tokensMatch(a: string, b: string): boolean {
-  return a === b || oneEditApart(a, b);
+  return a === b || oneEditApart(a, b) || adjacentTranspose(a, b);
+}
+
+function sharedPrefixLen(a: string, b: string): number {
+  const n = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < n && a[i] === b[i]) i += 1;
+  return i;
 }
 
 export function scoreListingName(
@@ -118,6 +134,15 @@ export function scoreListingName(
       return 96;
     }
   }
+  const q0 = qTokEarly[0] || "";
+  const n0 = nTokEarly[0] || "";
+  if (
+    qTokEarly.length === 1 &&
+    q0.length >= 5 &&
+    (tokensMatch(q0, tKey) || (n0.length >= 5 && tokensMatch(q0, n0)))
+  ) {
+    return 88;
+  }
   if (n && (n.startsWith(q) || q.startsWith(n)) && Math.min(n.length, q.length) >= 8) {
     return 92;
   }
@@ -129,7 +154,15 @@ export function scoreListingName(
   const qTok = q.split(" ").filter((w) => w.length > 1);
   const nTok = n.split(" ").filter((w) => w.length > 1);
   const nSet = new Set(nTok);
-  if (qTok.length < 2) return 0;
+  if (qTok.length < 2) {
+    if (
+      q0.length >= 5 &&
+      (tokensMatch(q0, tKey) || (n0.length >= 5 && tokensMatch(q0, n0)))
+    ) {
+      return 88;
+    }
+    return 0;
+  }
   const exact = qTok.filter((w) => nSet.has(w)).length;
   if (exact === qTok.length) return 88;
   if (exact / qTok.length >= 0.8) return 75;
@@ -148,6 +181,19 @@ export function scoreListingName(
   }
   if (prefix >= 2 && qTok.slice(0, prefix).some((w) => w.length >= 5)) {
     return 80;
+  }
+  const restFuzzy = qTok
+    .slice(1)
+    .filter((w) => nTok.slice(1).some((x) => tokensMatch(w, x))).length;
+  const restLong = qTok.slice(1).some((w) => w.length >= 5);
+  if (
+    restFuzzy >= 1 &&
+    restLong &&
+    sharedPrefixLen(qTok[0] || "", nTok[0] || "") >= 4 &&
+    (qTok[0] || "").length >= 5 &&
+    (nTok[0] || "").length >= 5
+  ) {
+    return 76;
   }
   return 0;
 }

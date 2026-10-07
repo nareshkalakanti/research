@@ -117,4 +117,40 @@ assert.equal(
   ),
   false,
 );
+assert.equal(
+  listingQueryMatches("fooble", "FAOBLE", "Faoble Cables Limited"),
+  true,
+);
+assert.equal(
+  listingQueryMatches("macro", "MARCOX", "Marco Cables Limited"),
+  true,
+);
+assert.equal(
+  listingQueryMatches("macro cables", "MARCOX", "Marco Cables Limited"),
+  true,
+);
+assert.equal(
+  listingQueryMatches(
+    "fooble cables condusctrs",
+    "FAOBLE",
+    "Faoble Cables & Conductors Limited",
+  ),
+  true,
+);
+assert.equal(
+  listingQueryMatches(
+    "alphaable cable maufacturing",
+    "ALPHAB",
+    "Alphab Cable Manufacturing Ltd",
+  ),
+  true,
+);
+assert.equal(
+  listingQueryMatches(
+    "alphaable cable maufacturing",
+    "ALPHADATA",
+    "Alphaable Data Services Ltd",
+  ),
+  false,
+);
 console.log("ok");

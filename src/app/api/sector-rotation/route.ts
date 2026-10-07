@@ -12,8 +12,9 @@ import {
   setRotationStarred,
 } from "@/lib/sector-rotation";
 import {
-  buildRotationBoard,
   buildRotationDetail,
+  buildRotationLiteBoard,
+  hydrateRotationCards,
 } from "@/lib/sector-rotation-board";
 
 export const runtime = "nodejs";
@@ -48,12 +49,18 @@ export async function GET(req: NextRequest) {
       const detail = await buildRotationDetail(sector, range, weight);
       return NextResponse.json({ ok: true, ...detail });
     }
-    const board = await buildRotationBoard(range, weight);
-    return NextResponse.json({
-      ok: true,
-      list: listRotationSectors(),
-      ...board,
-    });
+    if (sp.get("lite") === "1") {
+      const board = buildRotationLiteBoard();
+      return NextResponse.json({ ok: true, ...board });
+    }
+    const hydrateRaw = (sp.get("hydrate") || "").trim();
+    if (hydrateRaw) {
+      const ids = hydrateRaw.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 24);
+      const board = await hydrateRotationCards(ids, range, weight);
+      return NextResponse.json({ ok: true, ...board });
+    }
+    const board = buildRotationLiteBoard();
+    return NextResponse.json({ ok: true, ...board });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     return NextResponse.json({ ok: false, error: msg }, { status: 500 });

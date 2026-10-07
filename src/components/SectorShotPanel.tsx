@@ -37,6 +37,7 @@ export function SectorShotPanel() {
   const shotRunning = useRef(false);
   const fromShotRef = useRef<(file: File) => void>(() => {});
   const lastIndustry = useRef("");
+  const selectedLabelRef = useRef("");
   const [newName, setNewName] = useState("");
   const [newTickers, setNewTickers] = useState<TickerSuggestHit[]>([]);
   const [newQ, setNewQ] = useState("");
@@ -97,8 +98,7 @@ export function SectorShotPanel() {
       shotUrl.current = url;
       setShotPreview(url);
       setError(null);
-      setShotLog((prev) => [
-        ...prev,
+      setShotLog([
         `— Screenshot (${file.name || "paste"}) —`,
         "Reading screenshot…",
       ]);
@@ -202,6 +202,10 @@ export function SectorShotPanel() {
   const enqueueShot = useCallback(
     (file: File) => {
       if (file.type && !file.type.startsWith("image/") && file.type) return;
+      if (!shotRunning.current) {
+        setShotLog([]);
+        setError(null);
+      }
       shotQueue.current.push(file);
       setShotQueued(shotQueue.current.length);
       if (shotRunning.current) return;
@@ -214,7 +218,7 @@ export function SectorShotPanel() {
             setShotQueued(shotQueue.current.length);
             const industry = await runScreenshot(
               next,
-              lastIndustry.current,
+              lastIndustry.current || selectedLabelRef.current,
             );
             if (industry) lastIndustry.current = industry;
           }
@@ -259,6 +263,7 @@ export function SectorShotPanel() {
   };
 
   const selected = rows.find((r) => r.id === selectedId) ?? null;
+  selectedLabelRef.current = selected?.label || "";
 
   const createSector = async () => {
     const label = newName.replace(/\s+/g, " ").trim();
@@ -570,24 +575,11 @@ export function SectorShotPanel() {
             {creating ? "Saving…" : "Create sector"}
           </button>
         </form>
-        <div className="fam-dash-create" style={{ marginTop: 10 }}>
-          <p className="rot-create-pick">
-            {selected
-              ? `Add stock to ${selected.label}`
-              : "Select a sector in the list, then add a stock"}
-          </p>
-          <TickerSuggest
-            value={addQ}
-            onChange={setAddQ}
-            onSelect={(h) => void addToSelected(h)}
-            clearOnSelect
-            persistGroww={false}
-            disabled={!selectedId}
-            placeholder="Add company…"
-            className="fam-dash-search"
-            submitLabel="add"
-          />
-        </div>
+        <p className="rot-create-pick" style={{ marginTop: 10 }}>
+          {selected
+            ? `Add or remove stocks in ${selected.label} (list on the left).`
+            : "Click a sector in the list to add or remove stocks."}
+        </p>
       </aside>
     </div>
   );

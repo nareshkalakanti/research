@@ -60,6 +60,8 @@ function sma(pts: Point[], n: number): Point[] {
   return out;
 }
 
+const PAGE_SIZE = 12;
+
 function DualSpark({
   a,
   b,
@@ -310,12 +312,16 @@ export function SectorRotationPanel() {
   const [weight, setWeight] = useState<"equal" | "cap">("equal");
   const [memberQ, setMemberQ] = useState("");
   const [view, setView] = useState<"grid" | "table">("grid");
+  const [page, setPage] = useState(0);
+  const [boardTick, setBoardTick] = useState(0);
+  const [hydrating, setHydrating] = useState(false);
   const [editLabel, setEditLabel] = useState("");
   const [shotBusy, setShotBusy] = useState(false);
   const [shotQueued, setShotQueued] = useState(0);
   const [shotPreview, setShotPreview] = useState<string | null>(null);
   const [shotDrag, setShotDrag] = useState(false);
   const [shotLog, setShotLog] = useState<string[]>([]);
+  const hydrateGen = useRef(0);
   const shotUrl = useRef<string | null>(null);
   const shotWell = useRef<HTMLDivElement>(null);
   const shotQueue = useRef<File[]>([]);
@@ -326,29 +332,25 @@ export function SectorRotationPanel() {
     if (!opts?.silent) setLoading(true);
     if (!opts?.silent) setError(null);
     try {
-      const res = await fetch(
-        `/api/sector-rotation?range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
-        { cache: "no-store" },
-      );
+      const res = await fetch("/api/sector-rotation?lite=1", {
+        cache: "no-store",
+      });
       const json = (await res.json()) as {
         ok?: boolean;
         error?: string;
-        as_of?: string | null;
-        bench_label?: string;
         sectors?: Card[];
       };
       if (!res.ok || json.ok === false) {
         throw new Error(json.error || `HTTP ${res.status}`);
       }
-      setAsOf(json.as_of ?? null);
-      setBenchLabel(json.bench_label || "Nifty 500");
       setCards(json.sectors ?? []);
+      setBoardTick((n) => n + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (!opts?.silent) setLoading(false);
     }
-  }, [range, weight]);
+  }, []);
 
   const loadDetail = useCallback(
     async (id: string) => {
@@ -714,7 +716,10 @@ export function SectorRotationPanel() {
       if (sortKey === "today") return (b.today_pct ?? -999) - (a.today_pct ?? -999);
       if (sortKey === "name") return a.label.localeCompare(b.label);
       if (sortKey === "n") return b.n - a.n;
-      return (b.sector_pct ?? -999) - (a.sector_pct ?? -999);
+      return (
+        (b.sector_pct ?? b.today_pct ?? -999) -
+        (a.sector_pct ?? a.today_pct ?? -999)
+      );
     });
     if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
     if (aboveOn) {
@@ -729,6 +734,53 @@ export function SectorRotationPanel() {
     if (boardFilter === "bottom") rows = rows.slice(-20).reverse();
     return rows;
   }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filter, stockFilter, boardFilter, aboveOn, sortKey]);
+
+  const pageCount = Math.max(1, Math.ceil(sortedCards.length / PAGE_SIZE));
+  const pageSafe = Math.min(page, pageCount - 1);
+  const pageCards = sortedCards.slice(
+    pageSafe * PAGE_SIZE,
+    pageSafe * PAGE_SIZE + PAGE_SIZE,
+  );
+  const pageIds = pageCards.map((c) => c.id).join(",");
+
+  useEffect(() => {
+    if (!pageIds) return;
+    const gen = ++hydrateGen.current;
+    setHydrating(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/sector-rotation?hydrate=${encodeURIComponent(pageIds)}&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          as_of?: string | null;
+          bench_label?: string;
+          sectors?: Card[];
+        };
+        if (gen !== hydrateGen.current) return;
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || `HTTP ${res.status}`);
+        }
+        setAsOf(json.as_of ?? null);
+        setBenchLabel(json.bench_label || "Nifty 500");
+        const next = new Map((json.sectors ?? []).map((c) => [c.id, c]));
+        setCards((prev) => prev.map((c) => next.get(c.id) ?? c));
+      } catch (e) {
+        if (gen !== hydrateGen.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (gen === hydrateGen.current) setHydrating(false);
+      }
+    })();
+  }, [pageIds, range, weight, boardTick]);
+
   const shownMembers = useMemo(() => {
     const needle = memberQ.trim().toLowerCase();
     const rows = detail?.members ?? [];
@@ -817,7 +869,7 @@ export function SectorRotationPanel() {
           <p className="rot-sub">
             {weight === "cap" ? "Free-float cap" : "Equal-weight"} vs {benchLabel}
             {asOf ? ` · as of ${asOf}` : ""}
-            {loading ? " · loading…" : ""}
+            {loading ? " · loading…" : hydrating ? " · charts…" : ""}
           </p>
           {openId ? (
             <button
@@ -1247,7 +1299,35 @@ export function SectorRotationPanel() {
             </tbody>
           </table>
         </div>
-      ) : view === "table" ? (
+      ) : (
+        <>
+        <div className="rot-page">
+          <span>
+            {sortedCards.length
+              ? `${pageSafe * PAGE_SIZE + 1}–${Math.min(
+                  sortedCards.length,
+                  (pageSafe + 1) * PAGE_SIZE,
+                )} of ${sortedCards.length}`
+              : "No sectors"}
+          </span>
+          <button
+            type="button"
+            className="rot-chip"
+            disabled={pageSafe <= 0}
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+          >
+            Prev
+          </button>
+          <button
+            type="button"
+            className="rot-chip"
+            disabled={pageSafe >= pageCount - 1}
+            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+          >
+            Next
+          </button>
+        </div>
+        {view === "table" ? (
         <table className="rot-table">
           <thead>
             <tr>
@@ -1260,7 +1340,7 @@ export function SectorRotationPanel() {
             </tr>
           </thead>
           <tbody>
-            {sortedCards.map((c) => (
+            {pageCards.map((c) => (
               <tr key={c.id} className="rot-row" onClick={() => setOpenId(c.id)}>
                 <td>
                   <button
@@ -1300,7 +1380,7 @@ export function SectorRotationPanel() {
           {loading && !cards.length ? (
             <div className="table-meta">Loading sectors…</div>
           ) : null}
-          {sortedCards.map((c) => (
+          {pageCards.map((c) => (
             <article
               key={c.id}
               className="rot-card"
@@ -1357,6 +1437,8 @@ export function SectorRotationPanel() {
             </article>
           ))}
         </div>
+        )}
+        </>
       )}
     </section>
   );

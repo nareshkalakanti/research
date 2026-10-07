@@ -7,6 +7,7 @@ import {
 } from "./bse-investor-discover";
 import { loadAllCompanies } from "./db";
 import { screenerUrl } from "./links";
+import { searchGrowwListings } from "./web-mcap";
 import { discoverNseInvestorMaterialSources } from "./nse-investor-discover";
 import { discoverTrendlyneInvestorMaterialSources } from "./trendlyne-investor-discover";
 import type {
@@ -258,9 +259,30 @@ export async function discoverInvestorMaterialSources(
   const lists: DiscoveredMaterialSource[][] = [];
   let note: string | undefined;
 
-  const company = loadAllCompanies().find((c) => c.ticker.toUpperCase() === key);
-  const market = company?.market ?? null;
-  const scripCode = resolveBseScripCode(key, null);
+  let company: { ticker: string; market?: string | null } | undefined;
+  try {
+    company = loadAllCompanies().find((c) => c.ticker.toUpperCase() === key);
+  } catch {
+    company = undefined;
+  }
+  let market = company?.market ?? null;
+  let scripCode = resolveBseScripCode(key, null);
+  if (!scripCode || !market) {
+    try {
+      const remote = await searchGrowwListings(key, 6);
+      const hit =
+        remote.find((r) => r.ticker.toUpperCase() === key) || remote[0];
+      if (hit) {
+        if (!market && hit.market) market = hit.market;
+        if (!scripCode && hit.bse_scrip) {
+          cacheBseScripCode(key, hit.bse_scrip);
+          scripCode = hit.bse_scrip;
+        }
+      }
+    } catch {
+      /* Screener / Trendlyne still run */
+    }
+  }
 
   const [bseSettled, nseSettled, screenerSettled, trendlyneSettled] = await Promise.allSettled([
     scripCode

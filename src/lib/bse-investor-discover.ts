@@ -15,6 +15,11 @@ const BSE_ANN_API =
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title?: string }> = [
   {
+    re: /analyst\s*\/\s*investor\s+meet\s*-\s*outcome|investor\s+meet\s*-\s*outcome|(?:earnings|conference)\s+call.{0,40}outcome|meet\s+outcome/i,
+    kind: "concall",
+    title: "Concall outcome",
+  },
+  {
     re: /audio\s+recording|covering\s+letter|intimation.{0,80}(?:conference|earnings)\s+call|outcome of meeting.{0,80}analyst|invconcall|seltr.?outcome/i,
     kind: "other",
     title: "Call intimation",
@@ -26,11 +31,6 @@ const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title?:
   {
     re: /transcript|conference\s+call|earnings?\s+call/i,
     kind: "concall",
-  },
-  {
-    re: /analyst\s*\/\s*investor\s+meet\s*-\s*outcome|investor\s+meet\s*-\s*outcome|meet\s+outcome/i,
-    kind: "concall",
-    title: "Concall outcome",
   },
   {
     re: /financial\s+results|^financial\s+results$/i,

@@ -19255,8 +19255,25 @@ tr.sm-row-sme-hit td {
 
 .concall-discover-actions {
   display: flex;
+  align-items: center;
   gap: 6px;
   flex-shrink: 0;
+}
+
+.concall-discover-dl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--muted, #64748b);
+  text-decoration: none;
+}
+
+.concall-discover-dl:hover {
+  color: var(--ink, #0f172a);
+  background: #f3f5f8;
 }
 
 /* Order book · holdings slow run log */
@@ -25773,6 +25790,19 @@ tr.wl-prove-fail td {
   flex: 1;
   min-width: min(16rem, 100%);
   width: 100%;
+}
+.rot-page {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  color: var(--muted, #64748b);
+}
+.rot-page .rot-chip:disabled {
+  opacity: 0.4;
+  pointer-events: none;
 }
 .rot-grid {
   display: grid;

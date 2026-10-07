@@ -663,10 +663,13 @@ function scoreConcallDiscoverHit(opts: {
     score -= 180;
   }
   if (
-    /newspaper/i.test(pathOnly) &&
-    /(?:unaudited|audited|financial\s+result)/i.test(blob)
+    /invite|intimation|pre.?intimation|meet.?link/i.test(pathOnly) &&
+    !/transcript/i.test(pathOnly)
   ) {
-    score += 50;
+    score -= 180;
+  }
+  if (/newspaper/i.test(pathOnly) || /newspaper\s+publication/i.test(blob)) {
+    score -= 100;
   }
   // Prefer newer filings encoded in NSE archive filenames: TICKER_DDMMYYYY…
   const nseDate = pathOnly.match(/_(\d{2})(\d{2})(20\d{2})\d*_/);
@@ -835,9 +838,9 @@ export async function discoverConcallPdfSources(
     if (isIntimation(h)) return false;
     if (isFinancialResultsHit(h)) return false;
     const blob = `${h.kind} ${h.title} ${h.url}`;
-    // Require "transcript" — bare "earnings call" matches audio intimations
     return (
       h.kind === "transcript" ||
+      h.kind === "concall" ||
       /transcript/i.test(blob)
     );
   };
@@ -850,8 +853,19 @@ export async function discoverConcallPdfSources(
   const extractable = sources.filter((h) => h.extractable !== false);
   const pdfExtractable = extractable.filter((h) => looksLikeConcallPdfUrl(h.url));
   const pickPool = pdfExtractable.length ? pdfExtractable : extractable;
+  const exchangePdf = (h: ConcallDiscoverHit) =>
+    /bse|nse|screener/i.test(h.provider) && looksLikeConcallPdfUrl(h.url);
+  const txRank = (h: ConcallDiscoverHit) =>
+    h.score + (exchangePdf(h) ? 40 : 0) - (/trendlyne/i.test(h.provider) ? 25 : 0);
+  const txCands = pickPool
+    .filter(isTx)
+    .sort(
+      (a, b) =>
+        txRank(b) - txRank(a) ||
+        periodSortKey(b.period) - periodSortKey(a.period),
+    );
   let latest_transcript =
-    pickPool.find(isTx) ||
+    txCands[0] ||
     pickPool.find((h) => /transcript/i.test(h.url) && !isAudioOnly(h)) ||
     null;
   let latest_ppt =

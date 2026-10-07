@@ -26,6 +26,14 @@ assert.equal(
   }),
   true,
 );
+assert.equal(
+  isCallIntimationHit({
+    url: "https://nsearchives.nseindia.com/corporate/FOO_30092026_Foo_India_Earnings_Call_Invite_Q1FY27.pdf",
+    title: "Concall transcript",
+    kind: "concall",
+  }),
+  true,
+);
 assert.equal(classifyConcallDocument(cover).label, "Call intimation");
 assert.equal(
   isCallIntimationBlob(

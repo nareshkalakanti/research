@@ -18,7 +18,7 @@ export function ensureInvestorMaterialsSchema(): boolean {
   }
 
   try {
-    const db = openSqliteNamed("company_about.db", { readonly: false, wal: true });
+    const db = openSqliteNamed("company_about.db", { readonly: false, wal: false });
   try {
     const tables = db
       .prepare(

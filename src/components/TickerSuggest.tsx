@@ -199,13 +199,15 @@ export function TickerSuggest({
           setHits(next);
           setActive(0);
           setSearched(true);
-          setOpen(true);
+          const focused = fieldRef.current?.contains(document.activeElement);
+          setOpen(!!focused);
         })
         .catch(() => {
           if (id !== reqRef.current) return;
           setHits([]);
           setSearched(true);
-          setOpen(true);
+          const focused = fieldRef.current?.contains(document.activeElement);
+          setOpen(!!focused);
         })
         .finally(() => {
           if (id === reqRef.current) setLoading(false);
