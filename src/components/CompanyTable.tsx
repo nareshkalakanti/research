@@ -8,6 +8,7 @@ import {
 import { ExpandBusiness } from "@/components/ExpandBusiness";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { HighlightedText } from "@/components/HighlightedText";
 import { GOV_RATNA_LABELS } from "@/lib/gov-psu-meta";
 import type { Company } from "@/lib/types";
@@ -1357,7 +1358,7 @@ function CompanyRows({
                   className={`about-tab ${panel === "qtr" ? "on" : ""}`}
                   onClick={() => onPanel("qtr")}
                 >
-                  Qtr
+                  Quarters
                 </button>
                 <button
                   type="button"
@@ -1399,7 +1400,16 @@ function CompanyRows({
               </div>
 
               {panel === "qtr" ? (
-                <ExpandQuarters data={quarterData} price={r.price} />
+                <div className="about-qtr-with-tape">
+                  <div className="about-qtr-main">
+                    <ExpandQuarters data={quarterData} price={r.price} />
+                  </div>
+                  <QuoteTapeCard
+                    ticker={r.ticker}
+                    market={r.market}
+                    active={open && panel === "qtr"}
+                  />
+                </div>
               ) : panel === "sector" ? (
                 <SectorEditPanel
                   company={{

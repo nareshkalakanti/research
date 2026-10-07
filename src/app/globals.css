@@ -2835,6 +2835,36 @@ button.result-tag {
   gap: 6px;
 }
 
+.about-qtr-with-tape {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.75fr);
+  gap: 14px 20px;
+  align-items: start;
+}
+
+.about-qtr-main {
+  min-width: 0;
+}
+
+.about-box .quote-tape-card {
+  margin: 0;
+}
+
+.about-box .quote-tape-card h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+@media (max-width: 900px) {
+  .about-qtr-with-tape {
+    grid-template-columns: 1fr;
+  }
+}
+
 .about-quarters {
   margin-top: 10px;
   padding-top: 10px;
@@ -4014,31 +4044,31 @@ button.result-tag {
   width: auto;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 0.76rem;
+  font-size: 0.92rem;
   font-family: inherit;
 }
 
 .q-table col.q-col-metric {
-  width: 96px;
+  width: 118px;
 }
 
 .q-table col.q-col-qtr {
-  width: 58px;
+  width: 72px;
 }
 
 .q-table col.q-col-trend {
-  width: 64px;
+  width: 76px;
 }
 
 .q-table th,
 .q-table td {
-  padding: 5px 7px;
+  padding: 7px 9px;
   border: none;
   border-bottom: 1px solid #f1f5f9;
   text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  line-height: 1.25;
+  line-height: 1.3;
 }
 
 .q-table tbody tr:hover td {
@@ -4068,13 +4098,13 @@ button.result-tag {
 
 .q-table th {
   color: #64748b;
-  font-size: 0.58rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   background: #f8fafc;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  padding-top: 7px;
+  padding-bottom: 7px;
   border-bottom: 1px solid #e2e8f0;
 }
 
@@ -21447,19 +21477,92 @@ button.otrd-co-link {
 .wl-tape {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 0 0 8px;
+  gap: 10px;
+  margin: 0;
 }
 
-.wl-tape .wl-mini-q {
-  width: 100%;
-  table-layout: fixed;
+.wl-tape-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.wl-tape-stat {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.wl-tape-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.wl-tape-stat strong {
+  font-weight: 700;
+}
+
+.wl-tape-stat strong.q-up {
+  color: var(--ok);
+}
+
+.wl-tape-stat strong.q-down {
+  color: var(--danger);
+}
+
+.wl-tape-mas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.wl-ma-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.wl-ma-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: #334155;
+}
+
+.wl-ma-mark {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wl-ma-item--above .wl-ma-mark {
+  color: var(--ok);
+}
+
+.wl-ma-item--below .wl-ma-mark {
+  color: var(--danger);
+}
+
+.wl-ma-item--flat .wl-ma-mark {
+  color: #94a3b8;
+}
+
+.wl-ma-period {
+  font-weight: 600;
+  color: #64748b;
+}
+
+.wl-ma-val {
+  font-weight: 650;
 }
 
 .wl-tape-label {
   display: block;
   margin-bottom: 3px;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -21500,16 +21603,26 @@ button.otrd-co-link {
 .wl-range-track {
   display: grid;
   grid-template-columns: auto 1fr auto;
-  gap: 5px;
+  gap: 8px;
   align-items: center;
-  font-size: 10px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
   color: #94a3b8;
 }
 
+.wl-range-lo {
+  color: #dc2626;
+  font-weight: 650;
+}
+
+.wl-range-hi {
+  color: #16a34a;
+  font-weight: 650;
+}
+
 .wl-range-bar {
   position: relative;
-  height: 4px;
+  height: 5px;
   border-radius: 999px;
   background: linear-gradient(90deg, #ef4444, #eab308, #22c55e);
 }
@@ -21517,13 +21630,13 @@ button.otrd-co-link {
 .wl-range-dot {
   position: absolute;
   top: 50%;
-  width: 7px;
-  height: 7px;
-  margin-left: -3.5px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
   border-radius: 50%;
-  background: #2563eb;
-  border: 1px solid #fff;
-  box-shadow: 0 0 0 1px #93c5fd;
+  background: #7c3aed;
+  border: 1.5px solid #fff;
+  box-shadow: 0 0 0 1px #c4b5fd;
   transform: translateY(-50%);
 }
 
@@ -21963,6 +22076,26 @@ tr.wl-prove-fail td {
   font-weight: 600;
   color: #64748b;
   padding-left: 0;
+}
+
+/* Quarters panel — readable size (not the compact tape mini tables). */
+.wl-qtr-table {
+  font-size: 13.5px;
+}
+
+.wl-qtr-table th,
+.wl-qtr-table td {
+  padding: 5px 8px;
+}
+
+.wl-qtr-table thead th {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.wl-qtr-table tbody th {
+  font-size: 12.5px;
+  color: #475569;
 }
 
 .wl-mini-q .q-up {
@@ -25639,6 +25772,23 @@ tr.wl-prove-fail td {
 }
 .napkin-sheet-section .q-expand {
   margin-top: 6px;
+}
+.napkin-qtr-with-tape {
+  margin-top: 6px;
+}
+.napkin-sheet-section .quote-tape-card {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.napkin-sheet-section .quote-tape-card h3 {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
 }
 .napkin-buy-lede {
   margin: 0 0 14px;

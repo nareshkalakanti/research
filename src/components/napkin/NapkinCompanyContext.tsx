@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { QuarterPanel } from "@/components/QuarterPanel";
+import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 
 type AboutHit = {
@@ -104,21 +105,26 @@ export function NapkinCompanyContext({
 
       <div className="napkin-sheet-section">
         <h2 className="napkin-block-title">Quarters</h2>
-        {qtr.loading ? (
-          <p className="napkin-debug">Loading quarters…</p>
-        ) : qtr.error ? (
-          <p className="napkin-missing">{qtr.error}</p>
-        ) : qtr.panel?.labels?.length ? (
-          <QuarterPanel
-            panel={qtr.panel}
-            yoy={qtr.yoy}
-            price={price}
-            sourceNote={qtr.source}
-            compact
-          />
-        ) : (
-          <p className="napkin-missing">No quarterly data.</p>
-        )}
+        <div className="about-qtr-with-tape napkin-qtr-with-tape">
+          <div className="about-qtr-main">
+            {qtr.loading ? (
+              <p className="napkin-debug">Loading quarters…</p>
+            ) : qtr.error ? (
+              <p className="napkin-missing">{qtr.error}</p>
+            ) : qtr.panel?.labels?.length ? (
+              <QuarterPanel
+                panel={qtr.panel}
+                yoy={qtr.yoy}
+                price={price}
+                sourceNote={qtr.source}
+                compact
+              />
+            ) : (
+              <p className="napkin-missing">No quarterly data.</p>
+            )}
+          </div>
+          <QuoteTapeCard ticker={ticker} market={market} active />
+        </div>
       </div>
     </>
   );

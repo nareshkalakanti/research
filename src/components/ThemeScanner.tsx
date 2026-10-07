@@ -392,7 +392,7 @@ export function ThemeScanner() {
 
       <div className="theme-controls-meta">
         <p className="hint tight">
-          Jump to a ticker — opens About | Qtr. Pipe = OR · + = AND inside a
+          Jump to a ticker — opens About | Quarters. Pipe = OR · + = AND inside a
           clause
           {selected.length > 0 ? " · keywords narrow selected themes" : ""}.
         </p>
