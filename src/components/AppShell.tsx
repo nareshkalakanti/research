@@ -79,12 +79,21 @@ const SectorRotationPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const ValuePickrSignalsPanel = dynamic(
+  () =>
+    import("@/components/ValuePickrSignalsPanel").then(
+      (m) => m.ValuePickrSignalsPanel,
+    ),
+  { loading: PanelFallback, ssr: false },
+);
+
 const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
   governance: GovernanceMapPanel,
   napkin: NapkinPanel,
+  signals: ValuePickrSignalsPanel,
   rotation: SectorRotationPanel,
   marketiq: MarketIqPanel,
   orderbookiq: OrderBookIqPanel,

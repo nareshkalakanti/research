@@ -22,11 +22,13 @@ export type AppTab =
   | "research"
   | "watchlist"
   | "napkin"
-  | "rotation";
+  | "rotation"
+  | "signals";
 
 /** Top nav tabs only — other panels stay wired but are not listed here. */
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "napkin", label: "Napkin", short: "Napkin" },
+  { id: "signals", label: "Signals", short: "Signals" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "research", label: "Research", short: "Research" },
