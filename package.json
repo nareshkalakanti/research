@@ -62,7 +62,8 @@
     "db:checkpoint": "tsx scripts/db-maintenance.ts checkpoint",
     "db:publish-seed": "tsx scripts/db-maintenance.ts publish-seed",
     "db:fix": "tsx scripts/db-maintenance.ts fix",
-    "db:fix-all": "tsx scripts/db-maintenance.ts fix-all"
+    "db:fix-all": "tsx scripts/db-maintenance.ts fix-all",
+    "ingest:valuepickr": "tsx scripts/ingest-valuepickr.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
