@@ -344,7 +344,7 @@ export async function POST(req: NextRequest) {
   }
 
   const result = await runSignalBatch(batch, kind, {
-    concurrency: kind === "mom" ? 2 : kind === "mrsi" ? 6 : 4,
+    concurrency: kind === "mom" ? 2 : kind === "mrsi" || kind === "all" ? 6 : 4,
     bbTimeframe,
   });
   // Soft-skip TQ when Nifty is down — don't fail the whole Scan all / BB batch.
