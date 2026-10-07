@@ -1214,7 +1214,7 @@ export function SectorRotationPanel() {
               Delete sector
             </button>
           </div>
-          {openCard ? (
+          {openCard && openCard.sector.length > 1 ? (
             <DualSpark
               a={openCard.sector}
               b={openCard.bench}
@@ -1224,7 +1224,7 @@ export function SectorRotationPanel() {
               logScale={scale === "log"}
               ma={maOn}
             />
-          ) : (
+          ) : openCard ? null : (
             <div className="table-meta">Loading sector…</div>
           )}
           <div className="rot-add-row">

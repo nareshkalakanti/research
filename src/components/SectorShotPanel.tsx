@@ -475,41 +475,44 @@ export function SectorShotPanel() {
                       className="fam-dash-search"
                       submitLabel="add"
                     />
-                    {members.length ? (
-                      <table className="rot-table rot-shot-members rot-table--members">
-                        <thead>
-                          <tr>
-                            <th className="rot-col-num">#</th>
-                            <th className="rot-col-stock">Stock</th>
-                            <th className="rot-col-sym">Symbol</th>
-                            <th className="rot-col-act" />
+                    <table className="rot-table rot-shot-members rot-table--members">
+                      <thead>
+                        <tr>
+                          <th className="rot-col-num">#</th>
+                          <th className="rot-col-stock">Stock</th>
+                          <th className="rot-col-sym">Symbol</th>
+                          <th className="rot-col-act" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {members.map((m, mi) => (
+                          <tr key={m.ticker}>
+                            <td>{mi + 1}</td>
+                            <td>{m.name}</td>
+                            <td className="mono">{m.ticker}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="btn-ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void removeFromSelected(m.ticker);
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {members.map((m, mi) => (
-                            <tr key={m.ticker}>
-                              <td>{mi + 1}</td>
-                              <td>{m.name}</td>
-                              <td className="mono">{m.ticker}</td>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="btn-ghost"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void removeFromSelected(m.ticker);
-                                  }}
-                                >
-                                  Remove
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <p className="rot-create-pick">No stocks yet.</p>
-                    )}
+                        ))}
+                        {!members.length ? (
+                          <tr>
+                            <td colSpan={4} className="rot-shot-empty">
+                              Type a name or ticker above.
+                            </td>
+                          </tr>
+                        ) : null}
+                      </tbody>
+                    </table>
                   </div>
                 </td>
               </tr>
