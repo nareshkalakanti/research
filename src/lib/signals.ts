@@ -1746,8 +1746,9 @@ export async function runSignalBatch(
   const concurrency = Math.max(
     1,
     Math.min(
-      opts?.concurrency ?? (kind === "mom" ? 2 : kind === "mrsi" ? 6 : 4),
-      kind === "mrsi" ? 8 : 6,
+      opts?.concurrency ??
+        (kind === "mom" ? 2 : kind === "mrsi" || kind === "all" ? 6 : 4),
+      kind === "all" || kind === "mrsi" ? 8 : 6,
     ),
   );
   const bbTf = opts?.bbTimeframe ?? "weekly";
@@ -1801,11 +1802,11 @@ export async function runSignalBatch(
     : null;
 
   if (doTq && !nifty.length) {
-    // stocks-ai style: skip TQ this batch, still run BB / MOM / RSI M.
+    // TQ needs Nifty RS. Skip TQ this batch; keep BB / EMA / MOM / RSI M.
+    doTq = false;
     if (kind === "tq") {
       return emptyResult("Nifty weekly data unavailable — retry TQ scan");
     }
-    doTq = false;
   }
 
   // 52W / ATH / EMA still run off each name's own last daily bar if Nifty
@@ -1882,13 +1883,56 @@ export async function runSignalBatch(
   const high52Resolved = new Set<string>();
   let failed = 0;
 
+  const skipStale = (ticker: string, market: string | null) => {
+    if (doBb) bbResolved.add(ticker);
+    if (doTq) tqResolved.add(ticker);
+    if (doEma) emaResolved.add(ticker);
+    if (doAth) athResolved.add(ticker);
+    if (doHigh52) high52Resolved.add(ticker);
+    if (doMom) {
+      momRows.push(momSentinel(ticker, market));
+      momResolved.add(ticker);
+    }
+    if (doMrsi) {
+      mrsiRows.push(mrsiSentinel(ticker, market));
+      mrsiResolved.add(ticker);
+    }
+  };
+
   for (let i = 0; i < tickers.length; i += concurrency) {
     const chunk = tickers.slice(i, i + concurrency);
     await Promise.all(
       chunk.map(async ({ ticker, market }) => {
+        let timedOut = false;
+        const work = (async () => {
         try {
           let any = false;
           let weeklyBars: Bar[] | null = null;
+          const yearsBack = doAth ? 25 : doMom ? 3 : 2;
+          const wantWeekly = doTq || (doBb && bbTf === "weekly");
+          const [weeklyPrefetch, monthlyRsiBars, monthlyBbBars, dailyPrefetch] =
+            await Promise.all([
+              wantWeekly
+                ? fetchWeeklyBars(ticker, market, 2).catch(() => [] as Bar[])
+                : Promise.resolve(null),
+              doMrsi
+                ? fetchMonthlyBarsForRsi(
+                    ticker,
+                    market,
+                    5,
+                    MRSI_MIN_HISTORY,
+                  ).catch(() => [] as Bar[])
+                : Promise.resolve([] as Bar[]),
+              doBb && bbTf === "monthly"
+                ? fetchMonthlyBars(ticker, market, 5).catch(() => [] as Bar[])
+                : Promise.resolve([] as Bar[]),
+              needDaily
+                ? fetchDailyBars(ticker, market, yearsBack).catch(
+                    () => [] as Bar[],
+                  )
+                : Promise.resolve([] as Bar[]),
+            ]);
+          weeklyBars = weeklyPrefetch;
 
           const loadWeekly = async () => {
             if (weeklyBars) return weeklyBars;
@@ -1928,9 +1972,7 @@ export async function runSignalBatch(
 
           if (doBb) {
             const bars =
-              bbTf === "monthly"
-                ? await fetchMonthlyBars(ticker, market, 5)
-                : await loadWeekly();
+              bbTf === "monthly" ? monthlyBbBars : await loadWeekly();
             if (bars.length >= 50) {
               const lastDate =
                 bbTf === "monthly"
@@ -1961,12 +2003,7 @@ export async function runSignalBatch(
           }
 
           if (doMrsi) {
-            const monthlyBars = await fetchMonthlyBarsForRsi(
-              ticker,
-              market,
-              5,
-              MRSI_MIN_HISTORY,
-            );
+            const monthlyBars = monthlyRsiBars;
             if (monthlyBars.length > 0) {
               const hit = analyzeMonthlyRsi(monthlyBars);
               if (hit) {
@@ -1988,9 +2025,7 @@ export async function runSignalBatch(
           }
 
           if (needDaily) {
-            // ATH needs long history; MOM needs ≥400 sessions (~2y+); EMA/52W ~2y.
-            const yearsBack = doAth ? 25 : doMom ? 3 : 2;
-            const dailyBars = await fetchDailyBars(ticker, market, yearsBack);
+            const dailyBars = dailyPrefetch;
             if (dailyBars.length >= 60) {
               const lastDay = dailyBars[dailyBars.length - 1]!.date.slice(0, 10);
               // MOM is a trailing 12−1 calc — run even if this name's last bar
@@ -2083,11 +2118,34 @@ export async function runSignalBatch(
             // 0 / tiny bars: Yahoo miss — leave unchecked so the next batch retries.
           }
 
+          if (timedOut) return;
           if (!any) failed += 1;
         } catch {
-          failed += 1;
-          // Don't persist empty MOM/MRSI on throw — rate-limits would block refill.
+          if (!timedOut) failed += 1;
         }
+        })();
+        await new Promise<void>((resolve) => {
+          const kill = setTimeout(() => {
+            timedOut = true;
+            skipStale(ticker, market);
+            failed += 1;
+            resolve();
+          }, 22_000);
+          void work.then(
+            () => {
+              if (!timedOut) {
+                clearTimeout(kill);
+                resolve();
+              }
+            },
+            () => {
+              if (!timedOut) {
+                clearTimeout(kill);
+                resolve();
+              }
+            },
+          );
+        });
       }),
     );
   }

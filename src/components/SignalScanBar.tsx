@@ -93,12 +93,12 @@ async function scanOnce(body: Record<string, unknown>) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
       // Scan all does many Yahoo pulls per batch — allow long batches, not forever.
-      signal: AbortSignal.timeout(240_000),
+      signal: AbortSignal.timeout(180_000),
     });
   } catch (e) {
     if (e instanceof Error && /abort|timeout/i.test(e.message)) {
       throw new Error(
-        "Batch timed out (4 min). Progress is saved — click Scan again to continue.",
+        "Batch timed out. Progress is saved — click Scan again to continue.",
       );
     }
     throw new Error(
@@ -475,11 +475,10 @@ export function SignalScanBar({
           if (
             remaining <= 0 ||
             json.tried === 0 ||
-            !onBatch ||
             round === 1 ||
-            round % 4 === 0
+            round % 8 === 0
           ) {
-            await (onBatch ?? onDone)?.();
+            void (onBatch ?? onDone)?.();
           }
           if (json.tried === 0 || remaining <= 0) break;
           await new Promise((r) => setTimeout(r, 200));

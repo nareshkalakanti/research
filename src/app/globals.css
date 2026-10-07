@@ -4530,6 +4530,15 @@ button.result-tag {
   background: linear-gradient(90deg, #3b82f6, #6366f1);
   transition: width 0.25s ease;
 }
+.filter-progress:not(.is-done):not(.is-error) .filter-progress-fill {
+  background-size: 200% 100%;
+  animation: filter-progress-pulse 1.2s linear infinite;
+}
+@keyframes filter-progress-pulse {
+  0% { background-position: 0% 0; opacity: 1; }
+  50% { background-position: 100% 0; opacity: 0.7; }
+  100% { background-position: 0% 0; opacity: 1; }
+}
 
 .filter-progress.is-done .filter-progress-fill {
   background: linear-gradient(90deg, #22c55e, #16a34a);
@@ -4548,13 +4557,12 @@ button.result-tag {
 }
 
 .filter-progress-text {
-  flex-shrink: 0;
+  flex: 0 1 auto;
   font-size: 0.72rem;
   color: var(--muted);
-  white-space: nowrap;
-  max-width: 42%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  max-width: 58%;
+  line-height: 1.35;
 }
 
 .filter-progress-text strong {

@@ -7,6 +7,37 @@ const yf = new YahooFinance({
   validation: { logErrors: false, logOptionsErrors: false },
 });
 
+const YF_CHART_MS = 16_000;
+const YF_INDEX_MS = 22_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(label)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
+}
+
+function yfChart(
+  symbol: string,
+  opts: { period1: Date | string | number; interval: "1d" | "1wk" | "1mo" },
+  ms = YF_CHART_MS,
+) {
+  return withTimeout(
+    yf.chart(symbol, opts),
+    ms,
+    `yf timeout ${symbol} ${opts.interval}`,
+  );
+}
+
 /** Index + ETF proxies — same idea as stocks-ai (^NSEI with retries / fallbacks). */
 const NIFTY_WEEKLY_SYMBOLS = [
   "^NSEI",
@@ -319,11 +350,13 @@ async function fetchBarsWithCandidates(
   const ordered = [
     primary,
     ...symbols.filter((s) => s !== primary),
-  ].filter(Boolean) as string[];
+  ]
+    .filter(Boolean)
+    .slice(0, 2) as string[];
 
   for (const symbol of ordered) {
     try {
-      const chart = await yf.chart(symbol, { period1, interval });
+      const chart = await yfChart(symbol, { period1, interval });
       const bars = mapChartBars(chart.quotes ?? []);
       const cleaned =
         interval === "1wk"
@@ -376,10 +409,13 @@ export async function fetchWeeklyBars(
   const weeklyEnough = 50;
   let weekly = await fetchBarsWithCandidates(ticker, market, "1wk", yearsBack);
 
-  // Always pull daily (Groww-backed) so we can rebuild or fix the tip week.
   let daily: Bar[] = [];
   try {
-    daily = await fetchDailyBars(ticker, market, yearsBack);
+    if (weekly.length < weeklyEnough) {
+      daily = await fetchDailyBars(ticker, market, yearsBack);
+    } else {
+      daily = await fetchRecentDailyBars(ticker, market, 40);
+    }
   } catch {
     daily = [];
   }
@@ -538,16 +574,24 @@ async function fetchIndexWeeklyOnce(
   symbol: string,
   yearsBack: number,
 ): Promise<Bar[]> {
-  const chart = await yf.chart(symbol, {
-    period1: periodStart(yearsBack),
-    interval: "1wk",
-  });
+  const chart = await yfChart(
+    symbol,
+    {
+      period1: periodStart(yearsBack),
+      interval: "1wk",
+    },
+    YF_INDEX_MS,
+  );
   let weekly = normalizeWeeklyBars(chartQuotesToBars(chart.quotes ?? []));
   try {
-    const dailyChart = await yf.chart(symbol, {
-      period1: periodStartDays(120),
-      interval: "1d",
-    });
+    const dailyChart = await yfChart(
+      symbol,
+      {
+        period1: periodStartDays(120),
+        interval: "1d",
+      },
+      YF_INDEX_MS,
+    );
     const daily = chartQuotesToBars(dailyChart.quotes ?? []);
     if (daily.length >= 10) {
       weekly = mergeWeeklyTipFromDaily(weekly, daily, 3);
@@ -572,22 +616,33 @@ export async function fetchNiftyWeeklyBars(): Promise<Bar[]> {
     return niftyCache.bars;
   }
 
-  const yearOpts = [3, 2, 1];
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    for (const yearsBack of yearOpts) {
-      for (const symbol of NIFTY_WEEKLY_SYMBOLS) {
-        try {
-          const cleaned = await fetchIndexWeeklyOnce(symbol, yearsBack);
-          if (cleaned.length >= NIFTY_MIN_WEEKLY) {
-            niftyCache = { at: now, bars: cleaned };
-            return cleaned;
-          }
-        } catch {
-          /* try next symbol / period */
+  for (const yearsBack of [3, 2]) {
+    for (const symbol of NIFTY_WEEKLY_SYMBOLS) {
+      try {
+        const cleaned = await fetchIndexWeeklyOnce(symbol, yearsBack);
+        if (cleaned.length >= NIFTY_MIN_WEEKLY) {
+          niftyCache = { at: now, bars: cleaned };
+          return cleaned;
         }
+      } catch {
+        /* try next symbol / period */
       }
     }
-    await sleep(400 + attempt * 600);
+  }
+
+  try {
+    const groww = await fetchGrowwDailyBars("NIFTYBEES", "NSE", 900);
+    const weekly = weeklyBarsFromDaily(groww);
+    if (weekly.length >= NIFTY_MIN_WEEKLY) {
+      niftyCache = { at: now, bars: weekly };
+      return weekly;
+    }
+  } catch {
+    /* stale cache next */
+  }
+
+  if (niftyCache && niftyCache.bars.length >= NIFTY_MIN_WEEKLY) {
+    return niftyCache.bars;
   }
 
   return [];
@@ -608,7 +663,7 @@ export async function fetchNiftyDailyBars(yearsBack = 2): Promise<Bar[]> {
     for (const y of [years, Math.max(1, years - 1)]) {
       for (const symbol of NIFTY_DAILY_SYMBOLS) {
         try {
-          const chart = await yf.chart(symbol, {
+          const chart = await yfChart(symbol, {
             period1: periodStart(y),
             interval: "1d",
           });
@@ -642,7 +697,7 @@ export async function fetchNifty500DailyBars(yearsBack = 2): Promise<Bar[]> {
     for (const y of [years, Math.max(1, years - 1)]) {
       for (const symbol of NIFTY_500_DAILY_SYMBOLS) {
         try {
-          const chart = await yf.chart(symbol, {
+          const chart = await yfChart(symbol, {
             period1: periodStart(y),
             interval: "1d",
           });
