@@ -26012,18 +26012,31 @@ tr.wl-prove-fail td {
 .rot-shot-open-inner {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 6px;
   max-width: 40rem;
+  min-height: 0;
 }
 .rot-shot-open-inner .ticker-suggest,
 .rot-shot-open-inner .ticker-suggest-field,
 .rot-shot-open-inner .fam-dash-search {
   width: 100%;
   max-width: 22rem;
+  flex: 0 0 auto;
 }
 .rot-shot-members {
   margin: 0;
   width: auto;
+  flex: 0 0 auto;
+}
+.rot-shot-empty {
+  color: var(--muted, #64748b);
+  font-weight: 400;
+}
+.rot-shot-simple-main .din-paste-well {
+  min-height: 72px;
+  padding: 10px 12px;
+  margin: 0 0 10px;
 }
 .rot-shot-simple {
   display: grid;
