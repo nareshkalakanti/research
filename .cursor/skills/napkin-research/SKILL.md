@@ -22,7 +22,7 @@ Enter NSE ticker
 
 No Qwen, Ollama, PDFs, filings, document extract, embeddings, or vector DB on Analyse. About/quarters are stored/local fetch only.
 
-Yahoo owns current levels. Screener owns CAGRs when it has 4 points (3Y) or 6 points (5Y). Groww yearly only if Screener 5Y is still missing. Never stitch Yahoo ₹ onto Screener ₹ Cr. Never treat 4 Yahoo years as 5Y.
+Yahoo owns current levels when present. When Yahoo blanks (common for NSE SME), fill current EPS / revenue / profit from latest Screener annual P&L (₹ Cr → ₹) and market cap / P/E / ROE / ROCE from Screener top-ratios — never invent EPS from price ÷ P/E. Screener owns CAGRs when it has 4 points (3Y) or 6 points (5Y). Groww yearly only if Screener 5Y is still missing. Never stitch Yahoo ₹ onto Screener ₹ Cr. Never treat 4 Yahoo years as 5Y.
 
 Required EPS CAGR = `(PE × 0.30)^(1/5) − 1` (a ratio, then shown as %). At P/E 34.8 that is ~59.9%, not ~27.9% — fifth root of 10.44 is ~1.60, not ~1.28. Growth gap = historical EPS CAGR − required. Missing = N/A.
 

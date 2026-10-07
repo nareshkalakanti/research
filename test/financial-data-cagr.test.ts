@@ -10,6 +10,8 @@ import { alignedYearPairs, fiscalYearLabel } from "../src/lib/napkin/cagr-histor
 import { parseGrowwYearlyFinancialStatement } from "../src/lib/groww-quarters";
 
 assert.equal(nseYahooSymbol("abc"), "ABC.NS");
+assert.equal(nseYahooSymbol("VIVIDEL", "NSE SME"), "VIVIDEL-SM.NS");
+assert.equal(nseYahooSymbol("VIVIDEL", "NSE"), "VIVIDEL.NS");
 assert.ok(Math.abs((cagr(100, 121, 2) ?? NaN) - 0.1) < 1e-9);
 assert.equal(cagr(-1, 2, 3), null);
 assert.equal(cagr(0, 10, 5), null);

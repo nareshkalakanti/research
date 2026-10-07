@@ -1,6 +1,7 @@
 /**
- * Screener.in quarterly results — consolidated table, throttled + cached.
- * Never bulk-search; one company page per request, 7d cache, 6h block backoff.
+ * Screener.in quarterly results — throttled + cached.
+ * Prefer consolidated; fall back to standalone (SME / young listings).
+ * Never bulk-search; 7d cache, 6h block backoff on hard misses.
  */
 import * as cheerio from "cheerio";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -63,6 +64,18 @@ type CacheRow = {
   blocked_until: string | null;
 };
 
+function cacheUsable(qs: unknown): qs is QuarterPoint[] {
+  if (!Array.isArray(qs) || qs.length < 2) return false;
+  // Incomplete P&L (OP/EPS only) — refetch instead of pinning blanks.
+  if (
+    !qs.some((q) => q.revenue != null) &&
+    !qs.some((q) => q.netIncome != null)
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function readCache(ticker: string): QuarterPoint[] | "blocked" | null {
   ensureCacheSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
@@ -73,20 +86,18 @@ function readCache(ticker: string): QuarterPoint[] | "blocked" | null {
       )
       .get(ticker.toUpperCase()) as CacheRow | undefined;
     if (!row) return null;
+    const qs = JSON.parse(row.quarters_json) as unknown;
+    // Empty miss-blocks must not pin forever — allow retry (standalone fallback).
+    if (!cacheUsable(qs)) {
+      if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
+        return "blocked";
+      }
+      return null;
+    }
     if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
       return "blocked";
     }
     if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
-      const qs = JSON.parse(row.quarters_json) as QuarterPoint[];
-      // Incomplete P&L (OP/EPS only) — refetch instead of pinning blanks.
-      if (
-        Array.isArray(qs) &&
-        qs.length >= 2 &&
-        !qs.some((q) => q.revenue != null) &&
-        !qs.some((q) => q.netIncome != null)
-      ) {
-        return null;
-      }
       return qs;
     }
     return null;
@@ -326,7 +337,8 @@ export type ScreenerQuarterOpts = {
 };
 
 /**
- * Fetch consolidated quarterly table from Screener company page.
+ * Fetch quarterly table from Screener company page.
+ * Tries consolidated first, then standalone when thin (SME / young listings).
  * Cached 7d; backs off 6h on block. Never uses global search.
  */
 export async function fetchScreenerQuarterlyFundamentals(
@@ -344,10 +356,27 @@ export async function fetchScreenerQuarterlyFundamentals(
   }
 
   try {
-    const html = await fetchScreenerCompanyHtml(key, {
-      consolidated: opts?.consolidated !== false,
-    });
-    const quarters = parseScreenerQuarterlyHtml(html);
+    const preferCons = opts?.consolidated !== false;
+    let quarters: QuarterPoint[] = [];
+    if (preferCons) {
+      const html = await fetchScreenerCompanyHtml(key, { consolidated: true });
+      quarters = parseScreenerQuarterlyHtml(html);
+    } else {
+      const html = await fetchScreenerCompanyHtml(key, { consolidated: false });
+      quarters = parseScreenerQuarterlyHtml(html);
+    }
+    // Some SME / young listings only populate standalone quarterly results.
+    if (quarters.length < 2 && preferCons) {
+      try {
+        const standHtml = await fetchScreenerCompanyHtml(key, {
+          consolidated: false,
+        });
+        const stand = parseScreenerQuarterlyHtml(standHtml);
+        if (stand.length >= 2) quarters = stand;
+      } catch {
+        /* keep consolidated parse */
+      }
+    }
     // Don't pin empty parses for 7d — short miss block so BSE/NSE can win next try.
     if (quarters.length >= 2) writeCache(key, quarters);
     else {

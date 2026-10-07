@@ -30,6 +30,7 @@ import type { CompanyBrief, CompanyBriefContext, OfferingItem } from "@/lib/comp
 import { isPlaceholderWatch } from "@/lib/brief-placeholder";
 import { useOptionalSetAppTab } from "@/lib/app-tab";
 import { WatchlistDashboard } from "@/components/WatchlistDashboard";
+import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
 import type { FundamentalsScanRow } from "@/lib/pead-bands";
 
@@ -100,177 +101,6 @@ function fmtCr(n: number | null | undefined): string {
 function fmtPrice(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
-}
-
-type QuoteTapeMa = {
-  period: 20 | 50 | 100 | 200;
-  value: number | null;
-  above: boolean | null;
-};
-
-type QuoteTape = {
-  price: number | null;
-  prev_close: number | null;
-  pe: number | null;
-  cagr_pct: number | null;
-  cagr_years: number | null;
-  week52_low: number | null;
-  week52_high: number | null;
-  dma200: number | null;
-  breakout20: number | null;
-  dma200_alert: "below_200_breakout" | null;
-  mas: QuoteTapeMa[];
-};
-
-function WlQuoteTape({
-  ticker,
-  market,
-}: {
-  ticker: string;
-  market: string | null;
-}) {
-  const [tape, setTape] = useState<QuoteTape | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    const q = new URLSearchParams({ ticker });
-    if (market) q.set("market", market);
-    void fetch(`/api/quote-tape?${q}`, { signal: AbortSignal.timeout(45_000) })
-      .then(async (res) => {
-        const json = (await res.json()) as { ok?: boolean; tape?: QuoteTape };
-        if (!cancelled && json.ok && json.tape) setTape(json.tape);
-      })
-      .catch(() => {
-        if (!cancelled) setTape(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [ticker, market]);
-
-  if (loading && !tape) {
-    return <p className="wl-card-muted">Price…</p>;
-  }
-  if (!tape || (tape.price == null && tape.mas.every((m) => m.value == null))) {
-    return null;
-  }
-
-  const low = tape.week52_low;
-  const high = tape.week52_high;
-  const px = tape.price;
-  const span = low != null && high != null && high > low ? high - low : null;
-  const pct =
-    span != null && px != null
-      ? Math.min(100, Math.max(0, ((px - low!) / span) * 100))
-      : null;
-  const cagrCls =
-    tape.cagr_pct == null
-      ? undefined
-      : tape.cagr_pct >= 0
-        ? "q-up"
-        : "q-down";
-  const dma200Label =
-    tape.dma200_alert === "below_200_breakout"
-      ? "Below 200 DMA · Fresh breakout"
-      : null;
-
-  return (
-    <div className="wl-tape">
-      <table className="wl-mini-q">
-        <thead>
-          <tr>
-            <th></th>
-            <th>Price</th>
-            <th>PE</th>
-            <th>{tape.cagr_years ? `${tape.cagr_years}Y CAGR` : "CAGR"}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th>Last</th>
-            <td>{fmtPrice(tape.price)}</td>
-            <td>{tape.pe != null ? tape.pe.toFixed(2) : "—"}</td>
-            <td className={cagrCls}>
-              {tape.cagr_pct == null
-                ? "—"
-                : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <table className="wl-mini-q">
-        <thead>
-          <tr>
-            <th></th>
-            {tape.mas.map((m) => (
-              <th key={m.period}>{m.period}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th>SMA</th>
-            {tape.mas.map((m) => (
-              <td
-                key={m.period}
-                className={
-                  m.above === true ? "q-up" : m.above === false ? "q-down" : undefined
-                }
-                title={
-                  m.above === true
-                    ? "Price above SMA"
-                    : m.above === false
-                      ? "Price below SMA"
-                      : undefined
-                }
-              >
-                {m.value != null
-                  ? m.value.toLocaleString("en-IN", {
-                    maximumFractionDigits: 2,
-                  })
-                  : "—"}
-              </td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-      {dma200Label ? (
-        <div className="wl-dma-alert" role="status" aria-live="polite">
-          <span className="wl-dma-alert-pill">{dma200Label}</span>
-          {tape.dma200 != null && tape.price != null ? (
-            <span className="wl-dma-alert-text">
-              200 DMA {tape.dma200.toLocaleString("en-IN", { maximumFractionDigits: 2 })} ·
-              Breakout {tape.breakout20 != null
-                ? tape.breakout20.toLocaleString("en-IN", {
-                  maximumFractionDigits: 2,
-                })
-                : "—"} · Price{" "}
-              {tape.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-      {low != null && high != null ? (
-        <div className="wl-tape-range">
-          <span className="wl-tape-label">52-week</span>
-          <div className="wl-range-track">
-            <span className="wl-range-lo">{fmtPrice(low)}</span>
-            <span className="wl-range-bar">
-              {pct != null ? (
-                <i className="wl-range-dot" style={{ left: `${pct}%` }} />
-              ) : null}
-            </span>
-            <span className="wl-range-hi">{fmtPrice(high)}</span>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function ChangeCell({ value }: { value: number | null | undefined }) {
@@ -449,7 +279,7 @@ function MiniQtr({ panel }: { panel: QuarterPanel }) {
     /sales|operating profit|^opm|net profit/i.test(r.label),
   );
   return (
-    <table className="wl-mini-q">
+    <table className="wl-mini-q wl-qtr-table">
       <thead>
         <tr>
           <th></th>
@@ -856,10 +686,11 @@ function WatchlistRow({
                   })()}
                 </section>
                 <div className="wl-side-stack">
-                  <section className="wl-card-qtr wl-card-price">
-                    <h3>Price</h3>
-                    <WlQuoteTape ticker={r.ticker} market={r.market} />
-                  </section>
+                  <QuoteTapeCard
+                    ticker={r.ticker}
+                    market={r.market}
+                    active={open}
+                  />
                   <section className="wl-card-qtr">
                     <h3>Quarters</h3>
                     {qtr.loading ? (

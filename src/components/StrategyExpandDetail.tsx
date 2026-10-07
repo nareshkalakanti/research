@@ -2,6 +2,7 @@
 
 import { ExpandBusiness } from "@/components/ExpandBusiness";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 
@@ -70,13 +71,22 @@ export function StrategyExpandDetail({
               className={`about-tab ${active === "qtr" ? "on" : ""}`}
               onClick={() => onPanel("qtr")}
             >
-              Qtr
+              Quarters
             </button>
           </div>
           {active === "about" ? (
             <ExpandBusiness data={briefData} />
           ) : (
-            <ExpandQuarters data={quarterData} price={price} />
+            <div className="about-qtr-with-tape">
+              <div className="about-qtr-main">
+                <ExpandQuarters data={quarterData} price={price} />
+              </div>
+              <QuoteTapeCard
+                ticker={ticker}
+                market={market}
+                active={open && active === "qtr"}
+              />
+            </div>
           )}
         </div>
       </td>

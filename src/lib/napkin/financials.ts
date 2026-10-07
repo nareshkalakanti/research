@@ -2,12 +2,22 @@
  * Yahoo market + annual statements via yahoo-finance2 (JS). No Python. No Qwen.
  */
 import YahooFinance from "yahoo-finance2";
+import { loadAllCompanies } from "@/lib/db";
+import { resolveListingMarket } from "@/lib/listing-market";
+import {
+  listingQueryMatches,
+  pickUniqueListing,
+} from "@/lib/listing-name-match";
 import { growwCompanyData } from "@/lib/web-mcap";
 import { parseGrowwYearlyFinancialStatement } from "@/lib/groww-quarters";
 import { fetchScreenerAnnualPl } from "@/lib/screener-annual";
-import { toYfinanceSymbol } from "@/lib/yfinance";
+import { fetchScreenerTopRatios } from "@/lib/screener-ratios";
+import { toYfinanceSymbol, yfSymbolCandidates } from "@/lib/yfinance";
 import { growwAnnualPairs, screenerPlPairs } from "./cagr-history";
 import type { NapkinCagr, NapkinStockJson } from "./types";
+
+/** Screener P&L amounts are ₹ Cr; Yahoo current levels are absolute ₹. */
+const INR_PER_CR = 10_000_000;
 
 const yf = new YahooFinance({
   suppressNotices: ["yahooSurvey"],
@@ -70,12 +80,80 @@ export class StockDataError extends Error {
   }
 }
 
-export function nseYahooSymbol(ticker: string): string {
-  const t = (ticker || "").trim().toUpperCase().replace(/\.(NS|BO)$/i, "").replace(/\s+/g, "");
+export function nseYahooSymbol(
+  ticker: string,
+  market?: string | null,
+): string {
+  const t = (ticker || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\.(NS|BO)$/i, "")
+    .replace(/\s+/g, "");
   if (!TICKER_RE.test(t)) {
     throw new StockDataError("invalid_ticker", "Enter a valid NSE ticker");
   }
-  return toYfinanceSymbol(t, "NSE");
+  return toYfinanceSymbol(t, market ?? "NSE");
+}
+
+const QUOTE_MODULES = [
+  "price",
+  "summaryDetail",
+  "defaultKeyStatistics",
+  "financialData",
+  "assetProfile",
+] as const;
+
+/** Map typos / short queries onto a unique company_about listing when possible. */
+function resolveBareTicker(ticker: string): string {
+  const bare = ticker
+    .trim()
+    .toUpperCase()
+    .replace(/\.(NS|BO)$/i, "")
+    .replace(/-SM$/i, "")
+    .replace(/\s+/g, "");
+  if (!TICKER_RE.test(bare)) {
+    throw new StockDataError("invalid_ticker", "Enter a valid NSE ticker");
+  }
+  if (resolveListingMarket(bare)) return bare;
+  const hits = loadAllCompanies()
+    .filter((c) => listingQueryMatches(bare, c.ticker, c.name))
+    .map((c) => ({
+      ticker: c.ticker,
+      name: c.name,
+      market: c.market,
+    }));
+  const unique = pickUniqueListing(bare, hits);
+  const resolved = (unique?.ticker || "").trim().toUpperCase();
+  return resolved && TICKER_RE.test(resolved) ? resolved : bare;
+}
+
+/** Try NSE / NSE SME / BSE Yahoo symbols until quoteSummary succeeds. */
+async function quoteSummaryForTicker(ticker: string): Promise<{
+  symbol: string;
+  qs: Awaited<ReturnType<typeof yf.quoteSummary>>;
+  bare: string;
+}> {
+  const bare = resolveBareTicker(ticker);
+  const market = resolveListingMarket(bare);
+  const candidates = yfSymbolCandidates(bare, market);
+  if (!candidates.length) {
+    throw new StockDataError("invalid_ticker", "Enter a valid NSE ticker");
+  }
+  let lastErr: Error | null = null;
+  for (const symbol of candidates) {
+    try {
+      const qs = await yf.quoteSummary(symbol, {
+        modules: [...QUOTE_MODULES],
+      });
+      return { symbol, qs, bare };
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+    }
+  }
+  throw new StockDataError(
+    "yahoo_unavailable",
+    `Yahoo Finance unavailable: ${lastErr?.message || "no quote"}`,
+  );
 }
 
 function bag(o: object | null | undefined): Record<string, unknown> {
@@ -86,6 +164,14 @@ function num(v: unknown): number | null {
   if (v == null) return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function lastFinite(values: Array<number | null | undefined>): number | null {
+  for (let i = values.length - 1; i >= 0; i--) {
+    const v = values[i];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return null;
 }
 
 export function cagr(
@@ -294,27 +380,8 @@ async function fillFiveYearFromAltSources(
 }
 
 export async function getStockData(ticker: string): Promise<NapkinStockJson> {
-  const symbol = nseYahooSymbol(ticker);
-  const bare = symbol.replace(/\.(NS|BO)$/i, "").replace(/-SM$/i, "");
+  const { symbol, qs, bare } = await quoteSummaryForTicker(ticker);
   const warnings: string[] = [];
-
-  let qs: Awaited<ReturnType<typeof yf.quoteSummary>>;
-  try {
-    qs = await yf.quoteSummary(symbol, {
-      modules: [
-        "price",
-        "summaryDetail",
-        "defaultKeyStatistics",
-        "financialData",
-        "assetProfile",
-      ],
-    });
-  } catch (e) {
-    throw new StockDataError(
-      "yahoo_unavailable",
-      `Yahoo Finance unavailable: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
 
   const priceMod = bag(qs.price);
   const stats = bag(qs.defaultKeyStatistics);
@@ -435,7 +502,11 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   }
 
   if (trailingEps != null && trailingEps < 0) warnings.push("negative_eps");
-  if (epsS.length && epsS[epsS.length - 1]![1] < 0 && !warnings.includes("negative_eps")) {
+  if (
+    epsS.length &&
+    epsS[epsS.length - 1]![1] < 0 &&
+    !warnings.includes("negative_eps")
+  ) {
     warnings.push("negative_eps");
   }
   if (!income.length) warnings.push(REASON_NO_ANNUAL);
@@ -445,12 +516,33 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     warnings.push(REASON_SHORT_5Y);
   }
 
-  const latestNi = niS.at(-1)?.[1] ?? num(fin.netIncomeToCommon);
-  const latestRev = revenueS.at(-1)?.[1] ?? num(fin.totalRevenue);
+  let latestNi = niS.at(-1)?.[1] ?? num(fin.netIncomeToCommon);
+  let latestRev = revenueS.at(-1)?.[1] ?? num(fin.totalRevenue);
   const latestEbit = ebitS.at(-1)?.[1] ?? null;
   const latestEq = equityS.at(-1)?.[1] ?? null;
   const latestAssets = assetsS.at(-1)?.[1] ?? null;
   const latestCl = clS.at(-1)?.[1] ?? null;
+
+  let trailingEpsFill = trailingEps;
+  // Yahoo often blanks current levels on NSE SME — fill from Screener annual + ratios.
+  if (screenerPl) {
+    if (trailingEpsFill == null) {
+      trailingEpsFill = lastFinite(screenerPl.eps);
+    }
+    if (latestRev == null) {
+      const cr = lastFinite(screenerPl.revenue);
+      if (cr != null) latestRev = cr * INR_PER_CR;
+    }
+    if (latestNi == null) {
+      const cr = lastFinite(screenerPl.pat);
+      if (cr != null) latestNi = cr * INR_PER_CR;
+    }
+  }
+
+  let marketCap =
+    num(priceMod.marketCap) ?? num(det.marketCap);
+  let pe =
+    num(det.trailingPE) ?? num(fin.trailingPE) ?? num(stats.forwardPE);
 
   let roce: number | null = null;
   if (latestEbit != null && latestAssets != null && latestCl != null) {
@@ -463,6 +555,24 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     roe = latestNi / latestEq;
   } else {
     roe = num(fin.returnOnEquity);
+  }
+
+  if (
+    marketCap == null ||
+    pe == null ||
+    roe == null ||
+    roce == null ||
+    trailingEpsFill == null
+  ) {
+    const ratios = await fetchScreenerTopRatios(bare).catch(() => null);
+    if (ratios) {
+      if (marketCap == null && ratios.market_cap_cr != null) {
+        marketCap = ratios.market_cap_cr * INR_PER_CR;
+      }
+      if (pe == null && ratios.stock_pe != null) pe = ratios.stock_pe;
+      if (roe == null && ratios.roe != null) roe = ratios.roe;
+      if (roce == null && ratios.roce != null) roce = ratios.roce;
+    }
   }
 
   let marginNow: number | null = null;
@@ -536,9 +646,9 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     sector,
     fetched_at: new Date().toISOString(),
     price,
-    market_cap: num(priceMod.marketCap) ?? num(det.marketCap),
-    pe: num(det.trailingPE) ?? num(fin.trailingPE) ?? num(stats.forwardPE),
-    eps: trailingEps,
+    market_cap: marketCap,
+    pe,
+    eps: trailingEpsFill,
     revenue: latestRev,
     net_income: latestNi ?? null,
     ebitda: ebitdaS.at(-1)?.[1] ?? num(fin.ebitda) ?? null,
