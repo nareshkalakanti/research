@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tradingviewUrl } from "@/lib/links";
 import { TickerSuggest } from "@/components/TickerSuggest";
-import { looksLikeConcallPdfUrl } from "@/lib/concall-pdf-url";
+import {
+  concallPdfDownloadName,
+  looksLikeConcallPdfUrl,
+} from "@/lib/concall-pdf-url";
 import { ExecSummaryHtml } from "@/components/ExecSummaryHtml";
 import { formatExecutiveSummaryText } from "@/lib/concall-quant-format";
 import {
@@ -465,6 +468,34 @@ function renderTextWithSearch(
 function pdfHref(sourceUrl: string, download = false): string {
   const q = download ? "&download=1" : "";
   return `/api/concall-screen?pdf=${encodeURIComponent(sourceUrl)}${q}`;
+}
+
+async function downloadDiscoverPdf(sourceUrl: string, title?: string | null) {
+  const name = concallPdfDownloadName(sourceUrl, title);
+  const save = (blob: Blob) => {
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = href;
+    a.download = name;
+    a.rel = "noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(href), 2_000);
+  };
+  try {
+    const res = await fetch(pdfHref(sourceUrl, true), {
+      signal: AbortSignal.timeout(90_000),
+    });
+    const type = (res.headers.get("content-type") || "").toLowerCase();
+    if (res.ok && (type.includes("pdf") || type.includes("octet-stream"))) {
+      save(await res.blob());
+      return;
+    }
+  } catch {
+    /* open the source URL */
+  }
+  window.open(sourceUrl, "_blank", "noopener,noreferrer");
 }
 
 export function ConcallResearchPanel() {
@@ -1485,6 +1516,28 @@ export function ConcallResearchPanel() {
                     </div>
                   </div>
                   <div className="concall-discover-actions">
+                    {h.url ? (
+                      <a
+                        className="concall-discover-dl"
+                        href={h.url}
+                        download={concallPdfDownloadName(h.url, h.title)}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Download"
+                        aria-label="Download"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          void downloadDiscoverPdf(h.url, h.title);
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                          <path
+                            fill="currentColor"
+                            d="M8 1.25a.75.75 0 0 1 .75.75v6.19l1.97-1.97a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 1.06-1.06l1.97 1.97V2a.75.75 0 0 1 .75-.75ZM3 11.25a.75.75 0 0 1 .75.75v1.25h8.5V12a.75.75 0 0 1 1.5 0v2a.75.75 0 0 1-.75.75h-10A.75.75 0 0 1 2.25 14v-2a.75.75 0 0 1 .75-.75Z"
+                          />
+                        </svg>
+                      </a>
+                    ) : null}
                     <button
                       type="button"
                       className="link-btn"

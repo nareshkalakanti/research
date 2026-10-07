@@ -11,6 +11,26 @@ export function trendlynePdfUrlForPostId(postId: string): string {
   return `https://trendlyne.com/get-document/post/pdf/${postId.replace(/\D/g, "")}/`;
 }
 
+/** Safe attachment name for a discovered PDF URL. */
+export function concallPdfDownloadName(url: string, title?: string | null): string {
+  try {
+    const u = new URL(url.trim());
+    const fromPath = u.pathname.split("/").pop() || "";
+    const pname = u.searchParams.get("Pname") || u.searchParams.get("pname") || "";
+    const raw = fromPath.match(/[^/]+\.pdf$/i)?.[0] || pname;
+    if (raw && /\.pdf$/i.test(raw) && raw.length <= 180) {
+      return raw.replace(/[^\w.\-]+/g, "_");
+    }
+  } catch {
+    /* title fallback */
+  }
+  const slug = (title || "concall")
+    .replace(/[^\w]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 60);
+  return `${slug || "concall"}.pdf`;
+}
+
 export function looksLikeConcallPdfUrl(url: string): boolean {
   const u = (url || "").trim();
   if (!u) return false;

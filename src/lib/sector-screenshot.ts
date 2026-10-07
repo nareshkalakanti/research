@@ -3,7 +3,7 @@
  */
 import { ocrImageWithQianfan } from "./corporate-data-extract";
 import { bootstrapCompanyTicker } from "./company-ticker-bootstrap";
-import { invalidateCompanyCache } from "./db";
+import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import { parseSectorScreenshot, preferBatchIndustry, tidyIndustry } from "./sector-screenshot-parse";
 import { resolveListingQuery } from "./sector-rotation-resolve";
 import {
@@ -26,8 +26,53 @@ Do not use {"1":"...","2":"..."} numbered keys.`;
 const NAMES_OCR = `List every company in the Name column of this stock table, top to bottom.
 One company per line. Keep Ltd/Limited. Include the first row. No JSON, no prices, no industry.`;
 
-const INDUSTRY_OCR = `Read only the Industry column of this stock table (the repeated theme on the right of names, not the company names).
-One line. Not a parent group or breadcrumb.`;
+function voteLabel(labels: string[]): string {
+  const counts = new Map<string, { n: number; label: string }>();
+  for (const raw of labels) {
+    const t = tidyIndustry(raw);
+    if (!t) continue;
+    const k = t.toLowerCase();
+    const cur = counts.get(k);
+    if (cur) cur.n += 1;
+    else counts.set(k, { n: 1, label: t });
+  }
+  let best = "";
+  let n = 0;
+  for (const v of counts.values()) {
+    if (v.n > n) {
+      n = v.n;
+      best = v.label;
+    }
+  }
+  return n >= 1 ? best : "";
+}
+
+/** Industry from About/classifications and existing rotation baskets — not OCR. */
+function industryFromResolvedTickers(tickers: string[]): string {
+  const want = new Set(tickers.map((t) => t.toUpperCase()));
+  const aboutVotes: string[] = [];
+  try {
+    for (const c of loadAllCompanies()) {
+      if (!want.has(c.ticker.toUpperCase())) continue;
+      const label = c.sub_sector || c.sector;
+      if (label) aboutVotes.push(label);
+    }
+  } catch {
+    /* listings still usable */
+  }
+  const fromAbout = voteLabel(aboutVotes);
+  let overlapLabel = "";
+  let overlapN = 0;
+  for (const s of listRotationSectors()) {
+    const n = s.members.filter((m) => want.has(m.ticker.toUpperCase())).length;
+    if (n > overlapN) {
+      overlapN = n;
+      overlapLabel = s.label;
+    }
+  }
+  if (overlapN >= 2) return overlapLabel;
+  return fromAbout || (overlapN === 1 ? overlapLabel : "");
+}
 
 export type SectorShotImport = {
   ocr: string;
@@ -84,40 +129,15 @@ export async function importSectorFromScreenshot(
     clearInterval(beat);
   }
   const parsed = parseSectorScreenshot(`${ocr}\n${nameOcr}`);
-  let industry = tidyIndustry(parsed.industry) || "";
-  const weakColumn =
-    !parsed.rowIndustries.length && industry.split(/\s+/).filter(Boolean).length === 1;
-  if (industry.length < 2 || weakColumn) {
-    onEvent?.({ t: "ocr" });
-    const indOcr = await ocrImageWithQianfan(imageDataUrl, INDUSTRY_OCR, 256, {
-      maxEdge: 1152,
-      numCtx: 8192,
-    });
-    const fromCol =
-      tidyIndustry(parseSectorScreenshot(indOcr).industry) ||
-      tidyIndustry(indOcr.split(/\n/)[0] || "") ||
-      "";
-    if (fromCol.length >= 2) {
-      industry = preferBatchIndustry(industry, fromCol);
-    }
-  }
-  industry = preferBatchIndustry(priorIndustry || "", industry);
   const names = parsed.names;
-  if (industry.length < 2) {
-    throw new Error(
-      `Could not read Industry from the screenshot${ocr.trim() ? `: ${ocr.replace(/\s+/g, " ").slice(0, 280)}` : ""}`,
-    );
-  }
   if (!names.length) {
     throw new Error(
-      `Could not read company names from the screenshot${ocr.trim() ? `: ${ocr.replace(/\s+/g, " ").slice(0, 280)}` : ""}`,
+      "Could not read company names from the screenshot. Paste a Name-column table (Ltd/Limited rows).",
     );
   }
-  onEvent?.({ t: "parsed", industry, names });
-  const prior =
-    listRotationSectors().find(
-      (s) => s.label.toLowerCase() === industry.toLowerCase(),
-    )?.members.length ?? 0;
+  let industry = tidyIndustry(parsed.industry) || "";
+  industry = preferBatchIndustry(priorIndustry || "", industry);
+  onEvent?.({ t: "parsed", industry: industry || "(from listings)", names });
   const unresolved: string[] = [];
   const members: Array<{ ticker: string; name: string; market: string }> = [];
   const have = new Set<string>();
@@ -144,6 +164,20 @@ export async function importSectorFromScreenshot(
       `None of the names resolved: ${names.slice(0, 8).join(", ")}`,
     );
   }
+  if (industry.length < 2) {
+    industry =
+      industryFromResolvedTickers(members.map((m) => m.ticker)) || "";
+  }
+  industry = preferBatchIndustry(priorIndustry || "", industry);
+  if (industry.length < 2) {
+    throw new Error(
+      "Could not read Industry. Paste the first page of the table (Industry column visible), or type the sector name on the right and add these stocks there.",
+    );
+  }
+  const prior =
+    listRotationSectors().find(
+      (s) => s.label.toLowerCase() === industry.toLowerCase(),
+    )?.members.length ?? 0;
   const sector = mergeRotationSectorByLabel(industry, members);
   onEvent?.({
     t: "count",

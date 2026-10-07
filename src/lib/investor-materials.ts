@@ -58,7 +58,7 @@ function cleanDistillField(s: string, fallback = ""): string {
 
 function db() {
   ensureInvestorMaterialsSchema();
-  return openSqliteNamed("company_about.db", { readonly: false, wal: true });
+  return openSqliteNamed("company_about.db", { readonly: false, wal: false });
 }
 
 function rowToMaterial(r: Record<string, unknown>): InvestorMaterial {

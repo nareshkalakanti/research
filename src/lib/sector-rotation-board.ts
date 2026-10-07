@@ -103,6 +103,121 @@ function sectorIndex(
   );
 }
 
+function liteCard(
+  s: RotationSector,
+  metrics: ReturnType<typeof loadMetricsMap>,
+): RotationSectorCard {
+  const day = dayStats(s.members, metrics);
+  return {
+    id: s.id,
+    label: s.label,
+    n: s.members.length,
+    up: day.up,
+    down: day.down,
+    starred: s.starred,
+    sector_pct: null,
+    bench_pct: null,
+    today_pct: day.today_pct,
+    search: [s.label, ...s.members.map((m) => `${m.ticker} ${m.name}`)]
+      .join(" ")
+      .toLowerCase(),
+    sector: [],
+    bench: [],
+  };
+}
+
+function downsamplePoints(pts: SeriesPoint[], max = 72): SeriesPoint[] {
+  if (pts.length <= max) return pts;
+  const step = (pts.length - 1) / (max - 1);
+  const out: SeriesPoint[] = [];
+  for (let i = 0; i < max; i++) {
+    out.push(pts[Math.round(i * step)]!);
+  }
+  return out;
+}
+
+async function cardWithSeries(
+  s: RotationSector,
+  years: number,
+  start: string,
+  lookback: string,
+  weight: RotationWeight,
+  metrics: ReturnType<typeof loadMetricsMap>,
+  bench: SeriesPoint[],
+  bench_pct: number | null,
+  spark = true,
+): Promise<RotationSectorCard> {
+  const packed = await memberBars(s.members, years);
+  const seriesLong = sectorIndex(packed, lookback, weight, metrics);
+  const first = seriesLong.find((p) => p.date >= start);
+  const lastPt = seriesLong[seriesLong.length - 1];
+  const sector_pct =
+    first && lastPt && first.value > 0
+      ? ((lastPt.value - first.value) / first.value) * 100
+      : null;
+  const day = dayStats(s.members, metrics);
+  const windowed = seriesLong.filter((p) => p.date >= start);
+  return {
+    id: s.id,
+    label: s.label,
+    n: s.members.length,
+    up: day.up,
+    down: day.down,
+    starred: s.starred,
+    sector_pct,
+    bench_pct,
+    today_pct: day.today_pct,
+    search: [s.label, ...s.members.map((m) => `${m.ticker} ${m.name}`)]
+      .join(" ")
+      .toLowerCase(),
+    sector: spark ? downsamplePoints(windowed) : seriesLong,
+    bench: spark ? downsamplePoints(bench) : bench,
+  };
+}
+
+/** Metrics-only board — no OHLC. Fast first paint. */
+export function buildRotationLiteBoard(): {
+  sectors: RotationSectorCard[];
+} {
+  const metrics = loadMetricsMap();
+  return {
+    sectors: listRotationSectors().map((s) => liteCard(s, metrics)),
+  };
+}
+
+export async function hydrateRotationCards(
+  ids: string[],
+  range: string,
+  weight: RotationWeight = "equal",
+): Promise<{
+  range: string;
+  as_of: string | null;
+  bench_label: string;
+  sectors: RotationSectorCard[];
+}> {
+  const want = new Set(
+    ids.map((id) => id.trim()).filter(Boolean),
+  );
+  const sectors = listRotationSectors().filter((s) => want.has(s.id));
+  const years = rotationYearsBack(range);
+  const metrics = loadMetricsMap();
+  const nifty = await fetchNifty500DailyBars(years);
+  const last = nifty[nifty.length - 1]?.date || "";
+  const start = rotationWindowStart(last, range);
+  const lookback = rotationMaLookbackStart(start);
+  const bench = rebaseCloses(nifty, start);
+  const bench_pct = seriesReturnPct(bench);
+  const cards = await runConcurrent(sectors, 3, (s) =>
+    cardWithSeries(s, years, start, lookback, weight, metrics, bench, bench_pct, true),
+  );
+  return {
+    range: (range || "6M").toUpperCase(),
+    as_of: nifty[nifty.length - 1]?.date ?? null,
+    bench_label: NIFTY_INDEX_META.NIFTY_500.label,
+    sectors: cards.filter(Boolean),
+  };
+}
+
 export async function buildRotationBoard(
   range: string,
   weight: RotationWeight = "equal",
@@ -112,49 +227,12 @@ export async function buildRotationBoard(
   bench_label: string;
   sectors: RotationSectorCard[];
 }> {
-  const years = rotationYearsBack(range);
-  const sectors = listRotationSectors();
-  const metrics = loadMetricsMap();
-  const nifty = await fetchNifty500DailyBars(years);
-  const last = nifty[nifty.length - 1]?.date || "";
-  const start = rotationWindowStart(last, range);
-  const lookback = rotationMaLookbackStart(start);
-  const bench = rebaseCloses(nifty, start);
-  const bench_pct = seriesReturnPct(bench);
-  const cards: RotationSectorCard[] = [];
-  for (const s of sectors) {
-    const packed = await memberBars(s.members, years);
-    const seriesLong = sectorIndex(packed, lookback, weight, metrics);
-    const first = seriesLong.find((p) => p.date >= start);
-    const lastPt = seriesLong[seriesLong.length - 1];
-    const sector_pct =
-      first && lastPt && first.value > 0
-        ? ((lastPt.value - first.value) / first.value) * 100
-        : null;
-    const day = dayStats(s.members, metrics);
-    cards.push({
-      id: s.id,
-      label: s.label,
-      n: s.members.length,
-      up: day.up,
-      down: day.down,
-      starred: s.starred,
-      sector_pct,
-      bench_pct,
-      today_pct: day.today_pct,
-      search: [s.label, ...s.members.map((m) => `${m.ticker} ${m.name}`)]
-        .join(" ")
-        .toLowerCase(),
-      sector: seriesLong,
-      bench,
-    });
-  }
-  return {
-    range: (range || "6M").toUpperCase(),
-    as_of: nifty[nifty.length - 1]?.date ?? null,
-    bench_label: NIFTY_INDEX_META.NIFTY_500.label,
-    sectors: cards,
-  };
+  const all = listRotationSectors();
+  return hydrateRotationCards(
+    all.map((s) => s.id),
+    range,
+    weight,
+  );
 }
 
 export async function buildRotationDetail(

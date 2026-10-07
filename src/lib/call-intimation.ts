@@ -184,7 +184,7 @@ export function isCallIntimationHit(opts: {
   ) {
     return false;
   }
-  return /covering[_\s-]?letter|audio[_\s-]?record|intimation of.{0,80}(?:analyst|investor).{0,40}meet|outcome of meeting of analysts|invconcall|seltr.?outcome|outcomeinvconcall|institutional\s+investors?.{0,40}(?:concall|meet)/i.test(
+  return /covering[_\s-]?letter|audio[_\s-]?record|(?:earnings|conference)\s+call[_\s-]*invite|call[_\s-]*invite|intimation of.{0,80}(?:analyst|investor).{0,40}meet|outcome of meeting of analysts|invconcall|seltr.?outcome|outcomeinvconcall|institutional\s+investors?.{0,40}(?:concall|meet)/i.test(
     blob,
   );
 }

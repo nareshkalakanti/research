@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { concallPdfDownloadName } from "@/lib/concall-pdf-url";
 import {
   discoverConcallPdfSources,
   downloadConcallPdf,
@@ -35,21 +36,24 @@ export async function GET(req: NextRequest) {
         { status: 400 },
       );
     }
+    const asDownload = req.nextUrl.searchParams.get("download") === "1";
     const buf = await downloadConcallPdf(pdfUrl);
     if (!buf) {
+      if (asDownload && /^https?:\/\//i.test(pdfUrl)) {
+        return NextResponse.redirect(pdfUrl, 302);
+      }
       return NextResponse.json(
         { ok: false, error: "Could not fetch PDF" },
         { status: 502 },
       );
     }
-    const asDownload = req.nextUrl.searchParams.get("download") === "1";
+    const filename = concallPdfDownloadName(pdfUrl);
+    const disp = asDownload ? "attachment" : "inline";
     return new NextResponse(new Uint8Array(buf), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": asDownload
-          ? 'attachment; filename="concall.pdf"'
-          : 'inline; filename="concall.pdf"',
+        "Content-Disposition": `${disp}; filename="${filename}"`,
         "Cache-Control": "private, max-age=300",
         "X-Content-Type-Options": "nosniff",
       },
