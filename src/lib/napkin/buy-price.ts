@@ -123,12 +123,12 @@ export function napkinBuyPricePosition(
   const gap = finite(priceGap);
   if (gap == null) return null;
   if (gap > 1e-9) {
-    return "Current price is below the calculated maximum buy price under these assumptions.";
+    return "Spot is below your max pay-today — room vs the target return.";
   }
   if (gap < -1e-9) {
-    return "Current price is above the calculated maximum buy price under these assumptions.";
+    return "Spot is above your max pay-today — you would undershoot the target return if assumptions hold.";
   }
-  return "Current price matches the calculated maximum buy price under these assumptions.";
+  return "Spot matches your max pay-today under these assumptions.";
 }
 
 export function napkinIllustrativeBuyRows(input: {

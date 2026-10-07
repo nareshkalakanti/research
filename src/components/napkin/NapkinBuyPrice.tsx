@@ -59,7 +59,13 @@ export function NapkinBuyPrice({
 
   return (
     <div className="napkin-sheet-section">
-      <h2 className="napkin-block-title">Buy price / target return</h2>
+      <h2 className="napkin-block-title">What can I pay today?</h2>
+      <p className="napkin-buy-lede">
+        Grow EPS for {years} years → exit price at your exit P/E → discount that
+        exit back at your target return. That discounted amount is the most you
+        should pay <em>now</em>. It is not the expected future price, and it is
+        not required EPS CAGR.
+      </p>
 
       <p className="napkin-cagr-label">Expected EPS CAGR</p>
       <div className="napkin-cagr-chips" role="group" aria-label="Buy expected EPS CAGR">
@@ -134,69 +140,64 @@ export function NapkinBuyPrice({
 
       <dl className="napkin-dl napkin-val">
         <div className="napkin-dl-row">
-          <dt>Expected EPS CAGR</dt>
-          <dd>{formatNapkinPctWhole(expected)}</dd>
-        </div>
-        <div className="napkin-dl-row">
-          <dt>Target annual return</dt>
-          <dd>{formatNapkinPctWhole(target)}</dd>
-        </div>
-        <div className="napkin-dl-row">
-          <dt>Expected exit P/E</dt>
-          <dd>{napkinPeDisplay(exitPe != null ? exitPe.toFixed(1) : "N/A")}</dd>
-        </div>
-        <div className="napkin-dl-row">
-          <dt>Current EPS</dt>
+          <dt>1 · EPS today</dt>
           <dd>{formatNapkinRupee(eps)}</dd>
         </div>
         <div className="napkin-dl-row">
-          <dt>EPS in {years} years</dt>
+          <dt>2 · EPS in {years}y (at {formatNapkinPctWhole(expected)} CAGR)</dt>
           <dd>{formatNapkinRupee(quote.future_eps)}</dd>
         </div>
         <div className="napkin-dl-row">
-          <dt>Expected price</dt>
+          <dt>
+            3 · Exit price in {years}y (EPS ×{" "}
+            {napkinPeDisplay(exitPe != null ? exitPe.toFixed(1) : "N/A")})
+          </dt>
           <dd>{formatNapkinRupee(quote.future_price)}</dd>
+        </div>
+        <div className="napkin-dl-row">
+          <dt>
+            4 · Discount exit at {formatNapkinPctWhole(target)} / yr for {years}y
+          </dt>
+          <dd>÷ {(1 + target).toFixed(2)}^{years}</dd>
         </div>
       </dl>
 
       <div className="napkin-buy-hero">
-        <div className="napkin-buy-kicker">Maximum buy price</div>
+        <div className="napkin-buy-kicker">Max pay today</div>
         <div className="napkin-buy-value">{formatNapkinRupee(quote.buy_price)}</div>
         <p className="napkin-buy-note">
-          If these assumptions hold, this is about the most you can pay today and
-          still earn the target annual return over {years} years.
+          Exit price ÷ (1 + {formatNapkinPctWhole(target)})^{years}. Pay more than
+          this today and you miss the {formatNapkinPctWhole(target)} target if the
+          path holds. Pay less and you beat it.
         </p>
       </div>
 
       <dl className="napkin-dl napkin-val">
         <div className="napkin-dl-row">
-          <dt>Current price</dt>
+          <dt>Spot (today)</dt>
           <dd>{formatNapkinRupee(price)}</dd>
         </div>
         <div className="napkin-dl-row">
-          <dt>Upside to expected price</dt>
+          <dt>Max pay today vs spot</dt>
+          <dd>{formatNapkinPct(quote.price_gap, true)}</dd>
+        </div>
+        <div className="napkin-dl-row">
+          <dt>Upside spot → exit price</dt>
           <dd>{formatNapkinPct(quote.upside, true)}</dd>
         </div>
         <div className="napkin-dl-row">
-          <dt>Expected annual return</dt>
+          <dt>Return if you buy at spot</dt>
           <dd>{formatNapkinPct(quote.implied_cagr)}</dd>
-        </div>
-        <div className="napkin-dl-row">
-          <dt>Maximum buy price</dt>
-          <dd>{formatNapkinRupee(quote.buy_price)}</dd>
-        </div>
-        <div className="napkin-dl-row">
-          <dt>Difference %</dt>
-          <dd>{formatNapkinPct(quote.price_gap, true)}</dd>
         </div>
       </dl>
       {napkinBuyPricePosition(quote.price_gap) ? (
         <p className="napkin-debug">{napkinBuyPricePosition(quote.price_gap)}</p>
       ) : null}
 
-      <h3 className="napkin-subhead">Buy price sensitivity</h3>
+      <h3 className="napkin-subhead">Max pay today — sensitivity</h3>
       <p className="napkin-cagr-label">
-        Maximum buy price at target return {formatNapkinPctWhole(target)}
+        Cells = max pay today at target {formatNapkinPctWhole(target)} (rows =
+        EPS CAGR, columns = exit P/E)
       </p>
       <div className="napkin-table-wrap">
         <table className="napkin-table napkin-table--nums">
@@ -242,8 +243,8 @@ export function NapkinBuyPrice({
               <th>EPS CAGR</th>
               <th>Exit P/E</th>
               <th>5Y EPS</th>
-              <th>5Y price</th>
-              <th>Maximum buy price</th>
+              <th>Exit price</th>
+              <th>Max pay today</th>
             </tr>
           </thead>
           <tbody>

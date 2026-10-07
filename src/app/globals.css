@@ -25621,6 +25621,29 @@ tr.wl-prove-fail td {
   white-space: nowrap;
 }
 
+.napkin-about-body {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: pre-wrap;
+  max-width: 48rem;
+}
+.napkin-sheet-section .q-expand {
+  margin-top: 6px;
+}
+.napkin-buy-lede {
+  margin: 0 0 14px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--muted);
+  max-width: 42rem;
+}
+.napkin-buy-lede em {
+  font-style: normal;
+  font-weight: 650;
+  color: var(--ink);
+}
 .napkin-buy-hero {
   margin: 16px 0;
   padding: 16px 18px;
