@@ -9,7 +9,9 @@ import {
 import { loadNapkinResearch, type NapkinLoadDebug } from "@/lib/napkin/client";
 import { napkinMetric, napkinPeDisplay } from "@/lib/napkin/format";
 import type { NapkinResearch } from "@/lib/napkin/types";
+import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
+import { parseDisplayedMoney } from "@/lib/napkin/format";
 
 function na(v: string | undefined): string {
   return !v || v === "N/A" ? "N/A" : v;
@@ -193,6 +195,12 @@ export function NapkinPanel() {
                 {data.sector ? ` · ${data.sector}` : ""}
               </div>
             </div>
+
+            <NapkinCompanyContext
+              ticker={data.ticker}
+              exchange={data.exchange}
+              price={parseDisplayedMoney(napkinMetric(data.overview, "price"))}
+            />
 
             <div className="napkin-sheet-section">
               <h2 className="napkin-block-title">Financials</h2>
