@@ -22,19 +22,6 @@ export function NapkinAnalysis({ data }: { data: NapkinResearch }) {
           </div>
         ))}
       </div>
-      <div className="napkin-formula">
-        <div>
-          Basic: ({n.current_pe === "N/A" ? "PE" : n.current_pe} × 0.30)^(1/5) − 1 ={" "}
-          {n.basic_required_cagr}
-        </div>
-        <div>
-          Adjusted: ({n.current_pe === "N/A" ? "PE" : n.current_pe} × factor)^(1/5) − 1 ={" "}
-          {n.adjusted_required_cagr}
-        </div>
-        <div className="napkin-formula-note">
-          factor is configurable (default 4.5/34.5 reproduction knob), not a universal rule.
-        </div>
-      </div>
     </div>
   );
 }

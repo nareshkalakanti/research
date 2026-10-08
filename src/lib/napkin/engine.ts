@@ -95,7 +95,10 @@ function finite(v: number | null | undefined): number | null {
 }
 
 export const NAPKIN_EXPECTED_CAGR_PRESETS = [0.1, 0.15, 0.2, 0.25, 0.3, 0.4];
+export const NAPKIN_EXPECTED_CAGR_1D = [0.05, 0.1, 0.15, 0.2, 0.25, 0.3];
 export const NAPKIN_DEFAULT_EXPECTED_CAGR = 0.15;
+export const NAPKIN_FACTOR_DEFAULT = 0.3;
+export const NAPKIN_FACTOR_PRESETS = [0.2, 0.25, 0.3, 0.35, 0.4];
 
 function requiredCagr(multiple: number | null, years: number): number | null {
   if (multiple == null || years <= 0) return null;
@@ -103,13 +106,16 @@ function requiredCagr(multiple: number | null, years: number): number | null {
   return multiple ** (1 / years) - 1;
 }
 
-/** Required EPS CAGR: Math.pow(pe * 0.30, 1 / 5) - 1 */
+/** Required EPS CAGR: Math.pow(pe * factor, 1 / years) - 1. Default factor 0.30, 5 years. */
 export function napkinRequiredEpsCagr(
   pe: number | null | undefined,
+  factor: number | null | undefined = NAPKIN_FACTOR_DEFAULT,
+  years: number = DEFAULT_NAPKIN_CONFIG.years,
 ): number | null {
   const p = finite(pe);
-  if (p == null || p <= 0) return null;
-  return Math.pow(p * 0.3, 1 / 5) - 1;
+  const f = finite(factor);
+  if (p == null || p <= 0 || f == null || f <= 0 || years <= 0) return null;
+  return Math.pow(p * f, 1 / years) - 1;
 }
 
 export function napkinCompound(

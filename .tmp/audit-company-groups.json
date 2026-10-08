@@ -1,0 +1,3151 @@
+{
+  "universe": {
+    "rows": 674,
+    "unique_tickers": 664,
+    "unique_group_keys": 208,
+    "unique_group_names": 208,
+    "sizeBuckets": {
+      "s1": 1,
+      "s2": 112,
+      "s3_5": 78,
+      "s6_10": 12,
+      "s11_25": 5,
+      "s26": 0
+    },
+    "global_current_company_pairs": 5013,
+    "global_same_group_pairs": 529,
+    "global_cross_group_pairs": 597
+  },
+  "largest": [
+    {
+      "group": "Tata Group",
+      "group_key": "916c8a4c1023d722fc03b7b2300ea246555aa656",
+      "company_count": 25,
+      "names_used": [
+        "Tata Group"
+      ],
+      "companies": [
+        "ACGL (Automobile Corp Of Goa Ltd)",
+        "ARTSON (Artson Limited)",
+        "ASAL (Automotive Stampings and Assemblies Limited)",
+        "BENARAS (Benares Hotels Ltd)",
+        "INDHOTEL (The Indian Hotels Company Limited)",
+        "ORIENTHOT (Oriental Hotels Limited)",
+        "TAJGVK (Taj GVK Hotels & Resorts Limited)",
+        "TATACAP (Tata Capital Limited)",
+        "TATACHEM (Tata Chemicals Limited)",
+        "TATACOMM (Tata Communications Limited)",
+        "TATACONSUM (TATA CONSUMER PRODUCTS LIMITED)",
+        "TATAELXSI (Tata Elxsi Limited)",
+        "TATAINVEST (Tata Investment Corporation Limited)",
+        "TATAPOWER (Tata Power Company Limited)",
+        "TATASTEEL (Tata Steel Limited)",
+        "TATATECH (Tata Technologies Limited)",
+        "TATAYODOGA (Tayo Rolls)",
+        "TCS (Tata Consultancy Services Limited)",
+        "TITAN (Titan Company Limited)",
+        "TMCV (Tata Motors Limited)",
+        "TMPV (Tata Motors Passenger Vehicles Limited)",
+        "TRENT (Trent Limited)",
+        "TRF (TRF Limited.)",
+        "TTML (Tata Teleservices (Maharashtra) Limited)",
+        "VOLTAS (Voltas Limited)"
+      ]
+    },
+    {
+      "group": "Jindal Group",
+      "group_key": "user-c467fe8faf071257278d6508e8c2d535927a188a",
+      "company_count": 20,
+      "names_used": [
+        "Jindal Group"
+      ],
+      "companies": [
+        "CONSOFINVT (Consolidated Finvest & Holdings Limited)",
+        "HEXATRADEX (Hexa Tradex Limited)",
+        "JINDALPHOT (Jindal Photo Limited)",
+        "JINDALPOLY (Jindal Poly Films Limited)",
+        "JINDALSAW (Jindal Saw Limited)",
+        "JINDALSTEL (JINDAL STEEL LIMITED)",
+        "JINDRILL (Jindal Drilling And Industries Limited)",
+        "JINDWORLD (Jindal Worldwide Limited)",
+        "JITFINFRA (JITF Infralogistics Limited)",
+        "JPOLYINVST (Jindal Poly Investment and Finance Company Limited)",
+        "JSIPL (Jindal Supreme (India) Limited)",
+        "JSL (Jindal Stainless Limited)",
+        "JSWCEMENT (JSW Cement Limited)",
+        "JSWDULUX (JSW Dulux Limited)",
+        "JSWENERGY (JSW Energy Limited)",
+        "JSWINFRA (JSW Infrastructure Limited)",
+        "JSWSTEEL (JSW Steel Limited)",
+        "MAHSEAMLES (Maharashtra Seamless Limited)",
+        "NSIL (Nalwa Sons Investments Limited)",
+        "SHALPAINTS (Shalimar Paints Limited)"
+      ]
+    },
+    {
+      "group": "Bajaj",
+      "group_key": "b959298c5f43ea864076e81222bf615f6fc04ed2",
+      "company_count": 16,
+      "names_used": [
+        "Bajaj"
+      ],
+      "companies": [
+        "BAJAJ-AUTO (Bajaj Auto Limited)",
+        "BAJAJCON (Bajaj Consumer Care Limited)",
+        "BAJAJELEC (Bajaj Electricals Limited)",
+        "BAJAJFINSV (Bajaj Finserv Limited)",
+        "BAJAJHCARE (Bajaj Healthcare Limited)",
+        "BAJAJHFL (Bajaj Housing Finance Limited)",
+        "BAJAJHIND (Bajaj Hindusthan Sugar Limited)",
+        "BAJAJHLDNG (Bajaj Holdings & Investment Limited)",
+        "BAJAJINDEF (Indef Manufacturing Limited)",
+        "BAJAJST (BAJAJ STEEL INDUSTRIES LIMITED)",
+        "BAJEL (Bajel Projects Limited)",
+        "BAJFINANCE (Bajaj Finance Limited)",
+        "HERCULES (Hercules Hoists Limited)",
+        "MAHSCOOTER (Maharashtra Scooters Limited)",
+        "MUKANDLTD (Mukand Limited)",
+        "ZHINDHSG (Hindustan Housing Company Ltd)"
+      ]
+    },
+    {
+      "group": "M.P. Birla Group",
+      "group_key": "8a88c5804f3715605cec2bb641c0277e0544aea4",
+      "company_count": 13,
+      "names_used": [
+        "M.P. Birla Group"
+      ],
+      "companies": [
+        "ABCAPITAL (Aditya Birla Capital Limited)",
+        "ABFRL (Aditya Birla Fashion and Retail Limited)",
+        "ABLBL (Aditya Birla Lifestyle Brands Limited)",
+        "ABREL (Aditya Birla Real Estate Limited)",
+        "ABSLAMC (Aditya Birla Sun Life AMC Limited)",
+        "ACML (ADITYA CONSUMER MARKETING LIMITED)",
+        "AUSL (Aditya Ultra Steel Limited)",
+        "AVL (Aditya Vision Limited)",
+        "CPPLUS (Aditya Infotech Limited)",
+        "GRASIM (Grasim Industries Limited)",
+        "HINDALCO (Hindalco Industries Limited)",
+        "INDIACEM (The India Cements Limited)",
+        "ULTRACEMCO (UltraTech Cement Limited)"
+      ]
+    },
+    {
+      "group": "TVS Group",
+      "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+      "company_count": 12,
+      "names_used": [
+        "TVS Group"
+      ],
+      "companies": [
+        "COROMANDEL (Coromandel International Limited)",
+        "IMPAL (India Motor Parts and Accessories Limited)",
+        "INDNIPPON (India Nippon Electricals Limited)",
+        "NACLIND (NACL Industries Limited)",
+        "SUNDARMFIN (Sundaram Finance Limited)",
+        "SUNDRMBRAK (Sundaram Brake Linings Limited)",
+        "TVSELECT (TVS Electronics Limited)",
+        "TVSHLTD (TVS Holdings Limited)",
+        "TVSMOTOR (TVS Motor Company Limited)",
+        "TVSSCS (Tvs Supply Chain Solutions Limited)",
+        "TVSSRICHAK (TVS Srichakra Limited)",
+        "WHEELS (Wheels India Limited)"
+      ]
+    },
+    {
+      "group": "Murugappa Group",
+      "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+      "company_count": 10,
+      "names_used": [
+        "Murugappa Group"
+      ],
+      "companies": [
+        "CARBORUNIV (Carborundum Universal Limited)",
+        "CGPOWER (CG Power and Industrial Solutions Limited)",
+        "CHOLAFIN (Cholamandalam Investment and Finance Company Limited)",
+        "CHOLAHLDNG (Cholamandalam Financial Holdings Limited)",
+        "COROMANDEL (Coromandel International Limited)",
+        "EIDPARRY (EID Parry India Limited)",
+        "NACLIND (NACL Industries Limited)",
+        "SHANTIGEAR (Shanthi Gears Limited)",
+        "TIINDIA (Tube Investments of India Limited)",
+        "WENDT (Wendt (India) Limited)"
+      ]
+    },
+    {
+      "group": "Adani Group",
+      "group_key": "b13450337b5e36527f55c9e76d1cfa03c39f8589",
+      "company_count": 9,
+      "names_used": [
+        "Adani Group"
+      ],
+      "companies": [
+        "ACC (ACC Limited)",
+        "ADANIENSOL (Adani Energy Solutions Limited)",
+        "ADANIENT (Adani Enterprises Limited)",
+        "ADANIGREEN (Adani Green Energy Limited)",
+        "ADANIPORTS (Adani Ports and Special Economic Zone Limited)",
+        "ADANIPOWER (Adani Power Limited)",
+        "AMBUJACEM (Ambuja Cements Limited)",
+        "ATGL (Adani Total Gas Limited)",
+        "ORIENTCEM (Orient Cement Limited)"
+      ]
+    },
+    {
+      "group": "Ambani Group",
+      "group_key": "67f0ee0869483cb9dd25472f591ca7d8b00163c1",
+      "company_count": 9,
+      "names_used": [
+        "Ambani Group"
+      ],
+      "companies": [
+        "GTPL (GTPL Hathway Limited)",
+        "HATHWAY (Hathway Cable & Datacom Limited)",
+        "HATHWAYB (Hathway Bhawani Cabletel and Datacom Ltd)",
+        "INFOMEDIA (Infomedia Press Limited)",
+        "JIOFIN (Jio Financial Services Limited)",
+        "JUSTDIAL (Just Dial Limited)",
+        "NETWORK18 (Network18 Media & Investments Limited)",
+        "RELIANCE (Reliance Industries Limited)",
+        "RIIL (Reliance Industrial Infrastructure Limited)"
+      ]
+    },
+    {
+      "group": "Mahindra & Mahindra",
+      "group_key": "e931360ff6c3fb6c3f7c7fbb9c8aeda793dc13a4",
+      "company_count": 8,
+      "names_used": [
+        "Mahindra & Mahindra"
+      ],
+      "companies": [
+        "M&M (Mahindra & Mahindra Limited)",
+        "M&MFIN (Mahindra & Mahindra Financial Services Limited)",
+        "MAHEPC (Mahindra EPC Irrigation Limited)",
+        "MAHLIFE (Mahindra Lifespace Developers Limited)",
+        "MAHLOG (Mahindra Logistics Limited)",
+        "MHRIL (Mahindra Holidays & Resorts India Limited)",
+        "SWARAJENG (Swaraj Engines Limited)",
+        "TECHM (Tech Mahindra Limited)"
+      ]
+    },
+    {
+      "group": "Vedanta Group",
+      "group_key": "f532499a2537db4903b06f7bb3936741db190ce7",
+      "company_count": 8,
+      "names_used": [
+        "Vedanta Group"
+      ],
+      "companies": [
+        "HINDZINC (Hindustan Zinc Limited)",
+        "STLNETWORK (STL Networks Limited)",
+        "STLTECH (Sterlite Technologies Limited)",
+        "VAML (Vedanta Aluminium Metal Limited)",
+        "VEDL (Vedanta Limited)",
+        "VEDPOWER (Vedanta Power Limited)",
+        "VISL (Vedanta Iron and Steel Limited)",
+        "VOGL (Vedanta Oil and Gas Limited)"
+      ]
+    },
+    {
+      "group": "DCM Group",
+      "group_key": "fd72162e51e081dfa2c4874d70383bd99aca169d",
+      "company_count": 7,
+      "names_used": [
+        "DCM Group"
+      ],
+      "companies": [
+        "DCM (DCM  Limited)",
+        "DCMFINSERV (Dcm Financial Services Limited)",
+        "DCMNVL (DCM Nouvelle Limited)",
+        "DCMSHRIRAM (DCM Shriram Limited)",
+        "DCMSIL (DCM Shriram International Limited)",
+        "DCMSRIND (Dcm Shriram Industries Limited)",
+        "DSFCL (DCM Shriram Fine Chemicals Limited)"
+      ]
+    },
+    {
+      "group": "Jubilant Bhartia",
+      "group_key": "be0280f3f5e4c7c2b3eddb1ad5caa3e6498ee528",
+      "company_count": 7,
+      "names_used": [
+        "Jubilant Bhartia"
+      ],
+      "companies": [
+        "DGCONTENT (Digicontent Ltd.)",
+        "HMVL (Hindustan Media Ventures Limited)",
+        "HTMEDIA (HT Media Limited)",
+        "JUBLCPL (Jubilant Agri and Consumer Products Limited)",
+        "JUBLFOOD (Jubilant Foodworks Limited)",
+        "JUBLINGREA (Jubilant Ingrevia Limited)",
+        "JUBLPHARMA (Jubilant Pharmova Limited)"
+      ]
+    },
+    {
+      "group": "Kalyani Group",
+      "group_key": "44b1b2a38807cd79ffa1c87f284b9030fe4eca23",
+      "company_count": 7,
+      "names_used": [
+        "Kalyani Group"
+      ],
+      "companies": [
+        "BFINVEST (BF Investment Limited)",
+        "BFUTILITIE (BF Utilities Limited)",
+        "BHARATFORG (Bharat Forge Limited)",
+        "HIKAL (Hikal Limited)",
+        "KALYANIFRG (Kalyani Forge Limited)",
+        "KICL (Kalyani Investment Company Limited)",
+        "KSL (Kalyani Steels Limited)"
+      ]
+    },
+    {
+      "group": "Birla KK",
+      "group_key": "3c50aa7a3ca1ece6f7ca0e28baaa0c1f9ba1a2d3",
+      "company_count": 6,
+      "names_used": [
+        "Birla KK"
+      ],
+      "companies": [
+        "AVADHSUGAR (Avadh Sugar & Energy Limited)",
+        "BIRLAPREC (Birla Precision Technologies Limited)",
+        "GANGESSECU (Ganges Securities Limited)",
+        "MAGADSUGAR (Magadh Sugar & Energy Limited)",
+        "SILINV (SIL Investments Limited)",
+        "SUTLEJTEX (Sutlej Textiles and Industries Limited)"
+      ]
+    },
+    {
+      "group": "Hinduja Group",
+      "group_key": "user-4267aa4a03b6671ef287d33bdf951ce6aa8baaba",
+      "company_count": 6,
+      "names_used": [
+        "Hinduja Group"
+      ],
+      "companies": [
+        "ASHOKLEY (Ashok Leyland Limited)",
+        "GOCLCORP (GOCL Corporation Limited)",
+        "GULFOILLUB (Gulf Oil Lubricants India Limited)",
+        "HGS (Hinduja Global Solutions Limited)",
+        "INDUSINDBK (IndusInd Bank Limited)",
+        "NDLVENTURE (NDL Ventures Limited)"
+      ]
+    },
+    {
+      "group": "Kirloskar Group",
+      "group_key": "85f2172b578814531b5862803322e3c905dbb97d",
+      "company_count": 6,
+      "names_used": [
+        "Kirloskar Group"
+      ],
+      "companies": [
+        "KECL (Kirloskar Electric Company Limited)",
+        "KIRLFER (Kirloskar Ferrous Industries Ltd)",
+        "KIRLOSBROS (Kirloskar Brothers Limited)",
+        "KIRLOSENG (Kirloskar Oil Engines Limited)",
+        "KIRLOSIND (Kirloskar Industries Limited)",
+        "KIRLPNU (Kirloskar Pneumatic Company Limited)"
+      ]
+    },
+    {
+      "group": "RPG Enterprises",
+      "group_key": "2061aa99ba9b59c418fc0bbeeb0db977b28d3465",
+      "company_count": 6,
+      "names_used": [
+        "RPG Enterprises"
+      ],
+      "companies": [
+        "CESC (CESC Limited)",
+        "FSL (Firstsource Solutions Limited)",
+        "HARRMALAYA (Harrisons  Malayalam Limited)",
+        "PCBL (PCBL Chemical Limited)",
+        "RPSGVENT (RPSG VENTURES LIMITED)",
+        "SAREGAMA (Saregama India Limited)"
+      ]
+    },
+    {
+      "group": "Century",
+      "group_key": "8428bc4da6f051f0d82834f6aac1cbef0ccdd2d1",
+      "company_count": 5,
+      "names_used": [
+        "Century"
+      ],
+      "companies": [
+        "21STCENMGM (21st Century Management Services Limited)",
+        "CENTENKA (Century Enka Limited)",
+        "CENTEXT (Century Extrusions Limited)",
+        "CENTURYPLY (Century Plyboards (India) Limited)",
+        "STARCEMENT (Star Cement Limited)"
+      ]
+    },
+    {
+      "group": "Godrej",
+      "group_key": "eb3b155a30bb9439363079e1db1b921fdf0debd6",
+      "company_count": 5,
+      "names_used": [
+        "Godrej"
+      ],
+      "companies": [
+        "ASTEC (Astec LifeSciences Limited)",
+        "GODREJAGRO (Godrej Agrovet Limited)",
+        "GODREJCP (Godrej Consumer Products Limited)",
+        "GODREJIND (Godrej Industries Limited)",
+        "GODREJPROP (Godrej Properties Limited)"
+      ]
+    },
+    {
+      "group": "Nahar Group",
+      "group_key": "5e62f61e07b2b8c1718db16317f99342af3e2784",
+      "company_count": 5,
+      "names_used": [
+        "Nahar Group"
+      ],
+      "companies": [
+        "MONTECARLO (Monte Carlo Fashions Limited)",
+        "NAHARCAP (Nahar Capital and Financial Services Limited)",
+        "NAHARINDUS (Nahar Industrial Enterprises Limited)",
+        "NAHARPOLY (Nahar Poly Films Limited)",
+        "NAHARSPING (Nahar Spinning Mills Limited)"
+      ]
+    },
+    {
+      "group": "Premier",
+      "group_key": "4c467a4dfbbf6e67252b56aa9af21bcce3b87c02",
+      "company_count": 5,
+      "names_used": [
+        "Premier"
+      ],
+      "companies": [
+        "PREMEXPLN (Premier Explosives Limited)",
+        "PREMIER (Premier Limited)",
+        "PREMIERENE (Premier Energies Limited)",
+        "PREMIERPOL (Premier Polyfilm Limited)",
+        "PRLIND (Premier Roadlines Limited)"
+      ]
+    },
+    {
+      "group": "The Juniper Hotels & Allied Cluster",
+      "group_key": "user-1236ef57c547657e68f37951d78c86797f0e62de",
+      "company_count": 5,
+      "names_used": [
+        "The Juniper Hotels & Allied Cluster"
+      ],
+      "companies": [
+        "AHLEAST (Asian Hotels (East) Limited)",
+        "ASIANHOTNR (Asian Hotels (North) Limited)",
+        "JNPR (Juniper Green Energy Limited)",
+        "JUNIPER (Juniper Hotels Limited)",
+        "RHL (Robust Hotels Limited)"
+      ]
+    },
+    {
+      "group": "Welspun Group",
+      "group_key": "61af456850ab86529db8934163e087cd49014fcb",
+      "company_count": 5,
+      "names_used": [
+        "Welspun Group"
+      ],
+      "companies": [
+        "WELCORP (Welspun Corp Limited)",
+        "WELENT (Welspun Enterprises Limited)",
+        "WELINV (Welspun Investments and Commercials Limited)",
+        "WELSPLSOL (Welspun Specialty Solutions Limited)",
+        "WELSPUNLIV (Welspun Living Limited)"
+      ]
+    },
+    {
+      "group": "Aarti Group",
+      "group_key": "c0c1d8812e1a78968eefbb130807ec35abd9d897",
+      "company_count": 4,
+      "names_used": [
+        "Aarti Group"
+      ],
+      "companies": [
+        "AARTIDRUGS (Aarti Drugs Limited)",
+        "AARTIIND (Aarti Industries Limited)",
+        "AARTIPHARM (Aarti Pharmalabs Limited)",
+        "AARTISURF (Aarti Surfactants Limited)"
+      ]
+    },
+    {
+      "group": "Apollo Group (Sanjay Gupta / Sudesh Gupta Family)",
+      "group_key": "user-d8c39b9946e2d06038e9729b5b4c932c51a3691a",
+      "company_count": 4,
+      "names_used": [
+        "Apollo Group (Sanjay Gupta / Sudesh Gupta Family)"
+      ],
+      "companies": [
+        "APLAPOLLO (APL Apollo Tubes Limited)",
+        "APOLLOPIPE (Apollo Pipes Limited)",
+        "APOLLOTYRE (Apollo Tyres Limited)",
+        "PTL (PTL Enterprises Limited)"
+      ]
+    },
+    {
+      "group": "Arihant",
+      "group_key": "0205438c1c109fb5aa4a5eb33ccc9a4e1cbfd7cb",
+      "company_count": 4,
+      "names_used": [
+        "Arihant"
+      ],
+      "companies": [
+        "ARIHANT (Arihant Foundations & Housing Limited)",
+        "ARIHANTACA (Arihant Academy Limited)",
+        "ARIHANTCAP (Arihant Capital Markets Limited)",
+        "ARIHANTSUP (Arihant Superstructures Limited)"
+      ]
+    },
+    {
+      "group": "Birla CK",
+      "group_key": "ee440e73d296f134ffedd666833933dcf682f5e8",
+      "company_count": 4,
+      "names_used": [
+        "Birla CK"
+      ],
+      "companies": [
+        "BIRLANU (BirlaNu Limited)",
+        "HINDMOTORS (Hindustan Motors Ltd)",
+        "ORIENTELEC (Orient Electric Limited)",
+        "ORIENTPPR (Orient Paper & Industries Limited)"
+      ]
+    },
+    {
+      "group": "Chambal Group",
+      "group_key": "01f208adb9963d228032c7402fccad5dba497bb8",
+      "company_count": 4,
+      "names_used": [
+        "Chambal Group"
+      ],
+      "companies": [
+        "CHAMBLFERT (Chambal Fertilizers & Chemicals Limited)",
+        "PARADEEP (Paradeep Phosphates Limited)",
+        "ZUARI (Zuari Agro Chemicals Limited)",
+        "ZUARIIND (ZUARI INDUSTRIES LIMITED)"
+      ]
+    },
+    {
+      "group": "Hero Group",
+      "group_key": "user-426e40e4f37f2a0a82ca8ca41ed2a82b2f6f9b7b",
+      "company_count": 4,
+      "names_used": [
+        "Hero Group"
+      ],
+      "companies": [
+        "HEROMOTOCO (Hero MotoCorp Limited)",
+        "MUNJALAU (Munjal Auto Industries Limited)",
+        "MUNJALSHOW (Munjal Showa Limited)",
+        "SHIVAMAUTO (Shivam Autotech Limited)"
+      ]
+    },
+    {
+      "group": "Icici Group",
+      "group_key": "2805a6f61b7ecaeee9fc0cb69255db0219f981ff",
+      "company_count": 4,
+      "names_used": [
+        "Icici Group"
+      ],
+      "companies": [
+        "ICICIAMC (ICICI Prudential Asset Management Company Limited)",
+        "ICICIBANK (ICICI Bank Limited)",
+        "ICICIGI (ICICI Lombard General Insurance Company Limited)",
+        "ICICIPRULI (ICICI Prudential Life Insurance Company Limited)"
+      ]
+    },
+    {
+      "group": "JK Group",
+      "group_key": "user-4f10701215578bcc3ed4c65fcc20c0e8ca203b5b",
+      "company_count": 4,
+      "names_used": [
+        "JK Group"
+      ],
+      "companies": [
+        "JKCEMENT (JK Cement Limited)",
+        "JKLAKSHMI (JK Lakshmi Cement Limited)",
+        "JKPAPER (JK Paper Limited)",
+        "JKTYRE (JK Tyre & Industries Limited)"
+      ]
+    },
+    {
+      "group": "K.P. Khaitan Group",
+      "group_key": "user-689cc95b3d24cfde2389069896babe17094234e4",
+      "company_count": 4,
+      "names_used": [
+        "K.P. Khaitan Group"
+      ],
+      "companies": [
+        "ALBERTDAVD (Albert David Limited)",
+        "GILLANDERS (Gillanders Arbuthnot & Company Limited)",
+        "KHAICHEM (Khaitan Chemicals & Fertilizers Limited)",
+        "KHAITANLTD (Khaitan (India) Limited)"
+      ]
+    },
+    {
+      "group": "Krishna",
+      "group_key": "16391065e6544893731974496b75e833200c848c",
+      "company_count": 4,
+      "names_used": [
+        "Krishna"
+      ],
+      "companies": [
+        "KIMS (Krishna Institute of Medical Sciences Limited)",
+        "KRISHNADEF (Krishna Defence And Allied Industries Limited)",
+        "SHRIKRISH (Shri Krishna Devcon Limited)",
+        "SKIFL (Shree Krishna Infrastructure Limited)"
+      ]
+    },
+    {
+      "group": "L&T Group",
+      "group_key": "user-5858377f07acad35f81f64f17a4a474e184adc08",
+      "company_count": 4,
+      "names_used": [
+        "L&T Group"
+      ],
+      "companies": [
+        "LT (Larsen & Toubro Limited)",
+        "LTF (L&T Finance Limited)",
+        "LTM (LTM Limited)",
+        "LTTS (L&T Technology Services Limited)"
+      ]
+    },
+    {
+      "group": "Lalbhai",
+      "group_key": "018b3f01128cb32069a5ad5ae2f88ba9ce27f1a7",
+      "company_count": 4,
+      "names_used": [
+        "Lalbhai"
+      ],
+      "companies": [
+        "ANUP (The Anup Engineering Limited)",
+        "ARVIND (Arvind Limited)",
+        "ARVINDFASN (Arvind Fashions Limited)",
+        "ARVSMART (Arvind SmartSpaces Limited)"
+      ]
+    },
+    {
+      "group": "Lloyds Group",
+      "group_key": "47e98113d1abbeef4a1febb6642252e4c90f88de",
+      "company_count": 4,
+      "names_used": [
+        "Lloyds Group"
+      ],
+      "companies": [
+        "LLOYDS (Lloyds Luxuries Limited)",
+        "LLOYDSENGG (LLOYDS ENGINEERING WORKS LIMITED)",
+        "LLOYDSENT (Lloyds Enterprises Limited)",
+        "LLOYDSME (Lloyds Metals And Energy Limited)"
+      ]
+    },
+    {
+      "group": "Manaksia Group",
+      "group_key": "c28e3c4902b3289e7eb0c49c12f3892c50bebf15",
+      "company_count": 4,
+      "names_used": [
+        "Manaksia Group"
+      ],
+      "companies": [
+        "MANAKALUCO (Manaksia Aluminium Company Limited)",
+        "MANAKCOAT (Manaksia Coated Metals & Industries Ltd)",
+        "MANAKSIA (Manaksia Limited)",
+        "MANAKSTEEL (Manaksia Steels Limited)"
+      ]
+    },
+    {
+      "group": "Max Group",
+      "group_key": "47fe9cfa24ee97e14b046db11ff15259485ec20f",
+      "company_count": 4,
+      "names_used": [
+        "Max Group"
+      ],
+      "companies": [
+        "MAXESTATES (Max Estates Limited)",
+        "MAXHEALTH (Max Healthcare Institute Limited)",
+        "MAXIND (Max India Limited)",
+        "MFSL (Max Financial Services Limited)"
+      ]
+    },
+    {
+      "group": "Natural",
+      "group_key": "5497c8ddc9f195b7231623879bcac98a076ebe36",
+      "company_count": 4,
+      "names_used": [
+        "Natural"
+      ],
+      "companies": [
+        "ASHOKAMET (Ashoka Metcast Limited)",
+        "GNRL (Gujarat Natural Resources Limited)",
+        "NATCAPSUQ (Natural Capsules Limited)",
+        "RHETAN (Rhetan TMT Limited)"
+      ]
+    },
+    {
+      "group": "Pearl",
+      "group_key": "64fbfc7276eea43ecb9eef70466cdd4896594788",
+      "company_count": 4,
+      "names_used": [
+        "Pearl"
+      ],
+      "companies": [
+        "PDSL (PDS Limited)",
+        "PEARLPOLY (Pearl Polymers Limited)",
+        "PGCRL (Pearl Green Clubs and Resorts Limited)",
+        "PGIL (Pearl Global Industries Limited)"
+      ]
+    }
+  ],
+  "all_groups": [
+    {
+      "group": "Tata Group",
+      "group_key": "916c8a4c1023d722fc03b7b2300ea246555aa656",
+      "company_count": 25
+    },
+    {
+      "group": "Jindal Group",
+      "group_key": "user-c467fe8faf071257278d6508e8c2d535927a188a",
+      "company_count": 20
+    },
+    {
+      "group": "Bajaj",
+      "group_key": "b959298c5f43ea864076e81222bf615f6fc04ed2",
+      "company_count": 16
+    },
+    {
+      "group": "M.P. Birla Group",
+      "group_key": "8a88c5804f3715605cec2bb641c0277e0544aea4",
+      "company_count": 13
+    },
+    {
+      "group": "TVS Group",
+      "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+      "company_count": 12
+    },
+    {
+      "group": "Murugappa Group",
+      "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+      "company_count": 10
+    },
+    {
+      "group": "Adani Group",
+      "group_key": "b13450337b5e36527f55c9e76d1cfa03c39f8589",
+      "company_count": 9
+    },
+    {
+      "group": "Ambani Group",
+      "group_key": "67f0ee0869483cb9dd25472f591ca7d8b00163c1",
+      "company_count": 9
+    },
+    {
+      "group": "Mahindra & Mahindra",
+      "group_key": "e931360ff6c3fb6c3f7c7fbb9c8aeda793dc13a4",
+      "company_count": 8
+    },
+    {
+      "group": "Vedanta Group",
+      "group_key": "f532499a2537db4903b06f7bb3936741db190ce7",
+      "company_count": 8
+    },
+    {
+      "group": "DCM Group",
+      "group_key": "fd72162e51e081dfa2c4874d70383bd99aca169d",
+      "company_count": 7
+    },
+    {
+      "group": "Jubilant Bhartia",
+      "group_key": "be0280f3f5e4c7c2b3eddb1ad5caa3e6498ee528",
+      "company_count": 7
+    },
+    {
+      "group": "Kalyani Group",
+      "group_key": "44b1b2a38807cd79ffa1c87f284b9030fe4eca23",
+      "company_count": 7
+    },
+    {
+      "group": "Birla KK",
+      "group_key": "3c50aa7a3ca1ece6f7ca0e28baaa0c1f9ba1a2d3",
+      "company_count": 6
+    },
+    {
+      "group": "Hinduja Group",
+      "group_key": "user-4267aa4a03b6671ef287d33bdf951ce6aa8baaba",
+      "company_count": 6
+    },
+    {
+      "group": "Kirloskar Group",
+      "group_key": "85f2172b578814531b5862803322e3c905dbb97d",
+      "company_count": 6
+    },
+    {
+      "group": "RPG Enterprises",
+      "group_key": "2061aa99ba9b59c418fc0bbeeb0db977b28d3465",
+      "company_count": 6
+    },
+    {
+      "group": "Century",
+      "group_key": "8428bc4da6f051f0d82834f6aac1cbef0ccdd2d1",
+      "company_count": 5
+    },
+    {
+      "group": "Godrej",
+      "group_key": "eb3b155a30bb9439363079e1db1b921fdf0debd6",
+      "company_count": 5
+    },
+    {
+      "group": "Nahar Group",
+      "group_key": "5e62f61e07b2b8c1718db16317f99342af3e2784",
+      "company_count": 5
+    },
+    {
+      "group": "Premier",
+      "group_key": "4c467a4dfbbf6e67252b56aa9af21bcce3b87c02",
+      "company_count": 5
+    },
+    {
+      "group": "The Juniper Hotels & Allied Cluster",
+      "group_key": "user-1236ef57c547657e68f37951d78c86797f0e62de",
+      "company_count": 5
+    },
+    {
+      "group": "Welspun Group",
+      "group_key": "61af456850ab86529db8934163e087cd49014fcb",
+      "company_count": 5
+    },
+    {
+      "group": "Aarti Group",
+      "group_key": "c0c1d8812e1a78968eefbb130807ec35abd9d897",
+      "company_count": 4
+    },
+    {
+      "group": "Apollo Group (Sanjay Gupta / Sudesh Gupta Family)",
+      "group_key": "user-d8c39b9946e2d06038e9729b5b4c932c51a3691a",
+      "company_count": 4
+    },
+    {
+      "group": "Arihant",
+      "group_key": "0205438c1c109fb5aa4a5eb33ccc9a4e1cbfd7cb",
+      "company_count": 4
+    },
+    {
+      "group": "Birla CK",
+      "group_key": "ee440e73d296f134ffedd666833933dcf682f5e8",
+      "company_count": 4
+    },
+    {
+      "group": "Chambal Group",
+      "group_key": "01f208adb9963d228032c7402fccad5dba497bb8",
+      "company_count": 4
+    },
+    {
+      "group": "Hero Group",
+      "group_key": "user-426e40e4f37f2a0a82ca8ca41ed2a82b2f6f9b7b",
+      "company_count": 4
+    },
+    {
+      "group": "Icici Group",
+      "group_key": "2805a6f61b7ecaeee9fc0cb69255db0219f981ff",
+      "company_count": 4
+    },
+    {
+      "group": "JK Group",
+      "group_key": "user-4f10701215578bcc3ed4c65fcc20c0e8ca203b5b",
+      "company_count": 4
+    },
+    {
+      "group": "K.P. Khaitan Group",
+      "group_key": "user-689cc95b3d24cfde2389069896babe17094234e4",
+      "company_count": 4
+    },
+    {
+      "group": "Krishna",
+      "group_key": "16391065e6544893731974496b75e833200c848c",
+      "company_count": 4
+    },
+    {
+      "group": "L&T Group",
+      "group_key": "user-5858377f07acad35f81f64f17a4a474e184adc08",
+      "company_count": 4
+    },
+    {
+      "group": "Lalbhai",
+      "group_key": "018b3f01128cb32069a5ad5ae2f88ba9ce27f1a7",
+      "company_count": 4
+    },
+    {
+      "group": "Lloyds Group",
+      "group_key": "47e98113d1abbeef4a1febb6642252e4c90f88de",
+      "company_count": 4
+    },
+    {
+      "group": "Manaksia Group",
+      "group_key": "c28e3c4902b3289e7eb0c49c12f3892c50bebf15",
+      "company_count": 4
+    },
+    {
+      "group": "Max Group",
+      "group_key": "47fe9cfa24ee97e14b046db11ff15259485ec20f",
+      "company_count": 4
+    },
+    {
+      "group": "Natural",
+      "group_key": "5497c8ddc9f195b7231623879bcac98a076ebe36",
+      "company_count": 4
+    },
+    {
+      "group": "Pearl",
+      "group_key": "64fbfc7276eea43ecb9eef70466cdd4896594788",
+      "company_count": 4
+    },
+    {
+      "group": "Petrochemicals",
+      "group_key": "21422c764338e66f8c9970ae7ea0de89e95af2dc",
+      "company_count": 4
+    },
+    {
+      "group": "Precision",
+      "group_key": "2305c6bde66d403da7a82fb2cbb7676861871ce8",
+      "company_count": 4
+    },
+    {
+      "group": "Ramco",
+      "group_key": "9a163273eb0b36f7b4dff4828dc4a8b5bc0cfd80",
+      "company_count": 4
+    },
+    {
+      "group": "RPG Enterprises · Ceat",
+      "group_key": "977b65da2cf010f53ea34c40e40f8538fe93cd5d",
+      "company_count": 4
+    },
+    {
+      "group": "SBI Group",
+      "group_key": "43c2b4b8bd2de369b74250bec288ea58a5927007",
+      "company_count": 4
+    },
+    {
+      "group": "Shapoorji Pallonji Group",
+      "group_key": "user-e28563f91b5479ed3746fbb6bee4233a3e76d5e2",
+      "company_count": 4
+    },
+    {
+      "group": "Shriram Group",
+      "group_key": "user-5a1a0a8884e4ae065b75722ab93ad0b83ac2b45d",
+      "company_count": 4
+    },
+    {
+      "group": "Thomas Cook MIC",
+      "group_key": "dbb43d34e0604625101537f57873c7250461b5b4",
+      "company_count": 4
+    },
+    {
+      "group": "Vardhman",
+      "group_key": "d0d7cc9550a211c2f21e9cc3066712b1a8dac3d7",
+      "company_count": 4
+    },
+    {
+      "group": "Waaree Group",
+      "group_key": "1a6e351cc088f2c7da4ed5b5281950bcb02852c7",
+      "company_count": 4
+    },
+    {
+      "group": "Wadia",
+      "group_key": "f78d4ebc648311ec97b6b75d0f3da9775e07bf14",
+      "company_count": 4
+    },
+    {
+      "group": "Aeroflex Group",
+      "group_key": "1d902c589edd45cf41dba0b541f478147964909e",
+      "company_count": 3
+    },
+    {
+      "group": "Alembic",
+      "group_key": "cfcbff41a3486fba5010c50b04ecfc17741f2757",
+      "company_count": 3
+    },
+    {
+      "group": "Allcargo Group",
+      "group_key": "d81ff25ab151c719b864876d9e322d6333c309f0",
+      "company_count": 3
+    },
+    {
+      "group": "Apollo Hospitals Group",
+      "group_key": "8e74e741ac026ce274eb15a3d932935c46f6f6c6",
+      "company_count": 3
+    },
+    {
+      "group": "Asahi Songwon",
+      "group_key": "f7951b13fa4e2d4ee930b41a703ec44659542d61",
+      "company_count": 3
+    },
+    {
+      "group": "Bharti Group",
+      "group_key": "63c6fa75d161e779dccb933b10c4e6f1055d042a",
+      "company_count": 3
+    },
+    {
+      "group": "Birla MP",
+      "group_key": "8dd263445fe0777e564df7611bff112a354d2ed0",
+      "company_count": 3
+    },
+    {
+      "group": "Borosil Group",
+      "group_key": "0752bbfac61f5c2ad22bfe50687398e376c1cc8e",
+      "company_count": 3
+    },
+    {
+      "group": "Concord",
+      "group_key": "bd1b003a13371a9d45372ae194bed1af527f855b",
+      "company_count": 3
+    },
+    {
+      "group": "Creative",
+      "group_key": "c1fc6478b358fcd82b8f9462500cdfd99c6de272",
+      "company_count": 3
+    },
+    {
+      "group": "Dhunseri",
+      "group_key": "833957fd24903ed20945a4ce7c986ff53580d3c6",
+      "company_count": 3
+    },
+    {
+      "group": "Electronics",
+      "group_key": "5f9f59ff3c2f3cc48b65733a750dd4cdd8555e1d",
+      "company_count": 3
+    },
+    {
+      "group": "Emami",
+      "group_key": "0954e2462ebb186137feada713e8e8937c16e322",
+      "company_count": 3
+    },
+    {
+      "group": "Fertilizers",
+      "group_key": "2ba2bbe6380c3c01d22fabf3261ef691445beb0d",
+      "company_count": 3
+    },
+    {
+      "group": "Gayatri",
+      "group_key": "13d223989552c8779db17e2c5a6e6e25bfdd0e56",
+      "company_count": 3
+    },
+    {
+      "group": "Hdfc Group",
+      "group_key": "aa8d2a7be4a5f5f4f6c89f4cd13adefe3e965e50",
+      "company_count": 3
+    },
+    {
+      "group": "Housing",
+      "group_key": "3956768c66547806f22c05f1de036618c5c052d4",
+      "company_count": 3
+    },
+    {
+      "group": "IIFL Group",
+      "group_key": "8ee798c3577475ba6adf6d47f77af976b9036891",
+      "company_count": 3
+    },
+    {
+      "group": "Inox Group",
+      "group_key": "a58946d079d42b508df367eaaf127694f055fb2a",
+      "company_count": 3
+    },
+    {
+      "group": "Jain",
+      "group_key": "28dcdd66bba54f8f72e5f79a2601c2aaaabbd444",
+      "company_count": 3
+    },
+    {
+      "group": "Lakshmi",
+      "group_key": "47e8b5ac71b3d26b8d153694f1fd72affbb30dd1",
+      "company_count": 3
+    },
+    {
+      "group": "Landmark",
+      "group_key": "65afd002cc639a15e5fa702604b956a0f762ab8b",
+      "company_count": 3
+    },
+    {
+      "group": "Mahalaxmi",
+      "group_key": "0ff050e8328f2082335591d218a20ecb725c0a20",
+      "company_count": 3
+    },
+    {
+      "group": "Mahanagar",
+      "group_key": "d632f55754b051833618e4226c40cbb448d7aa81",
+      "company_count": 3
+    },
+    {
+      "group": "Narmada",
+      "group_key": "0649246875a50a927508d3e23f5f6c776069b4fa",
+      "company_count": 3
+    },
+    {
+      "group": "Oberoi Group",
+      "group_key": "c7e4ed0d0c3be7f7935a345b8bcbff9ead338423",
+      "company_count": 3
+    },
+    {
+      "group": "Oswal",
+      "group_key": "34acbfe7562b5b0500842216eb84629f19f96271",
+      "company_count": 3
+    },
+    {
+      "group": "Paramount",
+      "group_key": "7ff67d39b5231a76bbbff85b0745b931d4d20ac7",
+      "company_count": 3
+    },
+    {
+      "group": "PNB Group",
+      "group_key": "df429f9848d48cc229a57f5d74fe230749e5b3a7",
+      "company_count": 3
+    },
+    {
+      "group": "Prakash",
+      "group_key": "322ff72a28f013464e956af58813eead56247969",
+      "company_count": 3
+    },
+    {
+      "group": "PTC India Group",
+      "group_key": "2554cc090c07a71f6d6ccbbbebeb7adc17ffe46f",
+      "company_count": 3
+    },
+    {
+      "group": "Quality",
+      "group_key": "3726c360a2ba7ca962f094a38b0c6ed5c782b37b",
+      "company_count": 3
+    },
+    {
+      "group": "Rajputana",
+      "group_key": "fc9e67a3ae0492bba74d91b2094f1ee806d00c17",
+      "company_count": 3
+    },
+    {
+      "group": "Raymond Group",
+      "group_key": "33ff6f56d1767276a9b6828f19700a1b022b4344",
+      "company_count": 3
+    },
+    {
+      "group": "Sudarshan",
+      "group_key": "54af11eb53d6f5051c2fc7c2b2a6045a34dbe382",
+      "company_count": 3
+    },
+    {
+      "group": "Sundaram",
+      "group_key": "9c9d7b26cb64cbb612ed7371183f76dfcd4879ba",
+      "company_count": 3
+    },
+    {
+      "group": "Systems",
+      "group_key": "022f7c5cc8f15ef0cc2c103b7dfed86188ba9bf7",
+      "company_count": 3
+    },
+    {
+      "group": "Taparia and Jatia Family",
+      "group_key": "user-1bbe0043751d1c1a4dc3b7c066c06a1e9b697caf",
+      "company_count": 3
+    },
+    {
+      "group": "Tirupati",
+      "group_key": "689ee32d605909f5d1bbf8d646d97e3e284cc9b8",
+      "company_count": 3
+    },
+    {
+      "group": "Torrent Group",
+      "group_key": "330f067d5a608718bc015ed9dd1c9666768af441",
+      "company_count": 3
+    },
+    {
+      "group": "Trident",
+      "group_key": "abd732bb08a211f54743d4020f3cfbfd2f6ed35a",
+      "company_count": 3
+    },
+    {
+      "group": "TVS Iyengar",
+      "group_key": "e92bee80b6d7a2d41e6ebc7584a5a8f2e2bcef6b",
+      "company_count": 3
+    },
+    {
+      "group": "Universal",
+      "group_key": "2905edc6b25d512fddb4e449024945a7e0294228",
+      "company_count": 3
+    },
+    {
+      "group": "Zydus Group (Pankaj Patel Family)",
+      "group_key": "user-e066f88b2684d98b6efd5c06a8dd174f2c157a2a",
+      "company_count": 3
+    },
+    {
+      "group": "Abans Group",
+      "group_key": "be5cba8bd1baaad307db8ea0c7c16cea30bae290",
+      "company_count": 2
+    },
+    {
+      "group": "Advanced",
+      "group_key": "2fea3383278bc26cc2f78fd9f3133d0fd3e8bddc",
+      "company_count": 2
+    },
+    {
+      "group": "Agarwal Glass Group",
+      "group_key": "user-7d1b108eb8a4311beefdae13ac390de8c1dd0cb5",
+      "company_count": 2
+    },
+    {
+      "group": "Ageis Group",
+      "group_key": "6883879b0548f6b339677bd0887d31f5f69760a8",
+      "company_count": 2
+    },
+    {
+      "group": "Anand",
+      "group_key": "cc4f97ed3cfee7d2f35238e4b9fa9febc17786e9",
+      "company_count": 2
+    },
+    {
+      "group": "Archidply Group",
+      "group_key": "6eac2fb89bea3dd6dd612b65637c5f64550c5869",
+      "company_count": 2
+    },
+    {
+      "group": "Artemis",
+      "group_key": "39b2272c0b634c98991b0c43d7382b5a3ea2af73",
+      "company_count": 2
+    },
+    {
+      "group": "Ashapura",
+      "group_key": "2647ea25f1d9adb2e2ba674be143bab211eb5b41",
+      "company_count": 2
+    },
+    {
+      "group": "Balkrishna",
+      "group_key": "19615872b0a477c1fa8da20d213054c82c7aa578",
+      "company_count": 2
+    },
+    {
+      "group": "Bang",
+      "group_key": "0dac067c2feb86d2a4bc5f874812e3730ec31aa4",
+      "company_count": 2
+    },
+    {
+      "group": "Beml",
+      "group_key": "314557239c0436f4a0a0a82846fcf123a5d8afb9",
+      "company_count": 2
+    },
+    {
+      "group": "Bhawanishankar Sharma",
+      "group_key": "user-9576bfab79b026239515dc6c82f8717a5854afdf",
+      "company_count": 2
+    },
+    {
+      "group": "BLS Group",
+      "group_key": "d4475bb8157aa429ec1dd11c18b0d0b8f0e5d4fa",
+      "company_count": 2
+    },
+    {
+      "group": "Borana",
+      "group_key": "1d39305bd5b4f449dc0dbe9080c0a7ad3201a0e3",
+      "company_count": 2
+    },
+    {
+      "group": "Breweries",
+      "group_key": "fccb62f85b3aa0502888eedc330dcf3d46d3d781",
+      "company_count": 2
+    },
+    {
+      "group": "Brigade Group",
+      "group_key": "5d3e6476e9c2346c0f33470536ece2955e754e7e",
+      "company_count": 2
+    },
+    {
+      "group": "Chembond Group",
+      "group_key": "5d1e10549688d0beb00f77b24d6f8581542162de",
+      "company_count": 2
+    },
+    {
+      "group": "Commercial",
+      "group_key": "06bcff3f60b32816bd3170a298a1bb5f7adac6c0",
+      "company_count": 2
+    },
+    {
+      "group": "Consolidated",
+      "group_key": "b46fa61e1a52365c2a1b709d4e538139e8e4b57d",
+      "company_count": 2
+    },
+    {
+      "group": "Country",
+      "group_key": "63fcc708c8ab9671118e00b852813cfa41f48194",
+      "company_count": 2
+    },
+    {
+      "group": "CP Capital",
+      "group_key": "1976208a8a21cf713742622cf2d28fec17a946c1",
+      "company_count": 2
+    },
+    {
+      "group": "Cyient Group",
+      "group_key": "3670cae82deb009081d5e0793fccc546b1cd2311",
+      "company_count": 2
+    },
+    {
+      "group": "Dalmia",
+      "group_key": "70a7a45bf1de9cdc0e24e1da3b5a9dc9bd4118b3",
+      "company_count": 2
+    },
+    {
+      "group": "Dhampur",
+      "group_key": "f0d9f2945df332a7d3682b6cfeae6dbfd23543d9",
+      "company_count": 2
+    },
+    {
+      "group": "Dhanlaxmi",
+      "group_key": "3d79646a8e52171e19eaea6c9accdbdcbd02ae0a",
+      "company_count": 2
+    },
+    {
+      "group": "Dhanuka",
+      "group_key": "05c88f1be934e4c72bd149c13a1b14546307c0d8",
+      "company_count": 2
+    },
+    {
+      "group": "DR Agarwal Group",
+      "group_key": "b49ba68c832414117220aff9fc7cb0abaee476c4",
+      "company_count": 2
+    },
+    {
+      "group": "Dynamic",
+      "group_key": "4887f33d344642644611a9165c8a0487587bedd3",
+      "company_count": 2
+    },
+    {
+      "group": "Edelweiss Group",
+      "group_key": "user-f72aebf49bb2f4215b572e41f0290ee0dae57de1",
+      "company_count": 2
+    },
+    {
+      "group": "Elecon",
+      "group_key": "d0507e0fd4dd823b419958089ac02cc4a60de948",
+      "company_count": 2
+    },
+    {
+      "group": "Elgi",
+      "group_key": "8ec803236529a7fe29ab2ebd5c216363205e4c7f",
+      "company_count": 2
+    },
+    {
+      "group": "Engineering",
+      "group_key": "8ade61552c606d3f9ce2fcc9ea31debb54036bfa",
+      "company_count": 2
+    },
+    {
+      "group": "Epack Group",
+      "group_key": "b081fa5ee03dd7d43eb654dd25b4e59635d39130",
+      "company_count": 2
+    },
+    {
+      "group": "Everest",
+      "group_key": "d190ddac3d7e6b8639aa29bbaa70990d54cd55f9",
+      "company_count": 2
+    },
+    {
+      "group": "Excel",
+      "group_key": "b91dbf0ea36fe05e8fd4fc364da8b8e275042b64",
+      "company_count": 2
+    },
+    {
+      "group": "Exchange",
+      "group_key": "06abb8391acd9d92ec6a2b5cd105ab13f283179a",
+      "company_count": 2
+    },
+    {
+      "group": "Federal",
+      "group_key": "09b4e20ef5203045f8d83769343e20fc16197b41",
+      "company_count": 2
+    },
+    {
+      "group": "Filatex",
+      "group_key": "8375f3e2658b377ba3256520f92f1f583a391783",
+      "company_count": 2
+    },
+    {
+      "group": "Finolex",
+      "group_key": "0189f1c3e572af09fea6550c5bbaee36a6a48cd7",
+      "company_count": 2
+    },
+    {
+      "group": "Garware",
+      "group_key": "2e0db3d9471675fe55acd02a0ad38f214e49520a",
+      "company_count": 2
+    },
+    {
+      "group": "Gateway Distriparks",
+      "group_key": "6ffd1d92cfa961b271a8ccedd54dc778f6541c01",
+      "company_count": 2
+    },
+    {
+      "group": "General Insurance Corporation of India",
+      "group_key": "94035fd9be6d0637805c751e600f2f0da5e50f8a",
+      "company_count": 2
+    },
+    {
+      "group": "Ghcl Group",
+      "group_key": "d2663f4395b197753840cae5a49b85b9e2c09c18",
+      "company_count": 2
+    },
+    {
+      "group": "GMR Group",
+      "group_key": "499ffa4b46d2f481fc43cfbca8e4a5f78dd3acff",
+      "company_count": 2
+    },
+    {
+      "group": "GPT Group",
+      "group_key": "8487b30669f70178867944fb81cb7dbcce65bdea",
+      "company_count": 2
+    },
+    {
+      "group": "IFB Group",
+      "group_key": "6b81cde2ad68a9d6aad5622d46644d33971fef9b",
+      "company_count": 2
+    },
+    {
+      "group": "Indiabulls Group",
+      "group_key": "user-998aa4dc613aafac1e73e62e0a8eb83ff1d8be5f",
+      "company_count": 2
+    },
+    {
+      "group": "Indian Bank Group",
+      "group_key": "492a10154731b5a5ecfb904493ae5cb83c08630b",
+      "company_count": 2
+    },
+    {
+      "group": "Infotech",
+      "group_key": "d3d6db1ffa7a1e24b9cced31cf44ede127ffa6a6",
+      "company_count": 2
+    },
+    {
+      "group": "Infraprojects",
+      "group_key": "70af0ef43258da9f337231e013a44f50c1eec157",
+      "company_count": 2
+    },
+    {
+      "group": "ITC Group",
+      "group_key": "3da16ee9123cd676a1eaa8101002bd78e178a9a0",
+      "company_count": 2
+    },
+    {
+      "group": "JBM Group",
+      "group_key": "a0f6bb3975553c251f276940129ffc134ea03196",
+      "company_count": 2
+    },
+    {
+      "group": "Jhs Group",
+      "group_key": "6b83aadd74156c255cacd0f2cc315567d28c2269",
+      "company_count": 2
+    },
+    {
+      "group": "Jupiter",
+      "group_key": "20b064df0a292b317b52f114f6addbd82d0f1bc0",
+      "company_count": 2
+    },
+    {
+      "group": "Kalpataru Group",
+      "group_key": "5024f41c68773cd2b299359b6861d7f0f791ac7c",
+      "company_count": 2
+    },
+    {
+      "group": "Kamdhenu Group",
+      "group_key": "e1a42041d3302802418c51b99d9c98b12d7b61b1",
+      "company_count": 2
+    },
+    {
+      "group": "Kaushalya",
+      "group_key": "9148c8050be621ecfae0ce1d883c001fb7f29f52",
+      "company_count": 2
+    },
+    {
+      "group": "KCP",
+      "group_key": "452b6ebec04d8a9343ee13eda2c30b4d4a8f2d83",
+      "company_count": 2
+    },
+    {
+      "group": "Kwality",
+      "group_key": "a2be8676dece38a550d3c465889da0d1493563e6",
+      "company_count": 2
+    },
+    {
+      "group": "LIC Group",
+      "group_key": "286aacbd8b172f3a468f2bf3ef77619eeee0b09a",
+      "company_count": 2
+    },
+    {
+      "group": "Mangalam Group",
+      "group_key": "0aad2ed9c32eed31b35133fbc516181a9505b860",
+      "company_count": 2
+    },
+    {
+      "group": "Marico",
+      "group_key": "dbecfbe11ddf70cecc9165f4432d5d448b30f278",
+      "company_count": 2
+    },
+    {
+      "group": "Medicamen",
+      "group_key": "95373bee797defae77cb77f6d533cd0f2a69f0f5",
+      "company_count": 2
+    },
+    {
+      "group": "Mehta Family",
+      "group_key": "user-9cb25fef7db48b5cf7fda4b312cfbdeb495a4eb4",
+      "company_count": 2
+    },
+    {
+      "group": "Mold-tek Group",
+      "group_key": "7403bf55477d6c1c517d8b47946b474b06c5a97d",
+      "company_count": 2
+    },
+    {
+      "group": "Muthoot Pappachan Group",
+      "group_key": "30cffff5b05224ec4cc4b28a3baca4553466cd93",
+      "company_count": 2
+    },
+    {
+      "group": "Nagreeka",
+      "group_key": "b0b65674af4a9c4606322fc94e50b184c6801b32",
+      "company_count": 2
+    },
+    {
+      "group": "Niit Group",
+      "group_key": "b8766958add008c550ee79367b78b19a7650e45d",
+      "company_count": 2
+    },
+    {
+      "group": "Nmdc Group",
+      "group_key": "139418a76abde4ef0902c24678be1cfa69b3080f",
+      "company_count": 2
+    },
+    {
+      "group": "NRB Group",
+      "group_key": "7815200ffb1f945133e0d4c9c8a0d9a33d337109",
+      "company_count": 2
+    },
+    {
+      "group": "Ntpc Group",
+      "group_key": "9aca41d45262924523c76089e99785eec43d95ff",
+      "company_count": 2
+    },
+    {
+      "group": "Onesource Group",
+      "group_key": "40ae8ae1ea8850c0fcb5cce6b5dc89d7a07e9918",
+      "company_count": 2
+    },
+    {
+      "group": "Parekh",
+      "group_key": "996d357ef123582b1476b61291aada6385f039a6",
+      "company_count": 2
+    },
+    {
+      "group": "Petroleum",
+      "group_key": "de9f05b18a4c41cf1097b54b20e2325213e40e0e",
+      "company_count": 2
+    },
+    {
+      "group": "Phoenix",
+      "group_key": "d94581a4b4a597842acc2c537586872f6be0d574",
+      "company_count": 2
+    },
+    {
+      "group": "Pioneer",
+      "group_key": "8b6830b76bdcae0115e3686854aa51a594304f90",
+      "company_count": 2
+    },
+    {
+      "group": "Piramal Group",
+      "group_key": "user-29dd9d024340a905253f3276297fe6c686ac7689",
+      "company_count": 2
+    },
+    {
+      "group": "Pritika",
+      "group_key": "3dc4adaf16828efd3f749a5efb8855b98c289e8c",
+      "company_count": 2
+    },
+    {
+      "group": "Procter",
+      "group_key": "188bcaa76e76d9694aec08b08b48cb0dae45c47c",
+      "company_count": 2
+    },
+    {
+      "group": "Prudential",
+      "group_key": "e4b18d0962ad5d0c65ff11acbc3832b9c1126857",
+      "company_count": 2
+    },
+    {
+      "group": "Railway",
+      "group_key": "bc151335cc276cb219edb43b0a9b684ad40333b8",
+      "company_count": 2
+    },
+    {
+      "group": "Rajshree",
+      "group_key": "1e39a0fea3398aaeeba35d9ed69c30d1b9b10d0b",
+      "company_count": 2
+    },
+    {
+      "group": "Rane",
+      "group_key": "56fc092e48709ffd265d9804e15f4302278b82b1",
+      "company_count": 2
+    },
+    {
+      "group": "RattanIndia Group",
+      "group_key": "36ebd817af579dd668e51ce87bc00b67f6ba9294",
+      "company_count": 2
+    },
+    {
+      "group": "Rossell Group",
+      "group_key": "b598c82f35bb1bb5afeda01a53ddadd285efcccd",
+      "company_count": 2
+    },
+    {
+      "group": "Sadbhav Group",
+      "group_key": "591eecf20927822f0e6e03a296f8032870cc1724",
+      "company_count": 2
+    },
+    {
+      "group": "Sakthi",
+      "group_key": "13dff5a8ef50c64302cab50ca52d91da728c0a49",
+      "company_count": 2
+    },
+    {
+      "group": "Samvardhana Group",
+      "group_key": "9d1bd53e1e96258c47b5057f00d3b05a82f98622",
+      "company_count": 2
+    },
+    {
+      "group": "Sanofi India",
+      "group_key": "d8df746554a1dd8b5daaf168e64446e6160d3189",
+      "company_count": 2
+    },
+    {
+      "group": "Saraswati",
+      "group_key": "5902e45f092c479f91f33554a0c522afaf0f33ec",
+      "company_count": 2
+    },
+    {
+      "group": "Shankara",
+      "group_key": "e958f5f4eebe15a96a2f9cff386437b1c13b75e8",
+      "company_count": 2
+    },
+    {
+      "group": "Sheetal",
+      "group_key": "14a4d9cff0c46818984560cfd3fff6097d544c60",
+      "company_count": 2
+    },
+    {
+      "group": "Shipping Corporation Of India",
+      "group_key": "48a00985b0d33cfc3b0806585fed4ea857a34ea7",
+      "company_count": 2
+    },
+    {
+      "group": "Shiv Nadar Group",
+      "group_key": "user-0b787969ab54f1b84f30d0720849498a2e0398b8",
+      "company_count": 2
+    },
+    {
+      "group": "Shreeji",
+      "group_key": "8267d524046b8aecbb85f90a84bfe426c444a356",
+      "company_count": 2
+    },
+    {
+      "group": "SKF India",
+      "group_key": "c01e0a1f4c63b100daa31429909e940284587748",
+      "company_count": 2
+    },
+    {
+      "group": "Software",
+      "group_key": "bfcde38e87ca36db4d2f379352f7948ebf4d4611",
+      "company_count": 2
+    },
+    {
+      "group": "Somany",
+      "group_key": "78c5beb633afaaf12980ea1d3d9dc1073ecf2b04",
+      "company_count": 2
+    },
+    {
+      "group": "Spectrum",
+      "group_key": "43092b92185ed31030d1d08accde87d5b8dd9c93",
+      "company_count": 2
+    },
+    {
+      "group": "Standard",
+      "group_key": "9b33a5a81466c4dab69c29092f54dc6719ae5d5a",
+      "company_count": 2
+    },
+    {
+      "group": "Sterling",
+      "group_key": "73481763f5eb3c8fdb061d59c5ae8da76b152db8",
+      "company_count": 2
+    },
+    {
+      "group": "Sun Pharma Group",
+      "group_key": "user-e05e07784a83da42304edbdd476f8ae5700b3de0",
+      "company_count": 2
+    },
+    {
+      "group": "Surana Udyog",
+      "group_key": "28c6d9e85a40cafa1980857443190c56db86ee89",
+      "company_count": 2
+    },
+    {
+      "group": "The Arvind Group (Lalbhai Family)",
+      "group_key": "5b2ed0c68cacee74be114fe85ca103efaafa202c",
+      "company_count": 2
+    },
+    {
+      "group": "Tips Group",
+      "group_key": "ef661dce2ce19a60d55daa4b722aa008ee065821",
+      "company_count": 2
+    },
+    {
+      "group": "Tourism",
+      "group_key": "531b44da4163738b88aef6143809712aed23552d",
+      "company_count": 2
+    },
+    {
+      "group": "Transformers",
+      "group_key": "132515d97f605bcef715e7b60f8a71e164131c74",
+      "company_count": 2
+    },
+    {
+      "group": "Transportation",
+      "group_key": "776de127b954b296bfb79ca5d39ad14f749e7b04",
+      "company_count": 2
+    },
+    {
+      "group": "Triveni",
+      "group_key": "dfcc125d98afc2a06e7c5c6d836faf21c95c3733",
+      "company_count": 2
+    },
+    {
+      "group": "TTK",
+      "group_key": "a20ce7ba4440a6867817927b278958938b7e0b29",
+      "company_count": 2
+    },
+    {
+      "group": "Valiant",
+      "group_key": "7d84359a3b494ef4b38411f71eb01396b6a1047e",
+      "company_count": 2
+    },
+    {
+      "group": "Weizmann Group",
+      "group_key": "8652e87e1ae4263b15a15d889e42bdf611809b34",
+      "company_count": 2
+    },
+    {
+      "group": "H.C. Kothari Group",
+      "group_key": "e9c7eb2986910963b76e9f06c079825d85bb7260",
+      "company_count": 1
+    }
+  ],
+  "multi": [
+    {
+      "ticker": "APLAPOLLO",
+      "company": "APL Apollo Tubes Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "user-d8c39b9946e2d06038e9729b5b4c932c51a3691a",
+          "group_name": "Apollo Group (Sanjay Gupta / Sudesh Gupta Family)"
+        },
+        {
+          "group_key": "8e74e741ac026ce274eb15a3d932935c46f6f6c6",
+          "group_name": "Apollo Hospitals Group"
+        }
+      ]
+    },
+    {
+      "ticker": "CONSOFINVT",
+      "company": "Consolidated Finvest & Holdings Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "b46fa61e1a52365c2a1b709d4e538139e8e4b57d",
+          "group_name": "Consolidated"
+        },
+        {
+          "group_key": "user-c467fe8faf071257278d6508e8c2d535927a188a",
+          "group_name": "Jindal Group"
+        }
+      ]
+    },
+    {
+      "ticker": "COROMANDEL",
+      "company": "Coromandel International Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+          "group_name": "Murugappa Group"
+        },
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        }
+      ]
+    },
+    {
+      "ticker": "IMPAL",
+      "company": "India Motor Parts and Accessories Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        },
+        {
+          "group_key": "e92bee80b6d7a2d41e6ebc7584a5a8f2e2bcef6b",
+          "group_name": "TVS Iyengar"
+        }
+      ]
+    },
+    {
+      "ticker": "JKLAKSHMI",
+      "company": "JK Lakshmi Cement Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "user-4f10701215578bcc3ed4c65fcc20c0e8ca203b5b",
+          "group_name": "JK Group"
+        },
+        {
+          "group_key": "47e8b5ac71b3d26b8d153694f1fd72affbb30dd1",
+          "group_name": "Lakshmi"
+        }
+      ]
+    },
+    {
+      "ticker": "NACLIND",
+      "company": "NACL Industries Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+          "group_name": "Murugappa Group"
+        },
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        }
+      ]
+    },
+    {
+      "ticker": "SUNDRMBRAK",
+      "company": "Sundaram Brake Linings Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "9c9d7b26cb64cbb612ed7371183f76dfcd4879ba",
+          "group_name": "Sundaram"
+        },
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        }
+      ]
+    },
+    {
+      "ticker": "SWSOLAR",
+      "company": "Sterling and Wilson Renewable Energy Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "user-e28563f91b5479ed3746fbb6bee4233a3e76d5e2",
+          "group_name": "Shapoorji Pallonji Group"
+        },
+        {
+          "group_key": "73481763f5eb3c8fdb061d59c5ae8da76b152db8",
+          "group_name": "Sterling"
+        }
+      ]
+    },
+    {
+      "ticker": "WHEELS",
+      "company": "Wheels India Limited",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        },
+        {
+          "group_key": "e92bee80b6d7a2d41e6ebc7584a5a8f2e2bcef6b",
+          "group_name": "TVS Iyengar"
+        }
+      ]
+    },
+    {
+      "ticker": "ZHINDHSG",
+      "company": "Hindustan Housing Company Ltd",
+      "n_groups": 2,
+      "groups": [
+        {
+          "group_key": "b959298c5f43ea864076e81222bf615f6fc04ed2",
+          "group_name": "Bajaj"
+        },
+        {
+          "group_key": "3956768c66547806f22c05f1de036618c5c052d4",
+          "group_name": "Housing"
+        }
+      ]
+    }
+  ],
+  "sectorCandidates": [
+    {
+      "group": "The Juniper Hotels & Allied Cluster",
+      "group_key": "user-1236ef57c547657e68f37951d78c86797f0e62de",
+      "company_count": 5,
+      "companies": [
+        "AHLEAST Asian Hotels (East) Limited",
+        "ASIANHOTNR Asian Hotels (North) Limited",
+        "JNPR Juniper Green Energy Limited",
+        "JUNIPER Juniper Hotels Limited",
+        "RHL Robust Hotels Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Electronics",
+      "group_key": "5f9f59ff3c2f3cc48b65733a750dd4cdd8555e1d",
+      "company_count": 3,
+      "companies": [
+        "BEL Bharat Electronics Limited",
+        "EMIL Electronics Mart India Limited",
+        "LGEINDIA LG Electronics India Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Engineering",
+      "group_key": "8ade61552c606d3f9ce2fcc9ea31debb54036bfa",
+      "company_count": 2,
+      "companies": [
+        "IL&FSENGG IL&FS Engineering and Construction Company Limited",
+        "MBEL M & B Engineering Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "General Insurance Corporation of India",
+      "group_key": "94035fd9be6d0637805c751e600f2f0da5e50f8a",
+      "company_count": 2,
+      "companies": [
+        "GICHSGFIN GIC Housing Finance Limited",
+        "GICRE General Insurance Corporation of India"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Petroleum",
+      "group_key": "de9f05b18a4c41cf1097b54b20e2325213e40e0e",
+      "company_count": 2,
+      "companies": [
+        "BPCL Bharat Petroleum Corporation Limited",
+        "HINDPETRO Hindustan Petroleum Corporation Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Railway",
+      "group_key": "bc151335cc276cb219edb43b0a9b684ad40333b8",
+      "company_count": 2,
+      "companies": [
+        "IRCTC Indian Railway Catering And Tourism Corporation Limited",
+        "IRFC Indian Railway Finance Corporation Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Shipping Corporation Of India",
+      "group_key": "48a00985b0d33cfc3b0806585fed4ea857a34ea7",
+      "company_count": 2,
+      "companies": [
+        "SCI Shipping Corporation Of India Limited",
+        "SCILAL Shipping Corporation Of India Land And Assets Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Software",
+      "group_key": "bfcde38e87ca36db4d2f379352f7948ebf4d4611",
+      "company_count": 2,
+      "companies": [
+        "RSSOFTWARE R. S. Software (India) Limited",
+        "SATECH S A Tech Software India Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Tourism",
+      "group_key": "531b44da4163738b88aef6143809712aed23552d",
+      "company_count": 2,
+      "companies": [
+        "ITDC India Tourism Development Corporation Limited",
+        "TFCILTD Tourism Finance Corporation of India Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    },
+    {
+      "group": "Transportation",
+      "group_key": "776de127b954b296bfb79ca5d39ad14f749e7b04",
+      "company_count": 2,
+      "companies": [
+        "E2ERAIL E To E Transportation Infrastructure Limited",
+        "IL&FSTRANS IL&FS Transportation Networks Limited"
+      ],
+      "reason": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)"
+    }
+  ],
+  "sameNameDiffKey": [],
+  "sameKeyDiffName": [],
+  "similarPairs": [
+    {
+      "a_key": "be0280f3f5e4c7c2b3eddb1ad5caa3e6498ee528",
+      "a_name": "Jubilant Bhartia",
+      "a_n": 7,
+      "b_key": "63c6fa75d161e779dccb933b10c4e6f1055d042a",
+      "b_name": "Bharti Group",
+      "b_n": 3,
+      "why": "One normalized group_name contains the other"
+    },
+    {
+      "a_key": "2061aa99ba9b59c418fc0bbeeb0db977b28d3465",
+      "a_name": "RPG Enterprises",
+      "a_n": 6,
+      "b_key": "977b65da2cf010f53ea34c40e40f8538fe93cd5d",
+      "b_name": "RPG Enterprises · Ceat",
+      "b_n": 4,
+      "why": "One normalized group_name contains the other"
+    },
+    {
+      "a_key": "16391065e6544893731974496b75e833200c848c",
+      "a_name": "Krishna",
+      "a_n": 4,
+      "b_key": "19615872b0a477c1fa8da20d213054c82c7aa578",
+      "b_name": "Balkrishna",
+      "b_n": 2,
+      "why": "One normalized group_name contains the other"
+    },
+    {
+      "a_key": "018b3f01128cb32069a5ad5ae2f88ba9ce27f1a7",
+      "a_name": "Lalbhai",
+      "a_n": 4,
+      "b_key": "5b2ed0c68cacee74be114fe85ca103efaafa202c",
+      "b_name": "The Arvind Group (Lalbhai Family)",
+      "b_n": 2,
+      "why": "One normalized group_name contains the other"
+    }
+  ],
+  "uniqueSusp": [
+    {
+      "ticker": "CONSOFINVT",
+      "company": "Consolidated Finvest & Holdings Limited",
+      "groups": [
+        {
+          "group_key": "b46fa61e1a52365c2a1b709d4e538139e8e4b57d",
+          "group_name": "Consolidated"
+        },
+        {
+          "group_key": "user-c467fe8faf071257278d6508e8c2d535927a188a",
+          "group_name": "Jindal Group"
+        }
+      ],
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "evidence": "Name overlap with Consolidated; also assigned Jindal Group"
+    },
+    {
+      "ticker": "COROMANDEL",
+      "company": "Coromandel International Limited",
+      "groups": [
+        {
+          "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+          "group_name": "Murugappa Group"
+        },
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        }
+      ],
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "evidence": "Assigned: Murugappa Group | TVS Group; company: Coromandel International Limited"
+    },
+    {
+      "ticker": "IMPAL",
+      "company": "India Motor Parts and Accessories Limited",
+      "groups": [
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        },
+        {
+          "group_key": "e92bee80b6d7a2d41e6ebc7584a5a8f2e2bcef6b",
+          "group_name": "TVS Iyengar"
+        }
+      ],
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "evidence": "Assigned: TVS Group | TVS Iyengar; company: India Motor Parts and Accessories Limited"
+    },
+    {
+      "ticker": "JKLAKSHMI",
+      "company": "JK Lakshmi Cement Limited",
+      "groups": [
+        {
+          "group_key": "user-4f10701215578bcc3ed4c65fcc20c0e8ca203b5b",
+          "group_name": "JK Group"
+        },
+        {
+          "group_key": "47e8b5ac71b3d26b8d153694f1fd72affbb30dd1",
+          "group_name": "Lakshmi"
+        }
+      ],
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "evidence": "Name overlap with Lakshmi; also assigned JK Group"
+    },
+    {
+      "ticker": "NACLIND",
+      "company": "NACL Industries Limited",
+      "groups": [
+        {
+          "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+          "group_name": "Murugappa Group"
+        },
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        }
+      ],
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "evidence": "Assigned: Murugappa Group | TVS Group; company: NACL Industries Limited"
+    },
+    {
+      "ticker": "SUNDRMBRAK",
+      "company": "Sundaram Brake Linings Limited",
+      "groups": [
+        {
+          "group_key": "9c9d7b26cb64cbb612ed7371183f76dfcd4879ba",
+          "group_name": "Sundaram"
+        },
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        }
+      ],
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "evidence": "Name overlap with Sundaram; also assigned TVS Group"
+    },
+    {
+      "ticker": "SWSOLAR",
+      "company": "Sterling and Wilson Renewable Energy Limited",
+      "groups": [
+        {
+          "group_key": "user-e28563f91b5479ed3746fbb6bee4233a3e76d5e2",
+          "group_name": "Shapoorji Pallonji Group"
+        },
+        {
+          "group_key": "73481763f5eb3c8fdb061d59c5ae8da76b152db8",
+          "group_name": "Sterling"
+        }
+      ],
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "evidence": "Name overlap with Sterling; also assigned Shapoorji Pallonji Group"
+    },
+    {
+      "ticker": "WHEELS",
+      "company": "Wheels India Limited",
+      "groups": [
+        {
+          "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+          "group_name": "TVS Group"
+        },
+        {
+          "group_key": "e92bee80b6d7a2d41e6ebc7584a5a8f2e2bcef6b",
+          "group_name": "TVS Iyengar"
+        }
+      ],
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "evidence": "Assigned: TVS Group | TVS Iyengar; company: Wheels India Limited"
+    },
+    {
+      "ticker": "ZHINDHSG",
+      "company": "Hindustan Housing Company Ltd",
+      "groups": [
+        {
+          "group_key": "b959298c5f43ea864076e81222bf615f6fc04ed2",
+          "group_name": "Bajaj"
+        },
+        {
+          "group_key": "3956768c66547806f22c05f1de036618c5c052d4",
+          "group_name": "Housing"
+        }
+      ],
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "evidence": "Name overlap with Housing; also assigned Bajaj"
+    },
+    {
+      "ticker": "ZHINDHSG",
+      "company": "Hindustan Housing Company Ltd",
+      "groups": [
+        {
+          "group_key": "b959298c5f43ea864076e81222bf615f6fc04ed2",
+          "group_name": "Bajaj"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Bajaj; company name contains Housing"
+    },
+    {
+      "ticker": "SUPREMEENG",
+      "company": "Supreme Engineering Limited",
+      "groups": [
+        {
+          "group_key": "user-9576bfab79b026239515dc6c82f8717a5854afdf",
+          "group_name": "Bhawanishankar Sharma"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Bhawanishankar Sharma; company name contains Engineering"
+    },
+    {
+      "ticker": "BIRLAPREC",
+      "company": "Birla Precision Technologies Limited",
+      "groups": [
+        {
+          "group_key": "3c50aa7a3ca1ece6f7ca0e28baaa0c1f9ba1a2d3",
+          "group_name": "Birla KK"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Birla KK; company name contains Precision"
+    },
+    {
+      "ticker": "GICHSGFIN",
+      "company": "GIC Housing Finance Limited",
+      "groups": [
+        {
+          "group_key": "94035fd9be6d0637805c751e600f2f0da5e50f8a",
+          "group_name": "General Insurance Corporation of India"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned General Insurance Corporation of India; company name contains Housing"
+    },
+    {
+      "ticker": "CONSOFINVT",
+      "company": "Consolidated Finvest & Holdings Limited",
+      "groups": [
+        {
+          "group_key": "user-c467fe8faf071257278d6508e8c2d535927a188a",
+          "group_name": "Jindal Group"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Jindal Group; company name contains Consolidated"
+    },
+    {
+      "ticker": "KHAICHEM",
+      "company": "Khaitan Chemicals & Fertilizers Limited",
+      "groups": [
+        {
+          "group_key": "user-689cc95b3d24cfde2389069896babe17094234e4",
+          "group_name": "K.P. Khaitan Group"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned K.P. Khaitan Group; company name contains Fertilizers"
+    },
+    {
+      "ticker": "ANUP",
+      "company": "The Anup Engineering Limited",
+      "groups": [
+        {
+          "group_key": "018b3f01128cb32069a5ad5ae2f88ba9ce27f1a7",
+          "group_name": "Lalbhai"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Lalbhai; company name contains Engineering"
+    },
+    {
+      "ticker": "CPPLUS",
+      "company": "Aditya Infotech Limited",
+      "groups": [
+        {
+          "group_key": "8a88c5804f3715605cec2bb641c0277e0544aea4",
+          "group_name": "M.P. Birla Group"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned M.P. Birla Group; company name contains Infotech"
+    },
+    {
+      "ticker": "MAL",
+      "company": "Mangalam Alloys Limited",
+      "groups": [
+        {
+          "group_key": "user-9cb25fef7db48b5cf7fda4b312cfbdeb495a4eb4",
+          "group_name": "Mehta Family"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Mehta Family; company name contains Mangalam Group"
+    },
+    {
+      "ticker": "CARBORUNIV",
+      "company": "Carborundum Universal Limited",
+      "groups": [
+        {
+          "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+          "group_name": "Murugappa Group"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Murugappa Group; company name contains Universal"
+    },
+    {
+      "ticker": "SWSOLAR",
+      "company": "Sterling and Wilson Renewable Energy Limited",
+      "groups": [
+        {
+          "group_key": "user-e28563f91b5479ed3746fbb6bee4233a3e76d5e2",
+          "group_name": "Shapoorji Pallonji Group"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Shapoorji Pallonji Group; company name contains Sterling"
+    },
+    {
+      "ticker": "HCL-INSYS",
+      "company": "HCL Infosystems Limited",
+      "groups": [
+        {
+          "group_key": "user-0b787969ab54f1b84f30d0720849498a2e0398b8",
+          "group_name": "Shiv Nadar Group"
+        }
+      ],
+      "issue": "Company legal name contains a different existing group_name",
+      "evidence": "Assigned Shiv Nadar Group; company name contains Systems"
+    }
+  ],
+  "impacts": [
+    {
+      "group_key": "916c8a4c1023d722fc03b7b2300ea246555aa656",
+      "group_name": "Tata Group",
+      "n": 25,
+      "impact": {
+        "seats": 224,
+        "directors": 185,
+        "companies": 25,
+        "company_pairs_involving": 213,
+        "same_group_pairs": 54,
+        "cross_group_pairs_involving": 79,
+        "grouped_pairs_involving": 133
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "8a88c5804f3715605cec2bb641c0277e0544aea4",
+      "group_name": "M.P. Birla Group",
+      "n": 13,
+      "impact": {
+        "seats": 119,
+        "directors": 76,
+        "companies": 13,
+        "company_pairs_involving": 138,
+        "same_group_pairs": 27,
+        "cross_group_pairs_involving": 38,
+        "grouped_pairs_involving": 65
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "b959298c5f43ea864076e81222bf615f6fc04ed2",
+      "group_name": "Bajaj",
+      "n": 16,
+      "impact": {
+        "seats": 138,
+        "directors": 97,
+        "companies": 16,
+        "company_pairs_involving": 112,
+        "same_group_pairs": 31,
+        "cross_group_pairs_involving": 33,
+        "grouped_pairs_involving": 64
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "user-c467fe8faf071257278d6508e8c2d535927a188a",
+      "group_name": "Jindal Group",
+      "n": 20,
+      "impact": {
+        "seats": 159,
+        "directors": 137,
+        "companies": 20,
+        "company_pairs_involving": 106,
+        "same_group_pairs": 18,
+        "cross_group_pairs_involving": 33,
+        "grouped_pairs_involving": 51
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "be0280f3f5e4c7c2b3eddb1ad5caa3e6498ee528",
+      "group_name": "Jubilant Bhartia",
+      "n": 7,
+      "impact": {
+        "seats": 62,
+        "directors": 41,
+        "companies": 7,
+        "company_pairs_involving": 93,
+        "same_group_pairs": 20,
+        "cross_group_pairs_involving": 25,
+        "grouped_pairs_involving": 45
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "user-826f675466cce532d532d8a4b6bd71ce033e2f0a",
+      "group_name": "Murugappa Group",
+      "n": 10,
+      "impact": {
+        "seats": 76,
+        "directors": 58,
+        "companies": 10,
+        "company_pairs_involving": 90,
+        "same_group_pairs": 18,
+        "cross_group_pairs_involving": 29,
+        "grouped_pairs_involving": 49
+      },
+      "sector": false,
+      "multi_members": 2
+    },
+    {
+      "group_key": "b248d2b173197a103c94595fb4f03ec35c7bc398",
+      "group_name": "TVS Group",
+      "n": 12,
+      "impact": {
+        "seats": 101,
+        "directors": 87,
+        "companies": 12,
+        "company_pairs_involving": 80,
+        "same_group_pairs": 11,
+        "cross_group_pairs_involving": 29,
+        "grouped_pairs_involving": 43
+      },
+      "sector": false,
+      "multi_members": 5
+    },
+    {
+      "group_key": "2061aa99ba9b59c418fc0bbeeb0db977b28d3465",
+      "group_name": "RPG Enterprises",
+      "n": 6,
+      "impact": {
+        "seats": 54,
+        "directors": 36,
+        "companies": 6,
+        "company_pairs_involving": 53,
+        "same_group_pairs": 12,
+        "cross_group_pairs_involving": 12,
+        "grouped_pairs_involving": 24
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "user-4f10701215578bcc3ed4c65fcc20c0e8ca203b5b",
+      "group_name": "JK Group",
+      "n": 4,
+      "impact": {
+        "seats": 42,
+        "directors": 39,
+        "companies": 4,
+        "company_pairs_involving": 52,
+        "same_group_pairs": 3,
+        "cross_group_pairs_involving": 12,
+        "grouped_pairs_involving": 15
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "977b65da2cf010f53ea34c40e40f8538fe93cd5d",
+      "group_name": "RPG Enterprises · Ceat",
+      "n": 4,
+      "impact": {
+        "seats": 41,
+        "directors": 37,
+        "companies": 4,
+        "company_pairs_involving": 49,
+        "same_group_pairs": 6,
+        "cross_group_pairs_involving": 17,
+        "grouped_pairs_involving": 23
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "018b3f01128cb32069a5ad5ae2f88ba9ce27f1a7",
+      "group_name": "Lalbhai",
+      "n": 4,
+      "impact": {
+        "seats": 39,
+        "directors": 28,
+        "companies": 4,
+        "company_pairs_involving": 45,
+        "same_group_pairs": 6,
+        "cross_group_pairs_involving": 17,
+        "grouped_pairs_involving": 23
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "8e74e741ac026ce274eb15a3d932935c46f6f6c6",
+      "group_name": "Apollo Hospitals Group",
+      "n": 3,
+      "impact": {
+        "seats": 31,
+        "directors": 30,
+        "companies": 3,
+        "company_pairs_involving": 32,
+        "same_group_pairs": 1,
+        "cross_group_pairs_involving": 8,
+        "grouped_pairs_involving": 10
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "63c6fa75d161e779dccb933b10c4e6f1055d042a",
+      "group_name": "Bharti Group",
+      "n": 3,
+      "impact": {
+        "seats": 33,
+        "directors": 28,
+        "companies": 3,
+        "company_pairs_involving": 28,
+        "same_group_pairs": 2,
+        "cross_group_pairs_involving": 16,
+        "grouped_pairs_involving": 18
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "user-d8c39b9946e2d06038e9729b5b4c932c51a3691a",
+      "group_name": "Apollo Group (Sanjay Gupta / Sudesh Gupta Family)",
+      "n": 4,
+      "impact": {
+        "seats": 40,
+        "directors": 35,
+        "companies": 4,
+        "company_pairs_involving": 27,
+        "same_group_pairs": 2,
+        "cross_group_pairs_involving": 3,
+        "grouped_pairs_involving": 5
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "47e8b5ac71b3d26b8d153694f1fd72affbb30dd1",
+      "group_name": "Lakshmi",
+      "n": 3,
+      "impact": {
+        "seats": 17,
+        "directors": 17,
+        "companies": 3,
+        "company_pairs_involving": 20,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 3,
+        "grouped_pairs_involving": 5
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "5b2ed0c68cacee74be114fe85ca103efaafa202c",
+      "group_name": "The Arvind Group (Lalbhai Family)",
+      "n": 2,
+      "impact": {
+        "seats": 18,
+        "directors": 16,
+        "companies": 2,
+        "company_pairs_involving": 20,
+        "same_group_pairs": 1,
+        "cross_group_pairs_involving": 8,
+        "grouped_pairs_involving": 9
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "73481763f5eb3c8fdb061d59c5ae8da76b152db8",
+      "group_name": "Sterling",
+      "n": 2,
+      "impact": {
+        "seats": 18,
+        "directors": 18,
+        "companies": 2,
+        "company_pairs_involving": 17,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 6,
+        "grouped_pairs_involving": 7
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "user-e28563f91b5479ed3746fbb6bee4233a3e76d5e2",
+      "group_name": "Shapoorji Pallonji Group",
+      "n": 4,
+      "impact": {
+        "seats": 22,
+        "directors": 19,
+        "companies": 4,
+        "company_pairs_involving": 16,
+        "same_group_pairs": 1,
+        "cross_group_pairs_involving": 7,
+        "grouped_pairs_involving": 8
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "user-1236ef57c547657e68f37951d78c86797f0e62de",
+      "group_name": "The Juniper Hotels & Allied Cluster",
+      "n": 5,
+      "impact": {
+        "seats": 28,
+        "directors": 25,
+        "companies": 5,
+        "company_pairs_involving": 14,
+        "same_group_pairs": 3,
+        "cross_group_pairs_involving": 3,
+        "grouped_pairs_involving": 6
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "e92bee80b6d7a2d41e6ebc7584a5a8f2e2bcef6b",
+      "group_name": "TVS Iyengar",
+      "n": 3,
+      "impact": {
+        "seats": 25,
+        "directors": 21,
+        "companies": 3,
+        "company_pairs_involving": 12,
+        "same_group_pairs": 3,
+        "cross_group_pairs_involving": 4,
+        "grouped_pairs_involving": 9
+      },
+      "sector": false,
+      "multi_members": 2
+    },
+    {
+      "group_key": "8ade61552c606d3f9ce2fcc9ea31debb54036bfa",
+      "group_name": "Engineering",
+      "n": 2,
+      "impact": {
+        "seats": 18,
+        "directors": 18,
+        "companies": 2,
+        "company_pairs_involving": 11,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 3,
+        "grouped_pairs_involving": 3
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "19615872b0a477c1fa8da20d213054c82c7aa578",
+      "group_name": "Balkrishna",
+      "n": 2,
+      "impact": {
+        "seats": 16,
+        "directors": 16,
+        "companies": 2,
+        "company_pairs_involving": 10,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 6,
+        "grouped_pairs_involving": 6
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "9c9d7b26cb64cbb612ed7371183f76dfcd4879ba",
+      "group_name": "Sundaram",
+      "n": 3,
+      "impact": {
+        "seats": 21,
+        "directors": 21,
+        "companies": 3,
+        "company_pairs_involving": 9,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 4,
+        "grouped_pairs_involving": 6
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "531b44da4163738b88aef6143809712aed23552d",
+      "group_name": "Tourism",
+      "n": 2,
+      "impact": {
+        "seats": 13,
+        "directors": 13,
+        "companies": 2,
+        "company_pairs_involving": 9,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 2,
+        "grouped_pairs_involving": 2
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "776de127b954b296bfb79ca5d39ad14f749e7b04",
+      "group_name": "Transportation",
+      "n": 2,
+      "impact": {
+        "seats": 7,
+        "directors": 7,
+        "companies": 2,
+        "company_pairs_involving": 8,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 3,
+        "grouped_pairs_involving": 3
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "b46fa61e1a52365c2a1b709d4e538139e8e4b57d",
+      "group_name": "Consolidated",
+      "n": 2,
+      "impact": {
+        "seats": 14,
+        "directors": 14,
+        "companies": 2,
+        "company_pairs_involving": 7,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 1,
+        "grouped_pairs_involving": 4
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "5f9f59ff3c2f3cc48b65733a750dd4cdd8555e1d",
+      "group_name": "Electronics",
+      "n": 3,
+      "impact": {
+        "seats": 23,
+        "directors": 23,
+        "companies": 3,
+        "company_pairs_involving": 6,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 1,
+        "grouped_pairs_involving": 1
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "94035fd9be6d0637805c751e600f2f0da5e50f8a",
+      "group_name": "General Insurance Corporation of India",
+      "n": 2,
+      "impact": {
+        "seats": 20,
+        "directors": 19,
+        "companies": 2,
+        "company_pairs_involving": 6,
+        "same_group_pairs": 1,
+        "cross_group_pairs_involving": 2,
+        "grouped_pairs_involving": 3
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "de9f05b18a4c41cf1097b54b20e2325213e40e0e",
+      "group_name": "Petroleum",
+      "n": 2,
+      "impact": {
+        "seats": 21,
+        "directors": 21,
+        "companies": 2,
+        "company_pairs_involving": 5,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 0,
+        "grouped_pairs_involving": 0
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "3956768c66547806f22c05f1de036618c5c052d4",
+      "group_name": "Housing",
+      "n": 3,
+      "impact": {
+        "seats": 15,
+        "directors": 15,
+        "companies": 3,
+        "company_pairs_involving": 4,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 0,
+        "grouped_pairs_involving": 2
+      },
+      "sector": false,
+      "multi_members": 1
+    },
+    {
+      "group_key": "16391065e6544893731974496b75e833200c848c",
+      "group_name": "Krishna",
+      "n": 4,
+      "impact": {
+        "seats": 21,
+        "directors": 21,
+        "companies": 4,
+        "company_pairs_involving": 3,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 0,
+        "grouped_pairs_involving": 0
+      },
+      "sector": false,
+      "multi_members": 0
+    },
+    {
+      "group_key": "48a00985b0d33cfc3b0806585fed4ea857a34ea7",
+      "group_name": "Shipping Corporation Of India",
+      "n": 2,
+      "impact": {
+        "seats": 15,
+        "directors": 13,
+        "companies": 2,
+        "company_pairs_involving": 2,
+        "same_group_pairs": 1,
+        "cross_group_pairs_involving": 0,
+        "grouped_pairs_involving": 1
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "bc151335cc276cb219edb43b0a9b684ad40333b8",
+      "group_name": "Railway",
+      "n": 2,
+      "impact": {
+        "seats": 13,
+        "directors": 13,
+        "companies": 2,
+        "company_pairs_involving": 1,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 0,
+        "grouped_pairs_involving": 0
+      },
+      "sector": true,
+      "multi_members": 0
+    },
+    {
+      "group_key": "bfcde38e87ca36db4d2f379352f7948ebf4d4611",
+      "group_name": "Software",
+      "n": 2,
+      "impact": {
+        "seats": 9,
+        "directors": 9,
+        "companies": 2,
+        "company_pairs_involving": 0,
+        "same_group_pairs": 0,
+        "cross_group_pairs_involving": 0,
+        "grouped_pairs_involving": 0
+      },
+      "sector": true,
+      "multi_members": 0
+    }
+  ],
+  "reviewQueue": [
+    {
+      "priority": "HIGH",
+      "company": "Consolidated Finvest & Holdings Limited",
+      "ticker": "CONSOFINVT",
+      "current_group": "Consolidated | Jindal Group",
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "network_impact": "max company-pairs involving assigned group(s): 106",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Coromandel International Limited",
+      "ticker": "COROMANDEL",
+      "current_group": "Murugappa Group | TVS Group",
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 90",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "India Motor Parts and Accessories Limited",
+      "ticker": "IMPAL",
+      "current_group": "TVS Group | TVS Iyengar",
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 80",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "NACL Industries Limited",
+      "ticker": "NACLIND",
+      "current_group": "Murugappa Group | TVS Group",
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 90",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Sundaram Brake Linings Limited",
+      "ticker": "SUNDRMBRAK",
+      "current_group": "Sundaram | TVS Group",
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "network_impact": "max company-pairs involving assigned group(s): 80",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Wheels India Limited",
+      "ticker": "WHEELS",
+      "current_group": "TVS Group | TVS Iyengar",
+      "issue": "Multiple groups; company legal name shares no 4+ letter token with either group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 80",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Hindustan Housing Company Ltd",
+      "ticker": "ZHINDHSG",
+      "current_group": "Bajaj | Housing",
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "network_impact": "max company-pairs involving assigned group(s): 112",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Hindustan Housing Company Ltd",
+      "ticker": "ZHINDHSG",
+      "current_group": "Bajaj",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 112",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Consolidated Finvest & Holdings Limited",
+      "ticker": "CONSOFINVT",
+      "current_group": "Jindal Group",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 106",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Aditya Infotech Limited",
+      "ticker": "CPPLUS",
+      "current_group": "M.P. Birla Group",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 138",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "HIGH",
+      "company": "Carborundum Universal Limited",
+      "ticker": "CARBORUNIV",
+      "current_group": "Murugappa Group",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 90",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "JK Lakshmi Cement Limited",
+      "ticker": "JKLAKSHMI",
+      "current_group": "JK Group | Lakshmi",
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "network_impact": "max company-pairs involving assigned group(s): 52",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "Sterling and Wilson Renewable Energy Limited",
+      "ticker": "SWSOLAR",
+      "current_group": "Shapoorji Pallonji Group | Sterling",
+      "issue": "Two groups; legal name overlaps one group_name more than the other",
+      "network_impact": "max company-pairs involving assigned group(s): 17",
+      "action": "Verify. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "Birla Precision Technologies Limited",
+      "ticker": "BIRLAPREC",
+      "current_group": "Birla KK",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 33",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "GIC Housing Finance Limited",
+      "ticker": "GICHSGFIN",
+      "current_group": "General Insurance Corporation of India",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 6",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "Khaitan Chemicals & Fertilizers Limited",
+      "ticker": "KHAICHEM",
+      "current_group": "K.P. Khaitan Group",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 12",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "The Anup Engineering Limited",
+      "ticker": "ANUP",
+      "current_group": "Lalbhai",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 45",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "Sterling and Wilson Renewable Energy Limited",
+      "ticker": "SWSOLAR",
+      "current_group": "Shapoorji Pallonji Group",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 16",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "HCL Infosystems Limited",
+      "ticker": "HCL-INSYS",
+      "current_group": "Shiv Nadar Group",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 13",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 5 tickers",
+      "ticker": "",
+      "current_group": "The Juniper Hotels & Allied Cluster",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 14; same-group 3; cross involving 3",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 3 tickers",
+      "ticker": "",
+      "current_group": "Electronics",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 6; same-group 0; cross involving 1",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "Engineering",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 11; same-group 0; cross involving 3",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "General Insurance Corporation of India",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 6; same-group 1; cross involving 2",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "Petroleum",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 5; same-group 0; cross involving 0",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "Railway",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 1; same-group 0; cross involving 0",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "Shipping Corporation Of India",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 2; same-group 1; cross involving 0",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "Software",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 0; same-group 0; cross involving 0",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "Tourism",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 9; same-group 0; cross involving 2",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "MEDIUM",
+      "company": "(group) 2 tickers",
+      "ticker": "",
+      "current_group": "Transportation",
+      "issue": "Potential sector/category grouping (name matches a generic industry/function/theme pattern)",
+      "network_impact": "pairs involving members 8; same-group 0; cross involving 3",
+      "action": "Verify whether this is a corporate/family group or a sector/theme label. Do not auto-remove."
+    },
+    {
+      "priority": "LOW",
+      "company": "Supreme Engineering Limited",
+      "ticker": "SUPREMEENG",
+      "current_group": "Bhawanishankar Sharma",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 1",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    },
+    {
+      "priority": "LOW",
+      "company": "Mangalam Alloys Limited",
+      "ticker": "MAL",
+      "current_group": "Mehta Family",
+      "issue": "Company legal name contains a different existing group_name",
+      "network_impact": "max company-pairs involving assigned group(s): 0",
+      "action": "Verify; Reassign only after confirming the name match is the same corporate group. Manual verification required."
+    }
+  ]
+}

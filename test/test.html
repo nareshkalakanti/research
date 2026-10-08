@@ -1,505 +1,1256 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Napkin Research</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<style>
-    * {
-        box-sizing: border-box;
-    }
+    <title>Napkin Research</title>
 
-    body {
-        margin: 0;
-        font-family: Inter, Arial, sans-serif;
-        background: #f5f7fa;
-        color: #1f2937;
-    }
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-    .header {
-        background: #ffffff;
-        border-bottom: 1px solid #e5e7eb;
-        padding: 18px 30px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-
-    .logo {
-        font-size: 21px;
-        font-weight: 700;
-    }
-
-    .subtitle {
-        font-size: 12px;
-        color: #6b7280;
-        margin-top: 3px;
-    }
-
-    .container {
-        max-width: 1450px;
-        margin: auto;
-        padding: 25px;
-    }
-
-    .search-box {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 20px;
-    }
-
-    .label {
-        font-size: 11px;
-        font-weight: 700;
-        color: #6b7280;
-        letter-spacing: 0.08em;
-        margin-bottom: 8px;
-    }
-
-    .search-row {
-        display: flex;
-        gap: 10px;
-    }
-
-    input {
-        flex: 1;
-        padding: 12px 14px;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        font-size: 14px;
-    }
-
-    button {
-        border: 0;
-        border-radius: 8px;
-        padding: 11px 18px;
-        background: #111827;
-        color: white;
-        font-weight: 600;
-        cursor: pointer;
-    }
-
-    button:hover {
-        background: #374151;
-    }
-
-    .stock-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-    }
-
-    .ticker {
-        font-size: 27px;
-        font-weight: 700;
-    }
-
-    .company {
-        color: #6b7280;
-        font-size: 13px;
-    }
-
-    .cards {
-        display: grid;
-        grid-template-columns: repeat(6, 1fr);
-        gap: 12px;
-        margin-bottom: 20px;
-    }
-
-    .card {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        padding: 16px;
-    }
-
-    .card-title {
-        font-size: 11px;
-        color: #6b7280;
-        margin-bottom: 8px;
-    }
-
-    .card-value {
-        font-size: 20px;
-        font-weight: 700;
-    }
-
-    .grid {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 18px;
-        margin-bottom: 18px;
-    }
-
-    .section {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        overflow: hidden;
-    }
-
-    .section-header {
-        padding: 14px 18px;
-        border-bottom: 1px solid #e5e7eb;
-        font-size: 13px;
-        font-weight: 700;
-    }
-
-    .section-body {
-        padding: 18px;
-    }
-
-    .napkin-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 12px;
-    }
-
-    .napkin-box {
-        background: #f9fafb;
-        border-radius: 8px;
-        padding: 15px;
-    }
-
-    .napkin-label {
-        color: #6b7280;
-        font-size: 11px;
-        margin-bottom: 7px;
-    }
-
-    .napkin-number {
-        font-size: 23px;
-        font-weight: 700;
-    }
-
-    .formula {
-        margin-top: 15px;
-        background: #111827;
-        color: white;
-        border-radius: 8px;
-        padding: 14px;
-        font-family: monospace;
-        font-size: 13px;
-    }
-
-    .status {
-        margin-top: 16px;
-        padding: 12px;
-        border-radius: 8px;
-        text-align: center;
-        font-weight: 700;
-        background: #ecfdf5;
-        color: #047857;
-    }
-
-    table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 13px;
-    }
-
-    th {
-        text-align: left;
-        color: #6b7280;
-        font-size: 11px;
-        padding: 10px;
-        border-bottom: 1px solid #e5e7eb;
-    }
-
-    td {
-        padding: 11px 10px;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .badge {
-        padding: 4px 8px;
-        border-radius: 20px;
-        font-size: 10px;
-        font-weight: 700;
-    }
-
-    .result {
-        background: #eff6ff;
-        color: #2563eb;
-    }
-
-    .concall {
-        background: #f5f3ff;
-        color: #7c3aed;
-    }
-
-    .picked {
-        background: #ecfdf5;
-        color: #059669;
-    }
-
-    .analysis {
-        line-height: 1.6;
-        font-size: 13px;
-    }
-
-    .analysis h4 {
-        margin-bottom: 5px;
-    }
-
-    .evidence {
-        border-left: 3px solid #d1d5db;
-        padding-left: 12px;
-        margin: 10px 0;
-        color: #4b5563;
-    }
-
-    .scenario {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-    }
-
-    .scenario-box {
-        padding: 15px;
-        border-radius: 8px;
-        background: #f9fafb;
-    }
-
-    .scenario-title {
-        font-size: 11px;
-        color: #6b7280;
-    }
-
-    .scenario-value {
-        font-size: 22px;
-        font-weight: 700;
-        margin-top: 5px;
-    }
-
-    .monitor {
-        display: flex;
-        gap: 10px;
-        padding: 10px 0;
-        border-bottom: 1px solid #f1f5f9;
-    }
-
-    .number {
-        font-weight: 700;
-    }
-
-    .progress {
-        height: 5px;
-        background: #e5e7eb;
-        border-radius: 10px;
-        margin-top: 10px;
-        overflow: hidden;
-    }
-
-    .progress-bar {
-        height: 100%;
-        width: 72%;
-        background: #111827;
-    }
-
-    @media(max-width: 1000px) {
-        .cards {
-            grid-template-columns: repeat(3, 1fr);
+    <style>
+        * {
+            box-sizing: border-box;
         }
 
-        .grid {
+        :root {
+            --text: #172033;
+            --text-soft: #52627a;
+            --muted: #71809a;
+            --label: #91a2b9;
+            --line: #e2e8ef;
+            --soft: #f7f9fb;
+
+            --green: #079b55;
+            --green-bg: #eaf8f1;
+
+            --red: #e52b2b;
+            --red-bg: #fff0f0;
+
+            --amber: #c38b16;
+            --amber-bg: #fff7df;
+
+            --purple: #7652e8;
+        }
+
+        html {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            margin: 0;
+            background: #fff;
+            color: var(--text);
+            font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        .app {
+            width: min(1180px, calc(100% - 48px));
+            margin: auto;
+            padding: 34px 0 70px;
+        }
+
+        /* ========================================
+   HEADER
+======================================== */
+
+        h1 {
+            margin: 0;
+            font-size: 24px;
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: -.04em;
+        }
+
+        .sub {
+            margin: 6px 0 24px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        /* ========================================
+   SEARCH
+======================================== */
+
+        .search-row {
+            display: flex;
+            width: 100%;
+            gap: 10px;
+            margin-bottom: 28px;
+        }
+
+        .search-box {
+            flex: 1;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 0 13px;
+            background: #fff;
+            border: 1px solid #d5dce5;
+            border-radius: 9px;
+        }
+
+        .search-icon {
+            color: #8995a7;
+            font-size: 17px;
+        }
+
+        .search-box input {
+            width: 100%;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            color: var(--text);
+            font: 500 13px "Inter", sans-serif;
+        }
+
+        .search-box input::placeholder {
+            color: #9aa5b5;
+        }
+
+        .go-btn {
+            width: 80px;
+            height: 50px;
+            flex: 0 0 80px;
+            border: 0;
+            border-radius: 9px;
+            background: #151b28;
+            color: #fff;
+            font: 700 12px "Inter", sans-serif;
+            cursor: pointer;
+        }
+
+        /* ========================================
+   COMPANY HEADER
+======================================== */
+
+        .company-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .company-name {
+            font-size: 25px;
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: -.04em;
+        }
+
+        .symbol {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .tags {
+            display: flex;
+            gap: 7px;
+            margin-top: 11px;
+        }
+
+        .tag {
+            padding: 5px 8px;
+            border-radius: 5px;
+            background: #f2f4f7;
+            color: #68758a;
+            font-size: 9px;
+            font-weight: 700;
+        }
+
+        .tag.tv {
+            background: #edf3ff;
+            color: #466bb8;
+        }
+
+        .head-right {
+            text-align: right;
+        }
+
+        .spot-label {
+            color: var(--muted);
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: .11em;
+            text-transform: uppercase;
+        }
+
+        .spot {
+            margin-top: 3px;
+            font-size: 27px;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: -.04em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mcap {
+            margin-top: 5px;
+            color: var(--muted);
+            font-size: 10px;
+        }
+
+        /* ========================================
+   SECTIONS
+======================================== */
+
+        section {
+            padding: 27px 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .section-title {
+            margin-bottom: 15px;
+            color: var(--label);
+            font-size: 10px;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: .14em;
+        }
+
+        /* ========================================
+   ABOUT
+======================================== */
+
+        .about {
+            max-width: 950px;
+            color: #60718a;
+            font-size: 13px;
+            line-height: 1.75;
+        }
+
+        /* ========================================
+   QUARTERS / TECH
+======================================== */
+
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+        }
+
+        /* ========================================
+   QUARTERS
+======================================== */
+
+        .quarter-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .quarter-table th {
+            padding: 0 10px 10px;
+            color: #8794a8;
+            font-size: 9px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .quarter-table th:first-child {
+            text-align: left;
+        }
+
+        .quarter-table td {
+            padding: 12px 10px;
+            border-top: 1px solid var(--line);
+            color: #263348;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .quarter-table td:first-child {
+            text-align: left;
+            font-weight: 700;
+        }
+
+        .q-good {
+            color: var(--green) !important;
+            font-weight: 750 !important;
+        }
+
+        .q-bad {
+            color: var(--red) !important;
+            font-weight: 750 !important;
+        }
+
+        .q-neutral {
+            color: #8491a5 !important;
+            font-weight: 650 !important;
+        }
+
+        /* ========================================
+   TECH CARD
+======================================== */
+
+        .tech-card {
+            min-height: 455px;
+            padding: 26px 27px 27px;
+            background: #f7f9fb;
+            border: 1px solid #dbe3eb;
+            border-radius: 19px;
+        }
+
+        .tech-title {
+            margin-bottom: 27px;
+            color: #91a3bb;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: .14em;
+        }
+
+        /* ========================================
+   TECH TOP
+======================================== */
+
+        .tech-top {
+            display: flex;
+            align-items: baseline;
+            gap: 31px;
+            margin-bottom: 29px;
+        }
+
+        .tech-metric {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .tech-metric-label {
+            color: #65758c;
+            font-size: 15px;
+            font-weight: 500;
+        }
+
+        .tech-metric-value {
+            color: #172033;
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -.04em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .tech-metric.growth .tech-metric-value {
+            color: var(--green);
+        }
+
+        /* ========================================
+   SMA
+======================================== */
+
+        .tech-subtitle,
+        .range-title {
+            color: #91a3bb;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .14em;
+        }
+
+        .tech-subtitle {
+            margin-bottom: 14px;
+        }
+
+        .sma-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 9px;
+            margin-bottom: 29px;
+        }
+
+        .sma-item {
+            min-width: 0;
+            padding: 13px 12px 12px;
+            background: #fff;
+            border: 1px solid #dfe5ec;
+            border-radius: 10px;
+        }
+
+        .sma-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 9px;
+        }
+
+        .sma-period {
+            color: #6c7b92;
+            font-size: 10px;
+            font-weight: 700;
+        }
+
+        .sma-signal {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 800;
+        }
+
+        .sma-signal.good {
+            color: var(--green);
+            background: var(--green-bg);
+        }
+
+        .sma-signal.bad {
+            color: var(--red);
+            background: var(--red-bg);
+        }
+
+        .sma-value {
+            color: #172033;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: -.03em;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sma-distance {
+            margin-top: 5px;
+            font-size: 9px;
+            font-weight: 600;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sma-distance.positive {
+            color: var(--green);
+        }
+
+        .sma-distance.negative {
+            color: var(--red);
+        }
+
+        /* ========================================
+   52 WEEK RANGE
+======================================== */
+
+        .range-title {
+            margin-bottom: 19px;
+        }
+
+        .range-values {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: end;
+            gap: 15px;
+            margin-bottom: 12px;
+        }
+
+        .range-value {
+            font-size: 12px;
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .range-value.low {
+            color: var(--red);
+        }
+
+        .range-value.high {
+            color: var(--green);
+        }
+
+        .range-current {
+            text-align: center;
+            color: #172033;
+            font-size: 11px;
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .range-current-label {
+            display: block;
+            margin-bottom: 1px;
+            color: #8b98ab;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+
+        .range-track {
+            position: relative;
+            height: 11px;
+            border-radius: 999px;
+            background: #e4e9ee;
+        }
+
+        .range-fill {
+            position: absolute;
+            inset: 0 auto 0 0;
+            border-radius: 999px;
+            background: linear-gradient(90deg,
+                    #ef4141 0%,
+                    #f2a32a 47%,
+                    #18ad5b 100%);
+        }
+
+        .range-marker {
+            position: absolute;
+            top: 50%;
+            width: 18px;
+            height: 18px;
+            transform: translate(-50%, -50%);
+            border: 3px solid #fff;
+            border-radius: 50%;
+            background: var(--purple);
+            box-shadow:
+                0 1px 4px rgba(31, 42, 60, .16),
+                0 0 0 1px #a997ff;
+        }
+
+        .range-marker-label {
+            position: absolute;
+            top: 25px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--purple);
+            font-size: 8px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .range-bottom {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 29px;
+            color: #9aa6b7;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: .05em;
+        }
+
+        /* ========================================
+   FINANCIALS
+======================================== */
+
+        .fin-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .fin-table th {
+            padding: 0 10px 10px;
+            color: #8792a3;
+            font-size: 9px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .fin-table th:first-child {
+            text-align: left;
+        }
+
+        .fin-table td {
+            padding: 11px 10px;
+            border-top: 1px solid var(--line);
+            color: #263348;
+            font-size: 11px;
+            font-weight: 500;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .fin-table td:first-child {
+            text-align: left;
+            font-weight: 650;
+        }
+
+        /* ========================================
+   NAPKIN
+======================================== */
+
+        .napkin-grid {
+            display: grid;
             grid-template-columns: 1fr;
+            gap: 28px;
         }
-    }
-</style>
+
+        .metric-list {
+            border-top: 1px solid var(--line);
+        }
+
+        .metric {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            min-height: 44px;
+            padding: 0 10px;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .metric span {
+            color: #71809a;
+            font-size: 11px;
+        }
+
+        .metric strong {
+            color: #172033;
+            font-size: 12px;
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .metric.highlight {
+            background: #fafbfc;
+        }
+
+        .metric.highlight strong {
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        /* ========================================
+   ASSUMPTIONS
+======================================== */
+
+        .assumption-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+
+        .assumption {
+            padding: 13px;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            background: #fff;
+        }
+
+        .assumption label {
+            display: block;
+            margin-bottom: 7px;
+            color: #7b8799;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+
+        .assumption input {
+            width: 100%;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            color: var(--text);
+            font: 750 16px "Inter", sans-serif;
+        }
+
+        /* ========================================
+   5 YEAR PATH
+======================================== */
+
+        .path-row {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            align-items: center;
+            min-height: 43px;
+            padding: 0 10px;
+            border-top: 1px solid var(--line);
+        }
+
+        .path-row span {
+            color: #71809a;
+            font-size: 11px;
+        }
+
+        .path-row strong {
+            color: #172033;
+            font-size: 12px;
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .path-row.highlight {
+            background: #fafbfc;
+        }
+
+        .path-row.highlight strong {
+            font-size: 15px;
+            font-weight: 800;
+        }
+
+        /* ========================================
+   ENTRY PRICE
+======================================== */
+
+        .entry-box {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 25px;
+            padding: 18px 20px;
+            background: #fff;
+            border: 1px solid #dfe5eb;
+            border-radius: 10px;
+        }
+
+        .entry-left {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+        }
+
+        .entry-label {
+            margin-bottom: 5px;
+            color: #7b8798;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .12em;
+        }
+
+        .entry-number {
+            color: #172033;
+            font-size: 29px;
+            line-height: 1;
+            font-weight: 800;
+            letter-spacing: -.04em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .entry-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: .05em;
+            white-space: nowrap;
+        }
+
+        .entry-status.good {
+            color: #13835f;
+            background: #eaf8f2;
+            border: 1px solid #ccefe1;
+        }
+
+        .entry-status.near {
+            color: #a87811;
+            background: #fff7df;
+            border: 1px solid #f2df9f;
+        }
+
+        .entry-status.high {
+            color: #c65353;
+            background: #fff0f0;
+            border: 1px solid #f2cece;
+        }
+
+        .entry-status .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .entry-note {
+            max-width: 400px;
+            color: #71809a;
+            font-size: 10px;
+            line-height: 1.55;
+        }
+
+        .entry-meta {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            border: 1px solid var(--line);
+            border-top: 0;
+            border-radius: 0 0 9px 9px;
+        }
+
+        .entry-meta .item {
+            padding: 12px 14px;
+            border-right: 1px solid var(--line);
+        }
+
+        .entry-meta .item:last-child {
+            border-right: 0;
+        }
+
+        .entry-meta span {
+            display: block;
+            margin-bottom: 4px;
+            color: #8792a3;
+            font-size: 9px;
+        }
+
+        .entry-meta b {
+            color: #263348;
+            font-size: 11px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* ========================================
+   VERDICT
+======================================== */
+
+        .verdict-box {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 20px;
+            align-items: center;
+            padding: 18px 20px;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+        }
+
+        .verdict-label {
+            font-size: 15px;
+            font-weight: 800;
+            white-space: nowrap;
+        }
+
+        .verdict-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-right: 8px;
+            border-radius: 50%;
+        }
+
+        .verdict-attractive .verdict-dot {
+            background: var(--green);
+        }
+
+        .verdict-reasonable .verdict-dot {
+            background: #8ba36a;
+        }
+
+        .verdict-stretched .verdict-dot {
+            background: var(--amber);
+        }
+
+        .verdict-high .verdict-dot {
+            background: var(--red);
+        }
+
+        .verdict-text {
+            color: #71809a;
+            font-size: 10px;
+            line-height: 1.55;
+        }
+
+        /* ========================================
+   MOS
+======================================== */
+
+        .mos-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+        }
+
+        .mos-item {
+            padding: 16px;
+            border-right: 1px solid var(--line);
+        }
+
+        .mos-item:last-child {
+            border-right: 0;
+        }
+
+        .mos-item span {
+            display: block;
+            margin-bottom: 6px;
+            color: #8792a3;
+            font-size: 9px;
+        }
+
+        .mos-item strong {
+            font-size: 16px;
+            font-weight: 750;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .mos-positive {
+            color: var(--green);
+        }
+
+        .mos-negative {
+            color: var(--red);
+        }
+
+        /* ========================================
+   SENSITIVITY
+======================================== */
+
+        .table-wrap {
+            width: 100%;
+            overflow-x: auto;
+        }
+
+        .sensitivity {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 18px;
+        }
+
+        .sens-card {
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 9px;
+        }
+
+        .sens-head {
+            padding: 13px 14px;
+            background: #fafbfc;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .sens-head strong {
+            font-size: 11px;
+        }
+
+        .sens-head span {
+            display: block;
+            margin-top: 3px;
+            color: #8792a3;
+            font-size: 9px;
+        }
+
+        .sens-table {
+            width: 100%;
+            min-width: 560px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .sens-table th {
+            padding: 9px 12px;
+            color: #8994a5;
+            font-size: 9px;
+            font-weight: 700;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .sens-table th:first-child {
+            text-align: left;
+        }
+
+        .sens-table td {
+            padding: 10px 12px;
+            border-top: 1px solid var(--line);
+            color: #263348;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: right;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sens-table td:first-child {
+            text-align: left;
+            font-weight: 650;
+        }
+
+        .sens-current {
+            background: #f5f8ff;
+            font-weight: 800 !important;
+        }
+
+        /* ========================================
+   SCENARIOS
+======================================== */
+
+        .scenario-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .scenario-table th {
+            padding: 0 10px 10px;
+            color: #8792a3;
+            font-size: 9px;
+            font-weight: 700;
+            text-align: right;
+        }
+
+        .scenario-table th:first-child {
+            text-align: left;
+        }
+
+        .scenario-table td {
+            padding: 11px 10px;
+            border-top: 1px solid var(--line);
+            color: #263348;
+            font-size: 11px;
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .scenario-table td:first-child {
+            text-align: left;
+            font-weight: 750;
+        }
+
+        .scenario-bear {
+            color: var(--red) !important;
+        }
+
+        .scenario-base {
+            color: #5574c5 !important;
+        }
+
+        .scenario-bull {
+            color: var(--green) !important;
+        }
+
+        /* ========================================
+   FOOTER
+======================================== */
+
+        .footer {
+            padding-top: 20px;
+            color: #9aa4b3;
+            font-size: 9px;
+            line-height: 1.6;
+        }
+
+        /* ========================================
+   RESPONSIVE
+======================================== */
+
+        @media(max-width:900px) {
+
+            .two-col,
+            .napkin-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .sensitivity {
+                grid-template-columns: 1fr;
+            }
+
+        }
+
+        @media(max-width:680px) {
+
+            .app {
+                width: calc(100% - 24px);
+                padding-top: 22px;
+            }
+
+            .company-head {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 18px;
+            }
+
+            .head-right {
+                text-align: left;
+            }
+
+            .sma-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .assumption-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .entry-box {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .entry-left {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .entry-note {
+                max-width: none;
+            }
+
+            .entry-meta {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .mos-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .mos-item {
+                border-right: 0;
+                border-bottom: 1px solid var(--line);
+            }
+
+            .mos-item:last-child {
+                border-bottom: 0;
+            }
+
+        }
+
+        @media(max-width:420px) {
+
+            .sma-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tech-top {
+                flex-wrap: wrap;
+                gap: 14px 22px;
+            }
+
+        }
+
+
+        /* ========================================
+   SIMPLE SVG CHART
+======================================== */
+
+        .sma-chart {
+            margin-top: 26px;
+            padding-top: 20px;
+            border-top: 1px solid var(--line);
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .chart-title {
+            color: #91a3bb;
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: .14em;
+        }
+
+        .chart-legend {
+            display: flex;
+            gap: 12px;
+            color: #8995a7;
+            font-size: 8px;
+            font-weight: 600;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .legend-line {
+            width: 14px;
+            height: 2px;
+            border-radius: 2px;
+        }
+
+        .legend-price {
+            background: #172033;
+        }
+
+        .legend-sma {
+            background: #7652e8;
+        }
+
+        .chart-svg {
+            display: block;
+            width: 100%;
+            height: 120px;
+        }
+    </style>
 </head>
 
 <body>
 
-<header class="header">
-    <div>
-        <div class="logo">NAPKIN RESEARCH</div>
-        <div class="subtitle">
-            India Equities · Yahoo Finance · NSE/BSE · Local Qwen
+    <div class="app">
+
+        <h1>Napkin Research</h1>
+
+        <div class="sub">
+            Assumption-driven valuation and entry-price framework.
         </div>
-    </div>
-
-    <div>
-        <span class="badge picked">QWEN LOCAL</span>
-    </div>
-</header>
 
 
-<div class="container">
-
-    <!-- SEARCH -->
-
-    <div class="search-box">
-
-        <div class="label">STOCK</div>
+        <!-- SEARCH -->
 
         <div class="search-row">
 
-            <input
-                id="ticker"
-                value="CORDSCABLE"
-                placeholder="NSE ticker e.g. CORDSCABLE"
-            >
+            <div class="search-box">
 
-            <button onclick="analyseStock()">
-                Analyse
+                <span class="search-icon">⌕</span>
+
+                <input id="tickerInput" value="STOVEKRAFT.NS" placeholder="Search NSE ticker...">
+
+            </div>
+
+            <button class="go-btn" onclick="runSearch()">
+                GO
             </button>
 
         </div>
 
-    </div>
 
+        <!-- COMPANY HEADER -->
 
-    <!-- STOCK HEADER -->
+        <div class="company-head">
 
-    <div class="stock-header">
+            <div>
 
-        <div>
-            <div class="ticker" id="stockTicker">
-                CORDSCABLE
-            </div>
+                <div class="company-name">
+                    Stove Kraft Limited
+                </div>
 
-            <div class="company">
-                Cords Cable Industries Ltd · NSE
-            </div>
-        </div>
+                <div class="symbol">
+                    STOVEKRAFT.NS
+                </div>
 
-        <div>
-            <span class="badge picked">
-                DATA LOADED
-            </span>
-        </div>
+                <div class="tags">
 
-    </div>
+                    <span class="tag tv">
+                        TRADINGVIEW
+                    </span>
 
+                    <span class="tag">
+                        CONSUMER DURABLES
+                    </span>
 
-    <!-- FINANCIAL CARDS -->
-
-    <div class="cards">
-
-        <div class="card">
-            <div class="card-title">PRICE</div>
-            <div class="card-value">₹315.90</div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">MARKET CAP</div>
-            <div class="card-value">₹650 Cr</div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">P/E</div>
-            <div class="card-value">17.5x</div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">EPS</div>
-            <div class="card-value">₹18.0</div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">ROE</div>
-            <div class="card-value">21.4%</div>
-        </div>
-
-        <div class="card">
-            <div class="card-title">ROCE</div>
-            <div class="card-value">28.1%</div>
-        </div>
-
-    </div>
-
-
-    <!-- NAPKIN + EARNINGS -->
-
-    <div class="grid">
-
-        <div class="section">
-
-            <div class="section-header">
-                NAPKIN VALUATION
-            </div>
-
-            <div class="section-body">
-
-                <div class="napkin-grid">
-
-                    <div class="napkin-box">
-                        <div class="napkin-label">
-                            CURRENT P/E
-                        </div>
-                        <div class="napkin-number">
-                            17.5x
-                        </div>
-                    </div>
-
-                    <div class="napkin-box">
-                        <div class="napkin-label">
-                            BASIC REQUIRED CAGR
-                        </div>
-                        <div class="napkin-number">
-                            39.2%
-                        </div>
-                    </div>
-
-                    <div class="napkin-box">
-                        <div class="napkin-label">
-                            ADJUSTED REQUIRED CAGR
-                        </div>
-                        <div class="napkin-number">
-                            18.0%
-                        </div>
-                    </div>
-
-                    <div class="napkin-box">
-                        <div class="napkin-label">
-                            EPS CAGR 3Y
-                        </div>
-                        <div class="napkin-number">
-                            42.1%
-                        </div>
-                    </div>
-
-                    <div class="napkin-box">
-                        <div class="napkin-label">
-                            EPS CAGR 5Y
-                        </div>
-                        <div class="napkin-number">
-                            34.0%
-                        </div>
-                    </div>
-
-                    <div class="napkin-box">
-                        <div class="napkin-label">
-                            BASE GROWTH GAP
-                        </div>
-                        <div class="napkin-number">
-                            +3.0%
-                        </div>
-                    </div>
+                    <span class="tag">
+                        NSE
+                    </span>
 
                 </div>
 
+            </div>
 
-                <div class="formula">
 
-                    Basic:
-                    (17.5 × 0.30)^(1/5) - 1 = 39.2%
+            <div class="head-right">
 
-                    <br><br>
-
-                    Adjusted:
-                    (17.5 × 4.5/34.5)^(1/5) - 1 = 18.0%
-
+                <div class="spot-label">
+                    Spot
                 </div>
 
+                <div class="spot">
+                    ₹813.45
+                </div>
 
-                <div class="status">
-                    REVIEW — BUSINESS EVIDENCE REQUIRED
+                <div class="mcap">
+                    Market Cap ₹2,850 Cr
                 </div>
 
             </div>
@@ -507,529 +1258,1598 @@
         </div>
 
 
-        <!-- EARNINGS -->
+        <!-- ABOUT -->
 
-        <div class="section">
+        <section>
 
-            <div class="section-header">
-                EARNINGS & GROWTH
+            <div class="section-title">
+                ABOUT
             </div>
 
-            <div class="section-body">
+            <div class="about">
 
-                <table>
+                Stove Kraft is an Indian consumer-durables company focused on
+                kitchen and home appliances. The Napkin framework separates
+                historical performance from explicit future assumptions and
+                converts those assumptions into an implied future value and
+                maximum entry price.
+
+            </div>
+
+        </section>
+
+
+        <!-- QUARTERS + TECH & VAL -->
+
+        <section>
+
+            <div class="two-col">
+
+
+                <!-- QUARTERS -->
+
+                <div>
+
+                    <div class="section-title">
+                        QUARTERS
+                    </div>
+
+                    <table class="quarter-table">
+
+                        <thead>
+
+                            <tr>
+                                <th>Quarter</th>
+                                <th>Sales</th>
+                                <th>Growth</th>
+                                <th>Profit</th>
+                                <th>Growth</th>
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            <tr>
+                                <td>Jun 26</td>
+                                <td>₹418 Cr</td>
+                                <td class="q-good">+14%</td>
+                                <td>₹21 Cr</td>
+                                <td class="q-good">+31%</td>
+                            </tr>
+
+                            <tr>
+                                <td>Mar 26</td>
+                                <td>₹398 Cr</td>
+                                <td class="q-good">+11%</td>
+                                <td>₹18 Cr</td>
+                                <td class="q-good">+17%</td>
+                            </tr>
+
+                            <tr>
+                                <td>Dec 25</td>
+                                <td>₹376 Cr</td>
+                                <td class="q-neutral">+2%</td>
+                                <td>₹14 Cr</td>
+                                <td class="q-bad">−6%</td>
+                            </tr>
+
+                            <tr>
+                                <td>Sep 25</td>
+                                <td>₹351 Cr</td>
+                                <td class="q-bad">−3%</td>
+                                <td>₹12 Cr</td>
+                                <td class="q-bad">−12%</td>
+                            </tr>
+
+                            <tr>
+                                <td>Jun 25</td>
+                                <td>₹367 Cr</td>
+                                <td class="q-good">+8%</td>
+                                <td>₹16 Cr</td>
+                                <td class="q-good">+10%</td>
+                            </tr>
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+
+                <!-- TECH & VAL -->
+
+                <div>
+
+                    <div class="section-title">
+                        TECH & VAL
+                    </div>
+
+                    <div class="tech-card">
+
+                        <div class="tech-title">
+                            TECH & VAL
+                        </div>
+
+
+                        <!-- TOP METRICS -->
+
+                        <div class="tech-top">
+
+                            <div class="tech-metric">
+
+                                <span class="tech-metric-label">
+                                    Price
+                                </span>
+
+                                <span class="tech-metric-value">
+                                    ₹813.45
+                                </span>
+
+                            </div>
+
+
+                            <div class="tech-metric">
+
+                                <span class="tech-metric-label">
+                                    PE
+                                </span>
+
+                                <span class="tech-metric-value">
+                                    55.30
+                                </span>
+
+                            </div>
+
+
+                            <div class="tech-metric growth">
+
+                                <span class="tech-metric-label">
+                                    4Y CAGR
+                                </span>
+
+                                <span class="tech-metric-value">
+                                    +4.5%
+                                </span>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- MOVING AVERAGES -->
+
+                        <div class="tech-subtitle">
+                            MOVING AVERAGES
+                        </div>
+
+
+                        <div class="sma-grid">
+
+
+                            <div class="sma-item">
+
+                                <div class="sma-top">
+
+                                    <span class="sma-period">
+                                        20D
+                                    </span>
+
+                                    <span class="sma-signal bad">
+                                        ×
+                                    </span>
+
+                                </div>
+
+                                <div class="sma-value">
+                                    ₹817.70
+                                </div>
+
+                                <div class="sma-distance negative">
+                                    −0.5% vs price
+                                </div>
+
+                            </div>
+
+
+                            <div class="sma-item">
+
+                                <div class="sma-top">
+
+                                    <span class="sma-period">
+                                        50D
+                                    </span>
+
+                                    <span class="sma-signal good">
+                                        ✓
+                                    </span>
+
+                                </div>
+
+                                <div class="sma-value">
+                                    ₹806.16
+                                </div>
+
+                                <div class="sma-distance positive">
+                                    +0.9% vs price
+                                </div>
+
+                            </div>
+
+
+                            <div class="sma-item">
+
+                                <div class="sma-top">
+
+                                    <span class="sma-period">
+                                        100D
+                                    </span>
+
+                                    <span class="sma-signal good">
+                                        ✓
+                                    </span>
+
+                                </div>
+
+                                <div class="sma-value">
+                                    ₹756.09
+                                </div>
+
+                                <div class="sma-distance positive">
+                                    +7.6% vs price
+                                </div>
+
+                            </div>
+
+
+                            <div class="sma-item">
+
+                                <div class="sma-top">
+
+                                    <span class="sma-period">
+                                        200D
+                                    </span>
+
+                                    <span class="sma-signal good">
+                                        ✓
+                                    </span>
+
+                                </div>
+
+                                <div class="sma-value">
+                                    ₹641.74
+                                </div>
+
+                                <div class="sma-distance positive">
+                                    +26.8% vs price
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <!-- 52 WEEK RANGE -->
+
+                        <div class="range-title">
+                            52-WEEK RANGE
+                        </div>
+
+
+                        <div class="range-values">
+
+                            <div class="range-value low">
+                                ₹447.05
+                            </div>
+
+                            <div class="range-current">
+
+                                <span class="range-current-label">
+                                    Current
+                                </span>
+
+                                ₹813.45
+
+                            </div>
+
+                            <div class="range-value high">
+                                ₹877
+                            </div>
+
+                        </div>
+
+
+                        <div class="range-track">
+
+                            <div class="range-fill" style="width:85.2%"></div>
+
+                            <div class="range-marker" style="left:85.2%">
+
+                                <div class="range-marker-label">
+                                    85% POSITION
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="range-bottom">
+
+                            <span>
+                                52W LOW
+                            </span>
+
+                            <span>
+                                PRICE POSITION
+                            </span>
+
+                            <span>
+                                52W HIGH
+                            </span>
+
+                        </div>
+
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- FINANCIALS -->
+
+        <section>
+
+            <div class="section-title">
+                FINANCIALS
+            </div>
+
+            <table class="fin-table">
+
+                <thead>
 
                     <tr>
-                        <th>METRIC</th>
-                        <th>3Y</th>
-                        <th>5Y</th>
+                        <th></th>
+                        <th>FY22</th>
+                        <th>FY23</th>
+                        <th>FY24</th>
+                        <th>FY25</th>
+                        <th>FY26</th>
+                        <th>CAGR</th>
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    <tr>
+                        <td>Sales</td>
+                        <td>₹1,145 Cr</td>
+                        <td>₹1,281 Cr</td>
+                        <td>₹1,452 Cr</td>
+                        <td>₹1,570 Cr</td>
+                        <td>₹1,643 Cr</td>
+                        <td class="q-good">9.5%</td>
                     </tr>
 
                     <tr>
-                        <td>Revenue CAGR</td>
-                        <td>18.4%</td>
-                        <td>16.7%</td>
-                    </tr>
-
-                    <tr>
-                        <td>EPS CAGR</td>
-                        <td>42.1%</td>
-                        <td>34.0%</td>
-                    </tr>
-
-                    <tr>
-                        <td>Profit CAGR</td>
-                        <td>39.8%</td>
-                        <td>31.5%</td>
-                    </tr>
-
-                    <tr>
-                        <td>ROE</td>
-                        <td>—</td>
-                        <td>21.4%</td>
+                        <td>EPS</td>
+                        <td>₹12.1</td>
+                        <td>₹13.8</td>
+                        <td>₹15.1</td>
+                        <td>₹14.2</td>
+                        <td>₹14.78</td>
+                        <td class="q-neutral">5.3%</td>
                     </tr>
 
                     <tr>
                         <td>ROCE</td>
-                        <td>—</td>
-                        <td>28.1%</td>
+                        <td>14.2%</td>
+                        <td>15.1%</td>
+                        <td>17.3%</td>
+                        <td>18.4%</td>
+                        <td>19.1%</td>
+                        <td class="q-good">↑</td>
                     </tr>
 
-                </table>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- FILINGS -->
-
-    <div class="section" style="margin-bottom:18px;">
-
-        <div class="section-header">
-            LATEST FILINGS
-        </div>
-
-        <div class="section-body">
-
-            <table>
-
-                <tr>
-                    <th>DATE</th>
-                    <th>DOCUMENT</th>
-                    <th>TYPE</th>
-                    <th>STATUS</th>
-                    <th>ACTION</th>
-                </tr>
-
-                <tr>
-                    <td>13-Aug-2026</td>
-                    <td>Q1 FY27 Results / Outcome</td>
-                    <td>
-                        <span class="badge result">
-                            RESULT
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge picked">
-                            PICKED
-                        </span>
-                    </td>
-                    <td>
-                        <button onclick="analysePDF()">
-                            Analyse
-                        </button>
-                    </td>
-                </tr>
-
-                <tr>
-                    <td>28-May-2026</td>
-                    <td>FY26 Financial Results</td>
-                    <td>
-                        <span class="badge result">
-                            RESULT
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge picked">
-                            PICKED
-                        </span>
-                    </td>
-                    <td>
-                        <button>
-                            Analyse
-                        </button>
-                    </td>
-                </tr>
-
-                <tr>
-                    <td>2026</td>
-                    <td>Investor Presentation</td>
-                    <td>
-                        <span class="badge result">
-                            PRESENTATION
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge picked">
-                            PICKED
-                        </span>
-                    </td>
-                    <td>
-                        <button>
-                            Analyse
-                        </button>
-                    </td>
-                </tr>
-
-                <tr>
-                    <td>2026</td>
-                    <td>Management Concall Transcript</td>
-                    <td>
-                        <span class="badge concall">
-                            CONCALL
-                        </span>
-                    </td>
-                    <td>
-                        <span class="badge picked">
-                            PICKED
-                        </span>
-                    </td>
-                    <td>
-                        <button>
-                            Analyse
-                        </button>
-                    </td>
-                </tr>
+                </tbody>
 
             </table>
 
-        </div>
+        </section>
 
-    </div>
 
+        <!-- NAPKIN -->
 
-    <!-- QWEN -->
-
-    <div class="grid">
-
-        <div class="section">
-
-            <div class="section-header">
-                QWEN — BUSINESS RESEARCH
-            </div>
-
-            <div class="section-body analysis">
-
-                <h4>Growth Drivers</h4>
-
-                <div class="evidence">
-                    <b>Capacity expansion</b><br>
-                    Management commentary indicates additional capacity
-                    is being added to support future volume growth.
-                    <br>
-                    <small>
-                        Source: Q1 FY27 management commentary · Page 7
-                    </small>
-                </div>
-
-                <div class="evidence">
-                    <b>Customer additions</b><br>
-                    New customer wins could support incremental revenue,
-                    subject to ramp-up.
-                </div>
-
-                <h4>Market Share</h4>
-
-                <div class="evidence">
-                    <b>MODERATE EVIDENCE</b><br>
-                    Company growth appears higher than the broader industry
-                    based on supplied evidence. Direct market-share data
-                    should be verified.
-                </div>
-
-                <h4>Margins</h4>
-
-                <div class="evidence">
-                    Margin expansion is possible if utilization improves,
-                    but this requires confirmation from subsequent results.
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <!-- SCENARIOS -->
-
-        <div class="section">
-
-            <div class="section-header">
-                QWEN — EPS SCENARIOS
-            </div>
-
-            <div class="section-body">
-
-                <div class="scenario">
-
-                    <div class="scenario-box">
-                        <div class="scenario-title">
-                            BEAR
-                        </div>
-
-                        <div class="scenario-value">
-                            12%
-                        </div>
-                    </div>
-
-                    <div class="scenario-box">
-                        <div class="scenario-title">
-                            BASE
-                        </div>
-
-                        <div class="scenario-value">
-                            21%
-                        </div>
-                    </div>
-
-                    <div class="scenario-box">
-                        <div class="scenario-title">
-                            BULL
-                        </div>
-
-                        <div class="scenario-value">
-                            28%
-                        </div>
-                    </div>
-
-                </div>
-
-
-                <br>
-
-                <h4>Base Case</h4>
-
-                <div class="evidence">
-                    Base case assumes continued revenue growth,
-                    stable margins and successful capacity ramp-up.
-                </div>
-
-                <h4>Growth Gap</h4>
-
-                <div class="evidence">
-                    Base EPS CAGR: <b>21%</b><br>
-                    Adjusted Napkin hurdle: <b>18%</b><br><br>
-
-                    Growth Gap:
-                    <b>+3 percentage points</b>
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- MANAGEMENT -->
-
-    <div class="section" style="margin-bottom:18px;">
-
-        <div class="section-header">
-            MANAGEMENT TRACK RECORD
-        </div>
-
-        <div class="section-body">
-
-            <table>
-
-                <tr>
-                    <th>CLAIM</th>
-                    <th>QUARTER</th>
-                    <th>RESULT</th>
-                    <th>STATUS</th>
-                </tr>
-
-                <tr>
-                    <td>Capacity expansion</td>
-                    <td>Q2 FY26</td>
-                    <td>Capacity increased</td>
-                    <td>✓ Achieved</td>
-                </tr>
-
-                <tr>
-                    <td>New customer contribution</td>
-                    <td>Q4 FY26</td>
-                    <td>Partial ramp-up</td>
-                    <td>◐ Partial</td>
-                </tr>
-
-                <tr>
-                    <td>Margin improvement</td>
-                    <td>Q4 FY26</td>
-                    <td>Below target</td>
-                    <td>✕ Missed</td>
-                </tr>
-
-            </table>
-
-        </div>
-
-    </div>
-
-
-    <!-- RISKS + MONITOR -->
-
-    <div class="grid">
-
-        <div class="section">
-
-            <div class="section-header">
-                KEY RISKS
-            </div>
-
-            <div class="section-body analysis">
-
-                <div class="monitor">
-                    <span class="number">1.</span>
-                    Customer concentration
-                </div>
-
-                <div class="monitor">
-                    <span class="number">2.</span>
-                    Margin pressure
-                </div>
-
-                <div class="monitor">
-                    <span class="number">3.</span>
-                    Capacity execution
-                </div>
-
-                <div class="monitor">
-                    <span class="number">4.</span>
-                    Working-capital requirements
-                </div>
-
-                <div class="monitor">
-                    <span class="number">5.</span>
-                    Industry slowdown
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <div class="section">
-
-            <div class="section-header">
-                NEXT QUARTER — WHAT TO MONITOR
-            </div>
-
-            <div class="section-body">
-
-                <div class="monitor">
-                    <span class="number">1.</span>
-                    Revenue growth > 15%
-                </div>
-
-                <div class="monitor">
-                    <span class="number">2.</span>
-                    EBITDA margin
-                </div>
-
-                <div class="monitor">
-                    <span class="number">3.</span>
-                    Capacity utilization
-                </div>
-
-                <div class="monitor">
-                    <span class="number">4.</span>
-                    New customer ramp-up
-                </div>
-
-                <div class="monitor">
-                    <span class="number">5.</span>
-                    Management guidance
-                </div>
-
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <!-- FINAL CARD -->
-
-    <div class="section">
-
-        <div class="section-header">
-            NAPKIN RESEARCH CARD
-        </div>
-
-        <div class="section-body">
+        <section>
 
             <div class="napkin-grid">
 
-                <div class="napkin-box">
-                    <div class="napkin-label">
-                        REQUIRED EPS CAGR
+
+                <div>
+
+                    <div class="section-title">
+                        NAPKIN MATH
                     </div>
-                    <div class="napkin-number">
-                        18.0%
+
+                    <div class="metric-list">
+
+                        <div class="metric">
+                            <span>Napkin Factor</span>
+                            <strong>30%</strong>
+                        </div>
+
+                        <div class="metric">
+                            <span>Current P/E</span>
+                            <strong>55.3x</strong>
+                        </div>
+
+                        <div class="metric">
+                            <span>Required EPS CAGR</span>
+                            <strong id="requiredCagr">75.4%</strong>
+                        </div>
+
+                        <div class="metric">
+                            <span>Historical 5Y EPS CAGR</span>
+                            <strong>5.3%</strong>
+                        </div>
+
+                        <div class="metric highlight">
+                            <span>Growth Gap</span>
+                            <strong id="growthGap">−60.4%</strong>
+                        </div>
+
                     </div>
+
                 </div>
 
-                <div class="napkin-box">
-                    <div class="napkin-label">
-                        BASE EPS CAGR
-                    </div>
-                    <div class="napkin-number">
-                        21.0%
-                    </div>
-                </div>
 
-                <div class="napkin-box">
-                    <div class="napkin-label">
-                        GROWTH GAP
+                <div>
+
+                    <div class="section-title">
+                        YOUR ASSUMPTIONS
                     </div>
-                    <div class="napkin-number">
-                        +3.0%
+
+                    <div class="assumption-grid">
+
+                        <div class="assumption">
+
+                            <label>
+                                Expected EPS CAGR
+                            </label>
+
+                            <input id="expectedGrowth" type="number" value="15" oninput="calculate()">
+
+                        </div>
+
+
+                        <div class="assumption">
+
+                            <label>
+                                Exit P/E
+                            </label>
+
+                            <input id="exitPE" type="number" value="55.3" step="0.1" oninput="calculate()">
+
+                        </div>
+
+
+                        <div class="assumption">
+
+                            <label>
+                                Target Return
+                            </label>
+
+                            <input id="targetReturn" type="number" value="15" oninput="calculate()">
+
+                        </div>
+
                     </div>
+
                 </div>
 
             </div>
 
-            <div class="status">
-                REVIEW — VERIFY FUTURE EARNINGS GROWTH
+        </section>
+
+
+        <!-- 5 YEAR PATH -->
+
+        <section>
+
+            <div class="section-title">
+                5-YEAR PATH
             </div>
+
+            <div class="path-row">
+                <span>Current EPS</span>
+                <strong>₹14.78</strong>
+            </div>
+
+            <div class="path-row">
+                <span>Expected EPS CAGR</span>
+                <strong id="pathGrowth">15%</strong>
+            </div>
+
+            <div class="path-row">
+                <span>EPS in 5 years</span>
+                <strong id="futureEPS">₹29.72</strong>
+            </div>
+
+            <div class="path-row">
+                <span>Current P/E</span>
+                <strong>55.3x</strong>
+            </div>
+
+            <div class="path-row">
+                <span>Exit P/E</span>
+                <strong id="pathPE">55.3x</strong>
+            </div>
+
+            <div class="path-row">
+                <span>Future Value</span>
+                <strong id="futureValue">₹1,644</strong>
+            </div>
+
+            <div class="path-row">
+                <span>Current Price</span>
+                <strong>₹813.45</strong>
+            </div>
+
+            <div class="path-row highlight">
+                <span>Implied Price CAGR</span>
+                <strong id="priceCagr">15.0%</strong>
+            </div>
+
+        </section>
+
+
+        <!-- ENTRY PRICE -->
+
+        <section>
+
+            <div class="section-title">
+                ENTRY PRICE
+            </div>
+
+            <div class="entry-box">
+
+                <div class="entry-left">
+
+                    <div>
+
+                        <div class="entry-label">
+                            MAX ENTRY PRICE
+                        </div>
+
+                        <div class="entry-number" id="maxPay">
+                            ₹817
+                        </div>
+
+                    </div>
+
+                    <div id="entryStatus" class="entry-status good">
+                        <span class="dot"></span>
+                        AT ENTRY PRICE
+                    </div>
+
+                </div>
+
+                <div class="entry-note">
+
+                    Maximum price today to achieve the selected target return if the
+                    selected EPS growth, exit P/E and holding-period assumptions hold.
+
+                </div>
+
+            </div>
+
+
+            <div class="entry-meta">
+
+                <div class="item">
+                    <span>Spot</span>
+                    <b>₹813.45</b>
+                </div>
+
+                <div class="item">
+                    <span>Target Return</span>
+                    <b id="entryTarget">15%</b>
+                </div>
+
+                <div class="item">
+                    <span>Difference</span>
+                    <b id="entryDifference">+₹3.55</b>
+                </div>
+
+                <div class="item">
+                    <span>Spot vs Entry</span>
+                    <b id="spotVsEntry">−0.43%</b>
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- COMPOSITE VERDICT -->
+
+        <section>
+
+            <div class="section-title">
+                COMPOSITE VERDICT
+            </div>
+
+            <div id="verdictBox" class="verdict-box verdict-reasonable">
+
+                <div class="verdict-label">
+
+                    <span class="verdict-dot"></span>
+
+                    <span id="verdict">
+                        REASONABLE
+                    </span>
+
+                </div>
+
+                <div class="verdict-text" id="verdictText">
+                    The selected assumptions produce a reasonable balance between
+                    required growth, expected growth and calculated entry price.
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- MARGIN OF SAFETY -->
+
+        <section>
+
+            <div class="section-title">
+                MARGIN OF SAFETY / PREMIUM
+            </div>
+
+            <div class="mos-grid">
+
+                <div class="mos-item">
+
+                    <span>
+                        MAX ENTRY PRICE
+                    </span>
+
+                    <strong id="mosEntry">
+                        ₹817
+                    </strong>
+
+                </div>
+
+
+                <div class="mos-item">
+
+                    <span>
+                        SPOT
+                    </span>
+
+                    <strong>
+                        ₹813.45
+                    </strong>
+
+                </div>
+
+
+                <div class="mos-item">
+
+                    <span>
+                        MOS / PREMIUM
+                    </span>
+
+                    <strong id="mosValue" class="mos-positive">
+                        +0.43%
+                    </strong>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- SENSITIVITY -->
+
+        <section>
+
+            <div class="section-title">
+                SENSITIVITY
+            </div>
+
+            <div class="sensitivity">
+
+
+                <!-- FACTOR -->
+
+                <div class="sens-card">
+
+                    <div class="sens-head">
+
+                        <strong>
+                            Napkin Factor
+                        </strong>
+
+                        <span>
+                            Impact on required EPS CAGR
+                        </span>
+
+                    </div>
+
+                    <div class="table-wrap">
+                    <table class="sens-table">
+                        <thead>
+                            <tr>
+                                <th>Factor</th>
+                                <th>Required CAGR</th>
+                                <th>Max Entry</th>
+                                <th>vs Spot</th>
+                            </tr>
+                        </thead>
+                        <tbody id="factorTable"></tbody>
+                    </table>
+                    </div>
+
+                </div>
+
+
+                <!-- GROWTH -->
+
+                <div class="sens-card">
+
+                    <div class="sens-head">
+
+                        <strong>
+                            Expected EPS CAGR
+                        </strong>
+
+                        <span>
+                            Impact on Max Entry
+                        </span>
+
+                    </div>
+
+                    <div class="table-wrap">
+                    <table class="sens-table">
+                        <thead>
+                            <tr>
+                                <th>Growth</th>
+                                <th>Future EPS</th>
+                                <th>Future Value</th>
+                                <th>Price CAGR</th>
+                                <th>Max Entry</th>
+                                <th>vs Spot</th>
+                            </tr>
+                        </thead>
+                        <tbody id="growthTable"></tbody>
+                    </table>
+                    </div>
+
+                </div>
+
+
+                <!-- PE -->
+
+                <div class="sens-card">
+
+                    <div class="sens-head">
+
+                        <strong>
+                            Exit P/E
+                        </strong>
+
+                        <span>
+                            Impact on Max Entry
+                        </span>
+
+                    </div>
+
+                    <div class="table-wrap">
+                    <table class="sens-table">
+                        <thead>
+                            <tr>
+                                <th>Exit P/E</th>
+                                <th>Future Value</th>
+                                <th>Price CAGR</th>
+                                <th>Max Entry</th>
+                                <th>vs Spot</th>
+                            </tr>
+                        </thead>
+                        <tbody id="peTable"></tbody>
+                    </table>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- SCENARIO -->
+
+        <section>
+
+            <div class="section-title">
+                SCENARIO RANGE
+            </div>
+
+            <div class="table-wrap">
+            <table class="scenario-table">
+
+                <thead>
+
+                    <tr>
+                        <th>Scenario</th>
+                        <th>EPS CAGR</th>
+                        <th>Exit P/E</th>
+                        <th>Future Value</th>
+                        <th>Price CAGR</th>
+                        <th>Max Entry</th>
+                    </tr>
+
+                </thead>
+
+                <tbody id="scenarioTable"></tbody>
+
+            </table>
+            </div>
+
+        </section>
+
+
+        <div class="footer">
+
+            Napkin is an assumption-based framework. Historical growth does not
+            guarantee future growth. Max Entry Price is calculated from the
+            selected assumptions and target return and is not a standalone
+            investment recommendation.
 
         </div>
 
     </div>
 
-</div>
+
+    <script>
+
+        /* ========================================
+           STOCK DATA
+        ======================================== */
+
+        const stock = {
+
+            price: 813.45,
+
+            eps: 14.78,
+
+            pe: 55.30,
+
+            historicalEPSCAGR: 0.053,
+
+            napkinFactor: 0.30,
+
+            holdingPeriod: 5
+
+        };
 
 
-<script>
+        /* ========================================
+           FORMATTERS
+        ======================================== */
 
-function analyseStock() {
+        function money(v) {
 
-    const ticker =
-        document.getElementById("ticker").value
-        .toUpperCase()
-        .trim();
+            return "₹" +
+                Math.round(v).toLocaleString("en-IN");
 
-    if (!ticker) {
-        alert("Enter an NSE ticker");
-        return;
-    }
-
-    document.getElementById("stockTicker").innerText =
-        ticker;
-
-    /*
-        Later:
-
-        fetch(`/api/napkin?ticker=${ticker}`)
-            .then(...)
-            .then(...)
-    */
-
-    alert(
-        "Demo mode: " +
-        ticker +
-        "\n\nConnect this button to your yfinance/API backend."
-    );
-}
-
-
-function analysePDF() {
-
-    /*
-        Later:
-
-        POST /api/napkin/extract
-
-        {
-            url: filingUrl
         }
 
-        Then:
 
-        POST /api/napkin/qwen
-    */
+        function money2(v) {
 
-    alert(
-        "Demo PDF analysis.\n\n" +
-        "Next step: connect this to PDF extraction + local Ollama/Qwen."
-    );
-}
+            return "₹" +
+                v.toLocaleString("en-IN", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
 
-</script>
+        }
+
+
+        function pct(v, dec = 1) {
+
+            return (v * 100).toFixed(dec) + "%";
+
+        }
+
+
+        /* ========================================
+           REQUIRED CAGR
+        ======================================== */
+
+        function requiredEPSCAGR(factor) {
+
+            return Math.pow(
+                stock.pe * factor,
+                1 / stock.holdingPeriod
+            ) - 1;
+
+        }
+
+
+        /* ========================================
+           5 YEAR PATH
+        ======================================== */
+
+        function calculatePath(
+            growth,
+            exitPE,
+            targetReturn
+        ) {
+
+            const futureEPS =
+                stock.eps *
+                Math.pow(
+                    1 + growth,
+                    stock.holdingPeriod
+                );
+
+            const futureValue =
+                futureEPS * exitPE;
+
+            const priceCAGR =
+                Math.pow(
+                    futureValue / stock.price,
+                    1 / stock.holdingPeriod
+                ) - 1;
+
+            const maxPayToday =
+                futureValue /
+                Math.pow(
+                    1 + targetReturn,
+                    stock.holdingPeriod
+                );
+
+            const maxPayVsSpot =
+                maxPayToday / stock.price - 1;
+
+            return {
+                futureEPS,
+                futureValue,
+                priceCAGR,
+                maxPayToday,
+                maxPayVsSpot
+            };
+
+        }
+
+
+        /* ========================================
+           MAIN
+        ======================================== */
+
+        function calculate() {
+
+            const growth =
+                Number(
+                    document.getElementById(
+                        "expectedGrowth"
+                    ).value
+                ) / 100;
+
+            const exitPE =
+                Number(
+                    document.getElementById(
+                        "exitPE"
+                    ).value
+                );
+
+            const targetReturn =
+                Number(
+                    document.getElementById(
+                        "targetReturn"
+                    ).value
+                ) / 100;
+
+
+            const required =
+                requiredEPSCAGR(
+                    stock.napkinFactor
+                );
+
+            const growthGap =
+                growth - required;
+
+
+            const path =
+                calculatePath(
+                    growth,
+                    exitPE,
+                    targetReturn
+                );
+
+
+            /* NAPKIN */
+
+            document.getElementById(
+                "requiredCagr"
+            ).textContent =
+                pct(required);
+
+
+            document.getElementById(
+                "growthGap"
+            ).textContent =
+                (growthGap >= 0 ? "+" : "−") +
+                Math.abs(growthGap * 100).toFixed(1) +
+                "%";
+
+
+            /* PATH */
+
+            document.getElementById(
+                "pathGrowth"
+            ).textContent =
+                pct(growth, 0);
+
+
+            document.getElementById(
+                "futureEPS"
+            ).textContent =
+                money2(path.futureEPS);
+
+
+            document.getElementById(
+                "pathPE"
+            ).textContent =
+                exitPE.toFixed(1) + "x";
+
+
+            document.getElementById(
+                "futureValue"
+            ).textContent =
+                money(path.futureValue);
+
+
+            document.getElementById(
+                "priceCagr"
+            ).textContent =
+                pct(path.priceCAGR);
+
+
+            /* ENTRY */
+
+            document.getElementById(
+                "maxPay"
+            ).textContent =
+                money(path.maxPayToday);
+
+
+            document.getElementById(
+                "entryTarget"
+            ).textContent =
+                pct(targetReturn, 0);
+
+
+            const difference =
+                path.maxPayToday - stock.price;
+
+
+            document.getElementById(
+                "entryDifference"
+            ).textContent =
+                (difference >= 0 ? "+" : "−") +
+                money2(Math.abs(difference));
+
+
+            document.getElementById(
+                "spotVsEntry"
+            ).textContent =
+                (path.maxPayVsSpot >= 0 ? "+" : "−") +
+                Math.abs(path.maxPayVsSpot * 100).toFixed(2) +
+                "%";
+
+
+            updateEntryStatus(
+                path.maxPayToday
+            );
+
+
+            /* MOS */
+
+            document.getElementById(
+                "mosEntry"
+            ).textContent =
+                money(path.maxPayToday);
+
+
+            const mos =
+                path.maxPayVsSpot * 100;
+
+            const mosEl =
+                document.getElementById(
+                    "mosValue"
+                );
+
+            mosEl.textContent =
+                (mos >= 0 ? "+" : "−") +
+                Math.abs(mos).toFixed(2) +
+                "%";
+
+            mosEl.className =
+                mos >= 0
+                    ? "mos-positive"
+                    : "mos-negative";
+
+
+            /* VERDICT */
+
+            updateVerdict(
+                growthGap,
+                path.priceCAGR - targetReturn,
+                path.maxPayToday
+            );
+
+
+            /* TABLES */
+
+            renderFactorTable(growth);
+
+            renderGrowthTable(
+                exitPE,
+                targetReturn
+            );
+
+            renderPETable(
+                growth,
+                targetReturn,
+                exitPE
+            );
+
+            renderScenarios(
+                growth,
+                exitPE,
+                targetReturn
+            );
+
+        }
+
+
+        /* ========================================
+           ENTRY STATUS
+        ======================================== */
+
+        function updateEntryStatus(maxEntry) {
+
+            const el =
+                document.getElementById(
+                    "entryStatus"
+                );
+
+            const ratio =
+                stock.price / maxEntry;
+
+            el.className =
+                "entry-status";
+
+
+            if (
+                Math.abs(ratio - 1) <= .01
+            ) {
+
+                el.classList.add("good");
+
+                el.innerHTML =
+                    '<span class="dot"></span>AT ENTRY PRICE';
+
+            }
+
+            else if (
+                stock.price <= maxEntry
+            ) {
+
+                el.classList.add("good");
+
+                el.innerHTML =
+                    '<span class="dot"></span>WITHIN ENTRY RANGE';
+
+            }
+
+            else if (
+                stock.price <= maxEntry * 1.10
+            ) {
+
+                el.classList.add("near");
+
+                el.innerHTML =
+                    '<span class="dot"></span>NEAR ENTRY PRICE';
+
+            }
+
+            else {
+
+                el.classList.add("high");
+
+                el.innerHTML =
+                    '<span class="dot"></span>ABOVE ENTRY PRICE';
+
+            }
+
+        }
+
+
+        /* ========================================
+           VERDICT
+        ======================================== */
+
+        function updateVerdict(
+            growthGap,
+            returnGap,
+            maxEntry
+        ) {
+
+            let label;
+            let cls;
+            let text;
+
+
+            if (
+                growthGap >= 0 &&
+                returnGap >= 0 &&
+                maxEntry >= stock.price
+            ) {
+
+                label = "ATTRACTIVE";
+                cls = "verdict-attractive";
+
+                text =
+                    "The selected growth and exit assumptions support the required Napkin growth and the calculated entry price is at or above the current spot.";
+
+            }
+
+            else if (
+                growthGap >= -.10 ||
+                returnGap >= -.05 ||
+                maxEntry >= stock.price * .90
+            ) {
+
+                label = "REASONABLE";
+                cls = "verdict-reasonable";
+
+                text =
+                    "The assumptions are close to the required range, although one or more inputs do not fully support the target return at the current spot.";
+
+            }
+
+            else if (
+                maxEntry < stock.price * .75 ||
+                (
+                    growthGap < -.20 &&
+                    returnGap < -.10
+                )
+            ) {
+
+                label = "HIGHLY STRETCHED";
+                cls = "verdict-high";
+
+                text =
+                    "The current valuation requires materially stronger assumptions than those currently selected.";
+
+            }
+
+            else {
+
+                label = "STRETCHED";
+                cls = "verdict-stretched";
+
+                text =
+                    "The current valuation requires stronger growth, a higher exit multiple, or a lower entry price to satisfy the selected return objective.";
+
+            }
+
+
+            document.getElementById(
+                "verdictBox"
+            ).className =
+                "verdict-box " + cls;
+
+
+            document.getElementById(
+                "verdict"
+            ).textContent =
+                label;
+
+
+            document.getElementById(
+                "verdictText"
+            ).textContent =
+                text;
+
+        }
+
+
+        /* ========================================
+           FACTOR SENSITIVITY
+        ======================================== */
+
+            function renderFactorTable(growth) {
+            const exitPE = Number(document.getElementById("exitPE").value);
+            const targetReturn = Number(document.getElementById("targetReturn").value) / 100;
+            const path = calculatePath(growth, exitPE, targetReturn);
+            const factors = [0.20, 0.25, 0.30, 0.35, 0.40];
+            const body = document.getElementById("factorTable");
+            body.innerHTML = "";
+            factors.forEach(factor => {
+                const req = requiredEPSCAGR(factor);
+                const current = factor === stock.napkinFactor ? " class='sens-current'" : "";
+                const vs = path.maxPayVsSpot;
+                body.innerHTML += `<tr${current}><td>${(factor * 100).toFixed(0)}%</td><td>${pct(req)}</td><td>${money(path.maxPayToday)}</td><td>${(vs >= 0 ? "+" : "−") + Math.abs(vs * 100).toFixed(1)}%</td></tr>`;
+            });
+        }
+
+
+        /* ========================================
+           GROWTH SENSITIVITY
+        ======================================== */
+
+        function renderGrowthTable(
+            exitPE,
+            targetReturn
+        ) {
+
+            const growths = [
+                .05,
+                .10,
+                .15,
+                .20,
+                .25,
+                .30
+            ];
+
+            const currentGrowth =
+                Number(
+                    document.getElementById(
+                        "expectedGrowth"
+                    ).value
+                ) / 100;
+
+
+            const body =
+                document.getElementById(
+                    "growthTable"
+                );
+
+            body.innerHTML = "";
+
+
+            growths.forEach(growth => {
+
+                const p =
+                    calculatePath(
+                        growth,
+                        exitPE,
+                        targetReturn
+                    );
+
+
+                const current =
+                    Math.abs(
+                        growth - currentGrowth
+                    ) < .0001
+                        ? " class='sens-current'"
+                        : "";
+
+
+                const vs = p.maxPayVsSpot;
+                body.innerHTML += `<tr${current}><td>${(growth * 100).toFixed(0)}%</td><td>${money2(p.futureEPS)}</td><td>${money(p.futureValue)}</td><td>${pct(p.priceCAGR)}</td><td>${money(p.maxPayToday)}</td><td>${(vs >= 0 ? "+" : "−") + Math.abs(vs * 100).toFixed(1)}%</td></tr>`;
+
+            });
+
+        }
+
+
+        /* ========================================
+           EXIT PE SENSITIVITY
+        ======================================== */
+
+        function renderPETable(
+            growth,
+            targetReturn,
+            currentPE
+        ) {
+
+            const values = [
+
+                currentPE - 15,
+                currentPE - 10,
+                currentPE - 5,
+                currentPE,
+                currentPE + 5,
+                currentPE + 10,
+                currentPE + 15
+
+            ].filter(v => v > 0);
+
+
+            const body =
+                document.getElementById(
+                    "peTable"
+                );
+
+            body.innerHTML = "";
+
+
+            values.forEach(pe => {
+
+                const p =
+                    calculatePath(
+                        growth,
+                        pe,
+                        targetReturn
+                    );
+
+
+                const current =
+                    Math.abs(
+                        pe - currentPE
+                    ) < .01
+                        ? " class='sens-current'"
+                        : "";
+
+
+                const vs = p.maxPayVsSpot;
+                body.innerHTML += `<tr${current}><td>${pe.toFixed(1)}x</td><td>${money(p.futureValue)}</td><td>${pct(p.priceCAGR)}</td><td>${money(p.maxPayToday)}</td><td>${(vs >= 0 ? "+" : "−") + Math.abs(vs * 100).toFixed(1)}%</td></tr>`;
+
+            });
+
+        }
+
+
+        /* ========================================
+           SCENARIOS
+        ======================================== */
+
+        function renderScenarios(
+            baseGrowth,
+            basePE,
+            targetReturn
+        ) {
+
+            const scenarios = [
+
+                {
+                    name: "Bear",
+                    growth: Math.max(
+                        -.05,
+                        baseGrowth - .05
+                    ),
+                    pe: Math.max(
+                        5,
+                        basePE - 10
+                    ),
+                    cls: "scenario-bear"
+                },
+
+                {
+                    name: "Base",
+                    growth: baseGrowth,
+                    pe: basePE,
+                    cls: "scenario-base"
+                },
+
+                {
+                    name: "Bull",
+                    growth: baseGrowth + .05,
+                    pe: basePE + 10,
+                    cls: "scenario-bull"
+                }
+
+            ];
+
+
+            const body =
+                document.getElementById(
+                    "scenarioTable"
+                );
+
+            body.innerHTML = "";
+
+
+            scenarios.forEach(scenario => {
+
+                const p =
+                    calculatePath(
+                        scenario.growth,
+                        scenario.pe,
+                        targetReturn
+                    );
+
+
+                body.innerHTML += `
+
+      <tr>
+
+        <td class="${scenario.cls}">
+          ${scenario.name}
+        </td>
+
+        <td>
+          ${pct(scenario.growth, 0)}
+        </td>
+
+        <td>
+          ${scenario.pe.toFixed(1)}x
+        </td>
+
+        <td>
+          ${money(p.futureValue)}
+        </td>
+
+        <td>
+          ${pct(p.priceCAGR)}
+        </td>
+
+        <td>
+          ${money(p.maxPayToday)}
+        </td>
+
+      </tr>
+
+    `;
+
+            });
+
+        }
+
+
+        /* ========================================
+           SEARCH
+        ======================================== */
+
+        function runSearch() {
+
+            const ticker =
+                document.getElementById(
+                    "tickerInput"
+                ).value.trim();
+
+            if (!ticker) {
+                return;
+            }
+
+            /*
+              Connect your existing Yahoo Finance /
+              Screener parser here.
+          
+              The current UI intentionally keeps
+              the existing data-fetch implementation
+              separate from the presentation layer.
+            */
+
+            calculate();
+
+        }
+
+
+        /* ========================================
+           INITIALIZE
+        ======================================== */
+
+        calculate();
+
+    </script>
 
 </body>
+
 </html>

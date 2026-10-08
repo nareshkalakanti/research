@@ -396,10 +396,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
 
   const name =
     String(priceMod.longName || priceMod.shortName || "").trim() || null;
-  const price = num(priceMod.regularMarketPrice) ?? num(fin.currentPrice);
-  if (!name && price == null) {
-    throw new StockDataError("invalid_ticker", `No Yahoo quote for ${symbol}`);
-  }
+  let price = num(priceMod.regularMarketPrice) ?? num(fin.currentPrice);
 
   const [income, cashflow, balance, screenerPl] = await Promise.all([
     annualModule(symbol, "financials"),
@@ -562,7 +559,8 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     pe == null ||
     roe == null ||
     roce == null ||
-    trailingEpsFill == null
+    trailingEpsFill == null ||
+    price == null
   ) {
     const ratios = await fetchScreenerTopRatios(bare).catch(() => null);
     if (ratios) {
@@ -572,6 +570,9 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
       if (pe == null && ratios.stock_pe != null) pe = ratios.stock_pe;
       if (roe == null && ratios.roe != null) roe = ratios.roe;
       if (roce == null && ratios.roce != null) roce = ratios.roce;
+      if (price == null && ratios.current_price != null) {
+        price = ratios.current_price;
+      }
     }
   }
 

@@ -8,6 +8,7 @@ import {
 } from "@/lib/listing-name-match";
 import { loadNapkinResearch, type NapkinLoadDebug } from "@/lib/napkin/client";
 import { napkinMetric, napkinPeDisplay } from "@/lib/napkin/format";
+import { tradingviewUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
@@ -183,7 +184,16 @@ export function NapkinPanel() {
                 <div>
                   <div className="napkin-company">{data.name}</div>
                   <div className="napkin-ticker-lg">
-                    {data.yf_symbol || `${data.ticker}.NS`}
+                    <a
+                      className="napkin-tv-link"
+                      href={tradingviewUrl(data.ticker, data.exchange)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="TradingView chart"
+                    >
+                      {data.yf_symbol || data.ticker}
+                      <span className="napkin-tv-chip">TV</span>
+                    </a>
                   </div>
                 </div>
                 <div className="napkin-card-value">
