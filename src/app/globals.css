@@ -24880,6 +24880,7 @@ tr.wl-prove-fail td {
 .napkin-search-row {
   display: flex;
   gap: 10px;
+  align-items: stretch;
 }
 
 .napkin-ticker,
@@ -25015,6 +25016,26 @@ tr.wl-prove-fail td {
   font-size: 1.7rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+.napkin-tv-link {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  color: inherit;
+  text-decoration: none;
+}
+.napkin-tv-link:hover {
+  color: var(--accent);
+}
+.napkin-tv-chip {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--accent-ink);
+  background: var(--accent-soft);
 }
 
 .napkin-company {
@@ -25301,10 +25322,22 @@ tr.wl-prove-fail td {
   margin: 0;
 }
 
+.napkin-simple .napkin-search-row {
+  height: 50px;
+}
+
 .napkin-simple .napkin-analyse {
-  min-width: 72px;
-  padding: 11px 22px;
+  width: 80px;
+  min-width: 80px;
+  height: 50px;
+  padding: 0;
   letter-spacing: 0.04em;
+}
+
+.napkin-simple .napkin-bar .ticker-suggest input {
+  height: 50px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .napkin-sheet-section {
@@ -25462,6 +25495,16 @@ tr.wl-prove-fail td {
   margin-top: 0;
 }
 
+.napkin-simple .napkin-formula {
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.napkin-simple .napkin-formula-note {
+  color: var(--muted);
+  opacity: 1;
+}
 .napkin-simple .napkin-ticker-lg {
   font-size: 0.95rem;
   font-weight: 600;
@@ -25830,6 +25873,106 @@ tr.wl-prove-fail td {
   font-size: 0.84rem;
   line-height: 1.4;
   color: #e5e7eb;
+}
+
+.napkin-entry-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+}
+
+.napkin-entry-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.napkin-entry-box .napkin-buy-kicker {
+  color: var(--muted);
+}
+
+.napkin-entry-box .napkin-buy-value {
+  color: var(--ink);
+  font-size: 1.7rem;
+}
+
+.napkin-entry-box .napkin-buy-note {
+  margin: 0;
+  max-width: 22rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.napkin-entry-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.napkin-entry-status--good {
+  color: #13835f;
+  background: #eaf8f2;
+  border: 1px solid #ccefe1;
+}
+
+.napkin-entry-status--near {
+  color: #a87811;
+  background: #fff7df;
+  border: 1px solid #f2df9f;
+}
+
+.napkin-entry-status--high {
+  color: #c65353;
+  background: #fff0f0;
+  border: 1px solid #f2cece;
+}
+
+.napkin-composite {
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.napkin-composite-label {
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.napkin-composite-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  max-width: 42rem;
+}
+
+.napkin-table-wrap {
+  overflow-x: auto;
+}
+
+.napkin-table--nums th,
+.napkin-table--nums td {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 680px) {
+  .napkin-entry-box {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .napkin-table tr.is-on td {

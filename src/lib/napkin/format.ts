@@ -41,6 +41,12 @@ export function formatNapkinRupee(v: number | null): string {
   return `₹${v.toLocaleString("en-IN", { maximumFractionDigits: digits })}`;
 }
 
+export function formatNapkinNum(v: number | null, digits = 4): string {
+  if (v == null || !Number.isFinite(v)) return "N/A";
+  const f = 10 ** digits;
+  return String(Math.round(v * f) / f);
+}
+
 export function formatNapkinPctWhole(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return "N/A";
   const p = v * 100;

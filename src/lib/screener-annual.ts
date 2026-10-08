@@ -458,6 +458,41 @@ function plUsable(pl: ScreenerAnnualPl): boolean {
   return true;
 }
 
+function plYearCount(pl: ScreenerAnnualPl): number {
+  return pl.dates.filter(
+    (_, i) => pl.revenue[i] != null || pl.eps[i] != null || pl.pat[i] != null,
+  ).length;
+}
+
+/** Prefer the parse with a usable P&L and more annual columns (standalone vs consolidated). */
+export function pickRicherScreenerAnnualPl(
+  a: ScreenerAnnualPl,
+  b: ScreenerAnnualPl,
+): ScreenerAnnualPl {
+  const ua = plUsable(a);
+  const ub = plUsable(b);
+  if (ua && !ub) return a;
+  if (ub && !ua) return b;
+  if (!ua && !ub) return a;
+  return plYearCount(b) > plYearCount(a) ? b : a;
+}
+
+function seriesYearCount(s: ScreenerAnnualSeries): number {
+  return s.dates.filter((_, i) => s.sales[i] != null || s.eps[i] != null).length;
+}
+
+function pickRicherScreenerAnnual(
+  a: ScreenerAnnualSeries,
+  b: ScreenerAnnualSeries,
+): ScreenerAnnualSeries {
+  const ua = a.sales.some((s) => s != null && s > 0);
+  const ub = b.sales.some((s) => s != null && s > 0);
+  if (ua && !ub) return a;
+  if (ub && !ua) return b;
+  if (!ua && !ub) return a;
+  return seriesYearCount(b) > seriesYearCount(a) ? b : a;
+}
+
 function readPlCache(ticker: string): ScreenerAnnualPl | "blocked" | null {
   ensurePlCacheSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
@@ -532,7 +567,8 @@ export async function fetchScreenerAnnualPl(
   if (!opts?.force) {
     const cached = readPlCache(key);
     if (cached === "blocked") return empty;
-    if (cached && plUsable(cached)) return cached;
+    // Short cache is often consolidated-only; refetch so standalone years can win.
+    if (cached && plUsable(cached) && plYearCount(cached) >= 6) return cached;
   }
 
   try {
@@ -540,13 +576,15 @@ export async function fetchScreenerAnnualPl(
       consolidated: opts?.consolidated !== false,
     });
     let series = parseScreenerAnnualPlHtml(html);
-    if (!plUsable(series) && opts?.consolidated !== false) {
+    if (opts?.consolidated !== false) {
       try {
         const standHtml = await fetchScreenerCompanyHtml(key, {
           consolidated: false,
         });
-        const stand = parseScreenerAnnualPlHtml(standHtml);
-        if (plUsable(stand)) series = stand;
+        series = pickRicherScreenerAnnualPl(
+          series,
+          parseScreenerAnnualPlHtml(standHtml),
+        );
       } catch {
         /* keep first parse */
       }
@@ -579,8 +617,12 @@ export async function fetchScreenerAnnual(
     if (cached === "blocked") {
       return { dates: [], sales: [], eps: [], roce: [] };
     }
-    // Ignore empty / sales-less cache so we can retry parse / standalone
-    if (cached && cached.sales.some((s) => s != null && s > 0)) {
+    // Ignore empty / short cache so standalone vs consolidated can still win.
+    if (
+      cached &&
+      cached.sales.some((s) => s != null && s > 0) &&
+      seriesYearCount(cached) >= 6
+    ) {
       return cached;
     }
     if (opts?.cacheOnly) {
@@ -595,17 +637,16 @@ export async function fetchScreenerAnnual(
       consolidated: opts?.consolidated !== false,
     });
     let series = parseScreenerAnnualHtml(html);
-    // Some SME / young listings only populate standalone
-    if (
-      !series.sales.some((s) => s != null && s > 0) &&
-      opts?.consolidated !== false
-    ) {
+    // Standalone often has a longer annual axis than consolidated (and vice versa).
+    if (opts?.consolidated !== false) {
       try {
         const standHtml = await fetchScreenerCompanyHtml(key, {
           consolidated: false,
         });
-        const stand = parseScreenerAnnualHtml(standHtml);
-        if (stand.sales.some((s) => s != null && s > 0)) series = stand;
+        series = pickRicherScreenerAnnual(
+          series,
+          parseScreenerAnnualHtml(standHtml),
+        );
       } catch {
         /* keep consolidated parse */
       }
