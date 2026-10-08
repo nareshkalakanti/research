@@ -4,37 +4,35 @@ import { useEffect, useState } from "react";
 import { QuarterPanel } from "@/components/QuarterPanel";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
-
-type AboutHit = {
+type NapkinAboutPayload = {
+  ok: boolean;
   ticker: string;
-  name?: string | null;
-  about?: string | null;
-  sector?: string | null;
-  market?: string | null;
-  headquarters?: string | null;
+  name: string | null;
+  headline: string | null;
+  sector: string | null;
+  sub_sector: string | null;
+  about: string | null;
+  products: string[];
+  headquarters: string | null;
+  market: string | null;
+  source: "company_about" | "yahoo" | "none";
+  error?: string;
 };
-
-function usableAbout(text: string | null | undefined): string | null {
-  const t = (text || "").trim();
-  if (t.replace(/\s/g, "").length < 40) return null;
-  if (/^not disclosed$/i.test(t)) return null;
-  if (/business summary unavailable/i.test(t)) return null;
-  return t;
-}
 
 export function NapkinCompanyContext({
   ticker,
   exchange,
   price,
+  companyName,
 }: {
   ticker: string;
   exchange?: string | null;
   price: number | null;
+  companyName?: string | null;
 }) {
   const market = (exchange || "").trim() || null;
   const qtr = useExpandQuarters(ticker, market, price, true);
-  const [about, setAbout] = useState<string | null>(null);
-  const [aboutMeta, setAboutMeta] = useState<string | null>(null);
+  const [about, setAbout] = useState<NapkinAboutPayload | null>(null);
   const [aboutLoading, setAboutLoading] = useState(false);
   const [aboutError, setAboutError] = useState<string | null>(null);
 
@@ -43,7 +41,6 @@ export function NapkinCompanyContext({
     const t = ticker.trim().toUpperCase();
     if (!t) {
       setAbout(null);
-      setAboutMeta(null);
       setAboutError(null);
       return;
     }
@@ -51,26 +48,21 @@ export function NapkinCompanyContext({
     setAboutError(null);
     void (async () => {
       try {
-        const res = await fetch(
-          `/api/companies?q=${encodeURIComponent(t)}&pageSize=20`,
-          { cache: "no-store", signal: AbortSignal.timeout(20_000) },
-        );
-        const json = (await res.json()) as { rows?: AboutHit[] };
-        if (!res.ok) throw new Error(`About HTTP ${res.status}`);
-        const rows = Array.isArray(json.rows) ? json.rows : [];
-        const hit =
-          rows.find((r) => (r.ticker || "").toUpperCase() === t) ?? rows[0];
+        const q = new URLSearchParams({ ticker: t });
+        if (market) q.set("market", market);
+        if (companyName?.trim()) q.set("name", companyName.trim());
+        const res = await fetch(`/api/napkin/about?${q}`, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(45_000),
+        });
+        const json = (await res.json()) as NapkinAboutPayload;
         if (dead) return;
-        if (!hit || (hit.ticker || "").toUpperCase() !== t) {
+        if (!res.ok || json.ok === false) {
           setAbout(null);
-          setAboutMeta(null);
+          setAboutError(json.error || `About HTTP ${res.status}`);
           return;
         }
-        setAbout(usableAbout(hit.about));
-        const meta = [hit.sector, hit.headquarters, hit.market]
-          .map((x) => (x || "").trim())
-          .filter(Boolean);
-        setAboutMeta(meta.length ? meta.join(" · ") : null);
+        setAbout(json);
       } catch (e) {
         if (!dead) {
           setAbout(null);
@@ -83,7 +75,27 @@ export function NapkinCompanyContext({
     return () => {
       dead = true;
     };
-  }, [ticker]);
+  }, [ticker, market, companyName]);
+
+  const meta = [about?.sector, about?.sub_sector, about?.headquarters, about?.market]
+    .map((x) => (x || "").trim())
+    .filter(Boolean);
+  // Prefer sector · sub_sector first (CUPID-style); HQ/market after if present.
+  const metaLine = (() => {
+    const sectorBits = [about?.sector, about?.sub_sector]
+      .map((x) => (x || "").trim())
+      .filter(Boolean);
+    const rest = [about?.headquarters, about?.market]
+      .map((x) => (x || "").trim())
+      .filter(Boolean);
+    if (sectorBits.length) {
+      return [...sectorBits, ...rest].join(" · ");
+    }
+    return meta.length ? meta.join(" · ") : null;
+  })();
+
+  const hasAbout =
+    !!(about?.headline || about?.about || (about?.products?.length ?? 0) > 0);
 
   return (
     <>
@@ -93,11 +105,23 @@ export function NapkinCompanyContext({
           <p className="napkin-debug">Loading about…</p>
         ) : aboutError ? (
           <p className="napkin-missing">{aboutError}</p>
-        ) : about ? (
-          <>
-            {aboutMeta ? <p className="napkin-meta-row">{aboutMeta}</p> : null}
-            <p className="napkin-about-body">{about}</p>
-          </>
+        ) : hasAbout ? (
+          <div className="napkin-about-rich">
+            {about?.headline ? (
+              <p className="napkin-about-headline">{about.headline}</p>
+            ) : null}
+            {metaLine ? <p className="napkin-meta-row">{metaLine}</p> : null}
+            {about?.about ? (
+              <p className="napkin-about-body">{about.about}</p>
+            ) : null}
+            {about?.products?.length ? (
+              <ul className="napkin-about-products">
+                {about.products.map((p) => (
+                  <li key={p}>{p}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         ) : (
           <p className="napkin-missing">No about text in company_about yet.</p>
         )}

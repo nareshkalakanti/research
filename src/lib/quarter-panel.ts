@@ -45,6 +45,10 @@ const MONTHS = [
 /** PEAD2_QUARTER_PANEL */
 export const PEAD2_QUARTER_PANEL = 5;
 
+/** Absolute ₹ vs ₹ Cr — same threshold as PEAD `_inr_crore_divisor`. */
+export const INR_CRORE = 10_000_000;
+const ABSOLUTE_INR_FLOOR = 1e5;
+
 function toDateStr(d: Date | string | number): string {
   const x = new Date(d);
   if (!Number.isFinite(x.getTime())) return "";
@@ -68,14 +72,84 @@ export function trimReportedQuarters(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+/** True when a P&L amount is absolute ₹ (not ₹ Cr). EPS is never this large. */
+export function amountLooksAbsoluteInr(v: number | null | undefined): boolean {
+  return v != null && Number.isFinite(v) && Math.abs(v) >= ABSOLUTE_INR_FLOOR;
+}
+
+function amountLooksCroreScale(v: number | null | undefined): boolean {
+  return (
+    v != null && Number.isFinite(v) && Math.abs(v) > 0 && Math.abs(v) < ABSOLUTE_INR_FLOOR
+  );
+}
+
+function seriesHasAbsoluteInr(qs: readonly QuarterPoint[]): boolean {
+  return qs.some(
+    (q) =>
+      amountLooksAbsoluteInr(q.revenue) ||
+      amountLooksAbsoluteInr(q.ebit) ||
+      amountLooksAbsoluteInr(q.netIncome) ||
+      amountLooksAbsoluteInr(q.otherIncome),
+  );
+}
+
+function seriesHasCroreScale(qs: readonly QuarterPoint[]): boolean {
+  return qs.some(
+    (q) =>
+      amountLooksCroreScale(q.revenue) ||
+      amountLooksCroreScale(q.ebit) ||
+      amountLooksCroreScale(q.netIncome) ||
+      amountLooksCroreScale(q.otherIncome),
+  );
+}
+
+function toCroreAmount(v: number | null | undefined): number | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  if (!amountLooksAbsoluteInr(v)) return v;
+  return Math.round((v / INR_CRORE) * 100) / 100;
+}
+
+/** Convert absolute-₹ P&L fields to ₹ Cr; leave EPS and already-Cr amounts alone. */
+export function normalizeQuarterPointToCrore(q: QuarterPoint): QuarterPoint {
+  return {
+    ...q,
+    revenue: toCroreAmount(q.revenue),
+    ebit: toCroreAmount(q.ebit),
+    netIncome: toCroreAmount(q.netIncome),
+    otherIncome: toCroreAmount(q.otherIncome ?? null),
+  };
+}
+
+/**
+ * Never stitch Yahoo absolute ₹ onto Screener/Groww ₹ Cr in one series.
+ * When one side is abs and the other is Cr, convert abs → Cr first.
+ */
+export function alignQuarterSeriesUnits(
+  a: QuarterPoint[],
+  b: QuarterPoint[],
+): [QuarterPoint[], QuarterPoint[]] {
+  const aAbs = seriesHasAbsoluteInr(a);
+  const bAbs = seriesHasAbsoluteInr(b);
+  const aCr = seriesHasCroreScale(a);
+  const bCr = seriesHasCroreScale(b);
+  if (aAbs && bCr && !bAbs) return [a.map(normalizeQuarterPointToCrore), b];
+  if (bAbs && aCr && !aAbs) return [a, b.map(normalizeQuarterPointToCrore)];
+  if (aAbs && bAbs) {
+    // Both Yahoo-scale — leave for panel divisor.
+    return [a, b];
+  }
+  return [a, b];
+}
+
 /** Fill null P&L fields from another series; union dates. */
 export function mergeQuarterFill(
   base: QuarterPoint[],
   extra: QuarterPoint[],
 ): QuarterPoint[] {
   if (!extra.length) return base;
+  const [left, right] = alignQuarterSeriesUnits(base, extra);
   const byDate = new Map<string, QuarterPoint>();
-  for (const q of [...base, ...extra]) {
+  for (const q of [...left, ...right]) {
     const date = q.date.slice(0, 10);
     const prev = byDate.get(date);
     if (!prev) {
@@ -119,7 +193,7 @@ function quarterLabel(dateStr: string): string {
 export function inrCroreDivisor(values: Array<number | null>): number {
   const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
   if (!nums.length) return 1;
-  if (Math.max(...nums.map(Math.abs)) >= 1e5) return 1e7;
+  if (Math.max(...nums.map(Math.abs)) >= ABSOLUTE_INR_FLOOR) return INR_CRORE;
   return 1;
 }
 
@@ -129,6 +203,21 @@ function scaleValues(
 ): Array<number | null> {
   if (decimals === 2) {
     return values.map((v) => (v == null ? null : Math.round(v * 100) / 100));
+  }
+  const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
+  const hasAbs = nums.some((v) => Math.abs(v) >= ABSOLUTE_INR_FLOOR);
+  const hasCr = nums.some(
+    (v) => Math.abs(v) > 0 && Math.abs(v) < ABSOLUTE_INR_FLOOR,
+  );
+  // Mixed Yahoo ₹ + Screener Cr in one row — convert per cell, never wipe Cr to 0.
+  if (hasAbs && hasCr) {
+    return values.map((v) => {
+      if (v == null || !Number.isFinite(v)) return null;
+      if (Math.abs(v) >= ABSOLUTE_INR_FLOOR) {
+        return Math.round(v / INR_CRORE);
+      }
+      return Math.round(v);
+    });
   }
   const div = inrCroreDivisor(values);
   return values.map((v) => (v == null ? null : Math.round(v / div)));
