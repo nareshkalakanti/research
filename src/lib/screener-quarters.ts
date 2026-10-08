@@ -7,7 +7,10 @@ import * as cheerio from "cheerio";
 import { openSqliteNamed } from "./sqlite-utils";
 import { fetchScreenerCompanyHtml } from "./screener-fetch";
 import type { QuarterPoint } from "./quarter-panel";
-import { trimReportedQuarters } from "./quarter-panel";
+import {
+  alignQuarterSeriesUnits,
+  trimReportedQuarters,
+} from "./quarter-panel";
 
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
 const BLOCK_MS = 6 * 60 * 60 * 1000;
@@ -314,8 +317,10 @@ export function mergeScreenerQuarterOverlay(
   screener: QuarterPoint[],
 ): QuarterPoint[] {
   if (!screener.length) return base;
-  const byDate = new Map(screener.map((q) => [q.date.slice(0, 10), q]));
-  return base.map((q) => {
+  // Screener is ₹ Cr; Yahoo is often absolute ₹ — align before stitching.
+  const [normalizedBase, normalizedSc] = alignQuarterSeriesUnits(base, screener);
+  const byDate = new Map(normalizedSc.map((q) => [q.date.slice(0, 10), q]));
+  return normalizedBase.map((q) => {
     const sc = byDate.get(q.date.slice(0, 10));
     if (!sc) return q;
     return {

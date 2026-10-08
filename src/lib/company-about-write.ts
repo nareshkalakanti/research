@@ -209,7 +209,7 @@ export function saveManualAboutToCompanyAbout(
   return ok;
 }
 
-/** Persist Yahoo about / website / HQ; fills empty about from yf_about. */
+/** Persist Yahoo about / website / HQ / sector; fills empty about from yf_about. */
 export function saveYfAboutProfile(
   ticker: string,
   profile: {
@@ -217,50 +217,85 @@ export function saveYfAboutProfile(
     website?: string | null;
     headquarters?: string | null;
     name?: string | null;
+    sector?: string | null;
+    industry?: string | null;
+    market?: string | null;
   },
 ): boolean {
   if (!fs.existsSync(ABOUT_PATH)) return false;
-  if (!ensureCompanyAboutRow(ticker)) return false;
   const key = ticker.toUpperCase();
   const about = profile.about?.trim() || null;
   const website = profile.website?.trim() || null;
   const headquarters = profile.headquarters?.trim() || null;
   const name = profile.name?.trim() || null;
-  if (!about && !website && !headquarters) return false;
+  const sector = profile.sector?.trim() || null;
+  const industry = profile.industry?.trim() || null;
+  const market = profile.market?.trim() || "NSE";
+  if (!about && !website && !headquarters && !sector && !industry) return false;
 
   const db = new Database(ABOUT_PATH);
   let ok = false;
   try {
     db.pragma("busy_timeout = 5000");
+    db.pragma("journal_mode = WAL");
     const row = db
-      .prepare(`SELECT name FROM company_about WHERE ticker = ?`)
-      .get(key) as { name: string | null } | undefined;
-    const patchName =
-      name && row?.name && row.name.trim().toUpperCase() === key ? name : null;
+      .prepare(`SELECT name, market FROM company_about WHERE ticker = ?`)
+      .get(key) as { name: string | null; market: string | null } | undefined;
+    const currentName = (row?.name || "").trim();
+    const displayName =
+      name && (!currentName || currentName.toUpperCase() === key)
+        ? name
+        : currentName || name || key;
+    const displayMarket = row?.market?.trim() || market;
 
     const res = db
       .prepare(
-        `UPDATE company_about SET
-           yf_about = COALESCE(@yf_about, yf_about),
-           about = COALESCE(NULLIF(TRIM(about), ''), @yf_about, about),
-           website = COALESCE(NULLIF(TRIM(website), ''), @website, website),
-           headquarters = COALESCE(NULLIF(TRIM(headquarters), ''), @headquarters, headquarters),
-           name = COALESCE(@name, name),
-           has_yf_about = CASE WHEN @yf_about IS NOT NULL THEN 1 ELSE has_yf_about END,
-           has_website = CASE WHEN @website IS NOT NULL THEN 1 ELSE has_website END,
+        `INSERT INTO company_about (
+           ticker, name, market, website, about, yf_about, scraped_about,
+           company_sector, company_industry, headquarters,
+           products, end_markets, theme_tags, source, fetched_at,
+           has_website, has_yf_about, has_scraped_about
+         ) VALUES (
+           @ticker, @name, @market, @website, @about, @yf_about, NULL,
+           @sector, @industry, @headquarters,
+           NULL, NULL, NULL, 'yf-about-fetch', @fetched_at,
+           @has_website, @has_yf_about, 0
+         )
+         ON CONFLICT(ticker) DO UPDATE SET
+           yf_about = COALESCE(excluded.yf_about, yf_about),
+           about = COALESCE(NULLIF(TRIM(about), ''), excluded.yf_about, about),
+           website = COALESCE(NULLIF(TRIM(website), ''), excluded.website, website),
+           headquarters = COALESCE(NULLIF(TRIM(headquarters), ''), excluded.headquarters, headquarters),
+           company_sector = COALESCE(NULLIF(TRIM(company_sector), ''), excluded.company_sector, company_sector),
+           company_industry = COALESCE(NULLIF(TRIM(company_industry), ''), excluded.company_industry, company_industry),
+           name = CASE
+             WHEN name IS NULL OR TRIM(name) = '' OR UPPER(TRIM(name)) = excluded.ticker
+             THEN excluded.name ELSE name END,
+           has_yf_about = CASE WHEN excluded.yf_about IS NOT NULL THEN 1 ELSE has_yf_about END,
+           has_website = CASE WHEN excluded.website IS NOT NULL THEN 1 ELSE has_website END,
            source = 'yf-about-fetch',
-           fetched_at = @fetched_at
-         WHERE ticker = @ticker`,
+           fetched_at = excluded.fetched_at`,
       )
       .run({
         ticker: key,
-        yf_about: about,
+        name: displayName,
+        market: displayMarket,
         website,
+        about,
+        yf_about: about,
+        sector,
+        industry,
         headquarters,
-        name: patchName,
+        has_website: website ? 1 : 0,
+        has_yf_about: about ? 1 : 0,
         fetched_at: new Date().toISOString(),
       });
     ok = res.changes > 0;
+    try {
+      db.pragma("wal_checkpoint(TRUNCATE)");
+    } catch {
+      /* best-effort */
+    }
   } finally {
     db.close();
   }

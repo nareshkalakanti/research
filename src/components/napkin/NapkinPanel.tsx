@@ -209,6 +209,7 @@ export function NapkinPanel() {
             <NapkinCompanyContext
               ticker={data.ticker}
               exchange={data.exchange}
+              companyName={data.name}
               price={parseDisplayedMoney(napkinMetric(data.overview, "price"))}
             />
 
