@@ -4,7 +4,11 @@
 import { ocrImageWithQianfan } from "./corporate-data-extract";
 import { bootstrapCompanyTicker } from "./company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "./db";
-import { parseSectorScreenshot, preferBatchIndustry, tidyIndustry } from "./sector-screenshot-parse";
+import {
+  parseSectorScreenshot,
+  preferBatchIndustry,
+  tidyIndustry,
+} from "./sector-screenshot-parse";
 import { resolveListingQuery } from "./sector-rotation-resolve";
 import {
   listRotationSectors,
@@ -16,7 +20,7 @@ import { runConcurrent } from "./scrape-pool";
 const OCR_PROMPT = `Transcribe this equity table screenshot.
 Output JSON only, no markdown. Prefer one object per data row:
 {"Name":"<Name column>","Industry":"<Industry column cell>"}
-The Industry field MUST be the repeating Industry *column cell* on the rows (same text on most rows).
+The Industry field MUST be ONE copy of the repeating Industry *column cell* (same text on most rows). Never concatenate or comma-join every row's Industry cell into one string.
 Do not use a parent group, breadcrumb, sidebar, or filter (a broader heading above the table).
 Never set industry to a company name (nothing ending Ltd/Limited). Skip headers, tab bars, and prices.
 If the Name column is numbered, output every numbered row from 1 through the last visible number. Do not drop the first rows.
@@ -61,6 +65,9 @@ function industryFromResolvedTickers(tickers: string[]): string {
     /* listings still usable */
   }
   const fromAbout = voteLabel(aboutVotes);
+  // Listing taxonomy wins over an existing basket — stocks wrongly saved into
+  // Switchgear must not keep forcing later Transformers pastes there.
+  if (fromAbout) return fromAbout;
   let overlapLabel = "";
   let overlapN = 0;
   for (const s of listRotationSectors()) {
@@ -71,7 +78,7 @@ function industryFromResolvedTickers(tickers: string[]): string {
     }
   }
   if (overlapN >= 2) return overlapLabel;
-  return fromAbout || (overlapN === 1 ? overlapLabel : "");
+  return overlapN === 1 ? overlapLabel : "";
 }
 
 export type SectorShotImport = {
@@ -135,9 +142,14 @@ export async function importSectorFromScreenshot(
       "Could not read company names from the screenshot. Paste a Name-column table (Ltd/Limited rows).",
     );
   }
+  // OCR column first — do not apply prior yet (selected Switchgear must not
+  // steal a Transformers paste when the Industry column is readable).
   let industry = tidyIndustry(parsed.industry) || "";
-  industry = preferBatchIndustry(priorIndustry || "", industry);
-  onEvent?.({ t: "parsed", industry: industry || "(from listings)", names });
+  onEvent?.({
+    t: "parsed",
+    industry: industry || "(resolving…)",
+    names,
+  });
   const unresolved: string[] = [];
   const members: Array<{ ticker: string; name: string; market: string }> = [];
   const have = new Set<string>();
@@ -168,6 +180,8 @@ export async function importSectorFromScreenshot(
     industry =
       industryFromResolvedTickers(members.map((m) => m.ticker)) || "";
   }
+  // Prior only merges multi-page shots of the *same* industry — never a
+  // different Capital Goods leaf (Switchgear vs Transformers).
   industry = preferBatchIndustry(priorIndustry || "", industry);
   if (industry.length < 2) {
     throw new Error(

@@ -3,7 +3,13 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 
-type Row = { id: string; label: string; n: number; starred?: boolean };
+type Row = {
+  id: string;
+  label: string;
+  n: number;
+  starred?: boolean;
+  created_at?: string;
+};
 type Member = { ticker: string; name: string; market: string };
 
 type ShotEvent = {
@@ -37,7 +43,6 @@ export function SectorShotPanel() {
   const shotRunning = useRef(false);
   const fromShotRef = useRef<(file: File) => void>(() => {});
   const lastIndustry = useRef("");
-  const selectedLabelRef = useRef("");
   const [newName, setNewName] = useState("");
   const [newTickers, setNewTickers] = useState<TickerSuggestHit[]>([]);
   const [newQ, setNewQ] = useState("");
@@ -176,14 +181,10 @@ export function SectorShotPanel() {
             label: saved.label,
             n,
             starred: false,
+            created_at: new Date().toISOString(),
           };
-          const i = prev.findIndex((r) => r.id === saved.id);
-          if (i >= 0) {
-            const next = [...prev];
-            next[i] = row;
-            return next;
-          }
-          return [...prev, row];
+          const rest = prev.filter((r) => r.id !== saved.id);
+          return [row, ...rest];
         });
         setSelectedId(saved.id);
         await loadList();
@@ -205,6 +206,8 @@ export function SectorShotPanel() {
       if (!shotRunning.current) {
         setShotLog([]);
         setError(null);
+        // New paste session — don't inherit yesterday's Switchgear label.
+        lastIndustry.current = "";
       }
       shotQueue.current.push(file);
       setShotQueued(shotQueue.current.length);
@@ -216,9 +219,12 @@ export function SectorShotPanel() {
           while (shotQueue.current.length) {
             const next = shotQueue.current.shift()!;
             setShotQueued(shotQueue.current.length);
+            // Only chain prior industry across queued multi-page shots of the
+            // same paste batch — never the selected row (Switchgear selected
+            // must not absorb a Transformers screenshot).
             const industry = await runScreenshot(
               next,
-              lastIndustry.current || selectedLabelRef.current,
+              lastIndustry.current,
             );
             if (industry) lastIndustry.current = industry;
           }
@@ -263,7 +269,6 @@ export function SectorShotPanel() {
   };
 
   const selected = rows.find((r) => r.id === selectedId) ?? null;
-  selectedLabelRef.current = selected?.label || "";
 
   const createSector = async () => {
     const label = newName.replace(/\s+/g, " ").trim();

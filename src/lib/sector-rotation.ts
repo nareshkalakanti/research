@@ -18,11 +18,41 @@ export type RotationSector = {
   id: string;
   label: string;
   starred: boolean;
+  created_at: string;
   members: SectorMember[];
 };
 
 function collapseSectorLabel(label: string): string {
-  return label.replace(/\s+/g, " ").trim();
+  let t = label.replace(/\s+/g, " ").trim();
+  const parts = t
+    .split(/\s*[,;|]\s*/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length >= 2) {
+    const first = parts[0]!.toLowerCase();
+    if (parts.every((p) => p.toLowerCase() === first)) t = parts[0]!;
+  }
+  const lower = t.toLowerCase();
+  const maxUnit = Math.min(Math.floor(t.length / 2), 96);
+  for (let len = maxUnit; len >= 8; len--) {
+    const unit = t.slice(0, len).replace(/[\s,;|/]+$/g, "").trim();
+    if (unit.split(/\s+/).length < 2) continue;
+    const u = unit.toLowerCase();
+    let pos = 0;
+    let n = 0;
+    while (pos < lower.length) {
+      while (pos < lower.length && /[\s,;|/]/.test(lower[pos]!)) pos++;
+      if (pos >= lower.length) break;
+      if (!lower.startsWith(u, pos)) {
+        n = 0;
+        break;
+      }
+      n += 1;
+      pos += u.length;
+    }
+    if (n >= 2 && pos >= lower.length) return unit;
+  }
+  return t;
 }
 
 function labelKey(label: string): string {
@@ -35,6 +65,14 @@ function foldDuplicateSectors(db: Database.Database): void {
       `SELECT id, label, created_at FROM sectors ORDER BY created_at, id`,
     )
     .all() as Array<{ id: string; label: string; created_at: string }>;
+  // Collapse OCR dumps ("X, X, X") onto a single label before folding dupes.
+  for (const h of heads) {
+    const clean = collapseSectorLabel(h.label);
+    if (clean && clean !== h.label) {
+      db.prepare(`UPDATE sectors SET label = ? WHERE id = ?`).run(clean, h.id);
+      h.label = clean;
+    }
+  }
   const keep = new Map<string, string>();
   for (const h of heads) {
     const k = labelKey(h.label);
@@ -119,10 +157,15 @@ function newId(): string {
 function loadSectorsFrom(db: Database.Database): RotationSector[] {
   const heads = db
     .prepare(
-      `SELECT id, label, COALESCE(starred, 0) AS starred FROM sectors
-       ORDER BY created_at, label COLLATE NOCASE`,
+      `SELECT id, label, COALESCE(starred, 0) AS starred, created_at FROM sectors
+       ORDER BY created_at DESC, id DESC`,
     )
-    .all() as Array<{ id: string; label: string; starred: number }>;
+    .all() as Array<{
+      id: string;
+      label: string;
+      starred: number;
+      created_at: string;
+    }>;
   const mems = db
     .prepare(
       `SELECT sector_id, ticker, name, market FROM sector_members
@@ -151,6 +194,7 @@ function loadSectorsFrom(db: Database.Database): RotationSector[] {
     id: h.id,
     label: h.label,
     starred: Boolean(h.starred),
+    created_at: h.created_at,
     members: by.get(h.id) ?? [],
   }));
 }

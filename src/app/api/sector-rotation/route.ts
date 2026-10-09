@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
         label: s.label,
         n: s.members.length,
         starred: s.starred,
+        created_at: s.created_at,
       }));
       return NextResponse.json({
         ok: true,

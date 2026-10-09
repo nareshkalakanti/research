@@ -112,8 +112,30 @@ Enincoare Autotech Ltd\tAuto Others
 `);
 assert.equal(tsvColumn.industry, "Auto Others");
 
+const dumpedInd = parseSectorScreenshot(`
+{"industry":"Capital Goods Transformers, Capital Goods Transformers, Capital Goods Transformers, Capital Goods Transformers","names":["CG Power & Industrial Solutions Ltd","Schneider Electric Infrastructure Ltd"]}
+`);
+assert.equal(dumpedInd.industry, "Capital Goods Transformers");
+
+const dumpedSpace = parseSectorScreenshot(`
+{"industry":"Capital Goods Transformers Capital Goods Transformers Capital Goods Transformers","names":["Voltamp Transformers Ltd"]}
+`);
+assert.equal(dumpedSpace.industry, "Capital Goods Transformers");
+
 assert.equal(preferBatchIndustry("Auto Plastic", "Manufacturing"), "Auto Plastic");
 assert.equal(preferBatchIndustry("Manufacturing", "Auto Plastic"), "Auto Plastic");
+assert.equal(
+  preferBatchIndustry("Capital Goods Switchgear", "Capital Goods Transformers"),
+  "Capital Goods Transformers",
+);
+assert.equal(
+  preferBatchIndustry("Capital Goods Transformers", "Capital Goods Switchgear"),
+  "Capital Goods Switchgear",
+);
+assert.equal(
+  preferBatchIndustry("Capital Goods Switchgear", ""),
+  "Capital Goods Switchgear",
+);
 
 const parenTrunc = parseSectorScreenshot(`
 {"names":["Foo Motor Agency (Del
