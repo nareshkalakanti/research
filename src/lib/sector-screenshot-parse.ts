@@ -30,14 +30,58 @@ function looksIssuerLabel(s: string): boolean {
   return /\b(?:Ltd|Limited|Plc|LLP)\b/i.test(t) && t.split(/\s+/).length >= 2;
 }
 
+/**
+ * Vision OCR often dumps the Industry column as "X, X, X, …" or "X X X".
+ * Collapse to one label (generic — no issuer/sector special cases).
+ */
+export function collapseRepeatedIndustry(s: string): string {
+  let t = (s || "").replace(/\s+/g, " ").trim();
+  if (!t) return t;
+
+  const chunks = t
+    .split(/\s*[,;|]\s*/)
+    .map((c) => c.trim())
+    .filter(Boolean);
+  if (chunks.length >= 2) {
+    const voted = pickIndustry(chunks);
+    if (voted) return voted;
+  }
+
+  const lower = t.toLowerCase();
+  const maxUnit = Math.min(Math.floor(t.length / 2), 96);
+  for (let len = maxUnit; len >= 8; len--) {
+    const unit = t.slice(0, len).replace(/[\s,;|/]+$/g, "").trim();
+    if (unit.split(/\s+/).length < 2) continue;
+    const u = unit.toLowerCase();
+    let pos = 0;
+    let n = 0;
+    while (pos < lower.length) {
+      while (pos < lower.length && /[\s,;|/]/.test(lower[pos]!)) pos++;
+      if (pos >= lower.length) break;
+      if (!lower.startsWith(u, pos)) {
+        n = 0;
+        break;
+      }
+      n += 1;
+      pos += u.length;
+    }
+    if (n >= 2 && pos >= lower.length) return unit;
+  }
+  return t;
+}
+
 export function tidyIndustry(s: string | null): string | null {
   if (!s) return null;
-  const t = s
-    .replace(/\s+/g, " ")
-    .replace(/^(industry|sector)\s*:\s*/i, "")
-    .replace(/[.…]+$/g, "")
-    .trim();
+  const t = collapseRepeatedIndustry(
+    s
+      .replace(/\s+/g, " ")
+      .replace(/^(industry|sector)\s*:\s*/i, "")
+      .replace(/[.…]+$/g, "")
+      .trim(),
+  );
   if (!t || isIndustryHeader(t) || looksIssuerLabel(t)) return null;
+  // Real industry names are short; refuse leftover OCR dumps.
+  if (t.length > 96) return null;
   return t;
 }
 const PRICEISH =
@@ -528,13 +572,44 @@ export function parseSectorScreenshot(text: string): SectorShotExtract {
   return { industry, names, rowIndustries };
 }
 
-/** Later pages in a multi-screenshot batch often OCR a parent group instead of the Industry column. */
+/** Same parent prefix, different leaf (Capital Goods Switchgear vs Transformers). */
+export function areSiblingIndustryLeaves(prior: string, next: string): boolean {
+  const aw = (prior || "").replace(/\s+/g, " ").trim().toLowerCase().split(/\s+/);
+  const bw = (next || "").replace(/\s+/g, " ").trim().toLowerCase().split(/\s+/);
+  if (aw.length < 2 || bw.length < 2) return false;
+  const aTail = aw[aw.length - 1]!;
+  const bTail = bw[bw.length - 1]!;
+  const aHead = aw.slice(0, -1).join(" ");
+  const bHead = bw.slice(0, -1).join(" ");
+  return Boolean(aHead && aHead === bHead && aTail !== bTail);
+}
+
+/**
+ * Same Capital Goods / Auto prefix but different leaf
+ * (Transformers vs Switchgear) — treat as different industries.
+ */
+export function industriesCompatible(prior: string, next: string): boolean {
+  const a = (prior || "").replace(/\s+/g, " ").trim().toLowerCase();
+  const b = (next || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!a || !b) return true;
+  if (a === b) return true;
+  if (areSiblingIndustryLeaves(a, b)) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+  return false;
+}
+
+/**
+ * Later pages in a multi-screenshot batch often OCR a parent group instead of
+ * the Industry column. Keep a prior leaf over a parent; never keep a prior
+ * sibling leaf (Switchgear must not absorb Transformers).
+ */
 export function preferBatchIndustry(prior: string, next: string): string {
   const a = (prior || "").replace(/\s+/g, " ").trim();
   const b = (next || "").replace(/\s+/g, " ").trim();
   if (!a) return b;
   if (!b) return a;
   if (a.toLowerCase() === b.toLowerCase()) return b;
+  if (areSiblingIndustryLeaves(a, b)) return b;
   const aw = a.split(/\s+/).length;
   const bw = b.split(/\s+/).length;
   if (aw >= 2 && bw === 1) return a;
