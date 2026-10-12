@@ -175,7 +175,7 @@ async function bootstrapListedTicker(
   }
   if (!market) market = usedBo ? "BSE" : "NSE";
 
-  const searched = ticker.trim().toUpperCase();
+  const searched = keyIn.trim().toUpperCase();
   if (key !== searched && companyExists(searched)) {
     try {
       const dbDrop = openSqliteNamed("company_about.db", {
