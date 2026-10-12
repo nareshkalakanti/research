@@ -24,6 +24,8 @@ export type MetricsRow = {
 };
 
 let metricsDb: Database.Database | null = null;
+/** Tracks the open handle inode so an on-disk replace (git checkout / fill) reopens. */
+let metricsDbIno: number | null = null;
 let metricsMapCache: { at: number; map: Map<string, MetricsRow> } | null =
   null;
 const MAP_CACHE_MS = 5_000;
@@ -50,6 +52,22 @@ function closeMetricsDb(): void {
     /* already closed */
   }
   metricsDb = null;
+  metricsDbIno = null;
+}
+
+function metricsPathIno(): number | null {
+  try {
+    return fs.statSync(METRICS_PATH).ino;
+  } catch {
+    return null;
+  }
+}
+
+/** True when metrics.db was replaced under a still-open better-sqlite3 handle. */
+function metricsFileReplaced(): boolean {
+  if (!metricsDb || metricsDbIno == null) return false;
+  const ino = metricsPathIno();
+  return ino == null || ino !== metricsDbIno;
 }
 
 /** Drop open handle + in-memory map (after Yahoo fill or corruption recovery). */
@@ -76,6 +94,10 @@ function resetMetricsDb(): void {
 }
 
 function ensureMetricsDb(): Database.Database {
+  if (metricsDb && metricsFileReplaced()) {
+    closeMetricsDb();
+    metricsMapCache = null;
+  }
   if (metricsDb) return metricsDb;
 
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -91,11 +113,16 @@ function ensureMetricsDb(): Database.Database {
     db.exec(`ALTER TABLE stock_metrics ADD COLUMN change_pct REAL`);
   }
   metricsDb = db;
+  metricsDbIno = metricsPathIno();
   return db;
 }
 
 export function loadMetricsMap(): Map<string, MetricsRow> {
   const now = Date.now();
+  if (metricsFileReplaced()) {
+    closeMetricsDb();
+    metricsMapCache = null;
+  }
   if (metricsMapCache && now - metricsMapCache.at < MAP_CACHE_MS) {
     return metricsMapCache.map;
   }
