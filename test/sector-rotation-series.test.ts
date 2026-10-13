@@ -44,4 +44,23 @@ assert.ok(Math.abs((cap[2]?.value ?? 0) - 142.5) < 1e-9);
 const look = rotationMaLookbackStart("2026-06-01");
 assert.ok(look < "2026-06-01");
 assert.ok(look <= "2025-08-01");
+
+// Sparse member must not dominate on gap days (forward-fill).
+const dense = [
+  { date: "2026-01-01", close: 100 },
+  { date: "2026-01-02", close: 100 },
+  { date: "2026-01-03", close: 100 },
+  { date: "2026-01-04", close: 100 },
+];
+const sparse = [
+  { date: "2026-01-01", close: 50 },
+  { date: "2026-01-03", close: 100 }, // +100% vs start; missing 01-02 and 01-04
+];
+const sparseEq = equalWeightIndex([dense, sparse], "2026-01-01");
+const byDate = new Map(sparseEq.map((p) => [p.date, p.value]));
+// On 01-03 both live: (100 + 200) / 2 = 150
+assert.ok(Math.abs((byDate.get("2026-01-03") ?? 0) - 150) < 1e-9);
+// On 01-04 only dense prints; sparse carries 200 → (100 + 200) / 2 = 150 (not 100)
+assert.ok(Math.abs((byDate.get("2026-01-04") ?? 0) - 150) < 1e-9);
+
 console.log("ok");

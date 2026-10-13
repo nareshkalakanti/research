@@ -183,6 +183,7 @@ function metricsNeedsPriceRefresh(
 ): boolean {
   if (!row || row.price == null) return true;
   if (row.change_pct == null) return true;
+  if (row.market_cap_cr == null || row.market_cap_cr <= 0) return true;
   const t = Date.parse(row.fetched_at);
   if (!Number.isFinite(t)) return true;
   return Date.now() - t > maxAgeMs;

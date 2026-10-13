@@ -1,5 +1,5 @@
 import { fetchDailyBars, fetchNifty500DailyBars } from "./ohlc";
-import { loadMetricsMap } from "./metrics";
+import { loadMetricsMap, refreshPagePrices } from "./metrics";
 import { tradingviewUrl } from "./links";
 import { runConcurrent } from "./scrape-pool";
 import {
@@ -18,6 +18,39 @@ import {
   seriesReturnPct,
   type SeriesPoint,
 } from "./sector-rotation-series";
+
+/** Refresh Yahoo quotes for members missing price / mcap / today %. */
+export async function refreshRotationMemberMetrics(
+  members: SectorMember[],
+  opts?: { force?: boolean },
+): Promise<number> {
+  if (!members.length) return 0;
+  return refreshPagePrices(
+    members.map((m) => ({ ticker: m.ticker, market: m.market })),
+    { force: opts?.force, concurrency: 8 },
+  );
+}
+
+export async function refreshAllRotationMetricsGaps(): Promise<number> {
+  const seen = new Map<string, SectorMember>();
+  for (const s of listRotationSectors()) {
+    for (const m of s.members) {
+      const k = m.ticker.toUpperCase();
+      if (!seen.has(k)) seen.set(k, m);
+    }
+  }
+  const metrics = loadMetricsMap();
+  const gaps = [...seen.values()].filter((m) => {
+    const row = metrics.get(m.ticker.toUpperCase());
+    return (
+      !row ||
+      row.price == null ||
+      row.market_cap_cr == null ||
+      row.change_pct == null
+    );
+  });
+  return refreshRotationMemberMetrics(gaps, { force: true });
+}
 
 export type RotationMemberRow = {
   ticker: string;
@@ -218,6 +251,51 @@ export async function hydrateRotationCards(
   };
 }
 
+/**
+ * Compute window returns for every sector (no sparklines).
+ * Needed so Top/Bottom 20 and Above filters rank on real period returns,
+ * not the lite board’s null sector_pct / today_pct fallback.
+ */
+export async function rankRotationBoard(
+  range: string,
+  weight: RotationWeight = "equal",
+): Promise<{
+  range: string;
+  as_of: string | null;
+  bench_label: string;
+  sectors: RotationSectorCard[];
+}> {
+  const sectors = listRotationSectors();
+  const years = rotationYearsBack(range);
+  const metrics = loadMetricsMap();
+  const nifty = await fetchNifty500DailyBars(years);
+  const last = nifty[nifty.length - 1]?.date || "";
+  const start = rotationWindowStart(last, range);
+  const lookback = rotationMaLookbackStart(start);
+  const bench = rebaseCloses(nifty, start);
+  const bench_pct = seriesReturnPct(bench);
+  const cards = await runConcurrent(sectors, 4, async (s) => {
+    const card = await cardWithSeries(
+      s,
+      years,
+      start,
+      lookback,
+      weight,
+      metrics,
+      bench,
+      bench_pct,
+      false,
+    );
+    return { ...card, sector: [], bench: [] };
+  });
+  return {
+    range: (range || "6M").toUpperCase(),
+    as_of: nifty[nifty.length - 1]?.date ?? null,
+    bench_label: NIFTY_INDEX_META.NIFTY_500.label,
+    sectors: cards.filter(Boolean),
+  };
+}
+
 export async function buildRotationBoard(
   range: string,
   weight: RotationWeight = "equal",
@@ -246,6 +324,8 @@ export async function buildRotationDetail(
   card: RotationSectorCard;
   members: RotationMemberRow[];
 }> {
+  // Fill missing mcap / price / today % before painting the member table
+  await refreshRotationMemberMetrics(sector.members);
   const years = rotationYearsBack(range);
   const metrics = loadMetricsMap();
   const nifty = await fetchNifty500DailyBars(years);

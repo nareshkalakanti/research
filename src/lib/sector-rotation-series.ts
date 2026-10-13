@@ -75,7 +75,11 @@ export function rebaseCloses(
   }));
 }
 
-/** Equal-weight average of rebased closes on dates any name has. */
+/**
+ * Equal-weight average of rebased closes on dates any name has.
+ * Forward-fills each member’s last rebased value so sparse / gappy names
+ * cannot spike the basket on days when only they print.
+ */
 export function equalWeightIndex(
   members: Array<Array<{ date: string; close: number }>>,
   startDate: string,
@@ -89,14 +93,17 @@ export function equalWeightIndex(
   for (const s of rebased) for (const p of s) dates.add(p.date);
   const ordered = [...dates].sort();
   const maps = rebased.map((s) => new Map(s.map((p) => [p.date, p.value])));
+  const last = maps.map(() => null as number | null);
   const out: SeriesPoint[] = [];
   for (const date of ordered) {
     let sum = 0;
     let n = 0;
-    for (const m of maps) {
-      const v = m.get(date);
-      if (v == null || !Number.isFinite(v)) continue;
-      sum += v;
+    for (let i = 0; i < maps.length; i++) {
+      const v = maps[i]!.get(date);
+      if (v != null && Number.isFinite(v)) last[i] = v;
+      const cur = last[i];
+      if (cur == null || !Number.isFinite(cur)) continue;
+      sum += cur;
       n += 1;
     }
     if (n < 1) continue;
@@ -105,7 +112,10 @@ export function equalWeightIndex(
   return out;
 }
 
-/** Free-float / cap-weighted average of rebased closes. Falls back to equal weight. */
+/**
+ * Free-float / cap-weighted average of rebased closes. Falls back to equal weight.
+ * Forward-fills missing closes (same as equal-weight) so gap days stay stable.
+ */
 export function capWeightIndex(
   members: Array<{
     bars: Array<{ date: string; close: number }>;
@@ -127,14 +137,17 @@ export function capWeightIndex(
   for (const p of use) for (const pt of p.series) dates.add(pt.date);
   const ordered = [...dates].sort();
   const maps = use.map((p) => new Map(p.series.map((pt) => [pt.date, pt.value])));
+  const last = maps.map(() => null as number | null);
   const out: SeriesPoint[] = [];
   for (const date of ordered) {
     let sum = 0;
     let wsum = 0;
     use.forEach((p, i) => {
       const v = maps[i]!.get(date);
-      if (v == null || !Number.isFinite(v)) return;
-      sum += v * p.w;
+      if (v != null && Number.isFinite(v)) last[i] = v;
+      const cur = last[i];
+      if (cur == null || !Number.isFinite(cur)) return;
+      sum += cur * p.w;
       wsum += p.w;
     });
     if (wsum <= 0) continue;
