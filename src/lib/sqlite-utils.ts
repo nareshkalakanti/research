@@ -117,6 +117,37 @@ export function removeWalSidecars(dbPath: string): void {
   }
 }
 
+/**
+ * After `git pull` / checkout replaces a tracked `*.db`, leftover gitignored
+ * `*.db-wal` from the previous file can blank or corrupt the new main DB.
+ * Drop sidecars when the main file is newer than its WAL (replace under sidecars).
+ */
+export function stripOrphanWalAfterDbReplace(dbPath: string): boolean {
+  const walPath = dbPath + "-wal";
+  if (!fs.existsSync(dbPath) || !fs.existsSync(walPath)) return false;
+  try {
+    const dbStat = fs.statSync(dbPath);
+    const walStat = fs.statSync(walPath);
+    // Normal WAL traffic keeps the WAL newer; a git checkout refreshes .db only.
+    if (dbStat.mtimeMs <= walStat.mtimeMs) return false;
+    removeWalSidecars(dbPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Run {@link stripOrphanWalAfterDbReplace} for every `data/*.db`. */
+export function stripOrphanWalsInDataDir(): string[] {
+  const stripped: string[] = [];
+  for (const dbPath of listDataDbs()) {
+    if (stripOrphanWalAfterDbReplace(dbPath)) {
+      stripped.push(path.basename(dbPath));
+    }
+  }
+  return stripped;
+}
+
 export function backupCorruptDb(dbPath: string): string {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   if (!fs.existsSync(CORRUPT_BAK_DIR)) {

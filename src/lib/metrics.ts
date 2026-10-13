@@ -2,7 +2,11 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { fetchLivePrices, type YfQuote } from "./yfinance";
-import { isSqliteCorrupt } from "./sqlite-utils";
+import {
+  isSqliteCorrupt,
+  removeWalSidecars,
+  stripOrphanWalAfterDbReplace,
+} from "./sqlite-utils";
 import {
   BSE_SME_MARKET,
   fetchBseSmeMetrics,
@@ -102,6 +106,11 @@ function ensureMetricsDb(): Database.Database {
 
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
+  // git pull replaces metrics.db but leaves gitignored *-wal; drop those orphans.
+  if (stripOrphanWalAfterDbReplace(METRICS_PATH)) {
+    metricsMapCache = null;
+  }
+
   const db = new Database(METRICS_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("busy_timeout = 8000");
@@ -133,13 +142,26 @@ export function loadMetricsMap(): Map<string, MetricsRow> {
       metricsMapCache = { at: now, map };
       return map;
     }
-    const db = ensureMetricsDb();
-    const rows = db
-      .prepare(
-        `SELECT ticker, market, yf_symbol, price, market_cap_cr, sector, change_pct, fetched_at
-         FROM stock_metrics`,
-      )
-      .all() as MetricsRow[];
+    const readRows = () => {
+      const db = ensureMetricsDb();
+      return db
+        .prepare(
+          `SELECT ticker, market, yf_symbol, price, market_cap_cr, sector, change_pct, fetched_at
+           FROM stock_metrics`,
+        )
+        .all() as MetricsRow[];
+    };
+    let rows = readRows();
+    // Large main file + 0 rows usually means an orphan empty WAL after git pull.
+    if (
+      !rows.length &&
+      fs.statSync(METRICS_PATH).size > 64_000 &&
+      fs.existsSync(METRICS_PATH + "-wal")
+    ) {
+      closeMetricsDb();
+      removeWalSidecars(METRICS_PATH);
+      rows = readRows();
+    }
     for (const r of rows) map.set(r.ticker.toUpperCase(), r);
   } catch {
     /* missing / unreadable cache */

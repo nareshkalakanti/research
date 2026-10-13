@@ -19,8 +19,6 @@ import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
 
 type DashView =
   | "groups"
-  | "ungrouped"
-  | "sme"
   | "holdings"
   | "people"
   | "stock"
@@ -51,12 +49,8 @@ function stubCompany(
 export function FamilyDashboard() {
   const tabState = useOptionalAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
-  const [solos, setSolos] = useState<FamilyRow[]>([]);
-  const [smeRows, setSmeRows] = useState<FamilyRow[]>([]);
   const [holdings, setHoldings] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [solosLoading, setSolosLoading] = useState(false);
-  const [smeLoading, setSmeLoading] = useState(false);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -71,8 +65,6 @@ export function FamilyDashboard() {
   const [addWork, setAddWork] = useState<FamilyAddWork | null>(null);
   const [dashView, setDashView] = useState<DashView>("groups");
   const [groupFilter, setGroupFilter] = useState("");
-  const [soloFilter, setSoloFilter] = useState("");
-  const [smeFilter, setSmeFilter] = useState("");
   const [holdingFilter, setHoldingFilter] = useState("");
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
@@ -83,8 +75,6 @@ export function FamilyDashboard() {
     lines: string[];
   } | null>(null);
   const hasGroups = useRef(false);
-  const hasSolos = useRef(false);
-  const hasSme = useRef(false);
   const hasHoldings = useRef(false);
 
   const load = useCallback(async (opts?: { refresh?: boolean }) => {
@@ -118,33 +108,6 @@ export function FamilyDashboard() {
     }
   }, []);
 
-  const loadSolos = useCallback(async (opts?: { refresh?: boolean }) => {
-    const hard = opts?.refresh === true;
-    if (!hasSolos.current) setSolosLoading(true);
-    if (hard) setRefreshingBox((cur) => cur || "*");
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        view: "ungrouped",
-        page: "1",
-        pageSize: "5000",
-      });
-      if (hard) params.set("refresh", "1");
-      const res = await fetch(`/api/governance-map?${params}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { rows?: FamilyRow[] };
-      const next = json.rows ?? [];
-      hasSolos.current = next.length > 0;
-      setSolos(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSolosLoading(false);
-      setRefreshingBox(null);
-    }
-  }, []);
 
   const loadHoldingMaps = useCallback(async (opts?: { refresh?: boolean }) => {
     const hard = opts?.refresh === true;
@@ -174,33 +137,6 @@ export function FamilyDashboard() {
     }
   }, []);
 
-  const loadSmeMaps = useCallback(async (opts?: { refresh?: boolean }) => {
-    const hard = opts?.refresh === true;
-    if (!hasSme.current) setSmeLoading(true);
-    if (hard) setRefreshingBox((cur) => cur || "*");
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        view: "sme",
-        page: "1",
-        pageSize: "5000",
-      });
-      if (hard) params.set("refresh", "1");
-      const res = await fetch(`/api/governance-map?${params}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { rows?: FamilyRow[] };
-      const next = json.rows ?? [];
-      hasSme.current = next.length > 0;
-      setSmeRows(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSmeLoading(false);
-      setRefreshingBox(null);
-    }
-  }, []);
 
   const loadPeople = useCallback(async (opts?: { refresh?: boolean; q?: string }) => {
     setPeopleLoading(true);
@@ -269,14 +205,12 @@ export function FamilyDashboard() {
           q: needle.length >= 2 ? needle : undefined,
         });
       }
-      else if (dashView === "ungrouped") void loadSolos({ refresh: true });
-      else if (dashView === "sme") void loadSmeMaps({ refresh: true });
       else if (dashView === "holdings") void loadHoldingMaps({ refresh: true });
       else if (dashView === "groups") void load({ refresh: true });
     };
     window.addEventListener(GOV_MAP_CHANGED, onChange);
     return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
-  }, [dashView, q, load, loadPeople, loadSolos, loadSmeMaps, loadHoldingMaps]);
+  }, [dashView, q, load, loadPeople, loadHoldingMaps]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -311,14 +245,6 @@ export function FamilyDashboard() {
   }, [dashView, q, loadPeople]);
 
   useEffect(() => {
-    if (dashView === "ungrouped") void loadSolos();
-  }, [dashView, loadSolos]);
-
-  useEffect(() => {
-    if (dashView === "sme") void loadSmeMaps();
-  }, [dashView, loadSmeMaps]);
-
-  useEffect(() => {
     if (dashView === "holdings") void loadHoldingMaps();
   }, [dashView, loadHoldingMaps]);
 
@@ -339,12 +265,10 @@ export function FamilyDashboard() {
   const marketByTicker = useMemo(() => {
     const map = new Map<string, string>();
     for (const f of rows) for (const c of f.companies) map.set(c.ticker, c.market);
-    for (const f of solos) for (const c of f.companies) map.set(c.ticker, c.market);
-    for (const f of smeRows) for (const c of f.companies) map.set(c.ticker, c.market);
     for (const f of holdings) for (const c of f.companies) map.set(c.ticker, c.market);
     for (const p of people) for (const c of p.companies) map.set(c.ticker, c.market);
     return map;
-  }, [rows, solos, smeRows, holdings, people]);
+  }, [rows, holdings, people]);
 
   const groupOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -361,24 +285,6 @@ export function FamilyDashboard() {
     return out;
   }, [rows]);
 
-  const soloOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const out: Array<{ key: string; label: string; n: number }> = [];
-    for (const f of solos) {
-      const key = f.group_id || f.family_name;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({
-        key,
-        label: f.companies[0]?.ticker || f.family_name,
-        n: f.outside?.length ?? 0,
-      });
-    }
-    out.sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-    );
-    return out;
-  }, [solos]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -411,72 +317,8 @@ export function FamilyDashboard() {
     });
   }, [filtered, holdPattern]);
 
-  const filteredSolos = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return solos.filter((f) => {
-      if (soloFilter && (f.group_id || f.family_name) !== soloFilter) {
-        return false;
-      }
-      if (!needle) return true;
-      return (
-        f.family_name.toLowerCase().includes(needle) ||
-        f.companies.some(
-          (c) =>
-            c.ticker.toLowerCase().startsWith(needle) ||
-            c.name.toLowerCase().includes(needle),
-        ) ||
-        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
-        (f.outside ?? []).some(
-          (o) =>
-            o.ticker.toLowerCase().startsWith(needle) ||
-            o.name.toLowerCase().includes(needle),
-        )
-      );
-    });
-  }, [solos, q, soloFilter]);
 
-  const smeOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const out: Array<{ key: string; label: string; n: number }> = [];
-    for (const f of smeRows) {
-      const key = f.group_id || f.family_name;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({
-        key,
-        label: f.companies[0]?.ticker || f.family_name,
-        n: f.outside?.length ?? 0,
-      });
-    }
-    out.sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-    );
-    return out;
-  }, [smeRows]);
 
-  const filteredSme = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    return smeRows.filter((f) => {
-      if (smeFilter && (f.group_id || f.family_name) !== smeFilter) {
-        return false;
-      }
-      if (!needle) return true;
-      return (
-        f.family_name.toLowerCase().includes(needle) ||
-        f.companies.some(
-          (c) =>
-            c.ticker.toLowerCase().startsWith(needle) ||
-            c.name.toLowerCase().includes(needle),
-        ) ||
-        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
-        (f.outside ?? []).some(
-          (o) =>
-            o.ticker.toLowerCase().startsWith(needle) ||
-            o.name.toLowerCase().includes(needle),
-        )
-      );
-    });
-  }, [smeRows, q, smeFilter]);
 
   const holdingOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -566,27 +408,6 @@ export function FamilyDashboard() {
           key,
           label: f.family_name,
           detail: `${f.company_count} companies`,
-        });
-      }
-    }
-    for (const f of solos) {
-      const key = f.group_id || f.family_name;
-      if (seenG.has(key)) continue;
-      const t = f.companies[0]?.ticker || "";
-      if (
-        f.family_name.toLowerCase().includes(low) ||
-        f.companies.some(
-          (c) =>
-            c.ticker.toLowerCase().startsWith(low) ||
-            c.name.toLowerCase().includes(low),
-        )
-      ) {
-        seenG.add(key);
-        local.push({
-          kind: "group",
-          key,
-          label: t || f.family_name,
-          detail: "Ungrouped",
         });
       }
     }
@@ -690,7 +511,7 @@ export function FamilyDashboard() {
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [q, rows.length, solos.length, people.length]);
+  }, [q, rows.length, people.length]);
 
   const onDashPick = useCallback((hit: DashSuggestHit) => {
     const scrollKey = (key: string) => {
@@ -701,16 +522,6 @@ export function FamilyDashboard() {
       }, 50);
     };
     if (hit.kind === "group") {
-      const solo = solos.some(
-        (f) => (f.group_id || f.family_name) === hit.key,
-      );
-      if (solo) {
-        setDashView("ungrouped");
-        setSoloFilter(hit.key);
-        setQ("");
-        scrollKey(hit.key);
-        return;
-      }
       setDashView("groups");
       setGroupFilter(hit.key);
       setQ("");
@@ -723,26 +534,6 @@ export function FamilyDashboard() {
       return;
     }
     const ticker = hit.ticker.toUpperCase();
-    if (dashView === "ungrouped") {
-      const solo = solos.find((f) =>
-        f.companies.some((c) => c.ticker.toUpperCase() === ticker),
-      );
-      if (solo) {
-        setSoloFilter(solo.group_id || solo.family_name);
-        setQ("");
-        scrollKey(solo.group_id || solo.family_name);
-        return;
-      }
-      setQ(ticker);
-      setAdding(true);
-      setNewTickers((prev) =>
-        prev.some((x) => x.ticker.toUpperCase() === ticker)
-          ? prev
-          : [...prev, { ticker, name: hit.detail || ticker }],
-      );
-      setNewName((cur) => (cur.trim() ? cur : (hit.detail || ticker).trim()));
-      return;
-    }
     if (dashView === "groups") {
       const group = rows.find((f) =>
         f.companies.some((c) => c.ticker.toUpperCase() === ticker),
@@ -769,23 +560,10 @@ export function FamilyDashboard() {
       setQ(ticker);
       return;
     }
-    if (dashView === "sme") {
-      const sme = smeRows.find((f) =>
-        f.companies.some((c) => c.ticker.toUpperCase() === ticker),
-      );
-      if (sme) {
-        setSmeFilter(sme.group_id || sme.family_name);
-        setQ("");
-        scrollKey(sme.group_id || sme.family_name);
-        return;
-      }
-      setQ(ticker);
-      return;
-    }
     setDashView("stock");
     setStockFocus(ticker);
     setQ("");
-  }, [dashView, solos, rows, holdings, smeRows]);
+  }, [dashView, rows, holdings]);
 
   const companySearch = useCallback(async (query: string) => {
     const res = await fetch(
@@ -884,7 +662,6 @@ export function FamilyDashboard() {
         done: true,
       });
       notifyGovMapChanged();
-      void loadSolos({ refresh: true });
       if (newTickers.length >= 2 && gid) {
         setGroupFilter(gid);
         setDashView("groups");
@@ -928,24 +705,6 @@ export function FamilyDashboard() {
             <button
               type="button"
               role="tab"
-              className={dashView === "ungrouped" ? "tab on" : "tab"}
-              aria-selected={dashView === "ungrouped"}
-              onClick={() => setDashView("ungrouped")}
-            >
-              Ungrouped
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "sme" ? "tab on" : "tab"}
-              aria-selected={dashView === "sme"}
-              onClick={() => setDashView("sme")}
-            >
-              SME
-            </button>
-            <button
-              type="button"
-              role="tab"
               className={dashView === "holdings" ? "tab on" : "tab"}
               aria-selected={dashView === "holdings"}
               onClick={() => setDashView("holdings")}
@@ -983,10 +742,6 @@ export function FamilyDashboard() {
           <p className="fam-dash-sub">
             {dashView === "groups"
               ? "Click a ticker for that stock’s full board and related nodes. Outside shows only external boards and those people. Show all restores the group."
-              : dashView === "ungrouped"
-                ? "One listed company that is not in a business group, plus other listed boards its directors sit on (outside). Houses stay 2+ companies."
-              : dashView === "sme"
-                ? "NSE SME / BSE SME listings that have board seats, plus other listed boards those directors sit on. BSE SME without boards stays out of this graph view."
               : dashView === "holdings"
                 ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
@@ -1009,40 +764,6 @@ export function FamilyDashboard() {
               >
                 <option value="">All groups ({groupOptions.length})</option>
                 {groupOptions.map((g) => (
-                  <option key={g.key} value={g.key}>
-                    {g.label} ({g.n})
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {dashView === "ungrouped" ? (
-            <label className="fam-dash-group-filter">
-              <select
-                className="fam-dash-search fam-dash-group-select"
-                value={soloFilter}
-                onChange={(e) => setSoloFilter(e.target.value)}
-                aria-label="Filter by ungrouped company"
-              >
-                <option value="">All ungrouped ({soloOptions.length})</option>
-                {soloOptions.map((g) => (
-                  <option key={g.key} value={g.key}>
-                    {g.label} ({g.n})
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {dashView === "sme" ? (
-            <label className="fam-dash-group-filter">
-              <select
-                className="fam-dash-search fam-dash-group-select"
-                value={smeFilter}
-                onChange={(e) => setSmeFilter(e.target.value)}
-                aria-label="Filter by SME company"
-              >
-                <option value="">All SME ({smeOptions.length})</option>
-                {smeOptions.map((g) => (
                   <option key={g.key} value={g.key}>
                     {g.label} ({g.n})
                   </option>
@@ -1073,9 +794,7 @@ export function FamilyDashboard() {
             placeholder={
               dashView === "people"
                 ? "Person, DIN, ticker or company…"
-                : dashView === "ungrouped" ||
-                    dashView === "sme" ||
-                    dashView === "holdings"
+                : dashView === "holdings"
                   ? "Ticker, company, director or outside board…"
                   : "Group, ticker, company or director…"
             }
@@ -1083,7 +802,7 @@ export function FamilyDashboard() {
             loading={dashHitLoading}
             onPick={onDashPick}
           />
-          {dashView === "groups" || dashView === "ungrouped" ? (
+          {dashView === "groups" ? (
           <button
             type="button"
             className="btn-ghost"
@@ -1101,35 +820,23 @@ export function FamilyDashboard() {
                     refresh: true,
                     q: q.trim().length >= 2 ? q.trim() : undefined,
                   })
-                : dashView === "ungrouped"
-                  ? loadSolos({ refresh: true })
-                  : dashView === "sme"
-                    ? loadSmeMaps({ refresh: true })
-                  : dashView === "holdings"
-                    ? loadHoldingMaps({ refresh: true })
-                    : load({ refresh: true }))
+                : dashView === "holdings"
+                  ? loadHoldingMaps({ refresh: true })
+                  : load({ refresh: true }))
             }
             disabled={
               dashView === "people"
                 ? peopleLoading
-                : dashView === "ungrouped"
-                  ? solosLoading
-                  : dashView === "sme"
-                    ? smeLoading
-                  : dashView === "holdings"
-                    ? holdingsLoading
-                    : loading
+                : dashView === "holdings"
+                  ? holdingsLoading
+                  : loading
             }
           >
             {(dashView === "people"
               ? peopleLoading
-              : dashView === "ungrouped"
-                ? solosLoading
-                : dashView === "sme"
-                  ? smeLoading
-                : dashView === "holdings"
-                  ? holdingsLoading
-                  : loading)
+              : dashView === "holdings"
+                ? holdingsLoading
+                : loading)
               ? "Loading…"
               : "Refresh"}
           </button>
@@ -1137,12 +844,12 @@ export function FamilyDashboard() {
           ) : null}
         </div>
       </div>
-      {dashView === "groups" || dashView === "ungrouped" ? (
+      {dashView === "groups" ? (
         addWork ? (
           <FamilyAddProgress work={addWork} />
         ) : null
       ) : null}
-      {(dashView === "groups" || dashView === "ungrouped") && adding ? (
+      {dashView === "groups" && adding ? (
         <form
           className="fam-dash-create"
           onSubmit={(e) => {
@@ -1244,188 +951,6 @@ export function FamilyDashboard() {
           initialTicker={stockFocus}
           onPerson={(id, name) => openPerson(id, name)}
         />
-      ) : dashView === "ungrouped" ? (
-        solosLoading && !solos.length ? (
-          <div className="table-meta">Loading ungrouped companies…</div>
-        ) : (
-          <FamilyMapCards
-            rows={filteredSolos}
-            editable
-            addWork={addWork}
-            onPerson={(id, name) => openPerson(id, name)}
-            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-            companySearch={companySearch}
-            onRefresh={(g) => {
-              setRefreshingBox(g.group_id || g.family_name);
-              void loadSolos({ refresh: true });
-            }}
-            refreshing={refreshingBox}
-            onDeleteGroup={async (g) => {
-              const id = g.group_id?.startsWith("user-") ? g.group_id : null;
-              if (!id) {
-                setSolos((prev) =>
-                  prev.filter((row) => (row.group_id || row.family_name) !== (g.group_id || g.family_name)),
-                );
-                return;
-              }
-              const res = await fetch("/api/family-groups", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  group_id: id,
-                  deleteGroup: true,
-                  tickers: g.companies.map((c) => c.ticker),
-                }),
-              });
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              setSolos((prev) => prev.filter((row) => row.group_id !== id));
-              notifyGovMapChanged();
-            }}
-            onRename={async (g, label) => {
-              const id = await ensureUserGroup(g);
-              const res = await fetch("/api/family-groups", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ group_id: id, rename: true, label }),
-              });
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              const name = label.replace(/\s+/g, " ").trim();
-              setSolos((prev) =>
-                prev.map((row) =>
-                  (row.group_id || row.family_name) === (g.group_id || g.family_name)
-                    ? { ...row, family_name: name, group_id: id }
-                    : row,
-                ),
-              );
-            }}
-            onRemoveCompany={async (g, ticker) => {
-              const id = g.group_id?.startsWith("user-") ? g.group_id : await ensureUserGroup(g);
-              const res = await fetch("/api/family-groups", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  group_id: id,
-                  remove: true,
-                  ticker,
-                }),
-              });
-              if (!res.ok) throw new Error(`HTTP ${res.status}`);
-              const t = ticker.trim().toUpperCase();
-              setSolos((prev) =>
-                prev
-                  .map((row) => {
-                    if ((row.group_id || row.family_name) !== (g.group_id || g.family_name) && row.group_id !== id) {
-                      return row;
-                    }
-                    const companies = row.companies.filter(
-                      (c) => c.ticker.toUpperCase() !== t,
-                    );
-                    return {
-                      ...row,
-                      group_id: id,
-                      companies,
-                      company_count: companies.length,
-                    };
-                  })
-                  .filter((row) => row.company_count >= 1),
-              );
-            }}
-            onAddCompany={async (g, ticker, name) => {
-              const shown = ticker.trim().toUpperCase();
-              setAddWork({
-                groupId: g.group_id || shown,
-                pct: 8,
-                label: "Listing",
-                detail: `${shown} · exchange, quote, profile`,
-              });
-              try {
-                const boot = await fetch("/api/tickers", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    ticker: shown,
-                    name: name || shown,
-                  }),
-                });
-                const bootJson = (await boot.json()) as {
-                  ok?: boolean;
-                  error?: string;
-                  hit?: {
-                    ticker: string;
-                    name: string;
-                    market: string;
-                    mcap_cr: number | null;
-                  };
-                };
-                if (!boot.ok || bootJson.ok === false) {
-                  throw new Error(bootJson.error || `Add listing failed (${boot.status})`);
-                }
-                const id = await ensureUserGroup(g);
-                setAddWork({
-                  groupId: id,
-                  pct: 58,
-                  label: "Group",
-                  detail: `${shown} → ${g.family_name}`,
-                });
-                const fam = await fetch("/api/family-groups", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    group_id: id,
-                    add: true,
-                    ticker: shown,
-                  }),
-                });
-                if (!fam.ok) throw new Error(`Save group failed (${fam.status})`);
-                const hit = bootJson.hit;
-                const extra = stubCompany(
-                  hit?.ticker || shown,
-                  hit?.name || name || shown,
-                  hit?.market,
-                  hit?.mcap_cr,
-                );
-                setAddWork({
-                  groupId: id,
-                  pct: 100,
-                  label: "Done",
-                  detail: `${shown} in ${g.family_name}`,
-                  done: true,
-                });
-                notifyGovMapChanged();
-                setGroupFilter(id);
-                setDashView("groups");
-                void load({ refresh: true });
-                void loadSolos({ refresh: true });
-                void extra;
-              } catch (e) {
-                const msg = e instanceof Error ? e.message : String(e);
-                setError(msg);
-                setAddWork({
-                  groupId: g.group_id || shown,
-                  pct: 100,
-                  label: "Failed",
-                  detail: msg,
-                  error: true,
-                });
-              }
-            }}
-          />
-        )
-      ) : dashView === "sme" ? (
-        smeLoading && !smeRows.length ? (
-          <div className="table-meta">Loading SME board graphs…</div>
-        ) : (
-          <FamilyMapCards
-            rows={filteredSme}
-            onPerson={(id, name) => openPerson(id, name)}
-            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-            onRefresh={(g) => {
-              setRefreshingBox(g.group_id || g.family_name);
-              void loadSmeMaps({ refresh: true });
-            }}
-            refreshing={refreshingBox}
-          />
-        )
       ) : dashView === "holdings" ? (
         holdingsLoading && !holdings.length ? (
           <div className="table-meta">Loading holdings graphs…</div>

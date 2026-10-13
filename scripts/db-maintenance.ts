@@ -23,6 +23,7 @@ import {
   hydrateAllSeededDbs,
   recoverCorruptDb,
   removeWalSidecars,
+  stripOrphanWalsInDataDir,
   verifyAllDbs,
   warnIfCloudSyncedDataDir,
 } from "../src/lib/sqlite-utils";
@@ -159,6 +160,11 @@ function cmdFixAll(): number {
 /** Runs before `npm run dev` — warn, auto-fix corrupt dbs, fail if still broken. */
 function cmdPrepareDev(): number {
   warnIfCloudSyncedDataDir();
+  for (const file of stripOrphanWalsInDataDir()) {
+    console.log(
+      `[db] dropped orphan WAL for ${file} (main .db newer — typically after git pull)`,
+    );
+  }
   for (const file of hydrateAllSeededDbs()) {
     console.log(`[db] hydrated ${file} from data/seeds/`);
   }
