@@ -1269,6 +1269,29 @@ function normCompanyKey(name: string): string {
     .trim();
 }
 
+/** Overlay live mcap / cap_code so node colors survive a stale family-map cache. */
+function paintFamilyGroupCaps(groups: GovFamilyGroup[]): GovFamilyGroup[] {
+  const metrics = loadMetricsMap();
+  if (!metrics.size) return groups;
+  const paint = <T extends { ticker: string; cap_code: string | null; market_cap_cr?: number | null }>(
+    row: T,
+  ): T => {
+    const m = metrics.get(row.ticker.toUpperCase());
+    const mcap = m?.market_cap_cr ?? row.market_cap_cr ?? null;
+    return {
+      ...row,
+      market_cap_cr: mcap,
+      cap_code: mcapCapCode(mcap) ?? row.cap_code,
+    };
+  };
+  return groups.map((g) => ({
+    ...g,
+    companies: g.companies.map((c) => paint(c)),
+    outside: g.outside?.map((o) => paint(o)),
+    listings: g.listings?.map((o) => paint(o)),
+  }));
+}
+
 /** Brand houses (name + family directors) plus control-seat affiliates. */
 export function loadGovernanceFamilyMap(opts?: {
   q?: string;
@@ -1288,7 +1311,7 @@ export function loadGovernanceFamilyMap(opts?: {
     familyMapCache &&
     now - familyMapCache.at < CACHE_MS
   ) {
-    return familyMapCache.groups;
+    return paintFamilyGroupCaps(familyMapCache.groups);
   }
   try {
     getGovernanceWriteDb();
@@ -3099,7 +3122,7 @@ export function loadGovernanceFamilyMap(opts?: {
       })),
     })),
   );
-  return out;
+  return paintFamilyGroupCaps(out);
 }
 
 /** One listed company not in a 2+ house, plus other listed boards its directors sit on. */
@@ -3108,7 +3131,7 @@ export function loadUngroupedCompanyMaps(opts?: {
   refresh?: boolean;
 }): GovFamilyGroup[] {
   loadGovernanceFamilyMap({ refresh: opts?.refresh });
-  let rows = familyMapCache?.solos ?? [];
+  let rows = paintFamilyGroupCaps(familyMapCache?.solos ?? []);
   const q = (opts?.q || "").trim().toLowerCase();
   if (!q) return rows;
   return rows.filter((g) => {
@@ -3137,7 +3160,7 @@ export function loadHoldingCompanyMaps(opts?: {
   refresh?: boolean;
 }): GovFamilyGroup[] {
   loadGovernanceFamilyMap({ refresh: opts?.refresh });
-  let rows = familyMapCache?.holdings ?? [];
+  let rows = paintFamilyGroupCaps(familyMapCache?.holdings ?? []);
   const q = (opts?.q || "").trim().toLowerCase();
   if (!q) return rows;
   return rows.filter((g) => {
@@ -3169,7 +3192,7 @@ export function loadSmeCompanyMaps(opts?: {
   refresh?: boolean;
 }): GovFamilyGroup[] {
   loadGovernanceFamilyMap({ refresh: opts?.refresh });
-  let rows = familyMapCache?.sme ?? [];
+  let rows = paintFamilyGroupCaps(familyMapCache?.sme ?? []);
   const q = (opts?.q || "").trim().toLowerCase();
   if (!q) return rows;
   return rows.filter((g) => {

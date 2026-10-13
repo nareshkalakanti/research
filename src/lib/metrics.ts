@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { execSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fetchLivePrices, type YfQuote } from "./yfinance";
@@ -84,8 +85,11 @@ export function invalidateMetricsCache(): void {
   metricsMapCache = null;
 }
 
-/** Recreate metrics.db when the on-disk image is malformed. */
-function resetMetricsDb(): void {
+/**
+ * Last-resort empty recreate. Prefer {@link recoverMetricsDb} which strips WAL /
+ * restores from git before destroying a populated file.
+ */
+function recreateEmptyMetricsDb(): void {
   invalidateMetricsDb();
   for (const suffix of ["", "-wal", "-shm"]) {
     const p = METRICS_PATH + suffix;
@@ -95,6 +99,81 @@ function resetMetricsDb(): void {
       /* another process may still hold the inode */
     }
   }
+}
+
+/**
+ * Recover a corrupt/orphan-WAL metrics.db without wiping good data.
+ * 1) strip WAL sidecars  2) restore from git if tracked  3) empty recreate only if tiny/missing
+ */
+function recoverMetricsDb(reason: string): "wal" | "git" | "empty" {
+  invalidateMetricsDb();
+  const size = fs.existsSync(METRICS_PATH)
+    ? fs.statSync(METRICS_PATH).size
+    : 0;
+  console.warn(`[metrics] recover (${reason}) size=${size}`);
+
+  // Orphan WAL after git pull is the usual false SQLITE_CORRUPT — strip first.
+  if (fs.existsSync(METRICS_PATH + "-wal") || fs.existsSync(METRICS_PATH + "-shm")) {
+    removeWalSidecars(METRICS_PATH);
+    try {
+      const db = new Database(METRICS_PATH, { readonly: true, fileMustExist: true });
+      const n = (
+        db.prepare(`SELECT COUNT(*) AS n FROM stock_metrics`).get() as { n: number }
+      ).n;
+      db.close();
+      if (n > 0) {
+        console.warn(`[metrics] recovered via WAL strip (${n} rows)`);
+        return "wal";
+      }
+    } catch {
+      /* still bad — fall through */
+    }
+  }
+
+  // Never destroy a populated DB for one bad write — restore tracked copy.
+  if (size > 64_000) {
+    const tmp = path.join(DATA_DIR, ".metrics-restore.tmp");
+    try {
+      execSync(`git show HEAD:data/metrics.db > ${JSON.stringify(tmp)}`, {
+        cwd: process.cwd(),
+        shell: "/bin/bash",
+        stdio: ["ignore", "pipe", "ignore"],
+      });
+      if (fs.existsSync(tmp) && fs.statSync(tmp).size > 64_000) {
+        const bak = path.join(
+          DATA_DIR,
+          `.corrupt-bak/metrics.db.${new Date().toISOString().replace(/[:.]/g, "-")}`,
+        );
+        fs.mkdirSync(path.dirname(bak), { recursive: true });
+        try {
+          fs.renameSync(METRICS_PATH, bak);
+        } catch {
+          fs.copyFileSync(METRICS_PATH, bak);
+        }
+        fs.renameSync(tmp, METRICS_PATH);
+        removeWalSidecars(METRICS_PATH);
+        console.warn("[metrics] restored data/metrics.db from git HEAD");
+        return "git";
+      }
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+    } catch (e) {
+      if (fs.existsSync(tmp)) {
+        try {
+          fs.unlinkSync(tmp);
+        } catch {
+          /* ignore */
+        }
+      }
+      console.warn(
+        "[metrics] git restore failed:",
+        e instanceof Error ? e.message : e,
+      );
+    }
+  }
+
+  console.warn("[metrics] recreating empty metrics.db (last resort)");
+  recreateEmptyMetricsDb();
+  return "empty";
 }
 
 function ensureMetricsDb(): Database.Database {
@@ -272,8 +351,7 @@ export function upsertMetrics(
     return saved;
   } catch (err) {
     if (retry && isSqliteCorrupt(err)) {
-      console.warn("[metrics] corrupt db — recreating metrics.db");
-      resetMetricsDb();
+      recoverMetricsDb("upsert SQLITE_CORRUPT");
       return upsertMetrics(quotes, marketByTicker, false);
     }
     throw err;
