@@ -15,6 +15,9 @@ import {
   buildRotationDetail,
   buildRotationLiteBoard,
   hydrateRotationCards,
+  rankRotationBoard,
+  refreshAllRotationMetricsGaps,
+  refreshRotationMemberMetrics,
 } from "@/lib/sector-rotation-board";
 
 export const runtime = "nodejs";
@@ -54,6 +57,10 @@ export async function GET(req: NextRequest) {
       const board = buildRotationLiteBoard();
       return NextResponse.json({ ok: true, ...board });
     }
+    if (sp.get("rank") === "1") {
+      const board = await rankRotationBoard(range, weight);
+      return NextResponse.json({ ok: true, ...board });
+    }
     const hydrateRaw = (sp.get("hydrate") || "").trim();
     if (hydrateRaw) {
       const ids = hydrateRaw.split(",").map((x) => x.trim()).filter(Boolean).slice(0, 24);
@@ -79,6 +86,7 @@ export async function POST(req: NextRequest) {
     remove?: boolean;
     star?: boolean;
     starred?: boolean;
+    refreshMetrics?: boolean;
     ticker?: string;
     name?: string;
     market?: string;
@@ -89,6 +97,21 @@ export async function POST(req: NextRequest) {
     body = {};
   }
   try {
+    if (body.refreshMetrics) {
+      const id = (body.id || "").trim();
+      if (id) {
+        const sector = getRotationSector(id);
+        if (!sector) {
+          return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
+        }
+        const saved = await refreshRotationMemberMetrics(sector.members, {
+          force: true,
+        });
+        return NextResponse.json({ ok: true, saved });
+      }
+      const saved = await refreshAllRotationMetricsGaps();
+      return NextResponse.json({ ok: true, saved });
+    }
     if (body.create) {
       const sector = createRotationSector(body.label || "");
       return NextResponse.json({ ok: true, sector });

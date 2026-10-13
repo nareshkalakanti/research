@@ -315,6 +315,8 @@ export function SectorRotationPanel() {
   const [page, setPage] = useState(0);
   const [boardTick, setBoardTick] = useState(0);
   const [hydrating, setHydrating] = useState(false);
+  const [ranking, setRanking] = useState(false);
+  const [rankedKey, setRankedKey] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [shotBusy, setShotBusy] = useState(false);
   const [shotQueued, setShotQueued] = useState(0);
@@ -322,6 +324,7 @@ export function SectorRotationPanel() {
   const [shotDrag, setShotDrag] = useState(false);
   const [shotLog, setShotLog] = useState<string[]>([]);
   const hydrateGen = useRef(0);
+  const rankGen = useRef(0);
   const shotUrl = useRef<string | null>(null);
   const shotWell = useRef<HTMLDivElement>(null);
   const shotQueue = useRef<File[]>([]);
@@ -344,6 +347,7 @@ export function SectorRotationPanel() {
         throw new Error(json.error || `HTTP ${res.status}`);
       }
       setCards(json.sectors ?? []);
+      setRankedKey(null);
       setBoardTick((n) => n + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -376,6 +380,98 @@ export function SectorRotationPanel() {
     },
     [range, weight],
   );
+
+  const refreshBoard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await fetch("/api/sector-rotation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refreshMetrics: true,
+          ...(openId ? { id: openId } : {}),
+        }),
+      });
+      if (openId) await loadDetail(openId);
+      await loadBoard({ silent: true });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [openId, loadBoard, loadDetail]);
+
+  const rankKey = `${range}:${weight}`;
+  const needsRank =
+    boardFilter === "top" || boardFilter === "bottom" || aboveOn;
+
+  useEffect(() => {
+    setRankedKey(null);
+    setCards((prev) =>
+      prev.map((c) =>
+        c.sector_pct == null && c.bench_pct == null
+          ? c
+          : {
+              ...c,
+              sector_pct: null,
+              bench_pct: null,
+              sector: [],
+              bench: [],
+            },
+      ),
+    );
+  }, [range, weight]);
+
+  useEffect(() => {
+    if (!needsRank) return;
+    if (rankedKey === rankKey) return;
+    const gen = ++rankGen.current;
+    setRanking(true);
+    setError(null);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/sector-rotation?rank=1&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
+          { cache: "no-store" },
+        );
+        const json = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          as_of?: string | null;
+          bench_label?: string;
+          sectors?: Card[];
+        };
+        if (gen !== rankGen.current) return;
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || `HTTP ${res.status}`);
+        }
+        setAsOf(json.as_of ?? null);
+        setBenchLabel(json.bench_label || "Nifty 500");
+        const next = new Map((json.sectors ?? []).map((c) => [c.id, c]));
+        setCards((prev) =>
+          prev.map((c) => {
+            const r = next.get(c.id);
+            if (!r) return c;
+            return {
+              ...c,
+              sector_pct: r.sector_pct,
+              bench_pct: r.bench_pct,
+              today_pct: r.today_pct ?? c.today_pct,
+              up: r.up ?? c.up,
+              down: r.down ?? c.down,
+            };
+          }),
+        );
+        setRankedKey(rankKey);
+      } catch (e) {
+        if (gen !== rankGen.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (gen === rankGen.current) setRanking(false);
+      }
+    })();
+  }, [needsRank, rankedKey, rankKey, range, weight]);
 
   useEffect(() => {
     void loadBoard();
@@ -722,6 +818,11 @@ export function SectorRotationPanel() {
       );
     });
     if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
+    const rankedReady = rankedKey === `${range}:${weight}`;
+    // Wait for full-board returns before Top/Bottom/Above — lite cards have null sector_pct
+    if ((boardFilter === "top" || boardFilter === "bottom" || aboveOn) && !rankedReady) {
+      return [];
+    }
     if (aboveOn) {
       rows = rows.filter(
         (c) =>
@@ -733,7 +834,7 @@ export function SectorRotationPanel() {
     if (boardFilter === "top") rows = rows.slice(0, 20);
     if (boardFilter === "bottom") rows = rows.slice(-20).reverse();
     return rows;
-  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey]);
+  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey, rankedKey, range, weight]);
 
   useEffect(() => {
     setPage(0);
@@ -869,7 +970,13 @@ export function SectorRotationPanel() {
           <p className="rot-sub">
             {weight === "cap" ? "Free-float cap" : "Equal-weight"} vs {benchLabel}
             {asOf ? ` · as of ${asOf}` : ""}
-            {loading ? " · loading…" : hydrating ? " · charts…" : ""}
+            {loading
+              ? " · loading…"
+              : ranking
+                ? " · ranking…"
+                : hydrating
+                  ? " · charts…"
+                  : ""}
           </p>
           {openId ? (
             <button
@@ -896,7 +1003,8 @@ export function SectorRotationPanel() {
           <button
             type="button"
             className="rot-chip"
-            onClick={() => void loadBoard()}
+            onClick={() => void refreshBoard()}
+            disabled={loading || ranking}
           >
             ↻ Refresh
           </button>
@@ -1003,7 +1111,12 @@ export function SectorRotationPanel() {
                 key={id}
                 type="button"
                 className={boardFilter === id ? "rot-chip on" : "rot-chip"}
-                onClick={() => setBoardFilter(id)}
+                disabled={ranking && id !== "all"}
+                onClick={() =>
+                  setBoardFilter((prev) =>
+                    id === "all" ? "all" : prev === id ? "all" : id,
+                  )
+                }
               >
                 {label}
               </button>
@@ -1011,6 +1124,7 @@ export function SectorRotationPanel() {
             <button
               type="button"
               className={aboveOn ? "rot-chip on" : "rot-chip"}
+              disabled={ranking}
               onClick={() => setAboveOn((v) => !v)}
             >
               Above: {aboveOn ? "On" : "Off"}
