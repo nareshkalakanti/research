@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LazyFamilyGraph } from "@/components/FamilyGraph";
 import { BoxRefreshButton } from "@/components/RefreshButton";
 
@@ -416,7 +416,15 @@ function FamilyGroupCard({
     }>;
     people: NonNullable<FamilyRow["people"]>;
   } | null>(null);
-  const peopleAll = f.people ?? [];
+  const peopleAll = useMemo(() => {
+    const list = f.people ?? [];
+    return [...list].sort((a, b) => {
+      if (Boolean(b.recent_join) !== Boolean(a.recent_join)) {
+        return a.recent_join ? -1 : 1;
+      }
+      return (b.dir_score ?? 0) - (a.dir_score ?? 0);
+    });
+  }, [f.people]);
   useEffect(() => {
     setNet(null);
     if (!focus) return;
@@ -461,6 +469,12 @@ function FamilyGroupCard({
     people = ext.people;
     outside = ext.outside;
   }
+  people = [...people].sort((a, b) => {
+    if (Boolean(b.recent_join) !== Boolean(a.recent_join)) {
+      return a.recent_join ? -1 : 1;
+    }
+    return (b.dir_score ?? 0) - (a.dir_score ?? 0);
+  });
   const filtered = focus || externalOnly;
   const dirTotal = f.companies.reduce((n, c) => n + (c.directors ?? 0), 0);
   const dinTotal = f.companies.reduce((n, c) => n + (c.din_verified ?? 0), 0);
