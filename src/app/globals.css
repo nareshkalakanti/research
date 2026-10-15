@@ -26319,6 +26319,11 @@ tr.wl-prove-fail td {
 .rot-card .neg {
   color: var(--danger);
 }
+.rot-tone-hint {
+  margin: 4px 0 8px;
+  font-size: 0.72rem;
+  color: var(--muted, #94a3b8);
+}
 .rot-legend {
   display: flex;
   flex-wrap: wrap;

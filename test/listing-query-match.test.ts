@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  listingCorpusMatches,
   listingQueryMatches,
   rankListingQuery,
   scoreListingName,
@@ -152,5 +153,18 @@ assert.equal(
     "Alphaable Data Services Ltd",
   ),
   false,
+);
+const ufblCorpus =
+  "United Foodbrands Limited operates Barbeque Nation restaurants";
+assert.equal(listingCorpusMatches("barbeque", ufblCorpus), true);
+assert.equal(listingCorpusMatches("barbeque nation", ufblCorpus), true);
+assert.equal(listingCorpusMatches("nation", ufblCorpus), false);
+assert.equal(
+  listingQueryMatches("barbeque", "UFBL", "United Foodbrands Limited"),
+  false,
+);
+assert.ok(
+  rankListingQuery("barbeque", "UFBL", "United Foodbrands Limited", ufblCorpus) <=
+    6,
 );
 console.log("ok");
