@@ -51,6 +51,7 @@
     "scan:orderbook-bg": "tsx scripts/scan-orderbook-bg.ts",
     "scan:marketiq-bg": "tsx scripts/scan-marketiq-bg.ts",
     "scan:boardroom-bg": "tsx scripts/scan-boardroom-bg.ts",
+    "push:boardroom-gov": "tsx scripts/push-boardroom-gov.ts",
     "scan:iq-bg": "tsx scripts/scan-iq-bg.ts",
     "scan:iq-starter": "tsx scripts/scan-iq-starter.ts",
     "scan:superstar": "tsx scripts/scan-superstar.ts",
