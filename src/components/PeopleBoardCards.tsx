@@ -10,6 +10,8 @@ export type PersonBoardRow = {
   board_count: number;
   dir_score: number;
   din_backed: boolean;
+  recent_join?: boolean;
+  joined_at?: string | null;
   companies: Array<{
     ticker: string;
     name: string;
@@ -66,10 +68,15 @@ export function PeopleBoardCards({
               name: r.name,
               din: r.din,
               tickers: companies.map((c) => c.ticker),
+              recent_join: r.recent_join,
+              joined_at: r.joined_at,
             },
           ];
           return (
-            <article key={r.person_id} className="gov-card gov-family-card">
+            <article
+              key={r.person_id}
+              className={`gov-card gov-family-card${r.recent_join ? " is-recent-join" : ""}`}
+            >
               <header className="gov-family-head">
                 <div className="gov-family-head-row">
                   <div className="gov-family-title-text">
@@ -80,6 +87,18 @@ export function PeopleBoardCards({
                       title="Open this person in Governance"
                     >
                       {r.name}
+                      {r.recent_join ? (
+                        <span
+                          className="gov-badge recent-join"
+                          title={
+                            r.joined_at
+                              ? `Joined ${r.joined_at}`
+                              : "Recent board join"
+                          }
+                        >
+                          new
+                        </span>
+                      ) : null}
                       {r.din_backed ? (
                         <span className="gov-badge">DIN</span>
                       ) : (

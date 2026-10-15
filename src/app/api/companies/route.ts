@@ -63,7 +63,11 @@ import {
   matchesMissingGap,
   injectPersonalListRows,
 } from "@/lib/missing-data";
-import { dinBoardTickerSet } from "@/lib/governance-write";
+import {
+  closeGovernanceWriteDb,
+  dinBoardTickerSet,
+} from "@/lib/governance-write";
+import { isSqliteWalDamage } from "@/lib/sqlite-utils";
 import { capTier, type CapTier, type MatchedThemeTag } from "@/lib/types";
 import {
   isScanWatchlist,
@@ -97,6 +101,14 @@ export async function GET(req: NextRequest) {
   try {
     return await buildCompaniesResponse(req);
   } catch (err) {
+    if (isSqliteWalDamage(err)) {
+      try {
+        closeGovernanceWriteDb();
+        return await buildCompaniesResponse(req);
+      } catch (err2) {
+        err = err2;
+      }
+    }
     const message =
       err instanceof Error ? err.message.slice(0, 200) : "Companies load failed";
     console.error("[api/companies]", err);

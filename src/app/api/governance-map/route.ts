@@ -9,10 +9,12 @@ import {
   loadSmeCompanyMaps,
   loadGovernanceMap,
   loadStockBoardNetwork,
+  invalidateGovernanceMapCache,
   tickerMatchesSearch,
   type GovernanceMapRow,
   type GovCompanySeat,
 } from "@/lib/governance-map";
+import { isSqliteWalDamage } from "@/lib/sqlite-utils";
 import { mcapCapCode, pledgedDirectorScore, scoreCompanyBoard } from "@/lib/gov-score";
 import {
   boardIndependenceForTicker,
@@ -354,6 +356,9 @@ function sortDirectorRows(
 ): GovernanceMapRow[] {
   const mul = [...rows];
   mul.sort((a, b) => {
+    if (Boolean(b.recent_join) !== Boolean(a.recent_join)) {
+      return a.recent_join ? -1 : 1;
+    }
     if (sort === "boards") {
       if (b.board_count !== a.board_count) return b.board_count - a.board_count;
       return b.dir_score - a.dir_score;
@@ -551,6 +556,15 @@ export async function GET(req: NextRequest) {
   try {
     return await buildGovernanceMapResponse(req);
   } catch (err) {
+    // Stale reader after scan/push rewrote governance.db under Next.
+    if (isSqliteWalDamage(err)) {
+      try {
+        invalidateGovernanceMapCache();
+        return await buildGovernanceMapResponse(req);
+      } catch (err2) {
+        err = err2;
+      }
+    }
     const message =
       err instanceof Error
         ? err.message.slice(0, 240)

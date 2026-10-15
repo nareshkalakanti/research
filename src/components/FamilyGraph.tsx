@@ -19,6 +19,9 @@ type Person = {
   /** Same-group listings this house-control person spans without a shared seat. */
   span_tickers?: string[];
   dir_score?: number;
+  /** Joined seat event within lookback — highlight as new on the graph. */
+  recent_join?: boolean;
+  joined_at?: string | null;
 };
 
 type Outside = { ticker: string; name: string; cap_code?: string | null; market_cap_cr?: number | null };
@@ -32,6 +35,7 @@ type GraphNode = {
   title: string;
   hint: string;
   cap: string | null;
+  recent_join?: boolean;
   r: number;
   x: number;
   y: number;
@@ -259,12 +263,14 @@ export function FamilyGraph({
     }
     const pairs: Array<[number, number]> = [];
     for (const p of people) {
+      const newBit = p.recent_join ? " · new join" : "";
       add({
         id: `p:${p.person_id}`,
         kind: "person",
         label: "",
         cap: null,
-        title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""} · ${p.tickers.length} boards`,
+        recent_join: Boolean(p.recent_join),
+        title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""} · ${p.tickers.length} boards${newBit}`,
         hint: "",
         r: RADIUS.person,
         x: 0,
@@ -441,7 +447,7 @@ export function FamilyGraph({
           return (
             <g
               key={node.id}
-              className={`fam-node ${node.kind}${node.cap ? ` cap-${node.cap}` : ""}${lit(node.id) ? "" : " dim"}`}
+              className={`fam-node ${node.kind}${node.cap ? ` cap-${node.cap}` : ""}${node.recent_join ? " recent-join" : ""}${lit(node.id) ? "" : " dim"}`}
               transform={`translate(${p.x} ${p.y})`}
               onPointerEnter={() => setHover(node.id)}
               onPointerLeave={() => setHover(null)}
@@ -522,6 +528,11 @@ export function FamilyGraph({
         >
           Person
         </button>
+        {people.some((p) => p.recent_join) ? (
+          <span className="fam-legend-new" title="Joined within the recent lookback window">
+            New join
+          </span>
+        ) : null}
         {outside.length ? (
           <button
             type="button"

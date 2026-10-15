@@ -26,6 +26,8 @@ export type FamilyRow = {
     tickers: string[];
     span_tickers?: string[];
     dir_score?: number;
+    recent_join?: boolean;
+    joined_at?: string | null;
   }>;
   outside?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;
   listings?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;

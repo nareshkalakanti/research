@@ -165,3 +165,62 @@ export function seatEventSummary(events: BoardSeatEvent[]): {
   }
   return { joined, resigned, role_changed, watched };
 }
+
+/** Default window for “new join” node highlighting on Dashboard graphs. */
+export const RECENT_JOIN_LOOKBACK_DAYS = Math.min(
+  90,
+  Math.max(
+    1,
+    Number(process.env.GOV_RECENT_JOIN_DAYS || "30") || 30,
+  ),
+);
+
+/** Inclusive calendar-day cutoff (UTC midnight), so highlights don’t drop mid-day. */
+export function recentJoinCutoffIso(days: number): string {
+  const n = Math.min(90, Math.max(1, Math.round(days)));
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  d.setUTCDate(d.getUTCDate() - (n - 1));
+  return d.toISOString();
+}
+
+/**
+ * person_id → latest joined detected_at within lookback.
+ * Used to tint newly added people on Dashboard graph nodes.
+ */
+export function loadRecentJoinPersonIds(opts?: {
+  days?: number;
+}): Map<string, string> {
+  const days = Math.min(
+    90,
+    Math.max(1, opts?.days ?? RECENT_JOIN_LOOKBACK_DAYS),
+  );
+  const db = openGovDb();
+  const out = new Map<string, string>();
+  if (!db) return out;
+  try {
+    const cutoff = recentJoinCutoffIso(days);
+    const rows = db
+      .prepare(
+        `
+        SELECT person_id, MAX(detected_at) AS detected_at
+        FROM board_seat_events
+        WHERE event_type = 'joined'
+          AND detected_at >= ?
+          AND person_id IS NOT NULL
+          AND TRIM(person_id) != ''
+        GROUP BY person_id
+        `,
+      )
+      .all(cutoff) as Array<{ person_id: string; detected_at: string }>;
+    for (const r of rows) {
+      const id = (r.person_id || "").trim();
+      if (id) out.set(id, r.detected_at);
+    }
+  } catch {
+    /* table may be missing on empty DBs */
+  } finally {
+    db.close();
+  }
+  return out;
+}

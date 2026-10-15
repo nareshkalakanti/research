@@ -33,6 +33,7 @@ import {
 } from "./family-group-refine";
 import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
 import { closeGovernanceWriteDb, getGovernanceWriteDb } from "./governance-write";
+import { loadRecentJoinPersonIds } from "./governance-changes";
 import {
   DATA_DIR as SQLITE_DATA_DIR,
   isSqliteWalDamage,
@@ -100,6 +101,9 @@ export type GovernanceMapRow = {
   score_breakdown: DirectorScore;
   /** Theme-matched board count when a theme filter is active. */
   theme_matched?: number;
+  /** True when a joined seat event was recorded in the recent lookback window. */
+  recent_join?: boolean;
+  joined_at?: string | null;
 };
 
 type SeatRow = {
@@ -200,6 +204,9 @@ export type GovFamilyPerson = {
   span_tickers?: string[];
   /** Same director score as People & boards. */
   dir_score: number;
+  /** True when a joined seat event was recorded in the recent lookback window. */
+  recent_join?: boolean;
+  joined_at?: string | null;
 };
 
 export type GovFamilyOutside = {
@@ -922,6 +929,17 @@ function healGovernanceWal(): void {
   removeWalSidecars(path.join(SQLITE_DATA_DIR, "governance.db"));
 }
 
+/** Reopen after SHORT_READ / stale handle (common when push/scan rewrites the DB under Next). */
+function withGovRetry<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (err) {
+    if (!isSqliteWalDamage(err)) throw err;
+    healGovernanceWal();
+    return run();
+  }
+}
+
 function openReadonly(name: string): Database.Database {
   return openSqliteNamed(name, {
     readonly: true,
@@ -980,22 +998,17 @@ const SEAT_SELECT = `
 
 function loadAllBoardSeats(): SeatRow[] {
   if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) return [];
-  const run = () =>
-    getGov()
-      .prepare(
-        `
+  return withGovRetry(
+    () =>
+      getGov()
+        .prepare(
+          `
       ${SEAT_SELECT}
       ORDER BY c.name COLLATE NOCASE, d.name COLLATE NOCASE
       `,
-      )
-      .all() as SeatRow[];
-  try {
-    return run();
-  } catch (err) {
-    if (!isSqliteWalDamage(err)) throw err;
-    healGovernanceWal();
-    return run();
-  }
+        )
+        .all() as SeatRow[],
+  );
 }
 
 function loadAboutBlobByTicker(): Map<string, string> {
@@ -2493,6 +2506,7 @@ export function loadGovernanceFamilyMap(opts?: {
     return packed[0] ?? null;
   });
 
+  const recentJoins = loadRecentJoinPersonIds();
   const attachFamilyGraphLinks = (g: GovFamilyGroup) => {
     const inGroup = new Set(g.companies.map((c) => c.ticker.toUpperCase()));
     const people = new Map<string, GovFamilyPerson>();
@@ -2525,12 +2539,15 @@ export function loadGovernanceFamilyMap(opts?: {
         : tickers.filter((t) => metaByTicker.has(t) || listingMeta.has(t));
       if (listed.length < minListed) return;
       const din = s.din && /^\d{8}$/.test(s.din.trim()) ? s.din.trim() : null;
+      const joinedAt = recentJoins.get(s.person_id) ?? null;
       people.set(s.person_id, {
         person_id: s.person_id,
         name: s.director_name,
         din,
         tickers: listed,
         dir_score: scorePerson(s.person_id, din),
+        recent_join: Boolean(joinedAt),
+        joined_at: joinedAt,
       });
     };
     for (const t of inGroup) {
@@ -3217,10 +3234,11 @@ export function loadSmeCompanyMaps(opts?: {
 
 function loadMultiBoardSeats(minBoards: number): SeatRow[] {
   const min = Math.max(1, minBoards);
-  const db = getGov();
-  return db
-    .prepare(
-      `
+  return withGovRetry(
+    () =>
+      getGov()
+        .prepare(
+          `
       ${SEAT_SELECT}
         AND d.person_id IN (
           SELECT s2.person_id
@@ -3232,8 +3250,9 @@ function loadMultiBoardSeats(minBoards: number): SeatRow[] {
         )
       ORDER BY d.name COLLATE NOCASE, c.name COLLATE NOCASE
       `,
-    )
-    .all(min) as SeatRow[];
+        )
+        .all(min) as SeatRow[],
+  );
 }
 
 /**
@@ -3274,6 +3293,7 @@ function directorKeepScore(row: {
   companies?: Array<{ ticker: string }>;
   board_count?: number;
   dir_score?: number;
+  recent_join?: boolean;
 }): number {
   const din = (row.din || "").trim();
   const boards = row.board_count ?? directorBoardTickers(row).length;
@@ -3281,6 +3301,7 @@ function directorKeepScore(row: {
   if (/^\d{8}$/.test(din) && !dateShapedDin(din)) n += 1000;
   else if (/^\d{8}$/.test(din)) n += 10;
   if (row.person_id === din) n += 5;
+  if (row.recent_join) n += 50;
   return n;
 }
 
@@ -3350,10 +3371,11 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
   const folded = foldDirectorQuery(term);
   const like = `%${needle}%`;
   const foldedLike = folded ? `%${folded}%` : like;
-  const db = getGov();
-  return db
-    .prepare(
-      `
+  return withGovRetry(
+    () =>
+      getGov()
+        .prepare(
+          `
       ${SEAT_SELECT}
         AND d.person_id IN (
           SELECT DISTINCT d2.person_id
@@ -3371,8 +3393,9 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
         )
       ORDER BY d.name COLLATE NOCASE, c.name COLLATE NOCASE
       `,
-    )
-    .all(like, foldedLike, like, needle, `${needle}%`, like) as SeatRow[];
+        )
+        .all(like, foldedLike, like, needle, `${needle}%`, like) as SeatRow[],
+  );
 }
 
 function loadSeatsForTickers(tickers: string[]): SeatRow[] {
@@ -3381,15 +3404,16 @@ function loadSeatsForTickers(tickers: string[]): SeatRow[] {
   ];
   if (!keys.length) return [];
   if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) return [];
-  const db = getGov();
-  const out: SeatRow[] = [];
-  const chunk = 200;
-  for (let i = 0; i < keys.length; i += chunk) {
-    const slice = keys.slice(i, i + chunk);
-    const placeholders = slice.map(() => "?").join(",");
-    const rows = db
-      .prepare(
-        `
+  return withGovRetry(() => {
+    const db = getGov();
+    const out: SeatRow[] = [];
+    const chunk = 200;
+    for (let i = 0; i < keys.length; i += chunk) {
+      const slice = keys.slice(i, i + chunk);
+      const placeholders = slice.map(() => "?").join(",");
+      const rows = db
+        .prepare(
+          `
         ${SEAT_SELECT}
           AND d.person_id IN (
             SELECT DISTINCT s2.person_id
@@ -3398,11 +3422,12 @@ function loadSeatsForTickers(tickers: string[]): SeatRow[] {
           )
         ORDER BY d.name COLLATE NOCASE, c.name COLLATE NOCASE
         `,
-      )
-      .all(...slice) as SeatRow[];
-    out.push(...rows);
-  }
-  return out;
+        )
+        .all(...slice) as SeatRow[];
+      out.push(...rows);
+    }
+    return out;
+  });
 }
 
 export type StockBoardNetwork = {
@@ -3416,6 +3441,8 @@ export type StockBoardNetwork = {
     din: string | null;
     tickers: string[];
     dir_score: number;
+    recent_join?: boolean;
+    joined_at?: string | null;
   }>;
 };
 
@@ -3434,6 +3461,8 @@ export function loadStockBoardNetwork(
     din: r.din,
     tickers: r.companies.map((c) => c.ticker),
     dir_score: r.dir_score,
+    recent_join: r.recent_join,
+    joined_at: r.joined_at,
   }));
   const byCo = new Map<string, GovCompanySeat>();
   let focal: GovCompanySeat | null = null;
@@ -3544,6 +3573,7 @@ function buildRowsFromSeats(
   const holdings = holdingsTickerSet();
   const edge = edgeTickerSet();
   const abouts = loadAboutMap(allTickers);
+  const recentJoins = loadRecentJoinPersonIds();
 
   const rows: GovernanceMapRow[] = [];
 
@@ -3628,6 +3658,7 @@ function buildRowsFromSeats(
       else if (c.is_main) mainN += 1;
     }
 
+    const joinedAt = recentJoins.get(personId) ?? null;
     rows.push({
       person_id: personId,
       din,
@@ -3652,10 +3683,15 @@ function buildRowsFromSeats(
       tickers: companies.map((c) => c.ticker).join(", "),
       companies,
       score_breakdown: scored,
+      recent_join: Boolean(joinedAt),
+      joined_at: joinedAt,
     });
   }
 
   rows.sort((a, b) => {
+    if (Boolean(b.recent_join) !== Boolean(a.recent_join)) {
+      return a.recent_join ? -1 : 1;
+    }
     if (b.dir_score !== a.dir_score) return b.dir_score - a.dir_score;
     if (b.board_count !== a.board_count) return b.board_count - a.board_count;
     return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
