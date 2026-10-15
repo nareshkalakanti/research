@@ -82,6 +82,18 @@ export function napkinUrl(ticker: string): string {
   return `/?tab=napkin&ticker=${encodeURIComponent(t)}`;
 }
 
+/** `NSE:CERA` / `BSE:500325` style symbol, or null for placeholders. */
+export function tradingviewSymbol(
+  ticker: string,
+  market?: string | null,
+): string | null {
+  const sym = canonicalTicker(ticker);
+  if (!sym) return null;
+  if (bseScripCodeFromTicker(sym)) return null;
+  const exchange = tradingviewExchange(sym, market);
+  return `${exchange}:${sym}`;
+}
+
 export function tradingviewUrl(
   ticker: string,
   market?: string | null,
@@ -92,8 +104,9 @@ export function tradingviewUrl(
   const scrip = bseScripCodeFromTicker(sym);
   if (scrip) return bseIndiaQuoteUrl(scrip);
 
-  const exchange = tradingviewExchange(sym, market);
-  return `${TV_CHART_BASE}?symbol=${encodeURIComponent(`${exchange}:${sym}`)}`;
+  const tvSym = tradingviewSymbol(sym, market);
+  if (!tvSym) return TV_CHART_BASE;
+  return `${TV_CHART_BASE}?symbol=${encodeURIComponent(tvSym)}`;
 }
 
 /**

@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { bootstrapCompanyTicker } from "@/lib/company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "@/lib/db";
-import { listingQueryMatches, rankListingQuery, shouldAugmentListingSearch } from "@/lib/listing-name-match";
+import {
+  listingCorpusMatches,
+  listingQueryMatches,
+  rankListingQuery,
+  shouldAugmentListingSearch,
+} from "@/lib/listing-name-match";
 import { openSqliteNamed } from "@/lib/sqlite-utils";
 import { searchGrowwListings } from "@/lib/web-mcap";
 
@@ -16,37 +21,53 @@ export type TickerHit = {
   source?: "local" | "groww";
 };
 
-function listingMatches(q: string, ticker: string, name: string): boolean {
-  return listingQueryMatches(q, ticker, name);
+function listingMatches(
+  q: string,
+  ticker: string,
+  name: string,
+  corpus?: string | null,
+): boolean {
+  if (listingQueryMatches(q, ticker, name)) return true;
+  return Boolean(corpus && listingCorpusMatches(q, corpus));
 }
 
-function rankHit(q: string, h: TickerHit): number {
-  return rankListingQuery(q, h.ticker, h.name);
+function rankHit(
+  q: string,
+  h: TickerHit,
+  corpus?: string | null,
+): number {
+  return rankListingQuery(q, h.ticker, h.name, corpus);
 }
 
 function localHits(q: string, limit: number): TickerHit[] {
   const hits: TickerHit[] = [];
   const have = new Set<string>();
-  const push = (row: TickerHit) => {
+  const corpusByTicker = new Map<string, string>();
+  const push = (row: TickerHit, corpus?: string | null) => {
     const ticker = row.ticker.toUpperCase();
     if (have.has(ticker)) return;
     have.add(ticker);
+    if (corpus) corpusByTicker.set(ticker, corpus);
     hits.push({ ...row, ticker });
   };
   for (const c of loadAllCompanies()) {
     const ticker = String(c.ticker || "").toUpperCase();
     const name = String(c.name || "").trim();
     if (!ticker) continue;
-    if (!listingMatches(q, ticker, name)) continue;
-    push({
-      ticker,
-      name: name || ticker,
-      market: String(c.market || ""),
-      sector: c.sector || null,
-      mcap_cr:
-        c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
-      source: "local",
-    });
+    const corpus = String(c.search_text || "");
+    if (!listingMatches(q, ticker, name, corpus)) continue;
+    push(
+      {
+        ticker,
+        name: name || ticker,
+        market: String(c.market || ""),
+        sector: c.sector || null,
+        mcap_cr:
+          c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
+        source: "local",
+      },
+      corpus,
+    );
   }
   try {
     const db = openSqliteNamed("governance.db", {
@@ -74,8 +95,8 @@ function localHits(q: string, limit: number): TickerHit[] {
     /* about rows still usable */
   }
   hits.sort((a, b) => {
-    const ra = rankHit(q, a);
-    const rb = rankHit(q, b);
+    const ra = rankHit(q, a, corpusByTicker.get(a.ticker));
+    const rb = rankHit(q, b, corpusByTicker.get(b.ticker));
     if (ra !== rb) return ra - rb;
     return a.ticker.localeCompare(b.ticker);
   });
@@ -145,13 +166,25 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const corpusByTicker = new Map<string, string>();
+  try {
+    for (const c of loadAllCompanies()) {
+      const t = String(c.ticker || "").toUpperCase();
+      if (t && c.search_text) corpusByTicker.set(t, c.search_text);
+    }
+  } catch {
+    /* ranking without corpus still ok */
+  }
   hits.sort((a, b) => {
-    const ra = rankHit(q, a);
-    const rb = rankHit(q, b);
+    const ra = rankHit(q, a, corpusByTicker.get(a.ticker));
+    const rb = rankHit(q, b, corpusByTicker.get(b.ticker));
     if (ra !== rb) return ra - rb;
     if ((a.source || "local") !== (b.source || "local")) {
       return (a.source || "local") === "local" ? -1 : 1;
     }
+    const ma = a.mcap_cr ?? -1;
+    const mb = b.mcap_cr ?? -1;
+    if (ma !== mb) return mb - ma;
     return a.ticker.localeCompare(b.ticker);
   });
 

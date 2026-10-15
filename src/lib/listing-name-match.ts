@@ -228,6 +228,28 @@ export function listingQueryMatches(q: string, ticker: string, name: string): bo
   return scoreListingName(q, ticker, name) >= 70;
 }
 
+/**
+ * Former names / brands / about corpus (e.g. "barbeque" → United Foodbrands).
+ * Single tokens must be long enough to avoid "nation"/"india" noise.
+ */
+export function listingCorpusMatches(q: string, corpus: string): boolean {
+  const key = companyLabelKey(q);
+  if (!key) return false;
+  const blob = companyLabelKey(corpus);
+  if (!blob) return false;
+  const qTok = key.split(" ").filter((w) => w.length > 1);
+  const blobTok = new Set(blob.split(" ").filter(Boolean));
+  if (qTok.length === 0) return false;
+  if (qTok.length === 1) {
+    const w = qTok[0]!;
+    if (w.length < 7) return false;
+    return blobTok.has(w);
+  }
+  const strong = qTok.filter((w) => w.length >= 4);
+  if (strong.length < 2) return false;
+  return strong.every((w) => blobTok.has(w));
+}
+
 export function listingQualityPenalty(ticker: string, name: string): number {
   const t = (ticker || "").toUpperCase();
   const n = (name || "").toLowerCase();
@@ -240,6 +262,7 @@ export function rankListingQuery(
   q: string,
   ticker: string,
   name: string,
+  corpus?: string | null,
 ): number {
   const Q = q.trim().toUpperCase();
   const t = ticker.toUpperCase();
@@ -257,6 +280,13 @@ export function rankListingQuery(
   if (n.startsWith(Q) || nameScore >= 70) return 3 + pen;
   if (t.includes(Q) || n.includes(Q)) return 4;
   if (cq.length >= 2 && (ct.includes(cq) || compactTicker(n).includes(cq))) return 5;
+  if (corpus && listingCorpusMatches(q, corpus)) {
+    const key = companyLabelKey(q);
+    const blob = companyLabelKey(corpus);
+    // Contiguous former-name / brand phrase beats scattered token hits.
+    if (key.includes(" ") && blob.includes(key)) return 5 + pen;
+    return 6 + pen;
+  }
   return 9;
 }
 

@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { ROTATION_MA_PERIODS, ROTATION_RANGES } from "@/lib/sector-rotation-series";
 
@@ -72,6 +78,7 @@ function DualSpark({
   bLabel = "Nifty",
   logScale = false,
   ma = [],
+  aAbove = true,
 }: {
   a: Point[];
   b: Point[];
@@ -82,7 +89,12 @@ function DualSpark({
   bLabel?: string;
   logScale?: boolean;
   ma?: number[];
+  /** Green when sector ≥ bench, red when below. */
+  aAbove?: boolean;
 }) {
+  const aStroke = aAbove ? "#22c55e" : "#ef4444";
+  const aFill = aAbove ? "#22c55e" : "#ef4444";
+  const aText = aAbove ? "#052e16" : "#450a0a";
   const [hover, setHover] = useState<number | null>(null);
   const plotFrom = b[0]?.date ?? a[0]?.date ?? "";
   const firstVis = a.find((p) => !plotFrom || p.date >= plotFrom);
@@ -185,7 +197,7 @@ function DualSpark({
           ) : null,
         )}
         {line(visA) ? (
-          <path d={line(visA)} fill="none" stroke="#22c55e" strokeWidth="2" />
+          <path d={line(visA)} fill="none" stroke={aStroke} strokeWidth="2" />
         ) : null}
         {lastA && showEnd ? (
           <g>
@@ -195,14 +207,14 @@ function DualSpark({
               width="40"
               height="14"
               rx="3"
-              fill="#22c55e"
+              fill={aFill}
             />
             <text
               x={width - 22}
               y={yAt(lastA.value) + 2}
               textAnchor="middle"
               fontSize="8"
-              fill="#052e16"
+              fill={aText}
             >
               {lastA.value.toFixed(1)}
             </text>
@@ -1315,10 +1327,18 @@ export function SectorRotationPanel() {
               }}
               aria-label="Sector name"
             />
-            <span className="rot-pct">{fmtPct(openCard?.sector_pct ?? null)}</span>
-            <span className="rot-muted">
+            <span
+              className={`rot-pct ${(openCard?.sector_pct ?? 0) >= 0 ? "pos" : "neg"}`}
+            >
+              Sector {fmtPct(openCard?.sector_pct ?? null)}
+            </span>
+            <span
+              className={`rot-pct ${(openCard?.bench_pct ?? 0) >= 0 ? "pos" : "neg"}`}
+            >
               {benchLabel} {fmtPct(openCard?.bench_pct ?? null)}
-              {openCard ? ` · ${openCard.n} stocks` : ""}
+            </span>
+            <span className="rot-muted">
+              {openCard ? `${openCard.n} stocks` : ""}
             </span>
             <button
               type="button"
@@ -1337,10 +1357,19 @@ export function SectorRotationPanel() {
               bLabel={benchLabel}
               logScale={scale === "log"}
               ma={maOn}
+              aAbove={
+                openCard.sector_pct == null || openCard.bench_pct == null
+                  ? true
+                  : openCard.sector_pct >= openCard.bench_pct
+              }
             />
           ) : openCard ? null : (
             <div className="table-meta">Loading sector…</div>
           )}
+          <p className="rot-tone-hint">
+            Sector line: green = at/above {benchLabel}, red = below. Change % follows
+            the selected range (green up / red down).
+          </p>
           <div className="rot-add-row">
             <TickerSuggest
               value={addQ}
@@ -1379,9 +1408,18 @@ export function SectorRotationPanel() {
                 <tr key={m.ticker}>
                   <td>{i + 1}</td>
                   <td>
-                    <a href={m.tv_url} target="_blank" rel="noopener noreferrer">
-                      {m.name}
-                    </a>
+                    {m.tv_url ? (
+                      <a
+                        href={m.tv_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Open in TradingView"
+                      >
+                        {m.name}
+                      </a>
+                    ) : (
+                      m.name
+                    )}
                   </td>
                   <td className="mono">{m.ticker}</td>
                   <td>{fmtCr(m.mcap_cr)}</td>
@@ -1512,7 +1550,7 @@ export function SectorRotationPanel() {
                 <strong>{c.label}</strong>
                 <span className="rot-card-ret">
                   <span className={(c.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
-                    {fmtPct(c.sector_pct)}
+                    Sector {fmtPct(c.sector_pct)}
                   </span>
                   <button
                     type="button"
@@ -1528,6 +1566,9 @@ export function SectorRotationPanel() {
                 </span>
               </div>
               <div className="rot-muted">
+                <span className={(c.bench_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                  {benchLabel} {fmtPct(c.bench_pct)}
+                </span>
                 <span className="rot-count">{c.n} stocks</span>
                 {(c.up ?? 0) > 0 ? (
                   <span className="rot-up">▲ {c.up}</span>
@@ -1547,6 +1588,11 @@ export function SectorRotationPanel() {
                 bLabel={benchLabel}
                 logScale={scale === "log"}
                 ma={maOn}
+                aAbove={
+                  c.sector_pct == null || c.bench_pct == null
+                    ? true
+                    : c.sector_pct >= c.bench_pct
+                }
               />
             </article>
           ))}
