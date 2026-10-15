@@ -68,15 +68,18 @@ type Props = {
     fromLabel?: string,
   ) => void;
   onDrillTicker?: (ticker: string, fromLabel?: string) => void;
+  /** Start with PDF DIN pushes filter (BoardRoom / corporate joins). */
+  defaultCorpPushes?: boolean;
 };
 
 export function GovernanceChangesPanel({
   refreshKey = 0,
   onDrillDirector,
   onDrillTicker,
+  defaultCorpPushes = false,
 }: Props) {
-  const [watchOnly, setWatchOnly] = useState(true);
-  const [corpPushes, setCorpPushes] = useState(false);
+  const [watchOnly, setWatchOnly] = useState(!defaultCorpPushes);
+  const [corpPushes, setCorpPushes] = useState(defaultCorpPushes);
   const [data, setData] = useState<ChangesResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
