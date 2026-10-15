@@ -69,3 +69,9 @@ FIRECRAWL_API_KEY=
 `data/` SQLite DBs are mostly committed so a fresh clone keeps research state. **Every git add / commit / push must include tracked data files** (`data/governance.db`, `data/family_group_edits.db`, `data/family_group_refine.db`, `data/sector_rotation.db`, other tracked `data/*.db`). Dashboard group add/remove lives in `data/family_group_edits.db`. `company_about.db` is a **local working copy** (gitignored) because the app writes scrapes into it and that blocked `git pull` on every machine. Clones get `data/seeds/company_about.db`; `npm run dev` copies it to `data/company_about.db` if missing. To share About updates: `npm run db:publish-seed -- company_about.db` then commit `data/seeds/company_about.db`. Machine-local scan DBs (`marketiq.db`, `orderbookiq.db`, `boardroomiq.db`) and `logs/` are gitignored — re-run scans on each machine if needed.
 
 git checkout -- data/company_about.db
+
+rm -f data/metrics.db-wal data/metrics.db-shm
+# confirm data is there:
+sqlite3 data/metrics.db "SELECT COUNT(*) FROM stock_metrics;"
+# should be ~3500, not 0
+npm run dev

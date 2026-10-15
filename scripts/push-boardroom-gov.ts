@@ -6,7 +6,7 @@
  *   npm run push:boardroom-gov -- --limit 200
  *   npm run push:boardroom-gov -- --unclassified-only
  *
- * Then open Dashboard → Board changes (PDF DIN pushes) to see joined events.
+ * Then refresh Dashboard People / Groups / Holdings to see new seats on nodes.
  */
 import { pushBoardRoomHistoryToGovernance } from "../src/lib/boardroom-screen";
 
@@ -28,7 +28,7 @@ function main() {
   npm run push:boardroom-gov -- --unclassified-only
 
 Writes additive seats to governance.db (source: boardroomiq_pdf).
-Then open Dashboard → Board changes (PDF DIN pushes on by default).`);
+Refresh Dashboard People / Groups / Holdings to see updated nodes.`);
     return;
   }
 
@@ -51,7 +51,7 @@ Then open Dashboard → Board changes (PDF DIN pushes on by default).`);
     `done · attempted ${result.attempted} · rows ${result.pushed_rows} · seats ${result.pushed_seats} · skipped ${result.skipped}`,
   );
   console.log(
-    "Open Dashboard → Board changes (or People) and Refresh to see updates.",
+    "Refresh Dashboard → People / Groups / Holdings to see updated board nodes.",
   );
 }
 

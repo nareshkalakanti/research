@@ -7,6 +7,7 @@ import fs from "fs";
 import path from "path";
 import { isPlaceholderDirectorName } from "./gov-director-name";
 import { inferDirectorCategory, isPlaceholderDin, normDin, type BoardSeat } from "./nse-governance";
+import { isSqliteWalDamage, removeWalSidecars } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const GOV_PATH = path.join(DATA_DIR, "governance.db");
@@ -237,6 +238,22 @@ export function closeGovernanceWriteDb(): void {
     /* ignore */
   }
   writeDb = null;
+}
+
+function healGovernanceWriteDb(): void {
+  closeGovernanceWriteDb();
+  removeWalSidecars(GOV_PATH);
+}
+
+/** Reopen after SHORT_READ / stale handle when another process rewrote the DB. */
+export function withGovWriteRetry<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (err) {
+    if (!isSqliteWalDamage(err)) throw err;
+    healGovernanceWriteDb();
+    return run();
+  }
 }
 
 /** Listing row so family-map can show a ticker with no board seats yet. */
@@ -695,24 +712,28 @@ export function recordScanAttempt(
 }
 
 export function scannedTickerSet(): Set<string> {
-  const rows = getGovernanceWriteDb()
-    .prepare(`SELECT ticker FROM scan_log`)
-    .all() as Array<{ ticker: string }>;
-  return new Set(rows.map((r) => r.ticker.toUpperCase()).filter(Boolean));
+  return withGovWriteRetry(() => {
+    const rows = getGovernanceWriteDb()
+      .prepare(`SELECT ticker FROM scan_log`)
+      .all() as Array<{ ticker: string }>;
+    return new Set(rows.map((r) => r.ticker.toUpperCase()).filter(Boolean));
+  });
 }
 
 export function dinBoardTickerSet(): Set<string> {
-  const rows = getGovernanceWriteDb()
-    .prepare(
-      `
+  return withGovWriteRetry(() => {
+    const rows = getGovernanceWriteDb()
+      .prepare(
+        `
       SELECT DISTINCT s.ticker
       FROM board_seats s
       JOIN directors d ON d.person_id = s.person_id
       WHERE d.din IS NOT NULL AND TRIM(d.din) != ''
       `,
-    )
-    .all() as Array<{ ticker: string }>;
-  return new Set(rows.map((r) => r.ticker.toUpperCase()));
+      )
+      .all() as Array<{ ticker: string }>;
+    return new Set(rows.map((r) => r.ticker.toUpperCase()));
+  });
 }
 
 export function loadGovScanLogMap(): Map<

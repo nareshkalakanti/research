@@ -9,7 +9,6 @@ import {
 } from "@/components/PeopleBoardCards";
 import { CompanyNetworkTable } from "@/components/CompanyNetworkTable";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
-import { GovernanceChangesPanel } from "@/components/GovernanceChangesPanel";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import {
   tradingviewUrl,
@@ -22,7 +21,6 @@ type DashView =
   | "groups"
   | "holdings"
   | "people"
-  | "changes"
   | "stock"
   | "network";
 
@@ -71,7 +69,6 @@ export function FamilyDashboard() {
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
-  const [changesRefreshKey, setChangesRefreshKey] = useState(0);
   const [refreshingBox, setRefreshingBox] = useState<string | null>(null);
   const [holdPattern, setHoldPattern] = useState<{
     tickers: string[];
@@ -209,9 +206,6 @@ export function FamilyDashboard() {
         });
       } else if (dashView === "holdings") void loadHoldingMaps({ refresh: true });
       else if (dashView === "groups") void load({ refresh: true });
-      else if (dashView === "changes") {
-        setChangesRefreshKey((k) => k + 1);
-      }
     };
     window.addEventListener(GOV_MAP_CHANGED, onChange);
     return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
@@ -728,15 +722,6 @@ export function FamilyDashboard() {
             <button
               type="button"
               role="tab"
-              className={dashView === "changes" ? "tab on" : "tab"}
-              aria-selected={dashView === "changes"}
-              onClick={() => setDashView("changes")}
-            >
-              Board changes
-            </button>
-            <button
-              type="button"
-              role="tab"
               className={dashView === "stock" ? "tab on" : "tab"}
               aria-selected={dashView === "stock"}
               onClick={() => setDashView("stock")}
@@ -760,23 +745,13 @@ export function FamilyDashboard() {
                 ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
                 ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
-                : dashView === "changes"
-                  ? "Joined / left / role on the DIN network. After npm run push:boardroom-gov, use PDF DIN pushes for BoardRoom joins."
-                  : dashView === "network"
-                    ? "Cap Gap and Holdings: board-linked market-cap gap columns. Counts are facts, not scores."
-                    : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
+                : dashView === "network"
+                  ? "Cap Gap and Holdings: board-linked market-cap gap columns. Counts are facts, not scores."
+                  : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
         <div className="fam-dash-actions">
-          {dashView === "changes" ? (
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setChangesRefreshKey((k) => k + 1)}
-            >
-              Refresh
-            </button>
-          ) : dashView !== "stock" && dashView !== "network" ? (
+          {dashView !== "stock" && dashView !== "network" ? (
             <>
           {dashView === "groups" ? (
             <label className="fam-dash-group-filter">
@@ -958,23 +933,10 @@ export function FamilyDashboard() {
           ) : null}
         </form>
       ) : null}
-      {error &&
-      dashView !== "stock" &&
-      dashView !== "network" &&
-      dashView !== "changes" ? (
+      {error && dashView !== "stock" && dashView !== "network" ? (
         <div className="table-meta">Could not load: {error}</div>
       ) : null}
-      {dashView === "changes" ? (
-        <GovernanceChangesPanel
-          refreshKey={changesRefreshKey}
-          defaultCorpPushes
-          onDrillDirector={(id, name) => openPerson(id, name)}
-          onDrillTicker={(t) => {
-            setStockFocus(t);
-            setDashView("stock");
-          }}
-        />
-      ) : dashView === "network" ? (
+      {dashView === "network" ? (
         <CompanyNetworkTable
           onPerson={(id, name) => openPerson(id, name)}
           chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}

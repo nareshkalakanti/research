@@ -203,7 +203,7 @@ Re-run the same command after a crash — already-screened PDFs are skipped.`);
   );
   console.log(`log  · ${jsonlPath}`);
   console.log(
-    "next · npm run push:boardroom-gov  (re-push history) · Dashboard → Board changes",
+    "next · npm run push:boardroom-gov  · then Refresh Dashboard People / Groups",
   );
 }
 

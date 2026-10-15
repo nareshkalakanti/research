@@ -9184,6 +9184,18 @@ button.result-tag {
   stroke-width: 1.5;
 }
 
+/* Recently joined (board_seat_events joined within lookback) */
+.fam-node.person.recent-join circle {
+  fill: #0f766e;
+  stroke: #99f6e4;
+  stroke-width: 2.5;
+}
+
+.fam-node.person.recent-join.dim circle {
+  fill: #0f766e;
+  opacity: 0.55;
+}
+
 .fam-node.company.cap-sub500 circle {
   fill: #f5c400;
   stroke: #5c3b00;
@@ -9303,9 +9315,39 @@ button.result-tag {
   height: 7px;
 }
 
+.fam-legend-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  color: #0f766e;
+  font-weight: 600;
+}
+
+.fam-legend-new::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #0f766e;
+  border: 1.5px solid #99f6e4;
+  box-sizing: border-box;
+}
+
 .fam-legend .outside::before {
   background: transparent;
   border: 1.5px dashed #98a2b3;
+}
+
+.gov-badge.recent-join {
+  background: #ccfbf1;
+  color: #0f766e;
+  border-color: #5eead4;
+}
+
+.gov-card.gov-family-card.is-recent-join {
+  box-shadow: inset 3px 0 0 #0f766e;
 }
 
 .holdings-mv {
