@@ -177,7 +177,22 @@ function overlayNetwork(
       else addOutside(u);
     }
   }
-  return { companies, people: net.people, outside };
+  // Keep family recent_join flags when ego network replaces the people list.
+  const famJoin = new Map(
+    (f.people ?? [])
+      .filter((p) => p.recent_join)
+      .map((p) => [p.person_id, p.joined_at ?? null] as const),
+  );
+  const people = net.people.map((p) => {
+    const joinedAt = famJoin.get(p.person_id);
+    if (p.recent_join || joinedAt === undefined) return p;
+    return {
+      ...p,
+      recent_join: true,
+      joined_at: joinedAt,
+    };
+  });
+  return { companies, people, outside };
 }
 
 function outsideFromPeople(
