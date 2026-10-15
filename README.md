@@ -16,6 +16,26 @@ Open [http://localhost:3000](http://localhost:3000).
 
 **Demo login:** any email · password `demo`
 
+## BoardRoom / DIN intake
+
+Background scan (separate from `next dev`; resumes by skipping already-screened PDFs):
+
+```bash
+# Daily (default --days 2 --limit 40)
+npm run scan:boardroom-bg
+
+# Catch up a week / month, then drain the queue
+npm run scan:boardroom-bg -- --days 7 --limit 80
+npm run scan:boardroom-bg -- --days 30 --limit 200
+npm run scan:boardroom-bg -- --pending-only --limit 80
+
+# Re-push extracted DINs into governance.db (additive)
+npm run push:boardroom-gov
+npm run push:boardroom-gov -- --limit 200
+```
+
+Then refresh **Dashboard → Business groups / People** — new joins show as teal nodes (click **New join** in the legend). Lookback days: `GOV_RECENT_JOIN_DAYS` (default 30).
+
 ## `.env.local` (copy to other machines)
 
 Create `.env.local` in the repo root. **Do not commit this file.**

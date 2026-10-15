@@ -148,7 +148,36 @@ Re-run the same command after a crash — already-screened PDFs are skipped.`);
       return !u || !attempted.has(u);
     });
 
-    for (const r of result.results) {
+    const ordered = [...result.results].sort((a, b) => {
+      const aDin = (a.extract?.dins || []).filter(
+        (d) => (d.din || "").replace(/\D/g, "").length === 8,
+      ).length;
+      const bDin = (b.extract?.dins || []).filter(
+        (d) => (d.din || "").replace(/\D/g, "").length === 8,
+      ).length;
+      if (bDin !== aDin) return bDin - aDin;
+      const aOk = a.ok || a.id != null ? 1 : 0;
+      const bOk = b.ok || b.id != null ? 1 : 0;
+      return bOk - aOk;
+    });
+    const batchJoins = ordered.filter((r) =>
+      (r.extract?.dins || []).some(
+        (d) => (d.din || "").replace(/\D/g, "").length === 8,
+      ),
+    );
+    if (batchJoins.length) {
+      console.log(`  new joins (${batchJoins.length}):`);
+      for (const r of batchJoins) {
+        const ticker = (r.extract?.ticker || "?").toUpperCase();
+        const names = (r.extract?.dins || [])
+          .filter((d) => (d.din || "").replace(/\D/g, "").length === 8)
+          .map((d) => `${d.name || "?"} ${d.din}`)
+          .slice(0, 4)
+          .join("; ");
+        console.log(`    ★ ${ticker.padEnd(12)} ${names}`);
+      }
+    }
+    for (const r of ordered) {
       if (r.ok || r.id != null) analysed += 1;
       else failed += 1;
       const ticker = (r.extract?.ticker || "?").toUpperCase();

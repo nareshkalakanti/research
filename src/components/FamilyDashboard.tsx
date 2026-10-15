@@ -304,16 +304,34 @@ export function FamilyDashboard() {
     });
   }, [rows, q, groupFilter]);
 
+  const recentJoinCount = (f: FamilyRow) =>
+    (f.people ?? []).filter((p) => p.recent_join).length;
+
+  const withNewJoinsFirst = (list: FamilyRow[]) =>
+    [...list].sort((a, b) => {
+      const bn = recentJoinCount(b);
+      const an = recentJoinCount(a);
+      if (bn !== an) return bn - an;
+      return a.family_name.localeCompare(b.family_name, undefined, {
+        sensitivity: "base",
+      });
+    });
+
   const filteredWithPattern = useMemo(() => {
     const set = new Set(holdPattern?.tickers ?? []);
     const text = (holdPattern?.lines ?? []).filter(Boolean).join(" · ");
-    if (!set.size || !text) return filtered;
-    return filtered.map((f) => {
-      const n = f.companies.filter((c) => set.has(c.ticker.toUpperCase())).length;
-      const share = n / Math.max(1, f.company_count);
-      if (n < 3 || share < 0.4) return f;
-      return { ...f, pattern: text };
-    });
+    const mapped =
+      !set.size || !text
+        ? filtered
+        : filtered.map((f) => {
+            const n = f.companies.filter((c) =>
+              set.has(c.ticker.toUpperCase()),
+            ).length;
+            const share = n / Math.max(1, f.company_count);
+            if (n < 3 || share < 0.4) return f;
+            return { ...f, pattern: text };
+          });
+    return withNewJoinsFirst(mapped);
   }, [filtered, holdPattern]);
 
 
@@ -340,7 +358,7 @@ export function FamilyDashboard() {
 
   const filteredHoldings = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return holdings.filter((f) => {
+    const list = holdings.filter((f) => {
       if (holdingFilter && (f.group_id || f.family_name) !== holdingFilter) {
         return false;
       }
@@ -360,23 +378,34 @@ export function FamilyDashboard() {
         )
       );
     });
+    return withNewJoinsFirst(list);
   }, [holdings, q, holdingFilter]);
 
   const filteredPeople = useMemo(() => {
     const needle = q.trim().toLowerCase().replace(/[.,]+/g, " ").replace(/\s+/g, " ").trim();
-    if (!needle) return people;
     const dinQ = needle.replace(/\D/g, "");
-    return people.filter((p) => {
-      const name = p.name.toLowerCase().replace(/[.,]+/g, " ").replace(/\s+/g, " ");
-      return (
-        name.includes(needle) ||
-        (dinQ && (p.din || "").includes(dinQ)) ||
-        p.companies.some(
-          (c) =>
-            c.ticker.toLowerCase().startsWith(needle) ||
-            c.name.toLowerCase().includes(needle),
-        )
-      );
+    const list = !needle
+      ? people
+      : people.filter((p) => {
+          const name = p.name
+            .toLowerCase()
+            .replace(/[.,]+/g, " ")
+            .replace(/\s+/g, " ");
+          return (
+            name.includes(needle) ||
+            (dinQ && (p.din || "").includes(dinQ)) ||
+            p.companies.some(
+              (c) =>
+                c.ticker.toLowerCase().startsWith(needle) ||
+                c.name.toLowerCase().includes(needle),
+            )
+          );
+        });
+    return [...list].sort((a, b) => {
+      if (Boolean(b.recent_join) !== Boolean(a.recent_join)) {
+        return a.recent_join ? -1 : 1;
+      }
+      return (b.board_count || 0) - (a.board_count || 0);
     });
   }, [people, q]);
 
@@ -740,11 +769,11 @@ export function FamilyDashboard() {
           </div>
           <p className="fam-dash-sub">
             {dashView === "groups"
-              ? "Click a ticker for that stock’s full board and related nodes. Outside shows only external boards and those people. Show all restores the group."
+              ? "Groups with recent board joins sort to the top (teal nodes). Click a ticker for related boards; Outside filters to external seats."
               : dashView === "holdings"
                 ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
-                ? "Each card is a person and the listed boards they sit on. Name opens Governance; ticker shows that stock’s related boards."
+                ? "Recent joins sort first (new badge / teal node). Name opens Governance; ticker shows that stock’s related boards."
                 : dashView === "network"
                   ? "Cap Gap and Holdings: board-linked market-cap gap columns. Counts are facts, not scores."
                   : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
