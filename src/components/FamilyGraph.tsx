@@ -263,16 +263,17 @@ export function FamilyGraph({
     }
     const pairs: Array<[number, number]> = [];
     for (const p of people) {
-      const newBit = p.recent_join ? " · new join" : "";
+      const isNew = Boolean(p.recent_join);
+      const newBit = isNew ? " · new join" : "";
       add({
         id: `p:${p.person_id}`,
         kind: "person",
         label: "",
         cap: null,
-        recent_join: Boolean(p.recent_join),
+        recent_join: isNew,
         title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""} · ${p.tickers.length} boards${newBit}`,
         hint: "",
-        r: RADIUS.person,
+        r: isNew ? RADIUS.person * 1.45 : RADIUS.person,
         x: 0,
         y: 0,
       });
@@ -336,7 +337,7 @@ export function FamilyGraph({
     for (const node of list) {
       if (node.kind === "company") node.r = node.cap === "sub500" ? companyR * 1.2 : companyR;
       else if (node.kind === "outside") node.r = companyR * 0.78;
-      else node.r = companyR * 0.5;
+      else node.r = companyR * (node.recent_join ? 0.72 : 0.5);
     }
     return {
       nodes: list,
@@ -363,8 +364,23 @@ export function FamilyGraph({
   const lit = (id: string) =>
     !hover || id === hover || Boolean(neighbours.get(hover)?.has(id));
 
+  const newJoinLinked = useMemo(() => {
+    const ids = new Set<string>();
+    for (const n of nodes) {
+      if (n.kind === "person" && n.recent_join) ids.add(n.id);
+    }
+    for (const [a, b] of edges) {
+      const na = nodes[a]!;
+      const nb = nodes[b]!;
+      if (na.recent_join) ids.add(nb.id);
+      if (nb.recent_join) ids.add(na.id);
+    }
+    return ids;
+  }, [nodes, edges]);
+
   const nodeShown = (node: GraphNode) => {
     if (!legendOn.size) return true;
+    if (legendOn.has("new-join")) return newJoinLinked.has(node.id);
     if (node.kind === "person") return legendOn.has("person");
     if (node.kind === "outside") {
       if (legendOn.has("outside")) return true;
@@ -529,9 +545,19 @@ export function FamilyGraph({
           Person
         </button>
         {people.some((p) => p.recent_join) ? (
-          <span className="fam-legend-new" title="Joined within the recent lookback window">
+          <button
+            type="button"
+            className={`new-join${legendOn.has("new-join") ? " is-on" : ""}`}
+            aria-pressed={legendOn.has("new-join")}
+            title={
+              legendOn.has("new-join")
+                ? "Show all nodes again"
+                : "Show only new joins and their linked boards"
+            }
+            onClick={() => toggleLegend("new-join")}
+          >
             New join
-          </span>
+          </button>
         ) : null}
         {outside.length ? (
           <button
