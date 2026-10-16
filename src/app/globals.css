@@ -26224,6 +26224,13 @@ tr.wl-prove-fail td {
   margin: 0 0 10px;
   max-width: 42rem;
 }
+.rot-spark-wrap--fill {
+  max-width: none;
+  width: 100%;
+}
+.rot-spark-wrap--fill .rot-spark {
+  max-width: none;
+}
 .rot-detail {
   border: 1px solid var(--line);
   border-radius: var(--radius, 12px);
@@ -26279,32 +26286,58 @@ tr.wl-prove-fail td {
   vertical-align: middle;
 }
 .rot-table--members {
-  width: auto;
+  width: 100%;
   max-width: 100%;
-  table-layout: auto;
+  table-layout: fixed;
 }
-.rot-table--members .rot-col-num {
-  width: 1%;
+.rot-table--members .rot-col-num,
+.rot-table--members td.rot-num {
+  width: 8%;
+  text-align: right;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
+.rot-table--members th.rot-col-num:nth-child(7),
+.rot-table--members td.rot-num:nth-child(7) {
+  width: 9%;
+}
+.rot-table--members th.rot-col-num:first-child,
+.rot-table--members td.rot-num:first-child {
+  width: 2.5rem;
+  text-align: left;
+}
 .rot-table--members .rot-col-stock {
-  width: auto;
-  min-width: 10rem;
-  max-width: 22rem;
+  width: 28%;
 }
-.rot-table--members .rot-col-sym {
-  width: 1%;
-  white-space: nowrap;
-  padding-right: 16px;
-}
-.rot-table--members .rot-col-trend {
-  width: 1%;
+.rot-table--members td.rot-stock {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rot-table--members .rot-col-act {
-  width: 1%;
+.rot-table--members td.rot-stock a {
+  display: inline;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.rot-table--members .rot-col-sym,
+.rot-table--members td.rot-sym {
+  width: 9%;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rot-table--members .rot-col-trend,
+.rot-table--members td.rot-trend {
+  width: 5.5rem;
+  min-width: 5.5rem;
+  white-space: nowrap;
+}
+.rot-table--members .rot-col-act,
+.rot-table--members td.rot-act {
+  width: 4.5rem;
+  white-space: nowrap;
+  text-align: right;
 }
 .rot-table .rot-name {
   display: block;

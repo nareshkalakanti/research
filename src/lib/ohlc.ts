@@ -46,8 +46,8 @@ const NIFTY_WEEKLY_SYMBOLS = [
   "^NSEBANK",
 ];
 const NIFTY_DAILY_SYMBOLS = ["^NSEI", "NIFTYBEES.NS", "^BSESN"];
-/** Yahoo chart id for the Nifty 500 total-return / price index. */
-const NIFTY_500_DAILY_SYMBOLS = ["^CRSLDX"];
+/** Nifty 500 preferred; ETF / Nifty 50 proxies when ^CRSLDX flakes. */
+const NIFTY_500_DAILY_SYMBOLS = ["^CRSLDX", "NIFTYBEES.NS", "^NSEI"];
 
 function toDateStr(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -260,15 +260,48 @@ function mapChartBars(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-async function fetchGrowwDailyBars(
+function parseGrowwCandles(body: {
+  candles?: Array<Array<number | null>>;
+}): Bar[] {
+  const bars: Bar[] = [];
+  for (const row of body.candles ?? []) {
+    if (!Array.isArray(row) || row.length < 5) continue;
+    const epoch = Number(row[0]);
+    const open = Number(row[1]);
+    const high = Number(row[2]);
+    const low = Number(row[3]);
+    const close = Number(row[4]);
+    const volume = Number(row[5] ?? 0);
+    if (
+      !Number.isFinite(epoch) ||
+      !Number.isFinite(open) ||
+      !Number.isFinite(high) ||
+      !Number.isFinite(low) ||
+      !Number.isFinite(close)
+    ) {
+      continue;
+    }
+    // Groww may send seconds or millis.
+    const ms = epoch > 1e12 ? epoch : epoch * 1000;
+    bars.push({
+      date: toDateStr(new Date(ms)),
+      open,
+      high,
+      low,
+      close,
+      volume: Number.isFinite(volume) ? volume : 0,
+    });
+  }
+  return bars.sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function fetchGrowwDailyBarsOne(
   ticker: string,
-  market?: string | null,
-  daysBack = 400,
+  exchange: "NSE" | "BSE",
+  daysBack: number,
 ): Promise<Bar[]> {
   const sym = ticker.trim().toUpperCase();
   if (!sym) return [];
-  const m = (market || "NSE").toUpperCase();
-  const exchange = m.includes("BSE") ? "BSE" : "NSE";
   const end = Date.now();
   const start = end - Math.max(30, daysBack) * 86_400_000;
   const url =
@@ -287,43 +320,35 @@ async function fetchGrowwDailyBars(
       signal: AbortSignal.timeout(12_000),
     });
     if (!res.ok) return [];
-    const body = (await res.json()) as {
-      candles?: Array<Array<number | null>>;
-    };
-    const candles = body.candles ?? [];
-    const bars: Bar[] = [];
-    for (const row of candles) {
-      if (!Array.isArray(row) || row.length < 5) continue;
-      const epoch = Number(row[0]);
-      const open = Number(row[1]);
-      const high = Number(row[2]);
-      const low = Number(row[3]);
-      const close = Number(row[4]);
-      const volume = Number(row[5] ?? 0);
-      if (
-        !Number.isFinite(epoch) ||
-        !Number.isFinite(open) ||
-        !Number.isFinite(high) ||
-        !Number.isFinite(low) ||
-        !Number.isFinite(close)
-      ) {
-        continue;
-      }
-      // Groww may send seconds or millis.
-      const ms = epoch > 1e12 ? epoch : epoch * 1000;
-      bars.push({
-        date: toDateStr(new Date(ms)),
-        open,
-        high,
-        low,
-        close,
-        volume: Number.isFinite(volume) ? volume : 0,
-      });
-    }
-    return bars.sort((a, b) => a.date.localeCompare(b.date));
+    return parseGrowwCandles(
+      (await res.json()) as { candles?: Array<Array<number | null>> },
+    );
   } catch {
     return [];
   }
+}
+
+async function fetchGrowwDailyBars(
+  ticker: string,
+  market?: string | null,
+  daysBack = 400,
+): Promise<Bar[]> {
+  const m = (market || "NSE").toUpperCase();
+  const primary: "NSE" | "BSE" = m.includes("BSE") ? "BSE" : "NSE";
+  const secondary: "NSE" | "BSE" = primary === "BSE" ? "NSE" : "BSE";
+  const first = await fetchGrowwDailyBarsOne(ticker, primary, daysBack);
+  if (first.length >= 40) return first;
+  const second = await fetchGrowwDailyBarsOne(ticker, secondary, daysBack);
+  return second.length > first.length ? second : first;
+}
+
+/** Prefer a board only when history is long enough and the tip is recent. */
+function barsAreFresh(bars: Bar[], maxAgeDays = 12): boolean {
+  const last = bars[bars.length - 1]?.date;
+  if (!last) return false;
+  const t = Date.parse(`${last}T12:00:00Z`);
+  if (!Number.isFinite(t)) return false;
+  return Date.now() - t <= maxAgeDays * 86_400_000;
 }
 
 /**
@@ -347,12 +372,15 @@ async function fetchBarsWithCandidates(
   let best: Bar[] = [];
   let primaryBars: Bar[] = [];
 
+  // Try primary board first, then NSE/SME/BSE aliases. Cap keeps latency
+  // bounded but must include `.BO` — many BSE-only names are tagged NSE in
+  // baskets and previously never reached the Bombay Yahoo symbol.
   const ordered = [
     primary,
     ...symbols.filter((s) => s !== primary),
   ]
     .filter(Boolean)
-    .slice(0, 2) as string[];
+    .slice(0, 4) as string[];
 
   for (const symbol of ordered) {
     try {
@@ -366,8 +394,10 @@ async function fetchBarsWithCandidates(
             : bars;
       if (symbol === primary) {
         primaryBars = cleaned;
-        // Enough history on primary board — stop (avoid ghost alias thrash).
-        if (cleaned.length >= enough) return primaryBars;
+        // Enough + fresh tip on primary board — stop (avoid ghost alias thrash).
+        if (cleaned.length >= enough && barsAreFresh(cleaned)) {
+          return primaryBars;
+        }
       }
       if (cleaned.length > best.length) best = cleaned;
     } catch {
@@ -376,16 +406,18 @@ async function fetchBarsWithCandidates(
   }
 
   let out: Bar[] =
-    primaryBars.length >= enough
+    primaryBars.length >= enough && barsAreFresh(primaryBars)
       ? primaryBars
-      : primaryBars.length >= 5 && primaryBars.length >= best.length
-        ? primaryBars
-        : best.length >= primaryBars.length
-          ? best
-          : primaryBars;
+      : best.length > primaryBars.length
+        ? best
+        : primaryBars.length >= 5 && barsAreFresh(primaryBars)
+          ? primaryBars
+          : best.length >= primaryBars.length
+            ? best
+            : primaryBars;
 
   // App-wide: Yahoo stub / missing SME history → Groww daily candles.
-  if (interval === "1d" && out.length < enough) {
+  if (interval === "1d" && (out.length < enough || !barsAreFresh(out))) {
     const groww = await fetchGrowwDailyBars(
       ticker,
       market,
@@ -721,5 +753,7 @@ export function isSkippableSymbol(ticker: string): boolean {
   if (!sym || sym.length < 2) return true;
   if (sym.includes("-RE") || sym.endsWith("-W")) return true;
   if (sym.startsWith("0P")) return true;
+  // Partly-paid / rights stubs (e.g. APLABPP) — not full equity.
+  if (/(?:-PP|PP)$/.test(sym)) return true;
   return false;
 }

@@ -1,4 +1,5 @@
 import { fetchDailyBars, fetchNifty500DailyBars } from "./ohlc";
+import { isRightsOrPartlyPaid } from "./listing-name-match";
 import { loadMetricsMap, refreshPagePrices } from "./metrics";
 import { tradingviewUrl } from "./links";
 import { runConcurrent } from "./scrape-pool";
@@ -121,9 +122,14 @@ function sectorIndex(
   weight: RotationWeight,
   metrics: ReturnType<typeof loadMetricsMap>,
 ) {
+  // Drop rights / partly-paid stubs so they don't dilute the sector line.
+  const core = packed.filter(
+    (p) => !isRightsOrPartlyPaid(p.member.ticker, p.member.name),
+  );
+  const use = core.length ? core : packed;
   if (weight === "cap") {
     return capWeightIndex(
-      packed.map((p) => ({
+      use.map((p) => ({
         bars: p.bars,
         mcap: metrics.get(p.member.ticker.toUpperCase())?.market_cap_cr ?? null,
       })),
@@ -131,7 +137,7 @@ function sectorIndex(
     );
   }
   return equalWeightIndex(
-    packed.map((p) => p.bars),
+    use.map((p) => p.bars),
     start,
   );
 }
@@ -328,12 +334,22 @@ export async function buildRotationDetail(
   await refreshRotationMemberMetrics(sector.members);
   const years = rotationYearsBack(range);
   const metrics = loadMetricsMap();
-  const nifty = await fetchNifty500DailyBars(years);
-  const last = nifty[nifty.length - 1]?.date || "";
+  const [nifty, packed] = await Promise.all([
+    fetchNifty500DailyBars(years),
+    memberBars(sector.members, years),
+  ]);
+  // When Nifty Yahoo flakes, still window Change % / Trend off member tips.
+  const last =
+    nifty[nifty.length - 1]?.date ||
+    packed
+      .map((p) => p.bars[p.bars.length - 1]?.date || "")
+      .filter(Boolean)
+      .sort()
+      .at(-1) ||
+    "";
   const start = rotationWindowStart(last, range);
   const lookback = rotationMaLookbackStart(start);
   const bench = rebaseCloses(nifty, start);
-  const packed = await memberBars(sector.members, years);
   const seriesLong = sectorIndex(packed, lookback, weight, metrics);
   const first = seriesLong.find((p) => p.date >= start);
   const lastPt = seriesLong[seriesLong.length - 1];
@@ -344,13 +360,24 @@ export async function buildRotationDetail(
   const members: RotationMemberRow[] = packed.map(({ member, bars }) => {
     const m = metrics.get(member.ticker.toUpperCase());
     const spark = rebaseCloses(bars, start);
+    const lastClose = bars[bars.length - 1]?.close;
+    const prevClose = bars[bars.length - 2]?.close;
+    const barToday =
+      prevClose != null &&
+      lastClose != null &&
+      prevClose > 0 &&
+      Number.isFinite(lastClose)
+        ? ((lastClose - prevClose) / prevClose) * 100
+        : null;
     return {
       ticker: member.ticker,
       name: member.name,
       market: member.market,
       mcap_cr: m?.market_cap_cr ?? null,
-      price: m?.price ?? null,
-      change_pct: m?.change_pct ?? null,
+      price:
+        m?.price ??
+        (lastClose != null && Number.isFinite(lastClose) ? lastClose : null),
+      change_pct: m?.change_pct ?? barToday,
       window_pct: seriesReturnPct(spark),
       spark,
       tv_url: tradingviewUrl(member.ticker, member.market),
