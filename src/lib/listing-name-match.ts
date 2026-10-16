@@ -253,9 +253,22 @@ export function listingCorpusMatches(q: string, corpus: string): boolean {
 export function listingQualityPenalty(ticker: string, name: string): number {
   const t = (ticker || "").toUpperCase();
   const n = (name || "").toLowerCase();
-  if (/-(?:RE|PP)$/.test(t)) return 3;
+  if (/-(?:RE|PP)$/.test(t) || /(?:-PP|PP)$/.test(t)) return 3;
   if (/\bpartly paid\b/.test(n) || /\bright[s]?\s+entitlement\b/.test(n)) return 3;
   return 0;
+}
+
+/** Rights / partly-paid lines — keep out of equal-weight sector baskets. */
+export function isRightsOrPartlyPaid(
+  ticker: string,
+  name?: string | null,
+): boolean {
+  const sym = (ticker || "").trim().toUpperCase();
+  if (/(?:-PP|PP)$/.test(sym) || /-RE$/i.test(sym)) return true;
+  const n = (name || "").toLowerCase();
+  return (
+    /\bpartly\s+paid\b/.test(n) || /\bright[s]?\s+(issue|entitlement)\b/.test(n)
+  );
 }
 
 export function rankListingQuery(

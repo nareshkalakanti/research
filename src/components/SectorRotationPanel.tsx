@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
+import { isRightsOrPartlyPaid } from "@/lib/listing-name-match";
 import { ROTATION_MA_PERIODS, ROTATION_RANGES } from "@/lib/sector-rotation-series";
 
 type Point = { date: string; value: number };
@@ -71,7 +72,7 @@ const PAGE_SIZE = 12;
 function DualSpark({
   a,
   b,
-  width = 320,
+  width: widthProp,
   height = 120,
   showEnd = true,
   aLabel = "Sector",
@@ -79,6 +80,7 @@ function DualSpark({
   logScale = false,
   ma = [],
   aAbove = true,
+  fill = false,
 }: {
   a: Point[];
   b: Point[];
@@ -91,7 +93,28 @@ function DualSpark({
   ma?: number[];
   /** Green when sector ≥ bench, red when below. */
   aAbove?: boolean;
+  /** Stretch to parent width (detail chart). */
+  fill?: boolean;
 }) {
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [autoW, setAutoW] = useState(widthProp ?? 320);
+  useEffect(() => {
+    if (!fill) {
+      if (widthProp != null) setAutoW(widthProp);
+      return;
+    }
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const apply = () => {
+      const w = Math.floor(el.getBoundingClientRect().width);
+      if (w >= 160) setAutoW(w);
+    };
+    apply();
+    const ro = new ResizeObserver(apply);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [fill, widthProp]);
+  const width = fill ? autoW : (widthProp ?? 320);
   const aStroke = aAbove ? "#22c55e" : "#ef4444";
   const aFill = aAbove ? "#22c55e" : "#ef4444";
   const aText = aAbove ? "#052e16" : "#450a0a";
@@ -153,7 +176,10 @@ function DualSpark({
   const ha = hoverDate ? mapA.get(hoverDate) : null;
   const hb = hoverDate ? mapB.get(hoverDate) : null;
   return (
-    <div className="rot-spark-wrap">
+    <div
+      ref={wrapRef}
+      className={fill ? "rot-spark-wrap rot-spark-wrap--fill" : "rot-spark-wrap"}
+    >
       <svg
         className="rot-spark"
         viewBox={`0 0 ${width} ${height}`}
@@ -397,7 +423,7 @@ export function SectorRotationPanel() {
     setLoading(true);
     setError(null);
     try {
-      await fetch("/api/sector-rotation", {
+      const res = await fetch("/api/sector-rotation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -405,6 +431,14 @@ export function SectorRotationPanel() {
           ...(openId ? { id: openId } : {}),
         }),
       });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error || `Refresh failed (${res.status})`);
+      }
+      // Reload detail after metrics upsert so price / today % / OHLC paint.
       if (openId) await loadDetail(openId);
       await loadBoard({ silent: true });
     } catch (e) {
@@ -778,6 +812,12 @@ export function SectorRotationPanel() {
     if (!openId) return;
     setError(null);
     setAddQ("");
+    if (isRightsOrPartlyPaid(h.ticker, h.name)) {
+      setError(
+        `Skip ${h.ticker}: partly-paid / rights lines are not full equity`,
+      );
+      return;
+    }
     const res = await fetch("/api/sector-rotation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1352,7 +1392,8 @@ export function SectorRotationPanel() {
             <DualSpark
               a={openCard.sector}
               b={openCard.bench}
-              height={140}
+              height={180}
+              fill
               aLabel={openCard.label}
               bLabel={benchLabel}
               logScale={scale === "log"}
@@ -1406,38 +1447,56 @@ export function SectorRotationPanel() {
             <tbody>
               {shownMembers.map((m, i) => (
                 <tr key={m.ticker}>
-                  <td>{i + 1}</td>
-                  <td>
+                  <td className="rot-num">{i + 1}</td>
+                  <td className="rot-stock">
                     {m.tv_url ? (
                       <a
                         href={m.tv_url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        title="Open in TradingView"
+                        title={`${m.name} · Open in TradingView`}
                       >
                         {m.name}
                       </a>
                     ) : (
-                      m.name
+                      <span title={m.name}>{m.name}</span>
                     )}
                   </td>
-                  <td className="mono">{m.ticker}</td>
-                  <td>{fmtCr(m.mcap_cr)}</td>
-                  <td>
+                  <td className="mono rot-sym">{m.ticker}</td>
+                  <td className="rot-num">{fmtCr(m.mcap_cr)}</td>
+                  <td className="rot-num">
                     {m.price != null
-                      ? `₹${m.price.toLocaleString("en-IN")}`
+                      ? `₹${m.price.toLocaleString("en-IN", {
+                          maximumFractionDigits: 2,
+                        })}`
                       : "—"}
                   </td>
-                  <td className={(m.change_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                  <td
+                    className={`rot-num ${
+                      m.change_pct == null
+                        ? ""
+                        : m.change_pct >= 0
+                          ? "pos"
+                          : "neg"
+                    }`.trim()}
+                  >
                     {fmtPct(m.change_pct)}
                   </td>
-                  <td className={(m.window_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                  <td
+                    className={`rot-num ${
+                      m.window_pct == null
+                        ? ""
+                        : m.window_pct >= 0
+                          ? "pos"
+                          : "neg"
+                    }`.trim()}
+                  >
                     {fmtPct(m.window_pct)}
                   </td>
-                  <td>
+                  <td className="rot-trend">
                     <MiniSpark pts={m.spark} />
                   </td>
-                  <td>
+                  <td className="rot-act">
                     <button
                       type="button"
                       className="btn-ghost"
