@@ -353,6 +353,7 @@ export function SectorRotationPanel() {
   const [page, setPage] = useState(0);
   const [boardTick, setBoardTick] = useState(0);
   const [hydrating, setHydrating] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [ranking, setRanking] = useState(false);
   const [rankedKey, setRankedKey] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
@@ -397,6 +398,7 @@ export function SectorRotationPanel() {
   const loadDetail = useCallback(
     async (id: string) => {
       setError(null);
+      setDetailLoading(true);
       try {
         const res = await fetch(
           `/api/sector-rotation?id=${encodeURIComponent(id)}&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
@@ -414,6 +416,8 @@ export function SectorRotationPanel() {
         setDetail({ card: json.card, members: json.members ?? [] });
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setDetailLoading(false);
       }
     },
     [range, weight],
@@ -901,7 +905,11 @@ export function SectorRotationPanel() {
   const pageIds = pageCards.map((c) => c.id).join(",");
 
   useEffect(() => {
-    if (!pageIds) return;
+    if (!pageIds) {
+      hydrateGen.current += 1;
+      setHydrating(false);
+      return;
+    }
     const gen = ++hydrateGen.current;
     setHydrating(true);
     void (async () => {
@@ -1028,7 +1036,9 @@ export function SectorRotationPanel() {
                 ? " · ranking…"
                 : hydrating
                   ? " · charts…"
-                  : ""}
+                  : detailLoading
+                    ? " · sector…"
+                    : ""}
           </p>
           {openId ? (
             <button
@@ -1049,6 +1059,25 @@ export function SectorRotationPanel() {
           )}
         </div>
       </header>
+      {loading || ranking || hydrating || detailLoading ? (
+        <div
+          className="rot-progress"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="rot-progress-bar" />
+          <span>
+            {loading
+              ? "Loading sectors…"
+              : ranking
+                ? `Ranking ${range}…`
+                : hydrating
+                  ? `Updating ${range} charts…`
+                  : `Loading ${range} sector…`}
+          </span>
+        </div>
+      ) : null}
 
       <div className="rot-bar">
         <div className="rot-bar-row">
