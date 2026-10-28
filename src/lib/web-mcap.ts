@@ -321,27 +321,84 @@ export type TickertapeValuation = {
   price: number | null;
 };
 
+export type TickertapeStockRatios = {
+  /** Ratio (0.186 = 18.6%). Tickertape serves percent points. */
+  roe: number | null;
+  /** Ratio when present (Tickertape info often omits ROCE). */
+  roce: number | null;
+  pe: number | null;
+  ttm_pe: number | null;
+  eps: number | null;
+  price: number | null;
+  mcap_cr: number | null;
+  high_52w: number | null;
+  low_52w: number | null;
+  div_yield: number | null;
+};
+
+function pctPointsToRatio(v: number | null): number | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return Math.abs(v) > 1.5 ? v / 100 : v;
+}
+
+async function resolveTickertapeSid(
+  symbol: string,
+  companyName: string,
+): Promise<string | null> {
+  const fromTicker = await tickertapeSearchHits(symbol);
+  let chosen = pickTickertapeHit(fromTicker, symbol, companyName);
+  if (
+    !chosen &&
+    companyName.trim() &&
+    companyName.trim().toUpperCase() !== symbol.toUpperCase()
+  ) {
+    const fromName = await tickertapeSearchHits(companyName.trim());
+    chosen = pickTickertapeHit(fromName, symbol, companyName);
+  }
+  return chosen?.sid ?? null;
+}
+
+/** Tickertape info ratios — ROE / price / mcap / 52w (ROCE rarely present). */
+export async function tickertapeStockRatios(
+  symbol: string,
+  companyName = "",
+): Promise<TickertapeStockRatios | null> {
+  const sid = await resolveTickertapeSid(symbol, companyName);
+  if (!sid) return null;
+  const infoPayload = asRecord(
+    await httpGetJson(`${TICKERTAPE_INFO}${encodeURIComponent(sid)}`),
+  );
+  const ratios = asRecord(asRecord(infoPayload.data).ratios);
+  const marketCap = num(ratios.marketCap) ?? num(ratios.mrktCapf);
+  return {
+    roe: pctPointsToRatio(num(ratios.roe)),
+    roce: pctPointsToRatio(num(ratios.roce) ?? num(ratios.roceMedian)),
+    pe: num(ratios.pe),
+    ttm_pe: num(ratios.ttmPe) ?? num(ratios.pe),
+    eps: num(ratios.eps),
+    price: num(ratios.lastPrice),
+    mcap_cr:
+      marketCap != null && marketCap > 0
+        ? Math.round(marketCap * 10_000) / 10_000
+        : null,
+    high_52w: num(ratios["52wHigh"]),
+    low_52w: num(ratios["52wLow"]),
+    div_yield: pctPointsToRatio(num(ratios.divYield)),
+  };
+}
+
 /** Tickertape info ratios — TTM PE / EPS when Screener quarters have no EPS. */
 export async function tickertapeValuation(
   symbol: string,
   companyName: string,
 ): Promise<TickertapeValuation | null> {
-  const fromTicker = await tickertapeSearchHits(symbol);
-  let chosen = pickTickertapeHit(fromTicker, symbol, companyName);
-  if (!chosen && companyName.trim() && companyName.trim().toUpperCase() !== symbol.toUpperCase()) {
-    const fromName = await tickertapeSearchHits(companyName.trim());
-    chosen = pickTickertapeHit(fromName, symbol, companyName);
-  }
-  if (!chosen) return null;
-  const infoPayload = asRecord(
-    await httpGetJson(`${TICKERTAPE_INFO}${encodeURIComponent(chosen.sid)}`),
-  );
-  const ratios = asRecord(asRecord(infoPayload.data).ratios);
+  const full = await tickertapeStockRatios(symbol, companyName);
+  if (!full) return null;
   return {
-    pe: num(ratios.pe),
-    ttm_pe: num(ratios.ttmPe) ?? num(ratios.pe),
-    eps: num(ratios.eps),
-    price: num(ratios.lastPrice),
+    pe: full.pe,
+    ttm_pe: full.ttm_pe,
+    eps: full.eps,
+    price: full.price,
   };
 }
 

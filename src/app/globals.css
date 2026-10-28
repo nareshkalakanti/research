@@ -888,6 +888,139 @@ a.brand-btn:hover .brand-name {
   color: #b91c1c;
 }
 
+.seven-rule-card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 8px;
+  padding: 0.75rem 0.85rem;
+  background: var(--card, #fff);
+}
+
+.seven-rule-head {
+  margin-bottom: 0.5rem;
+}
+
+.seven-rule-score-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+}
+
+.seven-rule-score-num {
+  font-size: 1.35rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.seven-rule-score-denom {
+  color: var(--muted, #6b7280);
+  font-size: 0.85rem;
+}
+
+.seven-rule-rating {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+}
+
+.seven-rule-rating--buy {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.seven-rule-rating--hold {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.seven-rule-rating--sell {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.seven-rule-provisional {
+  font-size: 0.72rem;
+  color: var(--muted, #6b7280);
+}
+
+.seven-rule-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  margin: 0.45rem 0 0.25rem;
+  overflow: hidden;
+}
+
+.seven-rule-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.seven-rule-bar-fill.seven-rule-rating--buy {
+  background: #10b981;
+}
+
+.seven-rule-bar-fill.seven-rule-rating--hold {
+  background: #f59e0b;
+}
+
+.seven-rule-bar-fill.seven-rule-rating--sell {
+  background: #ef4444;
+}
+
+.seven-rule-sub {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted, #6b7280);
+}
+
+.seven-rule-rules {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.seven-rule-rule {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  align-items: center;
+}
+
+.seven-rule-rule-label {
+  font-weight: 500;
+}
+
+.seven-rule-rule-val {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted, #6b7280);
+}
+
+.seven-rule-rule-thresh {
+  opacity: 0.85;
+}
+
+.seven-rule-rule-verdict {
+  font-weight: 600;
+  text-align: right;
+}
+
+.seven-rule-rule--pass .seven-rule-rule-verdict {
+  color: #047857;
+}
+
+.seven-rule-rule--fail .seven-rule-rule-verdict {
+  color: #b91c1c;
+}
+
+.seven-rule-rule--unknown .seven-rule-rule-verdict {
+  color: #6b7280;
+}
+
 .pead-na,
 .pead2-na {
   color: var(--muted);

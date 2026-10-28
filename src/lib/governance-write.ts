@@ -7,7 +7,11 @@ import fs from "fs";
 import path from "path";
 import { isPlaceholderDirectorName } from "./gov-director-name";
 import { inferDirectorCategory, isPlaceholderDin, normDin, type BoardSeat } from "./nse-governance";
-import { isSqliteWalDamage, removeWalSidecars } from "./sqlite-utils";
+import {
+  isSqliteWalDamage,
+  removeWalSidecars,
+  stripEmptyWalSidecars,
+} from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const GOV_PATH = path.join(DATA_DIR, "governance.db");
@@ -56,8 +60,17 @@ function inferCategory(designation: string): string {
 export function getGovernanceWriteDb(): Database.Database {
   if (writeDb) return writeDb;
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  const db = new Database(GOV_PATH);
-  db.pragma("journal_mode = WAL");
+  stripEmptyWalSidecars(GOV_PATH);
+  let db: Database.Database;
+  try {
+    db = new Database(GOV_PATH);
+    db.pragma("journal_mode = WAL");
+  } catch (err) {
+    if (!isSqliteWalDamage(err)) throw err;
+    removeWalSidecars(GOV_PATH);
+    db = new Database(GOV_PATH);
+    db.pragma("journal_mode = WAL");
+  }
   db.pragma("foreign_keys = ON");
   db.exec(`
     CREATE TABLE IF NOT EXISTS companies (

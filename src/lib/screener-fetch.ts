@@ -3,9 +3,14 @@
  * One block pauses every Screener fetch (persisted, exponential backoff) so a
  * batch does not keep knocking while blocked.
  */
-import { screenerConsolidatedUrl, screenerUrl } from "./links";
+import {
+  cacheBseScripCode,
+  getCachedBseScripCode,
+} from "./bse-investor-discover";
+import { screenerCompanyPageUrl } from "./links";
 import { withWebsiteFetch } from "./scrape-pool";
 import { openSqliteNamed } from "./sqlite-utils";
+import { growwCompanyData } from "./web-mcap";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -107,16 +112,33 @@ async function waitScreenerGap(): Promise<void> {
   lastScreenerAt = Date.now();
 }
 
-/** Fetch one company page — serialized gap + per-host pool from scrape-pool. */
-export async function fetchScreenerCompanyHtml(
-  ticker: string,
-  opts?: { consolidated?: boolean },
-): Promise<string> {
-  const paused = screenerPausedUntil();
-  if (paused) throw new ScreenerPausedError(paused);
-  const url = opts?.consolidated
-    ? screenerConsolidatedUrl(ticker)
-    : screenerUrl(ticker);
+async function resolveScreenerPageKeys(ticker: string): Promise<string[]> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return [];
+  const keys = [key];
+  const pushBse = (raw: string | null | undefined) => {
+    const bse = String(raw || "").trim();
+    if (/^\d{5,7}$/.test(bse) && !keys.includes(bse)) {
+      keys.push(bse);
+      cacheBseScripCode(key, bse);
+    }
+  };
+  pushBse(getCachedBseScripCode(key));
+  try {
+    const data = await growwCompanyData(key, key);
+    const hit = (data?.hit || {}) as Record<string, unknown>;
+    const header = (data?.company?.header || {}) as Record<string, unknown>;
+    pushBse(String(hit.bse_scrip_code || ""));
+    pushBse(String(header.bseScriptCode || ""));
+  } catch {
+    /* ticker-only keys */
+  }
+  return keys;
+}
+
+async function fetchScreenerHtmlAt(
+  url: string,
+): Promise<{ ok: true; html: string } | { ok: false; status: number }> {
   await waitScreenerGap();
   return withWebsiteFetch(url, async () => {
     const res = await fetch(url, {
@@ -131,12 +153,38 @@ export async function fetchScreenerCompanyHtml(
     const html = await res.text();
     if (screenerBlocked(html, res.status)) {
       const until = recordScreenerBlock();
-      throw new Error(`Screener blocked or unavailable (${res.status}); paused until ${until}`);
+      throw new Error(
+        `Screener blocked or unavailable (${res.status}); paused until ${until}`,
+      );
     }
-    if (!res.ok) {
-      throw new Error(`Screener fetch failed (${res.status}) for ${ticker}`);
-    }
+    if (!res.ok) return { ok: false as const, status: res.status };
     recordScreenerOk();
-    return html;
+    return { ok: true as const, html };
   });
+}
+
+/** Fetch one company page — serialized gap + per-host pool from scrape-pool. */
+export async function fetchScreenerCompanyHtml(
+  ticker: string,
+  opts?: { consolidated?: boolean },
+): Promise<string> {
+  const paused = screenerPausedUntil();
+  if (paused) throw new ScreenerPausedError(paused);
+  const keys = await resolveScreenerPageKeys(ticker);
+  let lastStatus = 0;
+  for (const key of keys) {
+    const url = screenerCompanyPageUrl(key, {
+      consolidated: opts?.consolidated,
+    });
+    if (url.endsWith("screener.in/")) continue;
+    const hit = await fetchScreenerHtmlAt(url);
+    if (hit.ok) return hit.html;
+    lastStatus = hit.status;
+    if (hit.status !== 404) {
+      throw new Error(`Screener fetch failed (${hit.status}) for ${ticker}`);
+    }
+  }
+  throw new Error(
+    `Screener fetch failed (${lastStatus || 404}) for ${ticker}`,
+  );
 }

@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QuarterPanel } from "@/components/QuarterPanel";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
+import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
+import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 type NapkinAboutPayload = {
   ok: boolean;
@@ -24,14 +26,25 @@ export function NapkinCompanyContext({
   exchange,
   price,
   companyName,
+  roe,
+  roce,
 }: {
   ticker: string;
   exchange?: string | null;
   price: number | null;
   companyName?: string | null;
+  roe?: number | null;
+  roce?: number | null;
 }) {
   const market = (exchange || "").trim() || null;
   const qtr = useExpandQuarters(ticker, market, price, true);
+  const sevenRule = useMemo(
+    () =>
+      qtr.panel
+        ? sevenRuleFromPanel(qtr.panel, { roe: roe ?? null, roce: roce ?? null })
+        : null,
+    [qtr.panel, roe, roce],
+  );
   const [about, setAbout] = useState<NapkinAboutPayload | null>(null);
   const [aboutLoading, setAboutLoading] = useState(false);
   const [aboutError, setAboutError] = useState<string | null>(null);
@@ -126,6 +139,13 @@ export function NapkinCompanyContext({
           <p className="napkin-missing">No about text in company_about yet.</p>
         )}
       </div>
+
+      {sevenRule ? (
+        <div className="napkin-sheet-section">
+          <h2 className="napkin-block-title">7-Rule score</h2>
+          <SevenRuleScoreCard result={sevenRule} />
+        </div>
+      ) : null}
 
       <div className="napkin-sheet-section">
         <h2 className="napkin-block-title">Quarters</h2>

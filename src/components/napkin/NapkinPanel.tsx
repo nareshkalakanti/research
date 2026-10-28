@@ -7,7 +7,11 @@ import {
   rankListingQuery,
 } from "@/lib/listing-name-match";
 import { loadNapkinResearch, type NapkinLoadDebug } from "@/lib/napkin/client";
-import { napkinMetric, napkinPeDisplay } from "@/lib/napkin/format";
+import {
+  napkinMetric,
+  napkinPeDisplay,
+  parseDisplayedPct,
+} from "@/lib/napkin/format";
 import { tradingviewUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
@@ -211,6 +215,8 @@ export function NapkinPanel() {
               exchange={data.exchange}
               companyName={data.name}
               price={parseDisplayedMoney(napkinMetric(data.overview, "price"))}
+              roe={parseDisplayedPct(napkinMetric(data.overview, "roe"))}
+              roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
 
             <div className="napkin-sheet-section">

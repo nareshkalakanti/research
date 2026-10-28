@@ -163,3 +163,41 @@ export async function fetchScreenerTopRatios(
     return emptyRatios();
   }
 }
+
+let allRatiosCache: { at: number; map: Map<string, ScreenerTopRatios> } | null =
+  null;
+const ALL_RATIOS_CACHE_MS = 60_000;
+
+/** All cached top ratios (scan / 7-Rule). Ignores per-row TTL. */
+export function loadScreenerRatiosMap(): Map<string, ScreenerTopRatios> {
+  const now = Date.now();
+  if (allRatiosCache && now - allRatiosCache.at < ALL_RATIOS_CACHE_MS) {
+    return allRatiosCache.map;
+  }
+  const map = new Map<string, ScreenerTopRatios>();
+  try {
+    ensureCacheSchema();
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      const rows = db
+        .prepare(`SELECT ticker, ratios_json FROM screener_ratios_cache`)
+        .all() as Array<{ ticker: string; ratios_json: string }>;
+      for (const row of rows) {
+        try {
+          const parsed = JSON.parse(row.ratios_json) as ScreenerTopRatios;
+          if (ratiosUsable(parsed)) {
+            map.set(row.ticker.toUpperCase(), parsed);
+          }
+        } catch {
+          /* skip */
+        }
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* missing db */
+  }
+  allRatiosCache = { at: now, map };
+  return map;
+}

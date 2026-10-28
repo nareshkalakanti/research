@@ -3,8 +3,7 @@
  */
 import fs from "fs";
 import path from "path";
-import Database from "better-sqlite3";
-import { DATA_DIR } from "./sqlite-utils";
+import { DATA_DIR, openSqliteNamed } from "./sqlite-utils";
 
 export type BoardIndependence = {
   ticker: string;
@@ -115,8 +114,11 @@ function loadAll(): Map<string, BoardIndependence> {
     cache = { at: now, byTicker };
     return byTicker;
   }
-  const db = new Database(govPath, { readonly: true, fileMustExist: true });
-  db.pragma("query_only = ON");
+  const db = openSqliteNamed("governance.db", {
+    readonly: true,
+    wal: true,
+    fileMustExist: true,
+  });
   try {
     const rows = db
       .prepare(
@@ -140,7 +142,11 @@ function loadAll(): Map<string, BoardIndependence> {
       {
         name: string;
         market: string;
-        seats: Array<{ name: string; designation: string; category: string | null }>;
+        seats: Array<{
+          name: string;
+          designation: string;
+          category: string | null;
+        }>;
       }
     >();
     for (const row of rows) {
