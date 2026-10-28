@@ -541,38 +541,95 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   let pe =
     num(det.trailingPE) ?? num(fin.trailingPE) ?? num(stats.forwardPE);
 
+  // 7-rule ROE/ROCE: Screener primary → Tickertape backup → Yahoo last resort.
   let roce: number | null = null;
-  if (latestEbit != null && latestAssets != null && latestCl != null) {
-    const employed = latestAssets - latestCl;
-    if (employed > 0) roce = latestEbit / employed;
-  }
-
   let roe: number | null = null;
-  if (latestNi != null && latestEq != null && latestEq > 0) {
-    roe = latestNi / latestEq;
-  } else {
-    roe = num(fin.returnOnEquity);
-  }
+  let screenerAnnualRoce: number | null = null;
+  let screenerTopRoce: number | null = null;
 
-  if (
-    marketCap == null ||
-    pe == null ||
-    roe == null ||
-    roce == null ||
-    trailingEpsFill == null ||
-    price == null
-  ) {
+  {
     const ratios = await fetchScreenerTopRatios(bare).catch(() => null);
     if (ratios) {
+      if (pe == null && ratios.stock_pe != null) pe = ratios.stock_pe;
+      if (roe == null && ratios.roe != null) roe = ratios.roe;
+      screenerTopRoce = ratios.roce;
+      // Price/mcap: prefer exchange/Yahoo; Screener only fills blanks.
       if (marketCap == null && ratios.market_cap_cr != null) {
         marketCap = ratios.market_cap_cr * INR_PER_CR;
       }
-      if (pe == null && ratios.stock_pe != null) pe = ratios.stock_pe;
-      if (roe == null && ratios.roe != null) roe = ratios.roe;
-      if (roce == null && ratios.roce != null) roce = ratios.roce;
       if (price == null && ratios.current_price != null) {
         price = ratios.current_price;
       }
+    }
+  }
+
+  try {
+    const { fetchScreenerAnnual } = await import("@/lib/screener-annual");
+    const annual = await fetchScreenerAnnual(bare);
+    for (let i = annual.roce.length - 1; i >= 0; i--) {
+      const v = annual.roce[i];
+      if (v == null || !Number.isFinite(v)) continue;
+      screenerAnnualRoce = Math.abs(v) > 1.5 ? v / 100 : v;
+      break;
+    }
+  } catch {
+    /* leave annual null */
+  }
+  roce = screenerAnnualRoce ?? screenerTopRoce;
+  // Distrust top-ratios ROE when it conflicts with annual ROCE (common inflation).
+  if (
+    roe != null &&
+    screenerAnnualRoce != null &&
+    screenerTopRoce != null &&
+    Math.abs(screenerAnnualRoce - screenerTopRoce) > 0.05
+  ) {
+    roe = null;
+  }
+
+  if (roe == null || roce == null) {
+    try {
+      const { tickertapeStockRatios } = await import("@/lib/web-mcap");
+      const { writeTickertapeRatiosCache } = await import(
+        "@/lib/tickertape-ratios-cache"
+      );
+      const tape = await tickertapeStockRatios(bare, name || bare);
+      if (tape) {
+        writeTickertapeRatiosCache(bare, tape);
+        if (roe == null && tape.roe != null) roe = tape.roe;
+        if (roce == null && tape.roce != null) roce = tape.roce;
+        if (pe == null && tape.pe != null) pe = tape.pe;
+        if (price == null && tape.price != null) price = tape.price;
+        if (marketCap == null && tape.mcap_cr != null) {
+          marketCap = tape.mcap_cr * INR_PER_CR;
+        }
+      }
+    } catch {
+      /* Tickertape optional */
+    }
+  }
+
+  if (roe == null) {
+    if (latestNi != null && latestEq != null && latestEq > 0) {
+      roe = latestNi / latestEq;
+    } else {
+      roe = num(fin.returnOnEquity);
+    }
+  }
+  if (roce == null) {
+    if (latestEbit != null && latestAssets != null && latestCl != null) {
+      const employed = latestAssets - latestCl;
+      if (employed > 0) roce = latestEbit / employed;
+    }
+  }
+
+  if (price == null) {
+    try {
+      const { fetchDailyBars } = await import("@/lib/ohlc");
+      const bars = await fetchDailyBars(bare, null, 1);
+      const close = bars.at(-1)?.close;
+      if (close != null && Number.isFinite(close) && close > 0) price = close;
+    } catch {
+      /* leave price null */
     }
   }
 

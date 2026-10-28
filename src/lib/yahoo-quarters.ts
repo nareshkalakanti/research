@@ -218,83 +218,22 @@ export async function fetchQuarterlyFundamentals(
 
   let usedSymbol = symbol;
   let quarters: QuarterPoint[] = [];
-  let source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "groww" | "none" = "none";
+  let source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "groww" | "none" =
+    "none";
 
-  for (const sym of symbolCandidates) {
-    const period1 = new Date();
-    period1.setFullYear(period1.getFullYear() - 4);
-
-    let series: Array<Record<string, unknown>> = [];
-    try {
-      series = await withYahooThrottle(async () => {
-        const ft = await yf.fundamentalsTimeSeries(sym, {
-          period1: toDateStr(period1),
-          type: "quarterly",
-          module: "financials",
-        });
-        return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
-      });
-    } catch {
-      series = [];
+  // 7-rule India path: NSE/BSE filings → Screener → Groww → Yahoo last resort.
+  try {
+    const nse = await fetchNseQuarterlyFundamentals(ticker, {
+      maxQuarters: 6,
+    });
+    if (nse.length >= 2) {
+      quarters = nse;
+      source = "nse";
     }
-
-    const byDate = new Map<string, QuarterPoint>();
-    for (const row of series) {
-      const date = toDateStr(row.date as Date);
-      if (!date) continue;
-      const prev = byDate.get(date);
-      byDate.set(date, {
-        date,
-        revenue: pickField(row, REVENUE_FIELDS) ?? prev?.revenue ?? null,
-        ebit: pickField(row, EBIDT_FIELDS) ?? prev?.ebit ?? null,
-        netIncome: pickField(row, NET_INCOME_FIELDS) ?? prev?.netIncome ?? null,
-        eps: pickField(row, EPS_FIELDS) ?? prev?.eps ?? null,
-        otherIncome:
-          pickField(row, OTHER_INCOME_FIELDS) ?? prev?.otherIncome ?? null,
-      });
-    }
-
-    const candidate = trimReportedQuarters(
-      [...byDate.values()].filter(
-        (q) =>
-          q.revenue != null ||
-          q.netIncome != null ||
-          q.eps != null ||
-          q.ebit != null,
-      ),
-    );
-    if (candidate.length >= 2) {
-      quarters = candidate;
-      usedSymbol = sym;
-      source = "yahoo";
-      break;
-    }
-    if (candidate.length > quarters.length) {
-      quarters = candidate;
-      usedSymbol = sym;
-      source = candidate.length ? "yahoo" : source;
-    }
+  } catch {
+    /* try BSE */
   }
 
-  if (quarters.length < 1) source = "none";
-
-  // NSE integrated filing fallback for NSE / NSE SME names.
-  if (quarters.length < 2) {
-    try {
-      const nse = await fetchNseQuarterlyFundamentals(ticker, {
-        maxQuarters: 6,
-      });
-      if (nse.length >= 2) {
-        quarters = nse;
-        source = "nse";
-      }
-    } catch {
-      /* keep Yahoo (possibly empty) */
-    }
-  }
-
-  // BSE TabResults fallback whenever Yahoo/NSE are thin and we can resolve a scrip.
-  // (BSE SME list JSON is optional — company_bse_scrip / SME map both work.)
   if (quarters.length < 2) {
     try {
       const bse = await fetchBseQuarterlyByTicker(ticker);
@@ -303,46 +242,38 @@ export async function fetchQuarterlyFundamentals(
         source = "bse";
       }
     } catch {
-      /* keep prior source */
+      /* keep prior */
     }
   }
 
-  // Screener.in consolidated table — throttled, cached; enriches OP / other income.
-  // Bulk Fill Quarters sets skipScreener to avoid multi-minute Screener queues / dropped fetches.
+  // Screener — backup / OP+YoY depth overlay (cached when Screener is blocked).
   if (!opts?.skipScreener) {
-    if (quarters.length >= 2) {
+    const needYoyDepth = quarters.length > 0 && quarters.length < 5;
+    if (quarters.length >= 2 || needYoyDepth || quarters.length < 2) {
       let screener = await fetchScreenerQuarterlyFundamentals(ticker, {
-        cacheOnly: !opts?.screenerForce,
-        force: opts?.screenerForce,
+        cacheOnly: !opts?.screenerForce && !needYoyDepth && quarters.length >= 2,
+        force: opts?.screenerForce || needYoyDepth,
         consolidated: true,
       });
       if (!screener.length && !opts?.screenerForce) {
         screener = await fetchScreenerQuarterlyFundamentals(ticker, {
           consolidated: true,
+          force: needYoyDepth || quarters.length < 2,
         });
       }
       if (screener.length >= 2) {
-        quarters = mergeScreenerQuarterOverlay(quarters, screener);
-        source = source === "yahoo" ? "yahoo+screener" : source;
-      }
-    } else {
-      // Thin Yahoo — full fallback from Screener (one page fetch, cached).
-      try {
-        const screener = await fetchScreenerQuarterlyFundamentals(ticker, {
-          consolidated: true,
-          force: opts?.screenerForce,
-        });
-        if (screener.length >= 2) {
-          quarters = screener;
-          source = "screener";
-        }
-      } catch {
-        /* keep prior source */
+        const before = quarters.length;
+        quarters =
+          before >= 2
+            ? mergeScreenerQuarterOverlay(quarters, screener)
+            : screener;
+        if (before < 2) source = "screener";
+        else if (quarters.length > before) source = "screener";
       }
     }
   }
 
-  // Groww company JSON (₹ Cr) — backup when series are empty or missing Sales/NP.
+  // Groww — backup when series are empty or missing Sales/NP.
   if (quarters.length < 2 || missingSalesOrProfit(quarters)) {
     try {
       const groww = await fetchGrowwQuarterlyFundamentals(ticker);
@@ -352,13 +283,75 @@ export async function fetchQuarterlyFundamentals(
           missingSalesOrProfit(quarters) && !missingSalesOrProfit(merged);
         if (filledPnl || (quarters.length < 1 && merged.length >= 1)) {
           quarters = merged;
-          if (source === "none") source = "groww";
+          if (source === "none" || source === "screener") {
+            if (source === "none") source = "groww";
+          }
         } else if (merged.length > quarters.length) {
           quarters = merged;
         }
       }
     } catch {
       /* keep prior source */
+    }
+  }
+
+  // Yahoo — last resort when filings + Screener + Groww still thin.
+  if (quarters.length < 2) {
+    for (const sym of symbolCandidates) {
+      const period1 = new Date();
+      period1.setFullYear(period1.getFullYear() - 4);
+
+      let series: Array<Record<string, unknown>> = [];
+      try {
+        series = await withYahooThrottle(async () => {
+          const ft = await yf.fundamentalsTimeSeries(sym, {
+            period1: toDateStr(period1),
+            type: "quarterly",
+            module: "financials",
+          });
+          return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
+        });
+      } catch {
+        series = [];
+      }
+
+      const byDate = new Map<string, QuarterPoint>();
+      for (const row of series) {
+        const date = toDateStr(row.date as Date);
+        if (!date) continue;
+        const prev = byDate.get(date);
+        byDate.set(date, {
+          date,
+          revenue: pickField(row, REVENUE_FIELDS) ?? prev?.revenue ?? null,
+          ebit: pickField(row, EBIDT_FIELDS) ?? prev?.ebit ?? null,
+          netIncome:
+            pickField(row, NET_INCOME_FIELDS) ?? prev?.netIncome ?? null,
+          eps: pickField(row, EPS_FIELDS) ?? prev?.eps ?? null,
+          otherIncome:
+            pickField(row, OTHER_INCOME_FIELDS) ?? prev?.otherIncome ?? null,
+        });
+      }
+
+      const candidate = trimReportedQuarters(
+        [...byDate.values()].filter(
+          (q) =>
+            q.revenue != null ||
+            q.netIncome != null ||
+            q.eps != null ||
+            q.ebit != null,
+        ),
+      );
+      if (candidate.length >= 2) {
+        quarters = candidate;
+        usedSymbol = sym;
+        source = "yahoo";
+        break;
+      }
+      if (candidate.length > quarters.length) {
+        quarters = candidate;
+        usedSymbol = sym;
+        source = candidate.length ? "yahoo" : source;
+      }
     }
   }
 

@@ -93,3 +93,7 @@ next-env.d.ts
 
 # Cursor local (rules/skills may be committed selectively)
 # /.cursor/
+
+# Local SQLite recovery junk
+data/.recovered-*
+data/.corrupt-bak/

@@ -979,7 +979,6 @@ export function SignalScanBar({
               Basket
               <Count n={quantCount} />
             </button>
-
             {view !== "all" ? (
               <button
                 type="button"

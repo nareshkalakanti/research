@@ -8,7 +8,7 @@ import { openSqliteNamed } from "./sqlite-utils";
 import { fetchScreenerCompanyHtml } from "./screener-fetch";
 import type { QuarterPoint } from "./quarter-panel";
 import {
-  alignQuarterSeriesUnits,
+  mergeQuarterFill,
   trimReportedQuarters,
 } from "./quarter-panel";
 
@@ -79,34 +79,54 @@ function cacheUsable(qs: unknown): qs is QuarterPoint[] {
   return true;
 }
 
-function readCache(ticker: string): QuarterPoint[] | "blocked" | null {
+function readCacheRow(ticker: string): CacheRow | null {
   ensureCacheSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
   try {
-    const row = db
-      .prepare(
-        `SELECT quarters_json, fetched_at, blocked_until FROM screener_quarters_cache WHERE ticker = ?`,
-      )
-      .get(ticker.toUpperCase()) as CacheRow | undefined;
-    if (!row) return null;
-    const qs = JSON.parse(row.quarters_json) as unknown;
-    // Empty miss-blocks must not pin forever — allow retry (standalone fallback).
-    if (!cacheUsable(qs)) {
-      if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
-        return "blocked";
-      }
-      return null;
-    }
-    if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
-      return "blocked";
-    }
-    if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
-      return qs;
-    }
-    return null;
+    return (
+      (db
+        .prepare(
+          `SELECT quarters_json, fetched_at, blocked_until FROM screener_quarters_cache WHERE ticker = ?`,
+        )
+        .get(ticker.toUpperCase()) as CacheRow | undefined) ?? null
+    );
   } finally {
     db.close();
   }
+}
+
+/** Usable series regardless of TTL — keep Scan/Napkin aligned when live Screener fails. */
+function peekUsableCache(ticker: string): QuarterPoint[] | null {
+  const row = readCacheRow(ticker);
+  if (!row) return null;
+  const qs = JSON.parse(row.quarters_json) as unknown;
+  return cacheUsable(qs) ? qs : null;
+}
+
+function readCache(ticker: string): QuarterPoint[] | "blocked" | null {
+  const row = readCacheRow(ticker);
+  if (!row) return null;
+  const qs = JSON.parse(row.quarters_json) as unknown;
+  // Empty miss-blocks must not pin forever — allow retry (standalone fallback).
+  if (!cacheUsable(qs)) {
+    if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
+      return "blocked";
+    }
+    return null;
+  }
+  if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
+    return "blocked";
+  }
+  if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
+    return qs;
+  }
+  return null;
+}
+
+/** Short miss-block without wiping a usable series (Scan 7-rule source of truth). */
+function writeMissBlock(ticker: string, blockedUntil: string): void {
+  if (peekUsableCache(ticker)) return;
+  writeCache(ticker, [], blockedUntil);
 }
 
 function writeCache(
@@ -311,27 +331,18 @@ export function parseScreenerQuarterlyHtml(html: string): QuarterPoint[] {
   );
 }
 
-/** Overlay Screener consolidated P&L onto Yahoo quarters (same dates). */
+/**
+ * Merge Screener quarterly onto Yahoo/BSE/NSE — union by date (units aligned).
+ * Prefer Screener values when both exist; keep extra Screener history for YoY.
+ */
 export function mergeScreenerQuarterOverlay(
   base: QuarterPoint[],
   screener: QuarterPoint[],
 ): QuarterPoint[] {
   if (!screener.length) return base;
-  // Screener is ₹ Cr; Yahoo is often absolute ₹ — align before stitching.
-  const [normalizedBase, normalizedSc] = alignQuarterSeriesUnits(base, screener);
-  const byDate = new Map(normalizedSc.map((q) => [q.date.slice(0, 10), q]));
-  return normalizedBase.map((q) => {
-    const sc = byDate.get(q.date.slice(0, 10));
-    if (!sc) return q;
-    return {
-      ...q,
-      ebit: sc.ebit ?? q.ebit,
-      otherIncome: sc.otherIncome ?? q.otherIncome,
-      revenue: sc.revenue ?? q.revenue,
-      netIncome: sc.netIncome ?? q.netIncome,
-      eps: sc.eps ?? q.eps,
-    };
-  });
+  if (!base.length) return screener;
+  // Screener first so its ₹ Cr figures win on overlapping dates after align.
+  return mergeQuarterFill(screener, base);
 }
 
 export type ScreenerQuarterOpts = {
@@ -353,11 +364,19 @@ export async function fetchScreenerQuarterlyFundamentals(
   const key = ticker.trim().toUpperCase();
   if (!key) return [];
 
+  const prior = peekUsableCache(key);
+
   if (!opts?.force) {
     const cached = readCache(key);
     if (cached === "blocked") return [];
-    if (cached) return cached;
-    if (opts?.cacheOnly) return [];
+    // Short cache (<5) cannot support same-quarter YoY — refetch when allowed.
+    if (cached && cached.length >= 5) return cached;
+    if (cached && opts?.cacheOnly) return cached;
+    if (opts?.cacheOnly) return cached ?? [];
+  } else if (prior && prior.length >= 5) {
+    // YoY-depth already cached — keep Scan/Napkin on the same series; skip
+    // network that can 404/empty and drop overlay (e.g. NSE-thin SME names).
+    return prior;
   }
 
   try {
@@ -382,19 +401,21 @@ export async function fetchScreenerQuarterlyFundamentals(
         /* keep consolidated parse */
       }
     }
-    // Don't pin empty parses for 7d — short miss block so BSE/NSE can win next try.
-    if (quarters.length >= 2) writeCache(key, quarters);
-    else {
-      const until = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
-      writeCache(key, [], until);
+    if (quarters.length >= 2) {
+      writeCache(key, quarters);
+      return quarters;
     }
-    return quarters;
+    // Thin/empty parse — keep prior usable series; only miss-block when none.
+    if (prior?.length) return prior;
+    const until = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+    writeMissBlock(key, until);
+    return [];
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/blocked|429|403|captcha/i.test(msg)) {
       const until = new Date(Date.now() + BLOCK_MS).toISOString();
-      writeCache(key, [], until);
+      writeMissBlock(key, until);
     }
-    return [];
+    return prior ?? [];
   }
 }

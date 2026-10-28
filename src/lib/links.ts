@@ -128,6 +128,27 @@ export function screenerUrl(ticker: string): string {
   return `https://www.screener.in/company/${sym}/`;
 }
 
+/**
+ * Company page URL for fetch. Accepts NSE ticker or numeric BSE scrip
+ * (Screener hosts some SME pages under the scrip code, not the NSE symbol).
+ */
+export function screenerCompanyPageUrl(
+  key: string,
+  opts?: { consolidated?: boolean },
+): string {
+  const raw = clean(key);
+  if (!raw) return "https://www.screener.in/";
+  const scrip = bseScripCodeFromTicker(raw);
+  const sym = scrip || canonicalTicker(raw);
+  if (!sym || (!scrip && isBsePlaceholderTicker(sym))) {
+    return "https://www.screener.in/";
+  }
+  if (opts?.consolidated) {
+    return `https://www.screener.in/company/${sym}/consolidated/`;
+  }
+  return `https://www.screener.in/company/${sym}/`;
+}
+
 /** Consolidated P&L — matches most screeners' default research view. */
 export function screenerConsolidatedUrl(ticker: string): string {
   const sym = canonicalTicker(ticker);

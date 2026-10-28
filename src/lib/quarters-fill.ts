@@ -198,8 +198,8 @@ export function pendingQuartersFillTickers(opts?: {
       out.push(t);
       continue;
     }
-    // Cached but thin — still need a refill for OPM.
-    if ((meta?.usable ?? 0) < 2) out.push(t);
+    // Cached but thin — need refill for OPM / same-quarter YoY (7-Rule).
+    if ((meta?.usable ?? 0) < 5) out.push(t);
   }
   return out.sort();
 }
@@ -260,8 +260,9 @@ export async function runQuartersFillBatch(opts: {
 
   const savedTickers: string[] = [];
   let failed = 0;
-  // At most 2 live Screener page fetches per batch (2.5s gap each) — rest Yahoo/NSE/BSE.
-  let screenerBudget = 2;
+  // Screener extends thin BSE/Yahoo series for same-quarter YoY (7-Rule).
+  // Budget keeps Fill Quarters from stalling on Screener gaps.
+  let screenerBudget = 6;
 
   await runConcurrent(batch, concurrency, async (ticker) => {
     try {
@@ -271,11 +272,11 @@ export async function runQuartersFillBatch(opts: {
         screenerForce: false,
         skipScreener: true,
       });
-      if (live.quarters.length < 2 && screenerBudget > 0) {
+      if (live.quarters.length < 5 && screenerBudget > 0) {
         screenerBudget -= 1;
         live = await fetchQuarterlyFundamentals(ticker, market, {
           skipChart: true,
-          screenerForce: false,
+          screenerForce: live.quarters.length < 5,
           skipScreener: false,
         });
       }
