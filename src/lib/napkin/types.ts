@@ -88,6 +88,27 @@ export type NapkinStockJson = {
   warnings?: string[];
 };
 
+export type NapkinScoreBand = "green" | "yellow" | "red";
+
+export type NapkinScorePill = {
+  key: "fundamental" | "management" | "valuation" | "total";
+  label: string;
+  score: number;
+  /** Display like "9/17" when set. */
+  display?: string;
+  band: NapkinScoreBand;
+};
+
+export type NapkinEvalPayload = {
+  fundamental: { score: number; band: NapkinScoreBand };
+  management: { score: number; band: NapkinScoreBand };
+  valuation: { score: number; band: NapkinScoreBand };
+  total: number;
+  total_max: number;
+  final_rating: "Good" | "Average" | "Weak";
+  pills: NapkinScorePill[];
+};
+
 export type NapkinResearch = {
   ticker: string;
   name: string;
@@ -122,6 +143,8 @@ export type NapkinResearch = {
   sources?: string[];
   fetched_at?: string | null;
   sector?: string | null;
+  /** Fundamental / Management / Valuation score pills. */
+  eval_scores?: NapkinEvalPayload | null;
   card: {
     headline: string;
     body: string;

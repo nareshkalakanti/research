@@ -1,7 +1,69 @@
 import { napkinAnalysis } from "./engine";
 import type { NapkinFilingRow } from "./filings";
 import { napkinSimpleFromStock } from "./simple";
-import type { NapkinMetric, NapkinResearch, NapkinStockJson } from "./types";
+import type { NapkinEvalScores } from "./eval-scores";
+import type {
+  NapkinEvalPayload,
+  NapkinMetric,
+  NapkinResearch,
+  NapkinStockJson,
+} from "./types";
+
+export function napkinEvalPayload(
+  scores: NapkinEvalScores | null | undefined,
+): NapkinEvalPayload | null {
+  if (!scores) return null;
+  const ratingBand =
+    scores.final_rating === "Good"
+      ? ("green" as const)
+      : scores.final_rating === "Average"
+        ? ("yellow" as const)
+        : ("red" as const);
+  return {
+    fundamental: {
+      score: scores.fundamental.score,
+      band: scores.fundamental.band,
+    },
+    management: {
+      score: scores.management.score,
+      band: scores.management.band,
+    },
+    valuation: {
+      score: scores.valuation.score,
+      band: scores.valuation.band,
+    },
+    total: scores.total,
+    total_max: scores.total_max,
+    final_rating: scores.final_rating,
+    pills: [
+      {
+        key: "fundamental",
+        label: "Fundamental",
+        score: scores.fundamental.score,
+        band: scores.fundamental.band,
+      },
+      {
+        key: "management",
+        label: "Management",
+        score: scores.management.score,
+        band: scores.management.band,
+      },
+      {
+        key: "valuation",
+        label: "Valuation",
+        score: scores.valuation.score,
+        band: scores.valuation.band,
+      },
+      {
+        key: "total",
+        label: "Total",
+        score: scores.total,
+        display: `${scores.total}/${scores.total_max}`,
+        band: ratingBand,
+      },
+    ],
+  };
+}
 
 const NA = "N/A";
 const CR = 10_000_000;
@@ -57,6 +119,7 @@ function metric(key: string, label: string, value: string): NapkinMetric {
 export function researchFromYahoo(
   row: NapkinStockJson,
   filings: NapkinFilingRow[] = [],
+  evalScores?: NapkinEvalScores | null,
 ): NapkinResearch {
   const ticker = (row.ticker || "").toUpperCase();
   const name = row.company_name?.trim() || ticker;
@@ -143,6 +206,7 @@ export function researchFromYahoo(
     sources: simple.sources,
     fetched_at: row.fetched_at ?? simple.fetchedAt,
     sector: row.sector ?? simple.sector,
+    eval_scores: napkinEvalPayload(evalScores),
     card: {
       headline: `${name} · ${ticker}`,
       body: `Yahoo ${row.yf_symbol || `${ticker}.NS`} · P/E ${pe(n.current_pe)} · basic required CAGR ${pct(n.basic_required_cagr)} · 5Y growth gap ${pct(n.growth_gap_5y)}.`,

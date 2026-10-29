@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { napkinLog } from "@/lib/napkin/log";
 import { getStockData, StockDataError } from "@/lib/napkin/financials";
+import { computeNapkinEvalScores } from "@/lib/napkin/eval-scores";
 import { researchFromYahoo } from "@/lib/napkin/map";
 import { napkinSimpleFromStock } from "@/lib/napkin/simple";
 
@@ -32,16 +33,18 @@ export async function GET(req: NextRequest) {
       ok: row.ok,
       symbol: row.yf_symbol,
     });
+    const evalScores = await computeNapkinEvalScores(row).catch(() => null);
     const simple = napkinSimpleFromStock(row);
     return NextResponse.json({
       ok: true,
       ...simple,
-      research: researchFromYahoo(row, []),
+      research: researchFromYahoo(row, [], evalScores),
       raw: row,
       debug: {
         yahoo_ms,
         source: "yahoo-finance2",
         filings: "deferred",
+        eval_ms: Date.now() - t0 - yahoo_ms,
       },
     });
   } catch (e) {
