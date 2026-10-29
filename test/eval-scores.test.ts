@@ -61,11 +61,44 @@ assert.equal(countScoreBand(0), "red");
     shareholder_counts: [5749, 5679],
     pledged_pct: 0,
     fii_pct: 0.26,
-    dii_pct: 0,
+    dii_pct: 1.1,
     promoter_pct: prom,
   });
   assert.equal(r.score, 4);
   assert.equal(r.band, "green");
+}
+
+// Holding investor needs meaningful FII+DII (≥1%), not a token stake.
+{
+  const r = managementScore({
+    shareholder_counts: [4000, 4100],
+    pledged_pct: 0,
+    fii_pct: 0,
+    dii_pct: 0.76,
+    promoter_pct: [50, 50, 50],
+  });
+  // pledge only — token DII fails; promoters flat
+  assert.equal(r.score, 1);
+  assert.equal(
+    r.rules.find((x) => x.id === "holding_investor")?.verdict,
+    "fail",
+  );
+}
+
+// Sales after structural jump without enough post-jump years → sales fail.
+{
+  const r = fundamentalScore({
+    book_value: [10, 12, 40],
+    equity_capital: [2, 2, 2],
+    sales: [1, 2, 500, 520, 540], // mega jump then short hist
+    roce: 0.2,
+    operating_profit: 50,
+    interest: 2,
+    fixed_assets: [10, 12],
+    other_income: 1,
+  });
+  const sales = r.rules.find((x) => x.id === "sales_cagr");
+  assert.equal(sales?.verdict, "fail");
 }
 
 // --- Valuation / Graham ---
@@ -85,6 +118,23 @@ assert.equal(countScoreBand(0), "red");
   });
   assert.ok(cheap.score >= 3);
   assert.equal(cheap.band, "green");
+}
+
+// Cash ≥ 50% of mcap counts as cash-rich even with large operating debt (NBFCs).
+{
+  const r = valuationScore({
+    price: 70,
+    book_value_ps: 180,
+    sales: 140e9,
+    market_cap: 11e9,
+    eps: 14,
+    cash: 12e9,
+    debt: 100e9,
+    hist_eps_cagr: 0.18,
+    required_eps_cagr: 0.1,
+  });
+  assert.equal(r.rules.find((x) => x.id === "cash_rich")?.verdict, "pass");
+  assert.ok(r.score >= 4);
 }
 
 assert.equal(evaluationFinalRating(9), "Good");

@@ -104,13 +104,7 @@ export function NapkinPanel() {
       setDebug(yahooDebug);
     } catch (e) {
       setData(null);
-      setError(
-        e instanceof Error && e.name === "AbortError"
-          ? "Request aborted after 45s"
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (tickRef.current) window.clearInterval(tickRef.current);
       tickRef.current = null;

@@ -26433,6 +26433,107 @@ tr.wl-prove-fail td {
   opacity: 0.4;
   pointer-events: none;
 }
+.rot-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0 0 14px;
+}
+@media (max-width: 720px) {
+  .rot-stats {
+    grid-template-columns: 1fr;
+  }
+}
+.rot-stats--detail {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0 0 12px;
+}
+.rot-stat {
+  border: 1px solid var(--line);
+  border-radius: var(--radius, 12px);
+  padding: 12px 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.rot-stat-k {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.rot-stat-v {
+  display: block;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rot-stat--best {
+  border-color: color-mix(in srgb, var(--accent, #c2410c) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent, #c2410c) 10%, var(--surface));
+}
+.rot-stat--best .rot-stat-k {
+  color: color-mix(in srgb, var(--accent, #c2410c) 80%, var(--muted));
+}
+.rot-stat-best-name {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  text-align: left;
+  color: var(--accent, #c2410c);
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.rot-stat-best-name:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+button.rot-stat-best-name:not(:disabled):hover {
+  text-decoration: underline;
+}
+.rot-best-pill {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+.rot-card--best {
+  border-color: color-mix(in srgb, var(--accent, #c2410c) 55%, var(--line));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent, #c2410c) 35%, transparent),
+    var(--shadow);
+}
+.rot-row--best td {
+  background: color-mix(in srgb, var(--accent, #c2410c) 8%, transparent);
+}
+.rot-table--members .rot-total-score {
+  font-weight: 800;
+  color: #15803d;
+}
+.rot-table--members th.rot-col-num {
+  white-space: nowrap;
+}
 .rot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));

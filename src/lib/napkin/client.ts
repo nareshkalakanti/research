@@ -38,27 +38,41 @@ function toFiling(f: NapkinFilingRow): NapkinFiling {
   };
 }
 
+/** Yahoo + Screener eval scores can exceed 45s on a cold cache. */
+export const NAPKIN_RESEARCH_TIMEOUT_MS = 90_000;
+
 export async function loadNapkinResearch(
   ticker: string,
 ): Promise<{ research: NapkinResearch; debug: NapkinLoadDebug }> {
   const t = ticker.trim().toUpperCase();
   if (!t) throw new Error("Enter an NSE ticker");
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 45_000);
-  const res = await fetch(`/api/napkin?ticker=${encodeURIComponent(t)}`, {
-    cache: "no-store",
-    signal: ctrl.signal,
-  }).finally(() => clearTimeout(timer));
-  const json = (await res.json()) as {
-    ok?: boolean;
-    error?: string;
-    research?: NapkinResearch;
-    debug?: NapkinLoadDebug;
-  };
-  if (!res.ok || !json.ok || !json.research) {
-    throw new Error(json.error || `Could not load ${t}`);
+  const timer = setTimeout(() => ctrl.abort(), NAPKIN_RESEARCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`/api/napkin?ticker=${encodeURIComponent(t)}`, {
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+    const json = (await res.json()) as {
+      ok?: boolean;
+      error?: string;
+      research?: NapkinResearch;
+      debug?: NapkinLoadDebug;
+    };
+    if (!res.ok || !json.ok || !json.research) {
+      throw new Error(json.error || `Could not load ${t}`);
+    }
+    return { research: json.research, debug: json.debug || {} };
+  } catch (e) {
+    if (e instanceof Error && e.name === "AbortError") {
+      throw new Error(
+        `Napkin timed out after ${NAPKIN_RESEARCH_TIMEOUT_MS / 1000}s — retry`,
+      );
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
   }
-  return { research: json.research, debug: json.debug || {} };
 }
 
 export async function loadNapkinFilings(

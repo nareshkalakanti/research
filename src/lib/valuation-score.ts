@@ -46,6 +46,24 @@ export type ValuationScoreInput = {
   required_eps_cagr?: number | null;
 };
 
+const PB_PASS_MAX = 2;
+const PB_FAIL_MIN = 3;
+/** Absolute P/S band when peer median is unavailable. */
+const PS_PASS_MAX = 3.5;
+const PS_FAIL_MIN = 5;
+const INTRINSIC_FAIL_GAP = -0.2;
+/**
+ * Cash-rich:
+ * - pass if cash ≥ debt, or cash is a large share of mcap (liquidity pile)
+ * - fail if coverage is thin and net debt is material vs mcap
+ * - else neutral (working-capital debt, missing context)
+ */
+const CASH_MCAP_PASS = 0.5;
+const CASH_DEBT_HARD_FAIL = 0.08;
+const CASH_DEBT_SOFT_FAIL = 0.25;
+/** Soft fail only when net debt is a large share of equity value. */
+const NET_DEBT_MCAP_FAIL = 0.75;
+
 function finite(v: number | null | undefined): v is number {
   return v != null && Number.isFinite(v);
 }
@@ -100,8 +118,8 @@ export function valuationScore(
       else if (pb > peer * 1.15) verdict = "fail";
       else verdict = "neutral";
     } else if (finite(pb)) {
-      if (pb < 1.5) verdict = "pass";
-      else if (pb > 3) verdict = "fail";
+      if (pb < PB_PASS_MAX) verdict = "pass";
+      else if (pb > PB_FAIL_MIN) verdict = "fail";
       else verdict = "neutral";
     }
     rules.push({
@@ -110,7 +128,7 @@ export function valuationScore(
       verdict,
       points: pointsFrom(verdict),
       value: peer != null ? `${fmtX(pb)} vs peer ${fmtX(peer)}` : fmtX(pb),
-      threshold: "below peer / <1.5×",
+      threshold: `below peer / <${PB_PASS_MAX}×`,
     });
   }
 
@@ -123,8 +141,8 @@ export function valuationScore(
       else if (ps > peer * 1.15) verdict = "fail";
       else verdict = "neutral";
     } else if (finite(ps)) {
-      if (ps < 2) verdict = "pass";
-      else if (ps > 5) verdict = "fail";
+      if (ps < PS_PASS_MAX) verdict = "pass";
+      else if (ps > PS_FAIL_MIN) verdict = "fail";
       else verdict = "neutral";
     }
     rules.push({
@@ -133,17 +151,17 @@ export function valuationScore(
       verdict,
       points: pointsFrom(verdict),
       value: peer != null ? `${fmtX(ps)} vs peer ${fmtX(peer)}` : fmtX(ps),
-      threshold: "below peer / <2×",
+      threshold: `below peer / <${PS_PASS_MAX}×`,
     });
   }
 
-  // 3) Graham
+  // 3) Graham — require a margin of safety vs the classic number
   {
     const g = grahamNumber(input.eps, input.book_value_ps);
     const price = finite(input.price) ? input.price : null;
     let verdict: ValuationRuleVerdict = "unknown";
     if (finite(g) && finite(price) && g > 0) {
-      if (price < g) verdict = "pass";
+      if (price < g * 0.9) verdict = "pass";
       else if (price > g * 1.5) verdict = "fail";
       else verdict = "neutral";
     }
@@ -156,7 +174,7 @@ export function valuationScore(
         finite(g) && finite(price)
           ? `price ${fmtMoney(price)} vs GN ${fmtMoney(g)}`
           : null,
-      threshold: "price < Graham №",
+      threshold: "price < 0.9× Graham №",
     });
   }
 
@@ -170,7 +188,7 @@ export function valuationScore(
       const gap = hist - req;
       value = `gap ${(gap * 100).toFixed(1)} pp`;
       if (gap >= 0.02) verdict = "pass";
-      else if (gap <= -0.05) verdict = "fail";
+      else if (gap <= INTRINSIC_FAIL_GAP) verdict = "fail";
       else verdict = "neutral";
     }
     rules.push({
@@ -187,14 +205,33 @@ export function valuationScore(
   {
     const cash = finite(input.cash) ? input.cash : null;
     const debt = finite(input.debt) ? input.debt : 0;
+    const mcap = finite(input.market_cap) ? input.market_cap : null;
     let verdict: ValuationRuleVerdict = "unknown";
     let value: string | null = null;
     if (finite(cash)) {
       const net = cash - debt;
+      const cover = debt > 0 ? cash / debt : Infinity;
+      const cashMcap =
+        finite(mcap) && mcap > 0 ? cash / mcap : null;
+      const netDebtMcap =
+        finite(mcap) && mcap > 0 ? (debt - cash) / mcap : null;
       value = `net ${fmtMoney(net)}`;
-      if (net > 0 && cash >= debt) verdict = "pass";
-      else if (debt > 0 && cash / Math.max(debt, 1e-9) < 0.25) verdict = "fail";
-      else verdict = "neutral";
+      if (cash >= debt || (finite(cashMcap) && cashMcap >= CASH_MCAP_PASS)) {
+        verdict = "pass";
+      } else if (debt > 0 && cover < CASH_DEBT_HARD_FAIL) {
+        // Tiny cash vs debt — but ignore when net debt is small vs mcap.
+        verdict =
+          finite(netDebtMcap) && netDebtMcap <= 0.15 ? "neutral" : "fail";
+      } else if (
+        debt > 0 &&
+        cover < CASH_DEBT_SOFT_FAIL &&
+        finite(netDebtMcap) &&
+        netDebtMcap > NET_DEBT_MCAP_FAIL
+      ) {
+        verdict = "fail";
+      } else {
+        verdict = "neutral";
+      }
     }
     rules.push({
       id: "cash_rich",
@@ -202,7 +239,7 @@ export function valuationScore(
       verdict,
       points: pointsFrom(verdict),
       value,
-      threshold: "cash ≥ debt",
+      threshold: "cash ≥ debt or cash ≥ 50% mcap",
     });
   }
 
