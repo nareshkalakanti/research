@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   napkinIllustrativeBuyRows,
 } from "@/lib/napkin/buy-price";
@@ -38,6 +39,7 @@ export function NapkinBuyPrice({
   years: number;
 }) {
   void ticker;
+  const [showSensitivity, setShowSensitivity] = useState(false);
   const path = napkinPathCase({
     eps,
     price,
@@ -158,117 +160,141 @@ export function NapkinBuyPrice({
       </div>
 
       <div className="napkin-sheet-section">
-        <h2 className="napkin-block-title">Sensitivity</h2>
-
-        <h3 className="napkin-subhead">Napkin Factor</h3>
-        <div className="napkin-table-wrap">
-          <table className="napkin-table napkin-table--nums">
-            <thead>
-              <tr>
-                <th>Factor</th>
-                <th>Required CAGR</th>
-                <th>Max Entry</th>
-                <th>vs Spot</th>
-              </tr>
-            </thead>
-            <tbody>
-              {factorRows.map((r) => (
-                <tr key={r.factor} className={r.current ? "is-on" : undefined}>
-                  <td>{formatNapkinPctWhole(r.factor)}</td>
-                  <td>{formatNapkinPct(r.required_cagr)}</td>
-                  <td>{formatNapkinRupee(r.max_pay)}</td>
-                  <td>{formatNapkinPct(r.vs_spot, true)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <h3 className="napkin-subhead">Expected EPS CAGR</h3>
-        <div className="napkin-table-wrap">
-          <table className="napkin-table napkin-table--nums">
-            <thead>
-              <tr>
-                <th>Growth</th>
-                <th>Future EPS</th>
-                <th>Future Value</th>
-                <th>Price CAGR</th>
-                <th>Max Entry</th>
-                <th>vs Spot</th>
-              </tr>
-            </thead>
-            <tbody>
-              {growthRows.map((r) => (
-                <tr key={r.expected_cagr} className={r.current ? "is-on" : undefined}>
-                  <td>{formatNapkinPctWhole(r.expected_cagr)}</td>
-                  <td>{formatNapkinRupee(r.future_eps)}</td>
-                  <td>{formatNapkinRupee(r.future_value)}</td>
-                  <td>{formatNapkinPct(r.price_cagr)}</td>
-                  <td>{formatNapkinRupee(r.max_pay)}</td>
-                  <td>{formatNapkinPct(r.vs_spot, true)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <h3 className="napkin-subhead">Exit P/E</h3>
-        <div className="napkin-table-wrap">
-          <table className="napkin-table napkin-table--nums">
-            <thead>
-              <tr>
-                <th>Exit P/E</th>
-                <th>Future Value</th>
-                <th>Price CAGR</th>
-                <th>Max Entry</th>
-                <th>vs Spot</th>
-              </tr>
-            </thead>
-            <tbody>
-              {peRows.map((r) => (
-                <tr key={r.exit_pe} className={r.current ? "is-on" : undefined}>
-                  <td>{napkinPeDisplay(r.exit_pe.toFixed(1))}</td>
-                  <td>{formatNapkinRupee(r.future_value)}</td>
-                  <td>{formatNapkinPct(r.price_cagr)}</td>
-                  <td>{formatNapkinRupee(r.max_pay)}</td>
-                  <td>{formatNapkinPct(r.vs_spot, true)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <button
+          type="button"
+          className="napkin-details-toggle"
+          aria-expanded={showSensitivity}
+          onClick={() => setShowSensitivity((v) => !v)}
+        >
+          {showSensitivity ? "Hide sensitivity" : "Show sensitivity tables"}
+        </button>
       </div>
 
-      <div className="napkin-sheet-section">
-        <h3 className="napkin-subhead">Scenario range</h3>
-        <p className="napkin-debug">Illustrative paths from the selected target return.</p>
-        <div className="napkin-table-wrap">
-          <table className="napkin-table napkin-table--nums">
-            <thead>
-              <tr>
-                <th>Scenario</th>
-                <th>EPS CAGR</th>
-                <th>Exit P/E</th>
-                <th>Future Value</th>
-                <th>Price CAGR</th>
-                <th>Max Entry</th>
-              </tr>
-            </thead>
-            <tbody>
-              {napkinIllustrativeBuyRows({ eps, price, target_return: target }).map((row) => (
-                <tr key={row.name}>
-                  <td>{row.name}</td>
-                  <td>{formatNapkinPctWhole(row.expected_cagr)}</td>
-                  <td>{napkinPeDisplay(row.exit_pe.toFixed(1))}</td>
-                  <td>{formatNapkinRupee(row.case.future_price)}</td>
-                  <td>{formatNapkinPct(row.case.implied_cagr)}</td>
-                  <td>{formatNapkinRupee(row.case.buy_price)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {showSensitivity ? (
+        <>
+          <div className="napkin-sheet-section">
+            <h2 className="napkin-block-title">Sensitivity</h2>
+
+            <h3 className="napkin-subhead">Napkin Factor</h3>
+            <div className="napkin-table-wrap">
+              <table className="napkin-table napkin-table--nums">
+                <thead>
+                  <tr>
+                    <th>Factor</th>
+                    <th>Required CAGR</th>
+                    <th>Max Entry</th>
+                    <th>vs Spot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {factorRows.map((r) => (
+                    <tr key={r.factor} className={r.current ? "is-on" : undefined}>
+                      <td>{formatNapkinPctWhole(r.factor)}</td>
+                      <td>{formatNapkinPct(r.required_cagr)}</td>
+                      <td>{formatNapkinRupee(r.max_pay)}</td>
+                      <td>{formatNapkinPct(r.vs_spot, true)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <h3 className="napkin-subhead">Expected EPS CAGR</h3>
+            <div className="napkin-table-wrap">
+              <table className="napkin-table napkin-table--nums">
+                <thead>
+                  <tr>
+                    <th>Growth</th>
+                    <th>Future EPS</th>
+                    <th>Future Value</th>
+                    <th>Price CAGR</th>
+                    <th>Max Entry</th>
+                    <th>vs Spot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {growthRows.map((r) => (
+                    <tr
+                      key={r.expected_cagr}
+                      className={r.current ? "is-on" : undefined}
+                    >
+                      <td>{formatNapkinPctWhole(r.expected_cagr)}</td>
+                      <td>{formatNapkinRupee(r.future_eps)}</td>
+                      <td>{formatNapkinRupee(r.future_value)}</td>
+                      <td>{formatNapkinPct(r.price_cagr)}</td>
+                      <td>{formatNapkinRupee(r.max_pay)}</td>
+                      <td>{formatNapkinPct(r.vs_spot, true)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <h3 className="napkin-subhead">Exit P/E</h3>
+            <div className="napkin-table-wrap">
+              <table className="napkin-table napkin-table--nums">
+                <thead>
+                  <tr>
+                    <th>Exit P/E</th>
+                    <th>Future Value</th>
+                    <th>Price CAGR</th>
+                    <th>Max Entry</th>
+                    <th>vs Spot</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {peRows.map((r) => (
+                    <tr key={r.exit_pe} className={r.current ? "is-on" : undefined}>
+                      <td>{napkinPeDisplay(r.exit_pe.toFixed(1))}</td>
+                      <td>{formatNapkinRupee(r.future_value)}</td>
+                      <td>{formatNapkinPct(r.price_cagr)}</td>
+                      <td>{formatNapkinRupee(r.max_pay)}</td>
+                      <td>{formatNapkinPct(r.vs_spot, true)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="napkin-sheet-section">
+            <h3 className="napkin-subhead">Scenario range</h3>
+            <p className="napkin-debug">
+              Illustrative paths from the selected target return.
+            </p>
+            <div className="napkin-table-wrap">
+              <table className="napkin-table napkin-table--nums">
+                <thead>
+                  <tr>
+                    <th>Scenario</th>
+                    <th>EPS CAGR</th>
+                    <th>Exit P/E</th>
+                    <th>Future Value</th>
+                    <th>Price CAGR</th>
+                    <th>Max Entry</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {napkinIllustrativeBuyRows({
+                    eps,
+                    price,
+                    target_return: target,
+                  }).map((row) => (
+                    <tr key={row.name}>
+                      <td>{row.name}</td>
+                      <td>{formatNapkinPctWhole(row.expected_cagr)}</td>
+                      <td>{napkinPeDisplay(row.exit_pe.toFixed(1))}</td>
+                      <td>{formatNapkinRupee(row.case.future_price)}</td>
+                      <td>{formatNapkinPct(row.case.implied_cagr)}</td>
+                      <td>{formatNapkinRupee(row.case.buy_price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      ) : null}
     </>
   );
 }

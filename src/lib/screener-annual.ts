@@ -186,7 +186,7 @@ function parseNum(raw: string): number | null {
 
 type CheerioLoaded = ReturnType<typeof cheerio.load>;
 
-function parseSectionTable(
+export function parseScreenerSectionTable(
   $: CheerioLoaded,
   sectionId: string,
 ): { dates: string[]; rows: Map<string, Array<number | null>> } | null {
@@ -259,7 +259,7 @@ function parseSectionTable(
   return { dates, rows };
 }
 
-function pickRow(
+export function pickScreenerRow(
   rows: Map<string, Array<number | null>>,
   patterns: RegExp[],
   opts?: { allowPct?: boolean },
@@ -306,13 +306,13 @@ export function parseScreenerAnnualHtml(html: string): ScreenerAnnualSeries {
   if (/captcha|access denied|rate limit/i.test(html)) return empty;
 
   const $ = cheerio.load(html);
-  const pl = parseSectionTable($, "profit-loss");
-  const ratios = parseSectionTable($, "ratios");
+  const pl = parseScreenerSectionTable($, "profit-loss");
+  const ratios = parseScreenerSectionTable($, "ratios");
   if (!pl && !ratios) return empty;
 
   const dates = pl?.dates ?? ratios?.dates ?? [];
   const sales = pl
-    ? pickRow(pl.rows, [
+    ? pickScreenerRow(pl.rows, [
         /^Sales\b/i,
         /^Net Sales\b/i,
         /^Revenue from operations/i,
@@ -320,10 +320,10 @@ export function parseScreenerAnnualHtml(html: string): ScreenerAnnualSeries {
       ])
     : null;
   const eps = pl
-    ? pickRow(pl.rows, [/^EPS\b/i, /EPS in Rs/i])
+    ? pickScreenerRow(pl.rows, [/^EPS\b/i, /EPS in Rs/i])
     : null;
   const roce = ratios
-    ? pickRow(ratios.rows, [/^ROCE\b/i])
+    ? pickScreenerRow(ratios.rows, [/^ROCE\b/i])
     : null;
 
   // Align lengths to dates; prefer P&L date axis.
@@ -372,11 +372,11 @@ export function parseScreenerAnnualPlHtml(html: string): ScreenerAnnualPl {
   };
   if (/captcha|access denied|rate limit/i.test(html)) return empty;
   const $ = cheerio.load(html);
-  const pl = parseSectionTable($, "profit-loss");
+  const pl = parseScreenerSectionTable($, "profit-loss");
   if (!pl?.dates.length) return empty;
   const n = pl.dates.length;
   const revenue =
-    pickRow(pl.rows, [
+    pickScreenerRow(pl.rows, [
       /^Sales\b/i,
       /^Net Sales\b/i,
       /^Revenue from operations/i,
@@ -384,18 +384,18 @@ export function parseScreenerAnnualPlHtml(html: string): ScreenerAnnualPl {
       /^Revenue\b/i,
     ]) ??
     zipAdd(
-      pickRow(pl.rows, [/^Expenses\b/i]),
-      pickRow(pl.rows, [/^Operating Profit\b/i, /^EBIT\b/i]),
+      pickScreenerRow(pl.rows, [/^Expenses\b/i]),
+      pickScreenerRow(pl.rows, [/^Operating Profit\b/i, /^EBIT\b/i]),
       n,
     );
-  const op = pickRow(pl.rows, [/^Operating Profit\b/i, /^EBIT\b/i]);
-  const expenses = pickRow(pl.rows, [/^Expenses\b/i]);
-  const otherIncome = pickRow(pl.rows, [/^Other Income\b/i]);
-  const interest = pickRow(pl.rows, [/^Interest\b/i]);
-  const depreciation = pickRow(pl.rows, [/^Depreciation\b/i]);
-  const pbt = pickRow(pl.rows, [/^Profit before tax\b/i, /^PBT\b/i]);
-  const tax = pickRow(pl.rows, [/^Tax\b/i, /^Tax %/i], { allowPct: true });
-  let pat = pickRow(pl.rows, [
+  const op = pickScreenerRow(pl.rows, [/^Operating Profit\b/i, /^EBIT\b/i]);
+  const expenses = pickScreenerRow(pl.rows, [/^Expenses\b/i]);
+  const otherIncome = pickScreenerRow(pl.rows, [/^Other Income\b/i]);
+  const interest = pickScreenerRow(pl.rows, [/^Interest\b/i]);
+  const depreciation = pickScreenerRow(pl.rows, [/^Depreciation\b/i]);
+  const pbt = pickScreenerRow(pl.rows, [/^Profit before tax\b/i, /^PBT\b/i]);
+  const tax = pickScreenerRow(pl.rows, [/^Tax\b/i, /^Tax %/i], { allowPct: true });
+  let pat = pickScreenerRow(pl.rows, [
     /^Net Profit\b/i,
     /^Profit after tax\b/i,
     /^Reported (?:Net )?Profit\b/i,
@@ -409,7 +409,7 @@ export function parseScreenerAnnualPlHtml(html: string): ScreenerAnnualPl {
       return p * (1 - rate);
     });
   }
-  const eps = pickRow(pl.rows, [/^EPS\b/i, /EPS in Rs/i]);
+  const eps = pickScreenerRow(pl.rows, [/^EPS\b/i, /EPS in Rs/i]);
   // Screener sometimes has "Equity Capital" / shares elsewhere — leave null.
   return {
     dates: pl.dates.slice(0, n),
@@ -659,5 +659,180 @@ export async function fetchScreenerAnnual(
   } catch {
     // Blocks pause every Screener fetch in screener-fetch; no per-ticker mark.
     return { dates: [], sales: [], eps: [], roce: [] };
+  }
+}
+
+/** Balance-sheet lines for Fundamental Score (BV / net block). */
+export type ScreenerAnnualBs = {
+  dates: string[];
+  equity_capital: Array<number | null>;
+  reserves: Array<number | null>;
+  /** Equity + Reserves when both present. */
+  book_value: Array<number | null>;
+  fixed_assets: Array<number | null>;
+  borrowings: Array<number | null>;
+};
+
+function emptyBs(): ScreenerAnnualBs {
+  return {
+    dates: [],
+    equity_capital: [],
+    reserves: [],
+    book_value: [],
+    fixed_assets: [],
+    borrowings: [],
+  };
+}
+
+function ensureBsCacheSchema(): void {
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS screener_annual_bs_cache (
+        ticker TEXT PRIMARY KEY,
+        bs_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        blocked_until TEXT
+      );
+    `);
+  } finally {
+    db.close();
+  }
+}
+
+function readBsCache(ticker: string): ScreenerAnnualBs | "blocked" | null {
+  ensureBsCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const row = db
+      .prepare(
+        `SELECT bs_json, fetched_at, blocked_until FROM screener_annual_bs_cache WHERE ticker = ?`,
+      )
+      .get(ticker.toUpperCase()) as
+      | { bs_json: string; fetched_at: string; blocked_until: string | null }
+      | undefined;
+    if (!row) return null;
+    if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
+      return "blocked";
+    }
+    if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
+      return JSON.parse(row.bs_json) as ScreenerAnnualBs;
+    }
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
+function writeBsCache(
+  ticker: string,
+  series: ScreenerAnnualBs,
+  blockedUntil?: string | null,
+): void {
+  ensureBsCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.prepare(
+      `INSERT INTO screener_annual_bs_cache (ticker, bs_json, fetched_at, blocked_until)
+       VALUES (@ticker, @bs_json, @fetched_at, @blocked_until)
+       ON CONFLICT(ticker) DO UPDATE SET
+         bs_json = excluded.bs_json,
+         fetched_at = excluded.fetched_at,
+         blocked_until = excluded.blocked_until`,
+    ).run({
+      ticker: ticker.toUpperCase(),
+      bs_json: JSON.stringify(series),
+      fetched_at: new Date().toISOString(),
+      blocked_until: blockedUntil ?? null,
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export function parseScreenerAnnualBsHtml(html: string): ScreenerAnnualBs {
+  const empty = emptyBs();
+  if (/captcha|access denied|rate limit/i.test(html)) return empty;
+  const $ = cheerio.load(html);
+  const bs = parseScreenerSectionTable($, "balance-sheet");
+  if (!bs?.dates.length) return empty;
+  const n = bs.dates.length;
+  const equity = pickScreenerRow(bs.rows, [/^Equity Capital\b/i, /^Share Capital\b/i]);
+  const reserves = pickScreenerRow(bs.rows, [
+    /^Reserves\b/i,
+    /^Reserves and Surplus\b/i,
+  ]);
+  const fixed = pickScreenerRow(bs.rows, [
+    /^Fixed Assets\b/i,
+    /^Net Block\b/i,
+    /^Property,? Plant/i,
+  ]);
+  const borrowings = pickScreenerRow(bs.rows, [/^Borrowings\b/i, /^Total Debt\b/i]);
+  const book = zipAdd(equity, reserves, n) ?? Array(n).fill(null);
+  return {
+    dates: bs.dates.slice(0, n),
+    equity_capital: alignRow(n, equity),
+    reserves: alignRow(n, reserves),
+    book_value: alignRow(n, book),
+    fixed_assets: alignRow(n, fixed),
+    borrowings: alignRow(n, borrowings),
+  };
+}
+
+function bsUsable(bs: ScreenerAnnualBs): boolean {
+  return bs.book_value.some((v) => v != null && v > 0) ||
+    bs.fixed_assets.some((v) => v != null && v > 0);
+}
+
+function bsYearCount(bs: ScreenerAnnualBs): number {
+  return bs.dates.filter(
+    (_, i) => bs.book_value[i] != null || bs.fixed_assets[i] != null,
+  ).length;
+}
+
+function pickRicherBs(a: ScreenerAnnualBs, b: ScreenerAnnualBs): ScreenerAnnualBs {
+  const ua = bsUsable(a);
+  const ub = bsUsable(b);
+  if (ua && !ub) return a;
+  if (ub && !ua) return b;
+  return bsYearCount(b) > bsYearCount(a) ? b : a;
+}
+
+export async function fetchScreenerAnnualBs(
+  ticker: string,
+  opts?: { force?: boolean; consolidated?: boolean },
+): Promise<ScreenerAnnualBs> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return emptyBs();
+
+  if (!opts?.force) {
+    const cached = readBsCache(key);
+    if (cached === "blocked") return emptyBs();
+    if (cached && bsUsable(cached) && bsYearCount(cached) >= 3) return cached;
+  }
+
+  try {
+    const html = await fetchScreenerCompanyHtml(key, {
+      consolidated: opts?.consolidated !== false,
+    });
+    let series = parseScreenerAnnualBsHtml(html);
+    if (opts?.consolidated !== false) {
+      try {
+        const standHtml = await fetchScreenerCompanyHtml(key, {
+          consolidated: false,
+        });
+        series = pickRicherBs(series, parseScreenerAnnualBsHtml(standHtml));
+      } catch {
+        /* keep first */
+      }
+    }
+    if (bsUsable(series)) writeBsCache(key, series);
+    return series;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/blocked|429|403|captcha/i.test(msg)) {
+      writeBsCache(key, emptyBs(), new Date(Date.now() + BLOCK_MS).toISOString());
+    }
+    return emptyBs();
   }
 }

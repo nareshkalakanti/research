@@ -15,15 +15,12 @@ import {
 import { tradingviewUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
+import { NapkinScorePills } from "@/components/napkin/NapkinScorePills";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
 import { parseDisplayedMoney } from "@/lib/napkin/format";
 
 function na(v: string | undefined): string {
   return !v || v === "N/A" ? "N/A" : v;
-}
-
-function dash(): string {
-  return "—";
 }
 
 function fmtUpdated(iso: string | null | undefined): string {
@@ -219,64 +216,28 @@ export function NapkinPanel() {
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
 
+            <NapkinScorePills evalScores={data.eval_scores} />
+
             <div className="napkin-sheet-section">
-              <h2 className="napkin-block-title">Financials</h2>
-              <div className="napkin-table-wrap">
-                <table className="napkin-table napkin-table--nums">
-                  <thead>
-                    <tr>
-                      <th></th>
-                      <th>Current</th>
-                      <th>3Y CAGR</th>
-                      <th>5Y CAGR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Revenue</td>
-                      <td>{napkinMetric(data.overview, "revenue")}</td>
-                      <td>{na(napkinMetric(data.financials, "rev3"))}</td>
-                      <td>{na(napkinMetric(data.financials, "rev5"))}</td>
-                    </tr>
-                    <tr>
-                      <td>Net Profit</td>
-                      <td>{napkinMetric(data.financials, "ni")}</td>
-                      <td>{na(napkinMetric(data.financials, "p3"))}</td>
-                      <td>{na(napkinMetric(data.financials, "p5"))}</td>
-                    </tr>
-                    <tr>
-                      <td>EPS</td>
-                      <td>{napkinMetric(data.overview, "eps")}</td>
-                      <td>{na(napkinMetric(data.financials, "eps3"))}</td>
-                      <td>{na(hist5)}</td>
-                    </tr>
-                    <tr>
-                      <td>Net Margin</td>
-                      <td>{na(napkinMetric(data.financials, "mnow"))}</td>
-                      <td>{dash()}</td>
-                      <td>{dash()}</td>
-                    </tr>
-                    <tr>
-                      <td>ROE</td>
-                      <td>{napkinMetric(data.overview, "roe")}</td>
-                      <td>{dash()}</td>
-                      <td>{dash()}</td>
-                    </tr>
-                    <tr>
-                      <td>ROCE</td>
-                      <td>{napkinMetric(data.overview, "roce")}</td>
-                      <td>{dash()}</td>
-                      <td>{dash()}</td>
-                    </tr>
-                    <tr>
-                      <td>P/E</td>
-                      <td>{napkinPeDisplay(napkinMetric(data.overview, "pe"))}</td>
-                      <td>{dash()}</td>
-                      <td>{dash()}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <h2 className="napkin-block-title">Snapshot</h2>
+              <dl className="napkin-dl napkin-val">
+                <div className="napkin-dl-row">
+                  <dt>P/E</dt>
+                  <dd>{napkinPeDisplay(napkinMetric(data.overview, "pe"))}</dd>
+                </div>
+                <div className="napkin-dl-row">
+                  <dt>ROCE</dt>
+                  <dd>{napkinMetric(data.overview, "roce")}</dd>
+                </div>
+                <div className="napkin-dl-row">
+                  <dt>Revenue 5Y CAGR</dt>
+                  <dd>{na(napkinMetric(data.financials, "rev5"))}</dd>
+                </div>
+                <div className="napkin-dl-row">
+                  <dt>EPS 5Y CAGR</dt>
+                  <dd>{na(hist5)}</dd>
+                </div>
+              </dl>
             </div>
 
             <NapkinValuation data={data} />

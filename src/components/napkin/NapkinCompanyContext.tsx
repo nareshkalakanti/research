@@ -6,6 +6,7 @@ import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
+
 type NapkinAboutPayload = {
   ok: boolean;
   ticker: string;
@@ -48,6 +49,7 @@ export function NapkinCompanyContext({
   const [about, setAbout] = useState<NapkinAboutPayload | null>(null);
   const [aboutLoading, setAboutLoading] = useState(false);
   const [aboutError, setAboutError] = useState<string | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
     let dead = false;
@@ -93,7 +95,6 @@ export function NapkinCompanyContext({
   const meta = [about?.sector, about?.sub_sector, about?.headquarters, about?.market]
     .map((x) => (x || "").trim())
     .filter(Boolean);
-  // Prefer sector · sub_sector first (CUPID-style); HQ/market after if present.
   const metaLine = (() => {
     const sectorBits = [about?.sector, about?.sub_sector]
       .map((x) => (x || "").trim())
@@ -143,33 +144,46 @@ export function NapkinCompanyContext({
       {sevenRule ? (
         <div className="napkin-sheet-section">
           <h2 className="napkin-block-title">7-Rule score</h2>
-          <SevenRuleScoreCard result={sevenRule} />
+          <SevenRuleScoreCard result={sevenRule} compact={!showDetails} />
         </div>
       ) : null}
 
       <div className="napkin-sheet-section">
-        <h2 className="napkin-block-title">Quarters</h2>
-        <div className="about-qtr-with-tape napkin-qtr-with-tape">
-          <div className="about-qtr-main">
-            {qtr.loading ? (
-              <p className="napkin-debug">Loading quarters…</p>
-            ) : qtr.error ? (
-              <p className="napkin-missing">{qtr.error}</p>
-            ) : qtr.panel?.labels?.length ? (
-              <QuarterPanel
-                panel={qtr.panel}
-                yoy={qtr.yoy}
-                price={price}
-                sourceNote={qtr.source}
-                compact
-              />
-            ) : (
-              <p className="napkin-missing">No quarterly data.</p>
-            )}
-          </div>
-          <QuoteTapeCard ticker={ticker} market={market} active />
-        </div>
+        <button
+          type="button"
+          className="napkin-details-toggle"
+          aria-expanded={showDetails}
+          onClick={() => setShowDetails((v) => !v)}
+        >
+          {showDetails ? "Hide details" : "Show quarters & rule detail"}
+        </button>
       </div>
+
+      {showDetails ? (
+        <div className="napkin-sheet-section">
+          <h2 className="napkin-block-title">Quarters</h2>
+          <div className="about-qtr-with-tape napkin-qtr-with-tape">
+            <div className="about-qtr-main">
+              {qtr.loading ? (
+                <p className="napkin-debug">Loading quarters…</p>
+              ) : qtr.error ? (
+                <p className="napkin-missing">{qtr.error}</p>
+              ) : qtr.panel?.labels?.length ? (
+                <QuarterPanel
+                  panel={qtr.panel}
+                  yoy={qtr.yoy}
+                  price={price}
+                  sourceNote={qtr.source}
+                  compact
+                />
+              ) : (
+                <p className="napkin-missing">No quarterly data.</p>
+              )}
+            </div>
+            <QuoteTapeCard ticker={ticker} market={market} active />
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
