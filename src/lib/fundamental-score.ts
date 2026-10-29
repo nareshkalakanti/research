@@ -34,14 +34,20 @@ export type FundamentalScoreResult = {
 export type FundamentalScoreInput = {
   /** Book value (Equity + Reserves), oldest → newest, ₹ Cr. */
   book_value?: Array<number | null> | null;
+  /** Equity / share capital — used to detect true capital raises. */
+  equity_capital?: Array<number | null> | null;
   /** Sales / revenue, oldest → newest, ₹ Cr. */
   sales?: Array<number | null> | null;
   /** Latest ROCE as ratio (0.16 = 16%) or percent (>1.5 → ÷100). */
   roce?: number | null;
   operating_profit?: number | null;
+  /** OP series oldest → newest (for multi-year interest cover). */
+  operating_profit_series?: Array<number | null> | null;
   /** Fallback when OP missing (NBFCs): cover uses (PBT + Interest) / Interest. */
   pbt?: number | null;
   interest?: number | null;
+  /** Interest series oldest → newest. */
+  interest_series?: Array<number | null> | null;
   fixed_assets?: Array<number | null> | null;
   other_income?: number | null;
   /** When true, net-block check is N/A (lenders / asset-light). */
@@ -56,8 +62,16 @@ const NET_BLOCK_MULT_MIN = 2;
 const OI_SALES_MAX = 0.1;
 const BV_SPAN_YEARS = 10;
 const SALES_PREF_YEARS = 10;
-/** YoY BV jump at/above this is treated as a capital raise; pre-jump history dropped. */
-const BV_RAISE_MULT = 4;
+/** Equity-capital YoY jump ⇒ capital raise; drop pre-raise BV / sales history. */
+const EQUITY_RAISE_MULT = 4;
+/** Ignore micro seed-capital → IPO noise (₹ Cr). */
+const EQUITY_RAISE_MIN_PRIOR = 1;
+/** YoY sales jump treated as structural break (restatement). */
+const SALES_JUMP_MULT = 4;
+/** After a structural cut, require this many years before longest-CAGR fallback. */
+const SALES_POST_JUMP_MIN_YEARS = 5;
+/** Interest cover must clear the bar in each of the last N years when series exist. */
+const INTEREST_COVER_YEARS = 3;
 
 function finite(v: number | null | undefined): v is number {
   return v != null && Number.isFinite(v);
@@ -124,22 +138,69 @@ export function seriesCagr(
 }
 
 /**
- * Drop BV history before a mega capital raise (e.g. IPO / preferential).
- * 10Y CAGR must then use post-raise history only.
+ * Drop history before a mega YoY jump (capital raise / restatement / IPO).
+ * Returns { series, cut } where cut > 0 means a structural break was found.
  */
-export function bookValueAfterRaises(
+export function seriesAfterJumps(
   values: Array<number | null> | null | undefined,
-): Array<number | null> | null {
-  if (!values?.length) return null;
+  jumpMult: number,
+  opts?: { minPrior?: number },
+): { series: Array<number | null> | null; cut: number } {
+  if (!values?.length) return { series: null, cut: 0 };
+  const minPrior = opts?.minPrior ?? 0;
   let cut = 0;
   for (let i = 1; i < values.length; i++) {
     const prev = values[i - 1];
     const cur = values[i];
-    if (finite(prev) && finite(cur) && prev > 0 && cur / prev >= BV_RAISE_MULT) {
+    if (
+      finite(prev) &&
+      finite(cur) &&
+      prev >= minPrior &&
+      prev > 0 &&
+      cur / prev >= jumpMult
+    ) {
       cut = i;
     }
   }
-  return cut > 0 ? values.slice(cut) : values;
+  return { series: cut > 0 ? values.slice(cut) : values, cut };
+}
+
+/** Index of last qualifying equity-capital raise, or 0. */
+export function equityRaiseCut(
+  equity_capital: Array<number | null> | null | undefined,
+): number {
+  return seriesAfterJumps(equity_capital, EQUITY_RAISE_MULT, {
+    minPrior: EQUITY_RAISE_MIN_PRIOR,
+  }).cut;
+}
+
+/**
+ * Drop BV history before a true capital raise (equity capital jump),
+ * falling back to BV jumps only when equity series is missing.
+ */
+export function bookValueAfterRaises(
+  book_value: Array<number | null> | null | undefined,
+  equity_capital?: Array<number | null> | null,
+): Array<number | null> | null {
+  if (!book_value?.length) return null;
+  const cut = equityRaiseCut(equity_capital);
+  if (cut > 0 && cut < book_value.length) {
+    return book_value.slice(cut);
+  }
+  if (!equity_capital?.some((v) => finite(v) && v >= EQUITY_RAISE_MIN_PRIOR)) {
+    return seriesAfterJumps(book_value, SALES_JUMP_MULT).series;
+  }
+  return book_value;
+}
+
+function coverFromEbitInterest(
+  ebit: number | null,
+  interest: number | null,
+): number | null {
+  if (!finite(ebit)) return null;
+  if (interest == null || interest === 0) return ebit > 0 ? Infinity : null;
+  if (!finite(interest) || interest < 0) return null;
+  return ebit / interest;
 }
 
 /** Longest positive span ending at latest finite point (min 1 year). */
@@ -179,7 +240,10 @@ export function fundamentalScore(
   const rules: FundamentalRule[] = [];
 
   {
-    const bvSeries = bookValueAfterRaises(input.book_value);
+    const bvSeries = bookValueAfterRaises(
+      input.book_value,
+      input.equity_capital,
+    );
     const cagr = seriesCagr(bvSeries, BV_SPAN_YEARS);
     let verdict: FundamentalRuleVerdict = "unknown";
     if (finite(cagr)) verdict = cagr > BV_CAGR_MIN ? "pass" : "fail";
@@ -197,13 +261,28 @@ export function fundamentalScore(
   }
 
   {
-    const pref = seriesCagr(input.sales, SALES_PREF_YEARS);
-    const long = longestCagr(input.sales);
+    const salesJump = seriesAfterJumps(input.sales, SALES_JUMP_MULT);
+    const eqCut = equityRaiseCut(input.equity_capital);
+    const cut = Math.max(salesJump.cut, eqCut);
+    const salesSeries =
+      cut > 0 && input.sales?.length
+        ? input.sales.slice(cut)
+        : (input.sales ?? null);
+    const truncated = cut > 0;
+    const pref = seriesCagr(salesSeries, SALES_PREF_YEARS);
+    const long = longestCagr(salesSeries);
+    // After IPO / restatement, only trust longest CAGR with enough years.
+    const longOk =
+      long != null &&
+      (!truncated || long.years >= SALES_POST_JUMP_MIN_YEARS);
     const usePref = finite(pref);
-    const cagr = usePref ? pref : (long?.cagr ?? null);
-    const years = usePref ? SALES_PREF_YEARS : (long?.years ?? null);
+    const cagr = usePref ? pref : longOk ? long!.cagr : null;
+    const years = usePref ? SALES_PREF_YEARS : longOk ? long!.years : null;
     let verdict: FundamentalRuleVerdict = "unknown";
     if (finite(cagr)) verdict = cagr > SALES_CAGR_MIN ? "pass" : "fail";
+    else if (truncated && salesSeries?.length) {
+      verdict = "fail";
+    }
     rules.push({
       id: "sales_cagr",
       label: years != null ? `Sales ${years}Y CAGR` : "Sales CAGR",
@@ -227,22 +306,48 @@ export function fundamentalScore(
   }
 
   {
-    const op = finite(input.operating_profit) ? input.operating_profit : null;
-    const pbt = finite(input.pbt) ? input.pbt : null;
-    const interest = finite(input.interest) ? input.interest : null;
+    const opSeries = input.operating_profit_series;
+    const intSeries = input.interest_series;
     let cover: number | null = null;
     let verdict: FundamentalRuleVerdict = "unknown";
-    const ebit =
-      finite(op) ? op : finite(pbt) && finite(interest) ? pbt + interest : null;
-    if (finite(ebit) && ebit > 0 && (interest == null || interest === 0)) {
-      cover = Infinity;
-      verdict = "pass";
-    } else if (finite(ebit) && finite(interest) && interest > 0) {
-      cover = ebit / interest;
-      verdict = cover > INTEREST_COVER_MIN ? "pass" : "fail";
-    } else if (finite(ebit) && ebit <= 0 && finite(interest) && interest > 0) {
-      cover = ebit / interest;
-      verdict = "fail";
+
+    const covers: number[] = [];
+    if (opSeries?.length && intSeries?.length) {
+      const n = Math.min(opSeries.length, intSeries.length);
+      for (let i = n - 1; i >= 0 && covers.length < INTEREST_COVER_YEARS; i--) {
+        const op = opSeries[i];
+        const interest = intSeries[i];
+        if (!finite(op) && !(finite(input.pbt) && i === n - 1)) continue;
+        const ebit =
+          finite(op)
+            ? op
+            : finite(input.pbt) && finite(interest)
+              ? input.pbt + interest
+              : null;
+        const c = coverFromEbitInterest(ebit, finite(interest) ? interest : null);
+        if (finite(c)) covers.push(c);
+      }
+    }
+
+    if (covers.length >= 2) {
+      cover = Math.min(...covers.map((c) => (c === Infinity ? 1e9 : c)));
+      if (cover >= 1e9) cover = Infinity;
+      verdict = covers.every(
+        (c) => c === Infinity || c > INTEREST_COVER_MIN,
+      )
+        ? "pass"
+        : "fail";
+    } else {
+      const op = finite(input.operating_profit) ? input.operating_profit : null;
+      const pbt = finite(input.pbt) ? input.pbt : null;
+      const interest = finite(input.interest) ? input.interest : null;
+      const ebit =
+        finite(op) ? op : finite(pbt) && finite(interest) ? pbt + interest : null;
+      cover = coverFromEbitInterest(ebit, interest);
+      if (finite(cover)) {
+        verdict =
+          cover === Infinity || cover > INTEREST_COVER_MIN ? "pass" : "fail";
+      }
     }
     rules.push({
       id: "interest_cover",

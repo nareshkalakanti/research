@@ -67,11 +67,18 @@ export function buildFundamentalFromParts(opts: {
   const lender = looksLikeLender(pl);
   return fundamentalScore({
     book_value: bs?.book_value?.some((v) => v != null) ? bs.book_value : null,
+    equity_capital: bs?.equity_capital?.some((v) => v != null)
+      ? bs.equity_capital
+      : null,
     sales: pl?.revenue?.length ? pl.revenue : null,
     roce: opts.roce,
     operating_profit: lastFinite(pl?.operating_profit),
+    operating_profit_series: pl?.operating_profit?.length
+      ? pl.operating_profit
+      : null,
     pbt: lastFinite(pl?.pbt),
     interest: lastFinite(pl?.interest),
+    interest_series: pl?.interest?.length ? pl.interest : null,
     fixed_assets: lender
       ? null
       : bs?.fixed_assets?.some((v) => v != null)
@@ -103,12 +110,14 @@ export function buildValuationFromStock(
   },
 ): ValuationScoreResult {
   let bookPs = opts?.book_value_ps ?? null;
+  // Prefer shares from mcap/price over ROE-implied BV (avoids stale/wrong BVPS).
   if (
     bookPs == null &&
     row.eps != null &&
     row.roe != null &&
     row.roe > 0.01 &&
-    row.eps > 0
+    row.eps > 0 &&
+    !(row.market_cap != null && row.price != null && row.price > 0)
   ) {
     bookPs = row.eps / row.roe;
   }
@@ -160,12 +169,17 @@ export async function computeNapkinEvalScores(
 
   let bookPs: number | null = null;
   const bookCr = lastFinite(bs?.book_value);
+  let shares = row.shares_outstanding;
   if (
-    bookCr != null &&
-    row.shares_outstanding != null &&
-    row.shares_outstanding > 0
+    (shares == null || shares <= 0) &&
+    row.market_cap != null &&
+    row.price != null &&
+    row.price > 0
   ) {
-    bookPs = (bookCr * 10_000_000) / row.shares_outstanding;
+    shares = row.market_cap / row.price;
+  }
+  if (bookCr != null && shares != null && shares > 0) {
+    bookPs = (bookCr * 10_000_000) / shares;
   }
 
   const valuation = buildValuationFromStock(row, { book_value_ps: bookPs });

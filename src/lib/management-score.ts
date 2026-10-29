@@ -141,18 +141,21 @@ export function managementScore(
     const dii = finite(input.dii_pct) ? input.dii_pct : null;
     let verdict: ManagementRuleVerdict = "unknown";
     let value: string | null = null;
+    // Meaningful institutional stake (token sub-1% holdings do not count).
+    const INST_MIN = 1;
     if (fii != null || dii != null) {
       const f = fii ?? 0;
       const d = dii ?? 0;
+      const total = f + d;
       value = `FII ${f.toFixed(2)}% · DII ${d.toFixed(2)}%`;
-      verdict = f > 0 || d > 0 ? "pass" : "fail";
+      verdict = total >= INST_MIN ? "pass" : "fail";
     }
     rules.push({
       id: "holding_investor",
       label: "Holding Investor",
       verdict,
       value,
-      threshold: "FII or DII > 0",
+      threshold: `FII+DII ≥ ${INST_MIN}%`,
     });
   }
 

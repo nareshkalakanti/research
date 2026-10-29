@@ -38,6 +38,14 @@ type Member = {
   window_pct: number | null;
   spark: Point[];
   tv_url: string;
+  sales_growth_3y?: number | null;
+  roce_3y?: number | null;
+  pb?: number | null;
+  growth_rank?: number | null;
+  roce_rank?: number | null;
+  pb_rank?: number | null;
+  total_score?: number | null;
+  rank?: number | null;
 };
 
 type Hit = { ticker: string; name: string; market?: string; source?: string };
@@ -48,9 +56,29 @@ function fmtPct(n: number | null): string {
   return `${sign}${n.toFixed(2)}%`;
 }
 
-function fmtCr(n: number | null): string {
+function fmtCr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })} Cr`;
+}
+
+function fmtPctPlain(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `${n.toFixed(2)}%`;
+}
+
+function fmtPb(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return n.toFixed(2);
+}
+
+/** Metric with intra-sector rank in parentheses, e.g. 4.18% (9). */
+function fmtRankedMetric(
+  value: string,
+  rank: number | null | undefined,
+): string {
+  if (value === "—") return "—";
+  if (rank == null || !Number.isFinite(rank)) return value;
+  return `${value} (${rank})`;
 }
 
 function sma(pts: Point[], n: number): Point[] {
@@ -942,6 +970,28 @@ export function SectorRotationPanel() {
     })();
   }, [pageIds, range, weight, boardTick]);
 
+  const bestSector = sortedCards[0] ?? null;
+  const stocksShown = useMemo(
+    () => sortedCards.reduce((sum, c) => sum + (c.n || 0), 0),
+    [sortedCards],
+  );
+  /** Only crow when Total Score ranking exists — never mcap / price fallback. */
+  const bestMemberTicker = useMemo(() => {
+    const rows = detail?.members ?? [];
+    const withRank = rows.filter(
+      (m) =>
+        m.rank != null &&
+        Number.isFinite(m.rank) &&
+        m.total_score != null &&
+        Number.isFinite(m.total_score),
+    );
+    if (!withRank.length) return null;
+    return (
+      [...withRank].sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9))[0]
+        ?.ticker ?? null
+    );
+  }, [detail?.members]);
+
   const shownMembers = useMemo(() => {
     const needle = memberQ.trim().toLowerCase();
     const rows = detail?.members ?? [];
@@ -1377,6 +1427,35 @@ export function SectorRotationPanel() {
 
       {error ? <div className="table-meta">{error}</div> : null}
 
+      {!openId ? (
+        <div className="rot-stats" aria-label="Rotation summary">
+          <div className="rot-stat">
+            <span className="rot-stat-k">Sectors shown</span>
+            <span className="rot-stat-v">{sortedCards.length}</span>
+          </div>
+          <div className="rot-stat">
+            <span className="rot-stat-k">Stocks</span>
+            <span className="rot-stat-v">{stocksShown}</span>
+          </div>
+          <div className="rot-stat rot-stat--best">
+            <span className="rot-stat-k">Best ranked</span>
+            <button
+              type="button"
+              className="rot-stat-v rot-stat-best-name"
+              disabled={!bestSector}
+              title={
+                bestSector
+                  ? `Open ${bestSector.label} · ${fmtPct(bestSector.sector_pct ?? bestSector.today_pct ?? null)}`
+                  : undefined
+              }
+              onClick={() => bestSector && setOpenId(bestSector.id)}
+            >
+              {bestSector?.label ?? (ranking ? "…" : "—")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {openId ? (
         <div className="rot-detail">
           <div className="rot-detail-bar">
@@ -1416,6 +1495,21 @@ export function SectorRotationPanel() {
             >
               Delete sector
             </button>
+          </div>
+          <div className="rot-stats rot-stats--detail" aria-label="Sector leaders">
+            <div className="rot-stat">
+              <span className="rot-stat-k">Companies shown</span>
+              <span className="rot-stat-v">{shownMembers.length}</span>
+            </div>
+            <div className="rot-stat rot-stat--best">
+              <span className="rot-stat-k">Best ranked</span>
+              <span className="rot-stat-v rot-stat-best-name">
+                {bestMemberTicker
+                  ? (detail?.members.find((m) => m.ticker === bestMemberTicker)
+                      ?.name ?? bestMemberTicker)
+                  : "—"}
+              </span>
+            </div>
           </div>
           {openCard && openCard.sector.length > 1 ? (
             <DualSpark
@@ -1462,11 +1556,22 @@ export function SectorRotationPanel() {
           <table className="rot-table rot-table--members">
             <thead>
               <tr>
-                <th className="rot-col-num">#</th>
-                <th className="rot-col-stock">Stock name</th>
+                <th className="rot-col-num">Rank</th>
+                <th className="rot-col-stock">Company</th>
                 <th className="rot-col-sym">Symbol</th>
-                <th className="rot-col-num">Mcap</th>
-                <th className="rot-col-num">Price</th>
+                <th className="rot-col-num">Market Cap</th>
+                <th className="rot-col-num" title="Higher sales growth → better rank">
+                  Sales Growth 3Y ↑
+                </th>
+                <th className="rot-col-num" title="Higher ROCE → better rank">
+                  ROCE 3Y ↑
+                </th>
+                <th className="rot-col-num" title="Lower P/B → better rank">
+                  P/B ↓
+                </th>
+                <th className="rot-col-num" title="Sum of ranks · lower is better">
+                  Total Score
+                </th>
                 <th className="rot-col-num">Today %</th>
                 <th className="rot-col-num">Change %</th>
                 <th className="rot-col-trend">Trend</th>
@@ -1474,10 +1579,22 @@ export function SectorRotationPanel() {
               </tr>
             </thead>
             <tbody>
-              {shownMembers.map((m, i) => (
-                <tr key={m.ticker}>
-                  <td className="rot-num">{i + 1}</td>
+              {shownMembers.map((m) => (
+                <tr
+                  key={m.ticker}
+                  className={
+                    m.ticker === bestMemberTicker ? "rot-row--best" : undefined
+                  }
+                >
+                  <td className="rot-num">
+                    {m.rank != null && Number.isFinite(m.rank) ? m.rank : "—"}
+                  </td>
                   <td className="rot-stock">
+                    {m.rank === 1 ? (
+                      <span className="rot-best-pill" title="Best ranked in sector">
+                        Best
+                      </span>
+                    ) : null}
                     {m.tv_url ? (
                       <a
                         href={m.tv_url}
@@ -1494,10 +1611,20 @@ export function SectorRotationPanel() {
                   <td className="mono rot-sym">{m.ticker}</td>
                   <td className="rot-num">{fmtCr(m.mcap_cr)}</td>
                   <td className="rot-num">
-                    {m.price != null
-                      ? `₹${m.price.toLocaleString("en-IN", {
-                          maximumFractionDigits: 2,
-                        })}`
+                    {fmtRankedMetric(
+                      fmtPctPlain(m.sales_growth_3y),
+                      m.growth_rank,
+                    )}
+                  </td>
+                  <td className="rot-num">
+                    {fmtRankedMetric(fmtPctPlain(m.roce_3y), m.roce_rank)}
+                  </td>
+                  <td className="rot-num">
+                    {fmtRankedMetric(fmtPb(m.pb), m.pb_rank)}
+                  </td>
+                  <td className="rot-num rot-total-score">
+                    {m.total_score != null && Number.isFinite(m.total_score)
+                      ? m.total_score
                       : "—"}
                   </td>
                   <td
@@ -1581,7 +1708,13 @@ export function SectorRotationPanel() {
           </thead>
           <tbody>
             {pageCards.map((c) => (
-              <tr key={c.id} className="rot-row" onClick={() => setOpenId(c.id)}>
+              <tr
+                key={c.id}
+                className={
+                  c.id === bestSector?.id ? "rot-row rot-row--best" : "rot-row"
+                }
+                onClick={() => setOpenId(c.id)}
+              >
                 <td>
                   <button
                     type="button"
@@ -1594,7 +1727,12 @@ export function SectorRotationPanel() {
                     ★
                   </button>
                 </td>
-                <td>{c.label}</td>
+                <td>
+                  {c.id === bestSector?.id ? (
+                    <span className="rot-best-pill">Best</span>
+                  ) : null}
+                  {c.label}
+                </td>
                 <td>
                   {c.n}
                   {(c.up ?? 0) > 0 ? (
@@ -1623,7 +1761,9 @@ export function SectorRotationPanel() {
           {pageCards.map((c) => (
             <article
               key={c.id}
-              className="rot-card"
+              className={
+                c.id === bestSector?.id ? "rot-card rot-card--best" : "rot-card"
+              }
               tabIndex={0}
               role="button"
               onClick={() => setOpenId(c.id)}
@@ -1635,7 +1775,12 @@ export function SectorRotationPanel() {
               }}
             >
               <div className="rot-card-top">
-                <strong>{c.label}</strong>
+                <strong>
+                  {c.id === bestSector?.id ? (
+                    <span className="rot-best-pill">Best</span>
+                  ) : null}
+                  {c.label}
+                </strong>
                 <span className="rot-card-ret">
                   <span className={(c.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
                     Sector {fmtPct(c.sector_pct)}
