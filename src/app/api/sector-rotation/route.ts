@@ -16,7 +16,10 @@ import {
   buildRotationLiteBoard,
   hydrateRotationCards,
   rankRotationBoard,
+  loadRotationMemberHtPatches,
+  refreshAllMissingHtIv,
   refreshAllRotationMetricsGaps,
+  refreshMissingHtIvForMembers,
   refreshRotationMemberMetrics,
 } from "@/lib/sector-rotation-board";
 
@@ -87,6 +90,8 @@ export async function POST(req: NextRequest) {
     star?: boolean;
     starred?: boolean;
     refreshMetrics?: boolean;
+    /** Fill missing Sales Growth / ROCE / P/B (Hard-Truth ranking legs). */
+    refreshHt?: boolean;
     ticker?: string;
     name?: string;
     market?: string;
@@ -97,6 +102,23 @@ export async function POST(req: NextRequest) {
     body = {};
   }
   try {
+    if (body.refreshHt) {
+      const id = (body.id || "").trim();
+      if (id) {
+        const sector = getRotationSector(id);
+        if (!sector) {
+          return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
+        }
+        const result = await refreshMissingHtIvForMembers(sector.members);
+        const members = loadRotationMemberHtPatches(
+          sector.members,
+          sector.label,
+        );
+        return NextResponse.json({ ok: true, ...result, members });
+      }
+      const result = await refreshAllMissingHtIv();
+      return NextResponse.json({ ok: true, ...result });
+    }
     if (body.refreshMetrics) {
       const id = (body.id || "").trim();
       if (id) {

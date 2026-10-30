@@ -76,6 +76,19 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
 
   return (
     <>
+      <div className="napkin-sheet-section napkin-path-hero">
+        <dl className="napkin-dl napkin-val napkin-path-hero-dl">
+          <div className="napkin-dl-row napkin-path-hero-row">
+            <dt>Future Value</dt>
+            <dd>{formatNapkinRupee(path.case.future_price)}</dd>
+          </div>
+          <div className="napkin-dl-row napkin-path-hero-row">
+            <dt>Current Price</dt>
+            <dd>{formatNapkinRupee(price)}</dd>
+          </div>
+        </dl>
+      </div>
+
       <div className="napkin-sheet-section">
         <h2 className="napkin-block-title">Napkin</h2>
         <dl className="napkin-dl napkin-val">
@@ -236,14 +249,6 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
           <div className="napkin-dl-row">
             <dt>Exit P/E</dt>
             <dd>{napkinPeDisplay(exitPe != null ? exitPe.toFixed(1) : "N/A")}</dd>
-          </div>
-          <div className="napkin-dl-row">
-            <dt>Future Value</dt>
-            <dd>{formatNapkinRupee(path.case.future_price)}</dd>
-          </div>
-          <div className="napkin-dl-row">
-            <dt>Current Price</dt>
-            <dd>{formatNapkinRupee(price)}</dd>
           </div>
           <div className="napkin-dl-row">
             <dt>Implied Price CAGR</dt>

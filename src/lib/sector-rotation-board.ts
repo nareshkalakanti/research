@@ -11,12 +11,14 @@ import {
 import { NIFTY_INDEX_META } from "./nse-index-constituents";
 import {
   capWeightIndex,
+  downsampleSeries,
   equalWeightIndex,
   rebaseCloses,
-  rotationMaLookbackStart,
+  rotationFetchYears,
+  rotationMaxLookbackStart,
   rotationWindowStart,
-  rotationYearsBack,
   seriesReturnPct,
+  windowRebaseSeries,
   type SeriesPoint,
 } from "./sector-rotation-series";
 import {
@@ -30,7 +32,7 @@ import { loadHtIvMap, upsertHtIvRows } from "./strategy/ht-store";
 import type { HtCachedRow, HtStockRow } from "./strategy/ht-types";
 
 /** Complete HT legs usable for intra-sector ranking (freshness optional). */
-function htRankable(ht: HtCachedRow | undefined): ht is HtCachedRow {
+function htRankable(ht: HtCachedRow | undefined): boolean {
   return (
     !!ht &&
     ht.status === "ok" &&
@@ -77,14 +79,17 @@ async function fetchHtIvFromScreener(opts: {
   ticker: string;
   market?: string | null;
   name?: string | null;
+  /** Bypass Screener TTL so a prior empty scrape does not stick. */
+  force?: boolean;
 }): Promise<HtCachedRow> {
   const ticker = opts.ticker.toUpperCase();
   const now = new Date().toISOString();
+  const force = opts.force === true;
   try {
     const [annual, bs, ratios] = await Promise.all([
-      fetchScreenerAnnual(ticker),
-      fetchScreenerAnnualBs(ticker),
-      fetchScreenerTopRatios(ticker),
+      fetchScreenerAnnual(ticker, { force }),
+      fetchScreenerAnnualBs(ticker, { force }),
+      fetchScreenerTopRatios(ticker, { force }),
     ]);
     const growth = salesCagr3yPct(annual.sales);
     const roce = roceAvg3yPct(annual.roce);
@@ -199,6 +204,157 @@ async function ensureHtIvForMembers(
   return loadHtIvMap();
 }
 
+export function countMissingHtIv(members: SectorMember[]): number {
+  const cache = loadHtIvMap();
+  return members.filter((m) => !htRankable(cache.get(m.ticker.toUpperCase())))
+    .length;
+}
+
+/**
+ * User-triggered fill for Sales Growth / ROCE / P/B gaps.
+ * Prefer Screener (Yahoo often 429s); process every incomplete member.
+ */
+export async function refreshMissingHtIvForMembers(
+  members: SectorMember[],
+): Promise<{ tried: number; filled: number; still_missing: number }> {
+  const cache = loadHtIvMap();
+  const need = members.filter(
+    (m) => !htRankable(cache.get(m.ticker.toUpperCase())),
+  );
+  if (!need.length) {
+    return { tried: 0, filled: 0, still_missing: 0 };
+  }
+
+  const results: HtCachedRow[] = await runConcurrent(need, 2, async (m) => {
+    const prev = cache.get(m.ticker.toUpperCase());
+    // Screener first — force refresh so a prior empty scrape does not stick.
+    let row = await fetchHtIvFromScreener({
+      ticker: m.ticker,
+      market: m.market,
+      name: m.name,
+      force: true,
+    });
+    if (!htRankable(row)) {
+      const viaYahoo = await fetchHtIvForTicker({
+        ticker: m.ticker,
+        market: m.market,
+        name: m.name,
+      });
+      if (htRankable(viaYahoo)) row = viaYahoo;
+      else if (isHtRateLimited(viaYahoo) && htRankable(prev)) return prev!;
+      else if (htRankable(prev)) return prev!;
+    }
+    return row;
+  });
+
+  const toSave = results.filter((r) => {
+    if (htRankable(r)) return true;
+    if (isHtRateLimited(r)) return false;
+    const prev = cache.get(r.ticker.toUpperCase());
+    return !htRankable(prev);
+  });
+  if (toSave.length) upsertHtIvRows(toSave);
+
+  const next = loadHtIvMap();
+  const filled = need.filter((m) =>
+    htRankable(next.get(m.ticker.toUpperCase())),
+  ).length;
+  const still_missing = need.length - filled;
+  return { tried: need.length, filled, still_missing };
+}
+
+export async function refreshAllMissingHtIv(): Promise<{
+  tried: number;
+  filled: number;
+  still_missing: number;
+}> {
+  const seen = new Map<string, SectorMember>();
+  for (const s of listRotationSectors()) {
+    for (const m of s.members) {
+      const k = m.ticker.toUpperCase();
+      if (!seen.has(k)) seen.set(k, m);
+    }
+  }
+  return refreshMissingHtIvForMembers([...seen.values()]);
+}
+
+export type RotationMemberHtPatch = {
+  ticker: string;
+  sales_growth_3y: number | null;
+  roce_3y: number | null;
+  pb: number | null;
+  growth_rank: number | null;
+  roce_rank: number | null;
+  pb_rank: number | null;
+  total_score: number | null;
+  rank: number | null;
+};
+
+/**
+ * Rank HT legs from cache only — no OHLC / chart rebuild.
+ * Used after "Refresh missing" so the UI can patch the table in place.
+ */
+export function loadRotationMemberHtPatches(
+  members: SectorMember[],
+  sectorLabel: string,
+): RotationMemberHtPatch[] {
+  const cache = loadHtIvMap();
+  const metrics = loadMetricsMap();
+  const base = members.map((m) => {
+    const key = m.ticker.toUpperCase();
+    const ht = cache.get(key);
+    const ok = htRankable(ht);
+    const met = metrics.get(key);
+    return {
+      ticker: key,
+      market: m.market,
+      name: m.name,
+      price: met?.price ?? ht?.price ?? null,
+      market_cap_cr: met?.market_cap_cr ?? ht?.market_cap_cr ?? null,
+      sales_growth_3y: ok ? ht!.sales_growth_3y : null,
+      roce_3y: ok ? ht!.roce_3y : null,
+      pb: ok ? ht!.pb : null,
+    };
+  });
+  const htRows: HtStockRow[] = base
+    .filter(
+      (m) =>
+        m.sales_growth_3y != null &&
+        m.roce_3y != null &&
+        m.pb != null &&
+        m.pb > 0,
+    )
+    .map((m) => ({
+      ticker: m.ticker,
+      market: m.market,
+      name: m.name,
+      sector: sectorLabel,
+      sub_sector: null,
+      price: m.price,
+      market_cap_cr: m.market_cap_cr,
+      sales_growth_3y: m.sales_growth_3y!,
+      roce_3y: m.roce_3y!,
+      pb: m.pb!,
+      pe_ratio: null,
+    }));
+  const ranked = rankIntrinsicValue(htRows);
+  const byTicker = new Map(ranked.map((r) => [r.ticker.toUpperCase(), r]));
+  return base.map((m) => {
+    const r = byTicker.get(m.ticker);
+    return {
+      ticker: m.ticker,
+      sales_growth_3y: m.sales_growth_3y,
+      roce_3y: m.roce_3y,
+      pb: m.pb,
+      growth_rank: r?.growth_rank ?? null,
+      roce_rank: r?.roce_rank ?? null,
+      pb_rank: r?.pb_rank ?? null,
+      total_score: r?.total_score ?? null,
+      rank: r?.rank ?? null,
+    };
+  });
+}
+
 /** Refresh Yahoo quotes for members missing price / mcap / today %. */
 export async function refreshRotationMemberMetrics(
   members: SectorMember[],
@@ -241,6 +397,8 @@ export type RotationMemberRow = {
   change_pct: number | null;
   window_pct: number | null;
   spark: SeriesPoint[];
+  /** Long unrebased-to-window path for client range switches. */
+  spark_full?: SeriesPoint[];
   tv_url: string;
   /** Hard-Truth / Ranked Companies legs (within this sector). */
   sales_growth_3y?: number | null;
@@ -266,6 +424,9 @@ export type RotationSectorCard = {
   search: string;
   sector: SeriesPoint[];
   bench: SeriesPoint[];
+  /** Max-lookback series so shorter range chips window without refetch. */
+  sector_full?: SeriesPoint[];
+  bench_full?: SeriesPoint[];
 };
 
 function dayStats(
@@ -353,16 +514,6 @@ function liteCard(
   };
 }
 
-function downsamplePoints(pts: SeriesPoint[], max = 72): SeriesPoint[] {
-  if (pts.length <= max) return pts;
-  const step = (pts.length - 1) / (max - 1);
-  const out: SeriesPoint[] = [];
-  for (let i = 0; i < max; i++) {
-    out.push(pts[Math.round(i * step)]!);
-  }
-  return out;
-}
-
 async function cardWithSeries(
   s: RotationSector,
   years: number,
@@ -370,20 +521,14 @@ async function cardWithSeries(
   lookback: string,
   weight: RotationWeight,
   metrics: ReturnType<typeof loadMetricsMap>,
-  bench: SeriesPoint[],
-  bench_pct: number | null,
+  benchLong: SeriesPoint[],
   spark = true,
 ): Promise<RotationSectorCard> {
   const packed = await memberBars(s.members, years);
   const seriesLong = sectorIndex(packed, lookback, weight, metrics);
-  const first = seriesLong.find((p) => p.date >= start);
-  const lastPt = seriesLong[seriesLong.length - 1];
-  const sector_pct =
-    first && lastPt && first.value > 0
-      ? ((lastPt.value - first.value) / first.value) * 100
-      : null;
+  const windowed = windowRebaseSeries(seriesLong, start);
+  const benchWin = windowRebaseSeries(benchLong, start);
   const day = dayStats(s.members, metrics);
-  const windowed = seriesLong.filter((p) => p.date >= start);
   return {
     id: s.id,
     label: s.label,
@@ -391,14 +536,16 @@ async function cardWithSeries(
     up: day.up,
     down: day.down,
     starred: s.starred,
-    sector_pct,
-    bench_pct,
+    sector_pct: seriesReturnPct(windowed),
+    bench_pct: seriesReturnPct(benchWin),
     today_pct: day.today_pct,
     search: [s.label, ...s.members.map((m) => `${m.ticker} ${m.name}`)]
       .join(" ")
       .toLowerCase(),
-    sector: spark ? downsamplePoints(windowed) : seriesLong,
-    bench: spark ? downsamplePoints(bench) : bench,
+    sector: spark ? downsampleSeries(windowed) : seriesLong,
+    bench: spark ? downsampleSeries(benchWin) : benchWin,
+    sector_full: seriesLong,
+    bench_full: benchLong,
   };
 }
 
@@ -426,16 +573,15 @@ export async function hydrateRotationCards(
     ids.map((id) => id.trim()).filter(Boolean),
   );
   const sectors = listRotationSectors().filter((s) => want.has(s.id));
-  const years = rotationYearsBack(range);
+  const years = rotationFetchYears();
   const metrics = loadMetricsMap();
   const nifty = await fetchNifty500DailyBars(years);
   const last = nifty[nifty.length - 1]?.date || "";
   const start = rotationWindowStart(last, range);
-  const lookback = rotationMaLookbackStart(start);
-  const bench = rebaseCloses(nifty, start);
-  const bench_pct = seriesReturnPct(bench);
+  const lookback = rotationMaxLookbackStart(last);
+  const benchLong = rebaseCloses(nifty, lookback);
   const cards = await runConcurrent(sectors, 3, (s) =>
-    cardWithSeries(s, years, start, lookback, weight, metrics, bench, bench_pct, true),
+    cardWithSeries(s, years, start, lookback, weight, metrics, benchLong, true),
   );
   return {
     range: (range || "6M").toUpperCase(),
@@ -460,14 +606,13 @@ export async function rankRotationBoard(
   sectors: RotationSectorCard[];
 }> {
   const sectors = listRotationSectors();
-  const years = rotationYearsBack(range);
+  const years = rotationFetchYears();
   const metrics = loadMetricsMap();
   const nifty = await fetchNifty500DailyBars(years);
   const last = nifty[nifty.length - 1]?.date || "";
   const start = rotationWindowStart(last, range);
-  const lookback = rotationMaLookbackStart(start);
-  const bench = rebaseCloses(nifty, start);
-  const bench_pct = seriesReturnPct(bench);
+  const lookback = rotationMaxLookbackStart(last);
+  const benchLong = rebaseCloses(nifty, lookback);
   const cards = await runConcurrent(sectors, 4, async (s) => {
     const card = await cardWithSeries(
       s,
@@ -476,11 +621,17 @@ export async function rankRotationBoard(
       lookback,
       weight,
       metrics,
-      bench,
-      bench_pct,
+      benchLong,
       false,
     );
-    return { ...card, sector: [], bench: [] };
+    // Rank payload is pct-only; keep *_full empty so clients don't drop charts.
+    return {
+      ...card,
+      sector: [],
+      bench: [],
+      sector_full: undefined,
+      bench_full: undefined,
+    };
   });
   return {
     range: (range || "6M").toUpperCase(),
@@ -520,7 +671,7 @@ export async function buildRotationDetail(
 }> {
   // Fill missing mcap / price / today % before painting the member table
   await refreshRotationMemberMetrics(sector.members);
-  const years = rotationYearsBack(range);
+  const years = rotationFetchYears();
   const metrics = loadMetricsMap();
   const [nifty, packed, htCache] = await Promise.all([
     fetchNifty500DailyBars(years),
@@ -537,19 +688,17 @@ export async function buildRotationDetail(
       .at(-1) ||
     "";
   const start = rotationWindowStart(last, range);
-  const lookback = rotationMaLookbackStart(start);
-  const bench = rebaseCloses(nifty, start);
+  const lookback = rotationMaxLookbackStart(last);
+  const benchLong = rebaseCloses(nifty, lookback);
+  const bench = windowRebaseSeries(benchLong, start);
   const seriesLong = sectorIndex(packed, lookback, weight, metrics);
-  const first = seriesLong.find((p) => p.date >= start);
-  const lastPt = seriesLong[seriesLong.length - 1];
-  const sector_pct =
-    first && lastPt && first.value > 0
-      ? ((lastPt.value - first.value) / first.value) * 100
-      : null;
+  const windowed = windowRebaseSeries(seriesLong, start);
+  const sector_pct = seriesReturnPct(windowed);
   const members: RotationMemberRow[] = packed.map(({ member, bars }) => {
     const key = member.ticker.toUpperCase();
     const m = metrics.get(key);
-    const spark = rebaseCloses(bars, start);
+    const sparkFull = rebaseCloses(bars, lookback);
+    const spark = windowRebaseSeries(sparkFull, start);
     const lastClose = bars[bars.length - 1]?.close;
     const prevClose = bars[bars.length - 2]?.close;
     const barToday =
@@ -573,10 +722,11 @@ export async function buildRotationDetail(
       change_pct: m?.change_pct ?? barToday,
       window_pct: seriesReturnPct(spark),
       spark,
+      spark_full: sparkFull,
       tv_url: tradingviewUrl(member.ticker, member.market),
-      sales_growth_3y: htOk ? ht.sales_growth_3y : null,
-      roce_3y: htOk ? ht.roce_3y : null,
-      pb: htOk ? ht.pb : null,
+      sales_growth_3y: htOk ? ht?.sales_growth_3y ?? null : null,
+      roce_3y: htOk ? ht?.roce_3y ?? null : null,
+      pb: htOk ? ht?.pb ?? null : null,
     };
   });
 
@@ -635,8 +785,11 @@ export async function buildRotationDetail(
       bench_pct: seriesReturnPct(bench),
       today_pct: day.today_pct,
       search: "",
+      // Long sector path for MA warm-up; bench is windowed for DualSpark plotFrom.
       sector: seriesLong,
       bench,
+      sector_full: seriesLong,
+      bench_full: benchLong,
     },
     members,
   };

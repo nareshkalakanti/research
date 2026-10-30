@@ -585,10 +585,15 @@ export function CompanyNetworkTable({
   onPerson,
   chartUrl,
   onTargetTicker,
+  refreshKey = 0,
+  onLoadingChange,
 }: {
   onPerson: (personId: string, name: string) => void;
   chartUrl?: (ticker: string) => string;
   onTargetTicker?: (ticker: string) => void;
+  /** Bump to re-fetch with refresh=1 (force metrics sync). */
+  refreshKey?: number;
+  onLoadingChange?: (loading: boolean) => void;
 }) {
   const [mode, setMode] = useState<Mode>("gap");
   const [q, setQ] = useState("");
@@ -714,6 +719,10 @@ export function CompanyNetworkTable({
   const capsKey = caps ? caps.join(",") : "";
 
   useEffect(() => {
+    onLoadingChange?.(loading);
+  }, [loading, onLoadingChange]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -722,6 +731,7 @@ export function CompanyNetworkTable({
       page: String(page),
       pageSize: "50",
     });
+    if (refreshKey > 0) params.set("refresh", "1");
     if (q.trim()) params.set("q", q.trim());
     if (mode === "connectivity" && capsKey) params.set("caps", capsKey);
     if (mode === "discovery") {
@@ -974,6 +984,7 @@ export function CompanyNetworkTable({
     gmapTick,
     newPane,
     anomaly,
+    refreshKey,
   ]);
 
   useEffect(() => {
@@ -1002,6 +1013,7 @@ export function CompanyNetworkTable({
             sort: "ratio",
             targetTicker: drillTicker,
           });
+    if (refreshKey > 0) params.set("refresh", "1");
     void fetch(`/api/governance-map?${params}`, { cache: "no-store" })
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1017,7 +1029,7 @@ export function CompanyNetworkTable({
     return () => {
       cancelled = true;
     };
-  }, [mode, drillTicker, days, maxTargetFilter]);
+  }, [mode, drillTicker, days, maxTargetFilter, refreshKey]);
 
   useEffect(() => {
     if (mode !== "directors" || !hubPerson) {
