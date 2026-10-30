@@ -45,6 +45,15 @@ export function rotationYearsBack(range: string): number {
   return 1 + maYears;
 }
 
+/** Always pull enough OHLC for the longest chip + MA warm-up; shorter ranges window locally. */
+export function rotationFetchYears(): number {
+  return rotationYearsBack("5Y");
+}
+
+export function rotationMaxLookbackStart(lastDate: string): string {
+  return rotationMaLookbackStart(rotationWindowStart(lastDate, "5Y"));
+}
+
 export function rotationWindowStart(lastDate: string, range: string): string {
   const last = (lastDate || "").slice(0, 10);
   if (!last) return "1970-01-01";
@@ -53,6 +62,42 @@ export function rotationWindowStart(lastDate: string, range: string): string {
   const d = new Date(`${last}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() - rotationRangeDays(key));
   return d.toISOString().slice(0, 10);
+}
+
+/** True when `points` begins on or before the window start (can slice locally). */
+export function seriesCoversStart(
+  points: SeriesPoint[],
+  startDate: string,
+): boolean {
+  const first = points[0]?.date;
+  const start = (startDate || "").slice(0, 10);
+  return !!first && !!start && first <= start;
+}
+
+/** Filter to `[startDate, …]` and rebase first point to `base`. */
+export function windowRebaseSeries(
+  points: SeriesPoint[],
+  startDate: string,
+  base = 100,
+): SeriesPoint[] {
+  const start = (startDate || "").slice(0, 10);
+  const win = points.filter(
+    (p) => p.date >= start && Number.isFinite(p.value) && p.value > 0,
+  );
+  const first = win[0];
+  if (!first || !(first.value > 0)) return [];
+  const k = base / first.value;
+  return win.map((p) => ({ date: p.date, value: p.value * k }));
+}
+
+export function downsampleSeries(pts: SeriesPoint[], max = 72): SeriesPoint[] {
+  if (pts.length <= max) return pts;
+  const step = (pts.length - 1) / (max - 1);
+  const out: SeriesPoint[] = [];
+  for (let i = 0; i < max; i++) {
+    out.push(pts[Math.round(i * step)]!);
+  }
+  return out;
 }
 
 /** Close path rebased to `base` on the first bar in window. */

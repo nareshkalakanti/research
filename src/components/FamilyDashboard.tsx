@@ -70,6 +70,8 @@ export function FamilyDashboard() {
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [refreshingBox, setRefreshingBox] = useState<string | null>(null);
+  const [networkRefreshKey, setNetworkRefreshKey] = useState(0);
+  const [networkLoading, setNetworkLoading] = useState(false);
   const [holdPattern, setHoldPattern] = useState<{
     tickers: string[];
     lines: string[];
@@ -206,6 +208,7 @@ export function FamilyDashboard() {
         });
       } else if (dashView === "holdings") void loadHoldingMaps({ refresh: true });
       else if (dashView === "groups") void load({ refresh: true });
+      else if (dashView === "network") setNetworkRefreshKey((k) => k + 1);
     };
     window.addEventListener(GOV_MAP_CHANGED, onChange);
     return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
@@ -839,36 +842,44 @@ export function FamilyDashboard() {
             {adding ? "Cancel" : "Add group"}
           </button>
           ) : null}
+            </>
+          ) : null}
+          {dashView !== "stock" ? (
           <button
             type="button"
             className="btn-ghost"
             onClick={() =>
-              void (dashView === "people"
-                ? loadPeople({
-                    refresh: true,
-                    q: q.trim().length >= 2 ? q.trim() : undefined,
-                  })
-                : dashView === "holdings"
-                  ? loadHoldingMaps({ refresh: true })
-                  : load({ refresh: true }))
+              void (dashView === "network"
+                ? setNetworkRefreshKey((k) => k + 1)
+                : dashView === "people"
+                  ? loadPeople({
+                      refresh: true,
+                      q: q.trim().length >= 2 ? q.trim() : undefined,
+                    })
+                  : dashView === "holdings"
+                    ? loadHoldingMaps({ refresh: true })
+                    : load({ refresh: true }))
             }
             disabled={
-              dashView === "people"
+              dashView === "network"
+                ? networkLoading
+                : dashView === "people"
+                  ? peopleLoading
+                  : dashView === "holdings"
+                    ? holdingsLoading
+                    : loading
+            }
+          >
+            {(dashView === "network"
+              ? networkLoading
+              : dashView === "people"
                 ? peopleLoading
                 : dashView === "holdings"
                   ? holdingsLoading
-                  : loading
-            }
-          >
-            {(dashView === "people"
-              ? peopleLoading
-              : dashView === "holdings"
-                ? holdingsLoading
-                : loading)
+                  : loading)
               ? "Loading…"
               : "Refresh"}
           </button>
-            </>
           ) : null}
         </div>
       </div>
@@ -973,6 +984,8 @@ export function FamilyDashboard() {
             setStockFocus(t);
             setDashView("stock");
           }}
+          refreshKey={networkRefreshKey}
+          onLoadingChange={setNetworkLoading}
         />
       ) : dashView === "stock" ? (
         <StockNetworkSearch

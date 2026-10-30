@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import {
   capWeightIndex,
+  downsampleSeries,
   equalWeightIndex,
   rebaseCloses,
+  rotationFetchYears,
   rotationMaLookbackStart,
+  rotationYearsBack,
+  seriesCoversStart,
   seriesReturnPct,
+  windowRebaseSeries,
 } from "../src/lib/sector-rotation-series";
 
 const a = [
@@ -62,5 +67,21 @@ const byDate = new Map(sparseEq.map((p) => [p.date, p.value]));
 assert.ok(Math.abs((byDate.get("2026-01-03") ?? 0) - 150) < 1e-9);
 // On 01-04 only dense prints; sparse carries 200 → (100 + 200) / 2 = 150 (not 100)
 assert.ok(Math.abs((byDate.get("2026-01-04") ?? 0) - 150) < 1e-9);
+
+const long = [
+  { date: "2026-01-01", value: 50 },
+  { date: "2026-02-01", value: 75 },
+  { date: "2026-03-01", value: 100 },
+  { date: "2026-04-01", value: 125 },
+];
+assert.equal(seriesCoversStart(long, "2026-02-01"), true);
+assert.equal(seriesCoversStart(long, "2025-12-01"), false);
+const win = windowRebaseSeries(long, "2026-02-01");
+assert.equal(win[0]?.date, "2026-02-01");
+assert.ok(Math.abs((win[0]?.value ?? 0) - 100) < 1e-9);
+assert.ok(Math.abs((win[win.length - 1]?.value ?? 0) - (125 / 75) * 100) < 1e-9);
+assert.equal(downsampleSeries(long, 2).length, 2);
+assert.ok(rotationFetchYears() >= rotationYearsBack("5Y"));
+assert.equal(rotationFetchYears(), rotationYearsBack("5Y"));
 
 console.log("ok");

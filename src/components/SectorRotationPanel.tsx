@@ -9,7 +9,15 @@ import {
 } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { isRightsOrPartlyPaid } from "@/lib/listing-name-match";
-import { ROTATION_MA_PERIODS, ROTATION_RANGES } from "@/lib/sector-rotation-series";
+import {
+  downsampleSeries,
+  ROTATION_MA_PERIODS,
+  ROTATION_RANGES,
+  rotationWindowStart,
+  seriesCoversStart,
+  seriesReturnPct,
+  windowRebaseSeries,
+} from "@/lib/sector-rotation-series";
 
 type Point = { date: string; value: number };
 
@@ -26,6 +34,8 @@ type Card = {
   search?: string;
   sector: Point[];
   bench: Point[];
+  sector_full?: Point[];
+  bench_full?: Point[];
 };
 
 type Member = {
@@ -37,6 +47,7 @@ type Member = {
   change_pct: number | null;
   window_pct: number | null;
   spark: Point[];
+  spark_full?: Point[];
   tv_url: string;
   sales_growth_3y?: number | null;
   roce_3y?: number | null;
@@ -383,6 +394,7 @@ export function SectorRotationPanel() {
   const [hydrating, setHydrating] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [ranking, setRanking] = useState(false);
+  const [fillingHt, setFillingHt] = useState(false);
   const [rankedKey, setRankedKey] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [shotBusy, setShotBusy] = useState(false);
@@ -397,6 +409,14 @@ export function SectorRotationPanel() {
   const shotQueue = useRef<File[]>([]);
   const shotRunning = useRef(false);
   const fromShotRef = useRef<(file: File) => void>(() => {});
+  const cardsRef = useRef(cards);
+  cardsRef.current = cards;
+  const rangeRef = useRef(range);
+  rangeRef.current = range;
+  const detailRef = useRef(detail);
+  detailRef.current = detail;
+  const asOfRef = useRef(asOf);
+  asOfRef.current = asOf;
 
   const loadBoard = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -429,7 +449,7 @@ export function SectorRotationPanel() {
       setDetailLoading(true);
       try {
         const res = await fetch(
-          `/api/sector-rotation?id=${encodeURIComponent(id)}&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
+          `/api/sector-rotation?id=${encodeURIComponent(id)}&range=${encodeURIComponent(rangeRef.current)}&weight=${encodeURIComponent(weight)}`,
           { cache: "no-store" },
         );
         const json = (await res.json()) as {
@@ -448,7 +468,7 @@ export function SectorRotationPanel() {
         setDetailLoading(false);
       }
     },
-    [range, weight],
+    [weight],
   );
 
   const refreshBoard = useCallback(async () => {
@@ -480,26 +500,187 @@ export function SectorRotationPanel() {
     }
   }, [openId, loadBoard, loadDetail]);
 
+  /** Fill Sales Growth / ROCE / P/B gaps only — do not rebuild charts. */
+  const refreshMissingHt = useCallback(async () => {
+    setFillingHt(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/sector-rotation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          refreshHt: true,
+          ...(openId ? { id: openId } : {}),
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+        tried?: number;
+        filled?: number;
+        still_missing?: number;
+        members?: Array<{
+          ticker: string;
+          sales_growth_3y: number | null;
+          roce_3y: number | null;
+          pb: number | null;
+          growth_rank: number | null;
+          roce_rank: number | null;
+          pb_rank: number | null;
+          total_score: number | null;
+          rank: number | null;
+        }>;
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error || `HT refresh failed (${res.status})`);
+      }
+      // Patch HT columns in place — never loadDetail/loadBoard (those refetch OHLC).
+      if (openId && json.members?.length) {
+        const byTicker = new Map(
+          json.members.map((m) => [m.ticker.toUpperCase(), m]),
+        );
+        setDetail((prev) => {
+          if (!prev) return prev;
+          const members = prev.members.map((row) => {
+            const patch = byTicker.get(row.ticker.toUpperCase());
+            if (!patch) return row;
+            return {
+              ...row,
+              sales_growth_3y: patch.sales_growth_3y,
+              roce_3y: patch.roce_3y,
+              pb: patch.pb,
+              growth_rank: patch.growth_rank,
+              roce_rank: patch.roce_rank,
+              pb_rank: patch.pb_rank,
+              total_score: patch.total_score,
+              rank: patch.rank,
+            };
+          });
+          members.sort((a, b) => {
+            const ar = a.rank ?? 1e9;
+            const br = b.rank ?? 1e9;
+            if (ar !== br) return ar - br;
+            return (b.mcap_cr ?? -1) - (a.mcap_cr ?? -1);
+          });
+          return { ...prev, members };
+        });
+      }
+      const tried = json.tried ?? 0;
+      const filled = json.filled ?? 0;
+      const left = json.still_missing ?? 0;
+      if (tried === 0) {
+        setError(null);
+      } else if (left > 0) {
+        setError(
+          `Filled ${filled} of ${tried} missing ranks · ${left} still incomplete (Screener/Yahoo).`,
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFillingHt(false);
+    }
+  }, [openId]);
+
   const rankKey = `${range}:${weight}`;
   const needsRank =
     boardFilter === "top" || boardFilter === "bottom" || aboveOn;
 
+  // Weight changes the basket index — drop cached series so hydrate/detail refetch.
   useEffect(() => {
     setRankedKey(null);
     setCards((prev) =>
-      prev.map((c) =>
-        c.sector_pct == null && c.bench_pct == null
-          ? c
-          : {
-              ...c,
-              sector_pct: null,
-              bench_pct: null,
-              sector: [],
-              bench: [],
-            },
-      ),
+      prev.map((c) => ({
+        ...c,
+        sector_pct: null,
+        bench_pct: null,
+        sector: [],
+        bench: [],
+        sector_full: undefined,
+        bench_full: undefined,
+      })),
     );
-  }, [range, weight]);
+  }, [weight]);
+
+  // Range chips: rewindow long series locally — no OHLC pull when history covers it.
+  useEffect(() => {
+    setRankedKey(null);
+    if (!asOf) return;
+    const start = rotationWindowStart(asOf, range);
+    setCards((prev) =>
+      prev.map((c) => {
+        const fullS =
+          c.sector_full && c.sector_full.length > 0 ? c.sector_full : null;
+        const fullB =
+          c.bench_full && c.bench_full.length > 0 ? c.bench_full : null;
+        const srcS = fullS ?? (c.sector.length > 0 ? c.sector : null);
+        const srcB = fullB ?? (c.bench.length > 0 ? c.bench : null);
+        if (
+          !srcS ||
+          !srcB ||
+          !seriesCoversStart(srcS, start) ||
+          !seriesCoversStart(srcB, start)
+        ) {
+          return c;
+        }
+        const sectorWin = windowRebaseSeries(srcS, start);
+        const benchWin = windowRebaseSeries(srcB, start);
+        return {
+          ...c,
+          sector: downsampleSeries(sectorWin),
+          bench: downsampleSeries(benchWin),
+          sector_pct: seriesReturnPct(sectorWin),
+          bench_pct: seriesReturnPct(benchWin),
+          sector_full: fullS ?? c.sector_full,
+          bench_full: fullB ?? c.bench_full,
+        };
+      }),
+    );
+    setDetail((prev) => {
+      if (!prev) return prev;
+      const fullS =
+        prev.card.sector_full && prev.card.sector_full.length > 0
+          ? prev.card.sector_full
+          : prev.card.sector;
+      const fullB =
+        prev.card.bench_full && prev.card.bench_full.length > 0
+          ? prev.card.bench_full
+          : null;
+      if (
+        !fullS.length ||
+        !fullB ||
+        !seriesCoversStart(fullS, start) ||
+        !seriesCoversStart(fullB, start)
+      ) {
+        return prev;
+      }
+      const bench = windowRebaseSeries(fullB, start);
+      const sectorWin = windowRebaseSeries(fullS, start);
+      return {
+        card: {
+          ...prev.card,
+          sector: fullS,
+          bench,
+          sector_pct: seriesReturnPct(sectorWin),
+          bench_pct: seriesReturnPct(bench),
+          sector_full: fullS,
+          bench_full: fullB,
+        },
+        members: prev.members.map((m) => {
+          const full =
+            m.spark_full && m.spark_full.length > 0 ? m.spark_full : m.spark;
+          if (!full.length || !seriesCoversStart(full, start)) return m;
+          const spark = windowRebaseSeries(full, start);
+          return {
+            ...m,
+            spark,
+            window_pct: seriesReturnPct(spark),
+            spark_full: m.spark_full ?? full,
+          };
+        }),
+      };
+    });
+  }, [range, asOf]);
 
   useEffect(() => {
     if (!needsRank) return;
@@ -558,6 +739,29 @@ export function SectorRotationPanel() {
   useEffect(() => {
     if (openId) void loadDetail(openId);
   }, [openId, loadDetail]);
+
+  // Only refetch detail OHLC when the open sector lacks history for this range.
+  useEffect(() => {
+    if (!openId || !asOf) return;
+    const d = detailRef.current;
+    if (!d || d.card.id !== openId) return;
+    const start = rotationWindowStart(asOf, range);
+    const fullS =
+      d.card.sector_full && d.card.sector_full.length > 0
+        ? d.card.sector_full
+        : d.card.sector;
+    const fullB = d.card.bench_full;
+    if (
+      fullS.length > 0 &&
+      fullB &&
+      fullB.length > 0 &&
+      seriesCoversStart(fullS, start) &&
+      seriesCoversStart(fullB, start)
+    ) {
+      return;
+    }
+    void loadDetail(openId);
+  }, [range, openId, asOf, loadDetail]);
 
   const pickCreateTicker = (h: TickerSuggestHit) => {
     setNewTickers((rows) =>
@@ -938,12 +1142,32 @@ export function SectorRotationPanel() {
       setHydrating(false);
       return;
     }
+    const ids = pageIds.split(",").filter(Boolean);
+    const asOfNow = asOfRef.current;
+    const start = asOfNow ? rotationWindowStart(asOfNow, range) : "";
+    const byId = new Map(cardsRef.current.map((c) => [c.id, c]));
+    const missing = ids.filter((id) => {
+      const c = byId.get(id);
+      if (!c?.sector_full?.length || !c?.bench_full?.length || !start) {
+        return true;
+      }
+      return (
+        !seriesCoversStart(c.sector_full, start) ||
+        !seriesCoversStart(c.bench_full, start)
+      );
+    });
+    if (!missing.length) {
+      hydrateGen.current += 1;
+      setHydrating(false);
+      return;
+    }
     const gen = ++hydrateGen.current;
     setHydrating(true);
+    const hydrateIds = missing.join(",");
     void (async () => {
       try {
         const res = await fetch(
-          `/api/sector-rotation?hydrate=${encodeURIComponent(pageIds)}&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
+          `/api/sector-rotation?hydrate=${encodeURIComponent(hydrateIds)}&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
           { cache: "no-store" },
         );
         const json = (await res.json()) as {
@@ -1002,6 +1226,19 @@ export function SectorRotationPanel() {
         m.name.toLowerCase().includes(needle),
     );
   }, [detail, memberQ]);
+
+  /** Members lacking a complete HT rank (Sales / ROCE / P/B). */
+  const missingHtCount = useMemo(() => {
+    const rows = detail?.members ?? [];
+    if (!openId || !rows.length) return 0;
+    return rows.filter(
+      (m) =>
+        m.sales_growth_3y == null ||
+        m.roce_3y == null ||
+        m.pb == null ||
+        !(m.pb > 0),
+    ).length;
+  }, [detail?.members, openId]);
 
   const closeSector = useCallback(() => {
     setOpenId(null);
@@ -1109,7 +1346,7 @@ export function SectorRotationPanel() {
           )}
         </div>
       </header>
-      {loading || ranking || hydrating || detailLoading ? (
+      {loading || ranking || hydrating || detailLoading || fillingHt ? (
         <div
           className="rot-progress"
           role="status"
@@ -1118,13 +1355,15 @@ export function SectorRotationPanel() {
         >
           <div className="rot-progress-bar" />
           <span>
-            {loading
-              ? "Loading sectors…"
-              : ranking
-                ? `Ranking ${range}…`
-                : hydrating
-                  ? `Updating ${range} charts…`
-                  : `Loading ${range} sector…`}
+            {fillingHt
+              ? "Filling missing Sales / ROCE / P/B…"
+              : loading
+                ? "Loading sectors…"
+                : ranking
+                  ? `Ranking ${range}…`
+                  : hydrating
+                    ? `Updating ${range} charts…`
+                    : `Loading ${range} sector…`}
           </span>
         </div>
       ) : null}
@@ -1135,9 +1374,27 @@ export function SectorRotationPanel() {
             type="button"
             className="rot-chip"
             onClick={() => void refreshBoard()}
-            disabled={loading || ranking}
+            disabled={loading || ranking || fillingHt}
+            title="Refresh prices and market caps"
           >
             ↻ Refresh
+          </button>
+          <button
+            type="button"
+            className="rot-chip"
+            onClick={() => void refreshMissingHt()}
+            disabled={loading || ranking || fillingHt || detailLoading}
+            title={
+              openId
+                ? "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B for this sector (Screener-first), then re-rank"
+                : "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B across all sectors (Screener-first)"
+            }
+          >
+            {fillingHt
+              ? "Filling…"
+              : missingHtCount > 0
+                ? `↻ Missing data (${missingHtCount})`
+                : "↻ Missing data"}
           </button>
           <span className="rot-bar-sep" />
           <button
@@ -1488,6 +1745,19 @@ export function SectorRotationPanel() {
             <span className="rot-muted">
               {openCard ? `${openCard.n} stocks` : ""}
             </span>
+            {missingHtCount > 0 ? (
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => void refreshMissingHt()}
+                disabled={fillingHt || detailLoading}
+                title="Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B"
+              >
+                {fillingHt
+                  ? "Filling ranks…"
+                  : `Refresh missing (${missingHtCount})`}
+              </button>
+            ) : null}
             <button
               type="button"
               className="btn-ghost"
@@ -1798,20 +2068,43 @@ export function SectorRotationPanel() {
                   </button>
                 </span>
               </div>
-              <div className="rot-muted">
-                <span className={(c.bench_pct ?? 0) >= 0 ? "pos" : "neg"}>
-                  {benchLabel} {fmtPct(c.bench_pct)}
-                </span>
-                <span className="rot-count">{c.n} stocks</span>
-                {(c.up ?? 0) > 0 ? (
-                  <span className="rot-up">▲ {c.up}</span>
-                ) : null}
-                {(c.down ?? 0) > 0 ? (
-                  <span className="rot-dn">▼ {c.down}</span>
-                ) : null}
-                <span className={(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}>
-                  Today {fmtPct(c.today_pct ?? null)}
-                </span>
+              <div className="rot-card-meta" aria-label="Sector vs benchmark">
+                <div className="rot-meta-cell">
+                  <span className="rot-meta-k">{benchLabel}</span>
+                  <span
+                    className={`rot-meta-v ${(c.bench_pct ?? 0) >= 0 ? "pos" : "neg"}`}
+                  >
+                    {fmtPct(c.bench_pct)}
+                  </span>
+                </div>
+                <div className="rot-meta-cell">
+                  <span className="rot-meta-k">Stocks</span>
+                  <span className="rot-meta-v rot-meta-breadth">
+                    <span className="rot-meta-n">{c.n}</span>
+                    <span className="rot-meta-ud" aria-label="Breadth today">
+                      <span
+                        className={(c.up ?? 0) > 0 ? "rot-up" : "rot-ud-flat"}
+                        title="Up today"
+                      >
+                        ▲{c.up ?? 0}
+                      </span>
+                      <span
+                        className={(c.down ?? 0) > 0 ? "rot-dn" : "rot-ud-flat"}
+                        title="Down today"
+                      >
+                        ▼{c.down ?? 0}
+                      </span>
+                    </span>
+                  </span>
+                </div>
+                <div className="rot-meta-cell">
+                  <span className="rot-meta-k">Today</span>
+                  <span
+                    className={`rot-meta-v ${(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}`}
+                  >
+                    {fmtPct(c.today_pct ?? null)}
+                  </span>
+                </div>
               </div>
               <DualSpark
                 a={c.sector}

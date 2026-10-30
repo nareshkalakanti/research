@@ -176,12 +176,14 @@ export function loadCompanyNetwork(opts?: {
   q?: string | null;
   page?: number;
   pageSize?: number;
+  refresh?: boolean;
 }): { rows: CompanyNetworkRow[]; total: number; page: number; pages: number } {
   const pageSize = Math.min(200, Math.max(1, opts?.pageSize ?? 50));
   const page = Math.max(1, opts?.page ?? 1);
   const q = (opts?.q || "").trim();
   const db = openSqliteNamed("governance.db", { wal: true });
   try {
+    ensureNetworkViews(db, opts?.refresh === true);
     db.exec(ifNotExists(COMPANY_NETWORK_VIEW_SQL, "company_network"));
     const where = q
       ? `WHERE n.ticker_a LIKE @like ESCAPE '\\'
@@ -234,6 +236,7 @@ export function loadCompanyConnectivity(opts?: {
   caps?: string[] | null;
   page?: number;
   pageSize?: number;
+  refresh?: boolean;
 }): {
   rows: CompanyConnectivityRow[];
   total: number;
@@ -254,7 +257,7 @@ export function loadCompanyConnectivity(opts?: {
     externally_connected_directors: number;
   }>;
   try {
-    db.exec(ifNotExists(DIRECTOR_NETWORK_VIEW_SQL, "director_network"));
+    ensureNetworkViews(db, opts?.refresh === true);
     db.exec(ifNotExists(COMPANY_CONNECTIVITY_VIEW_SQL, "company_connectivity"));
     base = db
       .prepare(
@@ -757,6 +760,7 @@ export function loadNewConnections(opts?: {
   targetTicker?: string | null;
   /** Also link boards the director resigned from (tracked resignation events). */
   includeFormerSeats?: boolean;
+  refresh?: boolean;
 }): {
   rows: NewConnectionRow[];
   targets: NewConnectionTargetRow[];
@@ -790,7 +794,7 @@ export function loadNewConnections(opts?: {
   const db = openSqliteNamed("governance.db", { wal: true });
   try {
     ensureCompanyGroupsTable(db);
-    db.exec(ifNotExists(DIRECTOR_NETWORK_VIEW_SQL, "director_network"));
+    ensureNetworkViews(db, opts?.refresh === true);
     const conds = ["tm.market_cap > 0", "cm.market_cap > 0"];
     const params: Record<string, string | number> = {
       mega: NEW_CONNECTION_MEGA_MCAP_CR,
@@ -1240,6 +1244,7 @@ export function loadHoldingsCapitalGap(opts?: {
   minConnectedMcap?: number;
   minRatio?: number;
   sort?: HoldingsCapitalGapSort;
+  refresh?: boolean;
 }): {
   targets: NewConnectionTargetRow[];
   rows: NewConnectionRow[];
@@ -1278,7 +1283,7 @@ export function loadHoldingsCapitalGap(opts?: {
   const db = openSqliteNamed("governance.db", { wal: true });
   try {
     ensureCompanyGroupsTable(db);
-    db.exec(ifNotExists(DIRECTOR_NETWORK_VIEW_SQL, "director_network"));
+    ensureNetworkViews(db, opts?.refresh === true);
     db.exec(`CREATE TEMP TABLE IF NOT EXISTS _hold_tickers (
       ticker TEXT PRIMARY KEY,
       name TEXT
@@ -1708,6 +1713,7 @@ export function loadTinyCapitalGap(opts?: {
   minConnectedCompanies?: number;
   minDirectors?: number;
   sort?: TinyCapitalGapSort;
+  refresh?: boolean;
 }): {
   rows: TinyCapitalGapRow[];
   total: number;
@@ -1720,7 +1726,12 @@ export function loadTinyCapitalGap(opts?: {
   const page = Math.max(1, opts?.page ?? 1);
   const days = opts?.days === undefined ? 180 : opts.days;
   const base = canonicalNewConnectionOpts(days);
-  const canonical = loadNewConnections({ ...base, aggregate: "gap" });
+  const hard = opts?.refresh === true;
+  const canonical = loadNewConnections({
+    ...base,
+    aggregate: "gap",
+    refresh: hard,
+  });
   const edgePage = loadNewConnections(base);
   const rows = aggregateTinyFromEdges(edgePage.rows);
   const summary: TinyCapitalGapSummary = {
@@ -1944,7 +1955,7 @@ export type DirectorHubSummary = {
   cross_group: number;
 };
 
-const CANONICAL_NEW_CONNECTION_DAYS = 180;
+export const CANONICAL_NEW_CONNECTION_DAYS = 180;
 
 /**
  * Canonical latest-join × current other seats, matching loadNewConnections
@@ -1990,6 +2001,7 @@ export function loadDirectorHubs(opts?: {
   minSpread?: number;
   cross?: "any" | "yes" | "no";
   sort?: DirectorHubSort;
+  refresh?: boolean;
 }): {
   rows: DirectorHubRow[];
   total: number;
@@ -2008,6 +2020,7 @@ export function loadDirectorHubs(opts?: {
   const db = openSqliteNamed("governance.db", { wal: true });
   try {
     ensureCompanyGroupsTable(db);
+    ensureNetworkViews(db, opts?.refresh === true);
     const params: Record<string, string | number> = {
       minBoards,
       minGroups,
@@ -2298,6 +2311,7 @@ export function loadCrossGroupNetwork(opts?: {
   groupKey?: string | null;
   minMcap?: number;
   minXgCompanies?: number;
+  refresh?: boolean;
 }): {
   pane: CrossGroupPane;
   summary: CrossGroupSummary;
@@ -2322,6 +2336,7 @@ export function loadCrossGroupNetwork(opts?: {
   const db = openSqliteNamed("governance.db", { wal: true });
   try {
     ensureCompanyGroupsTable(db);
+    ensureNetworkViews(db, opts?.refresh === true);
     const cte = crossGroupPairsCte();
     const params: Record<string, string | number> = {};
     if (q) params.like = likePattern(q);
@@ -2906,9 +2921,10 @@ type ClusterGraph = {
   tickerGroups: Map<string, string>;
 };
 
-function loadClusterGraph(): ClusterGraph {
+function loadClusterGraph(refresh = false): ClusterGraph {
   const db = openSqliteNamed("governance.db", { wal: true });
   try {
+    ensureNetworkViews(db, refresh);
     const seats = db
       .prepare(
         `SELECT DISTINCT person_id, ticker, designation FROM board_seats`,
@@ -3051,6 +3067,7 @@ export function loadNetworkClusters(opts?: {
   multiGroups?: boolean;
   cross?: "any" | "yes" | "no";
   minLargestMcap?: number;
+  refresh?: boolean;
 }): {
   rows: NetworkClusterRow[];
   total: number;
@@ -3072,7 +3089,7 @@ export function loadNetworkClusters(opts?: {
   const multiGroups = opts?.multiGroups === true;
   const cross = opts?.cross || "any";
   const minLargest = opts?.minLargestMcap ?? 0;
-  const graph = loadClusterGraph();
+  const graph = loadClusterGraph(opts?.refresh === true);
   const twoPlus = graph.clusters.filter((c) => c.tickers.length >= 2);
   const metrics = twoPlus.map((c) => clusterMetrics(c, graph));
   const summaryTickers = new Set(twoPlus.flatMap((c) => c.tickers));

@@ -603,7 +603,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
     });
   }
   if (view === "company-network") {
-    const result = loadCompanyNetwork({ q, page, pageSize });
+    const result = loadCompanyNetwork({ q, page, pageSize, refresh });
     return NextResponse.json({ view: "company-network", ...result });
   }
   if (view === "company-connectivity") {
@@ -611,7 +611,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       .split(",")
       .map((c) => c.trim())
       .filter(Boolean);
-    const result = loadCompanyConnectivity({ q, caps, page, pageSize });
+    const result = loadCompanyConnectivity({ q, caps, page, pageSize, refresh });
     return NextResponse.json({
       view: "company-connectivity",
       bands: connectivityCapBands(),
@@ -725,6 +725,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       minN10k: Number.isFinite(minN10k) ? minN10k : 0,
       targetTicker: targetTicker || null,
       includeFormerSeats: sp.get("former") === "1",
+      refresh,
     });
     return NextResponse.json({ view: "network-new-connections", ...result });
   }
@@ -753,6 +754,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       minConnectedMcap: Number.isFinite(minConn) ? minConn : 0,
       minRatio: Number.isFinite(minRatio) ? minRatio : 0,
       sort,
+      refresh,
     });
     return NextResponse.json({ view: "holdings-capital-gap", ...result });
   }
@@ -829,6 +831,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       sort: sortAllow.includes(sortRaw as (typeof sortAllow)[number])
         ? (sortRaw as (typeof sortAllow)[number])
         : "boards",
+      refresh,
     });
     return NextResponse.json({ view: "director-hubs", ...result });
   }
@@ -850,6 +853,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       groupKey: (sp.get("group") || "").trim() || null,
       minMcap: Number.isFinite(minMcap) ? minMcap : 0,
       minXgCompanies: Number.isFinite(minXg) ? minXg : 0,
+      refresh,
     });
     return NextResponse.json({ view: "cross-group-network", ...result });
   }
@@ -898,6 +902,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       sort: sortAllow.includes(sortRaw as (typeof sortAllow)[number])
         ? (sortRaw as (typeof sortAllow)[number])
         : "mcap",
+      refresh,
     });
     const { edges: _edges, ...rest } = result;
     return NextResponse.json({ view: "tiny-capital-gap", ...rest });
@@ -931,6 +936,7 @@ async function buildGovernanceMapResponse(req: NextRequest) {
       minLargestMcap: Number.isFinite(minLargest) ? minLargest : 0,
       multiGroups: sp.get("multiGroups") === "1",
       cross: crossRaw === "yes" || crossRaw === "no" ? crossRaw : "any",
+      refresh,
     });
     return NextResponse.json({ view: "network-clusters", ...result });
   }
