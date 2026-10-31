@@ -9268,8 +9268,19 @@ button.result-tag {
   border-radius: 999px;
   background: #f4f6f9;
   border: 1px solid var(--line);
+  font: inherit;
   font-size: 0.75rem;
   color: #475467;
+  cursor: default;
+}
+
+button.outside-commons-house {
+  cursor: pointer;
+}
+
+button.outside-commons-house:hover {
+  color: var(--accent, #2563eb);
+  border-color: color-mix(in srgb, var(--accent, #2563eb) 35%, var(--line));
 }
 
 .outside-commons-more {
@@ -9285,6 +9296,102 @@ button.result-tag {
 
 .outside-commons-more:hover {
   text-decoration: underline;
+}
+
+.group-rank {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-rank-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.group-rank-search {
+  flex: 1 1 240px;
+  max-width: 380px;
+}
+
+.group-rank-min {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.group-rank-min select {
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: var(--surface, #fff);
+}
+
+.group-rank-count {
+  margin-left: auto;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.group-rank-count span {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.group-rank-wrap {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  overflow: auto;
+  max-height: min(70vh, 720px);
+}
+
+.group-rank-table {
+  margin: 0;
+}
+
+.group-rank-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface, #fff);
+}
+
+.group-rank-table .col-rank {
+  width: 2.5rem;
+  color: var(--muted);
+}
+
+.group-rank-name {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-weight: 650;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.group-rank-name:hover {
+  color: var(--accent, #2563eb);
+}
+
+.group-rank-new {
+  display: inline-flex;
+  min-width: 1.6rem;
+  justify-content: center;
+  font-weight: 700;
+  color: #0f766e;
 }
 
 .result-tag.tag-cap-sub500 {
