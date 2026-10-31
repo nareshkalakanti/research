@@ -175,7 +175,7 @@ export function OutsideCommonsTable({
             onChange={(e) => setMinGroups(Number(e.target.value) || 2)}
             aria-label="Minimum groups"
           >
-            {[2, 3, 4, 5, 8, 10].map((n) => (
+            {[1, 2, 3, 4, 5, 8, 10].map((n) => (
               <option key={n} value={n}>
                 {n}+
               </option>

@@ -10,6 +10,7 @@ import {
 import { CompanyNetworkTable } from "@/components/CompanyNetworkTable";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
+import { GroupRankTable } from "@/components/GroupRankTable";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import {
   tradingviewUrl,
@@ -20,6 +21,7 @@ import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
 
 type DashView =
   | "groups"
+  | "group-rank"
   | "holdings"
   | "people"
   | "stock"
@@ -202,9 +204,9 @@ export function FamilyDashboard() {
     void load();
   }, [tabState?.tab, load]);
 
-  // Outside commons is derived from Business groups rows — keep them loaded.
+  // Outside / Group rank derive from Business groups rows — keep them loaded.
   useEffect(() => {
-    if (dashView !== "outside") return;
+    if (dashView !== "outside" && dashView !== "group-rank") return;
     if (!hasGroups.current) void load();
   }, [dashView, load]);
 
@@ -217,7 +219,11 @@ export function FamilyDashboard() {
           q: needle.length >= 2 ? needle : undefined,
         });
       } else if (dashView === "holdings") void loadHoldingMaps({ refresh: true });
-      else if (dashView === "groups" || dashView === "outside") {
+      else if (
+        dashView === "groups" ||
+        dashView === "group-rank" ||
+        dashView === "outside"
+      ) {
         void load({ refresh: true });
       } else if (dashView === "network") setNetworkRefreshKey((k) => k + 1);
     };
@@ -821,10 +827,24 @@ export function FamilyDashboard() {
             >
               Outside
             </button>
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "group-rank" ? "tab on" : "tab"}
+              aria-selected={dashView === "group-rank"}
+              onClick={() => {
+                setDashView("group-rank");
+                if (!hasGroups.current) void load();
+              }}
+            >
+              Group
+            </button>
           </div>
           <p className="fam-dash-sub">
             {dashView === "groups"
               ? "Largest groups first. Teal nodes mark recent board joins. Click a ticker for related boards; Outside filters to external seats."
+              : dashView === "group-rank"
+                ? "Group companies only (member listings). Same layout as Outside, with market-cap chips. Default house size Cos 3+."
               : dashView === "holdings"
                 ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
@@ -839,7 +859,8 @@ export function FamilyDashboard() {
         <div className="fam-dash-actions">
           {dashView !== "stock" &&
           dashView !== "network" &&
-          dashView !== "outside" ? (
+          dashView !== "outside" &&
+          dashView !== "group-rank" ? (
             <>
           {dashView === "groups" ? (
             <>
@@ -1050,10 +1071,25 @@ export function FamilyDashboard() {
       {error &&
       dashView !== "stock" &&
       dashView !== "network" &&
-      dashView !== "outside" ? (
+      dashView !== "outside" &&
+      dashView !== "group-rank" ? (
         <div className="table-meta">Could not load: {error}</div>
       ) : null}
-      {dashView === "outside" ? (
+      {dashView === "group-rank" ? (
+        <GroupRankTable
+          rows={rows}
+          loading={loading}
+          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+          onTicker={(t) => {
+            setStockFocus(t);
+            setDashView("stock");
+          }}
+          onOpenGroup={(key) => {
+            setGroupFilter(key);
+            setDashView("groups");
+          }}
+        />
+      ) : dashView === "outside" ? (
         <OutsideCommonsTable
           rows={rows}
           loading={loading}
