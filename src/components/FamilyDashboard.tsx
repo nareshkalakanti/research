@@ -9,6 +9,7 @@ import {
 } from "@/components/PeopleBoardCards";
 import { CompanyNetworkTable } from "@/components/CompanyNetworkTable";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
+import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import {
   tradingviewUrl,
@@ -22,7 +23,8 @@ type DashView =
   | "holdings"
   | "people"
   | "stock"
-  | "network";
+  | "network"
+  | "outside";
 
 function stubCompany(
   ticker: string,
@@ -66,6 +68,8 @@ export function FamilyDashboard() {
   const [dashView, setDashView] = useState<DashView>("groups");
   const [groupFilter, setGroupFilter] = useState("");
   const [holdingFilter, setHoldingFilter] = useState("");
+  const [onlyMissingDin, setOnlyMissingDin] = useState(false);
+  const [onlyUnconnected, setOnlyUnconnected] = useState(false);
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -198,6 +202,12 @@ export function FamilyDashboard() {
     void load();
   }, [tabState?.tab, load]);
 
+  // Outside commons is derived from Business groups rows — keep them loaded.
+  useEffect(() => {
+    if (dashView !== "outside") return;
+    if (!hasGroups.current) void load();
+  }, [dashView, load]);
+
   useEffect(() => {
     const onChange = () => {
       if (dashView === "people") {
@@ -207,8 +217,9 @@ export function FamilyDashboard() {
           q: needle.length >= 2 ? needle : undefined,
         });
       } else if (dashView === "holdings") void loadHoldingMaps({ refresh: true });
-      else if (dashView === "groups") void load({ refresh: true });
-      else if (dashView === "network") setNetworkRefreshKey((k) => k + 1);
+      else if (dashView === "groups" || dashView === "outside") {
+        void load({ refresh: true });
+      } else if (dashView === "network") setNetworkRefreshKey((k) => k + 1);
     };
     window.addEventListener(GOV_MAP_CHANGED, onChange);
     return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
@@ -288,12 +299,37 @@ export function FamilyDashboard() {
   }, [rows]);
 
 
+  const groupHasMissingDin = (f: FamilyRow) => {
+    for (const c of f.companies) {
+      const directors = c.directors ?? 0;
+      const verified = c.din_verified ?? 0;
+      if (directors === 0 || verified < directors) return true;
+    }
+    for (const p of f.people ?? []) {
+      if (!p.din || !/^\d{8}$/.test(p.din.trim())) return true;
+    }
+    return false;
+  };
+
+  const groupHasUnconnected = (f: FamilyRow) => {
+    const linked = new Set<string>();
+    for (const p of f.people ?? []) {
+      for (const t of [...p.tickers, ...(p.span_tickers ?? [])]) {
+        const u = t.trim().toUpperCase();
+        if (u) linked.add(u);
+      }
+    }
+    return f.companies.some((c) => !linked.has(c.ticker.toUpperCase()));
+  };
+
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return rows.filter((f) => {
       if (groupFilter && (f.group_id || f.family_name) !== groupFilter) {
         return false;
       }
+      if (onlyMissingDin && !groupHasMissingDin(f)) return false;
+      if (onlyUnconnected && !groupHasUnconnected(f)) return false;
       if (!needle) return true;
       return (
         f.family_name.toLowerCase().includes(needle) ||
@@ -305,13 +341,17 @@ export function FamilyDashboard() {
         (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle))
       );
     });
-  }, [rows, q, groupFilter]);
+  }, [rows, q, groupFilter, onlyMissingDin, onlyUnconnected]);
 
   const recentJoinCount = (f: FamilyRow) =>
     (f.people ?? []).filter((p) => p.recent_join).length;
 
-  const withNewJoinsFirst = (list: FamilyRow[]) =>
+  /** Largest houses first (Tata, Jindal, …); recent joins only break ties. */
+  const withSizeFirst = (list: FamilyRow[]) =>
     [...list].sort((a, b) => {
+      if (b.company_count !== a.company_count) {
+        return b.company_count - a.company_count;
+      }
       const bn = recentJoinCount(b);
       const an = recentJoinCount(a);
       if (bn !== an) return bn - an;
@@ -334,7 +374,7 @@ export function FamilyDashboard() {
             if (n < 3 || share < 0.4) return f;
             return { ...f, pattern: text };
           });
-    return withNewJoinsFirst(mapped);
+    return withSizeFirst(mapped);
   }, [filtered, holdPattern]);
 
 
@@ -381,7 +421,7 @@ export function FamilyDashboard() {
         )
       );
     });
-    return withNewJoinsFirst(list);
+    return withSizeFirst(list);
   }, [holdings, q, holdingFilter]);
 
   const filteredPeople = useMemo(() => {
@@ -769,23 +809,40 @@ export function FamilyDashboard() {
             >
               Network
             </button>
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "outside" ? "tab on" : "tab"}
+              aria-selected={dashView === "outside"}
+              onClick={() => {
+                setDashView("outside");
+                if (!hasGroups.current) void load();
+              }}
+            >
+              Outside
+            </button>
           </div>
           <p className="fam-dash-sub">
             {dashView === "groups"
-              ? "Groups with recent board joins sort to the top (teal nodes). Click a ticker for related boards; Outside filters to external seats."
+              ? "Largest groups first. Teal nodes mark recent board joins. Click a ticker for related boards; Outside filters to external seats."
               : dashView === "holdings"
                 ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
                 ? "Recent joins sort first (new badge / teal node). Name opens Governance; ticker shows that stock’s related boards."
                 : dashView === "network"
                   ? "Cap Gap and Holdings: board-linked market-cap gap columns. Counts are facts, not scores."
+                  : dashView === "outside"
+                    ? "Commons list: stocks that appear as Outside boards across many business groups. Higher count = more cross-group director links."
                   : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
         <div className="fam-dash-actions">
-          {dashView !== "stock" && dashView !== "network" ? (
+          {dashView !== "stock" &&
+          dashView !== "network" &&
+          dashView !== "outside" ? (
             <>
           {dashView === "groups" ? (
+            <>
             <label className="fam-dash-group-filter">
               <select
                 className="fam-dash-search fam-dash-group-select"
@@ -801,6 +858,23 @@ export function FamilyDashboard() {
                 ))}
               </select>
             </label>
+            <label className="fam-dash-check">
+              <input
+                type="checkbox"
+                checked={onlyMissingDin}
+                onChange={(e) => setOnlyMissingDin(e.target.checked)}
+              />
+              Missing DIN
+            </label>
+            <label className="fam-dash-check">
+              <input
+                type="checkbox"
+                checked={onlyUnconnected}
+                onChange={(e) => setOnlyUnconnected(e.target.checked)}
+              />
+              Unconnected
+            </label>
+            </>
           ) : null}
           {dashView === "holdings" ? (
             <label className="fam-dash-group-filter">
@@ -973,10 +1047,23 @@ export function FamilyDashboard() {
           ) : null}
         </form>
       ) : null}
-      {error && dashView !== "stock" && dashView !== "network" ? (
+      {error &&
+      dashView !== "stock" &&
+      dashView !== "network" &&
+      dashView !== "outside" ? (
         <div className="table-meta">Could not load: {error}</div>
       ) : null}
-      {dashView === "network" ? (
+      {dashView === "outside" ? (
+        <OutsideCommonsTable
+          rows={rows}
+          loading={loading}
+          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+          onTicker={(t) => {
+            setStockFocus(t);
+            setDashView("stock");
+          }}
+        />
+      ) : dashView === "network" ? (
         <CompanyNetworkTable
           onPerson={(id, name) => openPerson(id, name)}
           chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
