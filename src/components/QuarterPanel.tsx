@@ -83,7 +83,9 @@ export function QuarterPanel({
           <p className="q-source-note">{sourceNote}</p>
         ) : null}
         <div className="q-block-head">
-          <div className="q-block-title">Quarterly · ₹ Cr</div>
+          <div className="q-block-title">
+            {compact ? "Quarterly (Rs Cr)" : "Quarterly · ₹ Cr"}
+          </div>
           <div className="q-block-meta">
             {overall ? (
               <span

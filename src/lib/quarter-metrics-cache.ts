@@ -1,8 +1,15 @@
-import Database from "better-sqlite3";
+import type Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import {
+  DATA_DIR,
+  isSqliteWalDamage,
+  openSqlite,
+  removeWalSidecars,
+  stripEmptyWalSidecars,
+  stripOrphanWalAfterDbReplace,
+} from "@/lib/sqlite-utils";
 
-const DATA_DIR = path.join(process.cwd(), "data");
 const METRICS_PATH = path.join(DATA_DIR, "metrics.db");
 
 export type QuarterMetricsRow = {
@@ -40,11 +47,34 @@ export const QUARTER_METRICS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 /** Retry failed (empty) fetches sooner than successful cache rows. */
 export const QUARTER_TOMBSTONE_TTL_MS = 60 * 60 * 1000;
 
+function closeQuarterMetricsDb(): void {
+  if (!cacheDb) return;
+  try {
+    cacheDb.close();
+  } catch {
+    /* already closed */
+  }
+  cacheDb = null;
+}
+
+/** Drop open handle + map (after disk I/O / WAL heal / git replace). */
+export function invalidateQuarterMetricsDb(): void {
+  closeQuarterMetricsDb();
+  mapCache = null;
+}
+
 function ensureDb(): Database.Database {
   if (cacheDb) return cacheDb;
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  const db = new Database(METRICS_PATH);
-  db.pragma("journal_mode = WAL");
+  stripEmptyWalSidecars(METRICS_PATH);
+  stripOrphanWalAfterDbReplace(METRICS_PATH);
+  // Same file as metrics.ts / screener cache — skip quick_check (contended WAL → disk I/O).
+  const db = openSqlite(METRICS_PATH, {
+    readonly: false,
+    wal: true,
+    busyTimeoutMs: 8000,
+    quickCheck: false,
+  });
   db.exec(`
     CREATE TABLE IF NOT EXISTS quarter_metrics (
       ticker TEXT PRIMARY KEY,
@@ -87,20 +117,36 @@ export function invalidateQuarterMetricsCache(): void {
   mapCache = null;
 }
 
+function withDbRetry<T>(fn: (db: Database.Database) => T): T {
+  try {
+    return fn(ensureDb());
+  } catch (err) {
+    if (!isSqliteWalDamage(err)) throw err;
+    invalidateQuarterMetricsDb();
+    try {
+      removeWalSidecars(METRICS_PATH);
+    } catch {
+      /* held */
+    }
+    return fn(ensureDb());
+  }
+}
+
 /** Drop empty failed-fetch rows so the next open refetches immediately. */
 export function purgeQuarterMetricTombstones(): number {
   try {
     if (!fs.existsSync(METRICS_PATH)) return 0;
-    const db = ensureDb();
-    const result = db
-      .prepare(
-        `DELETE FROM quarter_metrics
-         WHERE forward_pe IS NULL
-           AND eps_yoy IS NULL
-           AND sales_yoy IS NULL
-           AND np_yoy IS NULL`,
-      )
-      .run();
+    const result = withDbRetry((db) =>
+      db
+        .prepare(
+          `DELETE FROM quarter_metrics
+           WHERE forward_pe IS NULL
+             AND eps_yoy IS NULL
+             AND sales_yoy IS NULL
+             AND np_yoy IS NULL`,
+        )
+        .run(),
+    );
     invalidateQuarterMetricsCache();
     return result.changes;
   } catch {
@@ -115,24 +161,27 @@ function healStoredTombstonesOnce(): void {
   if (tombstonesHealed) return;
   tombstonesHealed = true;
   try {
-    const db = ensureDb();
-    db.exec(`
-      CREATE TABLE IF NOT EXISTS quarter_metrics_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-    `);
-    const row = db
-      .prepare(`SELECT value FROM quarter_metrics_meta WHERE key = 'tombstone_heal_v'`)
-      .get() as { value: string } | undefined;
-    const done = Number(row?.value) >= TOMBSTONE_HEAL_VERSION;
-    if (!done) {
-      purgeQuarterMetricTombstones();
-      db.prepare(
-        `INSERT INTO quarter_metrics_meta (key, value) VALUES ('tombstone_heal_v', @v)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-      ).run({ v: String(TOMBSTONE_HEAL_VERSION) });
-    }
+    withDbRetry((db) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS quarter_metrics_meta (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        );
+      `);
+      const row = db
+        .prepare(
+          `SELECT value FROM quarter_metrics_meta WHERE key = 'tombstone_heal_v'`,
+        )
+        .get() as { value: string } | undefined;
+      const done = Number(row?.value) >= TOMBSTONE_HEAL_VERSION;
+      if (!done) {
+        purgeQuarterMetricTombstones();
+        db.prepare(
+          `INSERT INTO quarter_metrics_meta (key, value) VALUES ('tombstone_heal_v', @v)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+        ).run({ v: String(TOMBSTONE_HEAL_VERSION) });
+      }
+    });
   } catch {
     purgeQuarterMetricTombstones();
   }
@@ -150,15 +199,17 @@ export function loadQuarterMetricsMap(): Map<string, QuarterMetricsRow> {
       mapCache = { at: now, map };
       return map;
     }
-    const db = ensureDb();
-    const rows = db
-      .prepare(
-        `SELECT ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
-                sales_qoq, np_qoq, eps_qoq, ebidt_yoy, ebidt_qoq,
-                cf_profit, result_date, computed_at
-         FROM quarter_metrics`,
-      )
-      .all() as QuarterMetricsRow[];
+    const rows = withDbRetry(
+      (db) =>
+        db
+          .prepare(
+            `SELECT ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
+                    sales_qoq, np_qoq, eps_qoq, ebidt_yoy, ebidt_qoq,
+                    cf_profit, result_date, computed_at
+             FROM quarter_metrics`,
+          )
+          .all() as QuarterMetricsRow[],
+    );
     for (const r of rows) map.set(r.ticker.toUpperCase(), r);
   } catch {
     /* unreadable */
@@ -184,45 +235,46 @@ export function saveQuarterMetrics(
   },
 ): void {
   const key = ticker.toUpperCase();
-  const db = ensureDb();
-  db.prepare(
-    `INSERT INTO quarter_metrics (
-       ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
-       sales_qoq, np_qoq, eps_qoq, ebidt_yoy, ebidt_qoq,
-       cf_profit, result_date, computed_at
-     )
-     VALUES (
-       @ticker, @forward_pe, @eps_yoy, @sales_yoy, @np_yoy,
-       @sales_qoq, @np_qoq, @eps_qoq, @ebidt_yoy, @ebidt_qoq,
-       @cf_profit, @result_date, @computed_at
-     )
-     ON CONFLICT(ticker) DO UPDATE SET
-       forward_pe = excluded.forward_pe,
-       eps_yoy = excluded.eps_yoy,
-       sales_yoy = excluded.sales_yoy,
-       np_yoy = excluded.np_yoy,
-       sales_qoq = excluded.sales_qoq,
-       np_qoq = excluded.np_qoq,
-       eps_qoq = excluded.eps_qoq,
-       ebidt_yoy = excluded.ebidt_yoy,
-       ebidt_qoq = excluded.ebidt_qoq,
-       cf_profit = excluded.cf_profit,
-       result_date = excluded.result_date,
-       computed_at = excluded.computed_at`,
-  ).run({
-    ticker: key,
-    forward_pe: data.forward_pe,
-    eps_yoy: data.eps_yoy,
-    sales_yoy: data.sales_yoy,
-    np_yoy: data.np_yoy,
-    sales_qoq: data.sales_qoq ?? null,
-    np_qoq: data.np_qoq ?? null,
-    eps_qoq: data.eps_qoq ?? null,
-    ebidt_yoy: data.ebidt_yoy ?? null,
-    ebidt_qoq: data.ebidt_qoq ?? null,
-    cf_profit: data.cf_profit ?? null,
-    result_date: data.result_date ?? null,
-    computed_at: new Date().toISOString(),
+  withDbRetry((db) => {
+    db.prepare(
+      `INSERT INTO quarter_metrics (
+         ticker, forward_pe, eps_yoy, sales_yoy, np_yoy,
+         sales_qoq, np_qoq, eps_qoq, ebidt_yoy, ebidt_qoq,
+         cf_profit, result_date, computed_at
+       )
+       VALUES (
+         @ticker, @forward_pe, @eps_yoy, @sales_yoy, @np_yoy,
+         @sales_qoq, @np_qoq, @eps_qoq, @ebidt_yoy, @ebidt_qoq,
+         @cf_profit, @result_date, @computed_at
+       )
+       ON CONFLICT(ticker) DO UPDATE SET
+         forward_pe = excluded.forward_pe,
+         eps_yoy = excluded.eps_yoy,
+         sales_yoy = excluded.sales_yoy,
+         np_yoy = excluded.np_yoy,
+         sales_qoq = excluded.sales_qoq,
+         np_qoq = excluded.np_qoq,
+         eps_qoq = excluded.eps_qoq,
+         ebidt_yoy = excluded.ebidt_yoy,
+         ebidt_qoq = excluded.ebidt_qoq,
+         cf_profit = excluded.cf_profit,
+         result_date = excluded.result_date,
+         computed_at = excluded.computed_at`,
+    ).run({
+      ticker: key,
+      forward_pe: data.forward_pe,
+      eps_yoy: data.eps_yoy,
+      sales_yoy: data.sales_yoy,
+      np_yoy: data.np_yoy,
+      sales_qoq: data.sales_qoq ?? null,
+      np_qoq: data.np_qoq ?? null,
+      eps_qoq: data.eps_qoq ?? null,
+      ebidt_yoy: data.ebidt_yoy ?? null,
+      ebidt_qoq: data.ebidt_qoq ?? null,
+      cf_profit: data.cf_profit ?? null,
+      result_date: data.result_date ?? null,
+      computed_at: new Date().toISOString(),
+    });
   });
   invalidateQuarterMetricsCache();
 }

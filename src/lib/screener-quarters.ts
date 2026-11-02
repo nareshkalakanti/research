@@ -45,8 +45,18 @@ const MONTH_END: Record<string, number> = {
   DEC: 31,
 };
 
+/** Contended with metrics.ts / quarter-metrics-cache — skip quick_check (WAL I/O). */
+const METRICS_OPEN = {
+  wal: true as const,
+  busyTimeoutMs: 8000,
+  quickCheck: false,
+};
+
 function ensureCacheSchema(): void {
-  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  const db = openSqliteNamed("metrics.db", {
+    readonly: false,
+    ...METRICS_OPEN,
+  });
   try {
     db.exec(`
       CREATE TABLE IF NOT EXISTS screener_quarters_cache (
@@ -81,7 +91,10 @@ function cacheUsable(qs: unknown): qs is QuarterPoint[] {
 
 function readCacheRow(ticker: string): CacheRow | null {
   ensureCacheSchema();
-  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  const db = openSqliteNamed("metrics.db", {
+    readonly: true,
+    ...METRICS_OPEN,
+  });
   try {
     return (
       (db
@@ -140,7 +153,10 @@ function writeCache(
   blockedUntil?: string | null,
 ): void {
   ensureCacheSchema();
-  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  const db = openSqliteNamed("metrics.db", {
+    readonly: false,
+    ...METRICS_OPEN,
+  });
   try {
     db.prepare(
       `INSERT INTO screener_quarters_cache (ticker, quarters_json, fetched_at, blocked_until)
@@ -172,12 +188,44 @@ export function upsertQuartersCache(
 /** Mark a ticker as recently attempted with no usable series (skip for 24h). */
 export function markQuartersFillMiss(ticker: string): void {
   const until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  writeCache(ticker, [], until);
+  writeMissBlock(ticker, until);
+}
+
+/** Active miss-block — Scan should skip these until the block expires. */
+export function isQuartersFillBlocked(ticker: string): boolean {
+  const row = readCacheRow(ticker);
+  if (!row?.blocked_until) return false;
+  if (Date.parse(row.blocked_until) <= Date.now()) return false;
+  return true;
+}
+
+/** Tickers with an active quarters miss-block (one DB read). */
+export function loadQuartersFillBlockedSet(): Set<string> {
+  ensureCacheSchema();
+  const db = openSqliteNamed("metrics.db", {
+    readonly: true,
+    ...METRICS_OPEN,
+  });
+  try {
+    const now = new Date().toISOString();
+    const rows = db
+      .prepare(
+        `SELECT ticker FROM screener_quarters_cache
+         WHERE blocked_until IS NOT NULL AND blocked_until > ?`,
+      )
+      .all(now) as Array<{ ticker: string }>;
+    return new Set(rows.map((r) => r.ticker.toUpperCase()));
+  } finally {
+    db.close();
+  }
 }
 
 export function quartersCacheTickerSet(): Set<string> {
   ensureCacheSchema();
-  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  const db = openSqliteNamed("metrics.db", {
+    readonly: true,
+    ...METRICS_OPEN,
+  });
   try {
     const rows = db
       .prepare(`SELECT ticker FROM screener_quarters_cache`)

@@ -1,4 +1,4 @@
-import { loadMetricsMap } from "@/lib/metrics";
+import { invalidateMetricsDb, loadMetricsMap } from "@/lib/metrics";
 import {
   buildQuarterPanel,
   computeCfProfit,
@@ -8,6 +8,7 @@ import {
   yoyFromQuarters,
 } from "@/lib/quarter-panel";
 import {
+  invalidateQuarterMetricsDb,
   isQuarterMetricsFresh,
   isQuarterMetricsTombstone,
   loadQuarterMetricsMap,
@@ -15,6 +16,7 @@ import {
   tickerNeedsExtrasBackfill,
   type QuarterMetricsRow,
 } from "@/lib/quarter-metrics-cache";
+import { isSqliteWalDamage } from "@/lib/sqlite-utils";
 import { computeForwardPe, epsFromQuarterPanel } from "@/lib/valuation";
 import { fetchQuarterlyFundamentals } from "@/lib/yahoo-quarters";
 
@@ -75,33 +77,55 @@ export function metricsSnapshotFromPanel(
 }
 
 function saveTombstone(ticker: string): void {
-  saveQuarterMetrics(ticker, {
-    forward_pe: null,
-    eps_yoy: null,
-    sales_yoy: null,
-    np_yoy: null,
-    sales_qoq: null,
-    np_qoq: null,
-    eps_qoq: null,
-    ebidt_yoy: null,
-    cf_profit: null,
-  });
+  try {
+    saveQuarterMetrics(ticker, {
+      forward_pe: null,
+      eps_yoy: null,
+      sales_yoy: null,
+      np_yoy: null,
+      sales_qoq: null,
+      np_qoq: null,
+      eps_qoq: null,
+      ebidt_yoy: null,
+      cf_profit: null,
+    });
+  } catch (e) {
+    console.warn(
+      "[quarters] tombstone persist failed",
+      ticker,
+      e instanceof Error ? e.message : e,
+    );
+  }
 }
 
 function persistSnapshot(ticker: string, snapshot: QuarterMetricsSnapshot): void {
-  saveQuarterMetrics(ticker, {
-    forward_pe: snapshot.forward_pe,
-    eps_yoy: snapshot.eps_yoy,
-    sales_yoy: snapshot.sales_yoy,
-    np_yoy: snapshot.np_yoy,
-    sales_qoq: snapshot.extras?.sales_qoq ?? null,
-    np_qoq: snapshot.extras?.np_qoq ?? null,
-    eps_qoq: snapshot.extras?.eps_qoq ?? null,
-    ebidt_yoy: snapshot.extras?.ebidt_yoy ?? null,
-    ebidt_qoq: snapshot.extras?.ebidt_qoq ?? null,
-    cf_profit: snapshot.extras?.cf_profit ?? null,
-    result_date: snapshot.result_date ?? null,
-  });
+  try {
+    saveQuarterMetrics(ticker, {
+      forward_pe: snapshot.forward_pe,
+      eps_yoy: snapshot.eps_yoy,
+      sales_yoy: snapshot.sales_yoy,
+      np_yoy: snapshot.np_yoy,
+      sales_qoq: snapshot.extras?.sales_qoq ?? null,
+      np_qoq: snapshot.extras?.np_qoq ?? null,
+      eps_qoq: snapshot.extras?.eps_qoq ?? null,
+      ebidt_yoy: snapshot.extras?.ebidt_yoy ?? null,
+      ebidt_qoq: snapshot.extras?.ebidt_qoq ?? null,
+      cf_profit: snapshot.extras?.cf_profit ?? null,
+      result_date: snapshot.result_date ?? null,
+    });
+  } catch (e) {
+    // Panel still usable — don't fail the request on cache write I/O.
+    console.warn(
+      "[quarters] metrics persist failed",
+      ticker,
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
+
+function healMetricsHandlesAfterIo(): void {
+  invalidateQuarterMetricsDb();
+  invalidateMetricsDb();
 }
 
 export function persistQuarterMetricsSnapshot(
@@ -153,6 +177,7 @@ export async function resolveQuarterPanelData(
   symbol?: string;
   source?: string;
   fromCache?: boolean;
+  error?: string;
 }> {
   const key = ticker.toUpperCase();
   if (needsQuarterRefetch(key, loadQuarterMetricsMap(), opts?.force)) {
@@ -205,7 +230,7 @@ export async function computeAndCacheQuarterMetrics(
   ticker: string,
   market: string | null,
   priceOverride?: number | null,
-  opts?: { force?: boolean },
+  opts?: { force?: boolean; _ioRetried?: boolean },
 ): Promise<{
   ok: boolean;
   snapshot: QuarterMetricsSnapshot | null;
@@ -214,6 +239,7 @@ export async function computeAndCacheQuarterMetrics(
   symbol?: string;
   source?: string;
   fromCache?: boolean;
+  error?: string;
 }> {
   const key = ticker.toUpperCase();
   const metricsMap = loadQuarterMetricsMap();
@@ -234,16 +260,22 @@ export async function computeAndCacheQuarterMetrics(
     };
   }
 
-  try {
-    const { quarters, price: yahooPrice, symbol, source, operating_cashflow, operating_cashflow_np } =
-      await fetchQuarterlyFundamentals(key, market, {
-        screenerForce: opts?.force,
-      });
+  const run = async () => {
+    const {
+      quarters,
+      price: yahooPrice,
+      symbol,
+      source,
+      operating_cashflow,
+      operating_cashflow_np,
+    } = await fetchQuarterlyFundamentals(key, market, {
+      screenerForce: opts?.force,
+    });
     const panel = buildQuarterPanel(quarters);
     if (!panel) {
       saveTombstone(key);
       return {
-        ok: true,
+        ok: true as const,
         snapshot: null,
         panel: null,
         price: null,
@@ -254,7 +286,7 @@ export async function computeAndCacheQuarterMetrics(
 
     const metrics = loadMetricsMap();
     const priceRow = metrics.get(key);
-    let price =
+    const price =
       priceOverride != null &&
       Number.isFinite(priceOverride) &&
       priceOverride > 0
@@ -274,9 +306,29 @@ export async function computeAndCacheQuarterMetrics(
       quarters,
     );
     persistSnapshot(key, snapshot);
-    return { ok: true, snapshot, panel, price, symbol, source };
-  } catch {
+    return { ok: true as const, snapshot, panel, price, symbol, source };
+  };
+
+  try {
+    return await run();
+  } catch (e) {
+    if (isSqliteWalDamage(e) && !opts?._ioRetried) {
+      healMetricsHandlesAfterIo();
+      return computeAndCacheQuarterMetrics(ticker, market, priceOverride, {
+        force: true,
+        _ioRetried: true,
+      });
+    }
     // Transient network/Yahoo errors — do not tombstone; allow immediate retry.
-    return { ok: false, snapshot: null, panel: null, price: null };
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[quarters] compute failed", key, msg);
+    if (isSqliteWalDamage(e)) healMetricsHandlesAfterIo();
+    return {
+      ok: false,
+      snapshot: null,
+      panel: null,
+      price: null,
+      error: msg || "fetch failed",
+    };
   }
 }

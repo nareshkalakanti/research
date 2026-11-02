@@ -84,6 +84,8 @@ export async function GET(req: NextRequest) {
                 rating_label: null,
                 provisional: null,
                 pass: false,
+                roe: null,
+                roce: null,
               }
             : null;
         }
@@ -95,6 +97,8 @@ export async function GET(req: NextRequest) {
           rating_label: r.ratingLabel,
           provisional: r.provisional,
           pass: !r.provisional && r.passed >= 5,
+          roe: r.roe,
+          roce: r.roce,
         };
       })
       .filter(Boolean);
