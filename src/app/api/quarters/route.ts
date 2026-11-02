@@ -33,7 +33,12 @@ export async function GET(req: NextRequest) {
 
     if (!result.ok) {
       return NextResponse.json(
-        { ok: false, ticker, error: "fetch failed", quarters: null },
+        {
+          ok: false,
+          ticker,
+          error: result.error || "fetch failed",
+          quarters: null,
+        },
         { status: 500 },
       );
     }

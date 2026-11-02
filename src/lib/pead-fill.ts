@@ -16,6 +16,8 @@ import {
 } from "./quarter-panel";
 import {
   loadCachedQuartersSeries,
+  loadQuartersFillBlockedSet,
+  markQuartersFillMiss,
   upsertQuartersCache,
 } from "./screener-quarters";
 import { fetchQuarterlyFundamentals } from "./yahoo-quarters";
@@ -39,9 +41,26 @@ const PEAD_FILL_CONCURRENCY_DEFAULT = 8;
 /** Cap live Screener deepen per batch — stocks-ai is Yahoo-primary. */
 const PEAD_FILL_SCREENER_BUDGET = 4;
 
-function isIncomplete(row: Pead2Row): boolean {
+/** UI “Incomplete” filter — includes announce/returns gaps Scan cannot invent. */
+export function isPeadRowIncomplete(row: Pead2Row): boolean {
   if (!row.result_date) return true;
   if (row.returns_pct == null) return true;
+  if (row.forward_pe == null) return true;
+  if (
+    row.sales_yoy == null &&
+    row.np_yoy == null &&
+    row.ebidt_yoy == null
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Gaps Scan Incomplete can actually fill (quarters → Fwd PE / growth).
+ * Announce-date / returns-only holes belong to Refresh Returns, not this count.
+ */
+function needsQuarterMetricsFill(row: Pead2Row): boolean {
   if (row.forward_pe == null) return true;
   if (
     row.sales_yoy == null &&
@@ -90,13 +109,15 @@ export function pendingPeadFillTickers(opts: {
   const scored = new Map(
     loadPead2Rows().map((r) => [r.ticker.toUpperCase(), r] as const),
   );
+  const blocked = loadQuartersFillBlockedSet();
   const pending: string[] = [];
   for (const c of pool) {
     const t = c.ticker.toUpperCase();
+    if (blocked.has(t)) continue;
     const row = scored.get(t);
-    if (!row || isIncomplete(row)) pending.push(t);
+    if (!row || needsQuarterMetricsFill(row)) pending.push(t);
   }
-  // Prefer incomplete scored boards (almost ready) before blank names.
+  // Prefer scored boards missing PE/growth (almost ready) before blank names.
   pending.sort((a, b) => {
     const ar = scored.get(a);
     const br = scored.get(b);
@@ -122,11 +143,19 @@ export function peadFillCoverage(opts: {
       scoredInList.set(r.ticker.toUpperCase(), r);
     }
   }
+  const blocked = loadQuartersFillBlockedSet();
   let incomplete = 0;
   for (const r of scoredInList.values()) {
-    if (isIncomplete(r)) incomplete += 1;
+    const t = r.ticker.toUpperCase();
+    if (blocked.has(t)) continue;
+    if (needsQuarterMetricsFill(r)) incomplete += 1;
   }
-  const missing = Math.max(0, pool.length - scoredInList.size);
+  let missing = 0;
+  for (const c of pool) {
+    const t = c.ticker.toUpperCase();
+    if (scoredInList.has(t) || blocked.has(t)) continue;
+    missing += 1;
+  }
   const pending = incomplete + missing;
   return {
     universe: pool.length,
@@ -237,11 +266,13 @@ export async function runPeadFillBatch(opts: {
       }
 
       if (quarters.length < 2) {
+        markQuartersFillMiss(ticker);
         failed += 1;
         return;
       }
       const panel = buildQuarterPanel(quarters);
       if (!panel) {
+        markQuartersFillMiss(ticker);
         failed += 1;
         return;
       }
@@ -286,6 +317,7 @@ export async function runPeadFillBatch(opts: {
         has_bb: false,
       });
     } catch {
+      markQuartersFillMiss(ticker);
       failed += 1;
     }
   });

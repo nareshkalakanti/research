@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -12,17 +13,20 @@ import {
   MCAP_RANGE_STEPS,
   mcapIndicesToBounds,
 } from "@/components/MarketCapRangeBar";
+import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { QuoteTapeCard } from "@/components/QuoteTapeCard";
+import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { formatMcap } from "@/lib/types";
 import { formatResultDate, pead2ScoreClass } from "@/lib/pead-score";
 import type { Pead2Row } from "@/lib/pead2-types";
+import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
+import { useExpandQuarters } from "@/lib/use-expand-quarters";
 /** Exchange universes only — same List as Scan / Themes. */
 const PEAD_LISTS = ["All", "NSE", "NSE SME", "BSE SME"] as const;
 type PeadList = (typeof PEAD_LISTS)[number];
 
 const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 const PEAD_HIGH_MIN = 40;
-
-type SignalFilter = "all" | "tq" | "bb" | "both";
 
 type PeadCoverage = {
   universe: number;
@@ -87,12 +91,13 @@ const COLS: Array<{
   {
     id: "returns_pct",
     label: "Returns",
-    title: "Price change since first close after result date",
+    title:
+      "From first close after NSE result announcement → latest price (not quarter-end)",
   },
   {
     id: "daily_ret_pct",
     label: "Daily Ret",
-    title: "Largest single-day % move after result (capped)",
+    title: "Largest single-day % move on/after announcement (capped ~20%)",
   },
   { id: "sales_yoy", label: "Sales YoY", extra: true },
   { id: "sales_qoq", label: "Sales QoQ", extra: true },
@@ -159,6 +164,96 @@ function fpeClass(v: number | null | undefined): string {
   return "pead2-up";
 }
 
+function PeadOpenDetail({
+  row,
+  open,
+  colSpan,
+}: {
+  row: Pead2Row;
+  open: boolean;
+  colSpan: number;
+}) {
+  const qtr = useExpandQuarters(row.ticker, row.market, row.price, open);
+  const [roe, setRoe] = useState<number | null>(null);
+  const [roce, setRoce] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let dead = false;
+    const t = row.ticker.trim().toUpperCase();
+    void fetch(
+      `/api/seven-rule-fill?scores=1&tickers=${encodeURIComponent(t)}`,
+      { cache: "no-store", signal: AbortSignal.timeout(20_000) },
+    )
+      .then(async (res) => {
+        const json = (await res.json()) as {
+          rows?: Array<{
+            ticker: string;
+            roe?: number | null;
+            roce?: number | null;
+          }>;
+        };
+        const hit = json.rows?.find((r) => r.ticker.toUpperCase() === t);
+        if (dead) return;
+        setRoe(hit?.roe ?? null);
+        setRoce(hit?.roce ?? null);
+      })
+      .catch(() => {
+        if (!dead) {
+          setRoe(null);
+          setRoce(null);
+        }
+      });
+    return () => {
+      dead = true;
+    };
+  }, [open, row.ticker]);
+
+  const sevenRule = useMemo(
+    () =>
+      qtr.panel ? sevenRuleFromPanel(qtr.panel, { roe, roce }) : null,
+    [qtr.panel, roe, roce],
+  );
+
+  if (!open) return null;
+
+  return (
+    <tr className="pead2-expand-row">
+      <td colSpan={colSpan}>
+        <div className="pead2-expand">
+          <aside className="pead2-expand-left">
+            <p className="pead2-expand-meta">
+              <span className="mono">{row.ticker}</span>
+              {row.sector ? <span>{row.sector}</span> : null}
+              {row.mcap_cr != null ? (
+                <span>₹{formatMcap(row.mcap_cr)} Cr</span>
+              ) : null}
+            </p>
+            <QuoteTapeCard
+              ticker={row.ticker}
+              market={row.market}
+              active={open}
+              periods={[20, 50, 200]}
+            />
+            <div className="pead2-expand-7r">
+              {qtr.loading && !sevenRule ? (
+                <p className="table-meta">Loading 7R…</p>
+              ) : sevenRule ? (
+                <SevenRuleScoreCard result={sevenRule} compact />
+              ) : (
+                <p className="table-meta">No 7R yet</p>
+              )}
+            </div>
+          </aside>
+          <div className="pead2-expand-qtr">
+            <ExpandQuarters data={qtr} price={row.price} compact />
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function PeadPanel() {
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
@@ -168,7 +263,6 @@ export function PeadPanel() {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState("result_date");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
-  const [signal, setSignal] = useState<SignalFilter>("all");
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -178,6 +272,7 @@ export function PeadPanel() {
   const [scanning, setScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [markets, setMarkets] = useState<Record<string, number>>({});
+  const [openTicker, setOpenTicker] = useState<string | null>(null);
   const scanCancel = useRef<{ cancelled: boolean } | null>(null);
   const scanTotalRef = useRef(0);
 
@@ -199,7 +294,7 @@ export function PeadPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQ, mcapMinIndex, mcapMaxIndex, sort, dir, signal, market, incompleteOnly]);
+  }, [debouncedQ, mcapMinIndex, mcapMaxIndex, sort, dir, market, incompleteOnly]);
 
   const buildParams = useCallback(() => {
     const params = new URLSearchParams({
@@ -208,7 +303,6 @@ export function PeadPanel() {
       pageSize: "40",
       sort,
       dir,
-      signal,
       market,
     });
     if (incompleteOnly) params.set("incomplete", "1");
@@ -221,7 +315,6 @@ export function PeadPanel() {
     page,
     sort,
     dir,
-    signal,
     market,
     incompleteOnly,
     mcapMinIndex,
@@ -341,7 +434,7 @@ export function PeadPanel() {
         }
         setProg(
           "Scan PEAD",
-          `${listLabel} · 8 workers · +${saved} · ${remaining.toLocaleString()} left…`,
+          `${listLabel} · 10 workers · +${saved} · ${remaining.toLocaleString()} left…`,
           remaining,
         );
         const params = buildParams();
@@ -352,8 +445,8 @@ export function PeadPanel() {
           body: JSON.stringify({
             action: "scan",
             market,
-            limit: 32,
-            concurrency: 8,
+            limit: 40,
+            concurrency: 10,
           }),
         });
         const json = (await res.json()) as ApiResponse;
@@ -386,10 +479,11 @@ export function PeadPanel() {
               : prev,
           );
         }
-        const workers = (json as ApiResponse & { workers?: number }).workers ?? 8;
+        const workers =
+          (json as ApiResponse & { workers?: number }).workers ?? 10;
         setProg(
           remaining <= 0 ? "Done" : "Scan PEAD",
-          `${listLabel} · ${workers} workers · +${saved}${failed ? ` · ${failed} fail` : ""} · ${remaining.toLocaleString()} left`,
+          `${listLabel} · ${workers} workers · +${saved}${failed ? ` · ${failed} miss` : ""} · ${remaining.toLocaleString()} left`,
           remaining,
           remaining <= 0 ? { done: true } : undefined,
         );
@@ -444,7 +538,6 @@ export function PeadPanel() {
   const filtersActive =
     q.trim().length > 0 ||
     mcapNarrowed ||
-    signal !== "all" ||
     incompleteOnly ||
     market !== "All";
   const coverage = data?.coverage;
@@ -473,7 +566,23 @@ export function PeadPanel() {
       case "company":
         return (
           <div className="pead2-co">
-            <div className="pead2-name">{row.name}</div>
+            <button
+              type="button"
+              className="pead2-name pead2-name-btn"
+              title={
+                openTicker === row.ticker
+                  ? "Hide 7R & quarters"
+                  : "Open 7R & quarters"
+              }
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenTicker((cur) =>
+                  cur === row.ticker ? null : row.ticker,
+                );
+              }}
+            >
+              {row.name}
+            </button>
             <div className="pead2-co-meta">
               <span className="mono">{row.ticker}</span>
               {row.cap_code ? (
@@ -485,16 +594,6 @@ export function PeadPanel() {
               ) : null}
               {row.mcap_cr != null ? (
                 <span className="muted">₹{formatMcap(row.mcap_cr)}</span>
-              ) : null}
-              {row.has_tq ? (
-                <span className="result-tag tag-scan-tq" title="TQ weekly">
-                  TQ
-                </span>
-              ) : null}
-              {row.has_bb ? (
-                <span className="result-tag tag-scan-bb" title="BB NEW">
-                  BB
-                </span>
               ) : null}
               {row.tv ? (
                 <a
@@ -616,7 +715,9 @@ export function PeadPanel() {
           <h2>PEAD</h2>
           <p>
             Post-earnings drift — high PEAD, sensible Fwd PE, cooperating
-            returns. Result date is the announcement, not the quarter-end.
+            returns. Result date = NSE announcement (not quarter-end). Returns =
+            first close after that date → latest. Click a company for 7R +
+            quarters.
           </p>
         </div>
         <label className="field">
@@ -662,7 +763,7 @@ export function PeadPanel() {
           title={
             scanning
               ? "Stop PEAD scan"
-              : `Fill incomplete PEAD on ${market} — quarters, result dates, Fwd PE, returns`
+              : `Fill unscored / missing Fwd PE & growth on ${market} (announce/returns → Refresh Returns)`
           }
         >
           {scanning
@@ -698,33 +799,6 @@ export function PeadPanel() {
           Columns (
           {COLS.filter((c) => !c.extra).length + extraVisible}/{COLS.length})
         </button>
-        <div className="pead2-signal-filters" role="group" aria-label="Signal filter">
-          {(
-            [
-              ["all", "All"],
-              ["tq", "TQ weekly"],
-              ["bb", "BB NEW"],
-              ["both", "TQ + BB"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`chip tag-chip ${
-                id === "tq"
-                  ? "tag-scan-tq"
-                  : id === "bb"
-                    ? "tag-scan-bb"
-                    : id === "both"
-                      ? "tag-scan-mom"
-                      : ""
-              } ${signal === id ? "on" : ""}`}
-              onClick={() => setSignal(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
       </div>
 
       {scanning || scanProgress ? (
@@ -778,7 +852,6 @@ export function PeadPanel() {
             onClick={() => {
               setQ("");
               setDebouncedQ("");
-              setSignal("all");
               setIncompleteOnly(false);
               setMarket("All");
               setMcapMinIndex(0);
@@ -802,7 +875,7 @@ export function PeadPanel() {
             Showing {start.toLocaleString()}–{end.toLocaleString()} of{" "}
             {data.total.toLocaleString()}
             {coverage
-              ? ` · ${market} ${coverage.scored.toLocaleString()}/${coverage.universe.toLocaleString()} scored · ${coverage.incomplete.toLocaleString()} incomplete · ${coverage.missing.toLocaleString()} missing`
+              ? ` · ${market} ${coverage.scored.toLocaleString()}/${coverage.universe.toLocaleString()} scored · ${coverage.incomplete.toLocaleString()} need metrics · ${coverage.missing.toLocaleString()} missing`
               : data.stats?.scored != null
                 ? ` · ${data.stats.scored.toLocaleString()} scored`
                 : ""}
@@ -853,22 +926,32 @@ export function PeadPanel() {
               </tr>
             </thead>
             <tbody>
-              {(data?.rows ?? []).map((row) => (
-                <tr key={row.ticker}>
-                  {cols.map((c) => (
-                    <td
-                      key={c.id}
-                      className={
-                        c.id === "company"
-                          ? "col-company pead2-col-company"
-                          : `col-num pead2-col-${c.id}`
-                      }
-                    >
-                      {cell(row, c.id)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {(data?.rows ?? []).map((row) => {
+                const open = openTicker === row.ticker;
+                return (
+                  <Fragment key={row.ticker}>
+                    <tr className={open ? "pead2-row-open" : undefined}>
+                      {cols.map((c) => (
+                        <td
+                          key={c.id}
+                          className={
+                            c.id === "company"
+                              ? "col-company pead2-col-company"
+                              : `col-num pead2-col-${c.id}`
+                          }
+                        >
+                          {cell(row, c.id)}
+                        </td>
+                      ))}
+                    </tr>
+                    <PeadOpenDetail
+                      row={row}
+                      open={open}
+                      colSpan={cols.length}
+                    />
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
           {data && data.rows.length === 0 && !loading ? (
