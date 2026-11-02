@@ -86,6 +86,10 @@ import {
   loadQuantBasketMap,
   quantBasketTickerSet,
 } from "@/lib/quant-basket";
+import {
+  loadSevenRuleScanMap,
+  sevenRulePassTickerSet,
+} from "@/lib/seven-rule-scan";
 import { loadSmaStackMap, fetchAndCacheSmaStack } from "@/lib/sma-stack-cache";
 import { runConcurrent } from "@/lib/scrape-pool";
 import { brutalPassTickerSet } from "@/lib/brutal-scan";
@@ -417,6 +421,10 @@ async function buildCompaniesResponse(req: NextRequest) {
     sp.get("stableOpm") === "1" ||
     sp.get("operating") === "1";
   const filterPead = sp.get("pead") === "1";
+  const filterRule7 =
+    sp.get("rule7") === "1" ||
+    sp.get("seven") === "1" ||
+    sp.get("sevenRule") === "1";
   const filterQuant = sp.get("quant") === "1";
   const filterBrutal = sp.get("brutal") === "1";
   const filterAgeMin =
@@ -479,6 +487,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   const breakouts = loadBreakoutMap(bbTf);
   const operatingMetrics = operatingMetricsTickerSet();
   const peadUniverse = fundamentalsScanTickerSet();
+  const rule7Universe = sevenRulePassTickerSet();
   const quantUniverse = quantBasketTickerSet();
   const smaMapEarly = loadSmaStackMap();
   const brutalPass = brutalPassTickerSet();
@@ -755,6 +764,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     let mrsi_empty = 0;
     let operating_metrics = 0;
     let pead = 0;
+    let rule7 = 0;
     let quant = 0;
     let brutal = 0;
     let age25 = 0;
@@ -846,6 +856,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       if (rsiVal == null || !Number.isFinite(rsiVal)) mrsi_empty += 1;
       if (operatingMetrics.has(t)) operating_metrics += 1;
       if (peadUniverse.has(t)) pead += 1;
+      if (rule7Universe.has(t)) rule7 += 1;
       if (quantUniverse.has(t)) quant += 1;
       if (brutalPass.has(t)) brutal += 1;
       if (holdings.has(t)) hold += 1;
@@ -879,6 +890,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       mrsi_empty,
       operating_metrics,
       pead,
+      rule7,
       quant,
       brutal,
       age25,
@@ -953,6 +965,7 @@ async function buildCompaniesResponse(req: NextRequest) {
       const t = c.ticker.toUpperCase();
       if (filterBrutal) return brutalPass.has(t);
       if (filterPead) return peadUniverse.has(t);
+      if (filterRule7) return rule7Universe.has(t);
       if (filterQuant) return quantUniverse.has(t);
       if (filterOperatingMetrics) return operatingMetrics.has(t);
       if (filterBbw) return hasBbw;
@@ -1097,6 +1110,7 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const mul = dir === "desc" ? -1 : 1;
   const peadMap = loadFundamentalsScanMap();
+  const rule7Map = loadSevenRuleScanMap();
   const quantMap = loadQuantBasketMap();
   let smaMap = loadSmaStackMap();
   const relevanceTerms = qTerms.length
@@ -1157,6 +1171,13 @@ async function buildCompaniesResponse(req: NextRequest) {
       const an = am == null ? Number.NEGATIVE_INFINITY : am;
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
       return (an - bn) * mul;
+    }
+    if (sort === "seven_rule_score") {
+      const am = rule7Map.get(a.ticker.toUpperCase())?.score ?? null;
+      const bm = rule7Map.get(b.ticker.toUpperCase())?.score ?? null;
+      const an = am == null ? Number.NEGATIVE_INFINITY : am;
+      const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
+      if (an !== bn) return (an - bn) * mul;
     }
     if (sort === "pead_score") {
       const am = peadMap.get(a.ticker.toUpperCase())?.pead ?? null;
@@ -1432,6 +1453,17 @@ async function buildCompaniesResponse(req: NextRequest) {
       })()),
       pead_score:
         peadMap.get(row.ticker.toUpperCase())?.pead ?? null,
+      seven_rule: (() => {
+        const r = rule7Map.get(row.ticker.toUpperCase());
+        if (!r) return null;
+        return {
+          score: r.score,
+          passed: r.passed,
+          rating: r.rating,
+          provisional: r.provisional,
+          rating_label: r.ratingLabel,
+        };
+      })(),
       basket: (() => {
         const q = quantMap.get(row.ticker.toUpperCase());
         if (!q) return null;

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import {
   importSectorFromScreenshot,
+  importSectorFromTableText,
   type SectorShotEvent,
 } from "@/lib/sector-screenshot";
 
@@ -20,18 +21,26 @@ async function imageFromForm(form: FormData): Promise<string> {
 export async function POST(req: NextRequest) {
   const contentType = req.headers.get("content-type") || "";
   let imageDataUrl = "";
+  let tableText = "";
   let priorIndustry = "";
   if (contentType.includes("multipart/form-data")) {
     const form = await req.formData();
     imageDataUrl = await imageFromForm(form);
+    tableText = String(form.get("text") || "").trim();
     priorIndustry = String(form.get("priorIndustry") || "").trim();
   } else {
     try {
-      const body = (await req.json()) as { image?: string; priorIndustry?: string };
+      const body = (await req.json()) as {
+        image?: string;
+        text?: string;
+        priorIndustry?: string;
+      };
       imageDataUrl = (body.image || "").trim();
+      tableText = (body.text || "").trim();
       priorIndustry = (body.priorIndustry || "").trim();
     } catch {
       imageDataUrl = "";
+      tableText = "";
     }
   }
 
@@ -42,18 +51,30 @@ export async function POST(req: NextRequest) {
         controller.enqueue(encoder.encode(`${JSON.stringify(ev)}\n`));
       };
       try {
-        const result = await importSectorFromScreenshot(
-          imageDataUrl,
-          send,
-          priorIndustry,
-        );
-        send({
-          t: "done",
-          industry: result.industry,
-          names: result.names,
-          unresolved: result.unresolved,
-          sector: result.sector,
-        });
+        if (tableText && !imageDataUrl.startsWith("data:image")) {
+          const result = await importSectorFromTableText(tableText, send);
+          send({
+            t: "done",
+            industry: result.industry,
+            names: result.names,
+            unresolved: result.unresolved,
+            sector: result.sector,
+            sectors: result.sectors,
+          });
+        } else {
+          const result = await importSectorFromScreenshot(
+            imageDataUrl,
+            send,
+            priorIndustry,
+          );
+          send({
+            t: "done",
+            industry: result.industry,
+            names: result.names,
+            unresolved: result.unresolved,
+            sector: result.sector,
+          });
+        }
       } catch (e) {
         send({
           t: "error",

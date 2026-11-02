@@ -5,6 +5,7 @@ import { ocrImageWithQianfan } from "./corporate-data-extract";
 import { bootstrapCompanyTicker } from "./company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import {
+  parseSectorNameIndustryPairs,
   parseSectorScreenshot,
   preferBatchIndustry,
   tidyIndustry,
@@ -104,8 +105,23 @@ export type SectorShotEvent =
       before: number;
       after: number;
     }
-  | { t: "done"; industry: string; names: string[]; unresolved: string[]; sector: RotationSector }
+  | {
+      t: "done";
+      industry: string;
+      names: string[];
+      unresolved: string[];
+      sector: RotationSector;
+      sectors?: RotationSector[];
+    }
   | { t: "error"; error: string };
+
+export type SectorTableImport = {
+  industry: string;
+  names: string[];
+  unresolved: string[];
+  sector: RotationSector;
+  sectors: RotationSector[];
+};
 
 export async function importSectorFromScreenshot(
   imageDataUrl: string,
@@ -224,5 +240,243 @@ export async function importSectorFromScreenshot(
     names: names,
     unresolved,
     sector,
+  };
+}
+
+/**
+ * Paste path (Screener TSV / HTML table): pair each Name with its Industry cell,
+ * resolve listings, and merge one rotation basket per distinct industry.
+ */
+export async function importSectorFromTableText(
+  text: string,
+  onEvent?: (ev: SectorShotEvent) => void,
+): Promise<SectorTableImport> {
+  const raw = (text || "").trim();
+  if (raw.length < 8) {
+    throw new Error("Paste a screener table (Name + Industry columns).");
+  }
+  const pairs = parseSectorNameIndustryPairs(raw);
+  if (!pairs.length) {
+    // Fall back to OCR-style aggregate parse for odd clipboard shapes.
+    const parsed = parseSectorScreenshot(raw);
+    if (!parsed.names.length) {
+      throw new Error(
+        "Could not read company names. Copy the Name + Industry columns from Screener.",
+      );
+    }
+    const industry = tidyIndustry(parsed.industry) || "";
+    onEvent?.({
+      t: "parsed",
+      industry: industry || "(resolving…)",
+      names: parsed.names,
+    });
+    const unresolved: string[] = [];
+    const members: Array<{ ticker: string; name: string; market: string }> = [];
+    const have = new Set<string>();
+    const hits = await runConcurrent(parsed.names, 6, (q) =>
+      resolveListingQuery(q),
+    );
+    for (let i = 0; i < parsed.names.length; i++) {
+      const q = parsed.names[i]!;
+      const hit = hits[i];
+      if (!hit) {
+        unresolved.push(q);
+        onEvent?.({ t: "miss", query: q });
+        continue;
+      }
+      const ticker = hit.ticker.toUpperCase();
+      if (have.has(ticker)) {
+        onEvent?.({ t: "dup", query: q, ticker });
+        continue;
+      }
+      have.add(ticker);
+      members.push({ ticker, name: hit.name, market: hit.market });
+      onEvent?.({ t: "hit", query: q, ticker, name: hit.name });
+    }
+    if (!members.length) {
+      throw new Error(
+        `None of the names resolved: ${parsed.names.slice(0, 8).join(", ")}`,
+      );
+    }
+    let label = industry;
+    if (label.length < 2) {
+      label = industryFromResolvedTickers(members.map((m) => m.ticker)) || "";
+    }
+    if (label.length < 2) {
+      throw new Error(
+        "Could not read Industry. Include the Industry column when you copy.",
+      );
+    }
+    const prior =
+      listRotationSectors().find(
+        (s) => s.label.toLowerCase() === label.toLowerCase(),
+      )?.members.length ?? 0;
+    const sector = mergeRotationSectorByLabel(label, members);
+    onEvent?.({
+      t: "count",
+      extracted: parsed.names.length,
+      resolved: members.length,
+      unresolved: unresolved.length,
+      before: prior,
+      after: sector.members.length,
+    });
+    onEvent?.({ t: "save", label: sector.label, n: sector.members.length });
+    void Promise.all(
+      members.map(async (m) => {
+        try {
+          await bootstrapCompanyTicker(m.ticker, {
+            name: m.name,
+            market: m.market,
+          });
+        } catch {
+          /* optional */
+        }
+      }),
+    ).then(() => invalidateCompanyCache());
+    return {
+      industry: label,
+      names: parsed.names,
+      unresolved,
+      sector,
+      sectors: [sector],
+    };
+  }
+
+  const names = pairs.map((p) => p.name);
+  const labeled = pairs.filter((p) => p.industry).length;
+  const distinct = new Set(
+    pairs.map((p) => (p.industry || "").toLowerCase()).filter(Boolean),
+  );
+  onEvent?.({
+    t: "parsed",
+    industry:
+      distinct.size > 1
+        ? `${distinct.size} industries · ${labeled}/${pairs.length} labeled`
+        : pairs.find((p) => p.industry)?.industry || "(resolving…)",
+    names,
+  });
+
+  const unresolved: string[] = [];
+  const hits = await runConcurrent(names, 6, (q) => resolveListingQuery(q));
+  type Resolved = {
+    query: string;
+    industry: string | null;
+    ticker: string;
+    name: string;
+    market: string;
+  };
+  const resolved: Resolved[] = [];
+  const have = new Set<string>();
+  for (let i = 0; i < pairs.length; i++) {
+    const p = pairs[i]!;
+    const hit = hits[i];
+    if (!hit) {
+      unresolved.push(p.name);
+      onEvent?.({ t: "miss", query: p.name });
+      continue;
+    }
+    const ticker = hit.ticker.toUpperCase();
+    if (have.has(ticker)) {
+      onEvent?.({ t: "dup", query: p.name, ticker });
+      continue;
+    }
+    have.add(ticker);
+    resolved.push({
+      query: p.name,
+      industry: p.industry,
+      ticker,
+      name: hit.name,
+      market: hit.market,
+    });
+    onEvent?.({
+      t: "hit",
+      query: p.name,
+      ticker,
+      name: hit.name,
+    });
+  }
+  if (!resolved.length) {
+    throw new Error(
+      `None of the names resolved: ${names.slice(0, 8).join(", ")}`,
+    );
+  }
+
+  // Fill missing industry from listing taxonomy (per ticker).
+  for (const r of resolved) {
+    if (r.industry) continue;
+    const fromAbout = industryFromResolvedTickers([r.ticker]);
+    if (fromAbout) r.industry = fromAbout;
+  }
+  const stillMissing = resolved.filter((r) => !r.industry);
+  if (stillMissing.length === resolved.length) {
+    throw new Error(
+      "Could not read Industry. Include the Industry column when you copy.",
+    );
+  }
+
+  const byIndustry = new Map<
+    string,
+    { label: string; members: Array<{ ticker: string; name: string; market: string }> }
+  >();
+  for (const r of resolved) {
+    const label = tidyIndustry(r.industry);
+    if (!label) continue;
+    const k = label.toLowerCase();
+    const cur = byIndustry.get(k) ?? { label, members: [] };
+    cur.members.push({
+      ticker: r.ticker,
+      name: r.name,
+      market: r.market,
+    });
+    byIndustry.set(k, cur);
+  }
+
+  const sectors: RotationSector[] = [];
+  for (const bag of byIndustry.values()) {
+    const prior =
+      listRotationSectors().find(
+        (s) => s.label.toLowerCase() === bag.label.toLowerCase(),
+      )?.members.length ?? 0;
+    const sector = mergeRotationSectorByLabel(bag.label, bag.members);
+    sectors.push(sector);
+    onEvent?.({
+      t: "count",
+      extracted: pairs.length,
+      resolved: bag.members.length,
+      unresolved: unresolved.length,
+      before: prior,
+      after: sector.members.length,
+    });
+    onEvent?.({ t: "save", label: sector.label, n: sector.members.length });
+  }
+
+  if (!sectors.length) {
+    throw new Error("No industry baskets to save.");
+  }
+
+  sectors.sort((a, b) => b.members.length - a.members.length || a.label.localeCompare(b.label));
+  const primary = sectors[0]!;
+  void Promise.all(
+    resolved.map(async (m) => {
+      try {
+        await bootstrapCompanyTicker(m.ticker, {
+          name: m.name,
+          market: m.market,
+        });
+      } catch {
+        /* optional */
+      }
+    }),
+  ).then(() => invalidateCompanyCache());
+
+  return {
+    industry: primary.label,
+    names,
+    unresolved: [
+      ...unresolved,
+      ...stillMissing.map((r) => `${r.query} (no industry)`),
+    ],
+    sector: primary,
+    sectors,
   };
 }

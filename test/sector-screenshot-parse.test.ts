@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { parseSectorScreenshot, preferBatchIndustry } from "../src/lib/sector-screenshot-parse";
+import {
+  parseSectorNameIndustryPairs,
+  parseSectorScreenshot,
+  preferBatchIndustry,
+} from "../src/lib/sector-screenshot-parse";
 
 const json = parseSectorScreenshot(`
 {"industry":"Advertisement","names":["Signpost India Ltd","Mobavenue AI Tech Ltd","Affle 3i Ltd"]}
@@ -181,4 +185,43 @@ assert.ok(numberedMapTrunc.names.length >= 9);
 assert.ok(numberedMapTrunc.names.some((n) => /Alpha Cable/i.test(n)));
 assert.ok(numberedMapTrunc.names.some((n) => /India Cables/i.test(n)));
 assert.ok(!numberedMapTrunc.names.some((n) => /^System$/i.test(n)));
+
+const mixedPairs = parseSectorNameIndustryPairs(`
+Name\tMarket Capitalization\tIndustry\tClose Price
+1 Reliance Industries Ltd\t₹ 15,76,405 Cr\tRefineries\t₹ 1,164.90
+2 Jio Platforms Ltd\t₹ 13,18,089 Cr\tTelecom Services\t₹ 1,431.30
+3 Bharti Airtel Ltd\t₹ 12,31,907 Cr\tTelecom Services\t₹ 1,973.70
+4 HDFC Bank Ltd\t₹ 10,68,834 Cr\tPrivate Banks\t₹ 692.80
+5 State Bank of India\t₹ 8,87,861 Cr\tPSU Banks\t₹ 961.85
+6 Bajaj Finance Ltd\t₹ 5,84,679 Cr\tConglomerate Backed NBFC\t₹ 939.10
+7 Larsen & Toubro Ltd\t₹ 5,32,713 Cr\tInfra Construction and Contracting\t₹ 3,871.70
+`);
+assert.equal(mixedPairs.length, 7);
+assert.equal(
+  mixedPairs.find((p) => /Reliance/i.test(p.name))?.industry,
+  "Refineries",
+);
+assert.equal(
+  mixedPairs.find((p) => /Jio Platforms/i.test(p.name))?.industry,
+  "Telecom Services",
+);
+assert.equal(
+  mixedPairs.find((p) => /HDFC Bank/i.test(p.name))?.industry,
+  "Private Banks",
+);
+assert.equal(
+  mixedPairs.find((p) => /State Bank of India/i.test(p.name))?.industry,
+  "PSU Banks",
+);
+assert.equal(
+  mixedPairs.find((p) => /Bajaj Finance/i.test(p.name))?.industry,
+  "Conglomerate Backed NBFC",
+);
+assert.equal(
+  mixedPairs.find((p) => /Larsen/i.test(p.name))?.industry,
+  "Infra Construction and Contracting",
+);
+const industries = new Set(mixedPairs.map((p) => p.industry).filter(Boolean));
+assert.ok(industries.size >= 5);
+
 console.log("ok");

@@ -11,6 +11,12 @@ export type SectorShotExtract = {
   rowIndustries: string[];
 };
 
+/** One Name-column row paired with its Industry-column cell (may be null). */
+export type SectorNameIndustry = {
+  name: string;
+  industry: string | null;
+};
+
 const NOISE =
   /showing\s+\d+\s+results|edit columns|download|^default\b|performance|technical|valuation|holdings|growth|profit\/loss|balance sheet|cash flow|ratios|^chart$|^scores$|^stock\s+price\s+quote$/i;
 
@@ -368,21 +374,28 @@ function industryFromCells(
 ): string | null {
   if (indIdx >= 0 && cells[indIdx] && !PRICEISH.test(cells[indIdx]!)) {
     const t = cells[indIdx]!.replace(/\s+/g, " ").trim();
-    if (t && !HEADER_IND.test(t) && !HEADER_NAME.test(t)) return t;
-  }
-  for (let i = cells.length - 1; i >= 0; i--) {
-    const c = cells[i]!;
-    if (PRICEISH.test(c)) continue;
-    if (HEADER_NAME.test(c) || HEADER_IND.test(c)) continue;
-    if (/^close/i.test(c) || /^mcap/i.test(c)) continue;
-    if (LEGAL.test(c) || looksName(c) && LEGAL.test(c)) continue;
-    if (/[A-Za-z]/.test(c) && c.length < 48 && !LEGAL.test(c) && !/^\d/.test(c)) {
-      if (cells.indexOf(c) === 0 && LEGAL.test(c)) continue;
-      if (i === 0) continue;
-      return c.replace(/\s+/g, " ").trim();
+    if (t && !HEADER_IND.test(t) && !HEADER_NAME.test(t) && !looksIssuerLabel(t)) {
+      return t;
     }
   }
-  return null;
+  // Screener rows: Name | MCap | Industry | Close — prefer the cell just
+  // before the last price when headers were lost on paste.
+  const candidates: string[] = [];
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i]!.replace(/\s+/g, " ").trim();
+    if (!c) continue;
+    if (PRICEISH.test(c)) continue;
+    if (HEADER_NAME.test(c) || HEADER_IND.test(c)) continue;
+    if (/^close/i.test(c) || /^m(?:arket)?\s*cap/i.test(c)) continue;
+    if (looksIssuerLabel(c)) continue;
+    if (i === 0) continue;
+    if (/[A-Za-z]/.test(c) && c.length >= 3 && c.length <= 64 && !/^\d/.test(c)) {
+      candidates.push(c);
+    }
+  }
+  // Prefer a mid-row label (industry) over a trailing noise cell.
+  if (candidates.length >= 2) return candidates[candidates.length - 2]!;
+  return candidates[0] || null;
 }
 
 function htmlRows(html: string): string[][] {
@@ -401,37 +414,54 @@ function htmlRows(html: string): string[][] {
   return rows;
 }
 
-function fromHtml(text: string): SectorShotExtract | null {
-  if (!/<t[rdh]|<table/i.test(text || "")) return null;
+function tidyRowIndustry(
+  raw: string | null | undefined,
+  name: string,
+): string | null {
+  const ind = tidyIndustry((raw || "").replace(/\s+/g, " ").trim());
+  if (!ind) return null;
+  if (ind.toLowerCase() === name.toLowerCase()) return null;
+  return ind;
+}
+
+function pairsFromHtml(text: string): SectorNameIndustry[] {
+  if (!/<t[rdh]|<table/i.test(text || "")) return [];
   const rows = htmlRows(text);
-  if (!rows.length) return null;
+  if (!rows.length) return [];
   let nameIdx = 0;
   let indIdx = -1;
-  const names: string[] = [];
-  const industries: string[] = [];
+  const out: SectorNameIndustry[] = [];
   for (const cells of rows) {
     if (
       cells.some((c) => HEADER_NAME.test(c)) &&
-      cells.some((c) => HEADER_IND.test(c))
+      (cells.some((c) => HEADER_IND.test(c)) ||
+        cells.some((c) => /^market\s+cap/i.test(c) || /^close\s+price$/i.test(c)))
     ) {
       nameIdx = cells.findIndex((c) => HEADER_NAME.test(c));
       indIdx = cells.findIndex((c) => HEADER_IND.test(c));
       continue;
     }
-    const name = (cells[nameIdx] || "").replace(/^\d+\s+/, "").trim();
+    const name = cleanExtractedName(
+      (cells[nameIdx] || "").replace(/^\d+\s+/, "").trim(),
+    );
     if (!looksName(name)) continue;
-    names.push(name);
-    const ind =
+    const rawInd =
       indIdx >= 0 ? (cells[indIdx] || "").trim() : industryFromCells(cells, -1);
-    if (ind && ind.toLowerCase() !== name.toLowerCase()) industries.push(ind);
+    out.push({ name, industry: tidyRowIndustry(rawInd, name) });
   }
-  if (!names.length) return null;
-  const rowIndustries = industries.filter(
-    (i) => i && !isIndustryHeader(i) && !looksIssuerLabel(i),
-  );
+  return out;
+}
+
+function fromHtml(text: string): SectorShotExtract | null {
+  const pairs = pairsFromHtml(text);
+  if (!pairs.length) return null;
+  const names = uniqNames(pairs.map((p) => p.name));
+  const rowIndustries = pairs
+    .map((p) => p.industry)
+    .filter((i): i is string => Boolean(i));
   return {
-    industry: pickIndustry(rowIndustries),
-    names: uniqNames(names),
+    industry: tidyIndustry(pickIndustry(rowIndustries)),
+    names,
     rowIndustries,
   };
 }
@@ -457,9 +487,7 @@ function pickIndustry(industries: string[]): string | null {
   return industry;
 }
 
-function fromTable(text: string): SectorShotExtract {
-  const html = fromHtml(text);
-  if (html?.names.length) return html;
+function pairsFromPlainTable(text: string): SectorNameIndustry[] {
   const lines = flattenOcrHtml(decodeFence(text))
     .split(/\n+/)
     .map((l) => l.trim())
@@ -467,8 +495,7 @@ function fromTable(text: string): SectorShotExtract {
 
   let nameIdx = -1;
   let indIdx = -1;
-  const names: string[] = [];
-  const industries: string[] = [];
+  const out: SectorNameIndustry[] = [];
 
   for (const line of lines) {
     if (/[{}\[\]]/.test(line) && /"/.test(line)) continue;
@@ -487,22 +514,98 @@ function fromTable(text: string): SectorShotExtract {
       indIdx = cells.findIndex((c) => HEADER_IND.test(c));
       continue;
     }
-    const name =
+    const rawName =
       nameIdx >= 0 && cells[nameIdx] && looksName(cells[nameIdx]!)
         ? cells[nameIdx]!.replace(/^\d+\s+/, "").trim()
         : nameFromLine(line, cells);
-    if (!name) continue;
-    names.push(name);
+    if (!rawName) continue;
+    const name = cleanExtractedName(rawName);
+    if (!looksName(name)) continue;
     const ind = industryFromCells(cells, indIdx);
-    if (ind && ind.toLowerCase() !== name.toLowerCase()) industries.push(ind);
+    out.push({ name, industry: tidyRowIndustry(ind, name) });
   }
+  return out;
+}
+
+function pairsFromJsonRows(text: string): SectorNameIndustry[] {
+  const objs = allJsonObjects(text);
+  if (!objs.length) return [];
+  const out: SectorNameIndustry[] = [];
+  for (const obj of objs) {
+    const list = obj.names ?? obj.companies;
+    if (Array.isArray(list)) {
+      const one = tidyIndustry(
+        String(obj.industry || obj.sector || "")
+          .replace(/\s+/g, " ")
+          .trim(),
+      );
+      for (const n of list) {
+        const name = cleanExtractedName(String(n || ""));
+        if (!looksName(name)) continue;
+        out.push({
+          name,
+          industry: tidyRowIndustry(one, name),
+        });
+      }
+      continue;
+    }
+    const name = cleanExtractedName(
+      fieldByKey(obj, /^(name|company|stock name)$/i),
+    );
+    if (!looksName(name)) continue;
+    const ind = fieldByKey(obj, /^(industry|sector|theme)$/i);
+    out.push({ name, industry: tidyRowIndustry(ind, name) });
+  }
+  return out;
+}
+
+function fromTable(text: string): SectorShotExtract {
+  const htmlPairs = pairsFromHtml(text);
+  const pairs = htmlPairs.length ? htmlPairs : pairsFromPlainTable(text);
+  if (!pairs.length) {
+    return { industry: null, names: [], rowIndustries: [] };
+  }
+  const names = uniqNames(pairs.map((p) => p.name));
+  const rowIndustries = pairs
+    .map((p) => p.industry)
+    .filter((i): i is string => Boolean(i));
   return {
-    industry: tidyIndustry(pickIndustry(industries)),
-    names: uniqNames(names),
-    rowIndustries: industries.filter(
-      (i) => i && !isIndustryHeader(i) && !looksIssuerLabel(i),
-    ),
+    industry: tidyIndustry(pickIndustry(rowIndustries)),
+    names,
+    rowIndustries,
   };
+}
+
+/**
+ * Prefer row-aligned Name + Industry pairs (Screener TSV/HTML paste).
+ * Dedupes by name (first industry wins when a name repeats).
+ */
+export function parseSectorNameIndustryPairs(
+  text: string,
+): SectorNameIndustry[] {
+  const raw = [
+    ...pairsFromHtml(text),
+    ...pairsFromJsonRows(text),
+    ...pairsFromPlainTable(text),
+  ];
+  const seen = new Set<string>();
+  const out: SectorNameIndustry[] = [];
+  for (const p of raw) {
+    const name = cleanExtractedName(p.name);
+    if (!looksName(name)) continue;
+    const k = name.toLowerCase();
+    if (seen.has(k)) {
+      // Fill missing industry from a later row of the same name.
+      if (!out.find((x) => x.name.toLowerCase() === k)?.industry && p.industry) {
+        const hit = out.find((x) => x.name.toLowerCase() === k);
+        if (hit && !hit.industry) hit.industry = p.industry;
+      }
+      continue;
+    }
+    seen.add(k);
+    out.push({ name, industry: p.industry });
+  }
+  return out;
 }
 
 function numberedNames(text: string): string[] {

@@ -27,7 +27,29 @@ type ShotEvent = {
   before?: number;
   after?: number;
   sector?: { id: string; label: string; members?: unknown[] };
+  sectors?: Array<{ id: string; label: string; members?: unknown[] }>;
 };
+
+function clipboardTableText(cd: DataTransfer | null): string {
+  if (!cd) return "";
+  const html = (cd.getData("text/html") || "").trim();
+  const plain = (cd.getData("text/plain") || "").trim();
+  const pick = html.length >= 40 && /<t[rdh]|<table/i.test(html) ? html : plain;
+  if (!pick) return "";
+  // Screener / Excel paste usually has Name + Industry (or a price table).
+  if (
+    /\bindustry\b/i.test(pick) ||
+    /\bsector\b/i.test(pick) ||
+    (/\bname\b/i.test(pick) && /\b(?:ltd|limited)\b/i.test(pick))
+  ) {
+    return pick;
+  }
+  // Numbered rows with Ltd still count even without an Industry header.
+  if (/\d+\s+[A-Za-z].+\b(?:Ltd|Limited)\b/i.test(pick) && pick.includes("\n")) {
+    return pick;
+  }
+  return "";
+}
 
 export function SectorShotPanel() {
   const [rows, setRows] = useState<Row[]>([]);
@@ -42,6 +64,7 @@ export function SectorShotPanel() {
   const shotQueue = useRef<File[]>([]);
   const shotRunning = useRef(false);
   const fromShotRef = useRef<(file: File) => void>(() => {});
+  const fromTextRef = useRef<(text: string) => void>(() => {});
   const lastIndustry = useRef("");
   const [newName, setNewName] = useState("");
   const [newTickers, setNewTickers] = useState<TickerSuggestHit[]>([]);
@@ -239,6 +262,107 @@ export function SectorShotPanel() {
   );
   fromShotRef.current = enqueueShot;
 
+  const runTablePaste = useCallback(
+    async (text: string) => {
+      const body = text.trim();
+      if (body.length < 8 || shotRunning.current) return;
+      shotRunning.current = true;
+      setShotBusy(true);
+      setError(null);
+      setShotPreview(null);
+      setShotLog([
+        "— Table paste —",
+        "Reading Name + Industry columns…",
+      ]);
+      const pushLog = (line: string) =>
+        setShotLog((prev) => [...prev, line]);
+      try {
+        const res = await fetch("/api/sector-rotation/screenshot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: body }),
+        });
+        if (!res.body) throw new Error("No progress stream");
+        const reader = res.body.getReader();
+        const dec = new TextDecoder();
+        let buf = "";
+        let donePayload: ShotEvent | null = null;
+        let streamError = "";
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buf += dec.decode(value, { stream: true });
+          const lines = buf.split("\n");
+          buf = lines.pop() || "";
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            let ev: ShotEvent;
+            try {
+              ev = JSON.parse(line) as ShotEvent;
+            } catch {
+              continue;
+            }
+            if (ev.t === "parsed") {
+              pushLog(
+                `Industry “${ev.industry}” · ${ev.names?.length ?? 0} names`,
+              );
+            } else if (ev.t === "hit") {
+              pushLog(`${ev.query} → ${ev.ticker}`);
+            } else if (ev.t === "dup") {
+              pushLog(`${ev.query} already ${ev.ticker}`);
+            } else if (ev.t === "miss") {
+              pushLog(`Unresolved: ${ev.query}`);
+            } else if (ev.t === "count") {
+              pushLog(
+                `Count: paste ${ev.extracted ?? 0} · matched ${ev.resolved ?? 0} · basket ${ev.before ?? 0} → ${ev.after ?? 0}`,
+              );
+            } else if (ev.t === "save") {
+              pushLog(`Saved ${ev.n} stocks in “${ev.label}”`);
+            } else if (ev.t === "done") {
+              donePayload = ev;
+            } else if (ev.t === "error") {
+              streamError = ev.error || "Extract failed";
+              pushLog(streamError);
+            }
+          }
+        }
+        if (streamError) throw new Error(streamError);
+        if (!donePayload?.sector?.id) {
+          throw new Error("Table import did not finish");
+        }
+        const baskets =
+          donePayload.sectors?.filter((s) => s?.id) ??
+          (donePayload.sector ? [donePayload.sector] : []);
+        setSelectedId(donePayload.sector.id);
+        lastIndustry.current = donePayload.industry || donePayload.sector.label || "";
+        await loadList();
+        pushLog(
+          baskets.length > 1
+            ? `Updated ${baskets.length} industry baskets`
+            : "List refreshed",
+        );
+        const miss = (donePayload.unresolved || []).filter(
+          (x): x is string => typeof x === "string" && Boolean(x),
+        );
+        if (miss.length) {
+          setError(`Unresolved: ${miss.slice(0, 12).join(", ")}`);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+        setShotLog((prev) => [...prev, `Failed: ${msg}`]);
+      } finally {
+        shotRunning.current = false;
+        setShotBusy(false);
+        setShotQueued(0);
+      }
+    },
+    [loadList],
+  );
+  fromTextRef.current = (text: string) => {
+    void runTablePaste(text);
+  };
+
   useEffect(() => {
     function imageFromPaste(e: ClipboardEvent): File | null {
       const cd = e.clipboardData;
@@ -255,9 +379,17 @@ export function SectorShotPanel() {
     }
     function onDocPaste(e: ClipboardEvent) {
       const file = imageFromPaste(e);
-      if (!file) return;
+      if (file) {
+        e.preventDefault();
+        fromShotRef.current(file);
+        return;
+      }
+      const text = clipboardTableText(e.clipboardData);
+      if (!text) return;
+      const tag = (e.target as HTMLElement | null)?.tagName || "";
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       e.preventDefault();
-      fromShotRef.current(file);
+      fromTextRef.current(text);
     }
     window.addEventListener("paste", onDocPaste);
     return () => window.removeEventListener("paste", onDocPaste);
@@ -360,7 +492,8 @@ export function SectorShotPanel() {
     <div className="rot-shot-simple">
       <div className="rot-shot-simple-main">
       <p className="rot-shot-simple-lead">
-        Paste or drop a screener screenshot. Same industry merges.{" "}
+        Paste a Screener table (Name + Industry) or drop a screenshot. Each
+        industry merges into its sector basket.{" "}
         <strong>{rows.length}</strong> sectors saved.
       </p>
       <div
@@ -368,7 +501,7 @@ export function SectorShotPanel() {
         className={`din-paste-well rot-shot${shotDrag ? " is-drag" : ""}${shotBusy ? " is-busy" : ""}`}
         tabIndex={0}
         role="button"
-        aria-label="Paste sector screenshot"
+        aria-label="Paste sector table or screenshot"
         onClick={() => shotWell.current?.focus()}
         onPaste={(e) => {
           const file =
@@ -380,6 +513,12 @@ export function SectorShotPanel() {
           if (file) {
             e.preventDefault();
             enqueueShot(file);
+            return;
+          }
+          const text = clipboardTableText(e.clipboardData);
+          if (text) {
+            e.preventDefault();
+            void runTablePaste(text);
           }
         }}
         onDragOver={(e) => {
@@ -413,8 +552,11 @@ export function SectorShotPanel() {
           </>
         ) : (
           <div className="din-paste-hint">
-            <strong>Paste or choose screenshots</strong>
-            <span>Industry column becomes the sector name.</span>
+            <strong>Paste table or screenshots</strong>
+            <span>
+              Copy Screener rows (Name + Industry) or paste an image. Mixed
+              industries split into separate baskets.
+            </span>
             <label className="din-paste-upload">
               Choose images
               <input
