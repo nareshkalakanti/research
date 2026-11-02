@@ -46,17 +46,26 @@ export function QuarterPanel({
     return <div className="q-empty">No quarterly data.</div>;
   }
 
-  const n = panel.labels.length;
+  const keep = compact ? Math.min(4, panel.labels.length) : panel.labels.length;
+  const labelStart = panel.labels.length - keep;
+  const labels = panel.labels.slice(labelStart);
+  const n = labels.length;
   const peRows = compact ? [] : peRowsFromPanel(panel, price);
   const core = compact
     ? panel.rows.filter((r) =>
-        /^(Sales|Operating Profit|OPM %|Net Profit)$/i.test(r.label),
+        /^(Sales|Operating Profit|OPM %|Other Income|Net Profit|EPS)/i.test(
+          r.label,
+        ),
       )
     : panel.rows;
   const displayRows = [
     ...(core.length ? core : panel.rows.slice(0, 4)),
     ...peRows,
-  ];
+  ].map((row) =>
+    compact && labelStart > 0
+      ? { ...row, values: row.values.slice(labelStart) }
+      : row,
+  );
   const overall = compact ? null : classifyQuarterTrend(panel, yoy);
   const story = compact
     ? null
@@ -96,7 +105,7 @@ export function QuarterPanel({
           <table className="q-table">
             <colgroup>
               <col className="q-col-metric" />
-              {panel.labels.map((lb) => (
+              {labels.map((lb) => (
                 <col key={lb} className="q-col-qtr" />
               ))}
               {compact ? null : <col className="q-col-trend" />}
@@ -104,7 +113,7 @@ export function QuarterPanel({
             <thead>
               <tr>
                 <th>Metric</th>
-                {panel.labels.map((lb, i) => (
+                {labels.map((lb, i) => (
                   <th key={lb} className={i === n - 1 ? "q-latest" : undefined}>
                     {lb}
                   </th>
@@ -113,22 +122,34 @@ export function QuarterPanel({
               </tr>
             </thead>
             <tbody>
-              {displayRows.map((row) => (
-                <tr key={row.label}>
-                  <td className="q-label">{row.label}</td>
-                  {row.values.map((v, i) => {
-                    const tone = qCellClass(row, i);
-                    const latest = i === n - 1 ? "q-latest" : "";
-                    const cls = [tone, latest].filter(Boolean).join(" ");
-                    return (
-                      <td key={`${row.label}-${i}`} className={cls || undefined}>
-                        {fmtQVal(v, row.decimals)}
-                      </td>
-                    );
-                  })}
-                  {compact ? null : <TrendCell row={row} />}
-                </tr>
-              ))}
+              {displayRows.map((row) => {
+                const fullRow =
+                  compact && labelStart > 0
+                    ? (panel.rows.find((r) => r.label === row.label) ?? row)
+                    : row;
+                return (
+                  <tr key={row.label}>
+                    <td className="q-label">{row.label}</td>
+                    {row.values.map((v, i) => {
+                      const tone = qCellClass(
+                        fullRow,
+                        compact && labelStart > 0 ? labelStart + i : i,
+                      );
+                      const latest = i === n - 1 ? "q-latest" : "";
+                      const cls = [tone, latest].filter(Boolean).join(" ");
+                      return (
+                        <td
+                          key={`${row.label}-${i}`}
+                          className={cls || undefined}
+                        >
+                          {fmtQVal(v, row.decimals)}
+                        </td>
+                      );
+                    })}
+                    {compact ? null : <TrendCell row={row} />}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
