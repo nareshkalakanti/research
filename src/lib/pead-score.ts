@@ -174,21 +174,35 @@ export function peadScoresPercentile(rows: PeadInputs[]): Array<number | null> {
   });
 }
 
+function barDay(raw: string | null | undefined): string {
+  return (raw || "").slice(0, 10);
+}
+
 /** Post-earnings return from first close after result date through latest/live. */
 export function computeReturnsPct(
   bars: Array<{ date: string; close: number }>,
   resultDate: string | null | undefined,
   currentPrice?: number | null,
 ): number | null {
-  const rd = (resultDate || "").slice(0, 10);
-  if (!rd || !bars.length) return null;
-  const sorted = [...bars].sort((a, b) => a.date.localeCompare(b.date));
+  const rd = barDay(resultDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rd) || !bars.length) return null;
+  const sorted = [...bars]
+    .map((b) => ({ date: barDay(b.date), close: b.close }))
+    .filter((b) => /^\d{4}-\d{2}-\d{2}$/.test(b.date) && b.close > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!sorted.length) return null;
+  const lastDay = sorted[sorted.length - 1]!.date;
+  // Announcement not yet in OHLC history — do not invent a return from older closes.
+  if (lastDay < rd) return null;
   let after = sorted.filter((b) => b.date > rd);
   if (!after.length) after = sorted.filter((b) => b.date >= rd);
   if (!after.length) return null;
-  const entry = after[0]!.close;
+  const entryBar = after[0]!;
+  const entry = entryBar.close;
   if (!(entry > 0)) return null;
   const last = sorted[sorted.length - 1]!.close;
+  // No session after entry yet — live quote vs same close is not post-result drift.
+  if (entryBar.date >= lastDay) return 0;
   const exit =
     currentPrice != null && Number.isFinite(currentPrice) && currentPrice > 0
       ? currentPrice
@@ -295,9 +309,14 @@ export function computeDailyRetFf(
   resultDate: string | null | undefined,
   cap = 19.99,
 ): number | null {
-  const rd = (resultDate || "").slice(0, 10);
-  if (!rd || !bars.length) return null;
-  const sorted = [...bars].sort((a, b) => a.date.localeCompare(b.date));
+  const rd = barDay(resultDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rd) || !bars.length) return null;
+  const sorted = [...bars]
+    .map((b) => ({ date: barDay(b.date), close: b.close }))
+    .filter((b) => /^\d{4}-\d{2}-\d{2}$/.test(b.date) && b.close > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (!sorted.length) return null;
+  if (sorted[sorted.length - 1]!.date < rd) return null;
   const onOrBefore = sorted.filter((b) => b.date <= rd);
   let after = sorted.filter((b) => b.date > rd);
   if (!after.length) after = sorted.filter((b) => b.date >= rd);
