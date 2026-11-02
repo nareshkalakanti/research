@@ -104,10 +104,12 @@ export function savePeadWebMetrics(row: PeadWebMetrics): void {
 
 export async function refreshPeadWebMetrics(
   rows: Array<{ ticker: string; name: string }>,
+  opts?: { concurrency?: number },
 ): Promise<number> {
   if (!rows.length) return 0;
+  const concurrency = Math.min(6, Math.max(1, opts?.concurrency ?? 4));
   let updated = 0;
-  await runConcurrent(rows, 3, async (row) => {
+  await runConcurrent(rows, concurrency, async (row) => {
     const groww = await fetchGrowwPeadFill(row.ticker, row.name);
     let tape = null as Awaited<ReturnType<typeof tickertapeValuation>>;
     try {

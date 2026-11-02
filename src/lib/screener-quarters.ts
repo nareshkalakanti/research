@@ -103,6 +103,11 @@ function peekUsableCache(ticker: string): QuarterPoint[] | null {
   return cacheUsable(qs) ? qs : null;
 }
 
+/** Public read of any usable cached quarterly series (ignores TTL). */
+export function loadCachedQuartersSeries(ticker: string): QuarterPoint[] | null {
+  return peekUsableCache(ticker);
+}
+
 function readCache(ticker: string): QuarterPoint[] | "blocked" | null {
   const row = readCacheRow(ticker);
   if (!row) return null;

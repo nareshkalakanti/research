@@ -34,6 +34,62 @@ import { capTier } from "./types";
 /** Extra pause after each ticker (on top of Screener's own 2.5–5s gap). */
 const EXTRA_GAP_MS = 12_000;
 const EXTRA_JITTER_MS = 8_000;
+/** Skip failed names so Fill does not spin forever on one ticker (e.g. HMT). */
+const MISS_BLOCK_MS = 24 * 60 * 60 * 1000;
+
+function ensureMissSchema(): void {
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS seven_rule_fill_miss (
+        ticker TEXT PRIMARY KEY,
+        blocked_until TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+  } finally {
+    db.close();
+  }
+}
+
+function markSevenRuleFillMiss(ticker: string): void {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return;
+  ensureMissSchema();
+  const until = new Date(Date.now() + MISS_BLOCK_MS).toISOString();
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.prepare(
+      `INSERT INTO seven_rule_fill_miss (ticker, blocked_until, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(ticker) DO UPDATE SET
+         blocked_until = excluded.blocked_until,
+         updated_at = excluded.updated_at`,
+    ).run(key, until, new Date().toISOString());
+  } finally {
+    db.close();
+  }
+}
+
+function sevenRuleFillBlocked(ticker: string): boolean {
+  try {
+    ensureMissSchema();
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      const row = db
+        .prepare(
+          `SELECT blocked_until FROM seven_rule_fill_miss WHERE ticker = ?`,
+        )
+        .get(ticker.toUpperCase()) as { blocked_until: string } | undefined;
+      if (!row?.blocked_until) return false;
+      return Date.parse(row.blocked_until) > Date.now();
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
+  }
+}
 
 export type SevenRuleFillResult = {
   tried: number;
@@ -174,6 +230,7 @@ export function pendingSevenRuleFillTickers(opts: {
     const t = c.ticker.toUpperCase();
     if (!hasUsableQuarters(t)) continue;
     if (hasRoeRoce(t)) continue;
+    if (sevenRuleFillBlocked(t)) continue;
     out.push(t);
   }
   return out.sort();
@@ -268,9 +325,12 @@ export async function runSevenRuleFillBatch(opts: {
       ticker,
       nameByTicker.get(ticker) || ticker,
     );
-    if (status === "saved") savedTickers.push(ticker);
-    else if (status === "failed") failed += 1;
-    else {
+    if (status === "saved") {
+      savedTickers.push(ticker);
+    } else if (status === "failed") {
+      markSevenRuleFillMiss(ticker);
+      failed += 1;
+    } else {
       paused = true;
       pausedAt = screenerPausedUntil();
       break;

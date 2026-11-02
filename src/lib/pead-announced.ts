@@ -318,15 +318,17 @@ function datesFromNseRows(rows: Array<Record<string, unknown>>): string[] {
 
 export async function refreshPeadNseResultDates(
   rows: Array<{ ticker: string; market: string }>,
+  opts?: { concurrency?: number },
 ): Promise<number> {
   const nseRows = rows.filter((r) => {
     const m = (r.market || "").toUpperCase();
     return !m.includes("BSE") && m !== "BOMBAY STOCK EXCHANGE";
   });
   if (!nseRows.length) return 0;
+  const concurrency = Math.min(4, Math.max(1, opts?.concurrency ?? 3));
   const jar = await createNseBuybackSession();
   let updated = 0;
-  await runConcurrent(nseRows, 3, async (row) => {
+  await runConcurrent(nseRows, concurrency, async (row) => {
     const mk = (row.market || "").toUpperCase();
     const indexes: Array<"equities" | "sme"> =
       mk.includes("SME") ? ["sme", "equities"] : ["equities", "sme"];

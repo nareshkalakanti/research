@@ -12,13 +12,18 @@ import type { Pead2Row } from "./pead2-types";
 
 export async function refreshPeadReturns(
   rows: Pead2Row[],
+  opts?: { concurrency?: number },
 ): Promise<{ updated: number }> {
   if (!rows.length) return { updated: 0 };
-  await refreshPeadWebMetrics(rows);
-  await refreshPeadNseResultDates(rows);
+  const concurrency = Math.min(8, Math.max(2, opts?.concurrency ?? 6));
+  // Web PE + NSE announcement dates in parallel — independent sources.
+  await Promise.all([
+    refreshPeadWebMetrics(rows, { concurrency: Math.min(6, concurrency) }),
+    refreshPeadNseResultDates(rows, { concurrency: Math.min(4, concurrency) }),
+  ]);
   const announceMap = loadPeadAnnounceDatesMap();
   let updated = 0;
-  await runConcurrent(rows, 5, async (row) => {
+  await runConcurrent(rows, concurrency, async (row) => {
     const result_date =
       latestAnnounceOnOrBefore(announceMap.get(row.ticker) ?? []) ||
       row.result_date;

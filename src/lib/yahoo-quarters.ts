@@ -180,6 +180,69 @@ async function fetchLatestOperatingCashflow(
   );
 }
 
+async function fetchYahooQuarterSeries(
+  symbolCandidates: string[],
+): Promise<{
+  quarters: QuarterPoint[];
+  usedSymbol: string | null;
+}> {
+  let best: QuarterPoint[] = [];
+  let usedSymbol: string | null = null;
+  for (const sym of symbolCandidates) {
+    const period1 = new Date();
+    period1.setFullYear(period1.getFullYear() - 4);
+
+    let series: Array<Record<string, unknown>> = [];
+    try {
+      series = await withYahooThrottle(async () => {
+        const ft = await yf.fundamentalsTimeSeries(sym, {
+          period1: toDateStr(period1),
+          type: "quarterly",
+          module: "financials",
+        });
+        return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
+      });
+    } catch {
+      series = [];
+    }
+
+    const byDate = new Map<string, QuarterPoint>();
+    for (const row of series) {
+      const date = toDateStr(row.date as Date);
+      if (!date) continue;
+      const prev = byDate.get(date);
+      byDate.set(date, {
+        date,
+        revenue: pickField(row, REVENUE_FIELDS) ?? prev?.revenue ?? null,
+        ebit: pickField(row, EBIDT_FIELDS) ?? prev?.ebit ?? null,
+        netIncome:
+          pickField(row, NET_INCOME_FIELDS) ?? prev?.netIncome ?? null,
+        eps: pickField(row, EPS_FIELDS) ?? prev?.eps ?? null,
+        otherIncome:
+          pickField(row, OTHER_INCOME_FIELDS) ?? prev?.otherIncome ?? null,
+      });
+    }
+
+    const candidate = trimReportedQuarters(
+      [...byDate.values()].filter(
+        (q) =>
+          q.revenue != null ||
+          q.netIncome != null ||
+          q.eps != null ||
+          q.ebit != null,
+      ),
+    );
+    if (candidate.length >= 2) {
+      return { quarters: candidate, usedSymbol: sym };
+    }
+    if (candidate.length > best.length) {
+      best = candidate;
+      usedSymbol = sym;
+    }
+  }
+  return { quarters: best, usedSymbol };
+}
+
 export async function fetchQuarterlyFundamentals(
   ticker: string,
   market?: string | null,
@@ -188,6 +251,8 @@ export async function fetchQuarterlyFundamentals(
     screenerForce?: boolean;
     /** Skip Screener live/cache overlay (bulk Fill Quarters — avoid throttle hangs). */
     skipScreener?: boolean;
+    /** PEAD bulk: Yahoo first (stocks-ai), skip NSE/BSE/Groww unless Yahoo empty. */
+    yahooFirst?: boolean;
   },
 ): Promise<{
   quarters: QuarterPoint[];
@@ -221,17 +286,29 @@ export async function fetchQuarterlyFundamentals(
   let source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "groww" | "none" =
     "none";
 
-  // 7-rule India path: NSE/BSE filings → Screener → Groww → Yahoo last resort.
-  try {
-    const nse = await fetchNseQuarterlyFundamentals(ticker, {
-      maxQuarters: 6,
-    });
-    if (nse.length >= 2) {
-      quarters = nse;
-      source = "nse";
+  // stocks-ai PEAD path: Yahoo first, then deepen only if empty.
+  if (opts?.yahooFirst) {
+    const yfHit = await fetchYahooQuarterSeries(symbolCandidates);
+    if (yfHit.quarters.length >= 2) {
+      quarters = yfHit.quarters;
+      usedSymbol = yfHit.usedSymbol || symbol;
+      source = "yahoo";
     }
-  } catch {
-    /* try BSE */
+  }
+
+  // 7-rule India path: NSE/BSE filings → Screener → Groww → Yahoo last resort.
+  if (quarters.length < 2) {
+    try {
+      const nse = await fetchNseQuarterlyFundamentals(ticker, {
+        maxQuarters: 6,
+      });
+      if (nse.length >= 2) {
+        quarters = nse;
+        source = "nse";
+      }
+    } catch {
+      /* try BSE */
+    }
   }
 
   if (quarters.length < 2) {
@@ -296,62 +373,12 @@ export async function fetchQuarterlyFundamentals(
   }
 
   // Yahoo — last resort when filings + Screener + Groww still thin.
-  if (quarters.length < 2) {
-    for (const sym of symbolCandidates) {
-      const period1 = new Date();
-      period1.setFullYear(period1.getFullYear() - 4);
-
-      let series: Array<Record<string, unknown>> = [];
-      try {
-        series = await withYahooThrottle(async () => {
-          const ft = await yf.fundamentalsTimeSeries(sym, {
-            period1: toDateStr(period1),
-            type: "quarterly",
-            module: "financials",
-          });
-          return Array.isArray(ft) ? (ft as Array<Record<string, unknown>>) : [];
-        });
-      } catch {
-        series = [];
-      }
-
-      const byDate = new Map<string, QuarterPoint>();
-      for (const row of series) {
-        const date = toDateStr(row.date as Date);
-        if (!date) continue;
-        const prev = byDate.get(date);
-        byDate.set(date, {
-          date,
-          revenue: pickField(row, REVENUE_FIELDS) ?? prev?.revenue ?? null,
-          ebit: pickField(row, EBIDT_FIELDS) ?? prev?.ebit ?? null,
-          netIncome:
-            pickField(row, NET_INCOME_FIELDS) ?? prev?.netIncome ?? null,
-          eps: pickField(row, EPS_FIELDS) ?? prev?.eps ?? null,
-          otherIncome:
-            pickField(row, OTHER_INCOME_FIELDS) ?? prev?.otherIncome ?? null,
-        });
-      }
-
-      const candidate = trimReportedQuarters(
-        [...byDate.values()].filter(
-          (q) =>
-            q.revenue != null ||
-            q.netIncome != null ||
-            q.eps != null ||
-            q.ebit != null,
-        ),
-      );
-      if (candidate.length >= 2) {
-        quarters = candidate;
-        usedSymbol = sym;
-        source = "yahoo";
-        break;
-      }
-      if (candidate.length > quarters.length) {
-        quarters = candidate;
-        usedSymbol = sym;
-        source = candidate.length ? "yahoo" : source;
-      }
+  if (quarters.length < 2 && !opts?.yahooFirst) {
+    const yfHit = await fetchYahooQuarterSeries(symbolCandidates);
+    if (yfHit.quarters.length) {
+      quarters = yfHit.quarters;
+      usedSymbol = yfHit.usedSymbol || usedSymbol;
+      source = yfHit.quarters.length >= 2 ? "yahoo" : source;
     }
   }
 

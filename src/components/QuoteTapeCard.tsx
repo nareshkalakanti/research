@@ -8,12 +8,17 @@ function fmtPrice(n: number | null | undefined): string {
   return n.toLocaleString("en-IN", { maximumFractionDigits: 2 });
 }
 
+type MaPeriod = 20 | 50 | 100 | 200;
+
 type Props = {
   ticker: string;
   market?: string | null;
   /** When false, skip network (e.g. collapsed row). Default true. */
   active?: boolean;
   title?: string;
+  className?: string;
+  /** SMA periods to show (default 20/50/100/200). */
+  periods?: MaPeriod[];
 };
 
 /**
@@ -24,6 +29,8 @@ export function QuoteTapeCard({
   market = null,
   active = true,
   title = "Tech & Val",
+  className,
+  periods,
 }: Props) {
   const [tape, setTape] = useState<QuoteTape | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,10 +61,14 @@ export function QuoteTapeCard({
     };
   }, [ticker, market, active]);
 
+  const rootClass = ["wl-card-qtr", "wl-card-price", "quote-tape-card", className]
+    .filter(Boolean)
+    .join(" ");
+
   if (!active) return null;
   if (loading && !tape) {
     return (
-      <section className="wl-card-qtr wl-card-price quote-tape-card">
+      <section className={rootClass}>
         <h3>{title}</h3>
         <p className="wl-card-muted">Loading…</p>
       </section>
@@ -85,9 +96,13 @@ export function QuoteTapeCard({
     tape.dma200_alert === "below_200_breakout"
       ? "Below 200 DMA · Fresh breakout"
       : null;
+  const want = periods?.length ? new Set(periods) : null;
+  const mas = want
+    ? tape.mas.filter((m) => want.has(m.period as MaPeriod))
+    : tape.mas;
 
   return (
-    <section className="wl-card-qtr wl-card-price quote-tape-card">
+    <section className={rootClass}>
       <h3>{title}</h3>
       <div className="wl-tape">
         <div className="wl-tape-stats">
@@ -113,7 +128,7 @@ export function QuoteTapeCard({
         <div className="wl-tape-mas">
           <span className="wl-tape-label">Moving averages</span>
           <div className="wl-ma-row">
-            {tape.mas.map((m) => {
+            {mas.map((m) => {
               const tone =
                 m.above === true
                   ? "above"

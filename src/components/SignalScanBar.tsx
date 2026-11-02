@@ -753,6 +753,8 @@ export function SignalScanBar({
           await (onBatch ?? onDone)?.();
         }
         if ((json.tried ?? 0) === 0 || remaining <= 0 || json.paused) break;
+        // Failed names are miss-blocked server-side; if nothing saved, stop.
+        if ((json.saved ?? 0) === 0 && (json.failed ?? 0) > 0) break;
         // Extra pause between API rounds so Screener stays quiet.
         await new Promise((r) => setTimeout(r, 8_000 + Math.random() * 4_000));
       }

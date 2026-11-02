@@ -10,6 +10,7 @@ import {
   runSevenRuleFillBatch,
   type SevenRuleFillSelection,
 } from "@/lib/seven-rule-fill";
+import { loadSevenRuleScanMap } from "@/lib/seven-rule-scan";
 import { parseAgeMin } from "@/lib/company-age";
 import type { CapTier } from "@/lib/types";
 
@@ -61,6 +62,44 @@ function selectionFromBody(body: Body): SevenRuleFillSelection {
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const market = sp.get("market") || "All";
+  const tickersRaw = (sp.get("tickers") || "").trim();
+  if (sp.get("scores") === "1" || tickersRaw) {
+    const want = tickersRaw
+      ? tickersRaw
+          .split(/[\s,]+/)
+          .map((t) => t.trim().toUpperCase())
+          .filter(Boolean)
+      : null;
+    const map = loadSevenRuleScanMap();
+    const rows = [...(want ?? map.keys())]
+      .map((t) => {
+        const r = map.get(t);
+        if (!r) {
+          return want
+            ? {
+                ticker: t,
+                score: null,
+                passed: null,
+                rating: null,
+                rating_label: null,
+                provisional: null,
+                pass: false,
+              }
+            : null;
+        }
+        return {
+          ticker: r.ticker,
+          score: r.score,
+          passed: r.passed,
+          rating: r.rating,
+          rating_label: r.ratingLabel,
+          provisional: r.provisional,
+          pass: !r.provisional && r.passed >= 5,
+        };
+      })
+      .filter(Boolean);
+    return NextResponse.json({ ok: true, rows });
+  }
   const pending = pendingSevenRuleFillTickers({ market });
   return NextResponse.json({
     ok: true,
