@@ -36,6 +36,7 @@ export type SortKey =
   | "rsi_rank"
   | "fund_count"
   | "pead_score"
+  | "seven_rule_score"
   | "sales_yoy"
   | "np_yoy"
   | "basket_score"
@@ -64,7 +65,7 @@ type Props = {
   showMatched?: boolean;
   showMissing?: boolean;
   /** Scan signal columns: 12m mom, RSI M, fund overlap count, or none. */
-  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "quant" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "rule7" | "quant" | null;
   /** @deprecated Prefer signalMode. */
   showMomentum?: boolean;
   /** Allow deleting a stock from local DBs (Missing Data). */
@@ -235,11 +236,13 @@ export function CompanyTable({
     setPanel("about");
   }, [expandTicker]);
 
-  const mode: "mom" | "rsi" | "overlap" | "pead" | "quant" | null =
+  const mode: "mom" | "rsi" | "overlap" | "pead" | "rule7" | "quant" | null =
     signalMode ?? (showMomentum ? "mom" : null);
   const colSpan =
     mode === "pead"
       ? 8
+      : mode === "rule7"
+        ? 7
       : mode === "quant"
         ? 10
         : mode === "mom"
@@ -327,6 +330,17 @@ export function CompanyTable({
         { key: "name", label: "Company", align: "left" },
         { key: "pead_score", label: "PEAD Potential", align: "left" },
         { id: "tech", key: "pead_score", label: "Tech Strength", align: "left", sortable: false },
+      ];
+    }
+    if (mode === "rule7") {
+      return [
+        { key: "ticker", label: "Ticker", align: "left" },
+        { key: "name", label: "Company", align: "left" },
+        { key: "sector", label: "Sec", align: "left" },
+        { key: "mcap_cr", label: "Mcap", align: "right" },
+        { key: "seven_rule_score", label: "Score", align: "right" },
+        { id: "passed", key: "seven_rule_score", label: "Pass", align: "right", sortable: false },
+        { id: "rating", key: "seven_rule_score", label: "Rating", align: "left", sortable: false },
       ];
     }
     if (mode === "quant") {
@@ -421,6 +435,16 @@ export function CompanyTable({
                 <col className="col-name" />
                 <col className="col-pead" />
                 <col className="col-tech" />
+              </>
+            ) : mode === "rule7" ? (
+              <>
+                <col className="col-ticker" />
+                <col className="col-name" />
+                <col className="col-sec" />
+                <col className="col-mcap_cr" />
+                <col className="col-seven-score" />
+                <col className="col-seven-pass" />
+                <col className="col-seven-rating" />
               </>
             ) : mode === "quant" ? (
               <>
@@ -927,7 +951,7 @@ function CompanyRows({
   showMore: boolean;
   showMatched?: boolean;
   showMissing?: boolean;
-  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "quant" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "rule7" | "quant" | null;
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
   deleteLabel?: string;
@@ -1260,6 +1284,30 @@ function CompanyRows({
               ) : (
                 "—"
               )}
+            </td>
+          </>
+        ) : signalMode === "rule7" ? (
+          <>
+            <SecCell
+              className="cd-sec col-sec"
+              sector={displaySector}
+              subSector={displaySubSector}
+            />
+            <td className="num col-mcap_cr">{formatMcap(r.mcap_cr)}</td>
+            <td className="num col-seven-score">
+              {r.seven_rule?.score != null
+                ? r.seven_rule.score.toFixed(2)
+                : "—"}
+            </td>
+            <td className="num col-seven-pass">
+              {r.seven_rule
+                ? `${r.seven_rule.passed}/7`
+                : "—"}
+            </td>
+            <td className="col-seven-rating">
+              {r.seven_rule?.provisional
+                ? "Provisional"
+                : r.seven_rule?.rating_label || "—"}
             </td>
           </>
         ) : (

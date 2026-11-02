@@ -22,11 +22,11 @@ export type ViewFilter =
   | "mrsi85"
   | "mrsi_empty"
   | "opm"
-  | "pead"
+  | "rule7"
   | "quant";
 
 type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi" | "all";
-type ExtraBusy = "quarters" | "sma";
+type ExtraBusy = "quarters" | "rule7";
 
 type Props = {
   listLabel: string;
@@ -60,7 +60,7 @@ type Props = {
   mrsi85Count?: number;
   mrsiEmptyCount?: number;
   opmCount?: number;
-  peadCount?: number;
+  rule7Count?: number;
   quantCount?: number;
   bbDate?: string | null;
   bbWDate?: string | null;
@@ -73,8 +73,6 @@ type Props = {
   mrsiDate?: string | null;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
-  /** Current PEAD page tickers — Fill SMA does these first. */
-  smaTickers?: string[];
 };
 
 type Progress = {
@@ -173,7 +171,7 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   mrsi85: "85–90",
   mrsi_empty: "Empty",
   opm: "Operating Metrics",
-  pead: "PEAD",
+  rule7: "7-Rule",
   quant: "Basket",
 };
 
@@ -279,7 +277,7 @@ export function SignalScanBar({
   mrsi85Count,
   mrsiEmptyCount,
   opmCount,
-  peadCount,
+  rule7Count,
   quantCount,
   bbDate,
   bbWDate,
@@ -292,7 +290,6 @@ export function SignalScanBar({
   mrsiDate,
   onBatch,
   onDone,
-  smaTickers,
 }: Props) {
   const [busyKind, setBusyKind] = useState<ScanKind | ExtraBusy | null>(null);
   const [busyTf, setBusyTf] = useState<BbTimeframe | null>(null);
@@ -670,7 +667,7 @@ export function SignalScanBar({
         detail: `+${saved} quarters · ${failed} failed · ${scopeLabel}`,
         done: true,
       });
-      if (view !== "pead" && view !== "quant") onView("opm");
+      if (view !== "quant" && view !== "rule7") onView("opm");
       await onDone?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Quarters fill failed";
@@ -699,28 +696,30 @@ export function SignalScanBar({
     view,
   ]);
 
-  const runSmaFill = useCallback(async () => {
-    const scopeLabel = market;
-    setBusyKind("sma");
+  /** Serial + long gaps — Screener blocks fast ROE/ROCE batches. */
+  const runRule7Fill = useCallback(async () => {
+    const scopeLabel =
+      scope === "selection" && selectionActive ? listLabel : market;
+    setBusyKind("rule7");
     setBusyTf(null);
     setProgress({
       pct: 2,
-      label: "Fill SMA",
-      detail: `Daily 20/50/200 · ${scopeLabel} · PEAD names missing tech…`,
+      label: "Fill 7-Rule",
+      detail: `Slow ROE/ROCE · Tickertape first · Screener spaced ~15–20s · ${scopeLabel}`,
     });
     let remaining = 1;
     let saved = 0;
     let failed = 0;
     try {
-      for (let round = 1; round <= 400; round += 1) {
-        const res = await fetch("/api/sma-fill", {
+      for (let round = 1; round <= 800; round += 1) {
+        const res = await fetch("/api/seven-rule-fill", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             market,
-            tickers: smaTickers ?? [],
-            limit: 8,
-            concurrency: 2,
+            limit: 3,
+            missingOnly: true,
+            ...selectionBody(),
           }),
           cache: "no-store",
         });
@@ -730,36 +729,45 @@ export function SignalScanBar({
           saved?: number;
           failed?: number;
           remaining?: number;
+          paused?: boolean;
+          paused_until?: string | null;
+          message?: string;
           error?: string;
         };
         if (!res.ok || json.ok === false) {
-          throw new Error(json.error || "SMA fill failed");
+          throw new Error(json.error || json.message || "7-Rule fill failed");
         }
         saved += json.saved ?? 0;
         failed += json.failed ?? 0;
         remaining = json.remaining ?? 0;
         setProgress({
-          pct: remaining <= 0 ? 100 : Math.min(97, 3 + round * 2),
-          label: remaining <= 0 ? "Done" : "Fill SMA",
-          detail: `+${saved} · ${failed} failed · ${remaining.toLocaleString()} left · ${scopeLabel}`,
-          done: remaining <= 0,
+          pct: remaining <= 0 ? 100 : Math.min(97, 2 + round),
+          label: json.paused ? "Paused" : remaining <= 0 ? "Done" : "Fill 7-Rule",
+          detail: json.paused
+            ? `Screener paused until ${json.paused_until || "?"} · +${saved} · ${remaining.toLocaleString()} left`
+            : `+${saved} · ${failed} failed · ${remaining.toLocaleString()} left · ~15–20s/name · ${scopeLabel}`,
+          done: remaining <= 0 || json.paused === true,
+          error: json.paused === true,
         });
-        if (round === 1 || round % 2 === 0 || remaining <= 0) {
+        if (round === 1 || round % 2 === 0 || remaining <= 0 || json.paused) {
           await (onBatch ?? onDone)?.();
         }
-        if ((json.tried ?? 0) === 0 || remaining <= 0) break;
-        await new Promise((r) => setTimeout(r, 200));
+        if ((json.tried ?? 0) === 0 || remaining <= 0 || json.paused) break;
+        // Extra pause between API rounds so Screener stays quiet.
+        await new Promise((r) => setTimeout(r, 8_000 + Math.random() * 4_000));
       }
-      setProgress({
-        pct: 100,
-        label: "Done",
-        detail: `+${saved} SMA stacks · ${failed} failed · ${scopeLabel}`,
-        done: true,
-      });
-      onView("pead");
+      if (remaining <= 0) {
+        setProgress({
+          pct: 100,
+          label: "Done",
+          detail: `+${saved} ROE/ROCE · ${failed} failed · ${scopeLabel}`,
+          done: true,
+        });
+      }
+      onView("rule7");
       await onDone?.();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "SMA fill failed";
+      const msg = e instanceof Error ? e.message : "7-Rule fill failed";
       setProgress({
         pct: 100,
         label: "Failed",
@@ -769,7 +777,16 @@ export function SignalScanBar({
     } finally {
       setBusyKind(null);
     }
-  }, [market, onBatch, onDone, onView, smaTickers]);
+  }, [
+    market,
+    listLabel,
+    scope,
+    selectionActive,
+    selectionBody,
+    onBatch,
+    onDone,
+    onView,
+  ]);
 
   const busy = busyKind != null;
 
@@ -963,12 +980,12 @@ export function SignalScanBar({
             </button>
             <button
               type="button"
-              className={`chip tag-chip tag-scan-pead ${view === "pead" ? "on" : ""}`}
-              onClick={() => onView("pead")}
-              title="PEAD table: Rev/PAT YoY, chips, PEAD2 percentile. Tech Strength needs Fill SMA (daily 20/50/200)."
+              className={`chip tag-chip tag-scan-rule7 ${view === "rule7" ? "on" : ""}`}
+              onClick={() => onView("rule7")}
+              title="7-Rule Deep Dive+: ROCE/ROE ≥15%, Sales/Profit QoQ & YoY, OPM trend. Needs Fill Quarters + slow Fill 7-Rule (ROE/ROCE)."
             >
-              PEAD
-              <Count n={peadCount} />
+              7-Rule
+              <Count n={rule7Count} />
             </button>
             <button
               type="button"
@@ -1082,18 +1099,18 @@ export function SignalScanBar({
               className={`chip chip-scan tag-chip ${busyKind === "quarters" ? "busy on" : ""}`}
               disabled={busy || (scope === "selection" && !selectionActive)}
               onClick={() => void runQuartersFill()}
-              title={`Fill missing quarterly P&L on ${scope === "selection" ? listLabel : market} (missing-only). Then use refresh; Basket / PEAD / OPM read that cache.`}
+              title={`Fill missing quarterly P&L on ${scope === "selection" ? listLabel : market} (missing-only). Then use refresh; Basket / OPM / 7-Rule read that cache.`}
             >
               {busyKind === "quarters" ? "…" : "Fill Quarters"}
             </button>
             <button
               type="button"
-              className={`chip chip-scan tag-chip ${busyKind === "sma" ? "busy on" : ""}`}
-              disabled={busy}
-              onClick={() => void runSmaFill()}
-              title="Fill daily SMA 20/50/200 for PEAD Tech Strength (Yahoo bars). Does not use Scan EMA or 12m."
+              className={`chip chip-scan tag-chip ${busyKind === "rule7" ? "busy on" : ""}`}
+              disabled={busy || (scope === "selection" && !selectionActive)}
+              onClick={() => void runRule7Fill()}
+              title="Slow ROE/ROCE fill for 7-Rule (Tickertape first, then Screener ~15–20s apart). Stops if Screener pauses. Prefer Tags/List scope."
             >
-              {busyKind === "sma" ? "…" : "Fill SMA"}
+              {busyKind === "rule7" ? "…" : "Fill 7-Rule"}
             </button>
           </div>
           {progressEl}

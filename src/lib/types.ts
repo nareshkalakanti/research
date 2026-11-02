@@ -167,6 +167,13 @@ export type Company = {
     dma200_pct: number | null;
   };
   pead_score?: number | null;
+  seven_rule?: {
+    score: number;
+    passed: number;
+    rating: string | null;
+    provisional: boolean;
+    rating_label: string | null;
+  } | null;
   basket?: {
     score: number | null;
     rank: number | null;

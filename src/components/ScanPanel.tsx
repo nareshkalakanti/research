@@ -133,7 +133,7 @@ export function ScanPanel() {
       if (view === "mrsi85") params.set("mrsi85", "1");
       if (view === "mrsi_empty") params.set("mrsi_empty", "1");
       if (view === "opm") params.set("opm", "1");
-      if (view === "pead") params.set("pead", "1");
+      if (view === "rule7") params.set("rule7", "1");
       if (view === "quant") params.set("quant", "1");
       if (filterHold) params.set("hold", "1");
       if (filterEdge) params.set("edge", "1");
@@ -242,6 +242,7 @@ export function ScanPanel() {
               key === "price_1m" ||
               key === "rsi_m" ||
               key === "pead_score" ||
+              key === "seven_rule_score" ||
               key === "sales_yoy" ||
               key === "np_yoy" ||
               key === "basket_score" ||
@@ -252,13 +253,13 @@ export function ScanPanel() {
     }
   }
 
-  const signalMode: "mom" | "rsi" | "pead" | "quant" | null =
+  const signalMode: "mom" | "rsi" | "rule7" | "quant" | null =
     view === "mom"
       ? "mom"
       : view === "mrsi" || view === "mrsi85" || view === "mrsi_empty"
         ? "rsi"
-        : view === "pead"
-          ? "pead"
+        : view === "rule7"
+          ? "rule7"
           : view === "quant"
             ? "quant"
             : null;
@@ -270,8 +271,8 @@ export function ScanPanel() {
       if (next === "mom") {
         setSort("momentum_rank");
         setDir("asc");
-      } else if (next === "pead") {
-        setSort("pead_score");
+      } else if (next === "rule7") {
+        setSort("seven_rule_score");
         setDir("desc");
       } else if (next === "quant") {
         setSort("basket_rank");
@@ -291,6 +292,7 @@ export function ScanPanel() {
         sort === "rsi_m" ||
         sort === "rsi_rank" ||
         sort === "pead_score" ||
+        sort === "seven_rule_score" ||
         sort === "sales_yoy" ||
         sort === "np_yoy" ||
         sort === "basket_score" ||
@@ -506,7 +508,7 @@ export function ScanPanel() {
           mrsi85Count={data?.signals?.mrsi85}
           mrsiEmptyCount={data?.signals?.mrsi_empty}
           opmCount={data?.signals?.operating_metrics}
-          peadCount={data?.signals?.pead}
+          rule7Count={data?.signals?.rule7}
           quantCount={data?.signals?.quant}
           bbDate={data?.session?.bb ?? null}
           bbWDate={data?.session?.bb_w ?? data?.session?.bb ?? null}
@@ -519,9 +521,6 @@ export function ScanPanel() {
           mrsiDate={data?.session?.mrsi ?? null}
           onBatch={softReload}
           onDone={hardReload}
-          smaTickers={
-            view === "pead" ? (data?.rows ?? []).map((r) => r.ticker) : []
-          }
         />
       </div>
 
@@ -536,11 +535,11 @@ export function ScanPanel() {
               <strong>Fill Quarters</strong> (List / Tags), open Quarters, or
               widen List.{" "}
             </>
-          ) : view === "pead" ? (
+          ) : view === "rule7" ? (
             <>
               {" "}
-              Needs cached quarterly Sales YoY. Use{" "}
-              <strong>Fill Quarters</strong>, then sort PEAD.{" "}
+              Needs Fill Quarters then slow <strong>Fill 7-Rule</strong>{" "}
+              (ROE/ROCE; ~15–20s/name). Shows Deep Dive+ (5+/7, fully evaluated).{" "}
             </>
           ) : view === "quant" ? (
             <>
