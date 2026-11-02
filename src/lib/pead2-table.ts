@@ -129,6 +129,14 @@ export function loadPead2Rows(): Pead2Row[] {
     if (pead_score == null) continue;
 
     const cached = returnsMap.get(ticker);
+    // Only show returns computed for this announcement — never a prior result's %.
+    const returnsForResult =
+      cached &&
+      result_date &&
+      cached.result_date &&
+      cached.result_date === result_date
+        ? cached
+        : null;
     out.push({
       ticker,
       name: c.name,
@@ -144,8 +152,8 @@ export function loadPead2Rows(): Pead2Row[] {
       result_date,
       pe_ratio,
       forward_pe,
-      returns_pct: cached?.returns_pct ?? null,
-      daily_ret_pct: cached?.daily_ret_pct ?? null,
+      returns_pct: returnsForResult?.returns_pct ?? null,
+      daily_ret_pct: returnsForResult?.daily_ret_pct ?? null,
       sales_yoy,
       sales_qoq,
       np_yoy,
