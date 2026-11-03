@@ -19,11 +19,22 @@ import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { formatMcap } from "@/lib/types";
 import { formatResultDate, pead2ScoreClass } from "@/lib/pead-score";
 import type { Pead2Row } from "@/lib/pead2-types";
+import {
+  currentPeadSeasonBounds,
+  previousPeadSeasonBounds,
+  type PeadSeasonId,
+} from "@/lib/pead-season";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 /** Exchange universes only — same List as Scan / Themes. */
 const PEAD_LISTS = ["All", "NSE", "NSE SME", "BSE SME"] as const;
 type PeadList = (typeof PEAD_LISTS)[number];
+
+const PEAD_SEASON_OPTS: Array<{ id: PeadSeasonId; label: string }> = [
+  { id: "current", label: currentPeadSeasonBounds().label },
+  { id: "prev", label: previousPeadSeasonBounds().label },
+  { id: "all", label: "All dates" },
+];
 
 const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 const PEAD_HIGH_MIN = 40;
@@ -48,6 +59,7 @@ type ColId =
   | "company"
   | "pead_score"
   | "result_date"
+  | "price"
   | "pe_ratio"
   | "forward_pe"
   | "returns_pct"
@@ -76,6 +88,11 @@ const COLS: Array<{
     id: "result_date",
     label: "Result Date",
     title: "NSE financial-result announcement date",
+  },
+  {
+    id: "price",
+    label: "Price",
+    title: "Latest price used for returns / Fwd PE",
   },
   {
     id: "pe_ratio",
@@ -111,6 +128,7 @@ const COLS: Array<{
 type ApiResponse = {
   stats: { scored: number };
   coverage?: PeadCoverage;
+  season?: { id?: string; label?: string; from?: string | null; to?: string | null };
   total: number;
   page: number;
   pages: number;
@@ -260,6 +278,7 @@ export function PeadPanel() {
   const [market, setMarket] = useState<PeadList>("All");
   const [showExtra, setShowExtra] = useState(false);
   const [incompleteOnly, setIncompleteOnly] = useState(false);
+  const [season, setSeason] = useState<PeadSeasonId>("current");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState("result_date");
   const [dir, setDir] = useState<"asc" | "desc">("desc");
@@ -294,7 +313,16 @@ export function PeadPanel() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedQ, mcapMinIndex, mcapMaxIndex, sort, dir, market, incompleteOnly]);
+  }, [
+    debouncedQ,
+    mcapMinIndex,
+    mcapMaxIndex,
+    sort,
+    dir,
+    market,
+    incompleteOnly,
+    season,
+  ]);
 
   const buildParams = useCallback(() => {
     const params = new URLSearchParams({
@@ -304,6 +332,7 @@ export function PeadPanel() {
       sort,
       dir,
       market,
+      season,
     });
     if (incompleteOnly) params.set("incomplete", "1");
     const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
@@ -317,15 +346,19 @@ export function PeadPanel() {
     dir,
     market,
     incompleteOnly,
+    season,
     mcapMinIndex,
     mcapMaxIndex,
   ]);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (opts?: { forcePrices?: boolean }) => {
     setLoading(true);
     const params = buildParams();
+    if (opts?.forcePrices) params.set("refresh", "1");
     try {
-      const res = await fetch(`/api/pead?${params}`);
+      const res = await fetch(`/api/pead?${params}`, {
+        signal: AbortSignal.timeout(60_000),
+      });
       const json = (await res.json()) as ApiResponse;
       if (!res.ok || json.error) {
         setLoadError(json.error || `PEAD failed (${res.status})`);
@@ -335,7 +368,12 @@ export function PeadPanel() {
       setLoadError(null);
       setData(json);
     } catch (err) {
-      setLoadError(err instanceof Error ? err.message : "PEAD request failed");
+      const raw = err instanceof Error ? err.message : "PEAD request failed";
+      setLoadError(
+        /timeout|aborted/i.test(raw)
+          ? "PEAD load timed out — retry Refresh"
+          : raw,
+      );
       setData(null);
     } finally {
       setLoading(false);
@@ -365,6 +403,7 @@ export function PeadPanel() {
           market,
           tickers: data.rows.map((r) => r.ticker),
         }),
+        signal: AbortSignal.timeout(180_000),
       });
       const json = (await res.json()) as ApiResponse;
       if (!res.ok || json.error) {
@@ -374,8 +413,11 @@ export function PeadPanel() {
       setLoadError(null);
       setData(json);
     } catch (err) {
+      const raw = err instanceof Error ? err.message : "Returns refresh failed";
       setLoadError(
-        err instanceof Error ? err.message : "Returns refresh failed",
+        /timeout|aborted/i.test(raw)
+          ? "Returns refresh timed out — try fewer visible rows or retry"
+          : raw,
       );
     } finally {
       setRefreshingReturns(false);
@@ -396,7 +438,9 @@ export function PeadPanel() {
     let remaining = Math.max(1, data?.coverage?.pending ?? 1);
     let stoppedEarly = false;
     let errored = false;
-    const listLabel = market;
+    const seasonLabel =
+      PEAD_SEASON_OPTS.find((o) => o.id === season)?.label ?? season;
+    const listLabel = `${market} · ${seasonLabel}`;
     const initialPending = Math.max(
       remaining,
       data?.coverage?.pending ?? remaining,
@@ -409,12 +453,11 @@ export function PeadPanel() {
       rem: number,
       opts?: { done?: boolean; error?: boolean },
     ) => {
-      const total = Math.max(scanTotalRef.current, rem + saved + failed, 1);
-      scanTotalRef.current = total;
-      const doneCount = Math.min(total, saved + failed);
+      const doneCount = saved + failed;
+      const denom = Math.max(doneCount + Math.max(0, rem), 1);
       const pct = opts?.done
         ? 100
-        : Math.min(99, Math.max(4, Math.round((doneCount / total) * 100)));
+        : Math.min(99, Math.max(1, Math.round((doneCount / denom) * 100)));
       setScanProgress({
         label,
         detail,
@@ -424,7 +467,11 @@ export function PeadPanel() {
       });
     };
 
-    setProg("Scan PEAD", `${listLabel} · ${remaining.toLocaleString()} incomplete…`, remaining);
+    setProg(
+      "Scan PEAD",
+      `${listLabel} · ${remaining.toLocaleString()} incomplete…`,
+      remaining,
+    );
 
     try {
       for (let round = 1; round <= 120; round += 1) {
@@ -434,21 +481,51 @@ export function PeadPanel() {
         }
         setProg(
           "Scan PEAD",
-          `${listLabel} · 10 workers · +${saved} · ${remaining.toLocaleString()} left…`,
+          `${listLabel} · 5 workers · +${saved} · ${remaining.toLocaleString()} left…`,
           remaining,
         );
         const params = buildParams();
         params.set("page", "1");
-        const res = await fetch(`/api/pead?${params}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "scan",
-            market,
-            limit: 40,
-            concurrency: 10,
-          }),
-        });
+        let res: Response | null = null;
+        let lastFetchErr: unknown = null;
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          try {
+            res = await fetch(`/api/pead?${params}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "scan",
+                market,
+                season,
+                limit: 12,
+                concurrency: 5,
+              }),
+              signal: AbortSignal.timeout(90_000),
+            });
+            lastFetchErr = null;
+            break;
+          } catch (err) {
+            lastFetchErr = err;
+            if (token.cancelled) break;
+            if (attempt === 0) {
+              await new Promise((r) => setTimeout(r, 600));
+            }
+          }
+        }
+        if (!res) {
+          const raw =
+            lastFetchErr instanceof Error
+              ? lastFetchErr.message
+              : "Failed to fetch";
+          const msg = /timeout|aborted/i.test(raw)
+            ? "Scan batch timed out — stop and Scan Incomplete again (smaller rounds)"
+            : "Scan network error — check dev server / disable fetch-blocking extensions";
+          setLoadError(msg);
+          setProg("Scan failed", msg, remaining, { error: true });
+          stoppedEarly = true;
+          errored = true;
+          break;
+        }
         const json = (await res.json()) as ApiResponse;
         if (!res.ok || json.error) {
           const msg = json.error || `PEAD scan failed (${res.status})`;
@@ -461,14 +538,7 @@ export function PeadPanel() {
         saved += json.saved ?? 0;
         failed += json.failed ?? 0;
         remaining = json.remaining ?? 0;
-        if (
-          json.coverage?.pending != null &&
-          json.coverage.pending > scanTotalRef.current
-        ) {
-          scanTotalRef.current = json.coverage.pending + saved + failed;
-        }
-        if (json.rows) setData(json);
-        else if (json.coverage) {
+        if (json.coverage) {
           setData((prev) =>
             prev
               ? {
@@ -480,7 +550,7 @@ export function PeadPanel() {
           );
         }
         const workers =
-          (json as ApiResponse & { workers?: number }).workers ?? 10;
+          (json as ApiResponse & { workers?: number }).workers ?? 5;
         setProg(
           remaining <= 0 ? "Done" : "Scan PEAD",
           `${listLabel} · ${workers} workers · +${saved}${failed ? ` · ${failed} miss` : ""} · ${remaining.toLocaleString()} left`,
@@ -489,10 +559,16 @@ export function PeadPanel() {
         );
         if ((json.tried ?? 0) === 0 || remaining <= 0) break;
         if (round < 120) {
-          await new Promise((r) => setTimeout(r, 80 + Math.random() * 80));
+          await new Promise((r) => setTimeout(r, 60 + Math.random() * 60));
         }
       }
-      if (stoppedEarly && !errored && remaining > 0) {
+      if (!stoppedEarly && !errored && remaining > 0) {
+        setProg(
+          "Scan paused",
+          `${listLabel} · +${saved}${failed ? ` · ${failed} miss` : ""} · ${remaining.toLocaleString()} left — run Scan Incomplete again`,
+          remaining,
+        );
+      } else if (stoppedEarly && !errored && remaining > 0) {
         setProg(
           "Stopped",
           `${listLabel} · +${saved} · ${failed} fail · ${remaining.toLocaleString()} left`,
@@ -501,7 +577,7 @@ export function PeadPanel() {
       } else if (!errored && remaining <= 0) {
         setProg(
           "Done",
-          `${listLabel} · +${saved}${failed ? ` · ${failed} fail` : ""}`,
+          `${listLabel} · +${saved}${failed ? ` · ${failed} miss` : ""}`,
           0,
           { done: true },
         );
@@ -515,7 +591,7 @@ export function PeadPanel() {
       setScanning(false);
       scanCancel.current = null;
     }
-  }, [scanning, market, buildParams, load, data?.coverage?.pending]);
+  }, [scanning, market, season, buildParams, load, data?.coverage?.pending]);
 
   const cols = useMemo(
     () => COLS.filter((c) => showExtra || !c.extra),
@@ -539,7 +615,8 @@ export function PeadPanel() {
     q.trim().length > 0 ||
     mcapNarrowed ||
     incompleteOnly ||
-    market !== "All";
+    market !== "All" ||
+    season !== "current";
   const coverage = data?.coverage;
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
@@ -638,6 +715,17 @@ export function PeadPanel() {
         );
       case "result_date":
         return formatResultDate(row.result_date);
+      case "price":
+        return (
+          <span className="mono">
+            {row.price != null && Number.isFinite(row.price)
+              ? row.price.toLocaleString("en-IN", {
+                  maximumFractionDigits: 2,
+                  minimumFractionDigits: 0,
+                })
+              : "—"}
+          </span>
+        );
       case "pe_ratio":
         return (
           <span className={peClass(row.pe_ratio)}>
@@ -715,9 +803,9 @@ export function PeadPanel() {
           <h2>PEAD</h2>
           <p>
             Post-earnings drift — high PEAD, sensible Fwd PE, cooperating
-            returns. Result date = NSE announcement (not quarter-end). Returns =
-            first close after that date → latest. Click a company for 7R +
-            quarters.
+            returns. Default Result dates = current season (e.g. Oct–Dec).
+            Returns = first close after NSE announce → latest. Click a company
+            for 7R + quarters.
           </p>
         </div>
         <label className="field">
@@ -735,6 +823,22 @@ export function PeadPanel() {
             ))}
           </select>
         </label>
+        <label className="field">
+          <span>Result dates</span>
+          <select
+            value={season}
+            onChange={(e) => setSeason(e.target.value as PeadSeasonId)}
+            aria-label="PEAD result-date season"
+            disabled={scanning}
+            title="Limit board + Scan Incomplete to this announcement season"
+          >
+            {PEAD_SEASON_OPTS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="field grow">
           <span>Search</span>
           <input
@@ -748,7 +852,8 @@ export function PeadPanel() {
           type="button"
           className="btn-ghost"
           disabled={loading || scanning}
-          onClick={() => void load()}
+          onClick={() => void load({ forcePrices: true })}
+          title="Reload table and force-refresh visible prices (PE/Fwd PE follow price)"
         >
           {loading ? "…" : "Refresh"}
         </button>
@@ -763,7 +868,7 @@ export function PeadPanel() {
           title={
             scanning
               ? "Stop PEAD scan"
-              : `Fill unscored / missing Fwd PE & growth on ${market} (announce/returns → Refresh Returns)`
+              : `Fill missing Fwd PE & growth on ${market} · ${PEAD_SEASON_OPTS.find((o) => o.id === season)?.label ?? season} (announce/returns → Refresh Returns)`
           }
         >
           {scanning
