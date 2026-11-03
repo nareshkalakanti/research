@@ -94,7 +94,8 @@ export function loadPead2Rows(): Pead2Row[] {
     );
     const ebidt_qoq = firstFinite(extras?.ebidt_qoq, o?.ebidt_qoq, q?.ebidt_qoq);
     const cf_profit = firstFinite(extras?.cf_profit, q?.cf_profit);
-    const price = c.price ?? p?.price ?? null;
+    // Prefer live metrics quote — company map can lag after a soft refresh.
+    const price = p?.price ?? c.price ?? null;
     const epsValues = panel
       ? epsFromQuarterPanel(panel)
       : o?.eps_values ?? [];
@@ -102,14 +103,17 @@ export function loadPead2Rows(): Pead2Row[] {
       computeTrailingPe(price, epsValues),
       web?.pe_ratio,
     );
+    // Always recompute FPE from live price + EPS; cached FPE is only a fallback.
     const computedFpe = price ? computeForwardPe(price, epsValues) : null;
     const cachedFpe = finite(q?.forward_pe);
-    const rawFpe = firstFinite(
-      computedFpe != null && computedFpe !== 999 ? computedFpe : null,
-      cachedFpe != null && cachedFpe !== 999 ? cachedFpe : null,
-      computedFpe,
-      cachedFpe,
-    );
+    const rawFpe =
+      computedFpe != null && computedFpe !== 999
+        ? computedFpe
+        : firstFinite(
+            cachedFpe != null && cachedFpe !== 999 ? cachedFpe : null,
+            computedFpe,
+            cachedFpe,
+          );
 
     const result_date =
       latestAnnounceOnOrBefore(announces) ||
@@ -142,9 +146,9 @@ export function loadPead2Rows(): Pead2Row[] {
       name: c.name,
       market: c.market,
       sector: c.sector,
-      mcap_cr: c.mcap_cr ?? p?.market_cap_cr ?? null,
+      mcap_cr: p?.market_cap_cr ?? c.mcap_cr ?? null,
       price,
-      cap_code: mcapCapCode(c.mcap_cr ?? p?.market_cap_cr ?? null),
+      cap_code: mcapCapCode(p?.market_cap_cr ?? c.mcap_cr ?? null),
       web: c.web,
       sc: c.sc,
       tv: c.tv,

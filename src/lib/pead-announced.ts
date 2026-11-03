@@ -56,6 +56,14 @@ export function isPeadResultAnnouncement(
   if (!blob.trim()) return false;
   if (JUNK_SUBJECTS.has(head)) return false;
   if (/trading window|^updates$/i.test(head)) return false;
+  // Exchange Q&A / resubmission of an earlier filing — not a new result print.
+  if (
+    /response to\s+(nse|bse|exchange)\s*query|reply to\s+(nse|bse|exchange)|query regarding submission|legible copy of the financial results dated/i.test(
+      blob,
+    )
+  ) {
+    return false;
+  }
   if (
     /clarification|reply to clarification/i.test(blob) &&
     !/period ended|quarter ended|unaudited financial results|audited financial results/i.test(

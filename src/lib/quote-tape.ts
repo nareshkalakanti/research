@@ -60,23 +60,36 @@ function num(v: unknown): number | null {
   return null;
 }
 
-async function quotePeAndRange(
+async function quoteLiveBits(
   ticker: string,
   market: string | null | undefined,
-): Promise<{ pe: number | null; low: number | null; high: number | null }> {
-  const out = { pe: null as number | null, low: null as number | null, high: null as number | null };
+): Promise<{
+  price: number | null;
+  pe: number | null;
+  low: number | null;
+  high: number | null;
+}> {
+  const out = {
+    price: null as number | null,
+    pe: null as number | null,
+    low: null as number | null,
+    high: null as number | null,
+  };
   for (const sym of yfSymbolCandidates(ticker, market).slice(0, 2)) {
     try {
       const q = await yf.quote(sym);
+      const price = num((q as { regularMarketPrice?: unknown }).regularMarketPrice);
       const pe =
         num((q as { trailingPE?: unknown }).trailingPE) ??
         num((q as { trailingPe?: unknown }).trailingPe);
       const low = num((q as { fiftyTwoWeekLow?: unknown }).fiftyTwoWeekLow);
       const high = num((q as { fiftyTwoWeekHigh?: unknown }).fiftyTwoWeekHigh);
+      // Prefer the first symbol that has a live last price (same as PEAD metrics).
+      if (out.price == null && price != null && price > 0) out.price = round2(price);
       if (pe != null && pe > 0) out.pe = round2(pe);
       if (low != null) out.low = round2(low);
       if (high != null) out.high = round2(high);
-      if (out.pe != null || (out.low != null && out.high != null)) return out;
+      if (out.price != null) return out;
     } catch {
       /* next symbol */
     }
@@ -114,11 +127,18 @@ export async function loadQuoteTape(
 
   const [bars, quote] = await Promise.all([
     fetchDailyBars(t, market, 4),
-    quotePeAndRange(t, market),
+    quoteLiveBits(t, market),
   ]);
   const closes = bars.map((b) => b.close).filter((c) => Number.isFinite(c));
-  const price = closes.length ? round2(closes[closes.length - 1]!) : null;
-  const prev_close = closes.length > 1 ? round2(closes[closes.length - 2]!) : null;
+  const lastClose = closes.length ? round2(closes[closes.length - 1]!) : null;
+  // Live last trade — not last daily bar (bars lag the session / PEAD column).
+  const price = quote.price ?? lastClose;
+  const prev_close =
+    closes.length > 1
+      ? round2(closes[closes.length - 2]!)
+      : lastClose != null && price != null && lastClose !== price
+        ? lastClose
+        : null;
 
   const mas: QuoteTapeMa[] = ([20, 50, 100, 200] as const).map((period) => {
     const value = lastMean(closes, period);
@@ -161,7 +181,7 @@ export async function loadQuoteTape(
   let cagr_years: number | null = null;
   if (bars.length >= 400) {
     const first = bars[0]!.close;
-    const last = bars[bars.length - 1]!.close;
+    const last = price ?? bars[bars.length - 1]!.close;
     const years =
       (Date.parse(bars[bars.length - 1]!.date) - Date.parse(bars[0]!.date)) /
       (365.25 * 24 * 3600 * 1000);

@@ -45,7 +45,7 @@ export function QuoteTapeCard({
     setLoading(true);
     const q = new URLSearchParams({ ticker: ticker.trim().toUpperCase() });
     if (market) q.set("market", market);
-    void fetch(`/api/quote-tape?${q}`, { signal: AbortSignal.timeout(45_000) })
+    void fetch(`/api/quote-tape?${q}`, { signal: AbortSignal.timeout(60_000) })
       .then(async (res) => {
         const json = (await res.json()) as { ok?: boolean; tape?: QuoteTape };
         if (!cancelled && json.ok && json.tape) setTape(json.tape);

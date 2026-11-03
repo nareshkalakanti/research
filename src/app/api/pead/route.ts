@@ -7,7 +7,13 @@ import {
 } from "@/lib/pead-fill";
 import { loadPead2Rows, type Pead2Row } from "@/lib/pead2-table";
 import { refreshPeadReturns } from "@/lib/pead2-returns";
+import { refreshPagePrices } from "@/lib/metrics";
 import { filterCompaniesByScanList } from "@/lib/scan-lists-server";
+import {
+  parsePeadSeasonParam,
+  peadSeasonBounds,
+  resultDateInPeadSeason,
+} from "@/lib/pead-season";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +42,7 @@ function filterRows(
   rows: Pead2Row[];
   stats: { scored: number };
   coverage: ReturnType<typeof peadFillCoverage>;
+  season: ReturnType<typeof peadSeasonBounds>;
 } {
   const market = (sp.get("market") || "All").trim() || "All";
   const q = (sp.get("q") || "").trim().toLowerCase();
@@ -43,9 +50,20 @@ function filterRows(
   const mcapMax = num(sp.get("mcapMax"));
   const signal = (sp.get("signal") || "all").trim().toLowerCase();
   const incompleteOnly = sp.get("incomplete") === "1";
+  const season = peadSeasonBounds(parsePeadSeasonParam(sp.get("season")));
+  // Optional explicit ISO bounds override the season chip.
+  const fromOverride = (sp.get("resultFrom") || "").slice(0, 10);
+  const toOverride = (sp.get("resultTo") || "").slice(0, 10);
+  const bounds = {
+    from: /^\d{4}-\d{2}-\d{2}$/.test(fromOverride) ? fromOverride : season.from,
+    to: /^\d{4}-\d{2}-\d{2}$/.test(toOverride) ? toOverride : season.to,
+  };
   let rows = filterByMarket(all, market);
   const stats = { scored: rows.filter((r) => r.pead_score != null).length };
-  const coverage = peadFillCoverage({ market });
+  const coverage = peadFillCoverage({ market, season: season.id });
+  if (bounds.from || bounds.to) {
+    rows = rows.filter((r) => resultDateInPeadSeason(r.result_date, bounds));
+  }
   if (q) {
     rows = rows.filter((r) => {
       const hay = `${r.ticker} ${r.name} ${r.sector || ""}`.toLowerCase();
@@ -74,7 +92,7 @@ function filterRows(
         (r.sales_yoy == null && r.np_yoy == null && r.ebidt_yoy == null),
     );
   }
-  return { rows, stats, coverage };
+  return { rows, stats, coverage, season: { ...season, ...bounds, id: season.id } };
 }
 
 function sortRows(rows: Pead2Row[], sort: string, dir: 1 | -1): Pead2Row[] {
@@ -115,17 +133,41 @@ function pageSlice(req: NextRequest, rows: Pead2Row[]) {
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const market = (sp.get("market") || "All").trim() || "All";
+  const season = parsePeadSeasonParam(sp.get("season"));
   if (sp.get("coverage") === "1") {
     return NextResponse.json({
       ok: true,
-      coverage: peadFillCoverage({ market }),
-      pending: pendingPeadFillTickers({ market }).slice(0, 20),
+      coverage: peadFillCoverage({ market, season }),
+      pending: pendingPeadFillTickers({ market, season }).slice(0, 20),
+      season: peadSeasonBounds(season),
     });
   }
-  const all = loadPead2Rows();
-  const { rows, stats, coverage } = filterRows(all, sp);
-  const slice = pageSlice(req, rows);
-  return NextResponse.json({ stats, coverage, ...slice });
+  // GET stays snappy: soft/force Yahoo quotes only. Returns/NSE = POST Refresh Returns.
+  const forcePrices = sp.get("refresh") === "1";
+  let all = loadPead2Rows();
+  let filtered = filterRows(all, sp);
+  let slice = pageSlice(req, filtered.rows);
+  if (slice.rows.length) {
+    try {
+      const updated = await refreshPagePrices(
+        slice.rows.map((r) => ({ ticker: r.ticker, market: r.market })),
+        { force: forcePrices, concurrency: 8 },
+      );
+      if (updated > 0 || forcePrices) {
+        all = loadPead2Rows();
+        filtered = filterRows(all, sp);
+        slice = pageSlice(req, filtered.rows);
+      }
+    } catch (err) {
+      console.warn("[api/pead] price refresh skipped:", err);
+    }
+  }
+  return NextResponse.json({
+    stats: filtered.stats,
+    coverage: filtered.coverage,
+    season: filtered.season,
+    ...slice,
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -135,6 +177,7 @@ export async function POST(req: NextRequest) {
     market?: string;
     limit?: number;
     concurrency?: number;
+    season?: string;
   } = {};
   try {
     body = (await req.json()) as typeof body;
@@ -146,6 +189,9 @@ export async function POST(req: NextRequest) {
   const market =
     (body.market || req.nextUrl.searchParams.get("market") || "All").trim() ||
     "All";
+  const season = parsePeadSeasonParam(
+    body.season || req.nextUrl.searchParams.get("season"),
+  );
 
   if (action === "scan" || action === "fill") {
     try {
@@ -154,26 +200,14 @@ export async function POST(req: NextRequest) {
         tickers: Array.isArray(body.tickers) ? body.tickers : undefined,
         limit: body.limit,
         concurrency: body.concurrency,
+        season,
       });
-      const fresh = loadPead2Rows();
-      // Keep query filters from URL when present.
-      const next = filterRows(fresh, req.nextUrl.searchParams);
-      // Ensure market from body wins if URL omitted it.
-      if (!req.nextUrl.searchParams.get("market")) {
-        const scoped = filterByMarket(fresh, market);
-        const coverage = peadFillCoverage({ market });
-        return NextResponse.json({
-          ...result,
-          stats: { scored: scoped.filter((r) => r.pead_score != null).length },
-          coverage,
-        });
-      }
-      const slice = pageSlice(req, next.rows);
+      // Progress-only payload — avoid rebuilding the full PEAD table each round.
       return NextResponse.json({
         ...result,
-        stats: next.stats,
-        coverage: next.coverage,
-        ...slice,
+        stats: { scored: result.coverage.scored },
+        coverage: result.coverage,
+        season: peadSeasonBounds(season),
       });
     } catch (e) {
       const message = e instanceof Error ? e.message : "PEAD scan failed";
@@ -185,10 +219,10 @@ export async function POST(req: NextRequest) {
   const want = new Set(
     (body.tickers || []).map((t) => t.trim().toUpperCase()).filter(Boolean),
   );
-  const { rows, stats, coverage } = filterRows(all, req.nextUrl.searchParams);
+  const filtered = filterRows(all, req.nextUrl.searchParams);
   const targets = want.size
-    ? rows.filter((r) => want.has(r.ticker))
-    : rows.slice(0, 40);
+    ? filtered.rows.filter((r) => want.has(r.ticker))
+    : filtered.rows.slice(0, 40);
   const { updated } = await refreshPeadReturns(targets);
   const fresh = loadPead2Rows();
   const next = filterRows(fresh, req.nextUrl.searchParams);
@@ -196,6 +230,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     stats: next.stats,
     coverage: next.coverage,
+    season: next.season,
     updated,
     ...slice,
   });
