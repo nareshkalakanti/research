@@ -967,9 +967,9 @@ a.brand-btn:hover .brand-name {
   opacity: 0.85;
   margin-top: 1px;
 }
+/* Inset ring — outline breaks collapsed borders / column alignment. */
 .q-unusual {
-  outline: 2px solid #a16207;
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 1.5px #a16207;
 }
 .q-legend {
   margin: 8px 0 0;
@@ -1167,20 +1167,13 @@ a.brand-btn:hover .brand-name {
   margin: 0;
   padding: 0;
 }
-.pead2-expand-perf .napkin-block-title {
-  margin: 0 0 6px;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
 .pead2-expand-perf .napkin-perf-block {
   padding-top: 0;
 }
-.pead2-expand-perf .napkin-perf-row {
-  font-size: 0.78rem;
-  gap: 6px;
+.pead2-expand-perf .seven-rule-card {
+  border: 0;
+  padding: 0;
+  background: transparent;
 }
 .pead2-expand-qtr .about-quarters {
   margin: 0;
@@ -1196,6 +1189,7 @@ a.brand-btn:hover .brand-name {
 }
 .pead2-expand-qtr .q-panel {
   width: 100%;
+  max-width: 100%;
   flex: 1;
   border-radius: 10px;
   background: #fff;
@@ -1217,12 +1211,16 @@ a.brand-btn:hover .brand-name {
 }
 .pead2-expand-qtr .q-table td:not(.q-label) {
   font-weight: var(--pead2-num-weight);
+  text-align: center;
+}
+.pead2-expand-qtr .q-table th:not(:first-child) {
+  text-align: center;
 }
 .pead2-expand-qtr .q-table col.q-col-metric {
-  width: 22%;
+  width: 24%;
 }
 .pead2-expand-qtr .q-table col.q-col-qtr {
-  width: auto;
+  width: 19%;
 }
 .pead2-expand-qtr .q-table th {
   font-size: 10px;
@@ -1235,12 +1233,11 @@ a.brand-btn:hover .brand-name {
 .pead2-expand-qtr .q-table th:first-child,
 .pead2-expand-qtr .q-table td.q-label {
   color: var(--muted);
-  background: #fff;
+  background: #fafbfc;
 }
 .pead2-expand-qtr .q-table th.q-latest,
 .pead2-expand-qtr .q-table td.q-latest {
-  box-shadow: none;
-  background: transparent;
+  background: #f8fbff;
 }
 .pead2-expand-qtr .q-table td.q-up {
   background: color-mix(in srgb, var(--ok) 10%, #fff);
@@ -1261,6 +1258,9 @@ a.brand-btn:hover .brand-name {
 .pead2-expand-qtr .q-table td.q-latest.q-down {
   background: color-mix(in srgb, var(--danger) 16%, #fff);
   color: var(--danger);
+}
+.pead2-expand-qtr .q-table td.q-unusual {
+  box-shadow: inset 0 0 0 1.5px #a16207;
 }
 @media (max-width: 1100px) {
   .pead2-expand,
@@ -3486,6 +3486,28 @@ button.result-tag {
   gap: 6px;
 }
 
+.q-expand--rich .q-panel {
+  width: 100%;
+  max-width: 100%;
+}
+
+.q-expand--rich .q-table {
+  width: 100%;
+}
+
+.q-expand--rich .q-table col.q-col-metric {
+  width: 24%;
+}
+
+.q-expand--rich .q-table col.q-col-qtr {
+  width: 19%;
+}
+
+.q-expand--rich .q-table th:not(:first-child),
+.q-expand--rich .q-table td:not(.q-label) {
+  text-align: center;
+}
+
 .about-qtr-with-tape {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.75fr);
@@ -4720,6 +4742,12 @@ button.result-tag {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
+  vertical-align: middle;
+}
+
+.q-table th:not(:first-child),
+.q-table td:not(:first-child) {
+  border-left: 1px solid #e8edf3;
 }
 
 .q-table tbody tr:hover td {
@@ -4762,7 +4790,10 @@ button.result-tag {
 .q-table th.q-latest,
 .q-table td.q-latest {
   background: #f8fbff;
-  box-shadow: inset 2px 0 0 #93c5fd;
+}
+
+.q-table td.q-latest.q-unusual {
+  box-shadow: inset 0 0 0 1.5px #a16207;
 }
 
 .q-table td.q-up {
@@ -26131,55 +26162,8 @@ tr.wl-prove-fail td {
   padding-top: 2px;
 }
 
-.napkin-perf-count {
-  font-weight: 600;
-  color: var(--muted);
-  font-size: 0.85em;
-}
-
-.napkin-perf-list {
-  list-style: none;
+.napkin-perf-card {
   margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.napkin-perf-row {
-  display: grid;
-  grid-template-columns: 1.1rem 1fr auto;
-  gap: 8px;
-  align-items: baseline;
-  font-size: 0.84rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.napkin-perf-mark {
-  font-weight: 700;
-  text-align: center;
-}
-
-.napkin-perf-row--pass .napkin-perf-mark,
-.napkin-perf-row--pass .napkin-perf-value {
-  color: var(--ok);
-}
-
-.napkin-perf-row--fail .napkin-perf-mark,
-.napkin-perf-row--fail .napkin-perf-value {
-  color: var(--danger);
-}
-
-.napkin-perf-row--na .napkin-perf-mark,
-.napkin-perf-row--na .napkin-perf-value {
-  color: var(--muted);
-}
-
-.napkin-perf-label {
-  color: var(--ink);
-}
-
-.napkin-perf-value {
-  font-weight: 700;
 }
 
 .napkin-details-toggle {

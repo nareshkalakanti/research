@@ -830,7 +830,6 @@ export function PeadPanel() {
             className={`pead2-score ${pead2ScoreClass(row.pead_score, PEAD_HIGH_MIN)}`}
             title="PEAD score"
           >
-            <span className="pead2-score-lbl">PEAD</span>{" "}
             {fmtNum(row.pead_score, 1)}
           </span>
         );
