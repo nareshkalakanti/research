@@ -29,6 +29,10 @@ const PeadPanel = dynamic(
   () => import("@/components/PeadPanel").then((m) => m.PeadPanel),
   { loading: PanelFallback, ssr: false },
 );
+const SpringIhsPanel = dynamic(
+  () => import("@/components/SpringIhsPanel").then((m) => m.SpringIhsPanel),
+  { loading: PanelFallback, ssr: false },
+);
 const GovernanceMapPanel = dynamic(
   () =>
     import("@/components/GovernanceMapPanel").then(
@@ -96,6 +100,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
   pead: PeadPanel,
+  spring: SpringIhsPanel,
   governance: GovernanceMapPanel,
   napkin: NapkinPanel,
   signals: ValuePickrSignalsPanel,

@@ -45,6 +45,15 @@ export function isCalendarQuarterEnd(iso: string | null | undefined): boolean {
   return false;
 }
 
+/** Announcement calendar day only — never quarter period-ends. */
+export function usableAnnounceResultDate(
+  raw: string | null | undefined,
+): string | null {
+  const d = isoDay(raw);
+  if (!d || isCalendarQuarterEnd(d)) return null;
+  return d;
+}
+
 /** NSE financial-result filing — not clarifications, trading window, or board-only. */
 export function isPeadResultAnnouncement(
   headline: string | null | undefined,
@@ -97,7 +106,7 @@ export function latestAnnounceOnOrBefore(
   const today = isoDay(asOf) || new Date().toISOString().slice(0, 10);
   const ok = dates
     .map((d) => isoDay(d))
-    .filter((d): d is string => Boolean(d) && d <= today)
+    .filter((d): d is string => d != null && d <= today)
     .sort();
   return ok[ok.length - 1] ?? null;
 }
@@ -349,6 +358,8 @@ export async function refreshPeadNseResultDates(
       }
       if (dates.length) break;
     }
+    // Never wipe a good cache with an empty NSE miss / throttle.
+    if (!dates.length) return;
     savePeadNseResultDates(row.ticker, dates);
     updated += 1;
   });

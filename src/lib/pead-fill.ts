@@ -4,7 +4,11 @@
  */
 import { loadAllCompanies } from "./db";
 import { filterCompaniesByScanList } from "./scan-lists-server";
-import { loadPead2Rows, type Pead2Row } from "./pead2-table";
+import {
+  invalidatePead2TableCache,
+  loadPead2Rows,
+  type Pead2Row,
+} from "./pead2-table";
 import {
   metricsSnapshotFromPanel,
   persistQuarterMetricsSnapshot,
@@ -12,13 +16,18 @@ import {
 import {
   buildQuarterPanel,
   computeCfProfit,
+  mergeQuarterFill,
+  yoyFromPanel,
 } from "./quarter-panel";
+import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
+import { usableAnnounceResultDate } from "./pead-announced";
 import {
   loadCachedQuartersSeries,
   loadQuartersFillBlockedSet,
   markQuartersFillMiss,
   upsertQuartersCache,
 } from "./screener-quarters";
+import { fetchGrowwQuarterlyFundamentals } from "./groww-quarters";
 import { fetchQuarterlyFundamentals } from "./yahoo-quarters";
 import { invalidateFundamentalsScanCache } from "./fundamentals-scan";
 import { invalidateOperatingMetricsCache } from "./opm-consistency";
@@ -43,38 +52,55 @@ const PEAD_FILL_LIMIT_MAX = 24;
 const PEAD_FILL_LIMIT_DEFAULT = 16;
 const PEAD_FILL_CONCURRENCY_MAX = 8;
 const PEAD_FILL_CONCURRENCY_DEFAULT = 6;
-/** Cap live Screener deepen per batch — stocks-ai is Yahoo-primary. */
-const PEAD_FILL_SCREENER_BUDGET = 2;
+/** Cap Groww tip-deepen per batch (Screener blocks — do not live-hit it here). */
+const PEAD_FILL_GROWW_BUDGET = 8;
 
-/** UI “Incomplete” filter — includes announce/returns gaps Scan cannot invent. */
+function hasGrowthMetrics(row: Pead2Row): boolean {
+  return (
+    row.sales_yoy != null || row.np_yoy != null || row.ebidt_yoy != null
+  );
+}
+
+/** Snapshot already tried FPE (incl. 999 loss / unusable run-rate). */
+function hasResolvedForwardPeSnapshot(ticker: string): boolean {
+  const q = loadQuarterMetricsMap().get(ticker.toUpperCase());
+  return q != null && q.forward_pe != null && Number.isFinite(q.forward_pe);
+}
+
+/** UI “Incomplete” — returns/date gaps (Refresh Returns), not permanent loss-PE. */
 export function isPeadRowIncomplete(row: Pead2Row): boolean {
   if (!row.result_date) return true;
   if (row.returns_pct == null) return true;
-  if (row.forward_pe == null) return true;
-  if (
-    row.sales_yoy == null &&
-    row.np_yoy == null &&
-    row.ebidt_yoy == null
-  ) {
-    return true;
-  }
-  return false;
+  if (row.forward_pe != null || hasGrowthMetrics(row)) return false;
+  if (hasResolvedForwardPeSnapshot(row.ticker)) return false;
+  const cached = loadCachedQuartersSeries(row.ticker);
+  if (cached && cached.length >= 2) return false;
+  return true;
 }
 
 /**
- * Gaps Scan Incomplete can actually fill (quarters → Fwd PE / growth).
- * Announce-date / returns-only holes belong to Refresh Returns, not this count.
+ * Gaps Scan Incomplete can fill. Do not loop forever on loss-makers (FPE 999)
+ * or names whose quarters are already cached but have no YoY anchor.
  */
 function needsQuarterMetricsFill(row: Pead2Row): boolean {
-  if (row.forward_pe == null) return true;
-  if (
-    row.sales_yoy == null &&
-    row.np_yoy == null &&
-    row.ebidt_yoy == null
-  ) {
-    return true;
+  const hasFpe = row.forward_pe != null;
+  const growth = hasGrowthMetrics(row);
+  if (hasFpe && growth) return false;
+  if (!hasFpe && hasResolvedForwardPeSnapshot(row.ticker) && growth) {
+    return false;
   }
-  return false;
+  if (hasFpe && !growth) {
+    const cached = loadCachedQuartersSeries(row.ticker);
+    // Quarters present but no YoY pair (gaps / short history) — Scan cannot invent.
+    if (cached && cached.length >= 2) return false;
+  }
+  if (!hasFpe && !growth) {
+    if (hasResolvedForwardPeSnapshot(row.ticker)) {
+      const cached = loadCachedQuartersSeries(row.ticker);
+      if (cached && cached.length >= 2) return false;
+    }
+  }
+  return true;
 }
 
 function universeCompanies(market: string) {
@@ -226,11 +252,18 @@ export async function runPeadFillBatch(opts: {
     PEAD_FILL_CONCURRENCY_MAX,
     Math.max(1, opts.concurrency ?? PEAD_FILL_CONCURRENCY_DEFAULT),
   );
-  const pending = pendingPeadFillTickers({
-    market,
-    tickers: opts.tickers,
-    season,
-  });
+  // Explicit tickers = force tip refresh (stale Yahoo tip still "complete").
+  // Bulk Scan Incomplete keeps the pending filter.
+  const blocked = loadQuartersFillBlockedSet();
+  const forced = (opts.tickers ?? [])
+    .map((t) => t.trim().toUpperCase())
+    .filter((t) => t && !blocked.has(t));
+  const pending = forced.length
+    ? forced
+    : pendingPeadFillTickers({
+        market,
+        season,
+      });
   const batch = pending.slice(0, limit);
   const coverageBefore = peadFillCoverage({ market, season });
 
@@ -254,7 +287,7 @@ export async function runPeadFillBatch(opts: {
 
   let saved = 0;
   let failed = 0;
-  let screenerBudget = PEAD_FILL_SCREENER_BUDGET;
+  let growwBudget = PEAD_FILL_GROWW_BUDGET;
 
   await runConcurrent(batch, concurrency, async (ticker) => {
     const co = byTicker.get(ticker);
@@ -266,36 +299,48 @@ export async function runPeadFillBatch(opts: {
       let operating_cashflow: number | null = null;
       let operating_cashflow_np: number | null = null;
 
-      // 2) stocks-ai style: Yahoo first, skip Screener on bulk.
-      if (quarters.length < 2 || missingSalesOrProfit(quarters)) {
+      // 2) Yahoo-first + Groww tip (skip Screener — host blocks). Always
+      // refresh pending fills so a stale Yahoo tip (e.g. Jun) can pick up
+      // Groww's newer quarter (e.g. Sep).
+      {
         const live = await fetchQuarterlyFundamentals(ticker, mkt, {
           skipChart: true,
           skipScreener: true,
           screenerForce: false,
           yahooFirst: true,
         });
-        if (live.quarters.length >= 2) {
-          quarters = live.quarters;
-          price = co?.price ?? live.price ?? price;
-          operating_cashflow = live.operating_cashflow;
-          operating_cashflow_np = live.operating_cashflow_np;
+        if (live.quarters.length) {
+          // Live wins on overlap — stale cache must not block tip/PnL repair.
+          const merged = mergeQuarterFill(live.quarters, quarters);
+          if (merged.length >= 2) {
+            quarters = merged;
+            price = co?.price ?? live.price ?? price;
+            operating_cashflow = live.operating_cashflow;
+            operating_cashflow_np = live.operating_cashflow_np;
+          }
         }
       }
 
-      // 3) Screener deepen only when still empty — budgeted per batch.
-      if (quarters.length < 2 && screenerBudget > 0) {
-        screenerBudget -= 1;
-        const deep = await fetchQuarterlyFundamentals(ticker, mkt, {
-          skipChart: true,
-          skipScreener: false,
-          screenerForce: true,
-          yahooFirst: true,
-        });
-        if (deep.quarters.length >= 2) {
-          quarters = deep.quarters;
-          price = co?.price ?? deep.price ?? price;
-          operating_cashflow = deep.operating_cashflow;
-          operating_cashflow_np = deep.operating_cashflow_np;
+      // 3) Groww deepen when empty or no YoY (Screener deepen removed).
+      let panel =
+        quarters.length >= 2 ? buildQuarterPanel(quarters) : null;
+      const yoy = panel ? yoyFromPanel(panel) : null;
+      const needYoY =
+        yoy?.sales_yoy == null &&
+        yoy?.np_yoy == null &&
+        yoy?.ebidt_yoy == null;
+      if ((quarters.length < 2 || needYoY) && growwBudget > 0) {
+        growwBudget -= 1;
+        const groww = await fetchGrowwQuarterlyFundamentals(
+          ticker,
+          co?.name ?? null,
+        );
+        if (groww.length) {
+          const merged = mergeQuarterFill(groww, quarters);
+          if (merged.length >= 2) {
+            quarters = merged;
+            panel = buildQuarterPanel(quarters);
+          }
         }
       }
 
@@ -304,18 +349,21 @@ export async function runPeadFillBatch(opts: {
         failed += 1;
         return;
       }
-      const panel = buildQuarterPanel(quarters);
+      if (!panel) panel = buildQuarterPanel(quarters);
       if (!panel) {
         markQuartersFillMiss(ticker);
         failed += 1;
         return;
       }
       const latestNp = quarters[quarters.length - 1]?.netIncome ?? null;
+      const priorAnnounce = usableAnnounceResultDate(
+        loadQuarterMetricsMap().get(ticker)?.result_date,
+      );
       const snapshot = metricsSnapshotFromPanel(
         panel,
         price,
         computeCfProfit(operating_cashflow, operating_cashflow_np ?? latestNp),
-        quarters.at(-1)?.date ?? null,
+        priorAnnounce,
         quarters,
       );
       await withScrapeWriteLock(() => {
@@ -334,6 +382,7 @@ export async function runPeadFillBatch(opts: {
   invalidateOperatingMetricsCache();
   invalidateFundamentalsScanCache();
   invalidateQuantBasketCache();
+  invalidatePead2TableCache();
 
   const remaining = pendingPeadFillTickers({
     market,

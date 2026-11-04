@@ -5,7 +5,11 @@ import {
   pendingPeadFillTickers,
   runPeadFillBatch,
 } from "@/lib/pead-fill";
-import { loadPead2Rows, type Pead2Row } from "@/lib/pead2-table";
+import {
+  invalidatePead2TableCache,
+  loadPead2Rows,
+  type Pead2Row,
+} from "@/lib/pead2-table";
 import { refreshPeadReturns } from "@/lib/pead2-returns";
 import { refreshPagePrices } from "@/lib/metrics";
 import { filterCompaniesByScanList } from "@/lib/scan-lists-server";
@@ -142,22 +146,21 @@ export async function GET(req: NextRequest) {
       season: peadSeasonBounds(season),
     });
   }
-  // GET stays snappy: soft/force Yahoo quotes only. Returns/NSE = POST Refresh Returns.
+  // Soft GET = cached board only (fast page flips). Live quotes only on Refresh.
   const forcePrices = sp.get("refresh") === "1";
   let all = loadPead2Rows();
   let filtered = filterRows(all, sp);
   let slice = pageSlice(req, filtered.rows);
-  if (slice.rows.length) {
+  if (forcePrices && slice.rows.length) {
     try {
-      const updated = await refreshPagePrices(
+      await refreshPagePrices(
         slice.rows.map((r) => ({ ticker: r.ticker, market: r.market })),
-        { force: forcePrices, concurrency: 8 },
+        { force: true, concurrency: 8 },
       );
-      if (updated > 0 || forcePrices) {
-        all = loadPead2Rows();
-        filtered = filterRows(all, sp);
-        slice = pageSlice(req, filtered.rows);
-      }
+      invalidatePead2TableCache();
+      all = loadPead2Rows();
+      filtered = filterRows(all, sp);
+      slice = pageSlice(req, filtered.rows);
     } catch (err) {
       console.warn("[api/pead] price refresh skipped:", err);
     }
