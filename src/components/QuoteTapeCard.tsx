@@ -19,6 +19,8 @@ type Props = {
   className?: string;
   /** SMA periods to show (default 20/50/100/200). */
   periods?: MaPeriod[];
+  /** full = Tech & Val; range = 52-week + DMAs only (detail side card). */
+  variant?: "full" | "range";
 };
 
 /**
@@ -31,6 +33,7 @@ export function QuoteTapeCard({
   title = "Tech & Val",
   className,
   periods,
+  variant = "full",
 }: Props) {
   const [tape, setTape] = useState<QuoteTape | null>(null);
   const [loading, setLoading] = useState(false);
@@ -101,32 +104,63 @@ export function QuoteTapeCard({
     ? tape.mas.filter((m) => want.has(m.period as MaPeriod))
     : tape.mas;
 
+  const rangeOnly = variant === "range";
+  const heading = rangeOnly ? "52-week range" : title;
+
   return (
     <section className={rootClass}>
-      <h3>{title}</h3>
+      <h3>{heading}</h3>
       <div className="wl-tape">
-        <div className="wl-tape-stats">
-          <span className="wl-tape-stat">
-            <span className="wl-tape-stat-label">Price</span>{" "}
-            <strong>{fmtPrice(tape.price)}</strong>
-          </span>
-          <span className="wl-tape-stat">
-            <span className="wl-tape-stat-label">PE</span>{" "}
-            <strong>{tape.pe != null ? tape.pe.toFixed(2) : "—"}</strong>
-          </span>
-          <span className="wl-tape-stat">
-            <span className="wl-tape-stat-label">
-              {tape.cagr_years ? `${tape.cagr_years}Y CAGR` : "CAGR"}
-            </span>{" "}
-            <strong className={cagrCls}>
-              {tape.cagr_pct == null
-                ? "—"
-                : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
-            </strong>
-          </span>
-        </div>
+        {!rangeOnly ? (
+          <div className="wl-tape-stats">
+            <span className="wl-tape-stat">
+              <span className="wl-tape-stat-label">Price</span>{" "}
+              <strong>{fmtPrice(tape.price)}</strong>
+            </span>
+            <span className="wl-tape-stat">
+              <span className="wl-tape-stat-label">PE</span>{" "}
+              <strong>{tape.pe != null ? tape.pe.toFixed(2) : "—"}</strong>
+            </span>
+            <span className="wl-tape-stat">
+              <span className="wl-tape-stat-label">
+                {tape.cagr_years ? `${tape.cagr_years}Y CAGR` : "CAGR"}
+              </span>{" "}
+              <strong className={cagrCls}>
+                {tape.cagr_pct == null
+                  ? "—"
+                  : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
+              </strong>
+            </span>
+          </div>
+        ) : null}
+        {low != null && high != null ? (
+          <div className="wl-tape-range">
+            {!rangeOnly ? (
+              <span className="wl-tape-label">52-week range</span>
+            ) : null}
+            <div className="wl-range-track">
+              <span className="wl-range-lo">{fmtPrice(low)}</span>
+              <span className="wl-range-bar">
+                {pct != null ? (
+                  <i className="wl-range-dot" style={{ left: `${pct}%` }} />
+                ) : null}
+              </span>
+              <span className="wl-range-hi">{fmtPrice(high)}</span>
+            </div>
+            {rangeOnly && px != null ? (
+              <p className="wl-range-px">
+                <strong>{fmtPrice(px)}</strong>
+                {pct != null ? (
+                  <span className="muted"> · {pct.toFixed(0)}% of range</span>
+                ) : null}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
         <div className="wl-tape-mas">
-          <span className="wl-tape-label">Moving averages</span>
+          {!rangeOnly ? (
+            <span className="wl-tape-label">Moving averages</span>
+          ) : null}
           <div className="wl-ma-row">
             {mas.map((m) => {
               const tone =
@@ -152,20 +186,24 @@ export function QuoteTapeCard({
                   <span className="wl-ma-mark" aria-hidden>
                     {mark}
                   </span>
-                  <span className="wl-ma-period">{m.period}</span>
-                  <span className="wl-ma-val">
-                    {m.value != null
-                      ? m.value.toLocaleString("en-IN", {
-                          maximumFractionDigits: 2,
-                        })
-                      : "—"}
+                  <span className="wl-ma-period">
+                    {rangeOnly ? `${m.period} DMA` : m.period}
                   </span>
+                  {!rangeOnly ? (
+                    <span className="wl-ma-val">
+                      {m.value != null
+                        ? m.value.toLocaleString("en-IN", {
+                            maximumFractionDigits: 2,
+                          })
+                        : "—"}
+                    </span>
+                  ) : null}
                 </span>
               );
             })}
           </div>
         </div>
-        {dma200Label ? (
+        {!rangeOnly && dma200Label ? (
           <div className="wl-dma-alert" role="status" aria-live="polite">
             <span className="wl-dma-alert-pill">{dma200Label}</span>
             {tape.dma200 != null && tape.price != null ? (
@@ -186,20 +224,6 @@ export function QuoteTapeCard({
                 })}
               </span>
             ) : null}
-          </div>
-        ) : null}
-        {low != null && high != null ? (
-          <div className="wl-tape-range">
-            <span className="wl-tape-label">52-week range</span>
-            <div className="wl-range-track">
-              <span className="wl-range-lo">{fmtPrice(low)}</span>
-              <span className="wl-range-bar">
-                {pct != null ? (
-                  <i className="wl-range-dot" style={{ left: `${pct}%` }} />
-                ) : null}
-              </span>
-              <span className="wl-range-hi">{fmtPrice(high)}</span>
-            </div>
           </div>
         ) : null}
       </div>

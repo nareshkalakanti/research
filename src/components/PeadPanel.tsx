@@ -13,6 +13,7 @@ import {
   MCAP_RANGE_STEPS,
   mcapIndicesToBounds,
 } from "@/components/MarketCapRangeBar";
+import { CompanyAboutCard } from "@/components/CompanyAboutCard";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
@@ -25,7 +26,16 @@ import {
   type PeadSeasonId,
 } from "@/lib/pead-season";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
+import {
+  liveMcapCr,
+  mcapDisagrees,
+  normalisedTrailingPe,
+  quarterUnusual,
+  trailingPeFromTtm,
+  ttmEps,
+} from "@/lib/stock-detail-metrics";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
+import { epsFromQuarterPanel } from "@/lib/valuation";
 /** Exchange universes only — same List as Scan / Themes. */
 const PEAD_LISTS = ["All", "NSE", "NSE SME", "BSE SME"] as const;
 type PeadList = (typeof PEAD_LISTS)[number];
@@ -81,8 +91,8 @@ const COLS: Array<{
   { id: "company", label: "Company" },
   {
     id: "pead_score",
-    label: "PEAD Score",
-    title: "Sales YoY/QoQ mean + cheap Fwd PE bonus",
+    label: "PEAD",
+    title: "PEAD score — Sales YoY/QoQ mean + cheap Fwd PE bonus",
   },
   {
     id: "result_date",
@@ -114,7 +124,7 @@ const COLS: Array<{
   {
     id: "daily_ret_pct",
     label: "Daily Ret",
-    title: "Largest single-day % move on/after announcement (capped ~20%)",
+    title: "Largest single-day % move on/after announcement (close-to-close)",
   },
   { id: "sales_yoy", label: "Sales YoY", extra: true },
   { id: "sales_qoq", label: "Sales QoQ", extra: true },
@@ -233,38 +243,106 @@ function PeadOpenDetail({
     [qtr.panel, roe, roce],
   );
 
+  const detailMetrics = useMemo(() => {
+    const price = row.price;
+    const live = liveMcapCr(price, row.shares);
+    const stale = mcapDisagrees(row.mcap_stored_cr, live);
+    const eps = qtr.panel ? epsFromQuarterPanel(qtr.panel) : [];
+    const ttm = ttmEps(eps);
+    const peTtm = trailingPeFromTtm(price, ttm);
+    const npRow = qtr.panel?.rows.find((r) => r.label === "Net Profit");
+    const tipUnusual = npRow ? quarterUnusual(npRow.values) : false;
+    const peNorm = tipUnusual
+      ? normalisedTrailingPe(price, eps)
+      : null;
+    return {
+      liveMcap: live ?? row.mcap_cr,
+      stale,
+      asOf: row.metrics_as_of,
+      peTtm,
+      peNorm,
+    };
+  }, [
+    row.price,
+    row.shares,
+    row.mcap_cr,
+    row.mcap_stored_cr,
+    row.metrics_as_of,
+    qtr.panel,
+  ]);
+
   if (!open) return null;
+
+  const mcapShow = detailMetrics.liveMcap;
 
   return (
     <tr className="pead2-expand-row">
       <td colSpan={colSpan}>
-        <div className="pead2-expand">
-          <aside className="pead2-expand-left">
+        <div className="pead2-expand pead2-expand--detail">
+          <div className="pead2-expand-qtr">
             <p className="pead2-expand-meta">
               <span className="mono">{row.ticker}</span>
               {row.sector ? <span>{row.sector}</span> : null}
-              {row.mcap_cr != null ? (
-                <span>₹{formatMcap(row.mcap_cr)} Cr</span>
+              {mcapShow != null ? (
+                <span title="live price × shares">
+                  ₹{formatMcap(mcapShow)}
+                  {detailMetrics.stale ? (
+                    <span className="pead2-stale-badge" title="Mcap disagrees with live price × shares">
+                      {" "}
+                      stale
+                    </span>
+                  ) : null}
+                </span>
+              ) : null}
+              {detailMetrics.asOf ? (
+                <span className="pead2-asof">
+                  as of {detailMetrics.asOf.slice(0, 16).replace("T", " ")}
+                </span>
+              ) : null}
+              {detailMetrics.peTtm != null ? (
+                <span title="Price ÷ TTM EPS (last 4 quarters)">
+                  PE {detailMetrics.peTtm.toFixed(1)}
+                </span>
+              ) : null}
+              {detailMetrics.peNorm != null ? (
+                <span title="TTM PE with tip EPS replaced by prior-3 avg">
+                  Norm PE {detailMetrics.peNorm.toFixed(1)}
+                </span>
               ) : null}
             </p>
+            <ExpandQuarters
+              data={qtr}
+              price={row.price}
+              compact
+              richQoq
+            />
+          </div>
+          <div className="pead2-expand-side">
+            <section className="pead2-expand-card pead2-expand-seven">
+              <h3 className="pead2-expand-side-title">7-Rule score</h3>
+              {qtr.loading && !sevenRule ? (
+                <p className="table-meta">Loading 7-Rule…</p>
+              ) : sevenRule ? (
+                <SevenRuleScoreCard result={sevenRule} compact />
+              ) : (
+                <p className="table-meta">No 7-Rule yet</p>
+              )}
+            </section>
+            <CompanyAboutCard
+              className="pead2-expand-card pead2-expand-about"
+              ticker={row.ticker}
+              market={row.market}
+              companyName={row.name}
+              active={open}
+            />
             <QuoteTapeCard
+              className="pead2-expand-card pead2-expand-range"
               ticker={row.ticker}
               market={row.market}
               active={open}
               periods={[20, 50, 200]}
+              variant="range"
             />
-            <div className="pead2-expand-7r">
-              {qtr.loading && !sevenRule ? (
-                <p className="table-meta">Loading 7R…</p>
-              ) : sevenRule ? (
-                <SevenRuleScoreCard result={sevenRule} compact />
-              ) : (
-                <p className="table-meta">No 7R yet</p>
-              )}
-            </div>
-          </aside>
-          <div className="pead2-expand-qtr">
-            <ExpandQuarters data={qtr} price={row.price} compact />
           </div>
         </div>
       </td>
@@ -699,7 +777,19 @@ export function PeadPanel() {
                 </span>
               ) : null}
               {row.mcap_cr != null ? (
-                <span className="muted">₹{formatMcap(row.mcap_cr)}</span>
+                <span
+                  className="muted"
+                  title={
+                    row.metrics_as_of
+                      ? `Mcap as of ${row.metrics_as_of.slice(0, 16).replace("T", " ")}`
+                      : "live price × shares"
+                  }
+                >
+                  ₹{formatMcap(row.mcap_cr)}
+                  {mcapDisagrees(row.mcap_stored_cr, row.mcap_cr) ? (
+                    <span className="pead2-stale-badge"> stale</span>
+                  ) : null}
+                </span>
               ) : null}
               {row.tv ? (
                 <a
@@ -738,7 +828,9 @@ export function PeadPanel() {
         return (
           <span
             className={`pead2-score ${pead2ScoreClass(row.pead_score, PEAD_HIGH_MIN)}`}
+            title="PEAD score"
           >
+            <span className="pead2-score-lbl">PEAD</span>{" "}
             {fmtNum(row.pead_score, 1)}
           </span>
         );
@@ -773,13 +865,20 @@ export function PeadPanel() {
         );
       case "returns_pct":
         return (
-          <span className={pctClass(row.returns_pct)}>
-            {fmtPct(row.returns_pct)}
+          <span
+            className={pctClass(row.returns_pct)}
+            title="Return from result-day close → live price"
+          >
+            <span className="pead2-col-lbl">Ret</span> {fmtPct(row.returns_pct)}
           </span>
         );
       case "daily_ret_pct":
         return (
-          <span className={pctClass(row.daily_ret_pct)}>
+          <span
+            className={pctClass(row.daily_ret_pct)}
+            title="Largest single-day % move on/after announcement"
+          >
+            <span className="pead2-col-lbl">Day</span>{" "}
             {fmtPct(row.daily_ret_pct)}
           </span>
         );

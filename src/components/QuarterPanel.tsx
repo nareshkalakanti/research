@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   fmtQVal,
   qCellClass,
@@ -14,6 +15,12 @@ import {
   trendLabelForRow,
   trendShortLabel,
 } from "@/lib/quarter-trend";
+import {
+  qoqChangePct,
+  qoqChangePp,
+  qoqCellTone,
+  quarterUnusual,
+} from "@/lib/stock-detail-metrics";
 import { peRowsFromPanel } from "@/lib/valuation";
 
 type Props = {
@@ -23,6 +30,10 @@ type Props = {
   sourceNote?: string | null;
   /** Snapshot layout: core P&L rows only, no repeated story / PE / trend. */
   compact?: boolean;
+  /** e.g. 7R chip beside the Quarterly title. */
+  headExtra?: ReactNode;
+  /** QoQ % under values, unusual outline, legend (detail card). */
+  richQoq?: boolean;
 };
 
 function TrendCell({ row }: { row: QuarterRow }) {
@@ -35,12 +46,30 @@ function TrendCell({ row }: { row: QuarterRow }) {
   );
 }
 
+function fmtDelta(row: QuarterRow, cur: number | null, prev: number | null): string | null {
+  if (cur == null || prev == null) return null;
+  if (/OPM\s*%/i.test(row.label)) {
+    const pp = qoqChangePp(cur, prev);
+    if (pp == null) return null;
+    const sign = pp > 0 ? "+" : "";
+    return `${sign}${pp.toFixed(1)}pp`;
+  }
+  const pct = qoqChangePct(cur, prev);
+  if (pct == null) return null;
+  const sign = pct > 0 ? "+" : "";
+  const abs = Math.abs(pct);
+  const body = abs >= 10 ? abs.toFixed(0) : abs.toFixed(1);
+  return `${sign}${body}%`;
+}
+
 export function QuarterPanel({
   panel,
   yoy,
   price,
   sourceNote,
   compact = false,
+  headExtra,
+  richQoq = false,
 }: Props) {
   if (!panel?.labels?.length || !panel.rows?.length) {
     return <div className="q-empty">No quarterly data.</div>;
@@ -77,14 +106,19 @@ export function QuarterPanel({
     salesRow.values.every((v) => v == null || Number(v) === 0);
 
   return (
-    <div className="q-expand">
+    <div className={`q-expand${richQoq ? " q-expand--rich" : ""}`}>
       <div className="q-block">
         {sourceNote ? (
           <p className="q-source-note">{sourceNote}</p>
         ) : null}
         <div className="q-block-head">
-          <div className="q-block-title">
-            {compact ? "Quarterly (Rs Cr)" : "Quarterly · ₹ Cr"}
+          <div className="q-block-title-row">
+            <div className="q-block-title">
+              {compact || richQoq ? "Quarterly (₹ Cr)" : "Quarterly · ₹ Cr"}
+            </div>
+            {headExtra ? (
+              <div className="q-block-head-extra">{headExtra}</div>
+            ) : null}
           </div>
           <div className="q-block-meta">
             {overall ? (
@@ -110,7 +144,7 @@ export function QuarterPanel({
               {labels.map((lb) => (
                 <col key={lb} className="q-col-qtr" />
               ))}
-              {compact ? null : <col className="q-col-trend" />}
+              {!compact ? <col className="q-col-trend" /> : null}
             </colgroup>
             <thead>
               <tr>
@@ -120,7 +154,7 @@ export function QuarterPanel({
                     {lb}
                   </th>
                 ))}
-                {compact ? null : <th className="q-trend-col">Trend</th>}
+                {!compact ? <th className="q-trend-col">Trend</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -133,28 +167,61 @@ export function QuarterPanel({
                   <tr key={row.label}>
                     <td className="q-label">{row.label}</td>
                     {row.values.map((v, i) => {
-                      const tone = qCellClass(
-                        fullRow,
-                        compact && labelStart > 0 ? labelStart + i : i,
-                      );
+                      const fullIdx =
+                        compact && labelStart > 0 ? labelStart + i : i;
+                      const prevFull =
+                        fullIdx > 0 ? fullRow.values[fullIdx - 1] ?? null : null;
+                      const curFull = fullRow.values[fullIdx] ?? null;
+                      const tone = richQoq
+                        ? qoqCellTone(
+                            curFull,
+                            prevFull,
+                            fullIdx,
+                            fullRow.good_up !== false,
+                          )
+                        : qCellClass(fullRow, fullIdx);
+                      const unusual =
+                        richQoq &&
+                        i === n - 1 &&
+                        quarterUnusual(fullRow.values, fullIdx);
+                      const delta =
+                        richQoq && fullIdx > 0
+                          ? fmtDelta(fullRow, curFull, prevFull)
+                          : null;
                       const latest = i === n - 1 ? "q-latest" : "";
-                      const cls = [tone, latest].filter(Boolean).join(" ");
+                      const cls = [
+                        tone,
+                        latest,
+                        unusual ? "q-unusual" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ");
                       return (
                         <td
                           key={`${row.label}-${i}`}
                           className={cls || undefined}
                         >
-                          {fmtQVal(v, row.decimals)}
+                          <span className="q-cell-val">
+                            {fmtQVal(v, row.decimals)}
+                          </span>
+                          {delta ? (
+                            <span className="q-cell-delta">{delta}</span>
+                          ) : null}
                         </td>
                       );
                     })}
-                    {compact ? null : <TrendCell row={row} />}
+                    {!compact ? <TrendCell row={row} /> : null}
                   </tr>
                 );
               })}
             </tbody>
           </table>
         </div>
+        {richQoq ? (
+          <p className="q-legend">
+            Green/red = change vs previous quarter. Outlined = unusual jump.
+          </p>
+        ) : null}
       </div>
     </div>
   );

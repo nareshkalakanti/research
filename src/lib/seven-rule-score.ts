@@ -180,7 +180,7 @@ export function sevenRuleRatingFromPassed(passed: number): {
 } {
   if (passed >= 7) return { rating: "strong_buy", ratingLabel: "Strong Buy" };
   if (passed === 6) return { rating: "buy", ratingLabel: "Buy" };
-  if (passed === 5) return { rating: "deep_dive", ratingLabel: "Deep Dive" };
+  if (passed === 5) return { rating: "deep_dive", ratingLabel: "Needs review" };
   return { rating: "no", ratingLabel: "No" };
 }
 

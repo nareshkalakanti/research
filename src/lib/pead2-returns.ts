@@ -1,6 +1,10 @@
 import { fetchDailyBars } from "./ohlc";
 import { loadMetricsMap, refreshPagePrices } from "./metrics";
-import { computeDailyRetFf, computeReturnsPct } from "./pead-score";
+import {
+  computeDailyRetFf,
+  computeReturnsPct,
+  resultEntryClose,
+} from "./pead-score";
 import { savePeadReturns } from "./pead-returns-cache";
 import { refreshPeadWebMetrics } from "./pead-web-metrics";
 import {
@@ -39,7 +43,14 @@ export async function recomputePeadReturnsFromBars(
     }));
     const returns_pct = computeReturnsPct(closes, result_date, row.price);
     const daily_ret_pct = computeDailyRetFf(closes, result_date);
-    savePeadReturns(row.ticker, returns_pct, daily_ret_pct, result_date);
+    const entry_close = resultEntryClose(closes, result_date);
+    savePeadReturns(
+      row.ticker,
+      returns_pct,
+      daily_ret_pct,
+      result_date,
+      entry_close,
+    );
     row.returns_pct = returns_pct;
     row.daily_ret_pct = daily_ret_pct;
     updated += 1;
@@ -80,7 +91,14 @@ export async function refreshPeadReturns(
     }));
     const returns_pct = computeReturnsPct(closes, result_date, row.price);
     const daily_ret_pct = computeDailyRetFf(closes, result_date);
-    savePeadReturns(row.ticker, returns_pct, daily_ret_pct, result_date);
+    const entry_close = resultEntryClose(closes, result_date);
+    savePeadReturns(
+      row.ticker,
+      returns_pct,
+      daily_ret_pct,
+      result_date,
+      entry_close,
+    );
     row.returns_pct = returns_pct;
     row.daily_ret_pct = daily_ret_pct;
     updated += 1;

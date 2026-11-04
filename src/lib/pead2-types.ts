@@ -3,7 +3,14 @@ export type Pead2Row = {
   name: string;
   market: string;
   sector: string | null;
+  /** Display mcap: live price × shares when possible. */
   mcap_cr: number | null;
+  /** Cached metrics mcap (for stale badge vs live). */
+  mcap_stored_cr: number | null;
+  /** Shares implied from metrics mcap÷price (for live mcap = price × shares). */
+  shares: number | null;
+  /** ISO time of metrics quote used for mcap/price. */
+  metrics_as_of: string | null;
   price: number | null;
   cap_code: string | null;
   web: string | null;
