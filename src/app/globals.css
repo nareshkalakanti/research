@@ -921,17 +921,71 @@ a.brand-btn:hover .brand-name {
   --pead2-num-size: 13px;
   --pead2-num-weight: 700;
   display: grid;
-  grid-template-columns: minmax(240px, 300px) max-content;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(300px, 1.2fr) minmax(280px, 1fr);
   gap: 12px 16px;
-  align-items: start;
-  justify-content: start;
+  align-items: stretch;
+  justify-content: stretch;
+  width: 100%;
   font-variant-numeric: tabular-nums;
+}
+.pead2-expand--detail {
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.85fr);
+}
+.pead2-stale-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  vertical-align: middle;
+}
+.pead2-asof {
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+.pead2-score-lbl,
+.pead2-col-lbl {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.q-cell-val {
+  display: block;
+}
+.q-cell-delta {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  opacity: 0.85;
+  margin-top: 1px;
+}
+.q-unusual {
+  outline: 2px solid #a16207;
+  outline-offset: -2px;
+}
+.q-legend {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.wl-range-px {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
 }
 .pead2-expand-left {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
+  height: 100%;
 }
 .pead2-expand-meta {
   display: flex;
@@ -947,6 +1001,7 @@ a.brand-btn:hover .brand-name {
   color: #334155;
 }
 .pead2-expand-left .quote-tape-card {
+  flex: 1;
   margin: 0;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
@@ -1027,39 +1082,105 @@ a.brand-btn:hover .brand-name {
 .pead2-expand-left .wl-range-hi {
   color: var(--ok);
 }
-.pead2-expand-7r {
+.pead2-expand-qtr {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pead2-expand-qtr .about-quarters,
+.pead2-expand-qtr .q-expand,
+.pead2-expand-qtr .q-block {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pead2-expand-side {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+}
+.pead2-expand-card {
+  min-width: 0;
+  padding: 12px 14px;
   border: 1px solid #e2e8f0;
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
-  padding: 8px 10px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
-.pead2-expand-7r .seven-rule-card {
+.pead2-expand-side-title {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pead2-expand-seven .seven-rule-card {
   border: 0;
   padding: 0;
   background: transparent;
-  border-radius: 0;
 }
-.pead2-expand-7r .seven-rule-score-num {
-  font-size: var(--pead2-num-size);
+.pead2-expand-seven .seven-rule-score-num {
+  font-size: 1.05rem;
   font-weight: var(--pead2-num-weight);
   color: var(--ink);
 }
-.pead2-expand-7r .seven-rule-score-denom,
-.pead2-expand-7r .seven-rule-provisional,
-.pead2-expand-7r .seven-rule-sub {
+.pead2-expand-seven .seven-rule-score-denom,
+.pead2-expand-seven .seven-rule-sub {
   font-size: 11px;
   color: var(--muted);
 }
-.pead2-expand-7r .seven-rule-sub {
-  font-size: 11px;
-}
-.pead2-expand-7r .seven-rule-bar {
+.pead2-expand-seven .seven-rule-bar {
   margin: 0.3rem 0 0.15rem;
-  height: 5px;
+  height: 4px;
 }
-.pead2-expand-qtr {
-  min-width: 0;
+.pead2-expand-about.company-about-card {
+  max-width: none;
+  flex: 1 1 auto;
+}
+.pead2-expand-about .company-about-card-title {
+  margin: 0 0 6px;
+}
+.pead2-expand-about .company-about-card-headline {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+.pead2-expand-about .company-about-card-meta {
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+.pead2-expand-about .company-about-card-body {
+  margin-top: 8px;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+.pead2-expand-about .company-about-card-products {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  gap: 2px;
+}
+.pead2-expand-perf .napkin-sheet-section {
+  margin: 0;
+  padding: 0;
+}
+.pead2-expand-perf .napkin-block-title {
+  margin: 0 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.pead2-expand-perf .napkin-perf-block {
+  padding-top: 0;
+}
+.pead2-expand-perf .napkin-perf-row {
+  font-size: 0.78rem;
+  gap: 6px;
 }
 .pead2-expand-qtr .about-quarters {
   margin: 0;
@@ -1074,15 +1195,15 @@ a.brand-btn:hover .brand-name {
   margin-bottom: 6px;
 }
 .pead2-expand-qtr .q-panel {
-  width: max-content;
-  max-width: 100%;
+  width: 100%;
+  flex: 1;
   border-radius: 10px;
   background: #fff;
   border: 1px solid #e2e8f0;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 .pead2-expand-qtr .q-table {
-  width: max-content;
+  width: 100%;
   table-layout: fixed;
   font-size: var(--pead2-num-size);
   color: var(--ink);
@@ -1098,10 +1219,10 @@ a.brand-btn:hover .brand-name {
   font-weight: var(--pead2-num-weight);
 }
 .pead2-expand-qtr .q-table col.q-col-metric {
-  width: 96px;
+  width: 22%;
 }
 .pead2-expand-qtr .q-table col.q-col-qtr {
-  width: 52px;
+  width: auto;
 }
 .pead2-expand-qtr .q-table th {
   font-size: 10px;
@@ -1141,10 +1262,63 @@ a.brand-btn:hover .brand-name {
   background: color-mix(in srgb, var(--danger) 16%, #fff);
   color: var(--danger);
 }
-@media (max-width: 900px) {
-  .pead2-expand {
+@media (max-width: 1100px) {
+  .pead2-expand,
+  .pead2-expand--detail {
     grid-template-columns: 1fr;
   }
+  .pead2-expand-side {
+    grid-column: auto;
+  }
+}
+
+.company-about-card-title {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.company-about-card-muted {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.company-about-card-headline {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+  color: var(--ink);
+}
+.company-about-card-meta {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.company-about-card-body {
+  margin: 10px 0 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+.company-about-card-products {
+  margin: 10px 0 0;
+  padding: 0 0 0 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--ink);
+}
+.company-about-card-products li {
+  padding-left: 2px;
 }
 
 .pead2-co-meta {
@@ -4612,6 +4786,20 @@ button.result-tag {
   gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 8px;
+}
+
+.q-block-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.q-block-head-extra {
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 .q-block-meta {
@@ -26865,6 +27053,25 @@ tr.wl-prove-fail td {
 }
 .napkin-about-products li {
   padding-left: 2px;
+}
+.napkin-about-card.company-about-card {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  max-width: 48rem;
+}
+.napkin-about-card .company-about-card-title {
+  margin: 22px 0 10px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+}
+.napkin-about-card .company-about-card-headline {
+  font-size: 1.05rem;
+}
+.napkin-about-card .company-about-card-body {
+  font-size: 0.9rem;
+  max-width: 48rem;
 }
 .napkin-sheet-section .q-expand {
   margin-top: 6px;

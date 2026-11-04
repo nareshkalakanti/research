@@ -11,7 +11,7 @@ import { buildQuarterPanel, type QuarterPoint } from "../src/lib/quarter-panel";
 
 assert.equal(sevenRuleRatingFromPassed(7).ratingLabel, "Strong Buy");
 assert.equal(sevenRuleRatingFromPassed(6).ratingLabel, "Buy");
-assert.equal(sevenRuleRatingFromPassed(5).ratingLabel, "Deep Dive");
+assert.equal(sevenRuleRatingFromPassed(5).ratingLabel, "Needs review");
 assert.equal(sevenRuleRatingFromPassed(4).ratingLabel, "No");
 assert.equal(sevenRuleRatingFromPassed(0).ratingLabel, "No");
 assert.equal(sevenRuleRatingFromPassed(4).rating, "no");
@@ -65,7 +65,7 @@ const fivePass = sevenRuleScore({
 assert.equal(fivePass.passed, 5);
 assert.equal(fivePass.score, 7.14);
 assert.equal(fivePass.rating, "deep_dive");
-assert.equal(fivePass.ratingLabel, "Deep Dive");
+assert.equal(fivePass.ratingLabel, "Needs review");
 
 const fourPass = sevenRuleScore({
   roce: 0.1, // fail

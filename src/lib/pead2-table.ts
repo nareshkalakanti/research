@@ -6,8 +6,10 @@ import { loadQuarterOverlayMap } from "./fundamentals-scan";
 import { mcapCapCode } from "./gov-score";
 import {
   peadScoreFf,
+  returnsPctFromEntry,
   usableForwardPe,
 } from "./pead-score";
+import { impliedShares, liveMcapCr } from "./stock-detail-metrics";
 import {
   latestAnnounceOnOrBefore,
   loadPeadAnnounceDatesMap,
@@ -151,14 +153,26 @@ export function loadPead2Rows(): Pead2Row[] {
       cached.result_date === result_date
         ? cached
         : null;
+    // Prefer live price vs stored entry close so Returns tracks Price.
+    const liveReturns =
+      returnsPctFromEntry(returnsForResult?.entry_close, price) ??
+      returnsForResult?.returns_pct ??
+      null;
+    const storedMcap = p?.market_cap_cr ?? c.mcap_cr ?? null;
+    // Prefer metrics price as the basis for shares so live mcap tracks quote moves.
+    const shares = impliedShares(storedMcap, p?.price ?? price);
+    const liveCap = liveMcapCr(price, shares);
     out.push({
       ticker,
       name: c.name,
       market: c.market,
       sector: c.sector,
-      mcap_cr: p?.market_cap_cr ?? c.mcap_cr ?? null,
+      mcap_cr: liveCap ?? storedMcap,
+      mcap_stored_cr: storedMcap,
+      shares,
+      metrics_as_of: p?.fetched_at ?? null,
       price,
-      cap_code: mcapCapCode(p?.market_cap_cr ?? c.mcap_cr ?? null),
+      cap_code: mcapCapCode(liveCap ?? storedMcap),
       web: c.web,
       sc: c.sc,
       tv: c.tv,
@@ -166,7 +180,7 @@ export function loadPead2Rows(): Pead2Row[] {
       result_date,
       pe_ratio,
       forward_pe,
-      returns_pct: returnsForResult?.returns_pct ?? null,
+      returns_pct: liveReturns,
       daily_ret_pct: returnsForResult?.daily_ret_pct ?? null,
       sales_yoy,
       sales_qoq,

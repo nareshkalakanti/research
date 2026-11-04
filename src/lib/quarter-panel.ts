@@ -1,4 +1,5 @@
 import { opmPctSeries } from "./opm-math";
+import { qoqCellTone } from "./stock-detail-metrics";
 
 /**
  * Screener-style quarterly panel (PEAD2 `build_quarter_panel`).
@@ -296,13 +297,13 @@ export function qCellClass(
   row: QuarterRow,
   i: number,
 ): "q-up" | "q-down" | "q-flat" | "" {
-  if (i <= 0) return "";
-  const cur = row.values[i];
-  const prev = row.values[i - 1];
-  if (cur == null || prev == null) return "";
-  if (cur > prev) return row.good_up ? "q-up" : "q-down";
-  if (cur < prev) return row.good_up ? "q-down" : "q-up";
-  return "q-flat";
+  // First column neutral; colour strictly by QoQ sign.
+  return qoqCellTone(
+    row.values[i],
+    i > 0 ? row.values[i - 1] : null,
+    i,
+    row.good_up !== false,
+  );
 }
 
 export function fmtQVal(v: number | null, decimals: number): string {

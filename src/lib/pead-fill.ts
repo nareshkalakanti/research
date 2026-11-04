@@ -325,10 +325,12 @@ export async function runPeadFillBatch(opts: {
       let panel =
         quarters.length >= 2 ? buildQuarterPanel(quarters) : null;
       const yoy = panel ? yoyFromPanel(panel) : null;
+      // Deepen if any YoY leg is missing (Yahoo often blanks one PnL line).
       const needYoY =
-        yoy?.sales_yoy == null &&
-        yoy?.np_yoy == null &&
-        yoy?.ebidt_yoy == null;
+        !yoy ||
+        yoy.sales_yoy == null ||
+        yoy.np_yoy == null ||
+        yoy.ebidt_yoy == null;
       if ((quarters.length < 2 || needYoY) && growwBudget > 0) {
         growwBudget -= 1;
         const groww = await fetchGrowwQuarterlyFundamentals(

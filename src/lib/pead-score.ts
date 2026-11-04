@@ -303,12 +303,12 @@ export function pead2ScoreClass(
 
 /**
  * Largest single-day % move from the day of results onward (prior close →
- * result-day close first), capped like stocks-ai Daily Ret.
+ * result-day close first). No artificial 19.99 ceiling — show the real peak.
  */
 export function computeDailyRetFf(
   bars: Array<{ date: string; close: number }>,
   resultDate: string | null | undefined,
-  cap = 19.99,
+  cap = 0,
 ): number | null {
   const rd = barDay(resultDate);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(rd) || !bars.length) return null;
@@ -331,6 +331,37 @@ export function computeDailyRetFf(
   }
   if (!moves.length) return null;
   const peak = Math.max(...moves);
-  const capped = cap > 0 ? Math.min(peak, cap) : peak;
-  return Math.round(capped * 100) / 100;
+  const out = cap > 0 ? Math.min(peak, cap) : peak;
+  return Math.round(out * 100) / 100;
+}
+
+/** Entry close for cumulative returns (result-day session, else next). */
+export function resultEntryClose(
+  bars: Array<{ date: string; close: number }>,
+  resultDate: string | null | undefined,
+): number | null {
+  const rd = barDay(resultDate);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rd) || !bars.length) return null;
+  const sorted = [...bars]
+    .map((b) => ({ date: barDay(b.date), close: b.close }))
+    .filter((b) => /^\d{4}-\d{2}-\d{2}$/.test(b.date) && b.close > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const hit = sorted.find((b) => b.date >= rd);
+  return hit && hit.close > 0 ? hit.close : null;
+}
+
+/** Live returns from stored entry close → current price. */
+export function returnsPctFromEntry(
+  entryClose: number | null | undefined,
+  currentPrice: number | null | undefined,
+): number | null {
+  if (
+    entryClose == null ||
+    !(entryClose > 0) ||
+    currentPrice == null ||
+    !(currentPrice > 0)
+  ) {
+    return null;
+  }
+  return Math.round((currentPrice / entryClose - 1) * 10000) / 100;
 }

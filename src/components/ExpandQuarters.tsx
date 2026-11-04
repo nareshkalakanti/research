@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { QuarterPanel } from "@/components/QuarterPanel";
 import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 
@@ -7,6 +8,8 @@ type Props = {
   data: ExpandQuarterData;
   price?: number | null;
   compact?: boolean;
+  headExtra?: ReactNode;
+  richQoq?: boolean;
 };
 
 function sourceLabel(source: string | null): string | null {
@@ -19,7 +22,13 @@ function sourceLabel(source: string | null): string | null {
   return `Source: ${source}`;
 }
 
-export function ExpandQuarters({ data, price, compact = false }: Props) {
+export function ExpandQuarters({
+  data,
+  price,
+  compact = false,
+  headExtra,
+  richQoq = false,
+}: Props) {
   const { panel, yoy, source, loading, error } = data;
 
   if (loading) {
@@ -42,6 +51,8 @@ export function ExpandQuarters({ data, price, compact = false }: Props) {
         price={price}
         sourceNote={sourceNote}
         compact={compact}
+        headExtra={headExtra}
+        richQoq={richQoq}
       />
     </div>
   );
