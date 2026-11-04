@@ -27,9 +27,7 @@ type Props = {
 
 export function SevenRuleScoreCard({ result, compact }: Props) {
   const pct = Math.min(100, Math.max(0, (result.score / 10) * 100));
-  const barClass = result.provisional
-    ? "seven-rule-rating--hold"
-    : ratingClass(result.rating);
+  const barClass = ratingClass(result.rating);
 
   return (
     <div className={`seven-rule-card${compact ? " seven-rule-card--compact" : ""}`}>
@@ -37,15 +35,15 @@ export function SevenRuleScoreCard({ result, compact }: Props) {
         <div className="seven-rule-score-line">
           <span className="seven-rule-score-num">{result.score.toFixed(2)}</span>
           <span className="seven-rule-score-denom">/10</span>
-          {result.provisional ? (
+          {result.ratingLabel ? (
             <span
-              className="seven-rule-provisional"
-              title="Score is provisional until all 7 rules are evaluated"
+              className={`seven-rule-rating ${ratingClass(result.rating)}`}
+              title={
+                result.provisional
+                  ? "Incomplete inputs — rating from rules evaluated so far"
+                  : undefined
+              }
             >
-              PROVISIONAL
-            </span>
-          ) : result.ratingLabel ? (
-            <span className={`seven-rule-rating ${ratingClass(result.rating)}`}>
               {result.ratingLabel}
             </span>
           ) : null}
@@ -58,7 +56,7 @@ export function SevenRuleScoreCard({ result, compact }: Props) {
         </div>
         <p className="seven-rule-sub">
           {result.passed} of 7 rules passed
-          {result.provisional ? " · rating withheld" : ""}
+          {result.provisional ? " · incomplete inputs" : ""}
         </p>
       </div>
       {!compact ? (

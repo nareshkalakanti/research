@@ -10,7 +10,10 @@ import {
 } from "@/lib/listing-name-match";
 import { growwCompanyData } from "@/lib/web-mcap";
 import { parseGrowwYearlyFinancialStatement } from "@/lib/groww-quarters";
-import { fetchScreenerAnnualPl } from "@/lib/screener-annual";
+import {
+  fetchScreenerAnnualBs,
+  fetchScreenerAnnualPl,
+} from "@/lib/screener-annual";
 import { fetchScreenerTopRatios } from "@/lib/screener-ratios";
 import { toYfinanceSymbol, yfSymbolCandidates } from "@/lib/yfinance";
 import { growwAnnualPairs, screenerPlPairs } from "./cagr-history";
@@ -398,11 +401,12 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     String(priceMod.longName || priceMod.shortName || "").trim() || null;
   let price = num(priceMod.regularMarketPrice) ?? num(fin.currentPrice);
 
-  const [income, cashflow, balance, screenerPl] = await Promise.all([
+  const [income, cashflow, balance, screenerPl, screenerBs] = await Promise.all([
     annualModule(symbol, "financials"),
     annualModule(symbol, "cash-flow"),
     annualModule(symbol, "balance-sheet"),
     fetchScreenerAnnualPl(bare).catch(() => null),
+    fetchScreenerAnnualBs(bare).catch(() => null),
   ]);
 
   const revenueS = series(income, REV);
@@ -418,6 +422,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   const cashS = series(balance, CASH);
 
   const trailingEps = num(stats.trailingEps);
+  const rev2 = windowCagr(revenueS, 2);
   const rev3 = windowCagr(revenueS, 3);
   const rev5 = windowCagr(revenueS, 5);
   const profit3 = windowCagr(niS, 3);
@@ -427,6 +432,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
 
   const annualPeriods = new Set(income.map(yearOf).filter(Boolean)).size;
   const reasons: Record<string, string> = {};
+  if (rev2.reason) reasons.revenue_2y = rev2.reason;
   if (rev3.reason) reasons.revenue_3y = rev3.reason;
   if (rev5.reason) reasons.revenue_5y = rev5.reason;
   if (profit3.reason) reasons.profit_3y = profit3.reason;
@@ -441,12 +447,17 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
 
   if (screenerPl) {
     const pairs = screenerPlPairs(screenerPl);
+    const sRev2 = annualCagr(pairs.revenue.map(([, v]) => v), 2);
     const sRev3 = annualCagr(pairs.revenue.map(([, v]) => v), 3);
     const sRev5 = annualCagr(pairs.revenue.map(([, v]) => v), 5);
     const sP3 = annualCagr(pairs.profit.map(([, v]) => v), 3);
     const sP5 = annualCagr(pairs.profit.map(([, v]) => v), 5);
     const sE3 = annualCagr(pairs.eps.map(([, v]) => v), 3);
     const sE5 = annualCagr(pairs.eps.map(([, v]) => v), 5);
+    if (sRev2.value != null) {
+      rev2.value = sRev2.value;
+      delete reasons.revenue_2y;
+    }
     if (sRev3.value != null) {
       rev3.value = sRev3.value;
       delete reasons.revenue_3y;
@@ -638,6 +649,27 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     marginNow = latestNi / latestRev;
   }
 
+  const latestEbitda =
+    ebitdaS.at(-1)?.[1] ?? num(fin.ebitda) ?? null;
+  let ebitda_margin: number | null = null;
+  if (latestEbitda != null && latestRev != null && latestRev > 0) {
+    ebitda_margin = latestEbitda / latestRev;
+  } else if (screenerPl) {
+    const op = lastFinite(screenerPl.operating_profit);
+    const revCr = lastFinite(screenerPl.revenue);
+    if (op != null && revCr != null && revCr > 0) ebitda_margin = op / revCr;
+  }
+
+  const totalDebt = debtS.at(-1)?.[1] ?? num(fin.totalDebt) ?? null;
+  let debt_equity: number | null = null;
+  if (totalDebt != null && latestEq != null && latestEq > 0) {
+    debt_equity = totalDebt / latestEq;
+  } else if (screenerBs) {
+    const borrow = lastFinite(screenerBs.borrowings);
+    const book = lastFinite(screenerBs.book_value);
+    if (borrow != null && book != null && book > 0) debt_equity = borrow / book;
+  }
+
   const years = [
     ...new Set(
       [...revenueS, ...niS, ...epsS, ...ebitdaS, ...fcfS].map(([y]) => y),
@@ -665,6 +697,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   }
 
   const cagrOut: NapkinCagr = {
+    revenue_2y: rev2.value,
     revenue_3y: rev3.value,
     revenue_5y: rev5.value,
     eps_3y: eps3.value,
@@ -709,9 +742,11 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     eps: trailingEpsFill,
     revenue: latestRev,
     net_income: latestNi ?? null,
-    ebitda: ebitdaS.at(-1)?.[1] ?? num(fin.ebitda) ?? null,
+    ebitda: latestEbitda,
+    ebitda_margin,
     free_cash_flow: fcfS.at(-1)?.[1] ?? num(fin.freeCashflow) ?? null,
-    total_debt: debtS.at(-1)?.[1] ?? num(fin.totalDebt) ?? null,
+    total_debt: totalDebt,
+    debt_equity,
     cash: cashS.at(-1)?.[1] ?? num(fin.totalCash) ?? null,
     shares_outstanding: num(stats.sharesOutstanding) ?? num(priceMod.sharesOutstanding),
     roe,

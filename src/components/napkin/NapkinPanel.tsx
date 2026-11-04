@@ -15,7 +15,7 @@ import {
 import { tradingviewUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
-import { NapkinScorePills } from "@/components/napkin/NapkinScorePills";
+import { NapkinPerformance } from "@/components/napkin/NapkinPerformance";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
 import { parseDisplayedMoney } from "@/lib/napkin/format";
 
@@ -210,7 +210,7 @@ export function NapkinPanel() {
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
 
-            <NapkinScorePills evalScores={data.eval_scores} />
+            <NapkinPerformance performance={data.performance} />
 
             <div className="napkin-sheet-section">
               <h2 className="napkin-block-title">Snapshot</h2>

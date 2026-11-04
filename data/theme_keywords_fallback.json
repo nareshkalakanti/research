@@ -1,0 +1,362 @@
+{
+  "meta": {
+    "updated": "2026-10-31",
+    "syntax": "+ means AND, | means OR (AND binds tighter)",
+    "note": "Fallback copy — primary source is theme_keywords.json",
+    "theme_count": 49,
+    "clusters": [
+      "critical_minerals_ev_defense",
+      "india_govt_schemes",
+      "lotusdew_structural",
+      "themes_2026",
+      "pharma_healthcare",
+      "industrials_energy"
+    ]
+  },
+  "themes": [
+    {
+      "id": "india_repm_magnet_localization",
+      "name": "Rare Earth Permanent Magnets (REPM) & Motor Assemblies",
+      "tag": "REPM",
+      "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
+      "pattern": "hard ferrites | soft ferrites | ferrites | flywheel magneto | traction motors | traction + motor | BLDC motors | integrated motor | IGBT propulsion | heavy mineral sand | monazite | magnet winding wires | electronic ignition | e-mobility + motor | rare earth | lignite"
+    },
+    {
+      "id": "gov_defence_aerospace_indigenisation",
+      "name": "Defence & Aerospace Indigenisation (Atmanirbhar / DAP)",
+      "tag": "Defence / aerospace",
+      "blog_theme": "Critical Minerals & EV/Defense Supply Chain",
+      "pattern": "defence | defense | aerospace | missile | missiles | drone | drones | UAV | avionics | defence + manufacturing | defense + manufacturing | armoured | artillery | ordnance | defence + electronics | defense + electronics | aerospace + component"
+    },
+    {
+      "id": "gov_semicon_electronics_pli",
+      "name": "Semicon 2.0, SPECS & Electronics Components",
+      "tag": "Semicon / ISM / SPECS",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "EMS | electronics manufacturing services | ESDM | printed circuit | PCB | PCB assembly | electronic components | OSAT | semiconductor packaging | chip design | electronics manufacturing | contract manufacturing + electronics | sensor + manufacturing | LED + manufacturing"
+    },
+    {
+      "id": "gov_ai_datacenter_cloud",
+      "name": "India AI Mission & Data Centre Tax Holiday (2047)",
+      "tag": "AI / data centers",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "data centre | data center | colocation | hyperscale | cloud infrastructure | cloud + data centre | cloud + data center | GPU + server | AI compute | power + data centre | power + data center"
+    },
+    {
+      "id": "gov_ev_green_mobility",
+      "name": "EV Fleets, Charging Infra & Green Mobility",
+      "tag": "EV / green mobility",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "electric vehicle | electric bus | e-bus | e-mobility | EV charging | charging infrastructure | charging station | battery pack | lithium-ion | battery swapping | green mobility | zero emission | two wheeler + electric | three wheeler + electric | EV + component"
+    },
+    {
+      "id": "gov_healthcare_medical_hubs",
+      "name": "Regional Medical Hubs & Senior Citizen Healthcare",
+      "tag": "Medical hubs",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "multispecialty hospital | multi-specialty hospital | tertiary care | quaternary care | medical tourism | hospital + chain | super specialty | critical care + hospital | senior citizen + health"
+    },
+    {
+      "id": "gov_msme_sme_capital",
+      "name": "MSME Credit, SME Growth Fund & Risk Capital",
+      "tag": "MSME capital",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "MSME | microfinance | small + medium + enterprise | Udyam | priority sector + MSME"
+    },
+    {
+      "id": "gov_solar_rooftop_renewable",
+      "name": "PM Surya Ghar & Residential Rooftop Solar",
+      "tag": "Rooftop solar",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "rooftop solar | solar rooftop | rooftop + solar | residential solar | solar EPC | photovoltaic | solar module | solar + module | solar + inverter | net metering | distributed solar | rooftop + EPC"
+    },
+    {
+      "id": "gov_india_food_processing_pli",
+      "name": "PLI for Food Processing & Aseptic Packaging",
+      "tag": "Food processing / PLI",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "food processing | agro-processing | processed food | ready to eat | ready-to-eat | frozen food | fruit pulp | mango pulp | aseptic | aseptic + packaging | spray dried | spray-dried | packaged food | milk powder | dairy processing | edible oil | rice mill | flour mill | spice processing | snack food | cold storage | export + food | maize starch | liquid glucose | modified starch | starch + derivatives"
+    },
+    {
+      "id": "gov_textiles_fibre",
+      "name": "National Fibre Scheme & Textile Modernization",
+      "tag": "Textiles / fibre",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "man made fibre | polyester yarn | viscose | technical textiles | home textiles | home textile | spun yarn | woven fabric | apparel export | jute"
+    },
+    {
+      "id": "gov_logistics_infra_corridor",
+      "name": "National Logistics Policy, Gati Shakti & IMEEC",
+      "tag": "Logistics / Gati Shakti",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "multimodal logistics | logistics park | multimodal logistics park | freight corridor | container freight | rail + freight | third party logistics | 3PL | cold chain | warehousing + logistics | coastal shipping | multimodal | container + terminal | ICD + logistics | freight + forwarding"
+    },
+    {
+      "id": "gov_mumbai_redevelopment_realty",
+      "name": "Mumbai / MMR Redevelopment & Realty (SRA / MHADA)",
+      "tag": "Mumbai redevelopment",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "Mumbai + redevelopment | Thane + redevelopment | Mumbai + housing + redevelopment | Worli + redevelopment | Bandra + redevelopment | Lower Parel + redevelopment | slum rehabilitation + Mumbai | slum + Mumbai | society + redevelopment + Mumbai | SRA + Mumbai | Mumbai + SRA | MHADA + Mumbai | Mumbai + realty | Thane + realty | Mumbai + developer | Navi Mumbai + developer | Mumbai + residential projects | MMR + real estate | Mumbai Metropolitan + real estate"
+    },
+    {
+      "id": "gov_rail_metro_vande_bharat",
+      "name": "Rail, Metro & Vande Bharat Rolling Stock",
+      "tag": "Rail / Vande Bharat",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "Vande Bharat | rolling stock | metro rail | railway + coach | rail + coach | metro + coach | locomotive | wagon | Kavach | dedicated freight | DFC | rail + signalling | EMU | rail + component | railway + equipment"
+    },
+    {
+      "id": "gov_power_td_smart_meter_grid",
+      "name": "Power T&D, Smart Meters & Grid Modernisation",
+      "tag": "Power T&D / smart meters",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "smart meter | power transformer | distribution transformer | transmission + line | power grid | substation | switchgear | T&D | conductor + power | RDSS | GIS + substation | cable + power | transmission + equipment | distribution + utility"
+    },
+    {
+      "id": "gov_pharma_api_cdmo_pli",
+      "name": "Pharma API, Formulations & CDMO (PLI)",
+      "tag": "Pharma / API / CDMO",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "active pharmaceutical | bulk drug | bulk drugs | formulation | formulations | CDMO | CRDMO | CRAMS | contract development + manufacturing | contract research + manufacturing | contract research + development + manufacturing | contract development + manufacturing organization | contract manufacturing + development + discovery | custom synthesis + contract | contract manufacturing + pharma | injectable | injectables | generic + pharma | API + manufacturing | API + pharmaceutical | fermentation + pharma | medicinal chemistry | drug discovery + services | peptide | fermentation + pharmaceutical | precision fermentation | flow chemistry | innovator + manufacturing | commercial scale + manufacturing | custom synthesis | custom synthesis + manufacturing | medicinal chemical | pharma + segment | pharma + intermediate"
+    },
+    {
+      "id": "gov_ethanol_biofuel_blending",
+      "name": "Ethanol Blending & Biofuels (E20 / E100)",
+      "tag": "Ethanol / biofuel",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "ethanol | biofuel | distillery | sugar + ethanol | molasses + ethanol | ethanol + blending | bio-ethanol | fuel ethanol | E20 | grain + ethanol | ethanol + plant"
+    },
+    {
+      "id": "gov_green_hydrogen_electrolyser",
+      "name": "Green Hydrogen & Electrolysers (NGHM)",
+      "tag": "Green hydrogen",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "green hydrogen | electrolyser | electrolyzer | green ammonia | hydrogen + energy | hydrogen + plant | fuel cell + hydrogen | hydrogen + electrolyser | renewable + hydrogen | photovoltaic + module"
+    },
+    {
+      "id": "gov_samudra_manthan_offshore_ep",
+      "name": "Samudra Manthan — Offshore Oil & Gas Exploration",
+      "tag": "Samudra Manthan / O&G",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "oil + exploration | gas + exploration | oil + gas + exploration | petroleum + exploration | hydrocarbon | exploration + production | offshore + oil | offshore + gas | offshore + drilling | exploration + well | oilfield | oil field | oilfield + services | upstream + oil | upstream + gas | seismic | block + exploration | CBM | coal bed methane | discovery + oil | discovery + gas | subsea | natural gas + production"
+    },
+    {
+      "id": "gov_mpms_mobile_manufacturing",
+      "name": "Mobile Phone Manufacturing Scheme (MPMS)",
+      "tag": "Mobile / MPMS",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "mobile + manufacturing | smartphone | handset | mobile phone | EMS + mobile | mobile + assembly | smartphone + manufacturing | electronics + mobile | PCB + mobile | display + mobile | integrated + electronics"
+    },
+    {
+      "id": "gov_nipu_urea_fertiliser_2026",
+      "name": "NIPU-2026 — Gas-based Urea & Fertiliser Plants",
+      "tag": "Urea / NIPU",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "urea | fertiliser | fertilizer | ammonia + urea | ammonia + fertiliser | ammonia + fertilizer | gas + based + urea | complex fertiliser | NPK | DAP + fertilizer | nitrogenous + fertilizer | phosphatic + fertilizer",
+      "badge": "2026"
+    },
+    {
+      "id": "gov_coal_lignite_gasification",
+      "name": "Coal / Lignite Gasification (Syngas & Chemicals)",
+      "tag": "Coal gasification",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "coal gasification | syngas | coal to | coal + chemical | ammonium nitrate | coal + methanol | synthetic + natural + gas | coal + ammonia | lignite | natural gas + distribution"
+    },
+    {
+      "id": "gov_nuclear_power_shanti",
+      "name": "Nuclear Power Expansion (SHANTI / NPCIL Ecosystem)",
+      "tag": "Nuclear power",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "nuclear | nuclear + power | atomic + power | NPCIL | SMR | nuclear + component | nuclear + equipment | heavy water | atomic + energy | nuclear + renewable"
+    },
+    {
+      "id": "gov_social_security_insurance",
+      "name": "Social Security, Pensions & Financial Inclusion",
+      "tag": "Social security / insurance",
+      "blog_theme": "India Government Schemes & Policy Tailwinds",
+      "pattern": "life insurance | health insurance | general insurance | pension | annuity | Atal Pension Yojana | Atal Pension | APY | financial inclusion | insurance premium"
+    },
+    {
+      "id": "lotusdew_pharma_structural",
+      "name": "Pharma Structural Opportunity (Specialty / Biosimilars / CRAMS)",
+      "tag": "Pharma Structural Opportunity (Specialty / Biosimilars / CRAMS)",
+      "blog_theme": "LotusDew — Pharma & IT Structural Opportunities",
+      "pattern": "generic + drug | generic + drugs | generic + formulation | generic + pharmaceutical | formulation + pharmaceutical | pharmaceutical + formulation | active pharmaceutical + ingredient | biosimilar | biosimilars | biologic | biologics | specialty + pharmaceutical | specialty + formulation | oncology + pharmaceutical | chronic + therapy | chronic + care | injectable + formulation | pharmaceutical + export | formulation + export"
+    },
+    {
+      "id": "lotusdew_it_ai_evolution",
+      "name": "IT Evolution (AI-Led Services & Digital Transformation)",
+      "tag": "IT Evolution (AI-Led Services & Digital Transformation)",
+      "blog_theme": "LotusDew — Pharma & IT Structural Opportunities",
+      "pattern": "IT services | software services | digital transformation | artificial intelligence | generative AI | GenAI | cloud + services | managed services | technology + consulting | software + export | application + development | enterprise + software | data + analytics | AI + platform"
+    },
+    {
+      "id": "themes2026_gold_lenders",
+      "name": "Gold Lenders",
+      "tag": "Gold Lenders",
+      "blog_theme": "Themes for 2026",
+      "pattern": "gold loan | gold + finance | gold + NBFC | gold + lending | gold + loan | pledged + gold | jewellery + loan | gold + collateral | non-banking + gold"
+    },
+    {
+      "id": "themes2026_commodity_flex_basket",
+      "name": "Commodity Basket (Ferrochrome, Exchanges, Ammonia, Iron Ore)",
+      "tag": "Commodity Basket (Ferrochrome, Exchanges, Ammonia, Iron Ore)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "ferrochrome | ferro + chrome | ferro + alloy | commodity + exchange | multi + commodity + exchange | ammonia + plant | ammonia + manufacturing | integrated + ammonia | iron ore + mining | iron ore + miner | sponge iron | pellet + plant | mineral + trading | commodity + trading"
+    },
+    {
+      "id": "themes2026_internet_jcurve",
+      "name": "Internet Businesses (J-Curve Profits)",
+      "tag": "Internet Businesses (J-Curve Profits)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "internet + platform | online + marketplace | digital + platform | e-commerce | ecommerce | food + delivery | online + classified | B2B + marketplace | digital + commerce | internet + business | online + travel | OTT + platform | fintech + platform"
+    },
+    {
+      "id": "themes2026_auto_precision_mix",
+      "name": "Auto & Precision Engineering (Product-Mix Shift)",
+      "tag": "Auto & Precision Engineering (Product-Mix Shift)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "auto + ancillary | automotive + ancillary | automotive + component | automotive + parts | automotive + OEM | precision + engineering | precision + machining | precision + component | die casting | die + cast | forging + automotive | forging + auto | transmission + component | suspension + component | electric vehicle + component | CNC + machining | machined + component | product mix | auto + parts"
+    },
+    {
+      "id": "themes2026_shipbuilding",
+      "name": "Shipbuilding & Related Proxies",
+      "tag": "Shipbuilding & Related Proxies",
+      "blog_theme": "Themes for 2026",
+      "pattern": "marine + engineering | shipbuilding | shipyard | ship repair | naval + vessel | offshore + vessel | dredger"
+    },
+    {
+      "id": "themes2026_pharma_healthcare_select",
+      "name": "Select CDMOs, Aroma, APIs, Distributors & Hospitals",
+      "tag": "Select CDMOs, Aroma, APIs, Distributors & Hospitals",
+      "blog_theme": "Themes for 2026",
+      "pattern": "aroma + chemical | fragrance + ingredient | flavour + ingredient | pharma + distribution | pharmaceutical + distribution | drug + distribution | multi + specialty + hospital | healthcare + hospital | tertiary + care"
+    },
+    {
+      "id": "themes2026_capex_rail_peb",
+      "name": "Capital Goods (Rail Protection, PEB)",
+      "tag": "Capital Goods (Rail Protection, PEB)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "railway + signalling | railway + signal | train + collision | collision + avoidance | ETCS | train + control | PEB | pre-engineered + building | pre-engineered + steel | metal + building | steel + building | track + circuit"
+    },
+    {
+      "id": "themes2026_ports_miners",
+      "name": "Hard Assets (Ports & Miners)",
+      "tag": "Hard Assets (Ports & Miners)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "port + operator | port + terminal | cargo + terminal | bulk + cargo | coal + mining | mineral + mining | mining + company | bauxite + mining | limestone + mining | metallurgical + coal"
+    },
+    {
+      "id": "themes2026_premiumisation",
+      "name": "Premiumisation (Auto, Hotels, Alcohol, Dairy)",
+      "tag": "Premiumisation (Auto, Hotels, Alcohol, Dairy)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "premium + brand | luxury + hotel | hotel + chain | hospitality + hotel | alcoholic + beverage | spirits + brand | whisky + brand | beer + brand | dairy + products | premium + dairy | value added + dairy | premium + automotive | aftermarket + premium | branded + apparel"
+    },
+    {
+      "id": "themes2026_lenders_cv_psu_nbfc",
+      "name": "Lenders (CV Finance, PSU Banks, NBFCs)",
+      "tag": "Lenders (CV Finance, PSU Banks, NBFCs)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "commercial vehicle + finance | CV + finance | vehicle + finance | tractor + finance | NBFC | non-banking + financial | public sector + bank | PSU + bank | housing + finance | asset + finance | loan + against + property"
+    },
+    {
+      "id": "themes2026_waste_to_wealth",
+      "name": "Waste-to-Wealth (Aroma, Coffee, Lead, CBE)",
+      "tag": "Waste-to-Wealth (Aroma, Coffee, Lead, CBE)",
+      "blog_theme": "Themes for 2026",
+      "pattern": "waste + recycling | lead + recycling | lead + smelter | recycled + lead | coffee + processing | instant + coffee | coffee + extract | coffee + products | coffee + beverage | manufacture + coffee | continental + coffee | continental + brand | tata + coffee | tea + coffee | fragrance + chemical | cotton + biomass | biomass + energy | circular + economy | battery + recycling | metal + recycling | CBE + processing"
+    },
+    {
+      "id": "themes2026_ai_eda_global",
+      "name": "Global AI Proxies & EDA Software",
+      "tag": "Global AI Proxies & EDA Software",
+      "blog_theme": "Themes for 2026",
+      "pattern": "EDA + software | electronic + design + automation | semiconductor + design | chip + design | VLSI + design | design + IP | semiconductor + IP | embedded + software | IT + export | global + delivery | AI + services | digital + engineering | product + engineering"
+    },
+    {
+      "id": "pharma_usfda_regulatory",
+      "name": "Pharma - USFDA / Regulatory",
+      "tag": "USFDA / Regulatory",
+      "blog_theme": "Pharma & Healthcare",
+      "pattern": "USFDA | Form 483 | Warning Letter | Establishment Inspection Report | Official Action Indicated | Voluntary Action Indicated | No Action Indicated | ANDA Approval | Para IV | First-to-File | WHO GMP | Drug Master File"
+    },
+    {
+      "id": "pharma_business_pipeline",
+      "name": "Pharma - Business & Pipeline",
+      "tag": "Business & Pipeline",
+      "blog_theme": "Pharma & Healthcare",
+      "pattern": "Biosimilar | Biotech | CDMO | Key Starting Material | New Molecule | Patent Filed | BioSecure Act | Price Erosion"
+    },
+    {
+      "id": "pharma_therapy_areas",
+      "name": "Pharma Therapy Areas",
+      "tag": "Therapy Areas",
+      "blog_theme": "Pharma & Healthcare",
+      "pattern": "Oncology | Cancer | Diabetes | Obesity | GLP-1 | Semaglutide | Weight Loss | Peptide | Complex Generics"
+    },
+    {
+      "id": "pharma_hospitals",
+      "name": "Hospitals",
+      "tag": "Hospitals",
+      "blog_theme": "Pharma & Healthcare",
+      "pattern": "ARPOB | bed occupancy | average length of stay | Operational Beds | Bed Addition | New Hospital | outpatient | Surgeries | Diagnostics | inpatient | International Patients"
+    },
+    {
+      "id": "industrials_infrastructure",
+      "name": "Infrastructure",
+      "tag": "Infrastructure",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "EPC + infrastructure | EPC + road | EPC + project | hybrid annuity | build + operate + transfer | NHAI | InvIT | Financial Closure | Order Inflow | Execution Rate"
+    },
+    {
+      "id": "industrials_power_energy",
+      "name": "Power & Energy",
+      "tag": "Power & Energy",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "Solar | wind power | wind energy | wind turbine | Green Hydrogen | Nuclear Power | BESS | HVDC | PPA | PLF | Cell Manufacturing | Grid Expansion | Ethanol Blending | Renewable Capacity"
+    },
+    {
+      "id": "industrials_defence",
+      "name": "Defence",
+      "tag": "Defence",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "AMCA | Drone | Anti-Drone | Kavach | DRDO | Missile | Aerospace | Combat Aircraft | Submarine | Emergency Procurement | Indigenization | Defence Export"
+    },
+    {
+      "id": "industrials_shipping_logistics",
+      "name": "Shipping & Logistics",
+      "tag": "Shipping & Logistics",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "Vessels | Fleet Efficiency | Fleet Expansion | Freight Rates | Voyage | Tonnage | time charter equivalent | Time Charter | Tanker | Day Rates | Dry Bulk"
+    },
+    {
+      "id": "industrials_make_in_india_china_plus_one",
+      "name": "Make in India / China+1",
+      "tag": "Make in India / China+1",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "China Plus One | Make in India | Atmanirbhar | Import Substitution | PLI Scheme | Indigenization | Viksit Bharat | tariff + export | US Tariff | free trade agreement"
+    },
+    {
+      "id": "industrials_ai_connectivity",
+      "name": "AI Network & Connectivity (Optical Fibre, Cables, Telecom Equipment)",
+      "tag": "AI connectivity",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "optical fibre | optical fiber | fibre optic cable | fiber optic cable | optical + cable | optical + connectivity | structured cabling | telecom + equipment | telecom + infrastructure | network + equipment | 5G + equipment | broadband + equipment | FTTH | fibre + connectivity"
+    },
+    {
+      "id": "industrials_data_centre_power_cooling",
+      "name": "Data Centre Power & Cooling",
+      "tag": "DC power / cooling",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "uninterruptible power | UPS + data centre | UPS + data center | precision cooling | liquid cooling | data centre + cooling | data center + cooling | busbar + data centre | busbar + data center | switchgear + data centre | switchgear + data center"
+    },
+    {
+      "id": "industrials_space_satellite",
+      "name": "Space & Satellite",
+      "tag": "Space / satellite",
+      "blog_theme": "Industrials & Energy",
+      "pattern": "satellite + manufacturing | satellite + communication | satellite + component | launch vehicle | spacecraft | earth observation | space + technology | space + component | IN-SPACe"
+    }
+  ]
+}

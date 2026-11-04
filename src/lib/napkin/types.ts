@@ -29,6 +29,7 @@ export type NapkinPdfPage = {
 };
 
 export type NapkinCagr = {
+  revenue_2y: number | null;
   revenue_3y: number | null;
   revenue_5y: number | null;
   eps_3y: number | null;
@@ -64,8 +65,12 @@ export type NapkinStockJson = {
   revenue: number | null;
   net_income: number | null;
   ebitda: number | null;
+  /** Latest EBITDA (or Screener OP) ÷ revenue — ratio. */
+  ebitda_margin: number | null;
   free_cash_flow: number | null;
   total_debt: number | null;
+  /** Total debt ÷ equity (Yahoo) or Screener borrowings ÷ book value — ratio. */
+  debt_equity: number | null;
   cash: number | null;
   shares_outstanding: number | null;
   roe: number | null;
@@ -143,8 +148,19 @@ export type NapkinResearch = {
   sources?: string[];
   fetched_at?: string | null;
   sector?: string | null;
-  /** Fundamental / Management / Valuation score pills. */
-  eval_scores?: NapkinEvalPayload | null;
+  /** Simple performance pass/fail checks (rev CAGR, EBITDA, ROCE, D/E). */
+  performance?: {
+    checks: Array<{
+      id: string;
+      label: string;
+      threshold: string;
+      value: number | null;
+      display: string;
+      verdict: "pass" | "fail" | "na";
+    }>;
+    passed: number;
+    scored: number;
+  } | null;
   card: {
     headline: string;
     body: string;

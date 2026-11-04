@@ -9,11 +9,11 @@ import {
 } from "../src/lib/seven-rule-score";
 import { buildQuarterPanel, type QuarterPoint } from "../src/lib/quarter-panel";
 
-assert.equal(sevenRuleRatingFromPassed(7).ratingLabel, "STRONG BUY");
-assert.equal(sevenRuleRatingFromPassed(6).ratingLabel, "BUY");
-assert.equal(sevenRuleRatingFromPassed(5).ratingLabel, "DEEP DIVE");
-assert.equal(sevenRuleRatingFromPassed(4).ratingLabel, "NO");
-assert.equal(sevenRuleRatingFromPassed(0).ratingLabel, "NO");
+assert.equal(sevenRuleRatingFromPassed(7).ratingLabel, "Strong Buy");
+assert.equal(sevenRuleRatingFromPassed(6).ratingLabel, "Buy");
+assert.equal(sevenRuleRatingFromPassed(5).ratingLabel, "Deep Dive");
+assert.equal(sevenRuleRatingFromPassed(4).ratingLabel, "No");
+assert.equal(sevenRuleRatingFromPassed(0).ratingLabel, "No");
 assert.equal(sevenRuleRatingFromPassed(4).rating, "no");
 assert.equal(roundCheck(4), 5.71);
 assert.equal(roundCheck(5), 7.14);
@@ -36,7 +36,7 @@ const allPass = sevenRuleScore({
 assert.equal(allPass.passed, 7);
 assert.equal(allPass.score, 10);
 assert.equal(allPass.rating, "strong_buy");
-assert.equal(allPass.ratingLabel, "STRONG BUY");
+assert.equal(allPass.ratingLabel, "Strong Buy");
 assert.equal(allPass.provisional, false);
 
 const sixOfSeven = sevenRuleScore({
@@ -65,7 +65,7 @@ const fivePass = sevenRuleScore({
 assert.equal(fivePass.passed, 5);
 assert.equal(fivePass.score, 7.14);
 assert.equal(fivePass.rating, "deep_dive");
-assert.equal(fivePass.ratingLabel, "DEEP DIVE");
+assert.equal(fivePass.ratingLabel, "Deep Dive");
 
 const fourPass = sevenRuleScore({
   roce: 0.1, // fail
@@ -79,7 +79,7 @@ const fourPass = sevenRuleScore({
 assert.equal(fourPass.passed, 4);
 assert.equal(fourPass.score, 5.71);
 assert.equal(fourPass.rating, "no");
-assert.equal(fourPass.ratingLabel, "NO");
+assert.equal(fourPass.ratingLabel, "No");
 
 const unknownGrowth = sevenRuleScore({
   roce: 0.2,
@@ -91,8 +91,8 @@ const unknownGrowth = sevenRuleScore({
 });
 assert.ok(unknownGrowth.rules.some((r) => r.verdict === "unknown"));
 assert.equal(unknownGrowth.provisional, true);
-assert.equal(unknownGrowth.rating, null);
-assert.equal(unknownGrowth.ratingLabel, null);
+assert.ok(unknownGrowth.rating);
+assert.ok(unknownGrowth.ratingLabel);
 
 const lossPrior = sevenRuleScore({
   roce: 0.2,
@@ -105,7 +105,7 @@ const lossPrior = sevenRuleScore({
 const pq = lossPrior.rules.find((r) => r.id === "profit_qoq");
 assert.equal(pq?.verdict, "unknown");
 assert.equal(lossPrior.provisional, true);
-assert.equal(lossPrior.rating, null);
+assert.ok(lossPrior.ratingLabel);
 
 const oldestLastBaseline = sevenRuleScore({
   roce: 0.16,

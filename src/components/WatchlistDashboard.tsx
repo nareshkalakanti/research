@@ -448,7 +448,7 @@ export function WatchlistDashboard({
                   <th className="col-signal">Signals</th>
                   <th
                     className="col-seven-rating"
-                    title="7-Rule: STRONG BUY (7/7), BUY (6), DEEP DIVE (5), NO (&lt;5)"
+                    title="7-Rule: Strong Buy (7/7), Buy (6), Deep Dive (5), No (&lt;5)"
                   >
                     7R
                   </th>
@@ -513,17 +513,14 @@ export function WatchlistDashboard({
                         </span>
                       </td>
                       <td className="col-seven-rating">
-                        {sr?.provisional ? (
-                          <span
-                            className="seven-rule-rating seven-rule-rating--hold"
-                            title="Provisional — missing ROE/ROCE or quarter inputs"
-                          >
-                            PROVISIONAL
-                          </span>
-                        ) : sr?.rating_label ? (
+                        {sr?.rating_label ? (
                           <span
                             className={`seven-rule-rating ${sevenRuleRatingClass(sr.rating)}`}
-                            title={`${sr.passed}/7 · score ${sr.score?.toFixed(2) ?? "—"}`}
+                            title={
+                              sr.provisional
+                                ? `${sr.passed}/7 · score ${sr.score?.toFixed(2) ?? "—"} · incomplete inputs`
+                                : `${sr.passed}/7 · score ${sr.score?.toFixed(2) ?? "—"}`
+                            }
                           >
                             {sr.rating_label}
                           </span>

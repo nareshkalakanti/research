@@ -801,20 +801,6 @@ a.brand-btn:hover .brand-name {
   pointer-events: none;
 }
 
-.spring-ihs-table .spring-ihs-col-co {
-  width: 28%;
-}
-.spring-ihs-table .spring-ihs-col-num {
-  width: 9%;
-}
-.spring-ihs-table td.col-company {
-  overflow: hidden;
-}
-.spring-ihs-table td.col-num {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 .pead2-table {
   table-layout: fixed;
   width: 100%;
@@ -25951,6 +25937,61 @@ tr.wl-prove-fail td {
   color: #b91c1c;
   background: #fee2e2;
   border-color: #fca5a5;
+}
+
+.napkin-perf-block {
+  padding-top: 2px;
+}
+
+.napkin-perf-count {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.85em;
+}
+
+.napkin-perf-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.napkin-perf-row {
+  display: grid;
+  grid-template-columns: 1.1rem 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 0.84rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.napkin-perf-mark {
+  font-weight: 700;
+  text-align: center;
+}
+
+.napkin-perf-row--pass .napkin-perf-mark,
+.napkin-perf-row--pass .napkin-perf-value {
+  color: var(--ok);
+}
+
+.napkin-perf-row--fail .napkin-perf-mark,
+.napkin-perf-row--fail .napkin-perf-value {
+  color: var(--danger);
+}
+
+.napkin-perf-row--na .napkin-perf-mark,
+.napkin-perf-row--na .napkin-perf-value {
+  color: var(--muted);
+}
+
+.napkin-perf-label {
+  color: var(--ink);
+}
+
+.napkin-perf-value {
+  font-weight: 700;
 }
 
 .napkin-details-toggle {
