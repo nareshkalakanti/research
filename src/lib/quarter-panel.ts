@@ -122,7 +122,7 @@ export function normalizeQuarterPointToCrore(q: QuarterPoint): QuarterPoint {
 
 /**
  * Never stitch Yahoo absolute ₹ onto Screener/Groww ₹ Cr in one series.
- * When one side is abs and the other is Cr, convert abs → Cr first.
+ * Convert any absolute-₹ cells to Cr before merge (handles mixed series too).
  */
 export function alignQuarterSeriesUnits(
   a: QuarterPoint[],
@@ -132,16 +132,18 @@ export function alignQuarterSeriesUnits(
   const bAbs = seriesHasAbsoluteInr(b);
   const aCr = seriesHasCroreScale(a);
   const bCr = seriesHasCroreScale(b);
-  if (aAbs && bCr && !bAbs) return [a.map(normalizeQuarterPointToCrore), b];
-  if (bAbs && aCr && !aAbs) return [a, b.map(normalizeQuarterPointToCrore)];
-  if (aAbs && bAbs) {
-    // Both Yahoo-scale — leave for panel divisor.
-    return [a, b];
-  }
-  return [a, b];
+  // Pure Yahoo abs on both sides — leave for panel divisor.
+  if (aAbs && bAbs && !aCr && !bCr) return [a, b];
+  return [
+    aAbs ? a.map(normalizeQuarterPointToCrore) : a,
+    bAbs ? b.map(normalizeQuarterPointToCrore) : b,
+  ];
 }
 
-/** Fill null P&L fields from another series; union dates. */
+/**
+ * Fill null P&L fields from another series; union dates.
+ * `base` wins on overlap (pass live/fresher series as base).
+ */
 export function mergeQuarterFill(
   base: QuarterPoint[],
   extra: QuarterPoint[],

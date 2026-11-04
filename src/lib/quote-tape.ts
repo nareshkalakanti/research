@@ -6,6 +6,7 @@ import { fetchDailyBars } from "./ohlc";
 import { rollingMean } from "./indicators";
 import { yfSymbolCandidates } from "./yfinance";
 import YahooFinance from "yahoo-finance2";
+import { usableAnnounceResultDate } from "./pead-announced";
 import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
 import { computeReturnsPct } from "./pead-score";
 import { crossedAbove200DmaFromCloses } from "./dma200-cross";
@@ -194,7 +195,9 @@ export async function loadQuoteTape(
 
   let result_date: string | null = null;
   try {
-    result_date = loadQuarterMetricsMap().get(t)?.result_date ?? null;
+    result_date = usableAnnounceResultDate(
+      loadQuarterMetricsMap().get(t)?.result_date,
+    );
   } catch {
     result_date = null;
   }

@@ -251,7 +251,7 @@ export async function fetchQuarterlyFundamentals(
     screenerForce?: boolean;
     /** Skip Screener live/cache overlay (bulk Fill Quarters — avoid throttle hangs). */
     skipScreener?: boolean;
-    /** PEAD bulk: Yahoo first (stocks-ai), skip NSE/BSE/Groww unless Yahoo empty. */
+    /** PEAD bulk: Yahoo first; Groww tip-extend; skip Screener when skipScreener. */
     yahooFirst?: boolean;
   },
 ): Promise<{
@@ -350,21 +350,34 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  // Groww — backup when series are empty or missing Sales/NP.
-  if (quarters.length < 2 || missingSalesOrProfit(quarters)) {
+  // Groww — empty/PnL gaps, or tip-extend when Screener is blocked (PEAD yahooFirst).
+  const tipIso = (qs: QuarterPoint[]) =>
+    (qs.at(-1)?.date || "").slice(0, 10);
+  const wantGrowwTip =
+    opts?.yahooFirst === true && quarters.length >= 2;
+  if (
+    quarters.length < 2 ||
+    missingSalesOrProfit(quarters) ||
+    wantGrowwTip
+  ) {
     try {
       const groww = await fetchGrowwQuarterlyFundamentals(ticker);
       if (groww.length) {
+        const beforeTip = tipIso(quarters);
         const merged = mergeQuarterFill(quarters, groww);
         const filledPnl =
           missingSalesOrProfit(quarters) && !missingSalesOrProfit(merged);
-        if (filledPnl || (quarters.length < 1 && merged.length >= 1)) {
+        const tipNewer =
+          Boolean(beforeTip) && tipIso(merged) > beforeTip;
+        if (
+          filledPnl ||
+          (quarters.length < 1 && merged.length >= 1) ||
+          tipNewer ||
+          merged.length > quarters.length
+        ) {
           quarters = merged;
-          if (source === "none" || source === "screener") {
-            if (source === "none") source = "groww";
-          }
-        } else if (merged.length > quarters.length) {
-          quarters = merged;
+          if (source === "none") source = "groww";
+          else if (tipNewer && source === "yahoo") source = "yahoo";
         }
       }
     } catch {

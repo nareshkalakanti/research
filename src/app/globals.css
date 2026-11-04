@@ -795,6 +795,26 @@ a.brand-btn:hover .brand-name {
   max-width: 42rem;
 }
 
+.pead2-paging {
+  opacity: 0.72;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+.spring-ihs-table .spring-ihs-col-co {
+  width: 28%;
+}
+.spring-ihs-table .spring-ihs-col-num {
+  width: 9%;
+}
+.spring-ihs-table td.col-company {
+  overflow: hidden;
+}
+.spring-ihs-table td.col-num {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .pead2-table {
   table-layout: fixed;
   width: 100%;

@@ -109,7 +109,7 @@ const COLS: Array<{
     id: "returns_pct",
     label: "Returns",
     title:
-      "From first close after NSE result announcement → latest price (not quarter-end)",
+      "From result-day close (or next session) → latest price — announce day, not quarter-end",
   },
   {
     id: "daily_ret_pct",
@@ -286,6 +286,7 @@ export function PeadPanel() {
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [paging, setPaging] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshingReturns, setRefreshingReturns] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -294,6 +295,8 @@ export function PeadPanel() {
   const [openTicker, setOpenTicker] = useState<string | null>(null);
   const scanCancel = useRef<{ cancelled: boolean } | null>(null);
   const scanTotalRef = useRef(0);
+  const loadGen = useRef(0);
+  const hasDataRef = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 250);
@@ -352,36 +355,62 @@ export function PeadPanel() {
   ]);
 
   const load = useCallback(async (opts?: { forcePrices?: boolean }) => {
-    setLoading(true);
+    // Bump gen to ignore any in-flight response — do not abort() (Next overlays AbortError).
+    const gen = ++loadGen.current;
+    const soft = hasDataRef.current && !opts?.forcePrices;
+    if (soft) setPaging(true);
+    else setLoading(true);
     const params = buildParams();
     if (opts?.forcePrices) params.set("refresh", "1");
     try {
       const res = await fetch(`/api/pead?${params}`, {
         signal: AbortSignal.timeout(60_000),
       });
+      if (gen !== loadGen.current) return;
       const json = (await res.json()) as ApiResponse;
+      if (gen !== loadGen.current) return;
       if (!res.ok || json.error) {
         setLoadError(json.error || `PEAD failed (${res.status})`);
-        setData(null);
+        if (!soft) {
+          setData(null);
+          hasDataRef.current = false;
+        }
         return;
       }
       setLoadError(null);
       setData(json);
+      hasDataRef.current = true;
+      setOpenTicker(null);
     } catch (err) {
+      if (gen !== loadGen.current) return;
+      const name = err instanceof Error ? err.name : "";
       const raw = err instanceof Error ? err.message : "PEAD request failed";
-      setLoadError(
-        /timeout|aborted/i.test(raw)
-          ? "PEAD load timed out — retry Refresh"
-          : raw,
-      );
-      setData(null);
+      if (name === "AbortError" || /timeout|aborted/i.test(raw)) {
+        setLoadError("PEAD load timed out — retry Refresh");
+        if (!soft) {
+          setData(null);
+          hasDataRef.current = false;
+        }
+        return;
+      }
+      setLoadError(raw);
+      if (!soft) {
+        setData(null);
+        hasDataRef.current = false;
+      }
     } finally {
-      setLoading(false);
+      if (gen === loadGen.current) {
+        setLoading(false);
+        setPaging(false);
+      }
     }
   }, [buildParams]);
 
   useEffect(() => {
     void load();
+    return () => {
+      loadGen.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
@@ -802,10 +831,10 @@ export function PeadPanel() {
         <div className="pead2-title">
           <h2>PEAD</h2>
           <p>
-            Post-earnings drift — high PEAD, sensible Fwd PE, cooperating
-            returns. Default Result dates = current season (e.g. Oct–Dec).
-            Returns = first close after NSE announce → latest. Click a company
-            for 7R + quarters.
+            Daily: keep Result dates on the current season → Refresh Returns
+            (new announces / %) → Scan Incomplete (Fwd PE / growth). Loss-makers
+            with no usable Fwd PE are not stuck in Scan. Click a row for 7R +
+            quarters.
           </p>
         </div>
         <label className="field">
@@ -868,7 +897,7 @@ export function PeadPanel() {
           title={
             scanning
               ? "Stop PEAD scan"
-              : `Fill missing Fwd PE & growth on ${market} · ${PEAD_SEASON_OPTS.find((o) => o.id === season)?.label ?? season} (announce/returns → Refresh Returns)`
+              : `Fill missing Fwd PE & growth on ${market} · ${PEAD_SEASON_OPTS.find((o) => o.id === season)?.label ?? season}. Daily after Refresh Returns.`
           }
         >
           {scanning
@@ -882,7 +911,7 @@ export function PeadPanel() {
           className="btn-ghost"
           disabled={loading || refreshingReturns || scanning || !data?.rows.length}
           onClick={() => void refreshReturns()}
-          title="Fill Groww/Tickertape PE & quarters, NSE result dates, then returns for visible rows"
+          title="Daily first: NSE result dates + returns for visible rows (then Scan Incomplete)"
         >
           {refreshingReturns ? "Returns…" : "Refresh Returns"}
         </button>
@@ -979,6 +1008,7 @@ export function PeadPanel() {
           <span>
             Showing {start.toLocaleString()}–{end.toLocaleString()} of{" "}
             {data.total.toLocaleString()}
+            {paging ? " · paging…" : ""}
             {coverage
               ? ` · ${market} ${coverage.scored.toLocaleString()}/${coverage.universe.toLocaleString()} scored · ${coverage.incomplete.toLocaleString()} need metrics · ${coverage.missing.toLocaleString()} missing`
               : data.stats?.scored != null
@@ -988,7 +1018,7 @@ export function PeadPanel() {
         ) : null}
       </div>
 
-      <div className="table-card">
+      <div className={`table-card${paging ? " pead2-paging" : ""}`}>
         <div className="table-wrap">
           <table className="data-table pead2-table">
             <colgroup>
@@ -1076,7 +1106,8 @@ export function PeadPanel() {
             Prev
           </button>
           <span>
-            Page {data.page} / {data.pages}
+            Page {page} / {data.pages}
+            {paging ? "…" : ""}
           </span>
           <button
             type="button"

@@ -17,6 +17,7 @@ import {
   type QuarterMetricsRow,
 } from "@/lib/quarter-metrics-cache";
 import { isSqliteWalDamage } from "@/lib/sqlite-utils";
+import { usableAnnounceResultDate } from "@/lib/pead-announced";
 import { computeForwardPe, epsFromQuarterPanel } from "@/lib/valuation";
 import { fetchQuarterlyFundamentals } from "@/lib/yahoo-quarters";
 
@@ -206,7 +207,7 @@ export async function resolveQuarterPanelData(
           live.quarters.at(-1)?.netIncome ??
           null,
       ),
-      live.quarters.at(-1)?.date ?? null,
+      usableAnnounceResultDate(loadQuarterMetricsMap().get(key)?.result_date),
       live.quarters,
     );
     persistSnapshot(key, snapshot);
@@ -302,7 +303,7 @@ export async function computeAndCacheQuarterMetrics(
       panel,
       price,
       cfProfit,
-      quarters.at(-1)?.date ?? null,
+      usableAnnounceResultDate(loadQuarterMetricsMap().get(key)?.result_date),
       quarters,
     );
     persistSnapshot(key, snapshot);

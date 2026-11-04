@@ -9,10 +9,10 @@ import {
   usableForwardPe,
 } from "./pead-score";
 import {
-  isCalendarQuarterEnd,
   latestAnnounceOnOrBefore,
   loadPeadAnnounceDatesMap,
   sliceToAnnouncedQuarters,
+  usableAnnounceResultDate,
 } from "./pead-announced";
 import { loadMetricsMap } from "./metrics";
 import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
@@ -30,6 +30,14 @@ import type { Pead2Row } from "./pead2-types";
 
 export type { Pead2Row } from "./pead2-types";
 
+/** Short TTL so page flips reuse the board without rebuilding the universe. */
+const PEAD2_TABLE_CACHE_MS = 20_000;
+let pead2TableCache: { at: number; rows: Pead2Row[] } | null = null;
+
+export function invalidatePead2TableCache(): void {
+  pead2TableCache = null;
+}
+
 function finite(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v)) return null;
   return v;
@@ -45,14 +53,16 @@ function firstFinite(
   return null;
 }
 
-function usableResultDate(raw: string | null | undefined): string | null {
-  const d = (raw || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
-  if (isCalendarQuarterEnd(d)) return null;
-  return d;
-}
 
 export function loadPead2Rows(): Pead2Row[] {
+  const now = Date.now();
+  if (
+    pead2TableCache &&
+    now - pead2TableCache.at < PEAD2_TABLE_CACHE_MS
+  ) {
+    return pead2TableCache.rows;
+  }
+
   const companies = loadAllCompanies();
   const overlay = loadQuarterOverlayMap();
   const metricsQ = loadQuarterMetricsMap();
@@ -117,7 +127,7 @@ export function loadPead2Rows(): Pead2Row[] {
 
     const result_date =
       latestAnnounceOnOrBefore(announces) ||
-      usableResultDate(q?.result_date);
+      usableAnnounceResultDate(q?.result_date);
 
     const forward_pe = usableForwardPe(rawFpe);
 
@@ -170,7 +180,7 @@ export function loadPead2Rows(): Pead2Row[] {
     });
   }
 
-  return out.sort((a, b) => {
+  out.sort((a, b) => {
     const ad = a.result_date || "";
     const bd = b.result_date || "";
     if (ad !== bd) return bd.localeCompare(ad);
@@ -182,4 +192,6 @@ export function loadPead2Rows(): Pead2Row[] {
     if (bs !== as) return bs - as;
     return a.ticker.localeCompare(b.ticker);
   });
+  pead2TableCache = { at: Date.now(), rows: out };
+  return out;
 }

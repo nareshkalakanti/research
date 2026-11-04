@@ -14,6 +14,7 @@ export type AppTab =
   | "dashboard"
   | "scan"
   | "pead"
+  | "spring"
   | "theme-scanner"
   | "governance"
   | "marketiq"
@@ -35,6 +36,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "research", label: "Research", short: "Research" },
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "pead", label: "PEAD", short: "PEAD" },
+  { id: "spring", label: "Spring IHS", short: "Spring" },
   { id: "theme-scanner", label: "Themes", short: "Themes" },
   { id: "missing", label: "Missing data", short: "Missing" },
   { id: "dashboard", label: "Dashboard", short: "Dash" },
@@ -55,7 +57,9 @@ const HIDDEN_TABS: AppTab[] = [
 ];
 
 function isPageTab(id: AppTab): boolean {
-  return id === "watchlist" || id === "dashboard" || id === "pead";
+  return (
+    id === "watchlist" || id === "dashboard" || id === "pead" || id === "spring"
+  );
 }
 
 export function tabFromParam(raw: string | null): AppTab {
@@ -93,6 +97,7 @@ export function readTabFromLocation(): AppTab {
   if (path === "/watchlist" || path === "/fund") return "watchlist";
   if (path === "/dashboard") return "dashboard";
   if (path === "/pead") return "pead";
+  if (path === "/spring") return "spring";
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
 
@@ -124,6 +129,7 @@ export function hrefForTab(next: AppTab): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "dashboard") return "/dashboard";
   if (next === "pead") return "/pead";
+  if (next === "spring") return "/spring";
   if (next === "napkin") return "/";
   return `/?tab=${encodeURIComponent(next)}`;
 }
@@ -132,6 +138,7 @@ function urlForTab(next: AppTab, ticker?: string | null): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "dashboard") return "/dashboard";
   if (next === "pead") return "/pead";
+  if (next === "spring") return "/spring";
   const fromHome =
     pathOnly() === "/"
       ? new URLSearchParams(window.location.search)

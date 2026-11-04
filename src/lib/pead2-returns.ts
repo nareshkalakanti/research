@@ -10,6 +10,7 @@ import {
 } from "./pead-announced";
 import { runConcurrent } from "./scrape-pool";
 import type { Pead2Row } from "./pead2-types";
+import { invalidatePead2TableCache } from "./pead2-table";
 
 function applyLivePrices(rows: Pead2Row[]): void {
   const prices = loadMetricsMap();
@@ -43,6 +44,7 @@ export async function recomputePeadReturnsFromBars(
     row.daily_ret_pct = daily_ret_pct;
     updated += 1;
   });
+  if (updated > 0) invalidatePead2TableCache();
   return { updated };
 }
 
@@ -83,5 +85,6 @@ export async function refreshPeadReturns(
     row.daily_ret_pct = daily_ret_pct;
     updated += 1;
   });
+  if (updated > 0) invalidatePead2TableCache();
   return { updated };
 }

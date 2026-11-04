@@ -178,7 +178,7 @@ function barDay(raw: string | null | undefined): string {
   return (raw || "").slice(0, 10);
 }
 
-/** Post-earnings return from first close after result date through latest/live. */
+/** Post-earnings return from result-day close (or next session) through latest/live. */
 export function computeReturnsPct(
   bars: Array<{ date: string; close: number }>,
   resultDate: string | null | undefined,
@@ -194,15 +194,13 @@ export function computeReturnsPct(
   const lastDay = sorted[sorted.length - 1]!.date;
   // Announcement not yet in OHLC history — do not invent a return from older closes.
   if (lastDay < rd) return null;
-  let after = sorted.filter((b) => b.date > rd);
-  if (!after.length) after = sorted.filter((b) => b.date >= rd);
-  if (!after.length) return null;
-  const entryBar = after[0]!;
+  // Entry = close on result day when that session exists; else first session after.
+  const onOrAfter = sorted.filter((b) => b.date >= rd);
+  if (!onOrAfter.length) return null;
+  const entryBar = onOrAfter[0]!;
   const entry = entryBar.close;
   if (!(entry > 0)) return null;
   const last = sorted[sorted.length - 1]!.close;
-  // No session after entry yet — live quote vs same close is not post-result drift.
-  if (entryBar.date >= lastDay) return 0;
   const exit =
     currentPrice != null && Number.isFinite(currentPrice) && currentPrice > 0
       ? currentPrice
@@ -303,7 +301,10 @@ export function pead2ScoreClass(
   return "pead2-score-mid";
 }
 
-/** Largest single-day % move after result date, capped like stocks-ai Daily Ret. */
+/**
+ * Largest single-day % move from the day of results onward (prior close →
+ * result-day close first), capped like stocks-ai Daily Ret.
+ */
 export function computeDailyRetFf(
   bars: Array<{ date: string; close: number }>,
   resultDate: string | null | undefined,
@@ -317,16 +318,12 @@ export function computeDailyRetFf(
     .sort((a, b) => a.date.localeCompare(b.date));
   if (!sorted.length) return null;
   if (sorted[sorted.length - 1]!.date < rd) return null;
-  const onOrBefore = sorted.filter((b) => b.date <= rd);
-  let after = sorted.filter((b) => b.date > rd);
-  if (!after.length) after = sorted.filter((b) => b.date >= rd);
-  if (!after.length) return null;
+  const prior = sorted.filter((b) => b.date < rd);
+  const fromResultDay = sorted.filter((b) => b.date >= rd);
+  if (!fromResultDay.length) return null;
   const moves: number[] = [];
-  let prev =
-    onOrBefore.length > 0
-      ? onOrBefore[onOrBefore.length - 1]!.close
-      : null;
-  for (const bar of after) {
+  let prev = prior.length > 0 ? prior[prior.length - 1]!.close : null;
+  for (const bar of fromResultDay) {
     if (prev != null && prev > 0) {
       moves.push((bar.close / prev - 1) * 100);
     }
