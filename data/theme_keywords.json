@@ -2,10 +2,10 @@
   "meta": {
     "title": "Research themes",
     "description": "REPM + India Government Schemes & Policy Tailwinds — About-friendly keywords; scheme names in theme_research_patterns.json",
-    "version": "4.0",
-    "updated": "2026-09-11",
+    "version": "4.1",
+    "updated": "2026-10-31",
     "syntax": "+ means AND, | means OR (AND binds tighter inside a clause)",
-    "theme_count": 46,
+    "theme_count": 49,
     "source_blog": "https://www.lotusdew.in/blogs/pharma-and-it-two-structural-opportunities-in-an-uncertain-global-economy",
     "source_2026": "SOIC — Themes for 2026",
     "clusters": [
@@ -37,28 +37,52 @@
       "financials_infra": 6000,
       "gilts_primary_dealer": 6000
     },
-    "nanocap_theme_ids": [
-      "solar_epc_bess",
-      "packaging_gravure",
-      "aseptic_food_processing",
-      "micro_irrigation",
-      "seismic_geophysical",
-      "progressive_cavity_pumps",
-      "pvc_pipes_fittings"
-    ],
-    "lvc_theme_ids": [
-      "hospitals_healthcare",
-      "real_estate_redevelopment",
-      "foundry_consumables",
-      "gems_jewellery_lgd",
-      "tmt_royalty",
-      "coated_steel",
-      "auto_components_adas",
-      "pib_additives",
-      "merchant_banking",
-      "financials_infra",
-      "gilts_primary_dealer"
-    ]
+    "nanocap_theme_ids": [],
+    "lvc_theme_ids": [],
+    "orphan_caps_removed": {
+      "theme_max_mcap_cr": {
+        "solar_epc_bess": 500,
+        "packaging_gravure": 500,
+        "aseptic_food_processing": 500,
+        "micro_irrigation": 500,
+        "seismic_geophysical": 500,
+        "progressive_cavity_pumps": 500,
+        "pvc_pipes_fittings": 500,
+        "hospitals_healthcare": 6000,
+        "real_estate_redevelopment": 6000,
+        "foundry_consumables": 6000,
+        "gems_jewellery_lgd": 6000,
+        "tmt_royalty": 6000,
+        "coated_steel": 6000,
+        "auto_components_adas": 6000,
+        "pib_additives": 6000,
+        "merchant_banking": 6000,
+        "financials_infra": 6000,
+        "gilts_primary_dealer": 6000
+      },
+      "nanocap_theme_ids": [
+        "solar_epc_bess",
+        "packaging_gravure",
+        "aseptic_food_processing",
+        "micro_irrigation",
+        "seismic_geophysical",
+        "progressive_cavity_pumps",
+        "pvc_pipes_fittings"
+      ],
+      "lvc_theme_ids": [
+        "hospitals_healthcare",
+        "real_estate_redevelopment",
+        "foundry_consumables",
+        "gems_jewellery_lgd",
+        "tmt_royalty",
+        "coated_steel",
+        "auto_components_adas",
+        "pib_additives",
+        "merchant_banking",
+        "financials_infra",
+        "gilts_primary_dealer"
+      ]
+    }
   },
   "themes": [
     {
@@ -1179,13 +1203,27 @@
       "cluster": "themes_2026",
       "name": "Shipbuilding & Related Proxies",
       "blog_theme": "Themes for 2026",
-      "display_pattern": "marine + engineering",
+      "display_pattern": "marine + engineering | shipbuilding | shipyard | ship repair | naval + vessel | offshore + vessel | dredger",
       "keywords": [
-        "marine + engineering"
+        "marine + engineering",
+        "shipbuilding",
+        "shipyard",
+        "ship repair",
+        "naval + vessel",
+        "offshore + vessel",
+        "dredger"
       ],
       "keyword_definitions": {
-        "marine + engineering": "Marine / offshore engineering adjacency to shipbuilding."
-      }
+        "marine + engineering": "Marine / offshore engineering adjacency to shipbuilding.",
+        "shipbuilding": "New-build shipyards — commercial and naval.",
+        "ship repair": "Ship repair and refit yards."
+      },
+      "proxies": [
+        "Cochin Shipyard",
+        "Mazagon Dock",
+        "GRSE",
+        "Swan Defence"
+      ]
     },
     {
       "id": "themes2026_pharma_healthcare_select",
@@ -1426,22 +1464,28 @@
       "cluster": "pharma_healthcare",
       "name": "Pharma - USFDA / Regulatory",
       "blog_theme": "Pharma & Healthcare",
-      "display_pattern": "USFDA | Form 483 | Warning Letter | EIR | OAI | VAI | NAI | ANDA Approval | Para IV | First-to-File | WHO GMP | Drug Master File",
+      "display_pattern": "USFDA | Form 483 | Warning Letter | Establishment Inspection Report | Official Action Indicated | Voluntary Action Indicated | No Action Indicated | ANDA Approval | Para IV | First-to-File | WHO GMP | Drug Master File",
       "keywords": [
         "USFDA",
         "Form 483",
         "Warning Letter",
-        "EIR",
-        "OAI",
-        "VAI",
-        "NAI",
+        "Establishment Inspection Report",
+        "Official Action Indicated",
+        "Voluntary Action Indicated",
+        "No Action Indicated",
         "ANDA Approval",
         "Para IV",
         "First-to-File",
         "WHO GMP",
         "Drug Master File"
       ],
-      "tag": "USFDA / Regulatory"
+      "tag": "USFDA / Regulatory",
+      "proxies": [
+        "Sun Pharma",
+        "Lupin",
+        "Dr Reddy's",
+        "Aurobindo"
+      ]
     },
     {
       "id": "pharma_business_pipeline",
@@ -1459,7 +1503,12 @@
         "BioSecure Act",
         "Price Erosion"
       ],
-      "tag": "Business & Pipeline"
+      "tag": "Business & Pipeline",
+      "proxies": [
+        "Divi's Laboratories",
+        "Syngene",
+        "Biocon"
+      ]
     },
     {
       "id": "pharma_therapy_areas",
@@ -1478,56 +1527,77 @@
         "Peptide",
         "Complex Generics"
       ],
-      "tag": "Therapy Areas"
+      "tag": "Therapy Areas",
+      "proxies": [
+        "Sun Pharma",
+        "Biocon",
+        "Zydus"
+      ]
     },
     {
       "id": "pharma_hospitals",
       "cluster": "pharma_healthcare",
       "name": "Hospitals",
       "blog_theme": "Pharma & Healthcare",
-      "display_pattern": "ARPOB | Occupancy | ALOS | Operational Beds | Bed Addition | New Hospital | OPD | Surgeries | Diagnostics | IPD | International Patients",
+      "display_pattern": "ARPOB | bed occupancy | average length of stay | Operational Beds | Bed Addition | New Hospital | outpatient | Surgeries | Diagnostics | inpatient | International Patients",
       "keywords": [
         "ARPOB",
-        "Occupancy",
-        "ALOS",
+        "bed occupancy",
+        "average length of stay",
         "Operational Beds",
         "Bed Addition",
         "New Hospital",
-        "OPD",
+        "outpatient",
         "Surgeries",
         "Diagnostics",
-        "IPD",
+        "inpatient",
         "International Patients"
       ],
-      "tag": "Hospitals"
+      "tag": "Hospitals",
+      "proxies": [
+        "Apollo Hospitals",
+        "Max Healthcare",
+        "Fortis",
+        "Narayana Hrudayalaya"
+      ]
     },
     {
       "id": "industrials_infrastructure",
       "cluster": "industrials_energy",
       "name": "Infrastructure",
       "blog_theme": "Industrials & Energy",
-      "display_pattern": "EPC | HAM | BOT | NHAI | InvIT | Financial Closure | Order Inflow | Execution Rate",
+      "display_pattern": "EPC + infrastructure | EPC + road | EPC + project | hybrid annuity | build + operate + transfer | NHAI | InvIT | Financial Closure | Order Inflow | Execution Rate",
       "keywords": [
-        "EPC",
-        "HAM",
-        "BOT",
+        "EPC + infrastructure",
+        "EPC + road",
+        "EPC + project",
+        "hybrid annuity",
+        "build + operate + transfer",
         "NHAI",
         "InvIT",
         "Financial Closure",
         "Order Inflow",
         "Execution Rate"
       ],
-      "tag": "Infrastructure"
+      "tag": "Infrastructure",
+      "proxies": [
+        "L&T",
+        "IRB Infrastructure",
+        "KNR Constructions",
+        "PNC Infratech"
+      ]
     },
     {
       "id": "industrials_power_energy",
       "cluster": "industrials_energy",
       "name": "Power & Energy",
       "blog_theme": "Industrials & Energy",
-      "display_pattern": "Solar | Wind | Green Hydrogen | Nuclear Power | BESS | HVDC | PPA | PLF | Cell Manufacturing | Grid Expansion | Ethanol Blending | Renewable Capacity",
+      "display_pattern": "Solar | wind power | wind energy | wind turbine | Green Hydrogen | Nuclear Power | BESS | HVDC | PPA | PLF | Cell Manufacturing | Grid Expansion | Ethanol Blending | Renewable Capacity",
       "keywords": [
         "Solar",
-        "Wind",
+        "wind power",
+        "wind energy",
+        "wind turbine",
         "Green Hydrogen",
         "Nuclear Power",
         "BESS",
@@ -1539,7 +1609,13 @@
         "Ethanol Blending",
         "Renewable Capacity"
       ],
-      "tag": "Power & Energy"
+      "tag": "Power & Energy",
+      "proxies": [
+        "NTPC",
+        "Suzlon",
+        "Waaree",
+        "Power Grid"
+      ]
     },
     {
       "id": "industrials_defence",
@@ -1561,14 +1637,20 @@
         "Indigenization",
         "Defence Export"
       ],
-      "tag": "Defence"
+      "tag": "Defence",
+      "proxies": [
+        "HAL",
+        "BEL",
+        "Mazagon Dock",
+        "Bharat Dynamics"
+      ]
     },
     {
       "id": "industrials_shipping_logistics",
       "cluster": "industrials_energy",
       "name": "Shipping & Logistics",
       "blog_theme": "Industrials & Energy",
-      "display_pattern": "Vessels | Fleet Efficiency | Fleet Expansion | Freight Rates | Voyage | Tonnage | TCE | Time Charter | Tanker | Day Rates | Dry Bulk",
+      "display_pattern": "Vessels | Fleet Efficiency | Fleet Expansion | Freight Rates | Voyage | Tonnage | time charter equivalent | Time Charter | Tanker | Day Rates | Dry Bulk",
       "keywords": [
         "Vessels",
         "Fleet Efficiency",
@@ -1576,20 +1658,25 @@
         "Freight Rates",
         "Voyage",
         "Tonnage",
-        "TCE",
+        "time charter equivalent",
         "Time Charter",
         "Tanker",
         "Day Rates",
         "Dry Bulk"
       ],
-      "tag": "Shipping & Logistics"
+      "tag": "Shipping & Logistics",
+      "proxies": [
+        "Great Eastern Shipping",
+        "Shipping Corp of India",
+        "Seamec"
+      ]
     },
     {
       "id": "industrials_make_in_india_china_plus_one",
       "cluster": "industrials_energy",
       "name": "Make in India / China+1",
       "blog_theme": "Industrials & Energy",
-      "display_pattern": "China Plus One | Make in India | Atmanirbhar | Import Substitution | PLI Scheme | Indigenization | Viksit Bharat | Tariff | US Tariff | FTA",
+      "display_pattern": "China Plus One | Make in India | Atmanirbhar | Import Substitution | PLI Scheme | Indigenization | Viksit Bharat | tariff + export | US Tariff | free trade agreement",
       "keywords": [
         "China Plus One",
         "Make in India",
@@ -1598,11 +1685,101 @@
         "PLI Scheme",
         "Indigenization",
         "Viksit Bharat",
-        "Tariff",
+        "tariff + export",
         "US Tariff",
-        "FTA"
+        "free trade agreement"
       ],
-      "tag": "Make in India / China+1"
+      "tag": "Make in India / China+1",
+      "proxies": [
+        "Dixon Technologies",
+        "Kaynes Technology",
+        "Amber Enterprises"
+      ]
+    },
+    {
+      "id": "industrials_ai_connectivity",
+      "cluster": "industrials_energy",
+      "name": "AI Network & Connectivity (Optical Fibre, Cables, Telecom Equipment)",
+      "blog_theme": "Industrials & Energy",
+      "display_pattern": "optical fibre | optical fiber | fibre optic cable | fiber optic cable | optical + cable | optical + connectivity | structured cabling | telecom + equipment | telecom + infrastructure | network + equipment | 5G + equipment | broadband + equipment | FTTH | fibre + connectivity",
+      "keywords": [
+        "optical fibre",
+        "optical fiber",
+        "fibre optic cable",
+        "fiber optic cable",
+        "optical + cable",
+        "optical + connectivity",
+        "structured cabling",
+        "telecom + equipment",
+        "telecom + infrastructure",
+        "network + equipment",
+        "5G + equipment",
+        "broadband + equipment",
+        "FTTH",
+        "fibre + connectivity"
+      ],
+      "tag": "AI connectivity",
+      "proxies": [
+        "Sterlite Technologies",
+        "HFCL",
+        "Tejas Networks",
+        "Optiemus",
+        "Tata Communications"
+      ]
+    },
+    {
+      "id": "industrials_data_centre_power_cooling",
+      "cluster": "industrials_energy",
+      "name": "Data Centre Power & Cooling",
+      "blog_theme": "Industrials & Energy",
+      "display_pattern": "uninterruptible power | UPS + data centre | UPS + data center | precision cooling | liquid cooling | data centre + cooling | data center + cooling | busbar + data centre | busbar + data center | switchgear + data centre | switchgear + data center",
+      "keywords": [
+        "uninterruptible power",
+        "UPS + data centre",
+        "UPS + data center",
+        "precision cooling",
+        "liquid cooling",
+        "data centre + cooling",
+        "data center + cooling",
+        "busbar + data centre",
+        "busbar + data center",
+        "switchgear + data centre",
+        "switchgear + data center"
+      ],
+      "tag": "DC power / cooling",
+      "proxies": [
+        "Techno Electric",
+        "Blue Star",
+        "Voltas",
+        "Exide Industries",
+        "Amara Raja"
+      ]
+    },
+    {
+      "id": "industrials_space_satellite",
+      "cluster": "industrials_energy",
+      "name": "Space & Satellite",
+      "blog_theme": "Industrials & Energy",
+      "display_pattern": "satellite + manufacturing | satellite + communication | satellite + component | launch vehicle | spacecraft | earth observation | space + technology | space + component | IN-SPACe",
+      "keywords": [
+        "satellite + manufacturing",
+        "satellite + communication",
+        "satellite + component",
+        "launch vehicle",
+        "spacecraft",
+        "earth observation",
+        "space + technology",
+        "space + component",
+        "IN-SPACe"
+      ],
+      "tag": "Space / satellite",
+      "proxies": [
+        "Paras Defence",
+        "Apollo Micro Systems",
+        "MTAR Technologies",
+        "Centum Electronics",
+        "Astra Microwave"
+      ]
     }
   ]
 }

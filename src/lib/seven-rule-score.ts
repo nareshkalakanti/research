@@ -178,10 +178,10 @@ export function sevenRuleRatingFromPassed(passed: number): {
   rating: SevenRuleRating;
   ratingLabel: string;
 } {
-  if (passed >= 7) return { rating: "strong_buy", ratingLabel: "STRONG BUY" };
-  if (passed === 6) return { rating: "buy", ratingLabel: "BUY" };
-  if (passed === 5) return { rating: "deep_dive", ratingLabel: "DEEP DIVE" };
-  return { rating: "no", ratingLabel: "NO" };
+  if (passed >= 7) return { rating: "strong_buy", ratingLabel: "Strong Buy" };
+  if (passed === 6) return { rating: "buy", ratingLabel: "Buy" };
+  if (passed === 5) return { rating: "deep_dive", ratingLabel: "Deep Dive" };
+  return { rating: "no", ratingLabel: "No" };
 }
 
 /** Profit QoQ/YoY — UNKNOWN when prior ≤ 0 (avoid misleading % on zero/loss base). */
@@ -294,13 +294,14 @@ export function sevenRuleScore(input: SevenRuleInput): SevenRuleResult {
   ).length;
   const provisional = evaluated < RULE_COUNT;
   const score = round2((passed / RULE_COUNT) * 10);
-  const rated = provisional ? null : sevenRuleRatingFromPassed(passed);
+  // Always rate from passes so far — UI only shows Strong Buy / Buy / Deep Dive / No.
+  const rated = sevenRuleRatingFromPassed(passed);
 
   return {
     passed,
     score,
-    rating: rated?.rating ?? null,
-    ratingLabel: rated?.ratingLabel ?? null,
+    rating: rated.rating,
+    ratingLabel: rated.ratingLabel,
     provisional,
     evaluated,
     rules,

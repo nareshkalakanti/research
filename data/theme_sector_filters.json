@@ -2,7 +2,7 @@
   "meta": {
     "source_db": "data/classifications.db",
     "rule": "match = keyword AND (sub_sector in allow_subsectors OR sector in allow_sectors) AND pair NOT in exclude_pairs",
-    "updated": "2026-09-11",
+    "updated": "2026-10-31",
     "aligned_to": "theme_keywords.json",
     "built_by": "scripts/build-theme-sector-filters.ts",
     "min_share": 0.5,
@@ -51,12 +51,24 @@
     "gov_ai_datacenter_cloud": {
       "allow_sectors": [
         "IT & Technology",
-        "Real Estate & Construction"
+        "Real Estate & Construction",
+        "Engineering & Capital Goods",
+        "Telecommunication",
+        "Telecom",
+        "Power & Utilities"
       ],
       "allow_subsectors": [
         "IT Services & Consulting",
         "Construction & Engineering",
-        "Software Services"
+        "Software Services",
+        "Technology Hardware",
+        "Computers - Hardware",
+        "Electrical Components & Equipments",
+        "Heavy Electrical Equipments",
+        "Electronic Equipments",
+        "Cables",
+        "Telecom Services",
+        "Other Telecom Services"
       ]
     },
     "gov_ev_green_mobility": {
@@ -78,7 +90,9 @@
       "allow_subsectors": [
         "Hospitals & Diagnostic Centres",
         "Hospital",
-        "Public Banks"
+        "Hospitals & Medical Services",
+        "Healthcare Services",
+        "Diagnostics"
       ]
     },
     "gov_msme_sme_capital": {
@@ -696,6 +710,54 @@
         "Auto Parts",
         "Specialty Chemicals",
         "Commodity Chemicals"
+      ]
+    },
+    "industrials_ai_connectivity": {
+      "allow_sectors": [
+        "Telecommunication",
+        "Telecom",
+        "Engineering & Capital Goods",
+        "IT & Technology"
+      ],
+      "allow_subsectors": [
+        "Telecom Services",
+        "Other Telecom Services",
+        "Telecom Equipment",
+        "Telecom - Equipment & Accessories",
+        "Cables",
+        "Electrical Components & Equipments",
+        "Electronic Equipments",
+        "Technology Hardware"
+      ]
+    },
+    "industrials_data_centre_power_cooling": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "Consumer Durables",
+        "Power & Utilities",
+        "Automobile & Ancillaries"
+      ],
+      "allow_subsectors": [
+        "Electrical Components & Equipments",
+        "Heavy Electrical Equipments",
+        "Industrial Machinery",
+        "Home Electronics & Appliances",
+        "Cables",
+        "Batteries",
+        "Auto Parts"
+      ]
+    },
+    "industrials_space_satellite": {
+      "allow_sectors": [
+        "Engineering & Capital Goods",
+        "IT & Technology"
+      ],
+      "allow_subsectors": [
+        "Aerospace & Defense Equipments",
+        "Electronic Equipments",
+        "Industrial Machinery",
+        "Electrical Components & Equipments",
+        "Technology Hardware"
       ]
     }
   }

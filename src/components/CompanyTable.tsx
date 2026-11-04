@@ -1305,14 +1305,7 @@ function CompanyRows({
                 : "—"}
             </td>
             <td className="col-seven-rating">
-              {r.seven_rule?.provisional ? (
-                <span
-                  className="seven-rule-rating seven-rule-rating--hold"
-                  title="Provisional — missing ROE/ROCE or quarter inputs"
-                >
-                  PROVISIONAL
-                </span>
-              ) : r.seven_rule?.rating_label ? (
+              {r.seven_rule?.rating_label ? (
                 <span
                   className={`seven-rule-rating ${
                     r.seven_rule.rating === "strong_buy" ||
@@ -1322,7 +1315,11 @@ function CompanyRows({
                         ? "seven-rule-rating--hold"
                         : "seven-rule-rating--sell"
                   }`}
-                  title={`${r.seven_rule.passed}/7 · score ${r.seven_rule.score.toFixed(2)}`}
+                  title={
+                    r.seven_rule.provisional
+                      ? `${r.seven_rule.passed}/7 · score ${r.seven_rule.score.toFixed(2)} · incomplete inputs`
+                      : `${r.seven_rule.passed}/7 · score ${r.seven_rule.score.toFixed(2)}`
+                  }
                 >
                   {r.seven_rule.rating_label}
                 </span>

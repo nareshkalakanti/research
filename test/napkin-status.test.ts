@@ -67,6 +67,7 @@ const stub: NapkinStockJson = {
   roe: 0.1,
   roce: 0.2,
   cagr: {
+    revenue_2y: null,
     revenue_3y: 0.1,
     revenue_5y: null,
     eps_3y: 0.12,
