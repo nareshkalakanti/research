@@ -38,22 +38,32 @@ export function isSqliteCorrupt(err: unknown): boolean {
   if (code === "SQLITE_CORRUPT" || code === "SQLITE_NOTADB") return true;
   if (isSqliteWalDamage(err)) return true;
   const msg = String((err as { message?: string }).message || err);
-  return /malformed|corrupt|not a database/i.test(msg);
+  return (
+    /malformed|corrupt|not a database|unable to get the page|error code=522/i.test(
+      msg,
+    )
+  );
 }
 
 /** Truncated WAL / short read — drop sidecars and reopen. */
 export function isSqliteWalDamage(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
   const code = String((err as { code?: string }).code || "");
+  // 522 = SQLITE_IOERR_SHORT_READ (often surfaces as "unable to get the page")
   if (
     code === "SQLITE_IOERR_SHORT_READ" ||
     code === "SQLITE_IOERR_READ" ||
-    code === "SQLITE_IOERR"
+    code === "SQLITE_IOERR" ||
+    code === "522"
   ) {
     return true;
   }
   const msg = String((err as { message?: string }).message || err);
-  return /disk I\/O error|SHORT_READ|IOERR/i.test(msg);
+  return (
+    /disk I\/O error|SHORT_READ|IOERR|unable to get the page|error code=522/i.test(
+      msg,
+    )
+  );
 }
 
 export function corruptDbError(name: string, err: unknown): Error {
@@ -267,10 +277,9 @@ export function openSqlite(
   opts: OpenSqliteOpts = {},
 ): Database.Database {
   const autoRecover = opts.autoRecover ?? true;
+  // Only drop *empty* sidecars by default. Wiping a live WAL while another
+  // handle is open (common for company_about) causes "disk I/O error".
   stripEmptyWalSidecars(dbPath);
-  if (path.basename(dbPath) === "company_about.db") {
-    removeWalSidecars(dbPath);
-  }
   try {
     return openRaw(dbPath, opts);
   } catch (err) {
@@ -285,6 +294,20 @@ export function openSqlite(
 
     if (recoverCorruptDb(dbPath)) {
       return openRaw(dbPath, opts);
+    }
+
+    // company_about is seed-backed — rehydrate when recover still fails.
+    if (path.basename(dbPath) === "company_about.db") {
+      try {
+        const seed = path.join(DB_SEED_DIR, "company_about.db");
+        if (fs.existsSync(seed)) {
+          fs.copyFileSync(seed, dbPath);
+          removeWalSidecars(dbPath);
+          return openRaw(dbPath, { ...opts, quickCheck: false });
+        }
+      } catch {
+        /* fall through */
+      }
     }
 
     if (opts.readonly) {

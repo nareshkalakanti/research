@@ -331,13 +331,33 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      const result = await autoScreenConcallForTicker(ticker);
-      return NextResponse.json(result, {
-        status:
-          result.ok || result.skipped || result.decision === "pass"
-            ? 200
-            : 422,
-      });
+      try {
+        const result = await autoScreenConcallForTicker(ticker);
+        return NextResponse.json(result, {
+          status:
+            result.ok || result.skipped || result.decision === "pass"
+              ? 200
+              : 422,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        // About DB I/O should not block Concall — tell the user to fix About,
+        // but keep a clean error (not a raw stack) on the Napkin card.
+        if (/company_about\.db is corrupt|unable to get the page|error code=522/i.test(msg)) {
+          return NextResponse.json(
+            {
+              ok: false,
+              ticker,
+              decision: "fail",
+              why: "About DB needs repair",
+              error:
+                "company_about.db needs repair — run: npm run db:fix -- company_about.db then restart next dev",
+            },
+            { status: 503 },
+          );
+        }
+        throw e;
+      }
     }
 
     if (body.action === "delete") {

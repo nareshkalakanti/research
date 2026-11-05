@@ -3726,6 +3726,23 @@ function mergeTranscriptAndPptExtracts(
   return out;
 }
 
+/** Pin extract metadata to a requested listing ticker (auto-screen / Napkin). */
+function pinExtractToTicker(
+  extract: ConcallExtract,
+  tickerRaw: string | null | undefined,
+): ConcallExtract {
+  const sym = (tickerRaw || "").trim().toUpperCase();
+  if (!sym || /^BSE\d{5,6}$/i.test(sym)) return extract;
+  const meta = asObj(extract.metadata) || {};
+  meta.nse_symbol = sym;
+  const name = lookupCompanyName(sym);
+  if (name && !isMarketInfrastructureName(name)) {
+    meta.company_name = name;
+  }
+  extract.metadata = meta;
+  return extract;
+}
+
 function saveHistory(row: {
   source_url: string | null;
   extract: ConcallExtract;
@@ -3733,10 +3750,15 @@ function saveHistory(row: {
   engine: string;
   /** When set (row Analyze), update this id in place — never retarget another ticker. */
   existingId?: number | null;
+  /** Force row ticker (Napkin / auto-screen) — overrides mis-extracted nse_symbol. */
+  lockTicker?: string | null;
 }): number | null {
   // Pass-only list (same idea as Order book)
   if (row.decision !== "pass") return null;
   const db = openDb();
+  if (row.lockTicker?.trim()) {
+    row.extract = pinExtractToTicker(row.extract, row.lockTicker);
+  }
   const meta = asObj(row.extract.metadata) || {};
   const tone = asObj(row.extract.management_tone) || {};
   let ticker =
@@ -5110,6 +5132,8 @@ export async function screenConcallMaterials(opts: {
   transcriptBuffer?: Buffer | null;
   pptUrl?: string | null;
   pptBuffer?: Buffer | null;
+  /** When set (e.g. Napkin auto), never save under a mis-extracted symbol. */
+  lockTicker?: string | null;
 }): Promise<ConcallScreenResult> {
   const hasTx = Boolean(opts.transcriptBuffer || opts.transcriptUrl?.trim());
   const hasPpt = Boolean(opts.pptBuffer || opts.pptUrl?.trim());
@@ -5198,6 +5222,7 @@ export async function screenConcallMaterials(opts: {
       text_chars: ppt.text_chars || 0,
       text_excerpt: ppt.text_excerpt || "",
       source_url: ppt.source_url,
+      lockTicker: opts.lockTicker,
     });
   }
   if (txOk && !pptOk) {
@@ -5217,6 +5242,7 @@ export async function screenConcallMaterials(opts: {
       text_chars: tx.text_chars || 0,
       text_excerpt: tx.text_excerpt || "",
       source_url: tx.source_url,
+      lockTicker: opts.lockTicker,
     });
   }
   if (!txOk && !pptOk) {
@@ -5285,6 +5311,7 @@ export async function screenConcallMaterials(opts: {
     text_excerpt:
       tx.text_excerpt || ppt.text_excerpt || "",
     source_url: tx.source_url || ppt.source_url,
+    lockTicker: opts.lockTicker,
     materials: {
       transcript: {
         role: "transcript",
@@ -5331,8 +5358,13 @@ async function finalizeMergedMaterials(opts: {
   combined_text?: string;
   /** PASS row Analyze — update in place */
   existingId?: number | null;
+  /** Force save under this ticker (auto-screen / Napkin). */
+  lockTicker?: string | null;
 }): Promise<ConcallScreenResult> {
   let extract = await attachConcallPrices(opts.extract);
+  if (opts.lockTicker?.trim()) {
+    extract = pinExtractToTicker(extract, opts.lockTicker);
+  }
   extract = setDocsCombined(extract, opts.combined_text);
   ensureFinancialsFromQuantSnapshot(extract);
   const { decision, why, gaps } = decide(extract);
@@ -5342,6 +5374,7 @@ async function finalizeMergedMaterials(opts: {
     decision,
     engine: opts.engine,
     existingId: opts.existingId ?? null,
+    lockTicker: opts.lockTicker ?? null,
   });
   const passWhy =
     opts.decisionHint === "pass" && decision === "pass"
@@ -5754,12 +5787,41 @@ export async function autoScreenConcallForTicker(
   let result = await screenConcallMaterials({
     transcriptUrl,
     pptUrl,
+    lockTicker: ticker,
   });
 
   // Always Analyze when we have enough text — prompt HL (WIN/RISK/STRATEGIC), not lexical only
   if (result.id != null && (result.text_chars || 0) > 200) {
     try {
       result = await screenConcallFromCombinedText({ id: result.id });
+      // Re-pin after Analyze in case quant/LLM rewrote nse_symbol
+      if (result.id != null) {
+        const db = openDb();
+        try {
+          const row = db
+            .prepare(`SELECT extract_json FROM concall_screens WHERE id = ?`)
+            .get(result.id) as { extract_json: string } | undefined;
+          if (row?.extract_json) {
+            let extract = {
+              ...emptyExtract(),
+              ...(JSON.parse(row.extract_json) as ConcallExtract),
+            };
+            extract = pinExtractToTicker(extract, ticker);
+            db.prepare(
+              `UPDATE concall_screens
+               SET ticker = ?, company = COALESCE(?, company), extract_json = ?
+               WHERE id = ?`,
+            ).run(
+              ticker,
+              lookupCompanyName(ticker),
+              JSON.stringify(extract),
+              result.id,
+            );
+          }
+        } finally {
+          db.close();
+        }
+      }
     } catch (e) {
       if (!result.why) {
         result.why =

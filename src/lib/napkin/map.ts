@@ -11,6 +11,18 @@ import type {
 const NA = "N/A";
 const CR = 10_000_000;
 
+/** Prefer local listing market; else infer BSE from Yahoo `.BO`. */
+export function napkinExchangeFromStock(row: {
+  listing_market?: string | null;
+  yf_symbol?: string | null;
+}): string {
+  const m = (row.listing_market || "").trim();
+  if (m) return m;
+  const yf = (row.yf_symbol || "").toUpperCase();
+  if (yf.endsWith(".BO")) return "BSE";
+  return "NSE";
+}
+
 function num(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v)) return null;
   return v;
@@ -83,11 +95,12 @@ export function researchFromYahoo(
     historical_eps_cagr_5y: cagr.eps_5y,
   });
   const simple = napkinSimpleFromStock(row);
+  const exchange = napkinExchangeFromStock(row);
 
   return {
     ticker,
     name,
-    exchange: "NSE",
+    exchange,
     yf_symbol: row.yf_symbol,
     mock: false,
     overview: [

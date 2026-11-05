@@ -2,8 +2,14 @@
  * Napkin About panel — company_about rich fields, Yahoo fill when empty.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { loadAllCompanies, pickAboutText } from "@/lib/db";
+import {
+  invalidateCompanyCache,
+  loadAllCompanies,
+  pickAboutText,
+} from "@/lib/db";
 import { saveYfAboutProfile } from "@/lib/company-about-write";
+import { resolveListingMarket } from "@/lib/listing-market";
+import { isSqliteCorrupt, openSqliteNamed } from "@/lib/sqlite-utils";
 import { fetchYfAboutProfile } from "@/lib/yfinance";
 
 export const runtime = "nodejs";
@@ -47,11 +53,29 @@ function productsFromAbout(about: string | null | undefined): string[] {
     .filter((p) => p.length >= 3);
 }
 
-function payloadFromCompany(ticker: string): NapkinAboutPayload | null {
-  const key = ticker.toUpperCase();
-  const row = loadAllCompanies().find((c) => c.ticker.toUpperCase() === key);
-  if (!row) return null;
-  const about = pickAboutText(row);
+function payloadFromRow(
+  key: string,
+  row: {
+    name?: string | null;
+    products?: string | null;
+    business_model?: string | null;
+    sector?: string | null;
+    sub_sector?: string | null;
+    headquarters?: string | null;
+    market?: string | null;
+    about?: string | null;
+    yf_about?: string | null;
+    scraped_about?: string | null;
+    scraped_about_clean?: string | null;
+    llm_about?: string | null;
+  },
+): NapkinAboutPayload | null {
+  const about = pickAboutText({
+    about: row.about ?? null,
+    yf_about: row.yf_about,
+    llm_about: row.llm_about,
+    scraped_about: row.scraped_about,
+  });
   const products = splitProducts(row.products);
   const fromAbout = products.length < 2 ? productsFromAbout(about) : [];
   const merged = [...products];
@@ -76,6 +100,63 @@ function payloadFromCompany(ticker: string): NapkinAboutPayload | null {
   };
 }
 
+/** Direct ticker read — avoids full-universe load when About cache hits disk I/O. */
+function payloadFromDirectSql(ticker: string): NapkinAboutPayload | null {
+  const key = ticker.toUpperCase();
+  try {
+    const db = openSqliteNamed("company_about.db", {
+      readonly: true,
+      wal: true,
+      quickCheck: false,
+    });
+    try {
+      const row = db
+        .prepare(
+          `SELECT ticker, name, market, about, yf_about, scraped_about,
+                  scraped_about_clean, llm_about,
+                  company_sector AS sector, company_industry AS sub_sector,
+                  headquarters, products, business_model
+           FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
+        )
+        .get(key) as
+        | {
+            name: string | null;
+            market: string | null;
+            about: string | null;
+            yf_about: string | null;
+            scraped_about: string | null;
+            scraped_about_clean: string | null;
+            llm_about: string | null;
+            sector: string | null;
+            sub_sector: string | null;
+            headquarters: string | null;
+            products: string | null;
+            business_model: string | null;
+          }
+        | undefined;
+      if (!row) return null;
+      return payloadFromRow(key, row);
+    } finally {
+      db.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
+function payloadFromCompany(ticker: string): NapkinAboutPayload | null {
+  const key = ticker.toUpperCase();
+  try {
+    const row = loadAllCompanies().find((c) => c.ticker.toUpperCase() === key);
+    if (row) return payloadFromRow(key, row);
+  } catch (err) {
+    if (isSqliteCorrupt(err)) {
+      invalidateCompanyCache();
+    }
+  }
+  return payloadFromDirectSql(key);
+}
+
 export async function GET(req: NextRequest) {
   const ticker = (req.nextUrl.searchParams.get("ticker") || "")
     .trim()
@@ -97,17 +178,23 @@ export async function GET(req: NextRequest) {
       if (existing) return NextResponse.json(existing);
     }
 
-    const yf = await fetchYfAboutProfile(ticker, market);
+    const listing = market || resolveListingMarket(ticker);
+    const yf = await fetchYfAboutProfile(ticker, listing);
     if (yf?.about || yf?.website || yf?.headquarters) {
-      saveYfAboutProfile(ticker, {
-        about: yf.about,
-        website: yf.website,
-        headquarters: yf.headquarters,
-        sector: yf.sector,
-        industry: yf.industry,
-        name: nameHint,
-        market: market ?? undefined,
-      });
+      try {
+        saveYfAboutProfile(ticker, {
+          about: yf.about,
+          website: yf.website,
+          headquarters: yf.headquarters,
+          sector: yf.sector,
+          industry: yf.industry,
+          name: nameHint,
+          market: listing ?? undefined,
+        });
+        invalidateCompanyCache();
+      } catch {
+        /* keep Yahoo live response even if local write hits disk I/O */
+      }
       const after = payloadFromCompany(ticker);
       if (after) {
         return NextResponse.json({ ...after, source: "yahoo" });
@@ -124,7 +211,7 @@ export async function GET(req: NextRequest) {
         about,
         products: productsFromAbout(about),
         headquarters: yf.headquarters,
-        market,
+        market: listing,
         source: "yahoo",
       } satisfies NapkinAboutPayload);
     }
@@ -139,10 +226,13 @@ export async function GET(req: NextRequest) {
       about: null,
       products: [],
       headquarters: null,
-      market,
+      market: listing,
       source: "none",
     } satisfies NapkinAboutPayload);
   } catch (e) {
+    invalidateCompanyCache();
+    const recovered = payloadFromDirectSql(ticker);
+    if (recovered) return NextResponse.json(recovered);
     return NextResponse.json(
       {
         ok: false,
@@ -154,7 +244,7 @@ export async function GET(req: NextRequest) {
         about: null,
         products: [],
         headquarters: null,
-        market,
+        market: market || resolveListingMarket(ticker),
         source: "none",
         error: e instanceof Error ? e.message : String(e),
       } satisfies NapkinAboutPayload,

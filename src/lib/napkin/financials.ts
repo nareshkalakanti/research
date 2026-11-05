@@ -727,6 +727,8 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     reasons,
   };
 
+  const listingMarket = resolveListingMarket(bare);
+
   return {
     ok: true,
     error: null,
@@ -734,6 +736,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     company_name: name,
     ticker: bare,
     yf_symbol: symbol,
+    listing_market: listingMarket,
     sector,
     fetched_at: new Date().toISOString(),
     price,

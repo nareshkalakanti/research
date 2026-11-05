@@ -56,6 +56,8 @@ export type NapkinStockJson = {
   company_name: string | null;
   ticker: string;
   yf_symbol: string | null;
+  /** NSE / BSE / SME from company_about (or inferred). */
+  listing_market?: string | null;
   sector: string | null;
   fetched_at: string | null;
   price: number | null;

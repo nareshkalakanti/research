@@ -31,6 +31,8 @@ export function tradingviewExchange(
 ): "NSE" | "BSE" {
   const hint = clean(market);
   if (marketLooksBse(hint)) return "BSE";
+  // Yahoo-style market tags or suffixes sometimes leak into the hint.
+  if (/\.BO\b/i.test(hint) || /\bBOMBAY\b/i.test(hint)) return "BSE";
   if (marketLooksNse(hint)) return "NSE";
   return "NSE";
 }

@@ -33,10 +33,11 @@ export async function GET(req: NextRequest) {
       symbol: row.yf_symbol,
     });
     const simple = napkinSimpleFromStock(row);
+    const research = researchFromYahoo(row, []);
     return NextResponse.json({
       ok: true,
       ...simple,
-      research: researchFromYahoo(row, []),
+      research,
       raw: row,
       debug: {
         yahoo_ms,
