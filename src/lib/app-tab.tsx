@@ -32,12 +32,12 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "signals", label: "Signals", short: "Signals" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
-  { id: "research", label: "Research", short: "Research" },
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "pead", label: "PEAD", short: "PEAD" },
   { id: "theme-scanner", label: "Themes", short: "Themes" },
   { id: "missing", label: "Missing data", short: "Missing" },
   { id: "dashboard", label: "Dashboard", short: "Dash" },
+  { id: "research", label: "Research", short: "Research" },
 ];
 
 export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [];

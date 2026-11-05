@@ -131,8 +131,10 @@ function AppShellPanels() {
 
   useEffect(() => {
     setVisited((prev) => {
-      if (prev.has(tab)) return prev;
       const next = new Set(prev);
+      // Drop Research when leaving so open researcher state does not linger.
+      if (tab !== "research") next.delete("research");
+      if (next.has(tab)) return next.size === prev.size ? prev : next;
       next.add(tab);
       return next;
     });
