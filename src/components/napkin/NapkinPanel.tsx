@@ -12,7 +12,7 @@ import {
   napkinPeDisplay,
   parseDisplayedPct,
 } from "@/lib/napkin/format";
-import { tradingviewUrl } from "@/lib/links";
+import { tradingviewSymbol, tradingviewUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
 import { NapkinPerformance } from "@/components/napkin/NapkinPerformance";
@@ -179,16 +179,27 @@ export function NapkinPanel() {
                 <div>
                   <div className="napkin-company">{data.name}</div>
                   <div className="napkin-ticker-lg">
-                    <a
-                      className="napkin-tv-link"
-                      href={tradingviewUrl(data.ticker, data.exchange)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      title="TradingView chart"
-                    >
-                      {data.yf_symbol || data.ticker}
-                      <span className="napkin-tv-chip">TV</span>
-                    </a>
+                    {(() => {
+                      const yf = (data.yf_symbol || "").toUpperCase();
+                      const tvMarket =
+                        data.exchange ||
+                        (yf.endsWith(".BO") ? "BSE" : "NSE");
+                      const tvLabel =
+                        tradingviewSymbol(data.ticker, tvMarket) ||
+                        data.ticker;
+                      return (
+                        <a
+                          className="napkin-tv-link"
+                          href={tradingviewUrl(data.ticker, tvMarket)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={`TradingView ${tvLabel}`}
+                        >
+                          {tvLabel}
+                          <span className="napkin-tv-chip">TV</span>
+                        </a>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="napkin-card-value">
