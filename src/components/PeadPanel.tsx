@@ -14,7 +14,7 @@ import {
   mcapIndicesToBounds,
 } from "@/components/MarketCapRangeBar";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
-import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { QuartersRankCard } from "@/components/QuartersRankCard";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { formatMcap } from "@/lib/types";
@@ -279,45 +279,49 @@ function PeadOpenDetail({
     <tr className="pead2-expand-row">
       <td colSpan={colSpan}>
         <div className="pead2-expand pead2-expand--detail">
-          <div className="pead2-expand-qtr">
-            <p className="pead2-expand-meta">
-              <span className="mono">{row.ticker}</span>
-              {row.sector ? <span>{row.sector}</span> : null}
-              {mcapShow != null ? (
-                <span title="live price × shares">
-                  ₹{formatMcap(mcapShow)}
-                  {detailMetrics.stale ? (
-                    <span className="pead2-stale-badge" title="Mcap disagrees with live price × shares">
-                      {" "}
-                      stale
-                    </span>
-                  ) : null}
-                </span>
-              ) : null}
-              {detailMetrics.asOf ? (
-                <span className="pead2-asof">
-                  as of {detailMetrics.asOf.slice(0, 16).replace("T", " ")}
-                </span>
-              ) : null}
-              {detailMetrics.peTtm != null ? (
-                <span title="Price ÷ TTM EPS (last 4 quarters)">
-                  PE {detailMetrics.peTtm.toFixed(1)}
-                </span>
-              ) : null}
-              {detailMetrics.peNorm != null ? (
-                <span title="TTM PE with tip EPS replaced by prior-3 avg">
-                  Norm PE {detailMetrics.peNorm.toFixed(1)}
-                </span>
-              ) : null}
-            </p>
-            <ExpandQuarters
-              data={qtr}
-              price={row.price}
-              compact
-              richQoq
+          <p className="pead2-expand-meta">
+            <span className="mono">{row.ticker}</span>
+            {row.sector ? <span>{row.sector}</span> : null}
+            {mcapShow != null ? (
+              <span title="live price × shares">
+                ₹{formatMcap(mcapShow)}
+                {detailMetrics.stale ? (
+                  <span className="pead2-stale-badge" title="Mcap disagrees with live price × shares">
+                    {" "}
+                    stale
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
+            {detailMetrics.asOf ? (
+              <span className="pead2-asof">
+                as of {detailMetrics.asOf.slice(0, 16).replace("T", " ")}
+              </span>
+            ) : null}
+            {detailMetrics.peTtm != null ? (
+              <span title="Price ÷ TTM EPS (last 4 quarters)">
+                PE {detailMetrics.peTtm.toFixed(1)}
+              </span>
+            ) : null}
+            {detailMetrics.peNorm != null ? (
+              <span title="TTM PE with tip EPS replaced by prior-3 avg">
+                Norm PE {detailMetrics.peNorm.toFixed(1)}
+              </span>
+            ) : null}
+          </p>
+          <div className="pead2-expand-cards">
+            <section className="pead2-expand-card pead2-expand-qtr">
+              <h3 className="pead2-expand-side-title">Quarters</h3>
+              <QuartersRankCard data={qtr} price={row.price} richQoq />
+            </section>
+            <QuoteTapeCard
+              className="pead2-expand-card pead2-expand-tape"
+              ticker={row.ticker}
+              market={row.market}
+              active={open}
+              periods={[20, 50, 100, 200]}
+              variant="full"
             />
-          </div>
-          <div className="pead2-expand-side">
             <section className="pead2-expand-card pead2-expand-seven">
               <h3 className="pead2-expand-side-title">7-Rule score</h3>
               {qtr.loading && !sevenRule ? (
@@ -334,14 +338,6 @@ function PeadOpenDetail({
               market={row.market}
               companyName={row.name}
               active={open}
-            />
-            <QuoteTapeCard
-              className="pead2-expand-card pead2-expand-range"
-              ticker={row.ticker}
-              market={row.market}
-              active={open}
-              periods={[20, 50, 200]}
-              variant="range"
             />
           </div>
         </div>
