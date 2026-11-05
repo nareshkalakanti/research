@@ -35,6 +35,7 @@ import {
   ttmEps,
 } from "@/lib/stock-detail-metrics";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
+import { napkinUrl } from "@/lib/links";
 import { epsFromQuarterPanel } from "@/lib/valuation";
 /** Exchange universes only — same List as Scan / Themes. */
 const PEAD_LISTS = ["All", "NSE", "NSE SME", "BSE SME"] as const;
@@ -787,6 +788,15 @@ export function PeadPanel() {
                   ) : null}
                 </span>
               ) : null}
+              <a
+                className="pead2-link"
+                href={napkinUrl(row.ticker)}
+                target="_blank"
+                rel="noreferrer"
+                title="Open Napkin for this stock"
+              >
+                np
+              </a>
               {row.tv ? (
                 <a
                   className="pead2-link"
