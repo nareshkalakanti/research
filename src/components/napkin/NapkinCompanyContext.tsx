@@ -2,8 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
-import { QuarterPanel } from "@/components/QuarterPanel";
-import { QuoteTapeCard } from "@/components/QuoteTapeCard";
+import { QuartersRankCard } from "@/components/QuartersRankCard";
+import {
+  QuoteTapeCard,
+  type QuoteTapeFundamentals,
+} from "@/components/QuoteTapeCard";
 import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
@@ -15,6 +18,7 @@ export function NapkinCompanyContext({
   companyName,
   roe,
   roce,
+  fundamentals = null,
 }: {
   ticker: string;
   exchange?: string | null;
@@ -22,6 +26,8 @@ export function NapkinCompanyContext({
   companyName?: string | null;
   roe?: number | null;
   roce?: number | null;
+  /** Snapshot Revenue/EPS 5Y — shown on Tech & Val instead of price CAGR. */
+  fundamentals?: QuoteTapeFundamentals | null;
 }) {
   const market = (exchange || "").trim() || null;
   const qtr = useExpandQuarters(ticker, market, price, true);
@@ -49,9 +55,14 @@ export function NapkinCompanyContext({
       {sevenRule ? (
         <div className="napkin-sheet-section">
           <h2 className="napkin-block-title">7-Rule score</h2>
-          <SevenRuleScoreCard result={sevenRule} compact={!showDetails} />
+          <SevenRuleScoreCard result={sevenRule} compact />
         </div>
       ) : null}
+
+      <div className="napkin-sheet-section">
+        <h2 className="napkin-block-title">Quarters</h2>
+        <QuartersRankCard data={qtr} price={price} />
+      </div>
 
       <div className="napkin-sheet-section">
         <button
@@ -60,33 +71,18 @@ export function NapkinCompanyContext({
           aria-expanded={showDetails}
           onClick={() => setShowDetails((v) => !v)}
         >
-          {showDetails ? "Hide details" : "Show quarters & rule detail"}
+          {showDetails ? "Hide Tech & Val" : "Show Tech & Val"}
         </button>
       </div>
 
       {showDetails ? (
         <div className="napkin-sheet-section">
-          <h2 className="napkin-block-title">Quarters</h2>
-          <div className="about-qtr-with-tape napkin-qtr-with-tape">
-            <div className="about-qtr-main">
-              {qtr.loading ? (
-                <p className="napkin-debug">Loading quarters…</p>
-              ) : qtr.error ? (
-                <p className="napkin-missing">{qtr.error}</p>
-              ) : qtr.panel?.labels?.length ? (
-                <QuarterPanel
-                  panel={qtr.panel}
-                  yoy={qtr.yoy}
-                  price={price}
-                  sourceNote={qtr.source}
-                  compact
-                />
-              ) : (
-                <p className="napkin-missing">No quarterly data.</p>
-              )}
-            </div>
-            <QuoteTapeCard ticker={ticker} market={market} active />
-          </div>
+          <QuoteTapeCard
+            ticker={ticker}
+            market={market}
+            active
+            fundamentals={fundamentals}
+          />
         </div>
       ) : null}
     </>

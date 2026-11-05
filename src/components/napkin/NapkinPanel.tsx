@@ -208,6 +208,12 @@ export function NapkinPanel() {
               price={parseDisplayedMoney(napkinMetric(data.overview, "price"))}
               roe={parseDisplayedPct(napkinMetric(data.overview, "roe"))}
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
+              fundamentals={{
+                revenue_cagr_5y: parseDisplayedPct(
+                  napkinMetric(data.financials, "rev5"),
+                ),
+                eps_cagr_5y: parseDisplayedPct(hist5),
+              }}
             />
 
             <NapkinPerformance performance={data.performance} />

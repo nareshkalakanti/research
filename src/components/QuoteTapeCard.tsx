@@ -10,6 +10,15 @@ function fmtPrice(n: number | null | undefined): string {
 
 type MaPeriod = 20 | 50 | 100 | 200;
 
+/**
+ * Napkin Snapshot fundamentals (decimal ratios, e.g. 0.147 = 14.7%).
+ * Prefer over Yahoo price CAGR when set.
+ */
+export type QuoteTapeFundamentals = {
+  revenue_cagr_5y?: number | null;
+  eps_cagr_5y?: number | null;
+};
+
 type Props = {
   ticker: string;
   market?: string | null;
@@ -21,7 +30,16 @@ type Props = {
   periods?: MaPeriod[];
   /** full = Tech & Val; range = 52-week + DMAs only (detail side card). */
   variant?: "full" | "range";
+  /** When present, show Revenue/EPS 5Y CAGR (Snapshot) instead of price CAGR. */
+  fundamentals?: QuoteTapeFundamentals | null;
 };
+
+/** Format napkin ratio (0.147 → +14.7%). */
+function fmtFundCagr(v: number | null | undefined): string {
+  if (v == null || !Number.isFinite(v)) return "—";
+  const pct = v * 100;
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`;
+}
 
 /**
  * Tech & Val card: price / PE / CAGR, SMA 20/50/100/200, 52-week range.
@@ -34,6 +52,7 @@ export function QuoteTapeCard({
   className,
   periods,
   variant = "full",
+  fundamentals = null,
 }: Props) {
   const [tape, setTape] = useState<QuoteTape | null>(null);
   const [loading, setLoading] = useState(false);
@@ -89,12 +108,22 @@ export function QuoteTapeCard({
     span != null && px != null
       ? Math.min(100, Math.max(0, ((px - low!) / span) * 100))
       : null;
-  const cagrCls =
+  const useFundCagr =
+    fundamentals != null &&
+    (fundamentals.revenue_cagr_5y != null ||
+      fundamentals.eps_cagr_5y != null);
+  const rev5 = fundamentals?.revenue_cagr_5y ?? null;
+  const eps5 = fundamentals?.eps_cagr_5y ?? null;
+  const priceCagrCls =
     tape.cagr_pct == null
       ? undefined
       : tape.cagr_pct >= 0
         ? "q-up"
         : "q-down";
+  const revCls =
+    rev5 == null ? undefined : rev5 >= 0 ? "q-up" : "q-down";
+  const epsCls =
+    eps5 == null ? undefined : eps5 >= 0 ? "q-up" : "q-down";
   const dma200Label =
     tape.dma200_alert === "below_200_breakout"
       ? "Below 200 DMA · Fresh breakout"
@@ -121,16 +150,40 @@ export function QuoteTapeCard({
               <span className="wl-tape-stat-label">PE</span>{" "}
               <strong>{tape.pe != null ? tape.pe.toFixed(2) : "—"}</strong>
             </span>
-            <span className="wl-tape-stat">
-              <span className="wl-tape-stat-label">
-                {tape.cagr_years ? `${tape.cagr_years}Y CAGR` : "CAGR"}
-              </span>{" "}
-              <strong className={cagrCls}>
-                {tape.cagr_pct == null
-                  ? "—"
-                  : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
-              </strong>
-            </span>
+            {useFundCagr ? (
+              <>
+                <span
+                  className="wl-tape-stat"
+                  title="Same as Snapshot / Performance — revenue CAGR"
+                >
+                  <span className="wl-tape-stat-label">Rev 5Y</span>{" "}
+                  <strong className={revCls}>{fmtFundCagr(rev5)}</strong>
+                </span>
+                <span
+                  className="wl-tape-stat"
+                  title="Same as Snapshot — EPS CAGR"
+                >
+                  <span className="wl-tape-stat-label">EPS 5Y</span>{" "}
+                  <strong className={epsCls}>{fmtFundCagr(eps5)}</strong>
+                </span>
+              </>
+            ) : (
+              <span
+                className="wl-tape-stat"
+                title="Stock price CAGR from Yahoo history — not revenue/EPS CAGR"
+              >
+                <span className="wl-tape-stat-label">
+                  {tape.cagr_years
+                    ? `${tape.cagr_years}Y price CAGR`
+                    : "Price CAGR"}
+                </span>{" "}
+                <strong className={priceCagrCls}>
+                  {tape.cagr_pct == null
+                    ? "—"
+                    : `${tape.cagr_pct >= 0 ? "+" : ""}${tape.cagr_pct.toFixed(1)}%`}
+                </strong>
+              </span>
+            )}
           </div>
         ) : null}
         {low != null && high != null ? (

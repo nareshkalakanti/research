@@ -1,7 +1,7 @@
 "use client";
 
 import { ExpandBusiness } from "@/components/ExpandBusiness";
-import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { QuartersRankCard } from "@/components/QuartersRankCard";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
@@ -77,9 +77,9 @@ export function StrategyExpandDetail({
           {active === "about" ? (
             <ExpandBusiness data={briefData} />
           ) : (
-            <div className="about-qtr-with-tape">
-              <div className="about-qtr-main">
-                <ExpandQuarters data={quarterData} price={price} />
+            <div className="about-qtr-stack">
+              <div className="about-qtr-card">
+                <QuartersRankCard data={quarterData} price={price} />
               </div>
               <QuoteTapeCard
                 ticker={ticker}

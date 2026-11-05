@@ -7,7 +7,7 @@ import {
 } from "@/components/FundWatchlistTags";
 import { ExpandBusiness } from "@/components/ExpandBusiness";
 import { ExpandMetricsStrip } from "@/components/ExpandMetricsStrip";
-import { ExpandQuarters } from "@/components/ExpandQuarters";
+import { QuartersRankCard } from "@/components/QuartersRankCard";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { HighlightedText } from "@/components/HighlightedText";
 import { GOV_RATNA_LABELS } from "@/lib/gov-psu-meta";
@@ -1466,9 +1466,9 @@ function CompanyRows({
               </div>
 
               {panel === "qtr" ? (
-                <div className="about-qtr-with-tape">
-                  <div className="about-qtr-main">
-                    <ExpandQuarters data={quarterData} price={r.price} />
+                <div className="about-qtr-stack">
+                  <div className="about-qtr-card">
+                    <QuartersRankCard data={quarterData} price={r.price} />
                   </div>
                   <QuoteTapeCard
                     ticker={r.ticker}
