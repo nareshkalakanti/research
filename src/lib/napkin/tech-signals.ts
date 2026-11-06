@@ -1,6 +1,6 @@
 /**
- * Napkin Tech — Price>200 · Trend EMA · TQ RS · Momentum RSI · Strong · Exit.
- * Aligns with Scan: EMA stack idea, TQ weekly RS>0, monthly RSI M / 85–90.
+ * Napkin Tech — Price>200 · Trend EMA · TQ RS · Momentum (RSI score colors).
+ * Aligns with Scan: EMA stack, TQ weekly RS>0, monthly RSI bands.
  */
 import {
   alignBars,
@@ -17,21 +17,16 @@ import {
 } from "@/lib/ohlc";
 import { analyzeMonthlyRsi } from "@/lib/signals";
 
-export type TechCheckStatus = "pass" | "fail" | "unknown";
+/** pass=green 70–85 · strong=amber 85–90 · hot=red ≥90 · unknown=grey <70 / N/A */
+export type TechCheckStatus = "pass" | "strong" | "hot" | "fail" | "unknown";
 
-export type TechGroupId =
-  | "price_200"
-  | "trend"
-  | "tq"
-  | "momentum"
-  | "strong_momentum"
-  | "exit";
+export type TechGroupId = "price_200" | "trend" | "tq" | "momentum";
 
 export type TechGroup = {
   id: TechGroupId;
   label: string;
   status: TechCheckStatus;
-  /** Pass / Fail / N/A, or RSI value for Exit. */
+  /** Pass / Fail / N/A, or RSI reading for Momentum. */
   statusText: string;
   detail: string | null;
 };
@@ -110,6 +105,47 @@ function weeklyTqStrength(
   };
 }
 
+/** Monthly RSI → one Momentum row: color by Scan bands. */
+function momentumFromRsi(
+  mrsi: { rsi: number; crossed_above_70: boolean } | null,
+  monthlyLen: number,
+): TechGroup {
+  if (!mrsi) {
+    return {
+      id: "momentum",
+      label: "Momentum",
+      status: "unknown",
+      statusText: monthlyLen < 16 ? "N/A" : "N/A",
+      detail: monthlyLen < 16 ? "Need history" : "No RSI",
+    };
+  }
+  const r = mrsi.rsi;
+  let status: TechCheckStatus;
+  let band: string;
+  if (r >= 90) {
+    status = "hot";
+    band = "≥ 90 — exit / extended";
+  } else if (r >= 85) {
+    status = "strong";
+    band = "85–90 — strong";
+  } else if (r >= 70) {
+    status = "pass";
+    band = mrsi.crossed_above_70
+      ? "≥ 70 — momentum (crossed above 70)"
+      : "≥ 70 — momentum";
+  } else {
+    status = "unknown";
+    band = "< 70";
+  }
+  return {
+    id: "momentum",
+    label: "Momentum",
+    status,
+    statusText: String(r),
+    detail: `Monthly RSI ${r} · ${band}`,
+  };
+}
+
 export async function loadNapkinTechSignals(
   ticker: string,
   market?: string | null,
@@ -177,75 +213,11 @@ export async function loadNapkinTechSignals(
   // 3. TQ — weekly Relative Strength vs Nifty both > 0 (Scan TQ gate)
   const tq = weeklyTqStrength(weekly, nifty);
 
-  // 4. Momentum — Monthly RSI cross >70 (Scan RSI M)
-  let momentum: TechGroup;
-  if (!mrsi) {
-    momentum = {
-      id: "momentum",
-      label: "Momentum",
-      status: monthlyRsi.length < 16 ? "unknown" : "fail",
-      statusText: monthlyRsi.length < 16 ? "N/A" : "Fail",
-      detail: monthlyRsi.length < 16 ? "Need history" : "No RSI",
-    };
-  } else {
-    const ok = mrsi.crossed_above_70;
-    momentum = {
-      id: "momentum",
-      label: "Momentum",
-      status: ok ? "pass" : "fail",
-      statusText: ok ? "Pass" : "Fail",
-      detail: ok
-        ? `RSI ${mrsi.rsi} · crossed above 70`
-        : `RSI ${mrsi.rsi} · no cross >70`,
-    };
-  }
-
-  // 5. Strong Momentum — Monthly RSI 85–90 (Scan 85–90)
-  let strong: TechGroup;
-  if (!mrsi) {
-    strong = {
-      id: "strong_momentum",
-      label: "Strong Momentum",
-      status: monthlyRsi.length < 16 ? "unknown" : "fail",
-      statusText: monthlyRsi.length < 16 ? "N/A" : "Fail",
-      detail: monthlyRsi.length < 16 ? "Need history" : "No RSI",
-    };
-  } else {
-    const ok = mrsi.rsi >= 85 && mrsi.rsi < 90;
-    strong = {
-      id: "strong_momentum",
-      label: "Strong Momentum",
-      status: ok ? "pass" : "fail",
-      statusText: ok ? "Pass" : "Fail",
-      detail: `RSI ${mrsi.rsi}${ok ? " · 85–90" : ""}`,
-    };
-  }
-
-  // 6. Exit — monthly RSI ≥ 90 (Scan RSI M red / overbought)
-  let exit: TechGroup;
-  if (!mrsi) {
-    exit = {
-      id: "exit",
-      label: "Exit",
-      status: "unknown",
-      statusText: "N/A",
-      detail: monthlyRsi.length < 16 ? "Need history" : "No RSI",
-    };
-  } else {
-    const hot = mrsi.rsi >= 90;
-    exit = {
-      id: "exit",
-      label: "Exit",
-      status: hot ? "fail" : "pass",
-      statusText: hot ? `Fail · ${mrsi.rsi}` : `Pass · ${mrsi.rsi}`,
-      detail: hot
-        ? `Monthly RSI ${mrsi.rsi} ≥ 90 — extended / overbought (Scan red)`
-        : `Monthly RSI ${mrsi.rsi} < 90`,
-    };
-  }
+  // 4. Momentum — one row, color by monthly RSI score
+  const momentum = momentumFromRsi(mrsi, monthlyRsi.length);
 
   return {
     ticker: t,
-    groups: [price200, trend, tq, momentum, strong, exit],
+    groups: [price200, trend, tq, momentum],
   };
 }
