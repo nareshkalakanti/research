@@ -26274,9 +26274,17 @@ tr.wl-prove-fail td {
 }
 
 .napkin-ticker-lg {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 1.7rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+
+.napkin-ticker-lg .watch-btn {
+  font-size: 0.72rem;
+  padding: 3px 10px;
 }
 .napkin-tv-link {
   display: inline-flex;

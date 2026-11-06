@@ -37,6 +37,7 @@ import {
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { napkinUrl } from "@/lib/links";
 import { epsFromQuarterPanel } from "@/lib/valuation";
+import { WatchButton } from "@/components/WatchButton";
 /** Exchange universes only — same List as Scan / Themes. */
 const PEAD_LISTS = ["All", "NSE", "NSE SME", "BSE SME"] as const;
 type PeadList = (typeof PEAD_LISTS)[number];
@@ -281,6 +282,7 @@ function PeadOpenDetail({
       <td colSpan={colSpan}>
         <div className="pead2-expand pead2-expand--detail">
           <p className="pead2-expand-meta">
+            <WatchButton ticker={row.ticker} />
             <span className="mono">{row.ticker}</span>
             {row.sector ? <span>{row.sector}</span> : null}
             {mcapShow != null ? (
@@ -765,6 +767,7 @@ export function PeadPanel() {
               {row.name}
             </button>
             <div className="pead2-co-meta">
+              <WatchButton ticker={row.ticker} />
               <span className="mono">{row.ticker}</span>
               {row.cap_code ? (
                 <span
