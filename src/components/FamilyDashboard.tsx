@@ -10,7 +10,12 @@ import {
 import { CompanyNetworkTable } from "@/components/CompanyNetworkTable";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
+import { OutsideMissingDinTable } from "@/components/OutsideMissingDinTable";
 import { GroupRankTable } from "@/components/GroupRankTable";
+import {
+  TickerSuggest,
+  type TickerSuggestHit,
+} from "@/components/TickerSuggest";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import {
   tradingviewUrl,
@@ -26,7 +31,9 @@ type DashView =
   | "people"
   | "stock"
   | "network"
-  | "outside";
+  | "outside"
+  | "outside-din"
+  | "small";
 
 function stubCompany(
   ticker: string,
@@ -54,8 +61,10 @@ export function FamilyDashboard() {
   const tabState = useOptionalAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
   const [holdings, setHoldings] = useState<FamilyRow[]>([]);
+  const [smallMaps, setSmallMaps] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
+  const [smallLoading, setSmallLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [dashHits, setDashHits] = useState<DashSuggestHit[]>([]);
@@ -64,7 +73,6 @@ export function FamilyDashboard() {
   const [newName, setNewName] = useState("");
   const [newTickers, setNewTickers] = useState<Array<{ ticker: string; name: string }>>([]);
   const [newQ, setNewQ] = useState("");
-  const [newHits, setNewHits] = useState<Array<{ ticker: string; name: string }>>([]);
   const [creating, setCreating] = useState(false);
   const [addWork, setAddWork] = useState<FamilyAddWork | null>(null);
   const [dashView, setDashView] = useState<DashView>("groups");
@@ -72,6 +80,11 @@ export function FamilyDashboard() {
   const [holdingFilter, setHoldingFilter] = useState("");
   const [onlyMissingDin, setOnlyMissingDin] = useState(false);
   const [onlyUnconnected, setOnlyUnconnected] = useState(false);
+  /** Small tab: sc-sub = small + under ₹500 Cr (Zodiac-style solos). */
+  const [smallCap, setSmallCap] = useState<"sc-sub" | "sub500" | "sc" | "all">(
+    "sc-sub",
+  );
+  const [smallLimit, setSmallLimit] = useState(60);
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -84,37 +97,63 @@ export function FamilyDashboard() {
   } | null>(null);
   const hasGroups = useRef(false);
   const hasHoldings = useRef(false);
+  const hasSmall = useRef(false);
+  /**
+   * After DIN/group writes: mark stale so the next relevant view reloads.
+   * Start false — cold load uses cache miss, not refresh=1 (closes the DB reader).
+   */
+  const groupsStale = useRef(false);
+  const peopleStale = useRef(false);
+  const holdingsStale = useRef(false);
+  const networkStale = useRef(false);
+  const smallStale = useRef(false);
+  const loadGen = useRef(0);
+  const mapChangeTimer = useRef<number | null>(null);
 
-  const load = useCallback(async (opts?: { refresh?: boolean }) => {
-    const hard = opts?.refresh === true;
-    if (!hasGroups.current) setLoading(true);
-    if (hard) setRefreshingBox((cur) => cur || "*");
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        view: "family",
-        page: "1",
-        pageSize: "5000",
-      });
-      if (hard) params.set("refresh", "1");
-      const url = `/api/governance-map?${params}`;
-      let res = await fetch(url, { cache: "no-store" });
-      if (res.status === 503) {
-        await new Promise((r) => setTimeout(r, 500));
-        res = await fetch(url, { cache: "no-store" });
+  const load = useCallback(
+    async (opts?: { refresh?: boolean; soft?: boolean }) => {
+      const hard = opts?.refresh === true;
+      const soft = opts?.soft === true;
+      const gen = ++loadGen.current;
+      if (!hasGroups.current) setLoading(true);
+      if (hard && !soft) setRefreshingBox((cur) => cur || "*");
+      if (!soft) setError(null);
+      try {
+        const params = new URLSearchParams({
+          view: "family",
+          page: "1",
+          pageSize: "5000",
+        });
+        // Writers already call invalidateGovernanceMapCache — avoid refresh=1
+        // (closes the gov reader) racing a rebuild after delete/remove.
+        if (hard && !soft) params.set("refresh", "1");
+        const url = `/api/governance-map?${params}`;
+        let res = await fetch(url, { cache: "no-store" });
+        if (res.status === 503) {
+          await new Promise((r) => setTimeout(r, 500));
+          res = await fetch(url, { cache: "no-store" });
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = (await res.json()) as { rows?: FamilyRow[] };
+        if (gen !== loadGen.current) return;
+        const next = json.rows ?? [];
+        hasGroups.current = next.length > 0;
+        groupsStale.current = false;
+        setRows(next);
+      } catch (e) {
+        if (gen !== loadGen.current) return;
+        // Soft reconcile after delete: keep optimistic rows if rebuild is slow.
+        if (soft && hasGroups.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (gen === loadGen.current) {
+          setLoading(false);
+          setRefreshingBox(null);
+        }
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { rows?: FamilyRow[] };
-      const next = json.rows ?? [];
-      hasGroups.current = next.length > 0;
-      setRows(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-      setRefreshingBox(null);
-    }
-  }, []);
+    },
+    [],
+  );
 
 
   const loadHoldingMaps = useCallback(async (opts?: { refresh?: boolean }) => {
@@ -141,6 +180,35 @@ export function FamilyDashboard() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setHoldingsLoading(false);
+      setRefreshingBox(null);
+    }
+  }, []);
+
+  const loadSmallMaps = useCallback(async (opts?: { refresh?: boolean }) => {
+    const hard = opts?.refresh === true;
+    if (!hasSmall.current) setSmallLoading(true);
+    if (hard) setRefreshingBox((cur) => cur || "*");
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        view: "ungrouped",
+        page: "1",
+        pageSize: "5000",
+      });
+      if (hard) params.set("refresh", "1");
+      const res = await fetch(`/api/governance-map?${params}`, {
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as { rows?: FamilyRow[] };
+      const next = json.rows ?? [];
+      hasSmall.current = next.length > 0;
+      smallStale.current = false;
+      setSmallMaps(next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSmallLoading(false);
       setRefreshingBox(null);
     }
   }, []);
@@ -198,38 +266,65 @@ export function FamilyDashboard() {
     }
   }, []);
 
+  // One family-map fetch for Groups / Outside / Outside DIN / Group — no double mount.
   useEffect(() => {
     if (tabState?.tab && tabState.tab !== "dashboard") return;
-    if (hasGroups.current) return;
-    void load();
-  }, [tabState?.tab, load]);
-
-  // Outside / Group rank derive from Business groups rows — keep them loaded.
-  useEffect(() => {
-    if (dashView !== "outside" && dashView !== "group-rank") return;
-    if (!hasGroups.current) void load();
-  }, [dashView, load]);
+    if (
+      dashView !== "groups" &&
+      dashView !== "outside" &&
+      dashView !== "outside-din" &&
+      dashView !== "group-rank"
+    ) {
+      return;
+    }
+    if (!groupsStale.current && hasGroups.current) return;
+    // Hard refresh only when updating already-loaded stale data (writers invalidate).
+    const hard = groupsStale.current && hasGroups.current;
+    void load({ refresh: hard });
+  }, [tabState?.tab, dashView, load]);
 
   useEffect(() => {
     const onChange = () => {
-      if (dashView === "people") {
-        const needle = q.trim();
-        void loadPeople({
-          refresh: true,
-          q: needle.length >= 2 ? needle : undefined,
-        });
-      } else if (dashView === "holdings") void loadHoldingMaps({ refresh: true });
-      else if (
-        dashView === "groups" ||
-        dashView === "group-rank" ||
-        dashView === "outside"
-      ) {
-        void load({ refresh: true });
-      } else if (dashView === "network") setNetworkRefreshKey((k) => k + 1);
+      groupsStale.current = true;
+      peopleStale.current = true;
+      holdingsStale.current = true;
+      networkStale.current = true;
+      smallStale.current = true;
+      if (mapChangeTimer.current != null) {
+        window.clearTimeout(mapChangeTimer.current);
+      }
+      // Debounce: delete/remove already patched rows; wait for server invalidate.
+      mapChangeTimer.current = window.setTimeout(() => {
+        mapChangeTimer.current = null;
+        // Soft fetch: cache already cleared by writer; avoid refresh=1 race.
+        void load({ soft: true });
+        if (dashView === "people") {
+          peopleStale.current = false;
+          const needle = q.trim();
+          void loadPeople({
+            q: needle.length >= 2 ? needle : undefined,
+          });
+        } else if (dashView === "holdings") {
+          holdingsStale.current = false;
+          void loadHoldingMaps();
+        } else if (dashView === "small") {
+          smallStale.current = false;
+          void loadSmallMaps();
+        } else if (dashView === "network") {
+          networkStale.current = false;
+          setNetworkRefreshKey((k) => k + 1);
+        }
+      }, 350);
     };
     window.addEventListener(GOV_MAP_CHANGED, onChange);
-    return () => window.removeEventListener(GOV_MAP_CHANGED, onChange);
-  }, [dashView, q, load, loadPeople, loadHoldingMaps]);
+    return () => {
+      window.removeEventListener(GOV_MAP_CHANGED, onChange);
+      if (mapChangeTimer.current != null) {
+        window.clearTimeout(mapChangeTimer.current);
+        mapChangeTimer.current = null;
+      }
+    };
+  }, [dashView, q, load, loadPeople, loadHoldingMaps, loadSmallMaps]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -253,19 +348,45 @@ export function FamilyDashboard() {
   useEffect(() => {
     if (dashView !== "people") return;
     const needle = q.trim();
+    const hard = peopleStale.current;
     if (needle.length < 2) {
-      void loadPeople();
+      peopleStale.current = false;
+      void loadPeople(hard ? { refresh: true } : undefined);
       return;
     }
     const t = window.setTimeout(() => {
-      void loadPeople({ q: needle });
+      peopleStale.current = false;
+      void loadPeople(hard ? { refresh: true, q: needle } : { q: needle });
     }, 220);
     return () => window.clearTimeout(t);
   }, [dashView, q, loadPeople]);
 
   useEffect(() => {
-    if (dashView === "holdings") void loadHoldingMaps();
+    if (dashView !== "holdings") return;
+    if (hasHoldings.current && !holdingsStale.current) return;
+    const hard = holdingsStale.current && hasHoldings.current;
+    holdingsStale.current = false;
+    void loadHoldingMaps(hard ? { refresh: true } : undefined);
   }, [dashView, loadHoldingMaps]);
+
+  useEffect(() => {
+    if (dashView !== "small") return;
+    if (hasSmall.current && !smallStale.current) return;
+    const hard = smallStale.current && hasSmall.current;
+    smallStale.current = false;
+    void loadSmallMaps(hard ? { refresh: true } : undefined);
+  }, [dashView, loadSmallMaps]);
+
+  useEffect(() => {
+    setSmallLimit(60);
+  }, [q, smallCap]);
+
+  useEffect(() => {
+    if (dashView !== "network") return;
+    if (!networkStale.current) return;
+    networkStale.current = false;
+    setNetworkRefreshKey((k) => k + 1);
+  }, [dashView]);
 
   useEffect(() => {
     void fetch("/api/holdings-pattern", { cache: "no-store" })
@@ -285,9 +406,10 @@ export function FamilyDashboard() {
     const map = new Map<string, string>();
     for (const f of rows) for (const c of f.companies) map.set(c.ticker, c.market);
     for (const f of holdings) for (const c of f.companies) map.set(c.ticker, c.market);
+    for (const f of smallMaps) for (const c of f.companies) map.set(c.ticker, c.market);
     for (const p of people) for (const c of p.companies) map.set(c.ticker, c.market);
     return map;
-  }, [rows, holdings, people]);
+  }, [rows, holdings, smallMaps, people]);
 
   const groupOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -337,14 +459,19 @@ export function FamilyDashboard() {
       if (onlyMissingDin && !groupHasMissingDin(f)) return false;
       if (onlyUnconnected && !groupHasUnconnected(f)) return false;
       if (!needle) return true;
+      const tickerHit = (t: string) => {
+        const sym = t.toLowerCase();
+        return sym === needle || sym.startsWith(needle) || sym.includes(needle);
+      };
       return (
         f.family_name.toLowerCase().includes(needle) ||
         f.companies.some(
-          (c) =>
-            c.ticker.toLowerCase().startsWith(needle) ||
-            c.name.toLowerCase().includes(needle),
+          (c) => tickerHit(c.ticker) || c.name.toLowerCase().includes(needle),
         ) ||
-        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle))
+        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
+        (f.outside ?? []).some(
+          (o) => tickerHit(o.ticker) || o.name.toLowerCase().includes(needle),
+        )
       );
     });
   }, [rows, q, groupFilter, onlyMissingDin, onlyUnconnected]);
@@ -404,6 +531,66 @@ export function FamilyDashboard() {
     );
     return out;
   }, [holdings]);
+
+  const smallCapBand = (
+    cap_code?: string | null,
+    market_cap_cr?: number | null,
+  ): "lc" | "mc" | "sc" | "sub500" | null => {
+    const mcap = market_cap_cr == null ? null : Number(market_cap_cr);
+    if (mcap != null && Number.isFinite(mcap) && mcap > 0 && mcap < 500) {
+      return "sub500";
+    }
+    const cap = (cap_code || "").toLowerCase();
+    if (cap === "ti" || cap === "mic") return "sub500";
+    if (cap === "lc" || cap === "mc" || cap === "sc") return cap;
+    if (mcap == null || !Number.isFinite(mcap) || mcap <= 0) return null;
+    if (mcap >= 20_000) return "lc";
+    if (mcap >= 5_000) return "mc";
+    return "sc";
+  };
+
+  const filteredSmallMaps = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = smallMaps.filter((f) => {
+      const lead = f.companies[0];
+      const band = smallCapBand(lead?.cap_code, lead?.market_cap_cr);
+      if (smallCap === "sc-sub" && band !== "sc" && band !== "sub500") {
+        return false;
+      }
+      if (smallCap === "sub500" && band !== "sub500") return false;
+      if (smallCap === "sc" && band !== "sc") return false;
+      if (!needle) return true;
+      return (
+        f.family_name.toLowerCase().includes(needle) ||
+        f.companies.some(
+          (c) =>
+            c.ticker.toLowerCase().startsWith(needle) ||
+            c.name.toLowerCase().includes(needle),
+        ) ||
+        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
+        (f.outside ?? []).some(
+          (o) =>
+            o.ticker.toLowerCase().startsWith(needle) ||
+            o.name.toLowerCase().includes(needle),
+        )
+      );
+    });
+    // Zodiac-style: richest outside networks first among ungrouped solos.
+    return [...list].sort((a, b) => {
+      const ao = a.outside?.length ?? 0;
+      const bo = b.outside?.length ?? 0;
+      if (bo !== ao) return bo - ao;
+      const ap = a.people?.length ?? 0;
+      const bp = b.people?.length ?? 0;
+      if (bp !== ap) return bp - ap;
+      const am = a.companies[0]?.market_cap_cr ?? -1;
+      const bm = b.companies[0]?.market_cap_cr ?? -1;
+      if (bm !== am) return bm - am;
+      return a.family_name.localeCompare(b.family_name, undefined, {
+        sensitivity: "base",
+      });
+    });
+  }, [smallMaps, q, smallCap]);
 
   const filteredHoldings = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -475,8 +662,15 @@ export function FamilyDashboard() {
         f.family_name.toLowerCase().includes(low) ||
         f.companies.some(
           (c) =>
+            c.ticker.toLowerCase() === low ||
             c.ticker.toLowerCase().startsWith(low) ||
+            c.ticker.toLowerCase().includes(low) ||
             c.name.toLowerCase().includes(low),
+        ) ||
+        (f.outside ?? []).some(
+          (o) =>
+            o.ticker.toLowerCase().includes(low) ||
+            o.name.toLowerCase().includes(low),
         )
       ) {
         seenG.add(key);
@@ -642,17 +836,18 @@ export function FamilyDashboard() {
     setQ("");
   }, [dashView, rows, holdings]);
 
-  const companySearch = useCallback(async (query: string) => {
-    const res = await fetch(
-      `/api/tickers?q=${encodeURIComponent(query)}&limit=14`,
-      { cache: "no-store" },
+  const addCreateTicker = (
+    hit: TickerSuggestHit | { ticker: string; name: string },
+  ) => {
+    const t = hit.ticker.trim().toUpperCase();
+    if (!t) return;
+    setNewTickers((rows) =>
+      rows.some((x) => x.ticker.toUpperCase() === t)
+        ? rows
+        : [...rows, { ticker: t, name: hit.name || t }],
     );
-    if (!res.ok) return [];
-    const json = (await res.json()) as {
-      hits?: Array<{ ticker: string; name: string }>;
-    };
-    return (json.hits ?? []).map((h) => ({ ticker: h.ticker, name: h.name }));
-  }, []);
+    setNewQ("");
+  };
 
   const ensureUserGroup = useCallback(async (g: FamilyRow) => {
     if (g.group_id?.startsWith("user-")) return g.group_id;
@@ -675,21 +870,6 @@ export function FamilyDashboard() {
     }
     return json.group_id;
   }, []);
-
-  useEffect(() => {
-    const needle = newQ.trim();
-    if (!adding || needle.length < 2) {
-      setNewHits([]);
-      return;
-    }
-    const skip = new Set(newTickers.map((t) => t.ticker.toUpperCase()));
-    const t = window.setTimeout(() => {
-      void companySearch(needle).then((rows) => {
-        setNewHits(rows.filter((r) => !skip.has(r.ticker.toUpperCase())).slice(0, 8));
-      });
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [adding, newQ, newTickers, companySearch]);
 
   const createGroup = async () => {
     const label = newName.replace(/\s+/g, " ").trim();
@@ -820,22 +1000,34 @@ export function FamilyDashboard() {
               role="tab"
               className={dashView === "outside" ? "tab on" : "tab"}
               aria-selected={dashView === "outside"}
-              onClick={() => {
-                setDashView("outside");
-                if (!hasGroups.current) void load();
-              }}
+              onClick={() => setDashView("outside")}
             >
               Outside
             </button>
             <button
               type="button"
               role="tab"
+              className={dashView === "outside-din" ? "tab on" : "tab"}
+              aria-selected={dashView === "outside-din"}
+              onClick={() => setDashView("outside-din")}
+            >
+              Outside DIN
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={dashView === "small" ? "tab on" : "tab"}
+              aria-selected={dashView === "small"}
+              onClick={() => setDashView("small")}
+            >
+              Small
+            </button>
+            <button
+              type="button"
+              role="tab"
               className={dashView === "group-rank" ? "tab on" : "tab"}
               aria-selected={dashView === "group-rank"}
-              onClick={() => {
-                setDashView("group-rank");
-                if (!hasGroups.current) void load();
-              }}
+              onClick={() => setDashView("group-rank")}
             >
               Group
             </button>
@@ -853,6 +1045,10 @@ export function FamilyDashboard() {
                   ? "Cap Gap and Holdings: board-linked market-cap gap columns. Counts are facts, not scores."
                   : dashView === "outside"
                     ? "Commons list: stocks that appear as Outside boards across many business groups. Higher count = more cross-group director links."
+                    : dashView === "outside-din"
+                      ? "Outside boards still missing DIN coverage (0 seats or verified < directors). Same stocks as Outside, filtered to DIN gaps."
+                      : dashView === "small"
+                        ? "Same cards as Business groups / Holdings: one ungrouped stock map (company · linking people · outside boards). Default Small + under ₹500 Cr."
                   : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
@@ -860,6 +1056,7 @@ export function FamilyDashboard() {
           {dashView !== "stock" &&
           dashView !== "network" &&
           dashView !== "outside" &&
+          dashView !== "outside-din" &&
           dashView !== "group-rank" ? (
             <>
           {dashView === "groups" ? (
@@ -914,13 +1111,33 @@ export function FamilyDashboard() {
               </select>
             </label>
           ) : null}
+          {dashView === "small" ? (
+            <label className="fam-dash-group-filter">
+              <select
+                className="fam-dash-search fam-dash-group-select"
+                value={smallCap}
+                onChange={(e) => {
+                  setSmallCap(
+                    e.target.value as "sc-sub" | "sub500" | "sc" | "all",
+                  );
+                  setSmallLimit(60);
+                }}
+                aria-label="Small-cap band"
+              >
+                <option value="sc-sub">Small + under ₹500</option>
+                <option value="sub500">Under ₹500 Cr</option>
+                <option value="sc">Small cap</option>
+                <option value="all">All ungrouped</option>
+              </select>
+            </label>
+          ) : null}
           <FamilyDashSearch
             value={q}
             onChange={setQ}
             placeholder={
               dashView === "people"
                 ? "Person, DIN, ticker or company…"
-                : dashView === "holdings"
+                : dashView === "holdings" || dashView === "small"
                   ? "Ticker, company, director or outside board…"
                   : "Group, ticker, company or director…"
             }
@@ -953,6 +1170,8 @@ export function FamilyDashboard() {
                     })
                   : dashView === "holdings"
                     ? loadHoldingMaps({ refresh: true })
+                    : dashView === "small"
+                      ? loadSmallMaps({ refresh: true })
                     : load({ refresh: true }))
             }
             disabled={
@@ -962,6 +1181,8 @@ export function FamilyDashboard() {
                   ? peopleLoading
                   : dashView === "holdings"
                     ? holdingsLoading
+                    : dashView === "small"
+                      ? smallLoading
                     : loading
             }
           >
@@ -971,6 +1192,8 @@ export function FamilyDashboard() {
                 ? peopleLoading
                 : dashView === "holdings"
                   ? holdingsLoading
+                  : dashView === "small"
+                    ? smallLoading
                   : loading)
               ? "Loading…"
               : "Refresh"}
@@ -1014,36 +1237,16 @@ export function FamilyDashboard() {
               </span>
             ))}
             <div className="gov-family-add fam-dash-create-add">
-              <input
-                type="search"
-                className="gov-family-add-input"
-                placeholder="Add company…"
+              <TickerSuggest
                 value={newQ}
-                onChange={(e) => setNewQ(e.target.value)}
+                onChange={setNewQ}
+                onSelect={addCreateTicker}
+                onSubmit={(t) => addCreateTicker({ ticker: t, name: t })}
+                clearOnSelect
+                placeholder="Search ticker or company…"
+                className="theme-stock-suggest-input"
+                submitLabel="add"
               />
-              {newHits.length ? (
-                <ul className="gov-family-add-hits">
-                  {newHits.map((h) => (
-                    <li key={h.ticker}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setNewTickers((rows) =>
-                            rows.some((x) => x.ticker === h.ticker)
-                              ? rows
-                              : [...rows, h],
-                          );
-                          setNewQ("");
-                          setNewHits([]);
-                        }}
-                      >
-                        <span className="mono">{h.ticker}</span>
-                        <span>{h.name}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
             </div>
           </div>
           <button
@@ -1072,6 +1275,7 @@ export function FamilyDashboard() {
       dashView !== "stock" &&
       dashView !== "network" &&
       dashView !== "outside" &&
+      dashView !== "outside-din" &&
       dashView !== "group-rank" ? (
         <div className="table-meta">Could not load: {error}</div>
       ) : null}
@@ -1099,6 +1303,44 @@ export function FamilyDashboard() {
             setDashView("stock");
           }}
         />
+      ) : dashView === "outside-din" ? (
+        <OutsideMissingDinTable
+          rows={rows}
+          loading={loading}
+          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+          onTicker={(t) => {
+            setStockFocus(t);
+            setDashView("stock");
+          }}
+        />
+      ) : dashView === "small" ? (
+        smallLoading && !smallMaps.length ? (
+          <div className="table-meta">Loading small-cap maps…</div>
+        ) : (
+          <>
+            <FamilyMapCards
+              rows={filteredSmallMaps.slice(0, smallLimit)}
+              onPerson={(id, name) => openPerson(id, name)}
+              chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+              onRefresh={(g) => {
+                setRefreshingBox(g.group_id || g.family_name);
+                void loadSmallMaps({ refresh: true });
+              }}
+              refreshing={refreshingBox}
+            />
+            {filteredSmallMaps.length > smallLimit ? (
+              <div className="fam-dash-more">
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => setSmallLimit((n) => n + 60)}
+                >
+                  Show more ({filteredSmallMaps.length - smallLimit} left)
+                </button>
+              </div>
+            ) : null}
+          </>
+        )
       ) : dashView === "network" ? (
         <CompanyNetworkTable
           onPerson={(id, name) => openPerson(id, name)}
@@ -1158,7 +1400,6 @@ export function FamilyDashboard() {
           addWork={addWork}
           onPerson={(id, name) => openPerson(id, name)}
           chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-          companySearch={companySearch}
           onRefresh={(g) => {
             setRefreshingBox(g.group_id || g.family_name);
             void load({ refresh: true });
@@ -1166,17 +1407,34 @@ export function FamilyDashboard() {
           refreshing={refreshingBox}
           onDeleteGroup={async (g) => {
             if (!g.group_id) return;
+            const tickers = [
+              ...new Set(
+                [
+                  ...g.companies.map((c) => c.ticker),
+                  ...(g.listings ?? []).map((c) => c.ticker),
+                ]
+                  .map((t) => t.trim().toUpperCase())
+                  .filter(Boolean),
+              ),
+            ];
             const res = await fetch("/api/family-groups", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 group_id: g.group_id,
                 deleteGroup: true,
-                tickers: g.companies.map((c) => c.ticker),
+                tickers,
               }),
             });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = (await res.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+            if (!res.ok) {
+              setError(json?.error || `Could not remove group (${res.status})`);
+              return;
+            }
             setRows((prev) => prev.filter((row) => row.group_id !== g.group_id));
+            groupsStale.current = false;
             notifyGovMapChanged();
           }}
           onRename={async (g, label) => {
@@ -1186,7 +1444,13 @@ export function FamilyDashboard() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ group_id: g.group_id, rename: true, label }),
             });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = (await res.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+            if (!res.ok) {
+              setError(json?.error || `Could not rename (${res.status})`);
+              return;
+            }
             const name = label.replace(/\s+/g, " ").trim();
             setRows((prev) =>
               prev.map((row) =>
@@ -1205,7 +1469,13 @@ export function FamilyDashboard() {
                 ticker,
               }),
             });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = (await res.json().catch(() => null)) as {
+              error?: string;
+            } | null;
+            if (!res.ok) {
+              setError(json?.error || `Could not remove company (${res.status})`);
+              return;
+            }
             const t = ticker.trim().toUpperCase();
             setRows((prev) =>
               prev.map((row) => {
@@ -1220,6 +1490,8 @@ export function FamilyDashboard() {
                 };
               }),
             );
+            groupsStale.current = false;
+            notifyGovMapChanged();
           }}
           onAddCompany={async (g, ticker, name) => {
             if (!g.group_id) return;

@@ -55,31 +55,39 @@ export async function POST(req: NextRequest) {
   if (!groupId) {
     return NextResponse.json({ ok: false, error: "Need group_id" }, { status: 400 });
   }
-  if (body.rename) {
-    const saved = renameFamilyGroup(groupId, body.label || "");
-    if (!saved) {
-      return NextResponse.json({ ok: false, error: "Need a group name" }, { status: 400 });
-    }
-  } else if (body.add) {
-    const saved = addFamilyGroupTicker(groupId, body.ticker || "");
-    if (!saved) {
-      return NextResponse.json({ ok: false, error: "Need a ticker" }, { status: 400 });
-    }
-  } else if (body.deleteGroup) {
-    const ok = deleteFamilyGroup(groupId, body.tickers || []);
-    if (!ok) {
+  try {
+    if (body.rename) {
+      const saved = renameFamilyGroup(groupId, body.label || "");
+      if (!saved) {
+        return NextResponse.json({ ok: false, error: "Need a group name" }, { status: 400 });
+      }
+    } else if (body.add) {
+      const saved = addFamilyGroupTicker(groupId, body.ticker || "");
+      if (!saved) {
+        return NextResponse.json({ ok: false, error: "Need a ticker" }, { status: 400 });
+      }
+    } else if (body.deleteGroup) {
+      const ok = deleteFamilyGroup(groupId, body.tickers || []);
+      if (!ok) {
+        return NextResponse.json(
+          { ok: false, error: "Could not remove group" },
+          { status: 400 },
+        );
+      }
+    } else if (body.remove) {
+      const saved = removeFamilyGroupTicker(groupId, body.ticker || "");
+      if (!saved) {
+        return NextResponse.json({ ok: false, error: "Need a ticker" }, { status: 400 });
+      }
+    } else {
       return NextResponse.json(
-        { ok: false, error: "Could not remove group" },
+        { ok: false, error: "Need rename, add, remove, or deleteGroup" },
         { status: 400 },
       );
     }
-  } else if (body.remove) {
-    const saved = removeFamilyGroupTicker(groupId, body.ticker || "");
-    if (!saved) {
-      return NextResponse.json({ ok: false, error: "Need a ticker" }, { status: 400 });
-    }
-  } else {
-    return NextResponse.json({ ok: false, error: "Need rename, add, or remove" }, { status: 400 });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ ok: false, error: msg }, { status: 500 });
   }
   invalidateGovernanceMapCache();
   return NextResponse.json({ ok: true as const, group_id: groupId });

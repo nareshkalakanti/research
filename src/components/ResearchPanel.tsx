@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AnalystResearchPanel } from "@/components/AnalystResearchPanel";
 import { BuybackResearchPanel } from "@/components/BuybackResearchPanel";
 import { ConcallResearchPanel } from "@/components/ConcallResearchPanel";
+import { AutoDinsResearchPanel } from "@/components/AutoDinsResearchPanel";
 import { DinFillResearchPanel } from "@/components/DinFillResearchPanel";
 import { OrderbookResearchPanel } from "@/components/OrderbookResearchPanel";
 import { SectorShotPanel } from "@/components/SectorShotPanel";
@@ -92,8 +93,15 @@ export function ResearchPanel() {
         <DinFillResearchPanel />
       </ResearchSection>
       <ResearchSection
+        id="research-auto-dins"
+        title="7 · Auto DINs"
+        defaultOpen={false}
+      >
+        <AutoDinsResearchPanel />
+      </ResearchSection>
+      <ResearchSection
         id="research-sector"
-        title="6 · Add sector"
+        title="8 · Add sector"
         defaultOpen
       >
         <SectorShotPanel />

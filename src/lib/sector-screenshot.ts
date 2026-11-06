@@ -136,18 +136,34 @@ export async function importSectorFromScreenshot(
   let ocr = "";
   let nameOcr = "";
   try {
-    const pair = await Promise.all([
-      ocrImageWithQianfan(imageDataUrl, OCR_PROMPT, 2560, {
-        maxEdge: 1152,
-        numCtx: 8192,
-      }),
-      ocrImageWithQianfan(imageDataUrl, NAMES_OCR, 2048, {
-        maxEdge: 1152,
-        numCtx: 8192,
-      }),
-    ]);
-    ocr = pair[0];
-    nameOcr = pair[1];
+    // One Tesseract pass first — dual vision OCR was ~80s for simple tables.
+    const { tesseractFromDataUrl, localOcrLooksUseful } = await import(
+      "./ocr-fast"
+    );
+    const local = await tesseractFromDataUrl(imageDataUrl);
+    if (local && localOcrLooksUseful(local)) {
+      const localParsed = parseSectorScreenshot(local);
+      if (localParsed.names.length >= 3) {
+        ocr = local;
+        nameOcr = local;
+      }
+    }
+    if (!ocr) {
+      const pair = await Promise.all([
+        ocrImageWithQianfan(imageDataUrl, OCR_PROMPT, 2560, {
+          maxEdge: 1152,
+          numCtx: 8192,
+          forceVision: true,
+        }),
+        ocrImageWithQianfan(imageDataUrl, NAMES_OCR, 2048, {
+          maxEdge: 1152,
+          numCtx: 8192,
+          forceVision: true,
+        }),
+      ]);
+      ocr = pair[0];
+      nameOcr = pair[1];
+    }
   } finally {
     clearInterval(beat);
   }

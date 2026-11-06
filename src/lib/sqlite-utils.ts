@@ -286,9 +286,11 @@ export function openSqlite(
     if (!autoRecover || !isSqliteCorrupt(err)) throw err;
 
     removeWalSidecars(dbPath);
+    let second: unknown = err;
     try {
       return openRaw(dbPath, opts);
     } catch (err2) {
+      second = err2;
       if (!isSqliteCorrupt(err2)) throw err2;
     }
 
@@ -296,8 +298,13 @@ export function openSqlite(
       return openRaw(dbPath, opts);
     }
 
-    // company_about is seed-backed — rehydrate when recover still fails.
-    if (path.basename(dbPath) === "company_about.db") {
+    // company_about is seed-backed — rehydrate only for true corruption, never
+    // on SHORT_READ / busy I/O (that would wipe live bootstrap / DIN writes).
+    if (
+      path.basename(dbPath) === "company_about.db" &&
+      !isSqliteWalDamage(err) &&
+      !isSqliteWalDamage(second)
+    ) {
       try {
         const seed = path.join(DB_SEED_DIR, "company_about.db");
         if (fs.existsSync(seed)) {

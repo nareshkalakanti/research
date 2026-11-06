@@ -48,6 +48,36 @@ function companyExists(ticker: string): boolean {
   }
 }
 
+/** Governance may already have a thin BSE stub from DIN / people maps. */
+function governanceCompany(
+  ticker: string,
+): { name: string; market: string } | null {
+  try {
+    const db = openSqliteNamed("governance.db", {
+      readonly: true,
+      fileMustExist: true,
+    });
+    try {
+      const row = db
+        .prepare(
+          `SELECT name, market FROM companies WHERE UPPER(ticker) = ?`,
+        )
+        .get(ticker.toUpperCase()) as
+        | { name: string | null; market: string | null }
+        | undefined;
+      if (!row) return null;
+      const name = String(row.name || "").trim();
+      const market = String(row.market || "").trim();
+      if (!name && !market) return null;
+      return { name: name || ticker.toUpperCase(), market: market || "BSE" };
+    } finally {
+      db.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 async function resolveFromNse(
   ticker: string,
 ): Promise<{ name: string; market: string } | null> {
@@ -130,6 +160,7 @@ async function bootstrapListedTicker(
 
   const hintName = (opts?.name || "").trim();
   const hintMarket = (opts?.market || "").trim().toUpperCase();
+  const gov = governanceCompany(key);
 
   const nse = await resolveFromNse(key);
   const quoteNse = await fetchQuoteDetailed(key, nse?.market || "NSE");
@@ -144,14 +175,17 @@ async function bootstrapListedTicker(
 
   let market = nse?.market || "";
   if (!market) {
-    if (bseHit && (!nseHit || (usedBo && !usedNs))) market = "BSE";
+    if (hintMarket.startsWith("BSE")) market = "BSE";
+    else if (hintMarket.startsWith("NSE")) market = hintMarket;
+    else if (gov?.market) market = gov.market;
+    else if (bseHit && (!nseHit || (usedBo && !usedNs))) market = "BSE";
     else if (nseHit) market = "NSE";
   }
 
   const quote = market.startsWith("BSE") ? quoteBse : quoteNse;
   const hasQuote = quote.price != null || quote.mcap_cr != null;
 
-  let name = nse?.name || hintName || key;
+  let name = nse?.name || hintName || gov?.name || key;
   let webProfiles: Awaited<ReturnType<typeof fetchWebProfiles>> = [];
   try {
     webProfiles = await fetchWebProfiles(
@@ -207,7 +241,10 @@ async function bootstrapListedTicker(
   const webOk = webProfiles.some(
     (p) => p.matched_name || p.mcap_cr != null || p.price != null,
   );
-  if (!nse && !hasQuote && !webOk) return false;
+  // Thin BSE / DIN stubs often have no Yahoo quote — still add when the
+  // caller named the company or governance already has the listing.
+  const namedOk = hintName.length >= 3 || !!gov;
+  if (!nse && !hasQuote && !webOk && !namedOk) return false;
   if (!ensureCompanyAboutRow(key, { name, market })) return false;
 
   ensureGovernanceCompanyStub({ ticker: key, name, market });
