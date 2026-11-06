@@ -107,6 +107,97 @@ function sharedPrefixLen(a: string, b: string): number {
   return i;
 }
 
+/** Geographic / legal glue — not product identity. */
+const LABEL_STOP = new Set([
+  "india",
+  "indian",
+  "bharat",
+  "global",
+  "international",
+  "worldwide",
+  "group",
+  "holdings",
+  "holding",
+  "industries",
+  "industrial",
+  "industry",
+  "enterprises",
+  "enterprise",
+  "services",
+  "service",
+  "solutions",
+  "solution",
+  "technologies",
+  "technology",
+  "tech",
+  "systems",
+  "system",
+  "products",
+  "product",
+  "corporation",
+  "corp",
+  "company",
+  "limited",
+  "ltd",
+  "private",
+  "pvt",
+]);
+
+function roughlySameProductToken(a: string, b: string): boolean {
+  if (tokensMatch(a, b)) return true;
+  if (a.length >= 6 && b.length >= 6 && (a.includes(b) || b.includes(a))) {
+    return true;
+  }
+  // OCR/typo near-misses (condusctrs ≈ conductors) — not ENERGY vs CARBON.
+  if (
+    sharedPrefixLen(a, b) >= 5 &&
+    Math.abs(a.length - b.length) <= 3
+  ) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * True when query and listing each have a long unmatched product token
+ * (e.g. ENERGY vs CARBON under a shared brand). Soft prefix scores must not
+ * treat those as the same issuer.
+ */
+export function conflictingProductTokens(query: string, name: string): boolean {
+  const all = (s: string) =>
+    companyLabelKey(s)
+      .split(" ")
+      .filter((w) => w.length >= 5);
+  const product = (s: string) => all(s).filter((w) => !LABEL_STOP.has(w));
+  const qTok = product(query);
+  const nTok = product(name);
+  if (qTok.length && nTok.length) {
+    const qOnly = qTok.filter(
+      (w) => !nTok.some((x) => roughlySameProductToken(w, x)),
+    );
+    const nOnly = nTok.filter(
+      (w) => !qTok.some((x) => roughlySameProductToken(w, x)),
+    );
+    if (qOnly.length > 0 && nOnly.length > 0) return true;
+  }
+  // "Rajputana Industries" must not soft-match "Rajputana Biodiesel" just
+  // because industries is treated as glue — require query tokens to land.
+  const qAll = all(query);
+  const nAll = all(name);
+  if (qAll.length >= 2 && nAll.length >= 2) {
+    const missing = qAll.filter(
+      (w) => !nAll.some((x) => roughlySameProductToken(w, x)),
+    );
+    const nameExtraProduct = nAll.filter(
+      (w) =>
+        !LABEL_STOP.has(w) &&
+        !qAll.some((x) => roughlySameProductToken(w, x)),
+    );
+    if (missing.length > 0 && nameExtraProduct.length > 0) return true;
+  }
+  return false;
+}
+
 export function scoreListingName(
   query: string,
   ticker: string,
@@ -121,6 +212,8 @@ export function scoreListingName(
   if (qCompact.length >= 3 && t === qCompact) return 100;
   if (n === q) return 100;
   if (qCompact.length >= 8 && nCompact === qCompact) return 100;
+  // Shared brand + different product word must not soft-match.
+  if (conflictingProductTokens(query, name)) return 0;
   const qTokEarly = q.split(" ").filter((w) => w.length > 1);
   const tKey = t.toLowerCase();
   const nTokEarly = n.split(" ").filter((w) => w.length > 1);

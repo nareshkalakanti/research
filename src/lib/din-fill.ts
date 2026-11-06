@@ -3,10 +3,12 @@
  */
 import { pendingWebDinJobs, regexBoardDinsFromText } from "./board-din-web";
 import { bootstrapCompanyTicker } from "./company-ticker-bootstrap";
+import { ensureCompanyAboutRow } from "./company-about-write";
 import { ocrImageWithQianfan } from "./corporate-data-extract";
 import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import { invalidateGovernanceMapCache } from "./governance-map";
 import { invalidateBoardIndependenceCache } from "./gov-independence";
+import { openSqliteNamed } from "./sqlite-utils";
 import {
   parseScreenshotBoard,
   parseCompanyLabelsFromBoardText,
@@ -19,6 +21,7 @@ import {
   scoreListingName,
 } from "./listing-name-match";
 import {
+  ensureGovernanceCompanyStub,
   listCompanyBoardSeats,
   recordScanAttempt,
   relinkSeatToSourceDin,
@@ -30,28 +33,21 @@ import { zaubaCorpGoogleUrl, zaubaCorpSearchQuery, zaubaCorpSiteSearchUrl } from
 import { searchGrowwListings } from "./web-mcap";
 
 const OCR_PROMPT =
-  "Transcribe the heading (Personnel of COMPANY) then every director row in Current and Past tables: 8-digit DIN, name, designation, dates. One row per line, tab-separated. Plain text only. No HTML or markdown fences.";
+  "One pass: company title (after Personnel of if present), then each director row as name\\tDIN\\tdesignation. Use the person name — not Managing/Independent/Whole-time. Plain text only.";
 
-const HEADING_OCR =
-  "Read the card title only. Output the company after Personnel of. One line. No table.";
-
+/** Prefer Tesseract; accept only when ≥2 DIN seats parse (else vision). */
 async function ocrDinScreenshot(imageDataUrl: string): Promise<string> {
-  const chunks: string[] = [];
-  try {
-    const { cropImageDataUrlTop } = await import("./pdf-rasterize");
-    const top = await cropImageDataUrlTop(imageDataUrl, 0.4);
-    if (top) {
-      try {
-        chunks.push(await ocrImageWithQianfan(top, HEADING_OCR));
-      } catch {
-        /* heading crop often has no rows; table OCR still runs */
-      }
-    }
-  } catch {
-    /* table OCR still runs */
-  }
-  chunks.push(await ocrImageWithQianfan(imageDataUrl, OCR_PROMPT));
-  return chunks.filter((t) => t.trim()).join("\n");
+  return ocrImageWithQianfan(imageDataUrl, OCR_PROMPT, 1536, {
+    maxEdge: 896,
+    numCtx: 4096,
+    acceptLocal: (text) => {
+      const seats = mergeSeats(
+        parseScreenshotBoard(text).seats,
+        regexBoardDinsFromText(text),
+      );
+      return seats.length >= 2;
+    },
+  });
 }
 
 export type DinFillJob = {
@@ -122,12 +118,66 @@ export type DinFillPreview = {
 
 type ListingRow = { ticker: string; name: string; market?: string };
 
+/** About + governance stubs (thin BSE names often only live in governance). */
+function listingUniverse(): ListingRow[] {
+  const by = new Map<string, ListingRow>();
+  const addAbout = () => {
+    for (const c of loadAllCompanies()) {
+      const ticker = String(c.ticker || "").trim().toUpperCase();
+      if (!ticker) continue;
+      by.set(ticker, {
+        ticker,
+        name: String(c.name || ticker).trim() || ticker,
+        market: String(c.market || "").trim() || undefined,
+      });
+    }
+  };
+  try {
+    addAbout();
+  } catch {
+    // Transient About disk I/O — drop cached FDs and retry once.
+    try {
+      invalidateCompanyCache();
+      addAbout();
+    } catch {
+      /* governance-only universe still usable */
+    }
+  }
+  try {
+    const db = openSqliteNamed("governance.db", {
+      readonly: true,
+      fileMustExist: true,
+      quickCheck: false,
+    });
+    try {
+      const rows = db
+        .prepare(`SELECT ticker, name, market FROM companies`)
+        .all() as Array<{ ticker: string; name: string; market: string }>;
+      for (const c of rows) {
+        const ticker = String(c.ticker || "").trim().toUpperCase();
+        if (!ticker || by.has(ticker)) continue;
+        by.set(ticker, {
+          ticker,
+          name: String(c.name || ticker).trim() || ticker,
+          market: String(c.market || "").trim() || undefined,
+        });
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* about rows still usable */
+  }
+  return [...by.values()];
+}
+
 function hintFitsLabels(
   hint: ListingRow | null,
   labels: string[],
 ): boolean {
   if (!hint) return false;
-  if (!labels.length) return true;
+  // No OCR/company labels → do not keep a sticky prior ticker (wrong house).
+  if (!labels.length) return false;
   return labels.some(
     (label) => scoreListingName(label, hint.ticker, hint.name) >= 70,
   );
@@ -142,7 +192,7 @@ async function matchListing(opts: {
   groww: DinFillListing | null;
 }> {
   const hintTicker = (opts.hintTicker || "").trim().toUpperCase();
-  const companies = loadAllCompanies();
+  const companies = listingUniverse();
   const labels = opts.labels.filter((x) => x && x.trim());
   const hintRow = hintTicker
     ? companies.find((c) => c.ticker.toUpperCase() === hintTicker) || null
@@ -170,9 +220,10 @@ async function matchListing(opts: {
   }
 
   let groww: DinFillListing | null = null;
+  // Skip Groww when local/hint already matched — sequential Groww was a big lag after OCR.
   if (!picked && labels.length) {
     try {
-      const queries = listingQueryVariants(labels.join(" "));
+      const queries: string[] = [];
       for (const label of labels) {
         for (const v of listingQueryVariants(label)) {
           if (!queries.includes(v)) queries.push(v);
@@ -180,8 +231,12 @@ async function matchListing(opts: {
       }
       const remote: Awaited<ReturnType<typeof searchGrowwListings>> = [];
       const seenT = new Set<string>();
-      for (const q of queries) {
-        for (const hit of await searchGrowwListings(q, 8)) {
+      // Cap + parallel: first few variants cover nearly all BSE stubs.
+      const batches = await Promise.all(
+        queries.slice(0, 3).map((q) => searchGrowwListings(q, 6)),
+      );
+      for (const hits of batches) {
+        for (const hit of hits) {
           const k = hit.ticker.toUpperCase();
           if (seenT.has(k)) continue;
           seenT.add(k);
@@ -265,23 +320,35 @@ export async function previewDinScreenshot(opts: {
     );
   }
 
-  const hintTicker = (
-    opts.ticker ||
-    parsed.ticker ||
-    ""
-  ).trim().toUpperCase();
   const labels = [
     parsed.company,
     ...parseCompanyLabelsFromBoardText(ocr),
   ].filter((x): x is string => Boolean(x && x.trim()));
-  const { local, groww } = await matchListing({
-    labels,
-    hintTicker,
-    dins: seats.map((s) => s.din),
-  });
+  // Prefer symbol printed on the screenshot over a sticky prior listing chip.
+  const ocrTicker = (parsed.ticker || "").trim().toUpperCase();
+  const hintTicker = (ocrTicker || opts.ticker || "").trim().toUpperCase();
+  let local: ListingRow | null = null;
+  let groww: DinFillListing | null = null;
+  try {
+    const matched = await matchListing({
+      labels,
+      hintTicker,
+      dins: seats.map((s) => s.din),
+    });
+    local = matched.local;
+    groww = matched.groww;
+  } catch {
+    // Seats still usable — user can pick ticker if About I/O is flaky.
+  }
+  // Explicit NSE/BSE symbol on the image wins when it exists locally.
+  if (ocrTicker) {
+    const ocrHit = listingUniverse().find(
+      (c) => c.ticker.toUpperCase() === ocrTicker,
+    );
+    if (ocrHit) local = ocrHit;
+  }
   const ticker =
-    (local?.ticker || groww?.ticker || hintTicker || "").toUpperCase() || null;
-  const listing_name = local?.name || groww?.name || null;
+    (local?.ticker || groww?.ticker || ocrTicker || "").toUpperCase() || null;  const listing_name = local?.name || groww?.name || null;
   const company = parsed.company || labels[0] || null;
   let why = `Read ${seats.length} DIN row(s). Approve to save.`;
   if (ticker) {
@@ -337,8 +404,23 @@ export async function saveDinSeats(opts: {
   let co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);
   if (!co) {
     await bootstrapCompanyTicker(ticker, {
-      name: listingName || ticker,
+      name: listingName || company || ticker,
       market: market || undefined,
+    });
+    invalidateCompanyCache();
+    co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);
+  }
+  if (!co) {
+    // Last resort: write the about row from the approved name/ticker so DIN
+    // save is not blocked by Yahoo/Groww misses on thin BSE names.
+    ensureCompanyAboutRow(ticker, {
+      name: listingName || company || ticker,
+      market: market || "BSE",
+    });
+    ensureGovernanceCompanyStub({
+      ticker,
+      name: listingName || company || ticker,
+      market: market || "BSE",
     });
     invalidateCompanyCache();
     co = loadAllCompanies().find((c) => c.ticker.toUpperCase() === ticker);

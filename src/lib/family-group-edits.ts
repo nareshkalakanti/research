@@ -19,7 +19,22 @@ export type FamilyGroupEdit = {
   updated_at: string | null;
 };
 
+/** Tombstone in remove_json so a wiped auto-group stays hidden after reload. */
+export const GROUP_DELETED_MARK = "__GROUP_DELETED__";
+
+const TICKER_RE = /^[A-Z0-9][A-Z0-9.&-]{0,20}$/;
+
 const DB_PATH = path.join(DATA_DIR, "family_group_edits.db");
+
+function normalizeTicker(raw: unknown): string {
+  return String(raw || "")
+    .trim()
+    .toUpperCase();
+}
+
+function isPersistedTicker(t: string): boolean {
+  return t === GROUP_DELETED_MARK || TICKER_RE.test(t);
+}
 
 function openWrite(): Database.Database {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -49,9 +64,7 @@ function parseTickers(raw: string): string[] {
     if (!Array.isArray(v)) return [];
     return [
       ...new Set(
-        v
-          .map((x) => String(x || "").trim().toUpperCase())
-          .filter((t) => /^[A-Z0-9][A-Z0-9.&-]{0,20}$/.test(t)),
+        v.map((x) => normalizeTicker(x)).filter((t) => isPersistedTicker(t)),
       ),
     ];
   } catch {
@@ -204,9 +217,7 @@ export function createFamilyGroup(
   if (name.length < 2 || name.length > 80) return null;
   const add = [
     ...new Set(
-      tickers
-        .map((t) => t.trim().toUpperCase())
-        .filter((t) => /^[A-Z0-9][A-Z0-9.&-]{0,20}$/.test(t)),
+      tickers.map((t) => normalizeTicker(t)).filter((t) => TICKER_RE.test(t)),
     ),
   ];
   const groupId = `user-${groupFingerprint([name, ...add, Date.now().toString()])}`;
@@ -234,10 +245,12 @@ export function addFamilyGroupTicker(
   groupId: string,
   ticker: string,
 ): FamilyGroupEdit | null {
-  const t = ticker.trim().toUpperCase();
-  if (!groupId || !/^[A-Z0-9][A-Z0-9.&-]{0,20}$/.test(t)) return null;
+  const t = normalizeTicker(ticker);
+  if (!groupId || !TICKER_RE.test(t)) return null;
   const cur = readOne(groupId);
-  cur.remove = cur.remove.filter((x) => x !== t);
+  cur.remove = cur.remove.filter(
+    (x) => x !== t && x !== GROUP_DELETED_MARK,
+  );
   if (!cur.add.includes(t)) cur.add.push(t);
   saveEdit(cur);
   return cur;
@@ -258,19 +271,23 @@ export function deleteFamilyGroup(
     }
     return true;
   }
+  const cur = readOne(id);
   const drop = [
     ...new Set(
-      tickers
-        .map((t) => t.trim().toUpperCase())
-        .filter((t) => /^[A-Z0-9][A-Z0-9.&-]{0,20}$/.test(t)),
+      [...tickers, ...cur.add]
+        .map((t) => normalizeTicker(t))
+        .filter((t) => TICKER_RE.test(t)),
     ),
   ];
-  if (!drop.length) return false;
-  const cur = readOne(id);
   const gone = new Set(drop);
   cur.add = cur.add.filter((t) => !gone.has(t));
   for (const t of drop) {
     if (!cur.remove.includes(t)) cur.remove.push(t);
+  }
+  // Empty shells (label-only / unresolved adds) still need a wipe marker.
+  cur.label = null;
+  if (!cur.remove.includes(GROUP_DELETED_MARK)) {
+    cur.remove.push(GROUP_DELETED_MARK);
   }
   saveEdit(cur);
   return true;
@@ -280,10 +297,11 @@ export function removeFamilyGroupTicker(
   groupId: string,
   ticker: string,
 ): FamilyGroupEdit | null {
-  const t = ticker.trim().toUpperCase();
-  if (!groupId || !t) return null;
+  const t = normalizeTicker(ticker);
+  if (!groupId || !TICKER_RE.test(t)) return null;
   const cur = readOne(groupId);
   cur.add = cur.add.filter((x) => x !== t);
+  cur.remove = cur.remove.filter((x) => x !== GROUP_DELETED_MARK);
   if (!cur.remove.includes(t)) cur.remove.push(t);
   saveEdit(cur);
   return cur;
@@ -373,6 +391,11 @@ export function applyLoadedFamilyGroupEdits<
   for (const g of groups) {
     const edit = g.group_id ? edits.get(g.group_id) : undefined;
     if (!edit) continue;
+    if (edit.remove.includes(GROUP_DELETED_MARK)) {
+      g.companies = [];
+      g.company_count = 0;
+      continue;
+    }
     if (edit.label) g.family_name = edit.label;
     const drop = new Set(edit.remove);
     g.companies = g.companies.filter((c) => !drop.has(c.ticker.toUpperCase()));

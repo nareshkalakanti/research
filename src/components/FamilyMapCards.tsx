@@ -3,6 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { LazyFamilyGraph } from "@/components/FamilyGraph";
 import { BoxRefreshButton } from "@/components/RefreshButton";
+import {
+  TickerSuggest,
+  type TickerSuggestHit,
+} from "@/components/TickerSuggest";
 
 export type FamilyRow = {
   family_name: string;
@@ -29,8 +33,22 @@ export type FamilyRow = {
     recent_join?: boolean;
     joined_at?: string | null;
   }>;
-  outside?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;
-  listings?: Array<{ ticker: string; name: string; cap_code: string | null; market_cap_cr?: number | null }>;
+  outside?: Array<{
+    ticker: string;
+    name: string;
+    cap_code: string | null;
+    market_cap_cr?: number | null;
+    directors?: number;
+    din_verified?: number;
+  }>;
+  listings?: Array<{
+    ticker: string;
+    name: string;
+    cap_code: string | null;
+    market_cap_cr?: number | null;
+    directors?: number;
+    din_verified?: number;
+  }>;
   pattern?: string | null;
 };
 
@@ -161,6 +179,8 @@ function overlayNetwork(
       name: n?.name || u,
       cap_code: n?.cap_code ?? null,
       market_cap_cr: n?.market_cap_cr,
+      directors: n?.directors,
+      din_verified: n?.din_verified,
     });
   };
   for (const c of net.companies) {
@@ -203,6 +223,8 @@ function outsideFromPeople(
     name: string;
     cap_code?: string | null;
     market_cap_cr?: number | null;
+    directors?: number;
+    din_verified?: number;
   }>,
 ): NonNullable<FamilyRow["outside"]> {
   const info = new Map<string, (typeof known)[number]>();
@@ -223,6 +245,8 @@ function outsideFromPeople(
         name: n?.name || u,
         cap_code: n?.cap_code ?? null,
         market_cap_cr: n?.market_cap_cr,
+        directors: n?.directors,
+        din_verified: n?.din_verified,
       });
     }
   }
@@ -289,7 +313,6 @@ export function FamilyMapCards({
   onRename,
   onRemoveCompany,
   onAddCompany,
-  companySearch,
   addWork,
   onRefresh,
   refreshing,
@@ -308,9 +331,6 @@ export function FamilyMapCards({
     ticker: string,
     name?: string,
   ) => Promise<void> | void;
-  companySearch?: (
-    q: string,
-  ) => Promise<Array<{ ticker: string; name: string }>>;
   addWork?: FamilyAddWork | null;
   onRefresh?: (group: FamilyRow) => void | Promise<void>;
   refreshing?: string | null;
@@ -351,7 +371,6 @@ export function FamilyMapCards({
               onRename={onRename}
               onRemoveCompany={onRemoveCompany}
               onAddCompany={onAddCompany}
-              companySearch={companySearch}
               addWork={addWork}
               onRefresh={onRefresh}
               refreshing={
@@ -378,7 +397,6 @@ function FamilyGroupCard({
   onRename,
   onRemoveCompany,
   onAddCompany,
-  companySearch,
   addWork,
   onRefresh,
   refreshing,
@@ -395,9 +413,6 @@ function FamilyGroupCard({
     ticker: string,
     name?: string,
   ) => Promise<void> | void;
-  companySearch?: (
-    q: string,
-  ) => Promise<Array<{ ticker: string; name: string }>>;
   addWork?: FamilyAddWork | null;
   onRefresh?: (group: FamilyRow) => void | Promise<void>;
   refreshing?: boolean;
@@ -650,10 +665,9 @@ function FamilyGroupCard({
           );
         })}
       </div>
-      {editable && onAddCompany && companySearch && f.group_id ? (
+      {editable && onAddCompany && f.group_id ? (
         <GroupAddCompany
           exclude={new Set(f.companies.map((c) => c.ticker.toUpperCase()))}
-          search={companySearch}
           busy={!!addWork && !addWork.done && addWork.groupId === f.group_id}
           work={
             addWork && addWork.groupId === f.group_id ? addWork : null
@@ -717,81 +731,60 @@ function GroupRename({
 
 function GroupAddCompany({
   exclude,
-  search,
   onAdd,
   busy,
   work,
 }: {
   exclude: Set<string>;
-  search: (q: string) => Promise<Array<{ ticker: string; name: string }>>;
   onAdd: (ticker: string, name: string) => Promise<void> | void;
   busy?: boolean;
   work?: FamilyAddWork | null;
 }) {
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Array<{ ticker: string; name: string }>>([]);
-  const [already, setAlready] = useState<Array<{ ticker: string; name: string }>>(
-    [],
-  );
-  useEffect(() => {
-    const needle = q.trim();
-    if (busy || needle.length < 2) {
-      setHits([]);
-      setAlready([]);
+  const [note, setNote] = useState<string | null>(null);
+
+  const pick = (hit: TickerSuggestHit) => {
+    const t = hit.ticker.trim().toUpperCase();
+    if (!t) return;
+    if (exclude.has(t)) {
+      setNote(`${t} is already in this group`);
+      setQ("");
       return;
     }
-    const t = window.setTimeout(() => {
-      void search(needle).then((rows) => {
-        setAlready(
-          rows.filter((r) => exclude.has(r.ticker.toUpperCase())).slice(0, 4),
-        );
-        setHits(
-          rows.filter((r) => !exclude.has(r.ticker.toUpperCase())).slice(0, 8),
-        );
-      });
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [q, exclude, search, busy]);
-  const show = hits.length || already.length;
+    setNote(null);
+    setQ("");
+    void onAdd(t, hit.name);
+  };
+
   return (
     <div className="gov-family-add">
-      <input
-        type="search"
-        className="gov-family-add-input"
-        placeholder={busy ? "Adding company…" : "Add company…"}
+      <TickerSuggest
         value={q}
+        onChange={(v) => {
+          setQ(v);
+          if (note) setNote(null);
+        }}
+        onSelect={pick}
+        onSubmit={(t) => {
+          const sym = t.trim().toUpperCase();
+          if (!sym) return;
+          if (exclude.has(sym)) {
+            setNote(`${sym} is already in this group`);
+            setQ("");
+            return;
+          }
+          setNote(null);
+          setQ("");
+          void onAdd(sym, sym);
+        }}
+        clearOnSelect
         disabled={busy}
-        onChange={(e) => setQ(e.target.value)}
+        placeholder={busy ? "Adding company…" : "Search ticker or company…"}
+        className="theme-stock-suggest-input"
+        submitLabel="add"
       />
+      {note ? <p className="hint tight">{note}</p> : null}
       {work ? <FamilyAddProgress work={work} /> : null}
-      {show && !busy ? (
-        <ul className="gov-family-add-hits">
-          {already.map((h) => (
-            <li key={`have-${h.ticker}`}>
-              <button type="button" disabled title="Already in this group">
-                <span className="mono">{h.ticker}</span>
-                <span>{h.name} · already in group</span>
-              </button>
-            </li>
-          ))}
-          {hits.map((h) => (
-            <li key={h.ticker}>
-              <button
-                type="button"
-                onClick={() => {
-                  void onAdd(h.ticker, h.name);
-                  setQ("");
-                  setHits([]);
-                  setAlready([]);
-                }}
-              >
-                <span className="mono">{h.ticker}</span>
-                <span>{h.name}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </div>
   );
 }

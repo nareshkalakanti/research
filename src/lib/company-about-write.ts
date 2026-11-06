@@ -4,6 +4,7 @@ import path from "path";
 import { invalidateCompanyCache, loadAllCompanies } from "./db";
 import { extractConflictsWithListing, listingAboutCorpus } from "./listing-extract-trust";
 import { upsertScrapeResult } from "./scraper-store";
+import { openSqliteNamed } from "./sqlite-utils";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const ABOUT_PATH = path.join(DATA_DIR, "company_about.db");
@@ -15,20 +16,36 @@ export function ensureCompanyAboutRow(
 ): boolean {
   if (!fs.existsSync(ABOUT_PATH)) return false;
   const key = ticker.toUpperCase();
-  const db = new Database(ABOUT_PATH);
+  // Resolve name/market BEFORE opening a write handle — loadAllCompanies while
+  // holding a write lock on about.db is a common disk I/O / SHORT_READ path.
+  let name = opts?.name?.trim() || "";
+  let market = opts?.market?.trim() || "";
+  if (!name || !market) {
+    try {
+      const fromUniverse = loadAllCompanies().find(
+        (c) => c.ticker.toUpperCase() === key,
+      );
+      if (!name) name = fromUniverse?.name?.trim() || "";
+      if (!market) market = fromUniverse?.market?.trim() || "";
+    } catch {
+      /* opts / ticker fallback below */
+    }
+  }
+  if (!name) name = key;
+  if (!market) market = "NSE";
+
+  // Drop cached readonly FDs so the write open is not fighting Next's handles.
+  invalidateCompanyCache();
+  const db = openSqliteNamed("company_about.db", {
+    readonly: false,
+    wal: true,
+    busyTimeoutMs: 8000,
+  });
   try {
-    db.pragma("busy_timeout = 5000");
     const exists = db
       .prepare(`SELECT 1 AS ok FROM company_about WHERE ticker = ?`)
       .get(key) as { ok: number } | undefined;
     if (exists) return true;
-
-    const fromUniverse = loadAllCompanies().find(
-      (c) => c.ticker.toUpperCase() === key,
-    );
-    const name = opts?.name?.trim() || fromUniverse?.name?.trim() || key;
-    const market =
-      opts?.market?.trim() || fromUniverse?.market?.trim() || "NSE";
 
     db.prepare(
       `INSERT INTO company_about (

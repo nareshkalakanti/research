@@ -232,15 +232,38 @@ export async function POST(req: NextRequest) {
   } catch {
     all = [];
   }
-  const added = all.filter((c) => !before.has(c.ticker.toUpperCase()));
-  const co =
+  let co =
     all.find((c) => c.ticker.toUpperCase() === ticker) ||
-    added[0] ||
     all.find(
       (c) =>
         (body.name || "").trim() &&
         c.name.toLowerCase() === String(body.name || "").trim().toLowerCase(),
     );
+  // Thin BSE / DIN stubs: bootstrap may report ok via a remapped symbol, or
+  // a concurrent About reopen may miss the row — force the requested ticker.
+  if (!co) {
+    try {
+      const { ensureCompanyAboutRow } = await import(
+        "@/lib/company-about-write"
+      );
+      const { ensureGovernanceCompanyStub } = await import(
+        "@/lib/governance-write"
+      );
+      const name = (body.name || ticker).trim() || ticker;
+      const market = (body.market || "BSE").trim() || "BSE";
+      if (ensureCompanyAboutRow(ticker, { name, market })) {
+        ensureGovernanceCompanyStub({ ticker, name, market });
+        invalidateCompanyCache();
+        all = loadAllCompanies();
+        co = all.find((c) => c.ticker.toUpperCase() === ticker) ?? null;
+      }
+    } catch (err) {
+      console.warn(
+        "[tickers] about stub skipped:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
   const hit = toHit(co, {
     ticker,
     name: body.name || ticker,
@@ -249,11 +272,18 @@ export async function POST(req: NextRequest) {
     mcap_cr: null,
     source: "local",
   });
-  if (!ok && !co && !hit.ticker) {
+  // Must land the requested ticker in company_about — never fake ok.
+  if (!co || co.ticker.toUpperCase() !== ticker) {
     return NextResponse.json(
-      { ok: false, error: "Could not add listing from Groww / exchange", hit },
+      {
+        ok: false,
+        error: "Could not add listing from Groww / exchange",
+        hit,
+      },
       { status: 422 },
     );
   }
+  void ok;
+  void before;
   return NextResponse.json({ ok: true, hit });
 }

@@ -245,8 +245,29 @@ export async function ocrImageWithQianfan(
   imageDataUrl: string,
   prompt: string = OCR_PROMPT,
   maxTokens = 1536,
-  opts?: { maxEdge?: number; numCtx?: number },
+  opts?: {
+    maxEdge?: number;
+    numCtx?: number;
+    /** Skip Tesseract and go straight to vision (dense slides / charts). */
+    forceVision?: boolean;
+    /** Override whether local OCR text is good enough. */
+    acceptLocal?: (text: string) => boolean;
+  },
 ): Promise<string> {
+  // Fast path for any pasted/uploaded image — Tesseract before Ollama vision.
+  if (!opts?.forceVision) {
+    try {
+      const { tesseractFromDataUrl, localOcrLooksUseful } = await import(
+        "./ocr-fast"
+      );
+      const local = await tesseractFromDataUrl(imageDataUrl);
+      const accept = opts?.acceptLocal ?? localOcrLooksUseful;
+      if (local && accept(local)) return local;
+    } catch {
+      /* vision fallback */
+    }
+  }
+
   const cfg = qianfanConfig();
   if (!cfg) {
     throw new Error(
@@ -256,11 +277,11 @@ export async function ocrImageWithQianfan(
   const { shrinkImageDataUrlForOcr } = await import("./pdf-rasterize");
   const image = await shrinkImageDataUrlForOcr(
     imageDataUrl,
-    opts?.maxEdge ?? 1280,
+    opts?.maxEdge ?? 1024,
   );
   const numCtx = Math.max(
-    8192,
-    Number(opts?.numCtx ?? process.env.OLLAMA_OCR_NUM_CTX ?? 16384) || 16384,
+    4096,
+    Number(opts?.numCtx ?? process.env.OLLAMA_OCR_NUM_CTX ?? 8192) || 8192,
   );
   const first = {
     base: cfg.base,
