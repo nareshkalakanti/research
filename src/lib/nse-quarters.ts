@@ -14,7 +14,8 @@ const INTEGRATED_URL =
   "https://www.nseindia.com/api/integrated-filing-results";
 const CORPORATES_RESULTS_URL =
   "https://www.nseindia.com/api/corporates-financial-results";
-const TIMEOUT_MS = 45_000;
+/** Per-request cap — keep short so a stuck NSE host can't burn the quarters UI (90s). */
+const TIMEOUT_MS = 12_000;
 
 const MONTH_NUM: Record<string, string> = {
   JAN: "01",

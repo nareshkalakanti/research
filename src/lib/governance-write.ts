@@ -67,7 +67,7 @@ export function getGovernanceWriteDb(): Database.Database {
     db.pragma("journal_mode = WAL");
   } catch (err) {
     if (!isSqliteWalDamage(err)) throw err;
-    removeWalSidecars(GOV_PATH);
+    recoverGovernanceWal();
     db = new Database(GOV_PATH);
     db.pragma("journal_mode = WAL");
   }
@@ -238,13 +238,50 @@ function migrateCompaniesMarketCheck(db: Database.Database): void {
   db.exec(`PRAGMA foreign_keys = ON`);
 }
 
+/** Push WAL frames into the main DB so a later sidecar heal cannot drop seats. */
+export function flushGovernanceWrites(db?: Database.Database): void {
+  const handle = db ?? writeDb;
+  if (!handle) return;
+  try {
+    handle.pragma("wal_checkpoint(FULL)");
+  } catch {
+    /* busy / already truncated */
+  }
+  try {
+    handle.pragma("wal_checkpoint(TRUNCATE)");
+  } catch {
+    /* busy / already truncated */
+  }
+}
+
+/**
+ * Prefer checkpointing WAL into the main file. Only quarantine sidecars when
+ * a fresh open+checkpoint still fails — never discard a live WAL first.
+ */
+export function recoverGovernanceWal(): void {
+  closeGovernanceWriteDb();
+  try {
+    const db = new Database(GOV_PATH);
+    try {
+      db.pragma("journal_mode = WAL");
+      flushGovernanceWrites(db);
+    } finally {
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+    }
+    return;
+  } catch {
+    /* fall through to sidecar strip */
+  }
+  removeWalSidecars(GOV_PATH);
+}
+
 export function closeGovernanceWriteDb(): void {
   if (!writeDb) return;
-  try {
-    writeDb.pragma("wal_checkpoint(TRUNCATE)");
-  } catch {
-    /* WAL may already be truncated or locked */
-  }
+  flushGovernanceWrites(writeDb);
   try {
     writeDb.close();
   } catch {
@@ -254,8 +291,7 @@ export function closeGovernanceWriteDb(): void {
 }
 
 function healGovernanceWriteDb(): void {
-  closeGovernanceWriteDb();
-  removeWalSidecars(GOV_PATH);
+  recoverGovernanceWal();
 }
 
 /** Reopen after SHORT_READ / stale handle when another process rewrote the DB. */
@@ -695,6 +731,8 @@ export function saveCompanyBoard(opts: {
   });
 
   tx();
+  // Merge into main .db before any reader heal can quarantine the WAL.
+  flushGovernanceWrites(db);
   return {
     ticker: tickerKey,
     seats: cleanSeats.length,
