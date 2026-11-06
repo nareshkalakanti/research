@@ -26832,6 +26832,12 @@ tr.wl-prove-fail td {
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
 }
 
+.napkin-tech-block.is-strong > .napkin-tech-item .napkin-tech-dot {
+  background: #d97706;
+  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.2);
+}
+
+.napkin-tech-block.is-hot > .napkin-tech-item .napkin-tech-dot,
 .napkin-tech-block.is-fail > .napkin-tech-item .napkin-tech-dot {
   background: #dc2626;
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16);
@@ -26857,6 +26863,11 @@ tr.wl-prove-fail td {
   color: #15803d;
 }
 
+.napkin-tech-block.is-strong > .napkin-tech-item .napkin-tech-item-status {
+  color: #b45309;
+}
+
+.napkin-tech-block.is-hot > .napkin-tech-item .napkin-tech-item-status,
 .napkin-tech-block.is-fail > .napkin-tech-item .napkin-tech-item-status {
   color: #b91c1c;
 }
