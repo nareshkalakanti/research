@@ -18,6 +18,7 @@ import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
 import { NapkinPerformance } from "@/components/napkin/NapkinPerformance";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
 import { parseDisplayedMoney } from "@/lib/napkin/format";
+import { WatchButton } from "@/components/WatchButton";
 
 function na(v: string | undefined): string {
   return !v || v === "N/A" ? "N/A" : v;
@@ -179,6 +180,7 @@ export function NapkinPanel() {
                 <div>
                   <div className="napkin-company">{data.name}</div>
                   <div className="napkin-ticker-lg">
+                    <WatchButton ticker={data.ticker} />
                     {(() => {
                       const yf = (data.yf_symbol || "").toUpperCase();
                       const tvMarket =
