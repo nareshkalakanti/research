@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { bootstrapCompanyTicker } from "@/lib/company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "@/lib/db";
 import {
+  companyLabelKey,
   listingCorpusMatches,
   listingQueryMatches,
   rankListingQuery,
@@ -50,12 +51,15 @@ function localHits(q: string, limit: number): TickerHit[] {
     if (corpus) corpusByTicker.set(ticker, corpus);
     hits.push({ ...row, ticker });
   };
-  for (const c of loadAllCompanies()) {
+
+  const companies = loadAllCompanies();
+  // Pass 1: ticker + name substring only (no fuzzy score — typeahead speed).
+  for (const c of companies) {
     const ticker = String(c.ticker || "").toUpperCase();
     const name = String(c.name || "").trim();
     if (!ticker) continue;
+    if (!listingQueryMatches(q, ticker, name, { fuzzy: false })) continue;
     const corpus = String(c.search_text || "");
-    if (!listingMatches(q, ticker, name, corpus)) continue;
     push(
       {
         ticker,
@@ -66,8 +70,36 @@ function localHits(q: string, limit: number): TickerHit[] {
           c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
         source: "local",
       },
-      corpus,
+      corpus || null,
     );
+  }
+  // Former-name / brand corpus: only when ticker/name miss (e.g. "barbeque").
+  // Skip when pass1 already found listings — keeps typeahead snappy.
+  const corpusKey = companyLabelKey(q);
+  const wantCorpus =
+    hits.length === 0 &&
+    (corpusKey.includes(" ") ||
+      corpusKey.split(" ").some((w) => w.length >= 7));
+  if (wantCorpus) {
+    for (const c of companies) {
+      const ticker = String(c.ticker || "").toUpperCase();
+      if (!ticker || have.has(ticker)) continue;
+      const name = String(c.name || "").trim();
+      const corpus = String(c.search_text || "");
+      if (!corpus || !listingCorpusMatches(q, corpus)) continue;
+      push(
+        {
+          ticker,
+          name: name || ticker,
+          market: String(c.market || ""),
+          sector: c.sector || null,
+          mcap_cr:
+            c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
+          source: "local",
+        },
+        corpus,
+      );
+    }
   }
   try {
     const db = openSqliteNamed("governance.db", {
@@ -81,7 +113,9 @@ function localHits(q: string, limit: number): TickerHit[] {
     for (const c of rows) {
       const ticker = String(c.ticker || "").toUpperCase();
       const name = String(c.name || "").trim();
-      if (!ticker || !listingMatches(q, ticker, name)) continue;
+      if (!ticker || !listingQueryMatches(q, ticker, name, { fuzzy: false })) {
+        continue;
+      }
       push({
         ticker,
         name: name || ticker,
@@ -135,9 +169,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, q, hits: [] as TickerHit[] });
   }
 
+  const remoteParam = (req.nextUrl.searchParams.get("remote") || "")
+    .trim()
+    .toLowerCase();
+  /** Typeahead passes remote=0; other callers keep Groww fill-in. */
+  const allowRemote = !(
+    remoteParam === "0" ||
+    remoteParam === "false" ||
+    remoteParam === "local"
+  );
+
   let hits: TickerHit[] = [];
+  let corpusByTicker = new Map<string, string>();
   try {
     hits = localHits(q, limit);
+    // Reuse about rows already loaded inside localHits via cache.
+    for (const c of loadAllCompanies()) {
+      const t = String(c.ticker || "").toUpperCase();
+      if (t && c.search_text) corpusByTicker.set(t, c.search_text);
+    }
   } catch (err) {
     console.warn(
       "[tickers] local listings unavailable:",
@@ -145,7 +195,7 @@ export async function GET(req: NextRequest) {
     );
   }
   const have = new Set(hits.map((h) => h.ticker));
-  if (shouldAugmentListingSearch(q, hits, limit)) {
+  if (allowRemote && shouldAugmentListingSearch(q, hits, limit)) {
     try {
       const remote = await searchGrowwListings(q, limit);
       for (const r of remote) {
@@ -166,15 +216,6 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const corpusByTicker = new Map<string, string>();
-  try {
-    for (const c of loadAllCompanies()) {
-      const t = String(c.ticker || "").toUpperCase();
-      if (t && c.search_text) corpusByTicker.set(t, c.search_text);
-    }
-  } catch {
-    /* ranking without corpus still ok */
-  }
   hits.sort((a, b) => {
     const ra = rankHit(q, a, corpusByTicker.get(a.ticker));
     const rb = rankHit(q, b, corpusByTicker.get(b.ticker));

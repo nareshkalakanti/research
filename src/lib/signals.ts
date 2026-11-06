@@ -876,6 +876,10 @@ export function analyzeBbWeekly(bars: Bar[]) {
   return analyzeBbNewBreakout(bars, "weekly");
 }
 
+/**
+ * Weekly TQ — Relative Strength vs Nifty (52W / 13W RS crossover),
+ * with RSI/ADX/Supertrend gates (stocks-ai tq_bb).
+ */
 export function analyzeTqWeekly(
   stockBars: Bar[],
   niftyBars: Bar[],
@@ -935,10 +939,12 @@ export function analyzeTqWeekly(
   const prevLrs = longRs[prev] ?? 0;
   const prevSrs = shortRs[prev] ?? 0;
 
+  // Match stocks-ai TQ: long RS + short RS turn-up thresholds.
   const longX =
     (prevLrs < -0.15 && curLrs > 0.005) || (prevLrs < 0 && curLrs > 0.02);
   const shortX =
-    (prevSrs < -0.005 && curSrs > 0.005) || (prevSrs < 0 && curSrs > 0.02);
+    (prevSrs < -0.005 && curSrs > 0.005) ||
+    (prevSrs < 0.01 && curSrs > 0.02);
 
   let crossover_type: string;
   let crossover_score: number;
