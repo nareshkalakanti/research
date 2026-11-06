@@ -32,13 +32,16 @@ import {
   scheduleFamilyGroupRefine,
 } from "./family-group-refine";
 import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
-import { closeGovernanceWriteDb, getGovernanceWriteDb } from "./governance-write";
+import {
+  closeGovernanceWriteDb,
+  getGovernanceWriteDb,
+  recoverGovernanceWal,
+} from "./governance-write";
 import { loadRecentJoinPersonIds } from "./governance-changes";
 import {
   DATA_DIR as SQLITE_DATA_DIR,
   isSqliteWalDamage,
   openSqliteNamed,
-  removeWalSidecars,
 } from "./sqlite-utils";
 
 export type GovCompanySeat = {
@@ -929,8 +932,8 @@ function closeGovReader(): void {
 
 function healGovernanceWal(): void {
   closeGovReader();
-  closeGovernanceWriteDb();
-  removeWalSidecars(path.join(SQLITE_DATA_DIR, "governance.db"));
+  // Checkpoint first — removing sidecars without a flush drops Auto DIN seats.
+  recoverGovernanceWal();
 }
 
 /** Reopen after SHORT_READ / stale handle (common when push/scan rewrites the DB under Next). */

@@ -286,6 +286,25 @@ export async function fetchQuarterlyFundamentals(
   let source: "yahoo" | "nse" | "bse" | "screener" | "yahoo+screener" | "groww" | "none" =
     "none";
 
+  /** NSE often stalls; don't block BSE/Screener behind a multi-minute hang. */
+  const withBudget = async <T>(
+    p: Promise<T>,
+    ms: number,
+    fallback: T,
+  ): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        p,
+        new Promise<T>((resolve) => {
+          timer = setTimeout(() => resolve(fallback), ms);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  };
+
   // stocks-ai PEAD path: Yahoo first, then deepen only if empty.
   if (opts?.yahooFirst) {
     const yfHit = await fetchYahooQuarterSeries(symbolCandidates);
@@ -296,30 +315,42 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  // 7-rule India path: NSE/BSE filings → Screener → Groww → Yahoo last resort.
-  if (quarters.length < 2) {
+  // Screener disk cache first — instant when warm; avoids NSE hangs (ADFFOODS
+  // spent ~144s on empty NSE before BSE/Screener could answer).
+  if (quarters.length < 2 && !opts?.skipScreener) {
     try {
-      const nse = await fetchNseQuarterlyFundamentals(ticker, {
-        maxQuarters: 6,
+      const screenerCache = await fetchScreenerQuarterlyFundamentals(ticker, {
+        cacheOnly: true,
+        consolidated: true,
       });
-      if (nse.length >= 2) {
-        quarters = nse;
-        source = "nse";
+      if (screenerCache.length >= 2) {
+        quarters = screenerCache;
+        source = "screener";
       }
     } catch {
-      /* try BSE */
+      /* try filings */
     }
   }
 
+  // Filings: race budgeted NSE with BSE (don't serialize behind a stuck host).
   if (quarters.length < 2) {
-    try {
-      const bse = await fetchBseQuarterlyByTicker(ticker);
-      if (bse.length >= 2) {
-        quarters = bse;
-        source = "bse";
-      }
-    } catch {
-      /* keep prior */
+    const nseP = withBudget(
+      fetchNseQuarterlyFundamentals(ticker, { maxQuarters: 6 }).catch(
+        () => [] as QuarterPoint[],
+      ),
+      12_000,
+      [] as QuarterPoint[],
+    );
+    const bseP = fetchBseQuarterlyByTicker(ticker).catch(
+      () => [] as QuarterPoint[],
+    );
+    const [nse, bse] = await Promise.all([nseP, bseP]);
+    if (nse.length >= 2) {
+      quarters = nse;
+      source = "nse";
+    } else if (bse.length >= 2) {
+      quarters = bse;
+      source = "bse";
     }
   }
 
@@ -350,11 +381,10 @@ export async function fetchQuarterlyFundamentals(
     }
   }
 
-  // Groww — empty/PnL gaps, or tip-extend when Screener is blocked (PEAD yahooFirst).
+  // Groww — empty/PnL gaps, or tip-extend (Screener cache often lags new results).
   const tipIso = (qs: QuarterPoint[]) =>
     (qs.at(-1)?.date || "").slice(0, 10);
-  const wantGrowwTip =
-    opts?.yahooFirst === true && quarters.length >= 2;
+  const wantGrowwTip = quarters.length >= 2;
   if (
     quarters.length < 2 ||
     missingSalesOrProfit(quarters) ||
