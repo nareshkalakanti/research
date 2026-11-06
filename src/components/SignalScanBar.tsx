@@ -864,7 +864,11 @@ export function SignalScanBar({
               type="button"
               className={`chip tag-chip tag-scan-tq ${view === "tq" ? "on" : ""}`}
               onClick={() => onView("tq")}
-              title={tqDate ? `Weekly TQ · ${tqDate}` : "Weekly TQ hits"}
+              title={
+                tqDate
+                  ? `Weekly TQ — Relative Strength vs Nifty (52W/13W) · ${tqDate}`
+                  : "Weekly TQ — Relative Strength vs Nifty (52W/13W RS crossover)"
+              }
             >
               TQ
               <Count n={tqCount} />

@@ -186,9 +186,13 @@ export function TickerSuggest({
     const id = ++reqRef.current;
     const t = window.setTimeout(() => {
       setLoading(true);
-          void fetch(`/api/tickers?q=${encodeURIComponent(q)}&limit=14`, {
-        signal: AbortSignal.timeout(14_000),
-      })
+      // Local-only typeahead — Groww fill-in made every keystroke wait ~1s.
+      void fetch(
+        `/api/tickers?q=${encodeURIComponent(q)}&limit=14&remote=0`,
+        {
+        signal: AbortSignal.timeout(8_000),
+      },
+      )
         .then(async (res) => {
           const json = (await res.json()) as {
             ok?: boolean;
@@ -212,7 +216,7 @@ export function TickerSuggest({
         .finally(() => {
           if (id === reqRef.current) setLoading(false);
         });
-    }, 100);
+    }, 160);
     return () => window.clearTimeout(t);
   }, [q, disabled]);
 

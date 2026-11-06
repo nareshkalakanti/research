@@ -304,8 +304,16 @@ export function compactTicker(s: string): string {
   return s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
-/** Typed query vs listing ticker/name — includes a short extra suffix on a real ticker. */
-export function listingQueryMatches(q: string, ticker: string, name: string): boolean {
+/**
+ * Typed query vs listing ticker/name — includes a short extra suffix on a real ticker.
+ * Pass `fuzzy: false` for typeahead (skip expensive scoreListingName on every row).
+ */
+export function listingQueryMatches(
+  q: string,
+  ticker: string,
+  name: string,
+  opts?: { fuzzy?: boolean },
+): boolean {
   const Q = q.trim().toUpperCase();
   if (!Q) return false;
   const t = ticker.toUpperCase();
@@ -318,6 +326,7 @@ export function listingQueryMatches(q: string, ticker: string, name: string): bo
   const cn = compactTicker(n);
   if (ct === cq || ct.startsWith(cq) || ct.includes(cq) || cn.includes(cq)) return true;
   if (ct.length >= 3 && cq.startsWith(ct) && cq.length - ct.length <= 2) return true;
+  if (opts?.fuzzy === false) return false;
   return scoreListingName(q, ticker, name) >= 70;
 }
 
@@ -396,7 +405,11 @@ export function rankListingQuery(
   return 9;
 }
 
-/** Typeahead: still search Groww when an exact ticker hit may hide a longer symbol. */
+/**
+ * Typeahead Groww fill-in. Prefer local — only hit the network when local is
+ * empty or weak. Exact ticker alone used to always force Groww (slow); skip
+ * when we already have prefix siblings (e.g. BSE + BSELINFRA).
+ */
 export function shouldAugmentListingSearch(
   q: string,
   hits: Array<{ ticker: string; name: string }>,
@@ -405,8 +418,14 @@ export function shouldAugmentListingSearch(
   const Q = q.trim().toUpperCase();
   if (Q.length < 2) return false;
   if (hits.length >= limit) return false;
-  if (hits.some((h) => h.ticker.toUpperCase() === Q)) return true;
   if (!hits.length) return true;
+  const exact = hits.some((h) => h.ticker.toUpperCase() === Q);
+  const prefixSibling = hits.some((h) => {
+    const t = h.ticker.toUpperCase();
+    return t !== Q && t.startsWith(Q);
+  });
+  if (exact && (prefixSibling || hits.length >= 2)) return false;
+  if (exact) return true;
   const best = hits.reduce(
     (m, h) => Math.min(m, rankListingQuery(q, h.ticker, h.name)),
     9,

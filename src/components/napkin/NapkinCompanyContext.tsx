@@ -1,12 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
 import { QuartersRankCard } from "@/components/QuartersRankCard";
-import {
-  QuoteTapeCard,
-  type QuoteTapeFundamentals,
-} from "@/components/QuoteTapeCard";
+import { NapkinTechCard } from "@/components/napkin/NapkinTechCard";
 import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
@@ -18,7 +15,6 @@ export function NapkinCompanyContext({
   companyName,
   roe,
   roce,
-  fundamentals = null,
 }: {
   ticker: string;
   exchange?: string | null;
@@ -26,8 +22,6 @@ export function NapkinCompanyContext({
   companyName?: string | null;
   roe?: number | null;
   roce?: number | null;
-  /** Snapshot Revenue/EPS 5Y — shown on Tech & Val instead of price CAGR. */
-  fundamentals?: QuoteTapeFundamentals | null;
 }) {
   const market = (exchange || "").trim() || null;
   const qtr = useExpandQuarters(ticker, market, price, true);
@@ -38,7 +32,6 @@ export function NapkinCompanyContext({
         : null,
     [qtr.panel, roe, roce],
   );
-  const [showDetails, setShowDetails] = useState(false);
 
   return (
     <>
@@ -52,6 +45,10 @@ export function NapkinCompanyContext({
         />
       </div>
 
+      <div className="napkin-sheet-section">
+        <NapkinTechCard ticker={ticker} market={market} active />
+      </div>
+
       {sevenRule ? (
         <div className="napkin-sheet-section">
           <h2 className="napkin-block-title">7-Rule score</h2>
@@ -63,28 +60,6 @@ export function NapkinCompanyContext({
         <h2 className="napkin-block-title">Quarters</h2>
         <QuartersRankCard data={qtr} price={price} />
       </div>
-
-      <div className="napkin-sheet-section">
-        <button
-          type="button"
-          className="napkin-details-toggle"
-          aria-expanded={showDetails}
-          onClick={() => setShowDetails((v) => !v)}
-        >
-          {showDetails ? "Hide Tech & Val" : "Show Tech & Val"}
-        </button>
-      </div>
-
-      {showDetails ? (
-        <div className="napkin-sheet-section">
-          <QuoteTapeCard
-            ticker={ticker}
-            market={market}
-            active
-            fundamentals={fundamentals}
-          />
-        </div>
-      ) : null}
     </>
   );
 }
