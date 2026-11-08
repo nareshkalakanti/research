@@ -36,6 +36,7 @@ import {
 } from "./concall-drift-quarters";
 import {
   computeDriftPct,
+  driftPctDisplayReady,
   priceBaselineConsistent,
 } from "./concall-drift-math";
 import {
@@ -130,6 +131,7 @@ function companyMeta(ticker: string) {
   const c = loadAllCompanies().find(
     (row) => row.ticker.toUpperCase() === ticker.toUpperCase(),
   );
+  const m = loadMetricsMap().get(ticker.toUpperCase());
   const links = researchLinks(
     c?.ticker ?? ticker,
     c?.market,
@@ -140,12 +142,25 @@ function companyMeta(ticker: string) {
     market: c?.market || "NSE",
     sector: c?.sector ?? null,
     sub_sector: c?.sub_sector ?? null,
-    market_cap_cr: c?.mcap_cr ?? null,
-    price: c?.price ?? null,
+    market_cap_cr: c?.mcap_cr ?? m?.market_cap_cr ?? null,
+    price: c?.price ?? m?.price ?? null,
+    price_fetched_at: m?.fetched_at ?? null,
     sc: links.sc,
     tv: links.tv,
     web: links.web,
   };
+}
+
+/** Reject LTPs that pre-date the call — they invent fake % since (e.g. SASKEN). */
+function priceFreshForEvent(
+  fetchedAt: string | null | undefined,
+  eventAt: string,
+): boolean {
+  if (!fetchedAt) return false;
+  const fetched = Date.parse(fetchedAt);
+  const event = Date.parse(eventAt);
+  if (!Number.isFinite(fetched) || !Number.isFinite(event)) return false;
+  return fetched >= event;
 }
 
 function isFresh(iso: string | null | undefined): boolean {
@@ -240,11 +255,20 @@ export type ConcallDriftLoadOpts = {
   to?: string | null;
   sort?: "all" | "gainers" | "losers" | "earn";
   q?: string | null;
+  /** Exact ticker allow-list (Track batch). */
+  tickers?: string[] | null;
   sector?: string | null;
   subSector?: string | null;
   mcapMin?: number | null;
   mcapMax?: number | null;
   onePerTicker?: boolean;
+  /** Skip investor-materials enrich (Drift lite / Track). */
+  skipEnrich?: boolean;
+  /**
+   * Latest feed: keep at most N rows per IST earn day (newest days first).
+   * Stops a busy results week from hiding the rest of the month.
+   */
+  diversifyPerDay?: number;
 };
 
 export type ConcallDriftFilterMeta = {
@@ -394,16 +418,37 @@ function enrichConcallDriftRows(rows: ConcallDriftRow[]): ConcallDriftRow[] {
 
 function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): ConcallDriftRow {
   const priceOk = smePriceTrusted(meta.market, row.ticker, meta.price);
-  const consistent =
+  const eventAt = row.concall_at || row.earn_at;
+  const hasStoredBaseline =
+    row.has_baseline === 1 && row.baseline_close != null && row.baseline_close > 0;
+  const priceFresh =
+    Boolean(eventAt) && priceFreshForEvent(meta.price_fetched_at, eventAt);
+  const ready = Boolean(eventAt) && driftPctDisplayReady(eventAt);
+  const raw =
+    hasStoredBaseline &&
     priceOk &&
-    row.has_baseline === 1 &&
-    row.baseline_close != null &&
     meta.price != null &&
-    priceBaselineConsistent(meta.price, row.baseline_close);
-  const drift = consistent
-    ? computeDriftPct(meta.price, row.baseline_close)
-    : null;
+    priceBaselineConsistent(meta.price, row.baseline_close)
+      ? computeDriftPct(meta.price, row.baseline_close)
+      : null;
 
+  // Pre-call quotes must never invent % (SASKEN-class). Fresh quotes that already
+  // moved vs call-day close can show before the next session opens (weekend).
+  let drift: number | null = null;
+  let drift_block: "stale" | "pending" | null = null;
+  if (!hasStoredBaseline) {
+    drift_block = null;
+  } else if (!priceFresh || meta.price == null || !priceOk) {
+    drift_block = "stale";
+  } else if (raw != null && (ready || Math.abs(raw) >= 0.1)) {
+    drift = raw;
+  } else if (!ready) {
+    drift_block = "pending";
+  } else {
+    drift_block = "stale";
+  }
+
+  const consistent = drift != null;
   const breakout = loadBreakoutMap().get(row.ticker.toUpperCase());
   const key = row.ticker.toUpperCase();
 
@@ -418,9 +463,10 @@ function rowToOutput(row: RawEventRow, meta: ReturnType<typeof companyMeta>): Co
     earn_at: row.earn_at,
     concall_at: row.concall_at,
     quarter_fy: fyQuarterFromEarnEvent(row.earn_at, row.earn_subject),
-    baseline_close: consistent ? row.baseline_close : null,
+    baseline_close: hasStoredBaseline ? row.baseline_close : null,
     drift_pct: drift,
-    has_baseline: consistent,
+    has_baseline: hasStoredBaseline,
+    drift_block,
     earn_subject: row.earn_subject,
     has_bb: Boolean(breakout?.has_bb),
     has_bb_w: Boolean(breakout?.has_bb_w),
@@ -470,8 +516,10 @@ function inDayRange(
   return istDay >= fromKey && istDay <= toKey;
 }
 
-function passesEarnRow(row: RawEventRow, output: ConcallDriftRow): boolean {
-  return passesEarnQuality(row.earn_subject, output.has_baseline);
+function passesEarnRow(row: RawEventRow): boolean {
+  // Use stored baseline flag — not live price freshness — so a stale LTP
+  // does not hide the whole event (SASKEN fell out of Latest that way).
+  return passesEarnQuality(row.earn_subject, row.has_baseline === 1);
 }
 
 function passesRowFilters(
@@ -491,6 +539,10 @@ function passesRowFilters(
   }
 
   const meta = companyMeta(row.ticker);
+  if (opts?.tickers?.length) {
+    const allow = new Set(opts.tickers.map((t) => t.toUpperCase()));
+    if (!allow.has(row.ticker.toUpperCase())) return { ok: false };
+  }
   if (opts?.market && opts.market !== "All") {
     if (opts.market === "NSE") {
       if (meta.market !== "NSE" && meta.market !== "NSE SME") return { ok: false };
@@ -526,7 +578,7 @@ function loadBestDriftRows(opts?: ConcallDriftLoadOpts): ConcallDriftRow[] {
     const { ok, meta } = passesRowFilters(row, optsNoWin, null);
     if (!ok || !meta) continue;
     const output = rowToOutput(row, meta);
-    if (!passesEarnRow(row, output)) continue;
+    if (!passesEarnRow(row)) continue;
     const key = row.ticker.toUpperCase();
     const prev = bestByTicker.get(key);
     if (!prev) bestByTicker.set(key, output);
@@ -628,8 +680,31 @@ export function concallDriftSortCounts(
   return { all: best.length, gainers, losers };
 }
 
+/** Keep ≤perDay rows per IST earn day so Latest spans the whole window. */
+function diversifyByEarnDay(
+  rows: ConcallDriftRow[],
+  perDay: number,
+): ConcallDriftRow[] {
+  if (perDay <= 0 || rows.length <= perDay) return rows;
+  const sorted = [...rows].sort(
+    (a, b) => Date.parse(b.earn_at) - Date.parse(a.earn_at),
+  );
+  const counts = new Map<string, number>();
+  const out: ConcallDriftRow[] = [];
+  for (const r of sorted) {
+    const day = driftEventIstDay(r) || r.earn_at.slice(0, 10);
+    const n = counts.get(day) ?? 0;
+    if (n >= perDay) continue;
+    counts.set(day, n + 1);
+    out.push(r);
+  }
+  return out;
+}
+
 export function loadConcallDriftRows(opts?: ConcallDriftLoadOpts): ConcallDriftRow[] {
   const out = loadBestDriftRows(opts);
+  const finish = (rows: ConcallDriftRow[]) =>
+    opts?.skipEnrich ? rows : enrichConcallDriftRows(rows);
 
   const sort = opts?.sort || "all";
   if (sort === "gainers") {
@@ -639,7 +714,7 @@ export function loadConcallDriftRows(opts?: ConcallDriftLoadOpts): ConcallDriftR
         (b.drift_pct ?? -Infinity) - (a.drift_pct ?? -Infinity) ||
         Date.parse(b.earn_at) - Date.parse(a.earn_at),
     );
-    return enrichConcallDriftRows(opts?.limit ? filtered.slice(0, opts.limit) : filtered);
+    return finish(opts?.limit ? filtered.slice(0, opts.limit) : filtered);
   }
   if (sort === "losers") {
     const filtered = out.filter((r) => r.has_baseline && (r.drift_pct ?? 0) < 0);
@@ -648,12 +723,19 @@ export function loadConcallDriftRows(opts?: ConcallDriftLoadOpts): ConcallDriftR
         (a.drift_pct ?? Infinity) - (b.drift_pct ?? Infinity) ||
         Date.parse(b.earn_at) - Date.parse(a.earn_at),
     );
-    return enrichConcallDriftRows(opts?.limit ? filtered.slice(0, opts.limit) : filtered);
+    return finish(opts?.limit ? filtered.slice(0, opts.limit) : filtered);
   }
 
   out.sort((a, b) => Date.parse(b.earn_at) - Date.parse(a.earn_at));
-  const sliced = opts?.limit && out.length > opts.limit ? out.slice(0, opts.limit) : out;
-  return enrichConcallDriftRows(sliced);
+  const diversified =
+    opts?.diversifyPerDay && opts.diversifyPerDay > 0
+      ? diversifyByEarnDay(out, opts.diversifyPerDay)
+      : out;
+  const sliced =
+    opts?.limit && diversified.length > opts.limit
+      ? diversified.slice(0, opts.limit)
+      : diversified;
+  return finish(sliced);
 }
 
 /** Quarters present in scan data, merged with recent earn seasons. */

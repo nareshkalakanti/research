@@ -17,7 +17,7 @@ import {
 } from "@/lib/ohlc";
 import { analyzeMonthlyRsi } from "@/lib/signals";
 
-/** pass=green 70–85 · strong=amber 85–90 · hot=red ≥90 · unknown=grey <70 / N/A */
+/** pass=green 70–85 · strong=dark green 85–90 (Scan mrsi85) · hot=red ≥90 · unknown=grey <70 / N/A */
 export type TechCheckStatus = "pass" | "strong" | "hot" | "fail" | "unknown";
 
 export type TechGroupId = "price_200" | "trend" | "tq" | "momentum";

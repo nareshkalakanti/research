@@ -310,6 +310,12 @@ export function windowRange(
     const from = new Date(Date.UTC(fromDay.year, fromDay.month - 1, fromDay.day));
     return { from: startOfDay(from), to: endOfDay(istTodayMidnight) };
   }
+  if (w === "last30" || w === "1m" || w === "month") {
+    // Rolling ~1 month of IST civil days (e.g. 7 Nov → back to 8 Oct inclusive = 31 days).
+    const fromDay = shiftIstCivilDay(today, -30);
+    const from = new Date(Date.UTC(fromDay.year, fromDay.month - 1, fromDay.day));
+    return { from: startOfDay(from), to: endOfDay(istTodayMidnight) };
+  }
   if (w === "next7") {
     const toDay = shiftIstCivilDay(today, 7);
     const to = new Date(Date.UTC(toDay.year, toDay.month - 1, toDay.day));

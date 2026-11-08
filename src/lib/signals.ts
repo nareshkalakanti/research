@@ -1500,7 +1500,7 @@ export type ScanKind =
 type SignalKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi";
 
 function scanKinds(kind: ScanKind): SignalKind[] {
-  if (kind === "all") return ["bb", "tq", "ema", "ath", "high52", "mom", "mrsi"];
+  if (kind === "all") return ["bb", "tq", "ema", "mrsi"];
   if (kind === "both") return ["bb", "tq"];
   return [kind];
 }

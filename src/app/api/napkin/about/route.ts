@@ -53,6 +53,78 @@ function productsFromAbout(about: string | null | undefined): string[] {
     .filter((p) => p.length >= 3);
 }
 
+const BRAND_STOP = new Set([
+  "the",
+  "its",
+  "their",
+  "our",
+  "a",
+  "an",
+  "and",
+  "or",
+  "brand",
+  "brands",
+  "name",
+  "names",
+  "product",
+  "products",
+]);
+
+/** Pull brand lists from Yahoo/about prose ("under the X, Y, and Z brand names"). */
+function brandsFromAbout(text: string | null | undefined): string[] {
+  const t = (text || "").trim();
+  if (!t) return [];
+  const patterns = [
+    /under\s+the\s+(.+?)\s+brand\s+names?\b/gi,
+    /under\s+(?:its|their|our)\s+(?:brand\s+names?|brands)\s+(.+?)(?:\.|;|$)/gi,
+    /(?:each\s+of\s+)?(?:our|its|their)\s+brands?\s+(.+?)(?:,\s+play|\.|$)/gi,
+    /products?\s+(?:are\s+)?(?:sold|marketed|offered)\s+under\s+(?:the\s+)?(.+?)(?:\s+brand\s+names?)?(?:\.|;|$)/gi,
+    // Singular: "under Pigeon brand" / "under Gilma brand" / "under Black+Decker brand"
+    /under\s+([A-Z][\w+&.]*(?:\s+[A-Z][\w+&.,]*){0,3})\s+brands?\b/g,
+    // Dual: "under Pigeon and Gilma brands"
+    /under\s+([A-Z][\w+&.]*\s+and\s+[A-Z][\w+&.,]*)\s+brands?\b/g,
+  ];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const re of patterns) {
+    re.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(t)) != null) {
+      const chunk = (m[1] || "").trim();
+      if (!chunk) continue;
+      for (const raw of chunk.split(/\s*,\s*(?:and\s+)?|\s+and\s+/i)) {
+        const p = raw
+          .trim()
+          .replace(/^[\s"'“”]+|[\s"'“”.]+$/g, "")
+          .replace(/^and\s+/i, "")
+          .trim();
+        if (p.length < 2 || p.length > 48) continue;
+        if (BRAND_STOP.has(p.toLowerCase())) continue;
+        if (/^(including|such as|like)\b/i.test(p)) continue;
+        const key = p.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(p);
+      }
+    }
+  }
+  return out;
+}
+
+function mergeProductLists(...lists: string[][]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const list of lists) {
+    for (const p of list) {
+      const key = p.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(p);
+    }
+  }
+  return out;
+}
+
 function payloadFromRow(
   key: string,
   row: {
@@ -76,12 +148,21 @@ function payloadFromRow(
     llm_about: row.llm_about,
     scraped_about: row.scraped_about,
   });
+  // Brands often live in Yahoo/scrape even when displayed about is a short LLM blurb.
+  const brandCorpus = [
+    row.yf_about,
+    row.scraped_about,
+    row.scraped_about_clean,
+    about,
+  ]
+    .filter(Boolean)
+    .join("\n");
+  const brands = brandsFromAbout(brandCorpus);
   const products = splitProducts(row.products);
-  const fromAbout = products.length < 2 ? productsFromAbout(about) : [];
-  const merged = [...products];
-  for (const p of fromAbout) {
-    if (!merged.some((x) => x.toLowerCase() === p.toLowerCase())) merged.push(p);
-  }
+  const fromAbout =
+    products.length < 2 ? productsFromAbout(about || brandCorpus) : [];
+  // Brands first so About shows Gowardhan/Go-style names ahead of category nouns.
+  const merged = mergeProductLists(brands, products, fromAbout);
   const headline = row.business_model?.trim() || null;
   const hasBody = !!(about && about.replace(/\s/g, "").length >= 40);
   if (!headline && !hasBody && !merged.length) return null;
@@ -209,7 +290,10 @@ export async function GET(req: NextRequest) {
         sector: yf.sector,
         sub_sector: yf.industry,
         about,
-        products: productsFromAbout(about),
+        products: mergeProductLists(
+          brandsFromAbout(about),
+          productsFromAbout(about),
+        ),
         headquarters: yf.headquarters,
         market: listing,
         source: "yahoo",

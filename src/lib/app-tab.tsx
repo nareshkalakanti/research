@@ -23,20 +23,20 @@ export type AppTab =
   | "research"
   | "watchlist"
   | "napkin"
+  | "concall-drift"
   | "rotation"
   | "signals";
 
 /** Top nav tabs only — other panels stay wired but are not listed here. */
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "napkin", label: "Napkin", short: "Napkin" },
-  { id: "signals", label: "Signals", short: "Signals" },
+  { id: "dashboard", label: "Dashboard", short: "Dash" },
+  { id: "concall-drift", label: "Drift", short: "Drift" },
+  { id: "pead", label: "PEAD", short: "PEAD" },
+  { id: "scan", label: "Scan", short: "Scan" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
-  { id: "scan", label: "Scan", short: "Scan" },
-  { id: "pead", label: "PEAD", short: "PEAD" },
-  { id: "theme-scanner", label: "Themes", short: "Themes" },
-  { id: "missing", label: "Missing data", short: "Missing" },
-  { id: "dashboard", label: "Dashboard", short: "Dash" },
+  { id: "missing", label: "Data", short: "Data" },
   { id: "research", label: "Research", short: "Research" },
 ];
 
@@ -51,6 +51,8 @@ export const IQ_TABS: AppTab[] = [
 
 const HIDDEN_TABS: AppTab[] = [
   "governance",
+  "theme-scanner",
+  "signals",
   ...IQ_TABS,
 ];
 
@@ -64,10 +66,15 @@ export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
   if (
     raw === "strategy" ||
-    raw === "buyback" ||
-    raw === "corporate" ||
-    raw === "concall"
+    raw === "concall" ||
+    raw === "drift" ||
+    raw === "track" ||
+    raw === "tracks" ||
+    raw === "tracked"
   ) {
+    return "concall-drift";
+  }
+  if (raw === "buyback" || raw === "corporate") {
     return "watchlist";
   }
   if (raw === "fund") return "watchlist";

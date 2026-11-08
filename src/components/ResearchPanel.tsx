@@ -102,7 +102,7 @@ export function ResearchPanel() {
       <ResearchSection
         id="research-sector"
         title="8 · Add sector"
-        defaultOpen
+        defaultOpen={false}
       >
         <SectorShotPanel />
       </ResearchSection>

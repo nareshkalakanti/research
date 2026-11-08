@@ -1,6 +1,7 @@
 /**
  * Pull NSE-announced earn/concall names (default) or backfill the whole universe.
  * npm run scan:concall-drift
+ * npm run scan:concall-drift -- --days=55   # catch up since a gap
  * npm run scan:concall-drift -- --all
  */
 import { runConcallDriftScanBatch } from "../src/lib/strategy/concall-drift-scan";
@@ -9,12 +10,20 @@ const BATCH = 32;
 const CONCURRENCY = 6;
 const PAUSE_MS = 300;
 const ALL = process.argv.includes("--all");
+const daysArg = process.argv.find((a) => a.startsWith("--days="));
+const ANNOUNCED_DAYS = daysArg
+  ? Math.min(60, Math.max(1, Number(daysArg.slice("--days=".length)) || 30))
+  : 30;
 
 async function main() {
   let round = 0;
   let totalFail = 0;
   const t0 = Date.now();
   let leftover: string[] | undefined;
+
+  if (!ALL) {
+    console.log(`Announced lookback: ${ANNOUNCED_DAYS} IST day(s)`);
+  }
 
   for (;;) {
     round += 1;
@@ -23,7 +32,8 @@ async function main() {
       limit: BATCH,
       concurrency: CONCURRENCY,
       announced: ALL ? false : leftover == null,
-      announcedDays: 7,
+      announcedDays: ANNOUNCED_DAYS,
+      daysBack: Math.max(120, ANNOUNCED_DAYS + 30),
       tickers: leftover,
     });
     leftover = result.remaining_tickers?.length

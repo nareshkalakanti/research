@@ -15,18 +15,12 @@ export type ViewFilter =
   | "bbm"
   | "tq"
   | "ema"
-  | "ath"
-  | "high52"
-  | "mom"
   | "mrsi"
   | "mrsi85"
-  | "mrsi_empty"
-  | "opm"
-  | "rule7"
-  | "quant";
+  | "mrsi_empty";
 
-type ScanKind = "bb" | "tq" | "ema" | "ath" | "high52" | "mom" | "mrsi" | "all";
-type ExtraBusy = "quarters" | "rule7";
+type ScanKind = "bb" | "tq" | "ema" | "mrsi" | "all";
+type ExtraBusy = "quarters";
 
 type Props = {
   listLabel: string;
@@ -39,7 +33,6 @@ type Props = {
   selectionActive: boolean;
   cap?: CapFilter;
   hold?: boolean;
-  edge?: boolean;
   gov?: boolean;
   sme?: boolean;
   note?: boolean;
@@ -53,23 +46,14 @@ type Props = {
   bbMCount?: number;
   tqCount?: number;
   emaCount?: number;
-  athCount?: number;
-  high52Count?: number;
-  momCount?: number;
   mrsiCount?: number;
   mrsi85Count?: number;
   mrsiEmptyCount?: number;
-  opmCount?: number;
-  rule7Count?: number;
-  quantCount?: number;
   bbDate?: string | null;
   bbWDate?: string | null;
   bbMDate?: string | null;
   tqDate?: string | null;
   emaDate?: string | null;
-  athDate?: string | null;
-  high52Date?: string | null;
-  momDate?: string | null;
   mrsiDate?: string | null;
   onBatch?: () => void | Promise<void>;
   onDone?: () => void | Promise<void>;
@@ -110,10 +94,6 @@ async function scanOnce(body: Record<string, unknown>) {
     bbHits?: number;
     tqHits?: number;
     emaHits?: number;
-    athHits?: number;
-    high52Hits?: number;
-    momHits?: number;
-    momScanned?: number;
     mrsiHits?: number;
     mrsiScanned?: number;
     remaining?: number;
@@ -121,9 +101,6 @@ async function scanOnce(body: Record<string, unknown>) {
       bb: string | null;
       tq: string | null;
       ema?: string | null;
-      ath?: string | null;
-      high52?: string | null;
-      mom?: string | null;
       mrsi?: string | null;
     };
     error?: string;
@@ -150,9 +127,6 @@ const SCAN_LABELS: Record<ScanKind, string> = {
   bb: "BB",
   tq: "TQ",
   ema: "EMA",
-  ath: "ATH",
-  high52: "52W",
-  mom: "12M",
   mrsi: "RSI M",
   all: "All",
 };
@@ -164,24 +138,15 @@ const VIEW_LABELS: Record<ViewFilter, string> = {
   bbm: "BB M",
   tq: "TQ",
   ema: "EMA",
-  ath: "ATH",
-  high52: "52W",
-  mom: "12M",
   mrsi: "RSI M",
   mrsi85: "85–90",
   mrsi_empty: "Empty",
-  opm: "Operating Metrics",
-  rule7: "7-Rule",
-  quant: "Basket",
 };
 
 type ScanCounts = {
   bb: number;
   tq: number;
   ema: number;
-  ath: number;
-  high52: number;
-  mom: number;
   mrsi: number;
 };
 
@@ -190,22 +155,16 @@ function formatScanProgress(
   counts: ScanCounts,
   remaining: number,
   suffix?: string,
-  scanned?: { mom?: number; mrsi?: number },
+  scanned?: { mrsi?: number },
 ): string {
   const left = `${remaining.toLocaleString()} left`;
   const tail = suffix ? ` · ${suffix}` : "";
   if (kind === "all") {
-    return `${counts.bb} BB · ${counts.tq} TQ · ${counts.ema} EMA · ${counts.ath} ATH · ${counts.high52} 52W · ${counts.mom} 12m · ${counts.mrsi} RSI M · ${left}${tail}`;
+    return `${counts.bb} BB · ${counts.tq} TQ · ${counts.ema} EMA · ${counts.mrsi} RSI M · ${left}${tail}`;
   }
   if (kind === "bb") return `${counts.bb} BB · ${left}${tail}`;
   if (kind === "tq") return `${counts.tq} TQ · ${left}${tail}`;
   if (kind === "ema") return `${counts.ema} EMA · ${left}${tail}`;
-  if (kind === "ath") return `${counts.ath} ATH · ${left}${tail}`;
-  if (kind === "high52") return `${counts.high52} 52W · ${left}${tail}`;
-  if (kind === "mom") {
-    const filled = scanned?.mom ?? 0;
-    return `${filled.toLocaleString()} filled · ${counts.mom} +Mom · ${left}${tail}`;
-  }
   if (kind === "mrsi") {
     const filled = scanned?.mrsi ?? 0;
     return `${filled.toLocaleString()} filled · ${counts.mrsi} crosses · ${left}${tail}`;
@@ -220,7 +179,6 @@ export function viewFilterLabel(view: ViewFilter): string {
 export function hasScanSelection(opts: {
   cap?: CapFilter;
   hold?: boolean;
-  edge?: boolean;
   gov?: boolean;
   sme?: boolean;
   note?: boolean;
@@ -233,7 +191,6 @@ export function hasScanSelection(opts: {
   if (opts.mcapNarrowed) return true;
   if (
     opts.hold ||
-    opts.edge ||
     opts.gov ||
     opts.sme ||
     opts.note ||
@@ -256,7 +213,6 @@ export function SignalScanBar({
   selectionActive,
   cap,
   hold,
-  edge,
   gov,
   sme,
   note,
@@ -270,23 +226,14 @@ export function SignalScanBar({
   bbMCount,
   tqCount,
   emaCount,
-  athCount,
-  high52Count,
-  momCount,
   mrsiCount,
   mrsi85Count,
   mrsiEmptyCount,
-  opmCount,
-  rule7Count,
-  quantCount,
   bbDate,
   bbWDate,
   bbMDate,
   tqDate,
   emaDate,
-  athDate,
-  high52Date,
-  momDate,
   mrsiDate,
   onBatch,
   onDone,
@@ -333,14 +280,9 @@ export function SignalScanBar({
       let gotBb = 0;
       let gotTq = 0;
       let gotEma = 0;
-      let gotAth = 0;
-      let gotHigh52 = 0;
-      let gotMom = 0;
       let gotMrsi = 0;
-      let scannedMom = 0;
       let scannedMrsi = 0;
       let clearedEmptyMrsi = false;
-      let clearedEmptyMom = false;
 
       const scanBody = {
         kind: effectiveKind,
@@ -355,7 +297,6 @@ export function SignalScanBar({
           ? {
               cap: cap ?? "All",
               hold: !!hold,
-              edge: !!edge,
               gov: !!gov,
               sme: !!sme,
               note: !!note,
@@ -382,15 +323,9 @@ export function SignalScanBar({
                 clearEmptyMrsi:
                   (effectiveKind === "mrsi" || effectiveKind === "all") &&
                   !clearedEmptyMrsi,
-                clearEmptyMom:
-                  (effectiveKind === "mom" || effectiveKind === "all") &&
-                  !clearedEmptyMom,
               });
               if (effectiveKind === "mrsi" || effectiveKind === "all") {
                 clearedEmptyMrsi = true;
-              }
-              if (effectiveKind === "mom" || effectiveKind === "all") {
-                clearedEmptyMom = true;
               }
               attemptError = null;
               break;
@@ -430,11 +365,7 @@ export function SignalScanBar({
           gotBb += json.bbHits ?? 0;
           gotTq += json.tqHits ?? 0;
           gotEma += json.emaHits ?? 0;
-          gotAth += json.athHits ?? 0;
-          gotHigh52 += json.high52Hits ?? 0;
-          gotMom += json.momHits ?? 0;
           gotMrsi += json.mrsiHits ?? 0;
-          scannedMom += json.momScanned ?? json.tried ?? 0;
           scannedMrsi += json.mrsiScanned ?? json.tried ?? 0;
           remaining = json.remaining ?? 0;
           if (round === 1 || startRemaining <= 0) {
@@ -444,9 +375,6 @@ export function SignalScanBar({
             bb: gotBb,
             tq: gotTq,
             ema: gotEma,
-            ath: gotAth,
-            high52: gotHigh52,
-            mom: gotMom,
             mrsi: gotMrsi,
           };
           const doneCount = Math.max(0, startRemaining - remaining);
@@ -465,7 +393,7 @@ export function SignalScanBar({
               counts,
               remaining,
               `${emptyQueue ? "Empty" : scope === "selection" ? "Tags" : "List"} · ${scopeLabel}`,
-              { mom: scannedMom, mrsi: scannedMrsi },
+              { mrsi: scannedMrsi },
             ),
             done: remaining <= 0,
           });
@@ -485,9 +413,6 @@ export function SignalScanBar({
         else if (kind === "bb") onView(tf === "monthly" ? "bbm" : "bbw");
         else if (kind === "tq") onView("tq");
         else if (kind === "ema") onView("ema");
-        else if (kind === "ath") onView("ath");
-        else if (kind === "high52") onView("high52");
-        else if (kind === "mom") onView("mom");
         else if (kind === "mrsi") onView("mrsi");
         else onView("all");
 
@@ -500,14 +425,11 @@ export function SignalScanBar({
               bb: gotBb,
               tq: gotTq,
               ema: gotEma,
-              ath: gotAth,
-              high52: gotHigh52,
-              mom: gotMom,
               mrsi: gotMrsi,
             },
             0,
             `${emptyQueue ? "Empty" : scope === "selection" ? "Tags" : "List"} · ${scopeLabel}`,
-            { mom: scannedMom, mrsi: scannedMrsi },
+            { mrsi: scannedMrsi },
           ),
           done: true,
         });
@@ -533,7 +455,6 @@ export function SignalScanBar({
       view,
       cap,
       hold,
-      edge,
       gov,
       sme,
       note,
@@ -555,7 +476,6 @@ export function SignalScanBar({
             scope: "selection" as const,
             cap: cap ?? "All",
             hold: !!hold,
-            edge: !!edge,
             gov: !!gov,
             sme: !!sme,
             note: !!note,
@@ -566,7 +486,7 @@ export function SignalScanBar({
             mcapMax: mcapMax ?? null,
           }
         : { scope: "list" as const },
-    [scope, cap, hold, edge, gov, sme, note, ageMin, funds, fundAll, mcapMin, mcapMax],
+    [scope, cap, hold, gov, sme, note, ageMin, funds, fundAll, mcapMin, mcapMax],
   );
 
   const runQuartersFill = useCallback(async () => {
@@ -667,7 +587,6 @@ export function SignalScanBar({
         detail: `+${saved} quarters · ${failed} failed · ${scopeLabel}`,
         done: true,
       });
-      if (view !== "quant" && view !== "rule7") onView("opm");
       await onDone?.();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Quarters fill failed";
@@ -692,102 +611,6 @@ export function SignalScanBar({
     selectionBody,
     onBatch,
     onDone,
-    onView,
-    view,
-  ]);
-
-  /** Serial + long gaps — Screener blocks fast ROE/ROCE batches. */
-  const runRule7Fill = useCallback(async () => {
-    const scopeLabel =
-      scope === "selection" && selectionActive ? listLabel : market;
-    setBusyKind("rule7");
-    setBusyTf(null);
-    setProgress({
-      pct: 2,
-      label: "Fill 7-Rule",
-      detail: `Slow ROE/ROCE · Tickertape first · Screener spaced ~15–20s · ${scopeLabel}`,
-    });
-    let remaining = 1;
-    let saved = 0;
-    let failed = 0;
-    try {
-      for (let round = 1; round <= 800; round += 1) {
-        const res = await fetch("/api/seven-rule-fill", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            market,
-            limit: 3,
-            missingOnly: true,
-            ...selectionBody(),
-          }),
-          cache: "no-store",
-        });
-        const json = (await res.json()) as {
-          ok?: boolean;
-          tried?: number;
-          saved?: number;
-          failed?: number;
-          remaining?: number;
-          paused?: boolean;
-          paused_until?: string | null;
-          message?: string;
-          error?: string;
-        };
-        if (!res.ok || json.ok === false) {
-          throw new Error(json.error || json.message || "7-Rule fill failed");
-        }
-        saved += json.saved ?? 0;
-        failed += json.failed ?? 0;
-        remaining = json.remaining ?? 0;
-        setProgress({
-          pct: remaining <= 0 ? 100 : Math.min(97, 2 + round),
-          label: json.paused ? "Paused" : remaining <= 0 ? "Done" : "Fill 7-Rule",
-          detail: json.paused
-            ? `Screener paused until ${json.paused_until || "?"} · +${saved} · ${remaining.toLocaleString()} left`
-            : `+${saved} · ${failed} failed · ${remaining.toLocaleString()} left · ~15–20s/name · ${scopeLabel}`,
-          done: remaining <= 0 || json.paused === true,
-          error: json.paused === true,
-        });
-        if (round === 1 || round % 2 === 0 || remaining <= 0 || json.paused) {
-          await (onBatch ?? onDone)?.();
-        }
-        if ((json.tried ?? 0) === 0 || remaining <= 0 || json.paused) break;
-        // Failed names are miss-blocked server-side; if nothing saved, stop.
-        if ((json.saved ?? 0) === 0 && (json.failed ?? 0) > 0) break;
-        // Extra pause between API rounds so Screener stays quiet.
-        await new Promise((r) => setTimeout(r, 8_000 + Math.random() * 4_000));
-      }
-      if (remaining <= 0) {
-        setProgress({
-          pct: 100,
-          label: "Done",
-          detail: `+${saved} ROE/ROCE · ${failed} failed · ${scopeLabel}`,
-          done: true,
-        });
-      }
-      onView("rule7");
-      await onDone?.();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "7-Rule fill failed";
-      setProgress({
-        pct: 100,
-        label: "Failed",
-        detail: msg,
-        error: true,
-      });
-    } finally {
-      setBusyKind(null);
-    }
-  }, [
-    market,
-    listLabel,
-    scope,
-    selectionActive,
-    selectionBody,
-    onBatch,
-    onDone,
-    onView,
   ]);
 
   const busy = busyKind != null;
@@ -894,52 +717,6 @@ export function SignalScanBar({
             </button>
             <button
               type="button"
-              className={`chip tag-chip tag-scan-ath ${view === "ath" ? "on" : ""}`}
-              onClick={() => onView("ath")}
-              title={
-                athDate ? `NEW ATH · ${athDate}` : "NEW all-time high hits"
-              }
-            >
-              ATH
-              <Count n={athCount} />
-              {athDate ? (
-                <span className="chip-date">{athDate.slice(5)}</span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className={`chip tag-chip tag-scan-high52 ${view === "high52" ? "on" : ""}`}
-              onClick={() => onView("high52")}
-              title={
-                high52Date
-                  ? `NEW 52W high · ${high52Date}`
-                  : "NEW 52-week high hits"
-              }
-            >
-              52W
-              <Count n={high52Count} />
-              {high52Date ? (
-                <span className="chip-date">{high52Date.slice(5)}</span>
-              ) : null}
-            </button>
-            <button
-              type="button"
-              className={`chip tag-chip tag-scan-mom ${view === "mom" ? "on" : ""}`}
-              onClick={() => onView("mom")}
-              title={
-                momDate
-                  ? `Positive 12−1 momentum · ${momDate}`
-                  : "Positive 12−1 momentum (Scan 12m fills Rank / 1Y / 1M / Mom)"
-              }
-            >
-              12M
-              <Count n={momCount} />
-              {momDate ? (
-                <span className="chip-date">{momDate.slice(5)}</span>
-              ) : null}
-            </button>
-            <button
-              type="button"
               className={`chip tag-chip tag-scan-mrsi ${view === "mrsi" ? "on" : ""}`}
               onClick={() => onView("mrsi")}
               title={
@@ -975,33 +752,6 @@ export function SignalScanBar({
               </button>
             ) : null}
 
-            <button
-              type="button"
-              className={`chip tag-chip tag-scan-opm ${view === "opm" ? "on" : ""}`}
-              onClick={() => onView("opm")}
-              title="Operating Metrics: Stable OPM (range ≤2.5pp) and Sales YoY ≥5%. New listings (2–3Q): Stable OPM + QoQ sales growth when YoY is not available yet."
-            >
-              Operating Metrics
-              <Count n={opmCount} />
-            </button>
-            <button
-              type="button"
-              className={`chip tag-chip tag-scan-rule7 ${view === "rule7" ? "on" : ""}`}
-              onClick={() => onView("rule7")}
-              title="7-Rule Deep Dive+: ROCE/ROE ≥15%, Sales/Profit QoQ & YoY, OPM trend. Needs Fill Quarters + slow Fill 7-Rule (ROE/ROCE)."
-            >
-              7-Rule
-              <Count n={rule7Count} />
-            </button>
-            <button
-              type="button"
-              className={`chip tag-chip tag-scan-quant ${view === "quant" ? "on" : ""}`}
-              onClick={() => onView("quant")}
-              title="Quant book: filters then score (board independence, stable OPM/PAT, TTM OP/mcap vs sector), then top names with sector cap and equal weights. Rules, not stories. https://www.lotusdew.in/blogs/what-is-a-quant-driven-smallcase-how-data-replaces-guesswork-in-stock-picking"
-            >
-              Basket
-              <Count n={quantCount} />
-            </button>
             {view !== "all" ? (
               <button
                 type="button"
@@ -1027,8 +777,8 @@ export function SignalScanBar({
               onClick={() => onScope("selection")}
               title={
                 selectionActive
-                  ? `Scan only the active tags (e.g. Edge, Hold, Cap) within ${market}`
-                  : "Select a Lists or Funds tag (Edge, Hold, Cap, …) first"
+                  ? `Scan only the active tags (e.g. Hold, Gov, Cap) within ${market}`
+                  : "Select a Lists or Funds tag (Hold, Gov, Cap, …) first"
               }
             >
               Tags
@@ -1057,9 +807,6 @@ export function SignalScanBar({
                 },
                 { kind: "tq" as const, label: "Scan TQ" },
                 { kind: "ema" as const, label: "Scan EMA" },
-                { kind: "ath" as const, label: "Scan ATH" },
-                { kind: "high52" as const, label: "Scan 52W" },
-                { kind: "mom" as const, label: "Scan 12m" },
                 { kind: "mrsi" as const, label: "Scan RSI M" },
                 { kind: "all" as const, label: "Scan all" },
               ] as const
@@ -1082,16 +829,14 @@ export function SignalScanBar({
                   title={
                     btn.kind === "bb"
                       ? `Scan ${tf === "monthly" ? "monthly" : "weekly"} BB on ${target}`
-                      : btn.kind === "mom"
-                        ? `Scan 12−1 momentum (fills 1Y / 1M / Mom) on ${target}`
                       : btn.kind === "mrsi"
-                          ? view === "mrsi_empty"
-                            ? `Fill RSI M values for Empty queue, then apply RSI M filter (cross above 70)`
-                            : `Scan monthly RSI(14); fill values + filter = new cross above 70 on ${target}`
-                          : btn.kind === "all"
+                        ? view === "mrsi_empty"
+                          ? `Fill RSI M values for Empty queue, then apply RSI M filter (cross above 70)`
+                          : `Scan monthly RSI(14); fill values + filter = new cross above 70 on ${target}`
+                        : btn.kind === "all"
                           ? view === "mrsi_empty"
                             ? `Fill Empty RSI M queue (same as Scan RSI M)`
-                            : `Scan BB W, TQ, EMA, ATH, 52W, 12m, RSI M on ${target}`
+                            : `Scan BB W, TQ, EMA, RSI M on ${target}`
                           : `Scan ${SCAN_LABELS[btn.kind]} on ${target}`
                   }
                 >
@@ -1105,18 +850,9 @@ export function SignalScanBar({
               className={`chip chip-scan tag-chip ${busyKind === "quarters" ? "busy on" : ""}`}
               disabled={busy || (scope === "selection" && !selectionActive)}
               onClick={() => void runQuartersFill()}
-              title={`Fill missing quarterly P&L on ${scope === "selection" ? listLabel : market} (missing-only). Then use refresh; Basket / OPM / 7-Rule read that cache.`}
+              title={`Fill missing quarterly P&L on ${scope === "selection" ? listLabel : market} (missing-only).`}
             >
               {busyKind === "quarters" ? "…" : "Fill Quarters"}
-            </button>
-            <button
-              type="button"
-              className={`chip chip-scan tag-chip ${busyKind === "rule7" ? "busy on" : ""}`}
-              disabled={busy || (scope === "selection" && !selectionActive)}
-              onClick={() => void runRule7Fill()}
-              title="Slow ROE/ROCE fill for 7-Rule (Tickertape first, then Screener ~15–20s apart). Stops if Screener pauses. Prefer Tags/List scope."
-            >
-              {busyKind === "rule7" ? "…" : "Fill 7-Rule"}
             </button>
           </div>
           {progressEl}

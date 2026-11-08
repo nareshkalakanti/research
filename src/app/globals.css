@@ -1435,6 +1435,34 @@ a.brand-btn:hover .brand-name {
   color: #94a3b8;
 }
 
+.pead2-rec {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.4rem;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 650;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+}
+
+.pead2-rec--buy {
+  background: #d1fae5;
+  color: #047857;
+}
+
+.pead2-rec--watch {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.pead2-rec--avoid {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
 .pead-good {
   color: #047857;
 }
@@ -24902,6 +24930,22 @@ tr.wl-prove-fail td {
   color: var(--pcd-muted);
 }
 
+.pcd-drift-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.pcd-drift-since {
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--pcd-muted);
+}
+
 .pcd-foot {
   display: flex;
   flex-wrap: wrap;
@@ -24914,6 +24958,119 @@ tr.wl-prove-fail td {
   text-transform: uppercase;
   color: var(--pcd-muted);
   border-top: 1px solid var(--pcd-line);
+}
+
+/* Lean Drift tab (next to Napkin) — gainers/losers + add stock */
+.concall-drift-lite-toolbar {
+  align-items: center;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.concall-drift-lite-search {
+  flex: 0 1 220px;
+  max-width: 260px;
+  min-width: min(160px, 100%);
+}
+
+.concall-drift-lite-mcap {
+  flex: 1 1 220px;
+  min-width: min(280px, 100%);
+  max-width: 420px;
+}
+
+.concall-drift-price-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--pcd-line, #ddd) 80%, #c9a227);
+  background: color-mix(in srgb, #c9a227 12%, transparent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--pcd-muted, #666);
+}
+
+.concall-drift-price-banner.is-progress {
+  justify-content: stretch;
+}
+
+.concall-drift-price-progress {
+  flex: 1 1 220px;
+  min-width: min(240px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.concall-drift-price-progress .fill-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.concall-drift-price-progress .fill-progress-label {
+  font-weight: 600;
+  color: var(--pcd-muted, #666);
+}
+
+.concall-drift-price-banner .pcd-ghost-btn {
+  flex-shrink: 0;
+}
+
+.concall-drift-fix-prices {
+  font-weight: 700;
+}
+
+.concall-drift-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  min-width: min(320px, 100%);
+}
+
+.concall-track-add {
+  margin-left: 0;
+  width: min(420px, 100%);
+}
+
+.pcd-col-track-rm {
+  width: 5.5rem;
+}
+
+.concall-track-rm {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.45rem;
+}
+
+.concall-drift-add-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.concall-drift-add-btn {
+  flex-shrink: 0;
+}
+
+.pcd-meta-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 8px 4px 2px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--pcd-muted);
+}
+
+.concall-drift-add-msg {
+  color: var(--ink);
+  font-weight: 650;
 }
 
 @media (max-width: 900px) {
@@ -26832,9 +26989,10 @@ tr.wl-prove-fail td {
   box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
 }
 
+/* Match Scan mrsi85 (85–90 excellent) — dark green, not amber. */
 .napkin-tech-block.is-strong > .napkin-tech-item .napkin-tech-dot {
-  background: #d97706;
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.2);
+  background: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.22);
 }
 
 .napkin-tech-block.is-hot > .napkin-tech-item .napkin-tech-dot,
@@ -26864,7 +27022,7 @@ tr.wl-prove-fail td {
 }
 
 .napkin-tech-block.is-strong > .napkin-tech-item .napkin-tech-item-status {
-  color: #b45309;
+  color: #047857;
 }
 
 .napkin-tech-block.is-hot > .napkin-tech-item .napkin-tech-item-status,

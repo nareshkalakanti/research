@@ -5,6 +5,7 @@ import { loadAllCompanies } from "./db";
 import { loadQuarterOverlayMap } from "./fundamentals-scan";
 import { mcapCapCode } from "./gov-score";
 import {
+  peadRecommendation,
   peadScoreFf,
   returnsPctFromEntry,
   usableForwardPe,
@@ -177,6 +178,7 @@ export function loadPead2Rows(): Pead2Row[] {
       sc: c.sc,
       tv: c.tv,
       pead_score,
+      recommendation: peadRecommendation(pead_score),
       result_date,
       pe_ratio,
       forward_pe,

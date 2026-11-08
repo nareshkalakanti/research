@@ -14,7 +14,6 @@ import {
 import {
   runConcallDriftScanBatch,
   repairConcallDriftPairing,
-  recomputeConcallAnnouncementBaselines,
 } from "@/lib/strategy/concall-drift-scan";
 import { checkNseFeedStatus } from "@/lib/nse-feed-status";
 import { loadCorporateEnrichmentByTickers } from "@/lib/corporate-data";
@@ -56,6 +55,7 @@ async function getStrategyConcallDrift(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const market = sp.get("market") || "All";
   const refresh = sp.get("refresh") === "1";
+  const lite = sp.get("lite") === "1";
 
   const cap = (sp.get("cap") || "All") as CapTier | "All";
   const quarter = sp.get("quarter");
@@ -64,6 +64,11 @@ async function getStrategyConcallDrift(req: NextRequest) {
   const to = sp.get("to");
   const sort = (sp.get("sort") || "all") as "all" | "gainers" | "losers";
   const q = sp.get("q");
+  const tickers = (sp.get("tickers") || "")
+    .split(/[,;\s]+/)
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, 80);
   const sector = sp.get("sector");
   const subSector = sp.get("subSector");
   const mcapMinRaw = sp.get("mcapMin");
@@ -72,6 +77,14 @@ async function getStrategyConcallDrift(req: NextRequest) {
     mcapMinRaw != null && mcapMinRaw !== "" ? Number(mcapMinRaw) : null;
   const mcapMax =
     mcapMaxRaw != null && mcapMaxRaw !== "" ? Number(mcapMaxRaw) : null;
+  const limitRaw = sp.get("limit");
+  const limitParsed =
+    limitRaw != null && limitRaw !== "" ? Number(limitRaw) : NaN;
+  const limit = Number.isFinite(limitParsed)
+    ? Math.min(500, Math.max(1, Math.floor(limitParsed)))
+    : lite
+      ? 80
+      : 500;
 
   if (refresh) {
     invalidateCompanyCache();
@@ -90,17 +103,74 @@ async function getStrategyConcallDrift(req: NextRequest) {
     to,
     onePerTicker: true as const,
   };
+  const diversifyRaw = sp.get("diversifyPerDay");
+  const diversifyParsed =
+    diversifyRaw != null && diversifyRaw !== "" ? Number(diversifyRaw) : NaN;
+  // Exact ticker batches (Track / Update prices) must not day-diversify away names.
+  const diversifyPerDay = tickers.length
+    ? undefined
+    : Number.isFinite(diversifyParsed)
+      ? Math.min(50, Math.max(1, Math.floor(diversifyParsed)))
+      : lite && sort === "all"
+        ? 18
+        : undefined;
+
   const rowOpts = {
     ...baseOpts,
     cap,
-    limit: 500,
+    limit: lite && sort === "all" ? Math.max(limit, 400) : limit,
     sort,
     q,
+    tickers: tickers.length ? tickers : null,
     sector,
     subSector,
     mcapMin: Number.isFinite(mcapMin!) ? mcapMin : null,
     mcapMax: Number.isFinite(mcapMax!) ? mcapMax : null,
+    skipEnrich: lite,
+    diversifyPerDay,
   };
+
+  // Price refresh only — pairing/baseline recompute belongs on POST scan, not every GET.
+  if (refresh) {
+    try {
+      const preview = loadConcallDriftRows(rowOpts);
+      const { refreshPagePrices } = await import("@/lib/metrics");
+      const seen = new Set<string>();
+      const batch: Array<{ ticker: string; market: string }> = [];
+      const maxBatch = lite ? 200 : 40;
+      for (const row of preview) {
+        const key = row.ticker.toUpperCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        batch.push({ ticker: row.ticker, market: row.market });
+        if (batch.length >= maxBatch) break;
+      }
+      if (batch.length) {
+        await refreshPagePrices(batch, { force: true, concurrency: 8 });
+        invalidateCompanyCache();
+      }
+    } catch {
+      /* best-effort — still return cached rows */
+    }
+  }
+
+  const baseRows = loadConcallDriftRows(rowOpts);
+
+  if (lite) {
+    const withBaseline = baseRows.filter((r) => r.has_baseline).length;
+    return NextResponse.json({
+      ok: true,
+      kind: "concall_drift",
+      market,
+      cap,
+      sort,
+      lite: true,
+      total_events: baseRows.length,
+      with_baseline: withBaseline,
+      rows: baseRows,
+    });
+  }
+
   const filterMeta = concallDriftFilterMeta({
     market,
     quarter,
@@ -110,36 +180,6 @@ async function getStrategyConcallDrift(req: NextRequest) {
     onePerTicker: true,
   });
 
-  if (refresh) {
-    try {
-      const preview = loadConcallDriftRows(rowOpts);
-      const tickers = [
-        ...new Set(preview.map((r) => r.ticker.toUpperCase())),
-      ].slice(0, 30);
-      if (tickers.length) {
-        await repairConcallDriftPairing({ tickers, limit: 40 });
-        await recomputeConcallAnnouncementBaselines(tickers);
-      }
-      const { refreshPagePrices } = await import("@/lib/metrics");
-      const seen = new Set<string>();
-      const batch: Array<{ ticker: string; market: string }> = [];
-      for (const row of preview) {
-        const key = row.ticker.toUpperCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        batch.push({ ticker: row.ticker, market: row.market });
-        if (batch.length >= 80) break;
-      }
-      if (batch.length) {
-        await refreshPagePrices(batch, { force: true, concurrency: 6 });
-        invalidateCompanyCache();
-      }
-    } catch {
-      /* best-effort — still return cached rows */
-    }
-  }
-
-  const baseRows = loadConcallDriftRows(rowOpts);
   const corpMap = loadCorporateEnrichmentByTickers(
     baseRows.map((r) => r.ticker),
   );

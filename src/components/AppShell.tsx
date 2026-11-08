@@ -75,6 +75,12 @@ const NapkinPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const ConcallDriftPanel = dynamic(
+  () =>
+    import("@/components/ConcallDriftPanel").then((m) => m.ConcallDriftPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const SectorRotationPanel = dynamic(
   () =>
     import("@/components/SectorRotationPanel").then(
@@ -98,6 +104,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   pead: PeadPanel,
   governance: GovernanceMapPanel,
   napkin: NapkinPanel,
+  "concall-drift": ConcallDriftPanel,
   signals: ValuePickrSignalsPanel,
   rotation: SectorRotationPanel,
   marketiq: MarketIqPanel,
@@ -183,13 +190,18 @@ export function AppShell() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("tab");
-    if (
-      t === "corporate" ||
-      t === "concall" ||
-      t === "strategy" ||
-      t === "buyback"
-    ) {
+    if (t === "corporate" || t === "buyback") {
       window.history.replaceState(window.history.state, "", "/watchlist");
+      return;
+    }
+    if (t === "concall" || t === "strategy" || t === "drift") {
+      params.set("tab", "concall-drift");
+      const qs = params.toString();
+      window.history.replaceState(
+        window.history.state,
+        "",
+        qs ? `/?${qs}` : "/?tab=concall-drift",
+      );
       return;
     }
     if (t === "categories") {

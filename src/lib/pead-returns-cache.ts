@@ -1,13 +1,18 @@
 import { openSqliteNamed } from "./sqlite-utils";
 
+/** Ret = result-day close → LTP (Drift-style); Day = announce session only. */
+export const PEAD_RETURNS_FORMULA = 3;
+
 export type PeadReturnsRow = {
   ticker: string;
   returns_pct: number | null;
   daily_ret_pct: number | null;
   /** Announcement date these returns were computed for (YYYY-MM-DD). */
   result_date: string | null;
-  /** Result-day (or next session) close used as returns entry. */
+  /** Result-session close — Ret baseline (same idea as Drift call-day close). */
   entry_close: number | null;
+  /** Formula id; ignore rows below PEAD_RETURNS_FORMULA. */
+  formula: number;
   updated_at: string;
 };
 
@@ -31,6 +36,9 @@ function db() {
   if (!cols.some((c) => c.name === "entry_close")) {
     handle.exec(`ALTER TABLE pead_returns ADD COLUMN entry_close REAL`);
   }
+  if (!cols.some((c) => c.name === "formula")) {
+    handle.exec(`ALTER TABLE pead_returns ADD COLUMN formula INTEGER`);
+  }
   return handle;
 }
 
@@ -46,7 +54,7 @@ export function loadPeadReturnsMap(): Map<string, PeadReturnsRow> {
     try {
       const rows = handle
         .prepare(
-          `SELECT ticker, returns_pct, daily_ret_pct, result_date, entry_close, updated_at FROM pead_returns`,
+          `SELECT ticker, returns_pct, daily_ret_pct, result_date, entry_close, formula, updated_at FROM pead_returns`,
         )
         .all() as Array<{
         ticker: string;
@@ -54,9 +62,16 @@ export function loadPeadReturnsMap(): Map<string, PeadReturnsRow> {
         daily_ret_pct: number | null;
         result_date: string | null;
         entry_close: number | null;
+        formula: number | null;
         updated_at: string;
       }>;
       for (const row of rows) {
+        const formula =
+          row.formula != null && Number.isFinite(row.formula)
+            ? Number(row.formula)
+            : 0;
+        // Drop pre-v3 rows (old Ret entry / Day = max later move).
+        if (formula < PEAD_RETURNS_FORMULA) continue;
         const entry =
           row.entry_close != null &&
           Number.isFinite(row.entry_close) &&
@@ -69,6 +84,7 @@ export function loadPeadReturnsMap(): Map<string, PeadReturnsRow> {
           daily_ret_pct: row.daily_ret_pct,
           result_date: isoDay(row.result_date),
           entry_close: entry,
+          formula,
           updated_at: row.updated_at,
         });
       }
@@ -96,13 +112,14 @@ export function savePeadReturns(
         : null;
     handle
       .prepare(
-        `INSERT INTO pead_returns (ticker, returns_pct, daily_ret_pct, result_date, entry_close, updated_at)
-         VALUES (@ticker, @returns_pct, @daily_ret_pct, @result_date, @entry_close, @updated_at)
+        `INSERT INTO pead_returns (ticker, returns_pct, daily_ret_pct, result_date, entry_close, formula, updated_at)
+         VALUES (@ticker, @returns_pct, @daily_ret_pct, @result_date, @entry_close, @formula, @updated_at)
          ON CONFLICT(ticker) DO UPDATE SET
            returns_pct = excluded.returns_pct,
            daily_ret_pct = excluded.daily_ret_pct,
            result_date = excluded.result_date,
            entry_close = excluded.entry_close,
+           formula = excluded.formula,
            updated_at = excluded.updated_at`,
       )
       .run({
@@ -111,6 +128,7 @@ export function savePeadReturns(
         daily_ret_pct,
         result_date: isoDay(resultDate),
         entry_close: entry,
+        formula: PEAD_RETURNS_FORMULA,
         updated_at: new Date().toISOString(),
       });
   } finally {

@@ -121,12 +121,12 @@ const COLS: Array<{
     id: "returns_pct",
     label: "Returns",
     title:
-      "From result-day close (or next session) → latest price — announce day, not quarter-end",
+      "Like Drift: (LTP − result-day close) / result-day close — announce gap is Day",
   },
   {
     id: "daily_ret_pct",
     label: "Daily Ret",
-    title: "Largest single-day % move on/after announcement (close-to-close)",
+    title: "Result-day change only: prior close → result session close",
   },
   { id: "sales_yoy", label: "Sales YoY", extra: true },
   { id: "sales_qoq", label: "Sales QoQ", extra: true },
@@ -875,7 +875,7 @@ export function PeadPanel() {
         return (
           <span
             className={pctClass(row.returns_pct)}
-            title="Return from result-day close → live price"
+            title="(LTP − result-day close) / result-day close × 100"
           >
             <span className="pead2-col-lbl">Ret</span> {fmtPct(row.returns_pct)}
           </span>
@@ -884,7 +884,7 @@ export function PeadPanel() {
         return (
           <span
             className={pctClass(row.daily_ret_pct)}
-            title="Largest single-day % move on/after announcement"
+            title="Result-day change only: prior close → result session close"
           >
             <span className="pead2-col-lbl">Day</span>{" "}
             {fmtPct(row.daily_ret_pct)}
@@ -929,7 +929,7 @@ export function PeadPanel() {
     }
   }
 
-  const start = data ? (data.page - 1) * 40 + 1 : 0;
+  const start = data && data.total > 0 ? (data.page - 1) * 40 + 1 : 0;
   const end = data ? Math.min(data.page * 40, data.total) : 0;
 
   return (
@@ -1113,9 +1113,11 @@ export function PeadPanel() {
           </span>
         ) : data ? (
           <span>
-            Showing {start.toLocaleString()}–{end.toLocaleString()} of{" "}
-            {data.total.toLocaleString()}
+            {data.total === 0
+              ? "Showing 0"
+              : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${data.total.toLocaleString()}`}
             {paging ? " · paging…" : ""}
+            {incompleteOnly ? " · Incomplete on" : ""}
             {coverage
               ? ` · ${market} ${coverage.scored.toLocaleString()}/${coverage.universe.toLocaleString()} scored · ${coverage.incomplete.toLocaleString()} need metrics · ${coverage.missing.toLocaleString()} missing`
               : data.stats?.scored != null
@@ -1197,7 +1199,11 @@ export function PeadPanel() {
             </tbody>
           </table>
           {data && data.rows.length === 0 && !loading ? (
-            <div className="table-meta">No boards match these PEAD filters.</div>
+            <div className="table-meta">
+              {incompleteOnly
+                ? "No incomplete boards in this list/season."
+                : "No boards match these PEAD filters."}
+            </div>
           ) : null}
         </div>
       </div>

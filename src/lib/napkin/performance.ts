@@ -1,10 +1,11 @@
 /**
  * Simple Napkin performance screen — thresholds are product rules, not issuer data.
- * Values are ratios (0.20 = 20%) except where noted.
+ * Values are ratios (0.15 = 15%) except where noted.
  */
 
 export const NAPKIN_PERF = {
-  revenueCagrMin: 0.2,
+  /** Pass when 5Y or 3Y revenue CAGR clears this (OR). */
+  revenueCagrMin: 0.15,
   ebitdaMarginMin: 0.15,
   roceMin: 0.18,
   debtEquityMax: 0.5,
@@ -53,7 +54,7 @@ function maxCheck(
   return value <= max ? "pass" : "fail";
 }
 
-/** Prefer 5Y revenue CAGR; else 3Y; else 2Y. Threshold stays >20%. */
+/** Prefer 5Y revenue CAGR for display; else 3Y; else 2Y. */
 export function pickRevenueCagr(
   cagr5y: number | null | undefined,
   cagr3y: number | null | undefined,
@@ -71,6 +72,76 @@ export function pickRevenueCagr(
   return { value: null, label: "Revenue CAGR" };
 }
 
+function finiteRatio(v: number | null | undefined): number | null {
+  if (v == null || !Number.isFinite(v)) return null;
+  return v;
+}
+
+/** Pass if 5Y > min OR 3Y > min; else fall back to 2Y alone. */
+export function scoreRevenueCagr(
+  cagr5y: number | null | undefined,
+  cagr3y: number | null | undefined,
+  cagr2y?: number | null | undefined,
+): {
+  value: number | null;
+  label: string;
+  verdict: NapkinPerfVerdict;
+  threshold: string;
+} {
+  const min = NAPKIN_PERF.revenueCagrMin;
+  const pct = (min * 100).toFixed(0);
+  const threshold = `> ${pct}% (5Y or 3Y)`;
+  const c5 = finiteRatio(cagr5y);
+  const c3 = finiteRatio(cagr3y);
+  const c2 = finiteRatio(cagr2y);
+  const pass5 = c5 != null && c5 >= min;
+  const pass3 = c3 != null && c3 >= min;
+
+  if (pass5 || pass3) {
+    // Prefer the passing window; if both pass, show 5Y.
+    if (pass5) {
+      return {
+        value: c5,
+        label: "Revenue CAGR 5Y",
+        verdict: "pass",
+        threshold,
+      };
+    }
+    return {
+      value: c3,
+      label: "Revenue CAGR 3Y",
+      verdict: "pass",
+      threshold,
+    };
+  }
+
+  if (c5 != null || c3 != null) {
+    const rev = pickRevenueCagr(c5, c3, null);
+    return {
+      value: rev.value,
+      label: rev.label,
+      verdict: "fail",
+      threshold,
+    };
+  }
+
+  if (c2 != null) {
+    return {
+      value: c2,
+      label: "Revenue CAGR 2Y",
+      verdict: minCheck(c2, min),
+      threshold: `> ${pct}%`,
+    };
+  }
+
+  return {
+    value: null,
+    label: "Revenue CAGR",
+    verdict: "na",
+    threshold,
+  };
+}
+
 export function napkinPerformance(input: {
   revenue_cagr_5y?: number | null;
   revenue_cagr_3y?: number | null;
@@ -79,7 +150,7 @@ export function napkinPerformance(input: {
   roce?: number | null;
   debt_equity?: number | null;
 }): NapkinPerformance {
-  const rev = pickRevenueCagr(
+  const rev = scoreRevenueCagr(
     input.revenue_cagr_5y,
     input.revenue_cagr_3y,
     input.revenue_cagr_2y,
@@ -88,10 +159,10 @@ export function napkinPerformance(input: {
     {
       id: "revenue_cagr",
       label: rev.label,
-      threshold: `> ${(NAPKIN_PERF.revenueCagrMin * 100).toFixed(0)}%`,
+      threshold: rev.threshold,
       value: rev.value,
       display: pctDisplay(rev.value),
-      verdict: minCheck(rev.value, NAPKIN_PERF.revenueCagrMin),
+      verdict: rev.verdict,
     },
     {
       id: "ebitda_margin",

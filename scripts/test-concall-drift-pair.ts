@@ -44,20 +44,34 @@ function main() {
     kind: "concall",
     announced_at: "2026-07-29T12:00:00.000Z",
     subject: "Analysts/Institutional Investor Meet/Con. Call Updates",
+    title: "Concall / investor meet",
   });
   const post = ev({
     kind: "concall",
     announced_at: "2026-08-06T13:00:00.000Z",
     subject: "Analysts/Institutional Investor Meet/Con. Call Updates",
+    title: "Concall / investor meet",
+  });
+  const transcriptLater = ev({
+    kind: "concall",
+    announced_at: "2026-08-10T10:00:00.000Z",
+    subject: "Analysts/Institutional Investor Meet/Con. Call Updates",
+    title: "Concall transcript",
   });
 
-  const pairs = pairEarnConcall([clarification, outcome, pre, post]);
+  const pairs = pairEarnConcall([
+    clarification,
+    outcome,
+    pre,
+    post,
+    transcriptLater,
+  ]);
   assert.equal(pairs.length, 1, "clarification earn skipped");
   assert.equal(pairs[0]!.earn.announced_at, outcome.announced_at);
   assert.equal(
     pairs[0]!.concall?.announced_at,
     post.announced_at,
-    "post-earn concall preferred; pre-earn ignored when post exists",
+    "post-earn meet preferred over later transcript; pre-earn ignored",
   );
 
   const onlyPre = pairEarnConcall([outcome, pre]);

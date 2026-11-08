@@ -42,9 +42,6 @@ type ApiResponse = {
     bb_m?: string | null;
     tq: string | null;
     ema?: string | null;
-    ath?: string | null;
-    high52?: string | null;
-    mom?: string | null;
     mrsi?: string | null;
   };
 };
@@ -54,7 +51,6 @@ export function ScanPanel() {
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [filterHold, setFilterHold] = useState(false);
-  const [filterEdge, setFilterEdge] = useState(false);
   const [filterGov, setFilterGov] = useState(false);
   const [fundAllCount, setFundAllCount] = useState(0);
   const [filterFundAll, setFilterFundAll] = useState(false);
@@ -74,7 +70,6 @@ export function ScanPanel() {
   hasDataRef.current = !!data;
   const [listCounts, setListCounts] = useState<Record<string, number>>({
     hold: 0,
-    edge: 0,
     gov: 0,
     sme: 0,
     note: 0,
@@ -94,7 +89,6 @@ export function ScanPanel() {
     mcapMaxIndex,
     view,
     filterHold,
-    filterEdge,
     filterGov,
     filterFundAll,
     filterSme,
@@ -126,17 +120,10 @@ export function ScanPanel() {
       if (view === "bbm") params.set("bbm", "1");
       if (view === "tq") params.set("tq", "1");
       if (view === "ema") params.set("ema", "1");
-      if (view === "ath") params.set("ath", "1");
-      if (view === "high52") params.set("high52", "1");
-      if (view === "mom") params.set("mom", "1");
       if (view === "mrsi") params.set("mrsi", "1");
       if (view === "mrsi85") params.set("mrsi85", "1");
       if (view === "mrsi_empty") params.set("mrsi_empty", "1");
-      if (view === "opm") params.set("opm", "1");
-      if (view === "rule7") params.set("rule7", "1");
-      if (view === "quant") params.set("quant", "1");
       if (filterHold) params.set("hold", "1");
-      if (filterEdge) params.set("edge", "1");
       if (filterGov) params.set("gov", "1");
       if (filterFundAll) params.set("fundMode", "all");
       if (filterSme) params.set("sme", "1");
@@ -161,7 +148,6 @@ export function ScanPanel() {
         if (json.signals) {
           setListCounts({
             hold: json.signals.hold ?? 0,
-            edge: json.signals.edge ?? 0,
             gov: json.signals.gov ?? 0,
             sme: json.signals.sme ?? 0,
             note: json.signals.note ?? 0,
@@ -193,7 +179,6 @@ export function ScanPanel() {
       sort,
       dir,
       filterHold,
-      filterEdge,
       filterGov,
       filterFundAll,
       filterSme,
@@ -233,51 +218,28 @@ export function ScanPanel() {
     else {
       setSort(key);
       setDir(
-        key === "momentum_rank" || key === "rsi_rank"
+        key === "rsi_rank"
           ? "asc"
           : key === "price" ||
               key === "mcap_cr" ||
-              key === "momentum_pct" ||
-              key === "price_1y" ||
-              key === "price_1m" ||
               key === "rsi_m" ||
-              key === "pead_score" ||
-              key === "seven_rule_score" ||
-              key === "sales_yoy" ||
-              key === "np_yoy" ||
-              key === "basket_score" ||
-              key === "basket_rank"
+              key === "pead_score"
             ? "desc"
             : "asc",
       );
     }
   }
 
-  const signalMode: "mom" | "rsi" | "rule7" | "quant" | null =
-    view === "mom"
-      ? "mom"
-      : view === "mrsi" || view === "mrsi85" || view === "mrsi_empty"
-        ? "rsi"
-        : view === "rule7"
-          ? "rule7"
-          : view === "quant"
-            ? "quant"
-            : null;
+  const signalMode: "rsi" | null =
+    view === "mrsi" || view === "mrsi85" || view === "mrsi_empty"
+      ? "rsi"
+      : null;
 
   const onView = useCallback(
     (next: ViewFilter) => {
       setView(next);
       setPage(1);
-      if (next === "mom") {
-        setSort("momentum_rank");
-        setDir("asc");
-      } else if (next === "rule7") {
-        setSort("seven_rule_score");
-        setDir("desc");
-      } else if (next === "quant") {
-        setSort("basket_rank");
-        setDir("asc");
-      } else if (
+      if (
         next === "mrsi" ||
         next === "mrsi85" ||
         next === "mrsi_empty"
@@ -285,18 +247,9 @@ export function ScanPanel() {
         setSort("rsi_rank");
         setDir("asc");
       } else if (
-        sort === "momentum_rank" ||
-        sort === "momentum_pct" ||
-        sort === "price_1y" ||
-        sort === "price_1m" ||
         sort === "rsi_m" ||
         sort === "rsi_rank" ||
-        sort === "pead_score" ||
-        sort === "seven_rule_score" ||
-        sort === "sales_yoy" ||
-        sort === "np_yoy" ||
-        sort === "basket_score" ||
-        sort === "basket_rank"
+        sort === "pead_score"
       ) {
         setSort("name");
         setDir("asc");
@@ -326,7 +279,6 @@ export function ScanPanel() {
     }
     if (filterFundAll) parts.push("Funds");
     if (filterNote) parts.push("Note");
-    if (filterEdge) parts.push("Edge");
     if (filterGov) parts.push("Gov");
     if (filterSme) parts.push("SME");
     if (filterHold) parts.push("Hold");
@@ -340,7 +292,6 @@ export function ScanPanel() {
     mcapMaxIndex,
     filterFundAll,
     filterNote,
-    filterEdge,
     filterGov,
     filterSme,
     filterHold,
@@ -348,7 +299,6 @@ export function ScanPanel() {
   ]);
   const selectionActive = hasScanSelection({
     hold: filterHold,
-    edge: filterEdge,
     gov: filterGov,
     sme: filterSme,
     note: filterNote,
@@ -386,7 +336,6 @@ export function ScanPanel() {
               setMcapMinIndex(0);
               setMcapMaxIndex(MCAP_DEFAULT_MAX);
               setFilterHold(false);
-              setFilterEdge(false);
               setFilterGov(false);
               setFilterFundAll(false);
               setFilterSme(false);
@@ -434,14 +383,11 @@ export function ScanPanel() {
             <span className="scan-filter-label">Tags</span>
             <FundsFilterBar
               hold={filterHold}
-              edge={filterEdge}
               gov={filterGov}
               onHold={setFilterHold}
-              onEdge={setFilterEdge}
               onGov={setFilterGov}
               holdCount={data?.signals?.hold ?? listCounts.hold}
               distressCount={data?.signals?.distress ?? listCounts.distress}
-              edgeCount={data?.signals?.edge ?? listCounts.edge}
               govCount={data?.signals?.gov ?? listCounts.gov}
             />
           </div>
@@ -479,7 +425,6 @@ export function ScanPanel() {
           onScope={setScanScope}
           selectionActive={selectionActive}
           hold={filterHold}
-          edge={filterEdge}
           gov={filterGov}
           sme={filterSme}
           note={filterNote}
@@ -501,23 +446,14 @@ export function ScanPanel() {
           bbMCount={data?.signals?.bb_m}
           tqCount={data?.signals?.tq}
           emaCount={data?.signals?.ema}
-          athCount={data?.signals?.ath}
-          high52Count={data?.signals?.high52}
-          momCount={data?.signals?.mom}
           mrsiCount={data?.signals?.mrsi}
           mrsi85Count={data?.signals?.mrsi85}
           mrsiEmptyCount={data?.signals?.mrsi_empty}
-          opmCount={data?.signals?.operating_metrics}
-          rule7Count={data?.signals?.rule7}
-          quantCount={data?.signals?.quant}
           bbDate={data?.session?.bb ?? null}
           bbWDate={data?.session?.bb_w ?? data?.session?.bb ?? null}
           bbMDate={data?.session?.bb_m ?? null}
           tqDate={data?.session?.tq ?? null}
           emaDate={data?.session?.ema ?? null}
-          athDate={data?.session?.ath ?? null}
-          high52Date={data?.session?.high52 ?? null}
-          momDate={data?.session?.mom ?? null}
           mrsiDate={data?.session?.mrsi ?? null}
           onBatch={softReload}
           onDone={hardReload}
@@ -527,27 +463,7 @@ export function ScanPanel() {
       {emptyFiltered ? (
         <p className="scan-empty-hint">
           No {viewFilterLabel(view)} hits in {chipLabel}.
-          {view === "opm" ? (
-            <>
-              {" "}
-              Needs cached Sales+OP with Stable OPM and Sales YoY ≥5% (new
-              listings: Stable OPM + QoQ sales &gt;0). Use{" "}
-              <strong>Fill Quarters</strong> (List / Tags), open Quarters, or
-              widen List.{" "}
-            </>
-          ) : view === "rule7" ? (
-            <>
-              {" "}
-              Needs Fill Quarters then slow <strong>Fill 7-Rule</strong>{" "}
-              (ROE/ROCE; ~15–20s/name). Shows Deep Dive+ (5+/7, fully evaluated).{" "}
-            </>
-          ) : view === "quant" ? (
-            <>
-              {" "}
-              Universe ₹500–5,000 Cr mcap, ≥3y listing, ≥4 quarters; score
-              then a sector-capped equal-weight book. Fill Quarters if empty.{" "}
-            </>
-          ) : selectionActive ? (
+          {selectionActive ? (
             <>
               {" "}
               Clear tags (e.g. SME / Age ≥25) or switch List, then click{" "}
@@ -557,7 +473,6 @@ export function ScanPanel() {
                 onClick={() => {
                   setFilterSme(false);
                   setFilterHold(false);
-                  setFilterEdge(false);
                   setFilterGov(false);
                   setFilterNote(false);
                   setAgeMin(null);
@@ -572,7 +487,7 @@ export function ScanPanel() {
             <>
               {" "}
               Click <strong>Scan {viewFilterLabel(view)}</strong> above (List /
-              Tags scope like 12M), or{" "}
+              Tags scope), or{" "}
             </>
           )}
           <button
@@ -583,18 +498,6 @@ export function ScanPanel() {
             All stocks
           </button>{" "}
           for the full list.
-        </p>
-      ) : null}
-
-      {signalMode === "mom" &&
-      !loading &&
-      data &&
-      data.rows.length > 0 &&
-      data.rows.filter((r) => r.momentum_pct == null).length >
-        data.rows.length * 0.7 ? (
-        <p className="scan-empty-hint">
-          Rank / 1Y / 1M / Mom are empty until momentum is scanned. Click{" "}
-          <strong>Scan 12m</strong> (or Scan all) in the Scan row.
         </p>
       ) : null}
 
