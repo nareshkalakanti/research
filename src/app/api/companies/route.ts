@@ -928,6 +928,7 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterMrsiEmpty ||
     filterOperatingMetrics ||
     filterPead ||
+    filterRule7 ||
     filterQuant ||
     filterBrutal;
 

@@ -17,6 +17,8 @@ export type Pead2Row = {
   sc: string;
   tv: string;
   pead_score: number | null;
+  /** Buy / Watch / Avoid from PEAD score bands. */
+  recommendation: "Buy" | "Watch" | "Avoid" | null;
   result_date: string | null;
   pe_ratio: number | null;
   forward_pe: number | null;

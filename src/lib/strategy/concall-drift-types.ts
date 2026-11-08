@@ -35,6 +35,11 @@ export type ConcallDriftRow = {
   baseline_close: number | null;
   drift_pct: number | null;
   has_baseline: boolean;
+  /**
+   * Why % since is blank when baseline exists:
+   * stale = quote older than call · pending = waiting on next session (flat).
+   */
+  drift_block: "stale" | "pending" | null;
   earn_subject: string | null;
   has_bb: boolean;
   has_bb_w: boolean;

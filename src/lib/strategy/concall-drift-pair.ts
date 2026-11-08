@@ -17,11 +17,19 @@ function pairScore(earnTs: number, concallTs: number): number | null {
   return MAX_AFTER_EARN_MS + Math.abs(delta);
 }
 
+/**
+ * Lower = better for Drift "% since call".
+ * Prefer the meet/intimation timestamp — NOT transcript/audio uploads days later
+ * (those would wrongly move baseline to a later day, e.g. BODALCHEM Nov 6 transcript
+ * beating the Nov 3 call update).
+ */
 function concallQuality(c: NseCorpEvent): number {
   const s = `${c.title} ${c.subject || ""}`.toLowerCase();
-  if (/transcript/.test(s)) return 0;
-  if (/audio recording|recording of/.test(s)) return 1;
-  if (/intimation|schedule of|invitation|upcoming/.test(s)) return 3;
+  if (/transcript/.test(s)) return 5;
+  if (/audio recording|recording of|webcast/.test(s)) return 4;
+  if (/intimation|schedule of|invitation|upcoming|meet\/con\.?\s*call|investor meet/.test(s)) {
+    return 1;
+  }
   return 2;
 }
 

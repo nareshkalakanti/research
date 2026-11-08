@@ -178,33 +178,29 @@ function barDay(raw: string | null | undefined): string {
   return (raw || "").slice(0, 10);
 }
 
-/** Post-earnings return from result-day close (or next session) through latest/live. */
+/**
+ * Post-earnings Ret — same shape as Concall Drift %:
+ * (LTP − result-day close) / result-day close × 100.
+ * Day column keeps the announce gap (prior → result session).
+ */
 export function computeReturnsPct(
   bars: Array<{ date: string; close: number }>,
   resultDate: string | null | undefined,
   currentPrice?: number | null,
 ): number | null {
-  const rd = barDay(resultDate);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(rd) || !bars.length) return null;
+  const entry = resultEntryClose(bars, resultDate);
+  if (entry == null || !(entry > 0)) return null;
   const sorted = [...bars]
     .map((b) => ({ date: barDay(b.date), close: b.close }))
     .filter((b) => /^\d{4}-\d{2}-\d{2}$/.test(b.date) && b.close > 0)
     .sort((a, b) => a.date.localeCompare(b.date));
   if (!sorted.length) return null;
-  const lastDay = sorted[sorted.length - 1]!.date;
-  // Announcement not yet in OHLC history — do not invent a return from older closes.
-  if (lastDay < rd) return null;
-  // Entry = close on result day when that session exists; else first session after.
-  const onOrAfter = sorted.filter((b) => b.date >= rd);
-  if (!onOrAfter.length) return null;
-  const entryBar = onOrAfter[0]!;
-  const entry = entryBar.close;
-  if (!(entry > 0)) return null;
   const last = sorted[sorted.length - 1]!.close;
   const exit =
     currentPrice != null && Number.isFinite(currentPrice) && currentPrice > 0
       ? currentPrice
       : last;
+  if (!(exit > 0)) return null;
   return Math.round((exit / entry - 1) * 10000) / 100;
 }
 
@@ -302,8 +298,8 @@ export function pead2ScoreClass(
 }
 
 /**
- * Largest single-day % move from the day of results onward (prior close →
- * result-day close first). No artificial 19.99 ceiling — show the real peak.
+ * Day change on the result session only: prior close → first close on/after
+ * result date. Not the max of later days (that inflated "Day" for weeks).
  */
 export function computeDailyRetFf(
   bars: Array<{ date: string; close: number }>,
@@ -319,23 +315,18 @@ export function computeDailyRetFf(
   if (!sorted.length) return null;
   if (sorted[sorted.length - 1]!.date < rd) return null;
   const prior = sorted.filter((b) => b.date < rd);
-  const fromResultDay = sorted.filter((b) => b.date >= rd);
-  if (!fromResultDay.length) return null;
-  const moves: number[] = [];
-  let prev = prior.length > 0 ? prior[prior.length - 1]!.close : null;
-  for (const bar of fromResultDay) {
-    if (prev != null && prev > 0) {
-      moves.push((bar.close / prev - 1) * 100);
-    }
-    prev = bar.close;
-  }
-  if (!moves.length) return null;
-  const peak = Math.max(...moves);
-  const out = cap > 0 ? Math.min(peak, cap) : peak;
+  const first = sorted.find((b) => b.date >= rd);
+  if (!first || !(first.close > 0)) return null;
+  const prev = prior.length > 0 ? prior[prior.length - 1]!.close : null;
+  if (prev == null || !(prev > 0)) return null;
+  const move = (first.close / prev - 1) * 100;
+  const out = cap > 0 ? Math.min(move, cap) : move;
   return Math.round(out * 100) / 100;
 }
 
-/** Entry close for cumulative returns (result-day session, else next). */
+/**
+ * Ret baseline (Drift-style call-day close): first session close on/after result date.
+ */
 export function resultEntryClose(
   bars: Array<{ date: string; close: number }>,
   resultDate: string | null | undefined,
@@ -348,6 +339,17 @@ export function resultEntryClose(
     .sort((a, b) => a.date.localeCompare(b.date));
   const hit = sorted.find((b) => b.date >= rd);
   return hit && hit.close > 0 ? hit.close : null;
+}
+
+/** Score → short action label (product bands, not issuer special-cases). */
+export function peadRecommendation(
+  score: number | null | undefined,
+  highMin = 40,
+): "Buy" | "Watch" | "Avoid" | null {
+  if (score == null || !Number.isFinite(score)) return null;
+  if (score > highMin) return "Buy";
+  if (score < 0 || score <= highMin * 0.35) return "Avoid";
+  return "Watch";
 }
 
 /** Live returns from stored entry close → current price. */

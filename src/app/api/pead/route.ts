@@ -99,6 +99,8 @@ function filterRows(
   return { rows, stats, coverage, season: { ...season, ...bounds, id: season.id } };
 }
 
+const REC_RANK: Record<string, number> = { Buy: 3, Watch: 2, Avoid: 1 };
+
 function sortRows(rows: Pead2Row[], sort: string, dir: 1 | -1): Pead2Row[] {
   const key = (sort || "pead_score") as SortKey;
   const copy = [...rows];
@@ -110,7 +112,11 @@ function sortRows(rows: Pead2Row[], sort: string, dir: 1 | -1): Pead2Row[] {
     if (aMissing && bMissing) return a.ticker.localeCompare(b.ticker);
     if (aMissing) return 1;
     if (bMissing) return -1;
-    if (typeof av === "number" && typeof bv === "number") {
+    if (key === "recommendation") {
+      const ar = REC_RANK[String(av)] ?? 0;
+      const br = REC_RANK[String(bv)] ?? 0;
+      if (ar !== br) return (ar < br ? -1 : 1) * dir;
+    } else if (typeof av === "number" && typeof bv === "number") {
       if (av !== bv) return (av < bv ? -1 : 1) * dir;
     } else {
       const cmp = String(av).localeCompare(String(bv));

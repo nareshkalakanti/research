@@ -25,6 +25,7 @@ export type StrategyConcallDriftRowData = {
   baseline_close: number | null;
   drift_pct: number | null;
   has_baseline: boolean;
+  drift_block?: "stale" | "pending" | null;
   earn_subject: string | null;
   has_bb: boolean;
   has_bb_w: boolean;
@@ -101,6 +102,14 @@ type Props = {
   onToggle: () => void;
   onPanel: (panel: StrategyExpandPanel) => void;
   onDocsChange?: () => void;
+  /** Which event timestamp to show in the date column. Default earn filing. */
+  dateField?: "earn" | "concall";
+  /** Hide watch / fund chips for the lean Drift tab. */
+  compactMeta?: boolean;
+  /** Show “since DD-Mon” under the % (Drift tab). */
+  showSinceHint?: boolean;
+  /** Optional remove control (Track tab). */
+  onRemove?: () => void;
 };
 
 export function StrategyConcallDriftRow({
@@ -109,15 +118,33 @@ export function StrategyConcallDriftRow({
   panel,
   onToggle,
   onPanel,
+  dateField = "earn",
+  compactMeta = false,
+  showSinceHint = false,
+  onRemove,
 }: Props) {
   const sec = secDisplay(r.sector, r.sub_sector);
+  const whenIso = dateField === "concall" ? r.concall_at || r.earn_at : r.earn_at;
+  const sinceParts = fmtEventParts(whenIso);
+  const driftTitle =
+    r.drift_pct == null && r.drift_block === "stale" && r.baseline_close != null
+      ? `Need live price (quote older than call) — baseline ₹${r.baseline_close.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
+      : r.drift_pct == null && r.baseline_close != null
+        ? `Pending next session — baseline ₹${r.baseline_close.toLocaleString("en-IN", { maximumFractionDigits: 2 })} (call-day close)`
+        : r.baseline_close != null && sinceParts
+          ? `% change since ${sinceParts.date}: LTP / baseline − 1 (baseline ₹${r.baseline_close.toLocaleString("en-IN", { maximumFractionDigits: 2 })})`
+          : r.baseline_close != null
+            ? `Baseline ₹${r.baseline_close.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
+            : "No pre-event baseline yet";
+
+  const expandable = !compactMeta;
 
   return (
     <>
       <tr
-        className={open ? "pcd-row is-open" : "pcd-row"}
-        onClick={onToggle}
-        style={{ cursor: "pointer" }}
+        className={open && expandable ? "pcd-row is-open" : "pcd-row"}
+        onClick={expandable ? onToggle : undefined}
+        style={expandable ? { cursor: "pointer" } : undefined}
       >
         <td className="pcd-td-ticker">
           <a
@@ -133,24 +160,33 @@ export function StrategyConcallDriftRow({
         </td>
         <td className="pcd-td-co">
           <div className="pcd-co-cell">
-            <WatchButton ticker={r.ticker} />
-            <button
-              type="button"
-              className="pcd-co-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle();
-              }}
-            >
-              <span className="pcd-co-name">{r.name}</span>
-              {/\bSME\b/i.test(r.market) ? (
-                <span className="pcd-badge">SME</span>
-              ) : null}
-              {r.has_hold ? (
-                <span className="pcd-badge pcd-badge-hold">Hold</span>
-              ) : null}
-              <FundWatchlistTags tags={r.fund_tags} />
-            </button>
+            {compactMeta ? null : <WatchButton ticker={r.ticker} />}
+            {expandable ? (
+              <button
+                type="button"
+                className="pcd-co-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
+              >
+                <span className="pcd-co-name">{r.name}</span>
+                {/\bSME\b/i.test(r.market) ? (
+                  <span className="pcd-badge">SME</span>
+                ) : null}
+                {r.has_hold ? (
+                  <span className="pcd-badge pcd-badge-hold">Hold</span>
+                ) : null}
+                <FundWatchlistTags tags={r.fund_tags} />
+              </button>
+            ) : (
+              <span className="pcd-co-name">
+                {r.name}
+                {/\bSME\b/i.test(r.market) ? (
+                  <span className="pcd-badge"> SME</span>
+                ) : null}
+              </span>
+            )}
           </div>
         </td>
         <td className="pcd-td-sec" title={sec.title}>
@@ -173,45 +209,60 @@ export function StrategyConcallDriftRow({
         </td>
         <td className="pcd-td-ltp num">{fmtLtp(r.price)}</td>
         <td className="pcd-td-earn">
-          <EventWhen iso={r.earn_at} />
+          <EventWhen iso={whenIso} />
         </td>
-        <td
-          className="pcd-td-drift"
-          title={
-            r.baseline_close != null
-              ? `Close before results ₹${r.baseline_close.toLocaleString("en-IN")}`
-              : "No pre-results baseline yet"
-          }
-        >
+        <td className="pcd-td-drift" title={driftTitle}>
           {r.drift_pct == null ? (
             <span className="pcd-muted">—</span>
           ) : (
-            <span
-              className={`pcd-drift ${
-                r.drift_pct > 0
-                  ? "is-up"
-                  : r.drift_pct < 0
-                    ? "is-down"
-                    : "is-flat"
-              }`}
-            >
-              {r.drift_pct > 0 ? "▲" : r.drift_pct < 0 ? "▼" : "·"}
-              {fmtDrift(r.drift_pct)}
+            <span className="pcd-drift-stack">
+              <span
+                className={`pcd-drift ${
+                  r.drift_pct > 0
+                    ? "is-up"
+                    : r.drift_pct < 0
+                      ? "is-down"
+                      : "is-flat"
+                }`}
+              >
+                {r.drift_pct > 0 ? "▲" : r.drift_pct < 0 ? "▼" : "·"}
+                {fmtDrift(r.drift_pct)}
+              </span>
+              {showSinceHint && sinceParts ? (
+                <span className="pcd-drift-since">since {sinceParts.date}</span>
+              ) : null}
             </span>
           )}
         </td>
+        {onRemove ? (
+          <td className="pcd-td-track-rm num">
+            <button
+              type="button"
+              className="pcd-ghost-btn concall-track-rm"
+              title={`Stop tracking ${r.ticker}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+            >
+              Remove
+            </button>
+          </td>
+        ) : null}
       </tr>
-      <StrategyExpandDetail
-        ticker={r.ticker}
-        name={r.name}
-        market={r.market}
-        price={r.price}
-        links={{ sc: r.sc, tv: r.tv, web: r.web }}
-        open={open}
-        panel={panel}
-        onPanel={onPanel}
-        colSpan={PCD_COL_SPAN}
-      />
+      {expandable ? (
+        <StrategyExpandDetail
+          ticker={r.ticker}
+          name={r.name}
+          market={r.market}
+          price={r.price}
+          links={{ sc: r.sc, tv: r.tv, web: r.web }}
+          open={open}
+          panel={panel}
+          onPanel={onPanel}
+          colSpan={onRemove ? PCD_COL_SPAN + 1 : PCD_COL_SPAN}
+        />
+      ) : null}
     </>
   );
 }

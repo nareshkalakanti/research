@@ -12,6 +12,7 @@ import { runConcurrent, withScrapeWriteLock } from "../scrape-pool";
 import {
   baselineCloseBefore,
   computeDriftPct,
+  hasPostCallTradingSession,
   priceBaselineConsistent,
 } from "./concall-drift-math";
 import { recordStrategyScan } from "./buyback-store";
@@ -80,10 +81,13 @@ export async function scanTickerConcallDrift(
   const out: ConcallDriftEvent[] = [];
 
   for (const { earn, concall } of pairs) {
-    const baseline = baselineCloseBefore(bars, earn.announced_at);
+    const eventAt = concall?.announced_at ?? earn.announced_at;
+    const baseline = baselineCloseBefore(bars, eventAt);
+    const ready = hasPostCallTradingSession(bars, eventAt);
     const consistent =
       baseline != null && price != null && priceBaselineConsistent(price, baseline);
-    const drift = consistent ? computeDriftPct(price, baseline) : null;
+    const drift =
+      consistent && ready ? computeDriftPct(price, baseline) : null;
     const id = earn.seq_id
       ? `${ticker.toUpperCase()}:${earn.seq_id}`
       : `${ticker.toUpperCase()}:${earn.announced_at.slice(0, 19)}`;
@@ -95,16 +99,16 @@ export async function scanTickerConcallDrift(
       quarter_fy: fyQuarterFromEarnEvent(earn.announced_at, earn.subject),
       earn_subject: earn.subject,
       concall_subject: concall?.subject ?? null,
-      baseline_close: consistent ? baseline : null,
+      baseline_close: baseline,
       drift_pct: drift,
-      has_baseline: consistent,
+      has_baseline: baseline != null,
       source: "nse_announcements",
     });
   }
   return out;
 }
 
-/** Rewrite stored baselines to last close before concall announcement (not earn). */
+/** Rewrite stored baselines to call-session close (post-concall anchor). */
 export async function recomputeConcallAnnouncementBaselines(
   tickers: string[],
 ): Promise<number> {
@@ -127,15 +131,18 @@ export async function recomputeConcallAnnouncementBaselines(
     ]);
     const price = quotes[0]?.price ?? null;
     for (const row of rows) {
-      const baseline = baselineCloseBefore(bars, row.earn_at);
+      const eventAt = (row.concall_at || "").trim() || row.earn_at;
+      const baseline = baselineCloseBefore(bars, eventAt);
+      const ready = hasPostCallTradingSession(bars, eventAt);
       const consistent =
         baseline != null &&
         price != null &&
         priceBaselineConsistent(price, baseline);
       patchConcallDriftBaseline(row.id, {
-        baseline_close: consistent ? baseline : null,
-        drift_pct: consistent ? computeDriftPct(price, baseline) : null,
-        has_baseline: Boolean(consistent),
+        baseline_close: baseline,
+        drift_pct:
+          consistent && ready ? computeDriftPct(price, baseline) : null,
+        has_baseline: baseline != null,
       });
       updated += 1;
     }

@@ -17,6 +17,8 @@ export type CompanyRow = {
   market: string;
   website: string | null;
   about: string | null;
+  /** Yahoo long business summary — brand lists often live here. */
+  yf_about: string | null;
   scraped_about: string | null;
   scraped_about_clean: string | null;
   llm_about: string | null;
@@ -498,6 +500,7 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       market: row.market,
       website: row.website,
       about,
+      yf_about: nonempty(row.yf_about),
       scraped_about: nonempty(trusted.scraped_about),
       scraped_about_clean: nonempty(trusted.scraped_about_clean),
       llm_about: nonempty(trusted.llm_about),

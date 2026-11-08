@@ -194,7 +194,8 @@ export async function fetchNseAnnouncedCorpEvents(
   daysBack = 7,
   sharedJar?: NseJar,
 ): Promise<NseCorpEvent[]> {
-  const days = Math.min(14, Math.max(1, daysBack));
+  // Allow season catch-up (earn windows span weeks); day-by-day NSE pulls.
+  const days = Math.min(60, Math.max(1, daysBack));
   const jar = sharedJar ?? (await createNseBuybackSession());
   const rows: NseAnnRow[] = [];
   const seenSeq = new Set<string>();
