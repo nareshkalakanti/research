@@ -5,7 +5,9 @@ import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import {
   MarketCapRangeBar,
   MCAP_RANGE_STEPS,
-  mcapIndicesToBounds,
+  mcapCrToIndex,
+  resolveMcapBounds,
+  type McapExactBounds,
 } from "@/components/MarketCapRangeBar";
 import { RefreshButton } from "@/components/RefreshButton";
 import { WatchlistFilterBar, FundsFilterBar } from "@/components/WatchlistFilterBar";
@@ -67,6 +69,7 @@ export function ThemeScanner() {
   const [market, setMarket] = useState("All");
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
+  const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
   const [filterHold, setFilterHold] = useState(false);
   const [filterEdge, setFilterEdge] = useState(false);
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
@@ -119,6 +122,8 @@ export function ThemeScanner() {
     return () => clearTimeout(t);
   }, [custom]);
 
+  const mcapBounds = resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact);
+
   useEffect(() => {
     setPage(1);
   }, [
@@ -127,8 +132,8 @@ export function ThemeScanner() {
     stockQ,
     focusTicker,
     market,
-    mcapMinIndex,
-    mcapMaxIndex,
+    mcapBounds.minCr,
+    mcapBounds.maxCr,
     sector,
     subSector,
     filterHold,
@@ -194,7 +199,7 @@ export function ThemeScanner() {
       if (filterEdge) params.set("edge", "1");
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
-      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      const { minCr, maxCr } = mcapBounds;
       if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
       if (maxCr != null) params.set("mcapMax", String(maxCr));
       appendFundParams(params, fundFilters);
@@ -224,8 +229,7 @@ export function ThemeScanner() {
       stockQ,
       focusTicker,
       market,
-      mcapMinIndex,
-      mcapMaxIndex,
+      mcapBounds,
       sector,
       subSector,
       filterHold,
@@ -462,16 +466,26 @@ export function ThemeScanner() {
           <MarketCapRangeBar
             minIndex={mcapMinIndex}
             maxIndex={mcapMaxIndex}
+            minCr={mcapBounds.minCr}
+            maxCr={mcapBounds.maxCr}
             onChange={(lo, hi) => {
               setMcapMinIndex(lo);
               setMcapMaxIndex(hi);
+              setMcapExact(null);
+              setPage(1);
+            }}
+            onCrChange={(minCr, maxCr) => {
+              setMcapExact({ minCr: minCr ?? 0, maxCr });
+              setMcapMinIndex(mcapCrToIndex(minCr ?? 0));
+              setMcapMaxIndex(mcapCrToIndex(maxCr));
               setPage(1);
             }}
             onClear={
-              mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX
+              (mcapBounds.minCr ?? 0) > 0 || mcapBounds.maxCr != null
                 ? () => {
                     setMcapMinIndex(0);
                     setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                    setMcapExact(null);
                     setPage(1);
                   }
                 : undefined

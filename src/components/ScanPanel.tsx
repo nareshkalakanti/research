@@ -5,7 +5,10 @@ import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import {
   MarketCapRangeBar,
   MCAP_RANGE_STEPS,
-  mcapIndicesToBounds,
+  mcapBoundsNarrowed,
+  mcapCrToIndex,
+  resolveMcapBounds,
+  type McapExactBounds,
 } from "@/components/MarketCapRangeBar";
 import { RefreshButton } from "@/components/RefreshButton";
 import {
@@ -50,6 +53,7 @@ export function ScanPanel() {
   const [list, setList] = useState<ScanList>("All");
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
+  const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
   const [filterHold, setFilterHold] = useState(false);
   const [filterGov, setFilterGov] = useState(false);
   const [fundAllCount, setFundAllCount] = useState(0);
@@ -81,12 +85,12 @@ export function ScanPanel() {
     ...Object.fromEntries(FUND_WATCHLIST_KEYS.map((k) => [k, 0])),
   });
 
-  const mcapNarrowed =
-    mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
+  const mcapBounds = resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact);
+  const mcapNarrowed = mcapBoundsNarrowed(mcapBounds.minCr, mcapBounds.maxCr);
   const filtersKey = [
     list,
-    mcapMinIndex,
-    mcapMaxIndex,
+    mcapBounds.minCr ?? "",
+    mcapBounds.maxCr ?? "",
     view,
     filterHold,
     filterGov,
@@ -129,7 +133,7 @@ export function ScanPanel() {
       if (filterSme) params.set("sme", "1");
       if (filterNote) params.set("note", "1");
       if (ageMin != null) params.set("ageMin", String(ageMin));
-      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      const { minCr, maxCr } = mcapBounds;
       if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
       if (maxCr != null) params.set("mcapMax", String(maxCr));
       if (isRefresh) params.set("refresh", "1");
@@ -172,8 +176,8 @@ export function ScanPanel() {
     },
     [
       list,
-      mcapMinIndex,
-      mcapMaxIndex,
+      mcapBounds.minCr,
+      mcapBounds.maxCr,
       view,
       pageForLoad,
       sort,
@@ -268,7 +272,7 @@ export function ScanPanel() {
   const chipLabel = useMemo(() => {
     const parts: string[] = [];
     if (mcapNarrowed) {
-      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      const { minCr, maxCr } = mcapBounds;
       if (minCr != null && minCr > 0 && maxCr != null) {
         parts.push(`Mcap ${minCr}–${maxCr}`);
       } else if (minCr != null && minCr > 0) {
@@ -288,8 +292,7 @@ export function ScanPanel() {
   }, [
     list,
     mcapNarrowed,
-    mcapMinIndex,
-    mcapMaxIndex,
+    mcapBounds,
     filterFundAll,
     filterNote,
     filterGov,
@@ -335,6 +338,7 @@ export function ScanPanel() {
               setView("all");
               setMcapMinIndex(0);
               setMcapMaxIndex(MCAP_DEFAULT_MAX);
+              setMcapExact(null);
               setFilterHold(false);
               setFilterGov(false);
               setFilterFundAll(false);
@@ -399,9 +403,18 @@ export function ScanPanel() {
             valueOnly
             minIndex={mcapMinIndex}
             maxIndex={mcapMaxIndex}
+            minCr={mcapBounds.minCr}
+            maxCr={mcapBounds.maxCr}
             onChange={(lo, hi) => {
               setMcapMinIndex(lo);
               setMcapMaxIndex(hi);
+              setMcapExact(null);
+              setPage(1);
+            }}
+            onCrChange={(minCr, maxCr) => {
+              setMcapExact({ minCr: minCr ?? 0, maxCr });
+              setMcapMinIndex(mcapCrToIndex(minCr ?? 0));
+              setMcapMaxIndex(mcapCrToIndex(maxCr));
               setPage(1);
             }}
             onClear={
@@ -409,6 +422,7 @@ export function ScanPanel() {
                 ? () => {
                     setMcapMinIndex(0);
                     setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                    setMcapExact(null);
                     setPage(1);
                   }
                 : undefined
@@ -431,16 +445,8 @@ export function ScanPanel() {
           ageMin={ageMin}
           funds={EMPTY_FUNDS}
           fundAll={filterFundAll}
-          mcapMin={
-            mcapNarrowed
-              ? mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex).minCr
-              : null
-          }
-          mcapMax={
-            mcapNarrowed
-              ? mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex).maxCr
-              : null
-          }
+          mcapMin={mcapNarrowed ? mcapBounds.minCr : null}
+          mcapMax={mcapNarrowed ? mcapBounds.maxCr : null}
           bbCount={data?.signals?.bb}
           bbWCount={data?.signals?.bb_w}
           bbMCount={data?.signals?.bb_m}

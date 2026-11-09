@@ -19,8 +19,8 @@ type Props = {
 };
 
 /**
- * Compact quarters rank (growth mean + Growing/Mixed/Declining), with expand
- * to the full quarter table — same card rhythm as 7-Rule / Performance.
+ * Compact quarters rank (growth mean + Growing/Mixed/Declining).
+ * Click the score head to expand the quarter table — no subtitle / Show link.
  */
 export function QuartersRankCard({
   data,
@@ -68,7 +68,13 @@ export function QuartersRankCard({
 
   return (
     <div className={`${root}${expanded ? "" : " seven-rule-card--compact"}`}>
-      <div className="seven-rule-head">
+      <button
+        type="button"
+        className="quarters-rank-head-btn"
+        aria-expanded={expanded}
+        title={expanded ? "Hide quarters" : "Show quarters"}
+        onClick={() => setExpanded((v) => !v)}
+      >
         <div className="seven-rule-score-line">
           {rank ? (
             <>
@@ -86,21 +92,14 @@ export function QuartersRankCard({
           )}
         </div>
         {rank ? (
-          <>
-            <div className="seven-rule-bar" aria-hidden>
-              <div
-                className={`seven-rule-bar-fill ${barCls}`}
-                style={{ width: `${pct}%` }}
-              />
-            </div>
-            <p className="seven-rule-sub" title={rank.reason}>
-              {rank.metrics.length
-                ? rank.metrics.map((m) => m.label).join(" · ")
-                : rank.reason}
-            </p>
-          </>
+          <div className="seven-rule-bar" aria-hidden>
+            <div
+              className={`seven-rule-bar-fill ${barCls}`}
+              style={{ width: `${pct}%` }}
+            />
+          </div>
         ) : null}
-      </div>
+      </button>
 
       {expanded && rank?.metrics.length ? (
         <ul className="seven-rule-rules quarters-rank-metrics">
@@ -124,15 +123,6 @@ export function QuartersRankCard({
           ))}
         </ul>
       ) : null}
-
-      <button
-        type="button"
-        className="quarters-rank-toggle"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((v) => !v)}
-      >
-        {expanded ? "Hide quarter table" : "Show quarter table"}
-      </button>
 
       {expanded ? (
         <div className="quarters-rank-table">

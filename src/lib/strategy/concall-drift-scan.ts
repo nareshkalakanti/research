@@ -1,5 +1,6 @@
 import { createNseBuybackSession } from "../nse-buybacks";
-import { loadAllCompanies } from "../db";
+import { bootstrapCompanyTicker } from "../company-ticker-bootstrap";
+import { invalidateCompanyCache, loadAllCompanies } from "../db";
 import { fetchDailyBars } from "../ohlc";
 import { fetchLivePrices } from "../yfinance";
 import {
@@ -214,14 +215,63 @@ async function ensureWorkerJars(
   );
 }
 
+type CompanyRow = ReturnType<typeof loadAllCompanies>[number];
+
+/** Bootstrap announced tickers missing from NSE / NSE SME / BSE SME lists. */
+async function ensureTickersInCompanyList(
+  tickers: string[],
+  companyMap: Map<string, CompanyRow>,
+  nameByTicker?: Map<string, string>,
+): Promise<number> {
+  const missing = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter((t) => t && !companyMap.has(t)),
+    ),
+  ];
+  if (!missing.length) return 0;
+
+  await runConcurrent(missing, 3, async (ticker) => {
+    try {
+      await bootstrapCompanyTicker(ticker, {
+        name: nameByTicker?.get(ticker) ?? null,
+        market: null,
+      });
+    } catch {
+      /* leave unknown; scanOneTicker will mark failed */
+    }
+    return ticker;
+  });
+
+  invalidateCompanyCache();
+  for (const c of loadAllCompanies()) {
+    companyMap.set(c.ticker.toUpperCase(), c);
+  }
+  return missing.filter((t) => companyMap.has(t)).length;
+}
+
 async function scanOneTicker(
   ticker: string,
-  companyMap: Map<string, ReturnType<typeof loadAllCompanies>[number]>,
+  companyMap: Map<string, CompanyRow>,
   daysBack: number,
   workerId: number,
   jarCache: Map<number, NseJar>,
 ): Promise<{ ticker: string; ok: boolean }> {
-  const c = companyMap.get(ticker);
+  let c = companyMap.get(ticker);
+  if (!c) {
+    // Last chance: bootstrap into NSE / SME lists, then continue the scan.
+    try {
+      await bootstrapCompanyTicker(ticker);
+      invalidateCompanyCache();
+      for (const row of loadAllCompanies()) {
+        companyMap.set(row.ticker.toUpperCase(), row);
+      }
+      c = companyMap.get(ticker);
+    } catch {
+      /* fall through */
+    }
+  }
   if (!c) {
     await withScrapeWriteLock(() => {
       recordStrategyScan(ticker, "concall_drift", "failed", "unknown ticker");
@@ -308,10 +358,20 @@ export async function runConcallDriftScanBatch(opts: {
   let announcedUniverse = 0;
   if (opts.tickers?.length) {
     jobs = opts.tickers.map((t) => t.toUpperCase());
+    await ensureTickersInCompanyList(jobs, companyMap);
   } else if (announced) {
     const jar = await createNseBuybackSession();
     const events = await fetchNseAnnouncedCorpEvents(opts.announcedDays ?? 7, jar);
-    const tickers = announcedEarnTickers(events).filter((t) => {
+    const allAnnounced = announcedEarnTickers(events);
+    const nameByTicker = new Map<string, string>();
+    for (const e of events) {
+      const t = e.ticker.toUpperCase();
+      const n = (e.company_name || "").trim();
+      if (t && n && !nameByTicker.has(t)) nameByTicker.set(t, n);
+    }
+    // Auto-add filings for names not yet on NSE / NSE SME / BSE SME lists.
+    await ensureTickersInCompanyList(allAnnounced, companyMap, nameByTicker);
+    const tickers = allAnnounced.filter((t) => {
       if (!companyMap.has(t)) return false;
       return passesMarket(t);
     });

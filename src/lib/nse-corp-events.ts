@@ -31,6 +31,8 @@ export type NseCorpEvent = {
   announced_at: string;
   subject: string | null;
   url: string | null;
+  /** Issuer name from NSE row when present (bootstrap / display). */
+  company_name?: string | null;
 };
 
 type NseAnnRow = Record<string, unknown>;
@@ -135,6 +137,11 @@ function parseCorpRows(rows: NseAnnRow[], fallbackTicker?: string): NseCorpEvent
       url: safeStr(row.attchmntFile).startsWith("http")
         ? safeStr(row.attchmntFile)
         : null,
+      company_name:
+        safeStr(row.sm_name) ||
+        safeStr(row.companyName) ||
+        safeStr(row.name) ||
+        null,
     });
   }
   out.sort(

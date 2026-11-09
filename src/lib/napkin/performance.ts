@@ -14,7 +14,7 @@ export const NAPKIN_PERF = {
 export type NapkinPerfVerdict = "pass" | "fail" | "na";
 
 export type NapkinPerfCheck = {
-  id: "revenue_cagr" | "ebitda_margin" | "roce" | "debt_equity";
+  id: string;
   label: string;
   threshold: string;
   value: number | null;

@@ -150,8 +150,21 @@ export type NapkinResearch = {
   sources?: string[];
   fetched_at?: string | null;
   sector?: string | null;
-  /** Simple performance pass/fail checks (rev CAGR, EBITDA, ROCE, D/E). */
+  /** Quality screen — rev CAGR, EBITDA, ROCE, D/E. */
   performance?: {
+    checks: Array<{
+      id: string;
+      label: string;
+      threshold: string;
+      value: number | null;
+      display: string;
+      verdict: "pass" | "fail" | "na";
+    }>;
+    passed: number;
+    scored: number;
+  } | null;
+  /** Growth screen — rev YoY, PAT TTM, EPS YoY, EPS 3Y. */
+  growth?: {
     checks: Array<{
       id: string;
       label: string;
