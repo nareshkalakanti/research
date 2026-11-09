@@ -1,5 +1,6 @@
 import { napkinAnalysis } from "./engine";
 import type { NapkinFilingRow } from "./filings";
+import { annualYoyGrowth, napkinGrowth } from "./growth";
 import { napkinPerformance } from "./performance";
 import { napkinSimpleFromStock } from "./simple";
 import type {
@@ -170,6 +171,13 @@ export function researchFromYahoo(
       ebitda_margin: row.ebitda_margin,
       roce: row.roce,
       debt_equity: row.debt_equity,
+    }),
+    growth: napkinGrowth({
+      revenue_yoy: annualYoyGrowth(row.annuals?.map((a) => a.revenue) ?? null),
+      // PAT TTM filled client-side from quarters when available.
+      pat_ttm: null,
+      eps_yoy: annualYoyGrowth(row.annuals?.map((a) => a.eps) ?? null),
+      eps_cagr_3y: cagr.eps_3y,
     }),
     card: {
       headline: `${name} · ${ticker}`,

@@ -11,7 +11,10 @@ import {
 import {
   MarketCapRangeBar,
   MCAP_RANGE_STEPS,
-  mcapIndicesToBounds,
+  mcapBoundsNarrowed,
+  mcapCrToIndex,
+  resolveMcapBounds,
+  type McapExactBounds,
 } from "@/components/MarketCapRangeBar";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
 import { QuartersRankCard } from "@/components/QuartersRankCard";
@@ -326,13 +329,13 @@ function PeadOpenDetail({
               variant="full"
             />
             <section className="pead2-expand-card pead2-expand-seven">
-              <h3 className="pead2-expand-side-title">7-Rule score</h3>
+              <h3 className="pead2-expand-side-title">Momentum</h3>
               {qtr.loading && !sevenRule ? (
-                <p className="table-meta">Loading 7-Rule…</p>
+                <p className="table-meta">Loading Momentum…</p>
               ) : sevenRule ? (
                 <SevenRuleScoreCard result={sevenRule} compact />
               ) : (
-                <p className="table-meta">No 7-Rule yet</p>
+                <p className="table-meta">No Momentum yet</p>
               )}
             </section>
             <CompanyAboutCard
@@ -361,6 +364,7 @@ export function PeadPanel() {
   const [dir, setDir] = useState<"asc" | "desc">("desc");
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
+  const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [paging, setPaging] = useState(false);
@@ -391,12 +395,17 @@ export function PeadPanel() {
       });
   }, []);
 
+  const mcapBounds = resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact);
+  const mcapMinCr = mcapBounds.minCr;
+  const mcapMaxCr = mcapBounds.maxCr;
+  const mcapNarrowed = mcapBoundsNarrowed(mcapMinCr, mcapMaxCr);
+
   useEffect(() => {
     setPage(1);
   }, [
     debouncedQ,
-    mcapMinIndex,
-    mcapMaxIndex,
+    mcapMinCr,
+    mcapMaxCr,
     sort,
     dir,
     market,
@@ -415,9 +424,10 @@ export function PeadPanel() {
       season,
     });
     if (incompleteOnly) params.set("incomplete", "1");
-    const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
-    if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
-    if (maxCr != null) params.set("mcapMax", String(maxCr));
+    if (mcapMinCr != null && mcapMinCr > 0) {
+      params.set("mcapMin", String(mcapMinCr));
+    }
+    if (mcapMaxCr != null) params.set("mcapMax", String(mcapMaxCr));
     return params;
   }, [
     debouncedQ,
@@ -427,8 +437,8 @@ export function PeadPanel() {
     market,
     incompleteOnly,
     season,
-    mcapMinIndex,
-    mcapMaxIndex,
+    mcapMinCr,
+    mcapMaxCr,
   ]);
 
   const load = useCallback(async (opts?: { forcePrices?: boolean }) => {
@@ -457,7 +467,8 @@ export function PeadPanel() {
       setLoadError(null);
       setData(json);
       hasDataRef.current = true;
-      setOpenTicker(null);
+      // Soft page/filter refresh keeps the open row; hard load resets it.
+      if (!soft) setOpenTicker(null);
     } catch (err) {
       if (gen !== loadGen.current) return;
       const name = err instanceof Error ? err.name : "";
@@ -716,7 +727,6 @@ export function PeadPanel() {
   }, [cols]);
   const extraTotal = COLS.filter((c) => c.extra).length;
   const extraVisible = showExtra ? extraTotal : 0;
-  const mcapNarrowed = mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
   const filtersActive =
     q.trim().length > 0 ||
     mcapNarrowed ||
@@ -792,13 +802,13 @@ export function PeadPanel() {
                 </span>
               ) : null}
               <a
-                className="pead2-link"
+                className="pead2-link pead2-link--np"
                 href={napkinUrl(row.ticker)}
                 target="_blank"
                 rel="noreferrer"
                 title="Open Napkin for this stock"
               >
-                np
+                NP
               </a>
               {row.tv ? (
                 <a
@@ -1072,15 +1082,24 @@ export function PeadPanel() {
           <MarketCapRangeBar
             minIndex={mcapMinIndex}
             maxIndex={mcapMaxIndex}
+            minCr={mcapBounds.minCr}
+            maxCr={mcapBounds.maxCr}
             onChange={(lo, hi) => {
               setMcapMinIndex(lo);
               setMcapMaxIndex(hi);
+              setMcapExact(null);
+            }}
+            onCrChange={(minCr, maxCr) => {
+              setMcapExact({ minCr: minCr ?? 0, maxCr });
+              setMcapMinIndex(mcapCrToIndex(minCr ?? 0));
+              setMcapMaxIndex(mcapCrToIndex(maxCr));
             }}
             onClear={
               mcapNarrowed
                 ? () => {
                     setMcapMinIndex(0);
                     setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                    setMcapExact(null);
                   }
                 : undefined
             }
@@ -1097,6 +1116,7 @@ export function PeadPanel() {
               setMarket("All");
               setMcapMinIndex(0);
               setMcapMaxIndex(MCAP_DEFAULT_MAX);
+              setMcapExact(null);
             }}
           >
             Clear

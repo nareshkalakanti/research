@@ -8,7 +8,10 @@ import {
 import {
   MarketCapRangeBar,
   MCAP_RANGE_STEPS,
-  mcapIndicesToBounds,
+  mcapBoundsNarrowed,
+  mcapCrToIndex,
+  resolveMcapBounds,
+  type McapExactBounds,
 } from "@/components/MarketCapRangeBar";
 import { parseFetchJson } from "@/lib/fetch-json";
 import { loadTrackPins, saveTrackPins } from "@/lib/concall-track";
@@ -66,12 +69,6 @@ function eventTs(r: StrategyConcallDriftRowData): number {
   return Date.parse(r.concall_at || r.earn_at) || 0;
 }
 
-function apiSort(view: DriftView): "all" | "gainers" | "losers" {
-  if (view === "gainers") return "gainers";
-  if (view === "losers") return "losers";
-  return "all";
-}
-
 /** Split pasted / typed tickers: spaces, commas, semicolons, newlines. */
 function parseTrackTickers(raw: string): string[] {
   return [
@@ -108,13 +105,27 @@ export function ConcallDriftPanel() {
   const [meta, setMeta] = useState<{ total?: number; baseline?: number }>({});
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
+  const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
   const [search, setSearch] = useState("");
   const [searchQ, setSearchQ] = useState("");
   const loadGen = useRef(0);
   const skipPinsReload = useRef(false);
+  /** Shared Latest/Gainers/Losers board — reused when hopping tabs (no re-fetch). */
+  const universeCache = useRef<{
+    key: string;
+    rows: StrategyConcallDriftRowData[];
+    meta: { total?: number; baseline?: number };
+  } | null>(null);
 
   const isTrack = view === "track";
-  const mcapNarrowed = mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
+  const mcapBounds = resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact);
+  const mcapMinCr = mcapBounds.minCr;
+  const mcapMaxCr = mcapBounds.maxCr;
+  const mcapNarrowed = mcapBoundsNarrowed(mcapMinCr, mcapMaxCr);
+  const universeKey = useMemo(
+    () => `${searchQ}|${mcapMinCr ?? ""}|${mcapMaxCr ?? ""}`,
+    [searchQ, mcapMinCr, mcapMaxCr],
+  );
 
   useEffect(() => {
     const t = window.setTimeout(() => setSearchQ(search.trim()), 280);
@@ -123,21 +134,18 @@ export function ConcallDriftPanel() {
 
   const applyMcapParams = useCallback(
     (params: URLSearchParams) => {
-      if (!mcapNarrowed) return;
-      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
-      if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
-      if (maxCr != null) params.set("mcapMax", String(maxCr));
+      if ((mcapMinCr ?? 0) > 0) params.set("mcapMin", String(mcapMinCr));
+      if (mcapMaxCr != null) params.set("mcapMax", String(mcapMaxCr));
     },
-    [mcapMinIndex, mcapMaxIndex, mcapNarrowed],
+    [mcapMinCr, mcapMaxCr],
   );
 
   const loadUniverse = useCallback(async (opts?: {
     refreshPrices?: boolean;
     silent?: boolean;
-    forView?: DriftView;
+    cacheKey?: string;
   }): Promise<StrategyConcallDriftRowData[]> => {
-    const forView = opts?.forView ?? view;
-    if (forView === "track") return [];
+    const cacheKey = opts?.cacheKey ?? universeKey;
     const gen = ++loadGen.current;
     const silent = opts?.silent === true;
     const refreshPrices = opts?.refreshPrices === true;
@@ -147,62 +155,74 @@ export function ConcallDriftPanel() {
     } else if (refreshPrices) {
       setRefreshingPrices(true);
     }
+
     try {
       const params = new URLSearchParams({
         kind: KIND,
         market: "All",
         cap: "All",
-        sort: apiSort(forView),
-        // Latest / gainers / losers: last ~1 month only.
+        // One board for Latest / Gainers / Losers — client sorts/filters.
+        sort: "all",
         window: "last30",
-        limit: searchQ
-          ? "80"
-          : forView === "latest"
-            ? "400"
-            : "150",
+        limit: searchQ ? "80" : "400",
         lite: "1",
       });
       if (searchQ) params.set("q", searchQ);
-      // Day diversify hides exact ticker hits — skip while searching.
-      if (!searchQ && forView === "latest") params.set("diversifyPerDay", "18");
+      // Keep day mix for Latest; Gainers/Losers still see movers from this set.
+      if (!searchQ) params.set("diversifyPerDay", "18");
       applyMcapParams(params);
       if (refreshPrices) params.set("refresh", "1");
-      const res = await fetch(`/api/strategy?${params}`, {
-        signal: AbortSignal.timeout(refreshPrices ? 90_000 : 30_000),
-      });
+      // No AbortSignal.timeout — stale gens are ignored; avoids unhandled TimeoutError.
+      const res = await fetch(`/api/strategy?${params}`);
+      if (gen !== loadGen.current) {
+        return universeCache.current?.rows ?? [];
+      }
       const json = await parseFetchJson<ApiResponse>(res);
       if (!res.ok || json.error) {
         throw new Error(json.error || `Load failed (${res.status})`);
       }
       const nextRows = json.rows || [];
+      const nextMeta = {
+        total: json.total_events,
+        baseline: json.with_baseline,
+      };
       if (gen === loadGen.current) {
         setRows(nextRows);
-        setMeta({
-          total: json.total_events,
-          baseline: json.with_baseline,
-        });
+        setMeta(nextMeta);
+        universeCache.current = {
+          key: cacheKey,
+          rows: nextRows,
+          meta: nextMeta,
+        };
       }
       return nextRows;
     } catch (err) {
-      if (gen === loadGen.current && !silent) {
-        const msg =
-          err instanceof Error
-            ? /abort|timeout/i.test(`${err.name} ${err.message}`)
-              ? "Request timed out — try again"
-              : err.message
-            : "Failed to load";
-        setLoadError(msg);
+      if (gen !== loadGen.current) {
+        return universeCache.current?.rows ?? [];
       }
-      return [];
+      if (!silent) {
+        const raw = err instanceof Error ? err.message : "Failed to load";
+        const msg = /failed to fetch|networkerror|load failed/i.test(raw)
+          ? "Network dropped — try Refresh"
+          : /abort|timeout/i.test(raw)
+            ? "Request timed out — try again"
+            : raw;
+        if (!universeCache.current?.rows.length) setLoadError(msg);
+        else setAddMsg(msg);
+      }
+      return universeCache.current?.key === cacheKey
+        ? universeCache.current.rows
+        : [];
     } finally {
-      // Always clear foreground loading — a newer silent refresh must not leave
-      // the strip stuck on "Updating…".
-      if (!silent) setLoading(false);
+      if (!silent && gen === loadGen.current) setLoading(false);
       if (silent && refreshPrices && gen === loadGen.current) {
         setRefreshingPrices(false);
       }
     }
-  }, [view, applyMcapParams, searchQ]);
+  }, [applyMcapParams, searchQ, universeKey]);
+
+  const loadUniverseRef = useRef(loadUniverse);
+  loadUniverseRef.current = loadUniverse;
 
   const loadTrack = useCallback(
     async (
@@ -235,9 +255,8 @@ export function ConcallDriftPanel() {
           tickers: pinList.slice(0, 80).join(","),
         });
         if (refreshPrices) params.set("refresh", "1");
-        const res = await fetch(`/api/strategy?${params}`, {
-          signal: AbortSignal.timeout(refreshPrices ? 90_000 : 30_000),
-        });
+        const res = await fetch(`/api/strategy?${params}`);
+        if (gen !== loadGen.current) return;
         const json = await parseFetchJson<ApiResponse>(res);
         if (!res.ok || json.error) {
           throw new Error(json.error || `Load failed (${res.status})`);
@@ -258,7 +277,9 @@ export function ConcallDriftPanel() {
       } catch (err) {
         if (gen !== loadGen.current) return;
         if (!soft) {
-          setLoadError(err instanceof Error ? err.message : "Failed to load");
+          setLoadError(
+            err instanceof Error ? err.message : "Failed to load",
+          );
         }
       } finally {
         if (gen !== loadGen.current) return;
@@ -271,10 +292,27 @@ export function ConcallDriftPanel() {
 
   useEffect(() => {
     if (view === "track") return;
-    setRows([]);
+    const cached = universeCache.current;
+    // Hop Latest ↔ Gainers ↔ Losers with the same mcap/search: reuse board + prices.
+    if (cached && cached.key === universeKey) {
+      setRows(cached.rows);
+      setMeta(cached.meta);
+      setLoading(false);
+      setLoadError(null);
+      return;
+    }
     setLoadError(null);
-    void loadUniverse({ forView: view });
-  }, [view, loadUniverse]);
+    // Debounce filter changes so Min/Max typing doesn't stack fetches.
+    // Do not abort on cleanup — that caused unhandled AbortError spam.
+    const key = universeKey;
+    const silent = Boolean(cached?.rows.length);
+    const t = window.setTimeout(() => {
+      void loadUniverseRef.current({ silent, cacheKey: key });
+    }, 280);
+    return () => {
+      window.clearTimeout(t);
+    };
+  }, [view, universeKey]);
 
   useEffect(() => {
     if (view !== "track") return;
@@ -326,7 +364,6 @@ export function ConcallDriftPanel() {
               missingOnly: false,
               refreshRecent: true,
             }),
-            signal: AbortSignal.timeout(180_000),
           });
         } catch {
           /* still try to load cached rows */
@@ -379,12 +416,18 @@ export function ConcallDriftPanel() {
     if (view === "latest") {
       list.sort((a, b) => eventTs(b) - eventTs(a));
     } else if (view === "gainers") {
+      list = list.filter(
+        (r) => r.drift_pct != null && Number.isFinite(r.drift_pct) && r.drift_pct > 0,
+      );
       list.sort(
         (a, b) =>
           (b.drift_pct ?? -Infinity) - (a.drift_pct ?? -Infinity) ||
           eventTs(b) - eventTs(a),
       );
-    } else {
+    } else if (view === "losers") {
+      list = list.filter(
+        (r) => r.drift_pct != null && Number.isFinite(r.drift_pct) && r.drift_pct < 0,
+      );
       list.sort(
         (a, b) =>
           (a.drift_pct ?? Infinity) - (b.drift_pct ?? Infinity) ||
@@ -464,9 +507,8 @@ export function ConcallDriftPanel() {
           });
           if (!isTrack) params.set("window", "last30");
           applyMcapParams(params);
-          const res = await fetch(`/api/strategy?${params}`, {
-            signal: AbortSignal.timeout(90_000),
-          });
+          const res = await fetch(`/api/strategy?${params}`);
+          if (gen !== loadGen.current) return;
           const json = await parseFetchJson<ApiResponse>(res);
           if (!res.ok || json.error) {
             throw new Error(json.error || `Price update failed (${res.status})`);
@@ -481,12 +523,23 @@ export function ConcallDriftPanel() {
             if (!prev || eventTs(r) > eventTs(prev)) byTicker.set(t, r);
           }
           if (byTicker.size) {
-            setRows((cur) =>
-              cur.map((r) => {
+            setRows((cur) => {
+              const patched = cur.map((r) => {
                 const next = byTicker.get(r.ticker.toUpperCase());
                 return next ?? r;
-              }),
-            );
+              });
+              const cache = universeCache.current;
+              if (cache && cache.key === universeKey) {
+                universeCache.current = {
+                  ...cache,
+                  rows: cache.rows.map((r) => {
+                    const next = byTicker.get(r.ticker.toUpperCase());
+                    return next ?? r;
+                  }),
+                };
+              }
+              return patched;
+            });
           }
           setPriceProgress({
             done: Math.min(targets.length, i + chunk.length),
@@ -523,6 +576,7 @@ export function ConcallDriftPanel() {
       pins,
       shown,
       stalePriceTickers,
+      universeKey,
     ],
   );
 
@@ -558,7 +612,6 @@ export function ConcallDriftPanel() {
             announcedDays: SCAN_ANNOUNCED_DAYS,
             tickers: leftover,
           }),
-          signal: AbortSignal.timeout(180_000),
         });
         const json = await parseFetchJson<ScanApiResponse>(res);
         if (!res.ok || json.error) {
@@ -597,10 +650,9 @@ export function ConcallDriftPanel() {
       }
 
       setScanProgress({ label: "Reloading board…", pct: 97 });
-      const nextRows = await loadUniverse({
-        silent: true,
-        forView: view === "track" ? "latest" : view,
-      });
+      // Invalidate cache so Scan forces a fresh board (still no price refresh unless stale).
+      universeCache.current = null;
+      const nextRows = await loadUniverse({ silent: true });
       const staleAfter = [
         ...new Set(
           nextRows.filter(isStaleDriftRow).map((r) => r.ticker.toUpperCase()),
@@ -632,7 +684,7 @@ export function ConcallDriftPanel() {
       setScanProgress(null);
       scanCancel.current = null;
     }
-  }, [loadUniverse, refreshingPrices, scanning, updatePrices, view]);
+  }, [loadUniverse, refreshingPrices, scanning, updatePrices]);
 
   return (
     <div className="pcd panel strategy-panel concall-drift-lite">
@@ -749,15 +801,24 @@ export function ConcallDriftPanel() {
                 compact
                 minIndex={mcapMinIndex}
                 maxIndex={mcapMaxIndex}
+                minCr={mcapBounds.minCr}
+                maxCr={mcapBounds.maxCr}
                 onChange={(lo, hi) => {
                   setMcapMinIndex(lo);
                   setMcapMaxIndex(hi);
+                  setMcapExact(null);
+                }}
+                onCrChange={(minCr, maxCr) => {
+                  setMcapExact({ minCr: minCr ?? 0, maxCr });
+                  setMcapMinIndex(mcapCrToIndex(minCr ?? 0));
+                  setMcapMaxIndex(mcapCrToIndex(maxCr));
                 }}
                 onClear={
                   mcapNarrowed
                     ? () => {
                         setMcapMinIndex(0);
                         setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                        setMcapExact(null);
                       }
                     : undefined
                 }

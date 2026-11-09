@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import {
   MarketCapRangeBar,
   MCAP_RANGE_STEPS,
+  mcapBoundsNarrowed,
 } from "@/components/MarketCapRangeBar";
 import {
   earnAnnouncementWindowForFyQuarter,
@@ -60,6 +61,9 @@ type Props = {
   mcapMinIndex: number;
   mcapMaxIndex: number;
   onMcapChange: (minIndex: number, maxIndex: number) => void;
+  mcapMinCr?: number | null;
+  mcapMaxCr?: number | null;
+  onMcapCrChange?: (minCr: number | null, maxCr: number | null) => void;
   search: string;
   onSearch: (q: string) => void;
   withBaseline?: number;
@@ -134,6 +138,9 @@ export function ConcallDriftFilterBar({
   mcapMinIndex,
   mcapMaxIndex,
   onMcapChange,
+  mcapMinCr,
+  mcapMaxCr,
+  onMcapCrChange,
   search,
   onSearch,
   withBaseline,
@@ -154,7 +161,10 @@ export function ConcallDriftFilterBar({
     return earnAnnouncementWindowForFyQuarter(quarter);
   }, [quarter]);
 
-  const mcapNarrowed = mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
+  const mcapNarrowed =
+    mcapMinCr !== undefined || mcapMaxCr !== undefined
+      ? mcapBoundsNarrowed(mcapMinCr ?? 0, mcapMaxCr ?? null)
+      : mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
 
   const filtersActive =
     sort !== "all" ||
@@ -297,10 +307,16 @@ export function ConcallDriftFilterBar({
           <MarketCapRangeBar
             minIndex={mcapMinIndex}
             maxIndex={mcapMaxIndex}
+            minCr={mcapMinCr}
+            maxCr={mcapMaxCr}
             onChange={onMcapChange}
+            onCrChange={onMcapCrChange}
             onClear={
               mcapNarrowed
-                ? () => onMcapChange(0, MCAP_DEFAULT_MAX)
+                ? () => {
+                    onMcapChange(0, MCAP_DEFAULT_MAX);
+                    onMcapCrChange?.(0, null);
+                  }
                 : undefined
             }
           />

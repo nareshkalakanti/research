@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { SevenRuleResult, SevenRuleRule } from "@/lib/seven-rule-score";
 
 function ratingClass(rating: SevenRuleResult["rating"]): string {
@@ -22,15 +23,30 @@ function verdictLabel(verdict: SevenRuleRule["verdict"]): string {
 
 type Props = {
   result: SevenRuleResult;
+  /** Start collapsed with a Show toggle (Quarters / Quality rhythm). */
   compact?: boolean;
+  /** Override initial expand when compact. */
+  defaultExpanded?: boolean;
 };
 
-export function SevenRuleScoreCard({ result, compact }: Props) {
+export function SevenRuleScoreCard({
+  result,
+  compact,
+  defaultExpanded = false,
+}: Props) {
+  const [expanded, setExpanded] = useState(
+    compact ? defaultExpanded : true,
+  );
   const pct = Math.min(100, Math.max(0, (result.score / 10) * 100));
   const barClass = ratingClass(result.rating);
+  const showRules = !compact || expanded;
 
   return (
-    <div className={`seven-rule-card${compact ? " seven-rule-card--compact" : ""}`}>
+    <div
+      className={`seven-rule-card${
+        compact && !expanded ? " seven-rule-card--compact" : ""
+      }`}
+    >
       <div className="seven-rule-head">
         <div className="seven-rule-score-line">
           <span className="seven-rule-score-num">{result.score.toFixed(2)}</span>
@@ -59,19 +75,34 @@ export function SevenRuleScoreCard({ result, compact }: Props) {
           {result.provisional ? " · incomplete inputs" : ""}
         </p>
       </div>
-      {!compact ? (
+      {showRules ? (
         <ul className="seven-rule-rules">
           {result.rules.map((rule) => (
-            <li key={rule.id} className={`seven-rule-rule ${ruleClass(rule.verdict)}`}>
+            <li
+              key={rule.id}
+              className={`seven-rule-rule ${ruleClass(rule.verdict)}`}
+            >
               <span className="seven-rule-rule-label">{rule.label}</span>
               <span className="seven-rule-rule-val">
                 {rule.value ?? "—"}
                 <span className="seven-rule-rule-thresh"> ({rule.threshold})</span>
               </span>
-              <span className="seven-rule-rule-verdict">{verdictLabel(rule.verdict)}</span>
+              <span className="seven-rule-rule-verdict">
+                {verdictLabel(rule.verdict)}
+              </span>
             </li>
           ))}
         </ul>
+      ) : null}
+      {compact ? (
+        <button
+          type="button"
+          className="quarters-rank-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          {expanded ? "Hide rules" : "Show rules"}
+        </button>
       ) : null}
     </div>
   );

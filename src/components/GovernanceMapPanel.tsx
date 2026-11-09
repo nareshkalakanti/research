@@ -5,7 +5,10 @@ import { useSearchParams } from "next/navigation";
 import {
   MarketCapRangeBar,
   MCAP_RANGE_STEPS,
-  mcapIndicesToBounds,
+  mcapBoundsNarrowed,
+  mcapCrToIndex,
+  resolveMcapBounds,
+  type McapExactBounds,
 } from "@/components/MarketCapRangeBar";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
 import { GovernanceDinCrud } from "@/components/GovernanceDinCrud";
@@ -282,6 +285,8 @@ export function GovernanceMapPanel() {
   const [fundFilters, setFundFilters] = useState<FundFilterState>(EMPTY_FUNDS);
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
+  const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
+  const mcapBounds = resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact);
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -304,7 +309,7 @@ export function GovernanceMapPanel() {
   useEffect(() => {
     setPage(1);
     setOpenId(null);
-  }, [view, debouncedQ, minBoards, filterIndependence, minIndPct, fundFilters, mcapMinIndex, mcapMaxIndex]);
+  }, [view, debouncedQ, minBoards, filterIndependence, minIndPct, fundFilters, mcapBounds.minCr, mcapBounds.maxCr]);
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -324,7 +329,7 @@ export function GovernanceMapPanel() {
         params.set("minIndPct", String(minIndPct));
       }
       appendFundParams(params, fundFilters);
-      const { minCr, maxCr } = mcapIndicesToBounds(mcapMinIndex, mcapMaxIndex);
+      const { minCr, maxCr } = mcapBounds;
       if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
       if (maxCr != null) params.set("mcapMax", String(maxCr));
       if (opts?.refresh) params.set("refresh", "1");
@@ -363,7 +368,7 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, filterIndependence, minIndPct, fundFilters, mcapMinIndex, mcapMaxIndex],
+    [view, debouncedQ, page, minBoards, filterIndependence, minIndPct, fundFilters, mcapBounds],
   );
 
   useEffect(() => {
@@ -639,8 +644,7 @@ export function GovernanceMapPanel() {
     }
   }
 
-  const mcapNarrowed =
-    mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX;
+  const mcapNarrowed = mcapBoundsNarrowed(mcapBounds.minCr, mcapBounds.maxCr);
 
   const filtersActive =
     q.trim().length > 0 ||
@@ -659,6 +663,7 @@ export function GovernanceMapPanel() {
     setFundFilters(EMPTY_FUNDS);
     setMcapMinIndex(0);
     setMcapMaxIndex(MCAP_DEFAULT_MAX);
+    setMcapExact(null);
     setOpenId(null);
     setView("company");
     setStack([]);
@@ -804,15 +809,24 @@ export function GovernanceMapPanel() {
           <MarketCapRangeBar
             minIndex={mcapMinIndex}
             maxIndex={mcapMaxIndex}
+            minCr={mcapBounds.minCr}
+            maxCr={mcapBounds.maxCr}
             onChange={(lo, hi) => {
               setMcapMinIndex(lo);
               setMcapMaxIndex(hi);
+              setMcapExact(null);
+            }}
+            onCrChange={(minCr, maxCr) => {
+              setMcapExact({ minCr: minCr ?? 0, maxCr });
+              setMcapMinIndex(mcapCrToIndex(minCr ?? 0));
+              setMcapMaxIndex(mcapCrToIndex(maxCr));
             }}
             onClear={
               mcapNarrowed
                 ? () => {
                     setMcapMinIndex(0);
                     setMcapMaxIndex(MCAP_DEFAULT_MAX);
+                    setMcapExact(null);
                   }
                 : undefined
             }

@@ -32,8 +32,7 @@ type DashView =
   | "stock"
   | "network"
   | "outside"
-  | "outside-din"
-  | "small";
+  | "outside-din";
 
 function stubCompany(
   ticker: string,
@@ -61,10 +60,8 @@ export function FamilyDashboard() {
   const tabState = useOptionalAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
   const [holdings, setHoldings] = useState<FamilyRow[]>([]);
-  const [smallMaps, setSmallMaps] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [holdingsLoading, setHoldingsLoading] = useState(false);
-  const [smallLoading, setSmallLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [dashHits, setDashHits] = useState<DashSuggestHit[]>([]);
@@ -80,11 +77,21 @@ export function FamilyDashboard() {
   const [holdingFilter, setHoldingFilter] = useState("");
   const [onlyMissingDin, setOnlyMissingDin] = useState(false);
   const [onlyUnconnected, setOnlyUnconnected] = useState(false);
-  /** Small tab: sc-sub = small + under ₹500 Cr (Zodiac-style solos). */
-  const [smallCap, setSmallCap] = useState<"sc-sub" | "sub500" | "sc" | "all">(
-    "sc-sub",
-  );
-  const [smallLimit, setSmallLimit] = useState(60);
+
+  // Drop removed views (e.g. former "small") left in Fast Refresh state.
+  useEffect(() => {
+    const ok: DashView[] = [
+      "groups",
+      "group-rank",
+      "holdings",
+      "people",
+      "stock",
+      "network",
+      "outside",
+      "outside-din",
+    ];
+    if (!ok.includes(dashView)) setDashView("groups");
+  }, [dashView]);
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
@@ -97,7 +104,6 @@ export function FamilyDashboard() {
   } | null>(null);
   const hasGroups = useRef(false);
   const hasHoldings = useRef(false);
-  const hasSmall = useRef(false);
   /**
    * After DIN/group writes: mark stale so the next relevant view reloads.
    * Start false — cold load uses cache miss, not refresh=1 (closes the DB reader).
@@ -106,7 +112,6 @@ export function FamilyDashboard() {
   const peopleStale = useRef(false);
   const holdingsStale = useRef(false);
   const networkStale = useRef(false);
-  const smallStale = useRef(false);
   const loadGen = useRef(0);
   const mapChangeTimer = useRef<number | null>(null);
 
@@ -184,36 +189,6 @@ export function FamilyDashboard() {
     }
   }, []);
 
-  const loadSmallMaps = useCallback(async (opts?: { refresh?: boolean }) => {
-    const hard = opts?.refresh === true;
-    if (!hasSmall.current) setSmallLoading(true);
-    if (hard) setRefreshingBox((cur) => cur || "*");
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        view: "ungrouped",
-        page: "1",
-        pageSize: "5000",
-      });
-      if (hard) params.set("refresh", "1");
-      const res = await fetch(`/api/governance-map?${params}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { rows?: FamilyRow[] };
-      const next = json.rows ?? [];
-      hasSmall.current = next.length > 0;
-      smallStale.current = false;
-      setSmallMaps(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSmallLoading(false);
-      setRefreshingBox(null);
-    }
-  }, []);
-
-
   const loadPeople = useCallback(async (opts?: { refresh?: boolean; q?: string }) => {
     setPeopleLoading(true);
     if (opts?.refresh) setRefreshingBox((cur) => cur || "*");
@@ -289,7 +264,6 @@ export function FamilyDashboard() {
       peopleStale.current = true;
       holdingsStale.current = true;
       networkStale.current = true;
-      smallStale.current = true;
       if (mapChangeTimer.current != null) {
         window.clearTimeout(mapChangeTimer.current);
       }
@@ -307,9 +281,6 @@ export function FamilyDashboard() {
         } else if (dashView === "holdings") {
           holdingsStale.current = false;
           void loadHoldingMaps();
-        } else if (dashView === "small") {
-          smallStale.current = false;
-          void loadSmallMaps();
         } else if (dashView === "network") {
           networkStale.current = false;
           setNetworkRefreshKey((k) => k + 1);
@@ -324,7 +295,7 @@ export function FamilyDashboard() {
         mapChangeTimer.current = null;
       }
     };
-  }, [dashView, q, load, loadPeople, loadHoldingMaps, loadSmallMaps]);
+  }, [dashView, q, load, loadPeople, loadHoldingMaps]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -370,18 +341,6 @@ export function FamilyDashboard() {
   }, [dashView, loadHoldingMaps]);
 
   useEffect(() => {
-    if (dashView !== "small") return;
-    if (hasSmall.current && !smallStale.current) return;
-    const hard = smallStale.current && hasSmall.current;
-    smallStale.current = false;
-    void loadSmallMaps(hard ? { refresh: true } : undefined);
-  }, [dashView, loadSmallMaps]);
-
-  useEffect(() => {
-    setSmallLimit(60);
-  }, [q, smallCap]);
-
-  useEffect(() => {
     if (dashView !== "network") return;
     if (!networkStale.current) return;
     networkStale.current = false;
@@ -406,10 +365,9 @@ export function FamilyDashboard() {
     const map = new Map<string, string>();
     for (const f of rows) for (const c of f.companies) map.set(c.ticker, c.market);
     for (const f of holdings) for (const c of f.companies) map.set(c.ticker, c.market);
-    for (const f of smallMaps) for (const c of f.companies) map.set(c.ticker, c.market);
     for (const p of people) for (const c of p.companies) map.set(c.ticker, c.market);
     return map;
-  }, [rows, holdings, smallMaps, people]);
+  }, [rows, holdings, people]);
 
   const groupOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -451,7 +409,7 @@ export function FamilyDashboard() {
   };
 
   const filtered = useMemo(() => {
-    const needle = q.trim().toLowerCase();
+    const needle = typeof q === "string" ? q.trim().toLowerCase() : "";
     return rows.filter((f) => {
       if (groupFilter && (f.group_id || f.family_name) !== groupFilter) {
         return false;
@@ -475,6 +433,15 @@ export function FamilyDashboard() {
       );
     });
   }, [rows, q, groupFilter, onlyMissingDin, onlyUnconnected]);
+
+  // Stale groupFilter (HMR / deleted group) → empty list while dropdown still says All.
+  useEffect(() => {
+    if (!groupFilter || !rows.length) return;
+    const hit = rows.some(
+      (f) => (f.group_id || f.family_name) === groupFilter,
+    );
+    if (!hit) setGroupFilter("");
+  }, [rows, groupFilter]);
 
   const recentJoinCount = (f: FamilyRow) =>
     (f.people ?? []).filter((p) => p.recent_join).length;
@@ -531,66 +498,6 @@ export function FamilyDashboard() {
     );
     return out;
   }, [holdings]);
-
-  const smallCapBand = (
-    cap_code?: string | null,
-    market_cap_cr?: number | null,
-  ): "lc" | "mc" | "sc" | "sub500" | null => {
-    const mcap = market_cap_cr == null ? null : Number(market_cap_cr);
-    if (mcap != null && Number.isFinite(mcap) && mcap > 0 && mcap < 500) {
-      return "sub500";
-    }
-    const cap = (cap_code || "").toLowerCase();
-    if (cap === "ti" || cap === "mic") return "sub500";
-    if (cap === "lc" || cap === "mc" || cap === "sc") return cap;
-    if (mcap == null || !Number.isFinite(mcap) || mcap <= 0) return null;
-    if (mcap >= 20_000) return "lc";
-    if (mcap >= 5_000) return "mc";
-    return "sc";
-  };
-
-  const filteredSmallMaps = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const list = smallMaps.filter((f) => {
-      const lead = f.companies[0];
-      const band = smallCapBand(lead?.cap_code, lead?.market_cap_cr);
-      if (smallCap === "sc-sub" && band !== "sc" && band !== "sub500") {
-        return false;
-      }
-      if (smallCap === "sub500" && band !== "sub500") return false;
-      if (smallCap === "sc" && band !== "sc") return false;
-      if (!needle) return true;
-      return (
-        f.family_name.toLowerCase().includes(needle) ||
-        f.companies.some(
-          (c) =>
-            c.ticker.toLowerCase().startsWith(needle) ||
-            c.name.toLowerCase().includes(needle),
-        ) ||
-        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
-        (f.outside ?? []).some(
-          (o) =>
-            o.ticker.toLowerCase().startsWith(needle) ||
-            o.name.toLowerCase().includes(needle),
-        )
-      );
-    });
-    // Zodiac-style: richest outside networks first among ungrouped solos.
-    return [...list].sort((a, b) => {
-      const ao = a.outside?.length ?? 0;
-      const bo = b.outside?.length ?? 0;
-      if (bo !== ao) return bo - ao;
-      const ap = a.people?.length ?? 0;
-      const bp = b.people?.length ?? 0;
-      if (bp !== ap) return bp - ap;
-      const am = a.companies[0]?.market_cap_cr ?? -1;
-      const bm = b.companies[0]?.market_cap_cr ?? -1;
-      if (bm !== am) return bm - am;
-      return a.family_name.localeCompare(b.family_name, undefined, {
-        sensitivity: "base",
-      });
-    });
-  }, [smallMaps, q, smallCap]);
 
   const filteredHoldings = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -1016,15 +923,6 @@ export function FamilyDashboard() {
             <button
               type="button"
               role="tab"
-              className={dashView === "small" ? "tab on" : "tab"}
-              aria-selected={dashView === "small"}
-              onClick={() => setDashView("small")}
-            >
-              Small
-            </button>
-            <button
-              type="button"
-              role="tab"
               className={dashView === "group-rank" ? "tab on" : "tab"}
               aria-selected={dashView === "group-rank"}
               onClick={() => setDashView("group-rank")}
@@ -1047,8 +945,6 @@ export function FamilyDashboard() {
                     ? "Commons list: stocks that appear as Outside boards across many business groups. Higher count = more cross-group director links."
                     : dashView === "outside-din"
                       ? "Outside boards still missing DIN coverage (0 seats or verified < directors). Same stocks as Outside, filtered to DIN gaps."
-                      : dashView === "small"
-                        ? "Same cards as Business groups / Holdings: one ungrouped stock map (company · linking people · outside boards). Default Small + under ₹500 Cr."
                   : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
           </p>
         </div>
@@ -1111,33 +1007,13 @@ export function FamilyDashboard() {
               </select>
             </label>
           ) : null}
-          {dashView === "small" ? (
-            <label className="fam-dash-group-filter">
-              <select
-                className="fam-dash-search fam-dash-group-select"
-                value={smallCap}
-                onChange={(e) => {
-                  setSmallCap(
-                    e.target.value as "sc-sub" | "sub500" | "sc" | "all",
-                  );
-                  setSmallLimit(60);
-                }}
-                aria-label="Small-cap band"
-              >
-                <option value="sc-sub">Small + under ₹500</option>
-                <option value="sub500">Under ₹500 Cr</option>
-                <option value="sc">Small cap</option>
-                <option value="all">All ungrouped</option>
-              </select>
-            </label>
-          ) : null}
           <FamilyDashSearch
             value={q}
             onChange={setQ}
             placeholder={
               dashView === "people"
                 ? "Person, DIN, ticker or company…"
-                : dashView === "holdings" || dashView === "small"
+                : dashView === "holdings"
                   ? "Ticker, company, director or outside board…"
                   : "Group, ticker, company or director…"
             }
@@ -1170,8 +1046,6 @@ export function FamilyDashboard() {
                     })
                   : dashView === "holdings"
                     ? loadHoldingMaps({ refresh: true })
-                    : dashView === "small"
-                      ? loadSmallMaps({ refresh: true })
                     : load({ refresh: true }))
             }
             disabled={
@@ -1181,8 +1055,6 @@ export function FamilyDashboard() {
                   ? peopleLoading
                   : dashView === "holdings"
                     ? holdingsLoading
-                    : dashView === "small"
-                      ? smallLoading
                     : loading
             }
           >
@@ -1192,8 +1064,6 @@ export function FamilyDashboard() {
                 ? peopleLoading
                 : dashView === "holdings"
                   ? holdingsLoading
-                  : dashView === "small"
-                    ? smallLoading
                   : loading)
               ? "Loading…"
               : "Refresh"}
@@ -1313,34 +1183,6 @@ export function FamilyDashboard() {
             setDashView("stock");
           }}
         />
-      ) : dashView === "small" ? (
-        smallLoading && !smallMaps.length ? (
-          <div className="table-meta">Loading small-cap maps…</div>
-        ) : (
-          <>
-            <FamilyMapCards
-              rows={filteredSmallMaps.slice(0, smallLimit)}
-              onPerson={(id, name) => openPerson(id, name)}
-              chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-              onRefresh={(g) => {
-                setRefreshingBox(g.group_id || g.family_name);
-                void loadSmallMaps({ refresh: true });
-              }}
-              refreshing={refreshingBox}
-            />
-            {filteredSmallMaps.length > smallLimit ? (
-              <div className="fam-dash-more">
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={() => setSmallLimit((n) => n + 60)}
-                >
-                  Show more ({filteredSmallMaps.length - smallLimit} left)
-                </button>
-              </div>
-            ) : null}
-          </>
-        )
       ) : dashView === "network" ? (
         <CompanyNetworkTable
           onPerson={(id, name) => openPerson(id, name)}
@@ -1393,6 +1235,22 @@ export function FamilyDashboard() {
         )
       ) : loading && !rows.length ? (
         <div className="table-meta">Loading business groups…</div>
+      ) : rows.length > 0 && filteredWithPattern.length === 0 ? (
+        <div className="table-meta">
+          No groups match the current filters.{" "}
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              setGroupFilter("");
+              setOnlyMissingDin(false);
+              setOnlyUnconnected(false);
+              setQ("");
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
       ) : (
         <FamilyMapCards
           rows={filteredWithPattern}

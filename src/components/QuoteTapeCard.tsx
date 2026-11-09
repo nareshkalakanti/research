@@ -154,7 +154,7 @@ export function QuoteTapeCard({
               <>
                 <span
                   className="wl-tape-stat"
-                  title="Same as Snapshot / Performance — revenue CAGR"
+                  title="Same as Snapshot / Quality — revenue CAGR"
                 >
                   <span className="wl-tape-stat-label">Rev 5Y</span>{" "}
                   <strong className={revCls}>{fmtFundCagr(rev5)}</strong>

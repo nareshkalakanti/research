@@ -17,7 +17,10 @@ import {
 } from "@/components/ConcallDriftFilterBar";
 import {
   MCAP_RANGE_STEPS,
-  mcapIndicesToBounds,
+  mcapBoundsNarrowed,
+  mcapCrToIndex,
+  resolveMcapBounds,
+  type McapExactBounds,
 } from "@/components/MarketCapRangeBar";
 import {
   recentFyQuarterOptions,
@@ -305,6 +308,8 @@ export function StrategyPanel() {
   const [subSector, setSubSector] = useState("");
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
+  const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
+  const mcapBounds = resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact);
   const [search, setSearch] = useState("");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -345,11 +350,8 @@ export function StrategyPanel() {
         if (customFrom) params.set("from", customFrom);
         if (customTo) params.set("to", customTo);
       }
-      if (mcapMinIndex > 0 || mcapMaxIndex < MCAP_DEFAULT_MAX) {
-        const { minCr, maxCr } = mcapIndicesToBounds(
-          mcapMinIndex,
-          mcapMaxIndex,
-        );
+      if (mcapBoundsNarrowed(mcapBounds.minCr, mcapBounds.maxCr)) {
+        const { minCr, maxCr } = mcapBounds;
         if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
         if (maxCr != null) params.set("mcapMax", String(maxCr));
       }
@@ -381,13 +383,13 @@ export function StrategyPanel() {
     subSector,
     customFrom,
     customTo,
-    mcapMinIndex,
-    mcapMaxIndex,
+    mcapBounds,
   ]);
 
   useEffect(() => {
     setMcapMinIndex(0);
     setMcapMaxIndex(MCAP_DEFAULT_MAX);
+    setMcapExact(null);
   }, [quarter, market]);
 
   useEffect(() => {
@@ -484,9 +486,17 @@ export function StrategyPanel() {
         subSectors={data?.sub_sectors ?? []}
         mcapMinIndex={mcapMinIndex}
         mcapMaxIndex={mcapMaxIndex}
+        mcapMinCr={mcapBounds.minCr}
+        mcapMaxCr={mcapBounds.maxCr}
         onMcapChange={(lo, hi) => {
           setMcapMinIndex(lo);
           setMcapMaxIndex(hi);
+          setMcapExact(null);
+        }}
+        onMcapCrChange={(minCr, maxCr) => {
+          setMcapExact({ minCr: minCr ?? 0, maxCr });
+          setMcapMinIndex(mcapCrToIndex(minCr ?? 0));
+          setMcapMaxIndex(mcapCrToIndex(maxCr));
         }}
         search={search}
         onSearch={setSearch}
@@ -508,6 +518,7 @@ export function StrategyPanel() {
           setSearch("");
           setMcapMinIndex(0);
           setMcapMaxIndex(MCAP_DEFAULT_MAX);
+          setMcapExact(null);
           const defaults = defaultCustomDates();
           setCustomFrom(defaults.from);
           setCustomTo(defaults.to);

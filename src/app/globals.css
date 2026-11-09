@@ -1162,6 +1162,21 @@ a.brand-btn:hover .brand-name {
 .quarters-rank-toggle:hover {
   text-decoration: underline;
 }
+.quarters-rank-head-btn {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+.quarters-rank-head-btn:hover .seven-rule-score-num {
+  color: #1d4ed8;
+}
 .quarters-rank-table {
   margin-top: 10px;
   padding-top: 10px;
@@ -1396,6 +1411,13 @@ a.brand-btn:hover .brand-name {
   font-weight: 700;
   font-size: 0.7rem;
   letter-spacing: 0.02em;
+}
+
+.pead2-link--np {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 1px 0;
 }
 
 .pead2-link:hover {
@@ -24007,6 +24029,13 @@ tr.wl-prove-fail td {
   gap: 8px;
 }
 
+.mcap-range-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
 .mcap-range-label {
   font-size: 0.82rem;
   color: var(--muted);
@@ -24015,6 +24044,57 @@ tr.wl-prove-fail td {
 .mcap-range-label strong {
   color: var(--ink);
   font-weight: 700;
+}
+
+.mcap-range-inputs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mcap-range-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.mcap-range-num input {
+  width: 4.4rem;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.mcap-range-num input:focus {
+  outline: none;
+  border-color: #14b8a6;
+  box-shadow: 0 0 0 2px rgba(20, 184, 166, 0.18);
+}
+
+.mcap-range-num-sep {
+  color: #94a3b8;
+  font-size: 0.78rem;
+}
+
+.mcap-range-unit {
+  font-size: 0.68rem;
+  font-weight: 650;
+  color: #94a3b8;
+  letter-spacing: 0.02em;
+}
+
+.mcap-range-bar--compact .mcap-range-num input {
+  width: 3.8rem;
+  padding: 2px 5px;
+  font-size: 0.72rem;
 }
 
 .mcap-range-track-wrap {
@@ -26936,98 +27016,6 @@ tr.wl-prove-fail td {
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.napkin-tech-card {
-  margin: 0;
-}
-
-.napkin-tech-card > .napkin-block-title {
-  margin-top: 0;
-}
-
-.napkin-tech-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  max-width: 28rem;
-}
-
-.napkin-tech-block {
-  border-bottom: 1px solid var(--line);
-}
-
-.napkin-tech-block:last-child {
-  border-bottom: 0;
-}
-
-.napkin-tech-item {
-  display: grid;
-  grid-template-columns: 10px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 2px;
-  font-size: 0.86rem;
-  line-height: 1.25;
-}
-
-.napkin-tech-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #cbd5e1;
-  justify-self: center;
-  flex-shrink: 0;
-}
-
-.napkin-tech-block.is-pass > .napkin-tech-item .napkin-tech-dot {
-  background: #16a34a;
-  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.18);
-}
-
-/* Match Scan mrsi85 (85–90 excellent) — dark green, not amber. */
-.napkin-tech-block.is-strong > .napkin-tech-item .napkin-tech-dot {
-  background: #059669;
-  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.22);
-}
-
-.napkin-tech-block.is-hot > .napkin-tech-item .napkin-tech-dot,
-.napkin-tech-block.is-fail > .napkin-tech-item .napkin-tech-dot {
-  background: #dc2626;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16);
-}
-
-.napkin-tech-block.is-unknown > .napkin-tech-item .napkin-tech-dot {
-  background: #94a3b8;
-}
-
-.napkin-tech-item-label {
-  font-weight: 650;
-  color: var(--ink);
-}
-
-.napkin-tech-item-status {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.napkin-tech-block.is-pass > .napkin-tech-item .napkin-tech-item-status {
-  color: #15803d;
-}
-
-.napkin-tech-block.is-strong > .napkin-tech-item .napkin-tech-item-status {
-  color: #047857;
-}
-
-.napkin-tech-block.is-hot > .napkin-tech-item .napkin-tech-item-status,
-.napkin-tech-block.is-fail > .napkin-tech-item .napkin-tech-item-status {
-  color: #b91c1c;
 }
 
 .napkin-data-src {
