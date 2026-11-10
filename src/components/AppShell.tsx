@@ -25,10 +25,6 @@ const ScanPanel = dynamic(
   () => import("@/components/ScanPanel").then((m) => m.ScanPanel),
   { loading: PanelFallback, ssr: false },
 );
-const PeadPanel = dynamic(
-  () => import("@/components/PeadPanel").then((m) => m.PeadPanel),
-  { loading: PanelFallback, ssr: false },
-);
 const GovernanceMapPanel = dynamic(
   () =>
     import("@/components/GovernanceMapPanel").then(
@@ -101,7 +97,6 @@ const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
   "theme-scanner": ThemeScanner,
   scan: ScanPanel,
-  pead: PeadPanel,
   governance: GovernanceMapPanel,
   napkin: NapkinPanel,
   "concall-drift": ConcallDriftPanel,
@@ -192,6 +187,12 @@ export function AppShell() {
     const t = params.get("tab");
     if (t === "corporate" || t === "buyback") {
       window.history.replaceState(window.history.state, "", "/watchlist");
+      return;
+    }
+    if (t === "pead") {
+      params.delete("tab");
+      const qs = params.toString();
+      window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
       return;
     }
     if (t === "concall" || t === "strategy" || t === "drift") {

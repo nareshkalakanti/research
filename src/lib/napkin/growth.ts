@@ -65,12 +65,17 @@ export function patTtmGrowthFromQuarters(
 
 export function napkinGrowth(input: {
   revenue_yoy?: number | null;
+  /** Prefer TTM from quarters; annual PAT YoY is the fallback. */
   pat_ttm?: number | null;
+  pat_yoy?: number | null;
   eps_yoy?: number | null;
   eps_cagr_3y?: number | null;
 }): NapkinPerformance {
   const rev = finiteRatio(input.revenue_yoy);
-  const pat = finiteRatio(input.pat_ttm);
+  const patTtm = finiteRatio(input.pat_ttm);
+  const patYoy = finiteRatio(input.pat_yoy);
+  const pat = patTtm ?? patYoy;
+  const patIsTtm = patTtm != null;
   const epsY = finiteRatio(input.eps_yoy);
   const eps3 = finiteRatio(input.eps_cagr_3y);
   const checks: NapkinPerfCheck[] = [
@@ -83,8 +88,8 @@ export function napkinGrowth(input: {
       verdict: minCheck(rev, NAPKIN_GROWTH.revenueYoyMin),
     },
     {
-      id: "pat_ttm",
-      label: "PAT growth TTM",
+      id: patIsTtm ? "pat_ttm" : "pat_yoy",
+      label: patIsTtm ? "PAT growth TTM" : "PAT growth YoY",
       threshold: `≥ ${(NAPKIN_GROWTH.patTtmMin * 100).toFixed(0)}%`,
       value: pat,
       display: pctDisplay(pat),

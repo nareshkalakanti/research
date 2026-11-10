@@ -16,12 +16,14 @@ import { useExpandQuarters } from "@/lib/use-expand-quarters";
 
 function growthInputsFromChecks(growth: Perf | null | undefined): {
   revenue_yoy: number | null;
+  pat_yoy: number | null;
   eps_yoy: number | null;
   eps_cagr_3y: number | null;
 } {
   const byId = new Map((growth?.checks ?? []).map((c) => [c.id, c.value]));
   return {
     revenue_yoy: byId.get("revenue_yoy") ?? null,
+    pat_yoy: byId.get("pat_yoy") ?? byId.get("pat_ttm") ?? null,
     eps_yoy: byId.get("eps_yoy") ?? null,
     eps_cagr_3y: byId.get("eps_cagr_3y") ?? null,
   };
@@ -62,8 +64,11 @@ export function NapkinCompanyContext({
       qtr.panel?.rows.find((r) => r.label === "Net Profit")?.values ?? null;
     const patTtm = patTtmGrowthFromQuarters(np);
     return napkinGrowth({
-      ...base,
+      revenue_yoy: base.revenue_yoy,
+      eps_yoy: base.eps_yoy,
+      eps_cagr_3y: base.eps_cagr_3y,
       pat_ttm: patTtm,
+      pat_yoy: base.pat_yoy,
     });
   }, [growth, qtr.panel]);
 

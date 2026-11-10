@@ -130,12 +130,22 @@ function resolveBareTicker(ticker: string): string {
   return resolved && TICKER_RE.test(resolved) ? resolved : bare;
 }
 
-/** Try NSE / NSE SME / BSE Yahoo symbols until quoteSummary succeeds. */
-async function quoteSummaryForTicker(ticker: string): Promise<{
+function isYahooRateLimited(err: Error): boolean {
+  return /too many requests|rate.?limit|429|Edge:\s*Too Many/i.test(
+    err.message || String(err),
+  );
+}
+
+type QuoteSummaryResult = {
   symbol: string;
-  qs: Awaited<ReturnType<typeof yf.quoteSummary>>;
+  qs: Awaited<ReturnType<typeof yf.quoteSummary>> | null;
   bare: string;
-}> {
+  /** Yahoo 429 — skip further Yahoo calls; Screener fills current levels. */
+  yahooLimited: boolean;
+};
+
+/** Try NSE / NSE SME / BSE Yahoo symbols until quoteSummary succeeds. */
+async function quoteSummaryForTicker(ticker: string): Promise<QuoteSummaryResult> {
   const bare = resolveBareTicker(ticker);
   const market = resolveListingMarket(bare);
   const candidates = yfSymbolCandidates(bare, market);
@@ -148,9 +158,18 @@ async function quoteSummaryForTicker(ticker: string): Promise<{
       const qs = await yf.quoteSummary(symbol, {
         modules: [...QUOTE_MODULES],
       });
-      return { symbol, qs, bare };
+      return { symbol, qs, bare, yahooLimited: false };
     } catch (e) {
       lastErr = e instanceof Error ? e : new Error(String(e));
+      // Rate limits multiply if we keep hammering .NS / .BO / SME variants.
+      if (isYahooRateLimited(lastErr)) {
+        return {
+          symbol: candidates[0]!,
+          qs: null,
+          bare,
+          yahooLimited: true,
+        };
+      }
     }
   }
   throw new StockDataError(
@@ -383,28 +402,48 @@ async function fillFiveYearFromAltSources(
 }
 
 export async function getStockData(ticker: string): Promise<NapkinStockJson> {
-  const { symbol, qs, bare } = await quoteSummaryForTicker(ticker);
+  const { symbol, qs, bare, yahooLimited } = await quoteSummaryForTicker(ticker);
   const warnings: string[] = [];
+  if (yahooLimited) {
+    warnings.push(
+      "Yahoo rate-limited — current levels from Screener / Tickertape / bars",
+    );
+  }
 
-  const priceMod = bag(qs.price);
-  const stats = bag(qs.defaultKeyStatistics);
-  const fin = bag(qs.financialData);
-  const det = bag(qs.summaryDetail);
+  const priceMod = bag(qs?.price);
+  const stats = bag(qs?.defaultKeyStatistics);
+  const fin = bag(qs?.financialData);
+  const det = bag(qs?.summaryDetail);
   const profile = bag(
-    (qs as { assetProfile?: object }).assetProfile ??
-      (qs as { summaryProfile?: object }).summaryProfile,
+    qs
+      ? ((qs as { assetProfile?: object }).assetProfile ??
+          (qs as { summaryProfile?: object }).summaryProfile)
+      : null,
   );
   const sector =
     String(profile.sector || profile.industry || "").trim() || null;
 
+  const listed = loadAllCompanies().find(
+    (c) => c.ticker.toUpperCase() === bare,
+  );
   const name =
-    String(priceMod.longName || priceMod.shortName || "").trim() || null;
+    String(priceMod.longName || priceMod.shortName || "").trim() ||
+    listed?.name?.trim() ||
+    null;
   let price = num(priceMod.regularMarketPrice) ?? num(fin.currentPrice);
 
+  // When Yahoo is throttling, skip annual Yahoo modules — Screener owns CAGRs.
+  const emptyAnnual: Array<Record<string, unknown>> = [];
   const [income, cashflow, balance, screenerPl, screenerBs] = await Promise.all([
-    annualModule(symbol, "financials"),
-    annualModule(symbol, "cash-flow"),
-    annualModule(symbol, "balance-sheet"),
+    yahooLimited
+      ? Promise.resolve(emptyAnnual)
+      : annualModule(symbol, "financials"),
+    yahooLimited
+      ? Promise.resolve(emptyAnnual)
+      : annualModule(symbol, "cash-flow"),
+    yahooLimited
+      ? Promise.resolve(emptyAnnual)
+      : annualModule(symbol, "balance-sheet"),
     fetchScreenerAnnualPl(bare).catch(() => null),
     fetchScreenerAnnualBs(bare).catch(() => null),
   ]);
@@ -670,16 +709,43 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     if (borrow != null && book != null && book > 0) debt_equity = borrow / book;
   }
 
-  const years = [
+  let years = [
     ...new Set(
       [...revenueS, ...niS, ...epsS, ...ebitdaS, ...fcfS].map(([y]) => y),
     ),
   ].sort();
-  const revM = Object.fromEntries(revenueS);
-  const niM = Object.fromEntries(niS);
-  const epsM = Object.fromEntries(epsS);
+  let revM = Object.fromEntries(revenueS);
+  let niM = Object.fromEntries(niS);
+  let epsM = Object.fromEntries(epsS);
   const ebitdaM = Object.fromEntries(ebitdaS);
   const fcfM = Object.fromEntries(fcfS);
+
+  // Yahoo annuals often empty under rate limits — Screener P&L still has YoY legs.
+  const needAnnualYoY =
+    Object.keys(revM).length < 2 ||
+    Object.keys(epsM).length < 2 ||
+    Object.keys(niM).length < 2;
+  if (needAnnualYoY && screenerPl) {
+    const pairs = screenerPlPairs(screenerPl);
+    if (Object.keys(revM).length < 2 && pairs.revenue.length >= 2) {
+      revM = Object.fromEntries(pairs.revenue);
+    }
+    if (Object.keys(niM).length < 2 && pairs.profit.length >= 2) {
+      niM = Object.fromEntries(pairs.profit);
+    }
+    if (Object.keys(epsM).length < 2 && pairs.eps.length >= 2) {
+      epsM = Object.fromEntries(pairs.eps);
+    }
+    years = [
+      ...new Set([
+        ...years,
+        ...Object.keys(revM),
+        ...Object.keys(niM),
+        ...Object.keys(epsM),
+      ]),
+    ].sort();
+  }
+
   const annuals = years.map((y) => ({
     year: y,
     revenue: revM[y] ?? null,
@@ -689,10 +755,18 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     free_cash_flow: fcfM[y] ?? null,
   }));
 
-  if (price == null && latestRev == null && latestNi == null && !annuals.length) {
+  if (
+    price == null &&
+    latestRev == null &&
+    latestNi == null &&
+    !annuals.length &&
+    !screenerPl
+  ) {
     throw new StockDataError(
       "missing_financial_data",
-      `Yahoo returned no usable financials for ${symbol}`,
+      yahooLimited
+        ? `Yahoo rate-limited and Screener returned no usable financials for ${bare}`
+        : `Yahoo returned no usable financials for ${symbol}`,
     );
   }
 
@@ -722,7 +796,9 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     reason: !income.length && !screenerPl
       ? REASON_NO_ANNUAL
       : fiveYearCagrAvailable
-        ? `Data: Yahoo Finance + ${cagr5Source === "groww" ? "Groww" : "Screener"}`
+        ? yahooLimited
+          ? `Data: Screener${cagr5Source === "groww" ? " + Groww" : ""} (Yahoo rate-limited)`
+          : `Data: Yahoo Finance + ${cagr5Source === "groww" ? "Groww" : "Screener"}`
         : REASON_SHORT_5Y,
     reasons,
   };
