@@ -1537,7 +1537,15 @@ function kindTimeframe(
 }
 
 function kindMaxAgeMs(k: SignalKind): number {
-  return k === "ema" || k === "ath" || k === "high52" || k === "mom" || k === "mrsi"
+  // BB weekly must re-check daily: a mid-week NEUTRAL often becomes NEW_BREAKOUT
+  // by Friday, and a multi-day skip hides that hit.
+  // TQ keeps a longer TTL — crossover gates are heavier and less intra-week volatile.
+  return k === "bb" ||
+    k === "ema" ||
+    k === "ath" ||
+    k === "high52" ||
+    k === "mom" ||
+    k === "mrsi"
     ? 24 * 60 * 60 * 1000
     : 6 * 24 * 60 * 60 * 1000;
 }

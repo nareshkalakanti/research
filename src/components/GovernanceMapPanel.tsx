@@ -286,7 +286,10 @@ export function GovernanceMapPanel() {
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
-  const mcapBounds = resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact);
+  const mcapBounds = useMemo(
+    () => resolveMcapBounds(mcapMinIndex, mcapMaxIndex, mcapExact),
+    [mcapMinIndex, mcapMaxIndex, mcapExact],
+  );
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -368,7 +371,17 @@ export function GovernanceMapPanel() {
         setLoading(false);
       }
     },
-    [view, debouncedQ, page, minBoards, filterIndependence, minIndPct, fundFilters, mcapBounds],
+    [
+      view,
+      debouncedQ,
+      page,
+      minBoards,
+      filterIndependence,
+      minIndPct,
+      fundFilters,
+      mcapBounds.minCr,
+      mcapBounds.maxCr,
+    ],
   );
 
   useEffect(() => {

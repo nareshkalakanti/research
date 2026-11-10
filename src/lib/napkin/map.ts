@@ -12,15 +12,18 @@ import type {
 const NA = "N/A";
 const CR = 10_000_000;
 
-/** Prefer local listing market; else infer BSE from Yahoo `.BO`. */
+/**
+ * Chart / TV exchange. Yahoo `.BO` wins over a stale NSE listing tag —
+ * many BSE-only names are stored as NSE in about/watchlists.
+ */
 export function napkinExchangeFromStock(row: {
   listing_market?: string | null;
   yf_symbol?: string | null;
 }): string {
-  const m = (row.listing_market || "").trim();
-  if (m) return m;
   const yf = (row.yf_symbol || "").toUpperCase();
   if (yf.endsWith(".BO")) return "BSE";
+  const m = (row.listing_market || "").trim();
+  if (m) return m;
   return "NSE";
 }
 
