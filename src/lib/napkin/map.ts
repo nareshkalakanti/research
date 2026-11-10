@@ -174,8 +174,9 @@ export function researchFromYahoo(
     }),
     growth: napkinGrowth({
       revenue_yoy: annualYoyGrowth(row.annuals?.map((a) => a.revenue) ?? null),
-      // PAT TTM filled client-side from quarters when available.
+      // Quarters override PAT with true TTM when the panel loads.
       pat_ttm: null,
+      pat_yoy: annualYoyGrowth(row.annuals?.map((a) => a.net_income) ?? null),
       eps_yoy: annualYoyGrowth(row.annuals?.map((a) => a.eps) ?? null),
       eps_cagr_3y: cagr.eps_3y,
     }),

@@ -11,11 +11,6 @@ import {
   sliceToAnnouncedQuarters,
 } from "../src/lib/pead-announced";
 import { peadScoreFf, usableForwardPe } from "../src/lib/pead-score";
-import {
-  currentPeadSeasonBounds,
-  previousPeadSeasonBounds,
-  resultDateInPeadSeason,
-} from "../src/lib/pead-season";
 import { parseGrowwTtmValuation } from "../src/lib/groww-quarters";
 import type { QuarterPoint } from "../src/lib/quarter-panel";
 
@@ -95,14 +90,6 @@ assert.equal(sliced.at(-1)?.date, "2026-06-30");
 assert.equal(usableForwardPe(999), null);
 assert.equal(usableForwardPe(12), 12);
 assert.equal(peadScoreFf(null, null, 10, -4, null, null, null), 3);
-
-const nov = new Date("2026-11-02T12:00:00Z");
-const cur = currentPeadSeasonBounds(nov);
-assert.equal(cur.from, "2026-10-01");
-assert.equal(cur.to, "2026-12-31");
-assert.equal(resultDateInPeadSeason("2026-05-26", cur), false);
-assert.equal(resultDateInPeadSeason("2026-10-16", cur), true);
-assert.equal(previousPeadSeasonBounds(nov).from, "2026-07-01");
 
 assert.deepEqual(
   parseGrowwTtmValuation({

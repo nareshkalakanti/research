@@ -13,7 +13,6 @@ import {
 export type AppTab =
   | "dashboard"
   | "scan"
-  | "pead"
   | "theme-scanner"
   | "governance"
   | "marketiq"
@@ -32,7 +31,6 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "napkin", label: "Napkin", short: "Napkin" },
   { id: "dashboard", label: "Dashboard", short: "Dash" },
   { id: "concall-drift", label: "Drift", short: "Drift" },
-  { id: "pead", label: "PEAD", short: "PEAD" },
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
@@ -57,13 +55,12 @@ const HIDDEN_TABS: AppTab[] = [
 ];
 
 function isPageTab(id: AppTab): boolean {
-  return (
-    id === "watchlist" || id === "dashboard" || id === "pead"
-  );
+  return id === "watchlist" || id === "dashboard";
 }
 
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
+  if (raw === "pead") return "napkin";
   if (
     raw === "strategy" ||
     raw === "concall" ||
@@ -101,7 +98,7 @@ export function readTabFromLocation(): AppTab {
   const path = pathOnly();
   if (path === "/watchlist" || path === "/fund") return "watchlist";
   if (path === "/dashboard") return "dashboard";
-  if (path === "/pead") return "pead";
+  if (path === "/pead") return "napkin";
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
 
@@ -132,7 +129,6 @@ function buildHomeSearch(
 export function hrefForTab(next: AppTab): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "dashboard") return "/dashboard";
-  if (next === "pead") return "/pead";
   if (next === "napkin") return "/";
   return `/?tab=${encodeURIComponent(next)}`;
 }
@@ -140,7 +136,6 @@ export function hrefForTab(next: AppTab): string {
 function urlForTab(next: AppTab, ticker?: string | null): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "dashboard") return "/dashboard";
-  if (next === "pead") return "/pead";
   const fromHome =
     pathOnly() === "/"
       ? new URLSearchParams(window.location.search)

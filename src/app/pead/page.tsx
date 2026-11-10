@@ -1,12 +1,6 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { Suspense } from "react";
-import { WorkspaceApp } from "@/components/WorkspaceApp";
-
+/** PEAD tab removed — send bookmarks to Napkin. */
 export default function PeadPage() {
-  return (
-    <Suspense fallback={<div className="boot">Loading…</div>}>
-      <WorkspaceApp />
-    </Suspense>
-  );
+  redirect("/");
 }
