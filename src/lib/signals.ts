@@ -482,13 +482,20 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
         )
         .get() as { d: string | null } | undefined
     )?.d;
+    // Drop legacy 13W-only rows — TQ must be W52 green-from-below (TV TQ : W52).
+    db.prepare(
+      `DELETE FROM tq_signals
+       WHERE crossover_type IS NOT NULL
+         AND crossover_type NOT LIKE '%52W%'`,
+    ).run();
+
     const latestTq = (
       db
         .prepare(
           `SELECT MAX(signal_date) AS d FROM tq_signals
            WHERE lower(timeframe) = ?
              AND crossover_type IS NOT NULL
-             AND crossover_type != 'No Crossover'`,
+             AND crossover_type LIKE '%52W%'`,
         )
         .get(TQ_TF) as { d: string | null } | undefined
     )?.d;
@@ -561,7 +568,7 @@ export function loadBreakoutMap(bbTimeframe: BbTimeframe = "weekly"): Map<string
          FROM tq_signals
          WHERE lower(timeframe) = ?
            AND crossover_type IS NOT NULL
-           AND crossover_type != 'No Crossover'`,
+           AND crossover_type LIKE '%52W%'`,
       )
       .all(TQ_TF) as Array<{
       ticker: string;
@@ -877,8 +884,32 @@ export function analyzeBbWeekly(bars: Bar[]) {
 }
 
 /**
- * Weekly TQ — Relative Strength vs Nifty (52W / 13W RS crossover),
- * with RSI/ADX/Supertrend gates (stocks-ai tq_bb).
+ * TradingView TQ : W52 zones (stocks-ai tq_recovery):
+ * green ≥ 0 · yellow = below 0 and rising · red = below 0 flat/falling.
+ */
+export function classifyTqW52Zone(
+  rs: number | null | undefined,
+  prevRs: number | null | undefined,
+): "green" | "yellow" | "red" | null {
+  if (rs == null || !Number.isFinite(rs)) return null;
+  if (rs >= 0) return "green";
+  if (prevRs != null && Number.isFinite(prevRs) && rs > prevRs) return "yellow";
+  return "red";
+}
+
+/** W52 RS crosses from below zero into green (TV: from below → up + green). */
+export function isTqW52GreenFromBelow(
+  rs: number | null | undefined,
+  prevRs: number | null | undefined,
+): boolean {
+  if (rs == null || prevRs == null) return false;
+  if (!Number.isFinite(rs) || !Number.isFinite(prevRs)) return false;
+  return prevRs < 0 && rs >= 0;
+}
+
+/**
+ * Weekly TQ — TradingView TQ : W52 enters green from below, with RSI / ADX /
+ * Supertrend gates (stocks-ai tq_bb). 13W-only turn-ups are not TQ hits.
  */
 export function analyzeTqWeekly(
   stockBars: Bar[],
@@ -918,8 +949,14 @@ export function analyzeTqWeekly(
   const curVma = volMa[i];
   const curLrs = longRs[i];
   const curSrs = shortRs[i];
+  const prevLrs = longRs[prev];
+  const prevSrs = shortRs[prev];
   const price = closes[i];
   const vol = volumes[i];
+
+  // Must match TV: W52 from below → up into green (≥ 0).
+  if (!isTqW52GreenFromBelow(curLrs, prevLrs)) return null;
+  if (classifyTqW52Zone(curLrs, prevLrs) !== "green") return null;
 
   if (curRsi == null || curRsi <= 55) return null;
   if (curSt == null || price <= curSt) return null;
@@ -933,38 +970,22 @@ export function analyzeTqWeekly(
   if (curDiP == null || curDiM == null || curDiP <= curDiM) return null;
   if (curPma == null || price <= curPma) return null;
   if (curVma == null || vol <= curVma) return null;
-  if (curLrs == null || curLrs <= 0) return null;
+  // Short RS supportive (above zero); not a substitute for W52 green-from-below.
   if (curSrs == null || curSrs <= 0) return null;
 
-  const prevLrs = longRs[prev] ?? 0;
-  const prevSrs = shortRs[prev] ?? 0;
-
-  // Match stocks-ai TQ: long RS + short RS turn-up thresholds.
-  const longX =
-    (prevLrs < -0.15 && curLrs > 0.005) || (prevLrs < 0 && curLrs > 0.02);
   const shortX =
-    (prevSrs < -0.005 && curSrs > 0.005) ||
-    (prevSrs < 0.01 && curSrs > 0.02);
+    prevSrs != null &&
+    Number.isFinite(prevSrs) &&
+    ((prevSrs < -0.005 && curSrs > 0.005) ||
+      (prevSrs < 0.01 && curSrs > 0.02));
 
-  let crossover_type: string;
-  let crossover_score: number;
-  if (longX && shortX) {
-    crossover_type = "Both 52W & 13W";
-    crossover_score = 3;
-  } else if (longX) {
-    crossover_type = "52W Only";
-    crossover_score = 2;
-  } else if (shortX) {
-    crossover_type = "13W Only";
-    crossover_score = 1;
-  } else {
-    return null; // No Crossover — not tagged
-  }
+  const crossover_type = shortX ? "Both 52W & 13W" : "52W Only";
+  const crossover_score = shortX ? 3 : 2;
 
   const rsiScore = Math.min(25, Math.max(0, (curRsi - 55) * 2.5));
   const adxScore = Math.min(25, Math.max(0, (curAdx - 20) * 1.25));
   const dmiScore = Math.min(25, Math.max(0, (curDiP - curDiM) * 2));
-  const rsScore = Math.min(25, Math.max(0, (curLrs + curSrs) * 1000));
+  const rsScore = Math.min(25, Math.max(0, (curLrs! + curSrs) * 1000));
   const score = Math.round((rsiScore + adxScore + dmiScore + rsScore) * 100) / 100;
 
   return {
