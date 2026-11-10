@@ -182,9 +182,10 @@ export function NapkinPanel() {
                     <WatchButton ticker={data.ticker} />
                     {(() => {
                       const yf = (data.yf_symbol || "").toUpperCase();
-                      const tvMarket =
-                        data.exchange ||
-                        (yf.endsWith(".BO") ? "BSE" : "NSE");
+                      // `.BO` beats a stale NSE exchange tag (BSE-only listings).
+                      const tvMarket = yf.endsWith(".BO")
+                        ? "BSE"
+                        : data.exchange || "NSE";
                       const tvLabel =
                         tradingviewSymbol(data.ticker, tvMarket) ||
                         data.ticker;

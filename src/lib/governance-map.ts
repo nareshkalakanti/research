@@ -42,6 +42,7 @@ import {
   DATA_DIR as SQLITE_DATA_DIR,
   isSqliteWalDamage,
   openSqliteNamed,
+  stripEmptyWalSidecars,
 } from "./sqlite-utils";
 
 export type GovCompanySeat = {
@@ -930,10 +931,40 @@ function closeGovReader(): void {
   govDb = null;
 }
 
+function closeAboutReader(): void {
+  try {
+    aboutDb?.close();
+  } catch {
+    /* ignore */
+  }
+  aboutDb = null;
+}
+
 function healGovernanceWal(): void {
   closeGovReader();
   // Checkpoint first — removing sidecars without a flush drops Auto DIN seats.
   recoverGovernanceWal();
+}
+
+function healAboutWal(): void {
+  closeAboutReader();
+  const aboutPath = path.join(SQLITE_DATA_DIR, "company_about.db");
+  if (!fs.existsSync(aboutPath)) return;
+  try {
+    const db = new Database(aboutPath);
+    try {
+      db.pragma("journal_mode = WAL");
+      db.pragma("wal_checkpoint(TRUNCATE)");
+    } finally {
+      try {
+        db.close();
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    stripEmptyWalSidecars(aboutPath);
+  }
 }
 
 /** Reopen after SHORT_READ / stale handle (common when push/scan rewrites the DB under Next). */
@@ -943,6 +974,17 @@ function withGovRetry<T>(run: () => T): T {
   } catch (err) {
     if (!isSqliteWalDamage(err)) throw err;
     healGovernanceWal();
+    return run();
+  }
+}
+
+/** Same SHORT_READ heal for company_about (family map group names / about blobs). */
+function withAboutRetry<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (err) {
+    if (!isSqliteWalDamage(err)) throw err;
+    healAboutWal();
     return run();
   }
 }
@@ -975,14 +1017,28 @@ function getAbout(): Database.Database | null {
     // Probe so a corrupt WAL fails here, not mid-request.
     aboutDb.prepare("SELECT 1 FROM company_about LIMIT 1").get();
     return aboutDb;
-  } catch {
+  } catch (err) {
     try {
       aboutDb?.close();
     } catch {
       /* ignore */
     }
     aboutDb = null;
-    return null;
+    if (!isSqliteWalDamage(err)) return null;
+    healAboutWal();
+    try {
+      aboutDb = openReadonly("company_about.db");
+      aboutDb.prepare("SELECT 1 FROM company_about LIMIT 1").get();
+      return aboutDb;
+    } catch {
+      try {
+        aboutDb?.close();
+      } catch {
+        /* ignore */
+      }
+      aboutDb = null;
+      return null;
+    }
   }
 }
 
@@ -1019,46 +1075,50 @@ function loadAllBoardSeats(): SeatRow[] {
 }
 
 function loadAboutBlobByTicker(): Map<string, string> {
-  const about = getAbout();
-  if (!about) return new Map();
-  const rows = about
-    .prepare(
-      `SELECT ticker,
-              COALESCE(group_name, '') AS group_name,
-              COALESCE(about, '') AS about,
-              COALESCE(yf_about, '') AS yf_about
-       FROM company_about`,
-    )
-    .all() as Array<{
-    ticker: string;
-    group_name: string;
-    about: string;
-    yf_about: string;
-  }>;
-  const map = new Map<string, string>();
-  for (const row of rows) {
-    const ticker = (row.ticker || "").toUpperCase();
-    if (!ticker) continue;
-    map.set(ticker, `${row.group_name}\n${row.about}\n${row.yf_about}`);
-  }
-  return map;
+  return withAboutRetry(() => {
+    const about = getAbout();
+    if (!about) return new Map();
+    const rows = about
+      .prepare(
+        `SELECT ticker,
+                COALESCE(group_name, '') AS group_name,
+                COALESCE(about, '') AS about,
+                COALESCE(yf_about, '') AS yf_about
+         FROM company_about`,
+      )
+      .all() as Array<{
+      ticker: string;
+      group_name: string;
+      about: string;
+      yf_about: string;
+    }>;
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const ticker = (row.ticker || "").toUpperCase();
+      if (!ticker) continue;
+      map.set(ticker, `${row.group_name}\n${row.about}\n${row.yf_about}`);
+    }
+    return map;
+  });
 }
 
 function loadGroupNameByTicker(): Map<string, string> {
-  const about = getAbout();
-  if (!about) return new Map();
-  const rows = about
-    .prepare(
-      `SELECT ticker, group_name FROM company_about
-       WHERE TRIM(COALESCE(group_name, '')) != ''`,
-    )
-    .all() as Array<{ ticker: string; group_name: string }>;
-  const map = new Map<string, string>();
-  for (const row of rows) {
-    const ticker = (row.ticker || "").toUpperCase();
-    if (ticker) map.set(ticker, row.group_name);
-  }
-  return map;
+  return withAboutRetry(() => {
+    const about = getAbout();
+    if (!about) return new Map();
+    const rows = about
+      .prepare(
+        `SELECT ticker, group_name FROM company_about
+         WHERE TRIM(COALESCE(group_name, '')) != ''`,
+      )
+      .all() as Array<{ ticker: string; group_name: string }>;
+    const map = new Map<string, string>();
+    for (const row of rows) {
+      const ticker = (row.ticker || "").toUpperCase();
+      if (ticker) map.set(ticker, row.group_name);
+    }
+    return map;
+  });
 }
 
 function stocksAiDataDirCandidates(): string[] {
@@ -1323,6 +1383,7 @@ export function loadGovernanceFamilyMap(opts?: {
   if (opts?.refresh) {
     familyMapCache = null;
     closeGovReader();
+    closeAboutReader();
   }
   if (
     !opts?.hold &&
@@ -3771,6 +3832,8 @@ export function invalidateGovernanceMapCache(): void {
   boardScoreCache = null;
   familyMapCache = null;
   closeGovReader();
+  // Family map also keeps a readonly company_about handle — close it on SHORT_READ retry.
+  closeAboutReader();
 }
 
 /** Directors with a DIN whose stored name is only "DIN ########". */

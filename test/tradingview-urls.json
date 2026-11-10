@@ -16,5 +16,11 @@
     "market": null,
     "url": "https://www.bseindia.com/stock-share-price/stockreach_stock_price.aspx?scripcode=522001",
     "note": "Numeric BSE placeholder is not a TradingView symbol"
+  },
+  {
+    "ticker": "TANFACIND",
+    "market": null,
+    "url": "https://www.tradingview.com/chart/?symbol=BSE%3ATANFACIND",
+    "note": "Yahoo .BO / BSE-only; NSE:TANFACIND 404s on TradingView"
   }
 ]

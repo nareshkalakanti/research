@@ -54,10 +54,40 @@ function hasBseScrip(ticker: string): boolean {
   }
 }
 
-/** NSE / BSE / SME string from about, metrics, holdings, named lists, or BSE scrip. */
+/** Yahoo suffix from metrics — `.BO` means Bombay is the live feed. */
+function yfSymbolSuffixMarket(ticker: string): "BSE" | "NSE" | null {
+  const p = path.join(DATA_DIR, "metrics.db");
+  if (!fs.existsSync(p)) return null;
+  let db: Database.Database | null = null;
+  try {
+    db = new Database(p, { readonly: true, fileMustExist: true });
+    const row = db
+      .prepare(
+        `SELECT yf_symbol AS yf FROM stock_metrics WHERE UPPER(ticker) = ? LIMIT 1`,
+      )
+      .get(ticker) as { yf?: string | null } | undefined;
+    const yf = clean(row?.yf).toUpperCase();
+    if (yf.endsWith(".BO")) return "BSE";
+    if (yf.endsWith(".NS")) return "NSE";
+    return null;
+  } catch {
+    return null;
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** NSE / BSE / SME string from Yahoo suffix, about, metrics, holdings, lists, or BSE scrip. */
 export function resolveListingMarket(ticker: string): string | null {
   const t = ticker.trim().toUpperCase();
   if (!t) return null;
+  // Prefer Yahoo venue: BSE-only names are often mis-tagged NSE in about/lists.
+  const fromYf = yfSymbolSuffixMarket(t);
+  if (fromYf) return fromYf;
   return (
     readMarketColumn(
       "company_about.db",
