@@ -33,6 +33,11 @@ Do not use {"1":"...","2":"..."} numbered keys.`;
 const NAMES_OCR = `List every company in the Name column of this stock table, top to bottom.
 One company per line. Keep Ltd/Limited. Include the first row. No JSON, no prices, no industry.`;
 
+const INDUSTRY_OCR = `Read only the Industry column of this Screener stock table.
+Reply with that one repeating industry cell label only (copy it exactly, including hyphens).
+Examples of shape: Entertainment - Content Providers · Infrastructure - Engineering & Construction.
+No JSON, no company names, no market caps, no prices, no markdown.`;
+
 function voteLabel(labels: string[]): string {
   const counts = new Map<string, { n: number; label: string }>();
   for (const raw of labels) {
@@ -160,6 +165,26 @@ export async function importSectorFromScreenshot(
       ]);
       ocr = pair[0];
       nameOcr = pair[1];
+    }
+    // Dual vision often returns names but drops Industry — one cheap rescue.
+    {
+      const early = parseSectorScreenshot(`${ocr}\n${nameOcr}`);
+      if (early.names.length >= 3 && !tidyIndustry(early.industry)) {
+        try {
+          const indOnly = await ocrImageWithQianfan(
+            imageDataUrl,
+            INDUSTRY_OCR,
+            128,
+            { maxEdge: 1152, numCtx: 4096, forceVision: true },
+          );
+          const rescued = tidyIndustry(indOnly.split(/\n/)[0] || indOnly);
+          if (rescued) {
+            ocr = `${ocr}\nindustry: ${rescued}`;
+          }
+        } catch {
+          /* later error / priorIndustry */
+        }
+      }
     }
   } finally {
     clearInterval(beat);

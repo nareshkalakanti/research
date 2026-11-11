@@ -239,4 +239,14 @@ assert.ok(collapsedInfra.names.length >= 5);
 assert.ok(collapsedInfra.names.some((n) => /Engineers India/i.test(n)));
 assert.ok(collapsedInfra.names.some((n) => /Ircon/i.test(n)));
 
+const schemaJunk = parseSectorScreenshot(`
+{"names":["Diligent Media Corporation Ltd","genre","content","provider","rating","\`\` category","Unistar Multimedia Ltd"],"industry":""}
+Diligent Media Corporation Ltd Entertainment - Content Providers
+Unistar Multimedia Ltd Entertainment - Content Providers
+`);
+assert.ok(!schemaJunk.names.some((n) => /^(genre|content|provider|rating|category)$/i.test(n)));
+assert.ok(schemaJunk.names.some((n) => /Diligent/i.test(n)));
+assert.ok(schemaJunk.names.some((n) => /Unistar/i.test(n)));
+assert.equal(schemaJunk.industry, "Entertainment - Content Providers");
+
 console.log("ok");
