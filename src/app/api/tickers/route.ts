@@ -8,6 +8,10 @@ import {
   rankListingQuery,
   shouldAugmentListingSearch,
 } from "@/lib/listing-name-match";
+import {
+  tickerFromBseScrip,
+  resolveTickerFromBseScrip,
+} from "@/lib/bse-investor-discover";
 import { openSqliteNamed } from "@/lib/sqlite-utils";
 import { searchGrowwListings } from "@/lib/web-mcap";
 
@@ -53,6 +57,27 @@ function localHits(q: string, limit: number): TickerHit[] {
   };
 
   const companies = loadAllCompanies();
+  // BSE scrip code → ticker (e.g. 526604 → LIPPISYS / formerly Lippi Systems).
+  if (/^\d{5,7}$/.test(q.trim())) {
+    const fromScrip = tickerFromBseScrip(q.trim());
+    if (fromScrip) {
+      const co = companies.find((c) => c.ticker.toUpperCase() === fromScrip);
+      push(
+        {
+          ticker: fromScrip,
+          name: co?.name || fromScrip,
+          market: co?.market || "BSE",
+          sector: co?.sector || null,
+          mcap_cr:
+            co?.mcap_cr != null && Number.isFinite(co.mcap_cr)
+              ? co.mcap_cr
+              : null,
+          source: "local",
+        },
+        co?.search_text || null,
+      );
+    }
+  }
   // Pass 1: ticker + name substring only (no fuzzy score — typeahead speed).
   for (const c of companies) {
     const ticker = String(c.ticker || "").toUpperCase();
@@ -128,6 +153,80 @@ function localHits(q: string, limit: number): TickerHit[] {
   } catch {
     /* about rows still usable */
   }
+  // Metrics / classifications cover tickers missing from company_about (e.g. BSE FINELINE).
+  try {
+    const classSector = new Map<string, string>();
+    try {
+      const cdb = openSqliteNamed("classifications.db", {
+        readonly: true,
+        fileMustExist: true,
+      });
+      const crows = cdb
+        .prepare(
+          `SELECT ticker, market, sector, industry, sub_sector FROM classifications`,
+        )
+        .all() as Array<{
+        ticker: string;
+        market: string | null;
+        sector: string | null;
+        industry: string | null;
+        sub_sector: string | null;
+      }>;
+      cdb.close();
+      for (const r of crows) {
+        const ticker = String(r.ticker || "").toUpperCase();
+        if (!ticker || have.has(ticker)) continue;
+        if (!listingQueryMatches(q, ticker, ticker, { fuzzy: false })) continue;
+        const sector =
+          String(r.industry || r.sub_sector || r.sector || "").trim() || null;
+        if (sector) classSector.set(ticker, sector);
+        push({
+          ticker,
+          name: ticker,
+          market: String(r.market || "").trim() || "NSE",
+          sector,
+          mcap_cr: null,
+          source: "local",
+        });
+      }
+    } catch {
+      /* optional */
+    }
+    const mdb = openSqliteNamed("metrics.db", {
+      readonly: true,
+      fileMustExist: true,
+    });
+    const mrows = mdb
+      .prepare(
+        `SELECT ticker, market, market_cap_cr, sector FROM stock_metrics`,
+      )
+      .all() as Array<{
+      ticker: string;
+      market: string | null;
+      market_cap_cr: number | null;
+      sector: string | null;
+    }>;
+    mdb.close();
+    for (const r of mrows) {
+      const ticker = String(r.ticker || "").toUpperCase();
+      if (!ticker || have.has(ticker)) continue;
+      if (!listingQueryMatches(q, ticker, ticker, { fuzzy: false })) continue;
+      const mcap =
+        r.market_cap_cr != null && Number.isFinite(r.market_cap_cr)
+          ? r.market_cap_cr
+          : null;
+      push({
+        ticker,
+        name: ticker,
+        market: String(r.market || "").trim() || "NSE",
+        sector: classSector.get(ticker) || String(r.sector || "").trim() || null,
+        mcap_cr: mcap,
+        source: "local",
+      });
+    }
+  } catch {
+    /* metrics optional */
+  }
   hits.sort((a, b) => {
     const ra = rankHit(q, a, corpusByTicker.get(a.ticker));
     const rb = rankHit(q, b, corpusByTicker.get(b.ticker));
@@ -194,12 +293,63 @@ export async function GET(req: NextRequest) {
       err instanceof Error ? err.message : err,
     );
   }
+  // Live BSE header when scrip isn't cached yet (Sector fill / typeahead).
+  if (!hits.length && /^\d{5,7}$/.test(q)) {
+    try {
+      const live = await resolveTickerFromBseScrip(q);
+      if (live?.ticker) {
+        try {
+          await bootstrapCompanyTicker(live.ticker, {
+            name: live.name,
+            market: "BSE",
+          });
+          invalidateCompanyCache();
+        } catch {
+          /* row may already exist */
+        }
+        const co = loadAllCompanies().find(
+          (c) => c.ticker.toUpperCase() === live.ticker,
+        );
+        hits = [
+          {
+            ticker: live.ticker,
+            name: (co?.name || live.name || live.ticker).replace(/-\$$/, "").trim(),
+            market: co?.market || "BSE",
+            sector: co?.sector || null,
+            mcap_cr:
+              co?.mcap_cr != null && Number.isFinite(co.mcap_cr)
+                ? co.mcap_cr
+                : null,
+            source: "local",
+          },
+        ];
+      }
+    } catch (err) {
+      console.warn(
+        "[tickers] BSE scrip resolve failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+
   const have = new Set(hits.map((h) => h.ticker));
   if (allowRemote && shouldAugmentListingSearch(q, hits, limit)) {
     try {
       const remote = await searchGrowwListings(q, limit);
       for (const r of remote) {
-        if (have.has(r.ticker)) continue;
+        if (have.has(r.ticker)) {
+          // Metrics/classifications often only know the symbol — fill Groww name.
+          const existing = hits.find((h) => h.ticker === r.ticker);
+          if (
+            existing &&
+            r.name &&
+            (!existing.name || existing.name === existing.ticker)
+          ) {
+            existing.name = r.name;
+            if (r.market) existing.market = r.market;
+          }
+          continue;
+        }
         if (!listingMatches(q, r.ticker, r.name)) continue;
         have.add(r.ticker);
         hits.push({

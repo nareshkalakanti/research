@@ -224,4 +224,19 @@ assert.equal(
 const industries = new Set(mixedPairs.map((p) => p.industry).filter(Boolean));
 assert.ok(industries.size >= 5);
 
+const collapsedInfra = parseSectorScreenshot(`
+1 Engineers India Ltd 17,481.48 Infrastructure - Engineering & Construction 311.20
+2 Ircon International Ltd 16,084.56 Infrastructure - Engineering & Construction 138.38
+3 ISGEC Heavy Engineering Ltd 7,269.36 Infrastructure - Engineering & Construction 1,068.00
+4 BGR Energy Systems Ltd 2,369.46 Infrastructure - Engineering & Construction 213.10
+5 EMS Ltd 2,247.52 Infrastructure - Engineering & Construction 404.00
+`);
+assert.equal(
+  collapsedInfra.industry,
+  "Infrastructure - Engineering & Construction",
+);
+assert.ok(collapsedInfra.names.length >= 5);
+assert.ok(collapsedInfra.names.some((n) => /Engineers India/i.test(n)));
+assert.ok(collapsedInfra.names.some((n) => /Ircon/i.test(n)));
+
 console.log("ok");

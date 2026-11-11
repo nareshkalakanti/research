@@ -110,6 +110,7 @@ export function TickerSuggest({
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [triedRemote, setTriedRemote] = useState(false);
   const [pos, setPos] = useState<PanelPos | null>(null);
   const [mounted, setMounted] = useState(false);
   const reqRef = useRef(0);
@@ -166,6 +167,7 @@ export function TickerSuggest({
       setHits([]);
       setOpen(false);
       setSearched(false);
+      setTriedRemote(false);
       setLoading(false);
       return;
     }
@@ -173,6 +175,7 @@ export function TickerSuggest({
       setHits([]);
       setOpen(false);
       setSearched(false);
+      setTriedRemote(false);
       setLoading(false);
       return;
     }
@@ -180,18 +183,19 @@ export function TickerSuggest({
       setHits([]);
       setOpen(false);
       setSearched(false);
+      setTriedRemote(false);
       setLoading(false);
       return;
     }
     const id = ++reqRef.current;
     const t = window.setTimeout(() => {
       setLoading(true);
-      // Local-only typeahead — Groww fill-in made every keystroke wait ~1s.
+      setTriedRemote(false);
+      const signal = AbortSignal.timeout(12_000);
+      // Fast local first; if empty, one Groww pass (same /api/tickers path everywhere).
       void fetch(
         `/api/tickers?q=${encodeURIComponent(q)}&limit=14&remote=0`,
-        {
-        signal: AbortSignal.timeout(8_000),
-      },
+        { signal },
       )
         .then(async (res) => {
           const json = (await res.json()) as {
@@ -199,7 +203,23 @@ export function TickerSuggest({
             hits?: TickerSuggestHit[];
           };
           if (id !== reqRef.current) return;
-          const next = Array.isArray(json.hits) ? json.hits : [];
+          let next = Array.isArray(json.hits) ? json.hits : [];
+          if (!next.length && q.length >= 2) {
+            setTriedRemote(true);
+            try {
+              const res2 = await fetch(
+                `/api/tickers?q=${encodeURIComponent(q)}&limit=14&remote=1`,
+                { signal: AbortSignal.timeout(12_000) },
+              );
+              const json2 = (await res2.json()) as {
+                hits?: TickerSuggestHit[];
+              };
+              if (id !== reqRef.current) return;
+              next = Array.isArray(json2.hits) ? json2.hits : [];
+            } catch {
+              /* keep empty local result */
+            }
+          }
           setHits(next);
           setActive(0);
           setSearched(true);
@@ -366,7 +386,9 @@ export function TickerSuggest({
                 <div className="ticker-suggest-empty">
                   No matches for <strong>{q}</strong>
                   <div className="ticker-suggest-foot">
-                    Groww listing search ran as backup — try a ticker or BSE scrip.
+                    {triedRemote
+                      ? "Groww listing search ran as backup — try a ticker or BSE scrip."
+                      : "Try a ticker, company name, or BSE scrip."}
                   </div>
                 </div>
               )}

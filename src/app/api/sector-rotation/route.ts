@@ -143,8 +143,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
     }
     if (body.rename) {
-      renameRotationSector(id, body.label || "");
-      return NextResponse.json({ ok: true, sector: getRotationSector(id) });
+      const keptId = renameRotationSector(id, body.label || "");
+      return NextResponse.json({
+        ok: true,
+        sector: getRotationSector(keptId),
+      });
     }
     if (body.star) {
       setRotationStarred(id, Boolean(body.starred));
