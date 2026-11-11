@@ -34,6 +34,50 @@ export function companyLabelKey(name: string): string {
   return collapseSingleLetterRuns(raw.split(" ").filter(Boolean)).join(" ");
 }
 
+/** Compact form for OCR noise: drop spaces/punct, fold common glyph swaps. */
+export function ocrCompactKey(name: string): string {
+  return companyLabelKey(name)
+    .replace(/ /g, "")
+    .replace(/0/g, "o")
+    .replace(/1/g, "l")
+    .replace(/rn/g, "m")
+    .replace(/nn/g, "m");
+}
+
+function levenshtein(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  const prev = new Array<number>(b.length + 1);
+  const cur = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    cur[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(
+        (prev[j] ?? 0) + 1,
+        (cur[j - 1] ?? 0) + 1,
+        (prev[j - 1] ?? 0) + cost,
+      );
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = cur[j] ?? 0;
+  }
+  return prev[b.length] ?? 0;
+}
+
+/** Character similarity on OCR-folded compact keys (fuzz.ratio-style). */
+export function ocrCompactRatio(a: string, b: string): number {
+  const x = ocrCompactKey(a);
+  const y = ocrCompactKey(b);
+  if (!x || !y) return 0;
+  if (x === y) return 100;
+  const dist = levenshtein(x, y);
+  const denom = Math.max(x.length, y.length);
+  if (!denom) return 0;
+  return Math.round((1 - dist / denom) * 100);
+}
+
 /** Alternate search strings: dotted initials become a compact token. */
 export function listingQueryVariants(query: string): string[] {
   const raw = query.trim();
@@ -243,6 +287,14 @@ export function scoreListingName(
     const ratio =
       Math.min(n.length, q.length) / Math.max(n.length, q.length || 1);
     return 70 + Math.round(ratio * 22);
+  }
+  // OCR noise on short issuers: compare punctuation-stripped compact keys.
+  const ocrRatio = ocrCompactRatio(query, name);
+  if (qCompact.length >= 8 && nCompact.length >= 8 && ocrRatio >= 82) {
+    return 78;
+  }
+  if (qCompact.length >= 10 && nCompact.length >= 10 && ocrRatio >= 76) {
+    return 74;
   }
   const qTok = q.split(" ").filter((w) => w.length > 1);
   const nTok = n.split(" ").filter((w) => w.length > 1);

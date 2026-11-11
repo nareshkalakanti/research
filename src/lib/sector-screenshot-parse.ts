@@ -20,6 +20,10 @@ export type SectorNameIndustry = {
 const NOISE =
   /showing\s+\d+\s+results|edit columns|download|^default\b|performance|technical|valuation|holdings|growth|profit\/loss|balance sheet|cash flow|ratios|^chart$|^scores$|^stock\s+price\s+quote$/i;
 
+/** Vision models sometimes dump schema / markdown field names as "companies". */
+const SCHEMA_FIELD =
+  /^(?:genre|content|provider|rating|category|name|description|company|location|contact|industry|sector|names|companies|title|type|id|value|label|field|key|text|row|column|table|json|markdown|html)$/i;
+
 const HEADER_NAME = /^(?:#|no\.?|s\.?\s*no\.?|name|stock name|company)$/i;
 const HEADER_IND = /^industry$|^sector$|^theme$/i;
 
@@ -175,6 +179,7 @@ function keepRecoveredName(s: string): boolean {
   const t = cleanExtractedName(s);
   if (/[{}"\[\]]/.test(t)) return false;
   if (t.length < 6) return false;
+  if (SCHEMA_FIELD.test(t)) return false;
   if (/^(industry|names|name|sector|companies)$/i.test(t)) return false;
   const words = t.split(/\s+/).filter(Boolean);
   if (looksIssuerLabel(t)) {
@@ -184,9 +189,11 @@ function keepRecoveredName(s: string): boolean {
     );
   }
   if (PRICEISH.test(t) || HEADER_NAME.test(t) || HEADER_IND.test(t)) return false;
+  // Truncated OCR sometimes drops Ltd; keep multi-word issuer-shaped labels.
   const first = words[0] || "";
-  if (words.length >= 3 && first.length >= 3 && /^[A-Za-z]/.test(first)) return true;
-  return false;
+  return (
+    words.length >= 3 && first.length >= 3 && /^[A-Za-z]/.test(first)
+  );
 }
 
 function recoverPartialBasket(text: string): SectorShotExtract | null {
@@ -330,6 +337,8 @@ function cleanExtractedName(s: string): string {
   return (s || "")
     .replace(/&amp;/gi, "&")
     .replace(/&nbsp;/gi, " ")
+    .replace(/^[`'"*#\s]+/, "")
+    .replace(/[`]+/g, "")
     .replace(/^\d+\s+/, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -343,15 +352,30 @@ function cellsOf(line: string): string[] {
 }
 
 function looksName(s: string): boolean {
-  const t = s.replace(/^\d+\s+/, "").trim();
+  const t = cleanExtractedName(s.replace(/^\d+\s+/, ""));
   if (t.length < 3) return false;
   if (/[{}"\[\]]/.test(t)) return false;
-  if (HEADER_NAME.test(t) || HEADER_IND.test(t)) return false;
+  if (HEADER_NAME.test(t) || HEADER_IND.test(t) || SCHEMA_FIELD.test(t)) {
+    return false;
+  }
   if (NOISE.test(t)) return false;
   if (PRICEISH.test(t)) return false;
   if (/^market\s+cap/i.test(t) || /^close\s+price/i.test(t)) return false;
   if (!/[A-Za-z]/.test(t)) return false;
   return true;
+}
+
+/** Screener Name rows are issuer-shaped; reject single-token schema junk. */
+function looksSectorIssuerName(s: string): boolean {
+  if (!looksName(s)) return false;
+  if (looksIssuerLabel(s)) return true;
+  const words = cleanExtractedName(s).split(/\s+/).filter(Boolean);
+  const first = words[0] || "";
+  if (!first || !/^[A-Za-z]/.test(first) || first.length < 3) return false;
+  if (words.some((w) => SCHEMA_FIELD.test(w))) return false;
+  if (words.length >= 3) return true;
+  // Two-token issuers (Foo Biotech) — both sides must be real words.
+  return words.length === 2 && (words[1] || "").length >= 4;
 }
 
 /** Name (+ trailing Industry) when OCR collapses columns onto one line. */
@@ -688,15 +712,21 @@ export function parseSectorScreenshot(text: string): SectorShotExtract {
     json?.industry && looksIssuerLabel(json.industry)
       ? [json.industry]
       : [];
-  const names = uniqNames([
-    ...issuerAsName,
-    ...(json?.names ?? []),
-    ...(partial?.names ?? []),
-    ...(table.names ?? []),
-    ...numberedNames(text),
-    ...namesFromScripRows(text),
-    ...recoverNumberedJsonNames(text),
-  ]);
+  const names = uniqNames(
+    [
+      ...issuerAsName,
+      ...(json?.names ?? []),
+      ...(partial?.names ?? []),
+      ...(table.names ?? []),
+      ...numberedNames(text),
+      ...namesFromScripRows(text),
+      ...recoverNumberedJsonNames(text),
+    ]
+      .map(cleanExtractedName)
+      .filter(
+        (n) => looksSectorIssuerName(n) || /^\d{5,7}$/.test(n),
+      ),
+  );
   const rowIndustries = [
     ...(json?.rowIndustries ?? []),
     ...(partial?.rowIndustries ?? []),
