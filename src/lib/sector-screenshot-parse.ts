@@ -354,18 +354,52 @@ function looksName(s: string): boolean {
   return true;
 }
 
-function nameFromLine(line: string, cells: string[]): string | null {
-  const stripped = line.replace(/^\s*\d+\s+/, "").trim();
+/** Name (+ trailing Industry) when OCR collapses columns onto one line. */
+function nameAndIndustryFromLine(
+  line: string,
+  cells: string[],
+): { name: string; industry: string | null } | null {
+  const stripped = line.replace(/^\s*\d+[\).\s]+/, "").trim();
   const legal = stripped.match(
-    /^([A-Za-z][A-Za-z0-9 .,&+\uFF06'()/-]{2,}(?:Ltd|Limited|Plc|Inc|LLP)\.?)/i,
+    /^([A-Za-z][A-Za-z0-9 .,&+\uFF06'()/-]{2,}(?:Ltd|Limited|Plc|Inc|LLP)\.?)\s*(.*)$/i,
   );
   if (legal) {
     const n = legal[1]!.replace(/\s+/g, " ").trim();
-    if (looksName(n)) return n;
+    if (looksName(n)) {
+      let rest = (legal[2] || "").replace(/\s+/g, " ").trim();
+      // Drop leading/trailing market-cap / close prices around the industry cell.
+      rest = rest
+        .replace(
+          /^(?:₹|rs\.?)?\s*[\d,]+(?:\.\d+)?\s*(?:cr|crore)?\s+/i,
+          "",
+        )
+        .replace(
+          /\s+(?:₹|rs\.?)?\s*[\d,]+(?:\.\d+)?\s*(?:cr|crore)?$/i,
+          "",
+        )
+        .trim();
+      const industry =
+        rest &&
+        !PRICEISH.test(rest) &&
+        !HEADER_IND.test(rest) &&
+        !looksIssuerLabel(rest) &&
+        /[A-Za-z]/.test(rest) &&
+        rest.length >= 3 &&
+        rest.length <= 96
+          ? rest
+          : null;
+      return { name: n, industry };
+    }
   }
   const first = (cells[0] || "").replace(/^\d+\s+/, "").trim();
-  if (looksName(first) && !PRICEISH.test(first)) return first;
+  if (looksName(first) && !PRICEISH.test(first)) {
+    return { name: first, industry: null };
+  }
   return null;
+}
+
+function nameFromLine(line: string, cells: string[]): string | null {
+  return nameAndIndustryFromLine(line, cells)?.name ?? null;
 }
 
 function industryFromCells(
@@ -389,7 +423,7 @@ function industryFromCells(
     if (/^close/i.test(c) || /^m(?:arket)?\s*cap/i.test(c)) continue;
     if (looksIssuerLabel(c)) continue;
     if (i === 0) continue;
-    if (/[A-Za-z]/.test(c) && c.length >= 3 && c.length <= 64 && !/^\d/.test(c)) {
+    if (/[A-Za-z]/.test(c) && c.length >= 3 && c.length <= 96 && !/^\d/.test(c)) {
       candidates.push(c);
     }
   }
@@ -514,14 +548,21 @@ function pairsFromPlainTable(text: string): SectorNameIndustry[] {
       indIdx = cells.findIndex((c) => HEADER_IND.test(c));
       continue;
     }
-    const rawName =
-      nameIdx >= 0 && cells[nameIdx] && looksName(cells[nameIdx]!)
-        ? cells[nameIdx]!.replace(/^\d+\s+/, "").trim()
-        : nameFromLine(line, cells);
+    let rawName: string | null = null;
+    let lineInd: string | null = null;
+    if (nameIdx >= 0 && cells[nameIdx] && looksName(cells[nameIdx]!)) {
+      rawName = cells[nameIdx]!.replace(/^\d+\s+/, "").trim();
+    } else {
+      const hit = nameAndIndustryFromLine(line, cells);
+      if (hit) {
+        rawName = hit.name;
+        lineInd = hit.industry;
+      }
+    }
     if (!rawName) continue;
     const name = cleanExtractedName(rawName);
     if (!looksName(name)) continue;
-    const ind = industryFromCells(cells, indIdx);
+    const ind = industryFromCells(cells, indIdx) || lineInd;
     out.push({ name, industry: tidyRowIndustry(ind, name) });
   }
   return out;

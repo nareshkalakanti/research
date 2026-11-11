@@ -135,11 +135,20 @@ export async function bootstrapCompanyTicker(
         : hits.length === 1 && hits[0]?.bse_scrip === raw
           ? hits[0]
           : null;
-    if (!hit || !TICKER_RE.test(hit.ticker)) return false;
-    if (hit.bse_scrip) cacheBseScripCode(hit.ticker, hit.bse_scrip);
-    return bootstrapCompanyTicker(hit.ticker, {
-      name: opts?.name || hit.name,
-      market: opts?.market || hit.market,
+    if (hit && TICKER_RE.test(hit.ticker)) {
+      if (hit.bse_scrip) cacheBseScripCode(hit.ticker, hit.bse_scrip);
+      return bootstrapCompanyTicker(hit.ticker, {
+        name: opts?.name || hit.name,
+        market: opts?.market || hit.market,
+      });
+    }
+    // Groww often misses bare scrip queries — BSE header ShortN (e.g. 526604 → LIPPISYS).
+    const { resolveTickerFromBseScrip } = await import("./bse-investor-discover");
+    const live = await resolveTickerFromBseScrip(raw);
+    if (!live?.ticker || !TICKER_RE.test(live.ticker)) return false;
+    return bootstrapCompanyTicker(live.ticker, {
+      name: opts?.name || live.name,
+      market: opts?.market || "BSE",
     });
   }
   let key = raw;

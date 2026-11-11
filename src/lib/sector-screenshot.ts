@@ -3,7 +3,7 @@
  */
 import { ocrImageWithQianfan } from "./corporate-data-extract";
 import { bootstrapCompanyTicker } from "./company-ticker-bootstrap";
-import { invalidateCompanyCache, loadAllCompanies } from "./db";
+import { invalidateCompanyCache } from "./db";
 import {
   parseSectorNameIndustryPairs,
   parseSectorScreenshot,
@@ -21,6 +21,8 @@ import { runConcurrent } from "./scrape-pool";
 const OCR_PROMPT = `Transcribe this equity table screenshot.
 Output JSON only, no markdown. Prefer one object per data row:
 {"Name":"<Name column>","Industry":"<Industry column cell>"}
+Typical Screener columns: Name | Market Capitalization | Industry | Close Price.
+Industry is the text column AFTER market cap and BEFORE close price (often hyphenated, e.g. "Infrastructure - Engineering & Construction"). Copy that cell exactly; do not invent Yahoo/NSE sector names.
 The Industry field MUST be ONE copy of the repeating Industry *column cell* (same text on most rows). Never concatenate or comma-join every row's Industry cell into one string.
 Do not use a parent group, breadcrumb, sidebar, or filter (a broader heading above the table).
 Never set industry to a company name (nothing ending Ltd/Limited). Skip headers, tab bars, and prices.
@@ -52,23 +54,13 @@ function voteLabel(labels: string[]): string {
   return n >= 1 ? best : "";
 }
 
-/** Industry from About/classifications and existing rotation baskets — not OCR. */
-function industryFromResolvedTickers(tickers: string[]): string {
+/**
+ * Only reuse an existing rotation basket when members already sit there.
+ * Never invent a label from Yahoo/NSE taxonomy — that drifts from Screener
+ * Industry (e.g. "Industrial Machinery" vs "Engineering - Light - General").
+ */
+function industryFromExistingBaskets(tickers: string[]): string {
   const want = new Set(tickers.map((t) => t.toUpperCase()));
-  const aboutVotes: string[] = [];
-  try {
-    for (const c of loadAllCompanies()) {
-      if (!want.has(c.ticker.toUpperCase())) continue;
-      const label = c.sub_sector || c.sector;
-      if (label) aboutVotes.push(label);
-    }
-  } catch {
-    /* listings still usable */
-  }
-  const fromAbout = voteLabel(aboutVotes);
-  // Listing taxonomy wins over an existing basket — stocks wrongly saved into
-  // Switchgear must not keep forcing later Transformers pastes there.
-  if (fromAbout) return fromAbout;
   let overlapLabel = "";
   let overlapN = 0;
   for (const s of listRotationSectors()) {
@@ -78,9 +70,13 @@ function industryFromResolvedTickers(tickers: string[]): string {
       overlapLabel = s.label;
     }
   }
-  if (overlapN >= 2) return overlapLabel;
-  return overlapN === 1 ? overlapLabel : "";
+  // Need a clear majority of the batch already in one basket.
+  if (overlapN >= 2 && overlapN * 2 >= want.size) return overlapLabel;
+  return "";
 }
+
+const INDUSTRY_REQUIRED =
+  "Could not read Industry from the table. Paste/copy with the Industry column visible, continue a multi-page batch of the same industry, or type the sector name on the right and add these stocks there.";
 
 export type SectorShotImport = {
   ocr: string;
@@ -136,14 +132,15 @@ export async function importSectorFromScreenshot(
   let ocr = "";
   let nameOcr = "";
   try {
-    // One Tesseract pass first — dual vision OCR was ~80s for simple tables.
+    // Local OCR only when it also yields Industry — name-only reads used to
+    // short-circuit vision and then fail with INDUSTRY_REQUIRED.
     const { tesseractFromDataUrl, localOcrLooksUseful } = await import(
       "./ocr-fast"
     );
     const local = await tesseractFromDataUrl(imageDataUrl);
     if (local && localOcrLooksUseful(local)) {
       const localParsed = parseSectorScreenshot(local);
-      if (localParsed.names.length >= 3) {
+      if (localParsed.names.length >= 3 && tidyIndustry(localParsed.industry)) {
         ocr = local;
         nameOcr = local;
       }
@@ -174,8 +171,7 @@ export async function importSectorFromScreenshot(
       "Could not read company names from the screenshot. Paste a Name-column table (Ltd/Limited rows).",
     );
   }
-  // OCR column first — do not apply prior yet (selected Switchgear must not
-  // steal a Transformers paste when the Industry column is readable).
+  // Screener Industry column first — never Yahoo/NSE taxonomy as a substitute.
   let industry = tidyIndustry(parsed.industry) || "";
   onEvent?.({
     t: "parsed",
@@ -208,17 +204,20 @@ export async function importSectorFromScreenshot(
       `None of the names resolved: ${names.slice(0, 8).join(", ")}`,
     );
   }
+  // Multi-page batch: keep the first page's Screener leaf when this page
+  // OCR missed Industry (do this before inventing any other label).
+  if (industry.length < 2) {
+    industry = tidyIndustry(priorIndustry || "") || "";
+  }
   if (industry.length < 2) {
     industry =
-      industryFromResolvedTickers(members.map((m) => m.ticker)) || "";
+      industryFromExistingBaskets(members.map((m) => m.ticker)) || "";
   }
   // Prior only merges multi-page shots of the *same* industry — never a
   // different Capital Goods leaf (Switchgear vs Transformers).
   industry = preferBatchIndustry(priorIndustry || "", industry);
   if (industry.length < 2) {
-    throw new Error(
-      "Could not read Industry. Paste the first page of the table (Industry column visible), or type the sector name on the right and add these stocks there.",
-    );
+    throw new Error(INDUSTRY_REQUIRED);
   }
   const prior =
     listRotationSectors().find(
@@ -316,12 +315,11 @@ export async function importSectorFromTableText(
     }
     let label = industry;
     if (label.length < 2) {
-      label = industryFromResolvedTickers(members.map((m) => m.ticker)) || "";
+      label =
+        industryFromExistingBaskets(members.map((m) => m.ticker)) || "";
     }
     if (label.length < 2) {
-      throw new Error(
-        "Could not read Industry. Include the Industry column when you copy.",
-      );
+      throw new Error(INDUSTRY_REQUIRED);
     }
     const prior =
       listRotationSectors().find(
@@ -417,17 +415,18 @@ export async function importSectorFromTableText(
     );
   }
 
-  // Fill missing industry from listing taxonomy (per ticker).
+  // Fill blank Industry cells from other rows in the same paste (Screener
+  // column is usually constant) — never from Yahoo/NSE taxonomy.
+  const pasteMode = voteLabel(
+    resolved.map((r) => r.industry || "").filter(Boolean),
+  );
   for (const r of resolved) {
     if (r.industry) continue;
-    const fromAbout = industryFromResolvedTickers([r.ticker]);
-    if (fromAbout) r.industry = fromAbout;
+    if (pasteMode) r.industry = pasteMode;
   }
   const stillMissing = resolved.filter((r) => !r.industry);
   if (stillMissing.length === resolved.length) {
-    throw new Error(
-      "Could not read Industry. Include the Industry column when you copy.",
-    );
+    throw new Error(INDUSTRY_REQUIRED);
   }
 
   const byIndustry = new Map<

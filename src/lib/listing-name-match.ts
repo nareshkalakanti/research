@@ -324,7 +324,11 @@ export function listingQueryMatches(
   if (cq.length < 2) return false;
   const ct = compactTicker(t);
   const cn = compactTicker(n);
-  if (ct === cq || ct.startsWith(cq) || ct.includes(cq) || cn.includes(cq)) return true;
+  // Ticker-shaped queries (no spaces): match ticker compact form only.
+  // Avoid "SELECTRIC" hitting "Evans Electric" via EVANS+ELECTRIC glue.
+  const tickerShaped = !/\s/.test(Q) && /^[A-Z0-9.&-]{2,20}$/i.test(Q);
+  if (ct === cq || ct.startsWith(cq) || ct.includes(cq)) return true;
+  if (!tickerShaped && cn.includes(cq)) return true;
   if (ct.length >= 3 && cq.startsWith(ct) && cq.length - ct.length <= 2) return true;
   if (opts?.fuzzy === false) return false;
   return scoreListingName(q, ticker, name) >= 70;

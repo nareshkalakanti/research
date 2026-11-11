@@ -51,6 +51,20 @@ function clipboardTableText(cd: DataTransfer | null): string {
   return "";
 }
 
+/** Final post-scan block: every unresolved OCR/paste name, once, at the end. */
+function unresolvedSummaryLines(
+  unresolved: ShotEvent["unresolved"],
+): string[] {
+  const miss = (Array.isArray(unresolved) ? unresolved : [])
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
+  if (!miss.length) return [];
+  return [
+    `— Unresolved (${miss.length}) —`,
+    ...miss.map((name) => `• ${name}`),
+  ];
+}
+
 export function SectorShotPanel() {
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -212,6 +226,9 @@ export function SectorShotPanel() {
         setSelectedId(saved.id);
         await loadList();
         pushLog("List refreshed");
+        for (const line of unresolvedSummaryLines(donePayload.unresolved)) {
+          pushLog(line);
+        }
         return donePayload.industry || saved.label || "";
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -341,11 +358,16 @@ export function SectorShotPanel() {
             ? `Updated ${baskets.length} industry baskets`
             : "List refreshed",
         );
-        const miss = (donePayload.unresolved || []).filter(
-          (x): x is string => typeof x === "string" && Boolean(x),
-        );
+        const missLines = unresolvedSummaryLines(donePayload.unresolved);
+        for (const line of missLines) pushLog(line);
+        const miss = (Array.isArray(donePayload.unresolved)
+          ? donePayload.unresolved
+          : []
+        )
+          .map((x) => String(x || "").trim())
+          .filter(Boolean);
         if (miss.length) {
-          setError(`Unresolved: ${miss.slice(0, 12).join(", ")}`);
+          setError(`Unresolved (${miss.length}): ${miss.slice(0, 12).join(", ")}`);
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -488,6 +510,53 @@ export function SectorShotPanel() {
     await loadMembers(selectedId);
   };
 
+  const renameSector = async (id: string, label: string) => {
+    const next = window.prompt("Rename sector", label);
+    if (next == null) return;
+    const name = next.replace(/\s+/g, " ").trim();
+    if (name.length < 2 || name.toLowerCase() === label.toLowerCase()) return;
+    setError(null);
+    const res = await fetch("/api/sector-rotation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, rename: true, label: name }),
+    });
+    const json = (await res.json()) as {
+      ok?: boolean;
+      error?: string;
+      sector?: { id: string };
+    };
+    if (!res.ok || json.ok === false) {
+      setError(json.error || `HTTP ${res.status}`);
+      return;
+    }
+    const keptId = json.sector?.id || id;
+    const wasOpen = selectedId === id;
+    if (wasOpen) setSelectedId(keptId);
+    await loadList();
+    if (wasOpen) await loadMembers(keptId);
+  };
+
+  const deleteSector = async (id: string, label: string) => {
+    if (!window.confirm(`Delete sector “${label}”?`)) return;
+    setError(null);
+    const res = await fetch("/api/sector-rotation", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, deleteSector: true }),
+    });
+    const json = (await res.json()) as { ok?: boolean; error?: string };
+    if (!res.ok || json.ok === false) {
+      setError(json.error || `HTTP ${res.status}`);
+      return;
+    }
+    if (selectedId === id) {
+      setSelectedId(null);
+      setMembers([]);
+    }
+    await loadList();
+  };
+
   return (
     <div className="rot-shot-simple">
       <div className="rot-shot-simple-main">
@@ -593,6 +662,7 @@ export function SectorShotPanel() {
             <th>#</th>
             <th>Sector</th>
             <th>Stocks</th>
+            <th className="rot-col-act" />
           </tr>
         </thead>
         <tbody>
@@ -607,10 +677,34 @@ export function SectorShotPanel() {
               <td>{i + 1}</td>
               <td>{r.label}</td>
               <td>{r.n}</td>
+              <td>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  title={`Rename ${r.label}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void renameSector(r.id, r.label);
+                  }}
+                >
+                  Rename
+                </button>{" "}
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  title={`Delete ${r.label}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void deleteSector(r.id, r.label);
+                  }}
+                >
+                  Delete
+                </button>
+              </td>
             </tr>
             {r.id === selectedId ? (
               <tr className="rot-shot-open">
-                <td colSpan={3}>
+                <td colSpan={4}>
                   <div className="rot-shot-open-inner">
                     <TickerSuggest
                       value={addQ}

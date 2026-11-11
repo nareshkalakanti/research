@@ -55,8 +55,27 @@ function collapseSectorLabel(label: string): string {
   return t;
 }
 
+/** Fold Screener/OCR variants onto one key: hyphens, "Equipments" plural. */
 function labelKey(label: string): string {
-  return collapseSectorLabel(label).toLowerCase();
+  return collapseSectorLabel(label)
+    .toLowerCase()
+    .replace(/\s*[-–—]\s*/g, " ")
+    .replace(/\bequipments\b/g, "equipment")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Prefer an existing basket when Screener says "Welding Equipments" etc. */
+function findSectorByLabel(
+  sectors: RotationSector[],
+  label: string,
+): RotationSector | undefined {
+  const want = labelKey(label);
+  if (!want) return undefined;
+  return (
+    sectors.find((s) => s.label.toLowerCase() === label.toLowerCase()) ||
+    sectors.find((s) => labelKey(s.label) === want)
+  );
 }
 
 function foldDuplicateSectors(db: Database.Database): void {
@@ -246,7 +265,8 @@ export function createRotationSector(label: string): RotationSector {
   }
 }
 
-export function renameRotationSector(id: string, label: string): void {
+/** Returns the surviving sector id (may differ when renaming into an existing label). */
+export function renameRotationSector(id: string, label: string): string {
   const name = collapseSectorLabel(label);
   if (name.length < 2) throw new Error("Name the sector (2+ characters)");
   const db = openWrite();
@@ -264,12 +284,13 @@ export function renameRotationSector(id: string, label: string): void {
       ).run(clash.id, id);
       db.prepare(`DELETE FROM sector_members WHERE sector_id = ?`).run(id);
       db.prepare(`DELETE FROM sectors WHERE id = ?`).run(id);
-      return;
+      return clash.id;
     }
     const info = db
       .prepare(`UPDATE sectors SET label = ? WHERE id = ?`)
       .run(name, id);
     if (!info.changes) throw new Error("Sector not found");
+    return id;
   } finally {
     db.close();
   }
@@ -365,11 +386,9 @@ export function mergeRotationSectorByLabel(
   members: SectorMember[],
 ): RotationSector {
   const name = collapseSectorLabel(label);
-  const have = listRotationSectors().find(
-    (s) => s.label.toLowerCase() === name.toLowerCase(),
-  );
+  const have = findSectorByLabel(listRotationSectors(), name);
+  // Keep the existing basket title when only plural/hyphen differs.
   const id = have?.id ?? createRotationSector(name).id;
-  if (have && have.label !== name) renameRotationSector(id, name);
   for (const m of members) addRotationMember(id, m);
   return getRotationSector(id)!;
 }
@@ -379,11 +398,8 @@ export function upsertRotationSectorByLabel(
   members: SectorMember[],
 ): RotationSector {
   const name = collapseSectorLabel(label);
-  const have = listRotationSectors().find(
-    (s) => s.label.toLowerCase() === name.toLowerCase(),
-  );
+  const have = findSectorByLabel(listRotationSectors(), name);
   const id = have?.id ?? createRotationSector(name).id;
-  if (have && have.label !== name) renameRotationSector(id, name);
   replaceRotationMembers(id, members);
   return getRotationSector(id)!;
 }
