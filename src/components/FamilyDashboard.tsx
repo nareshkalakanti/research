@@ -11,6 +11,7 @@ import { CompanyNetworkTable } from "@/components/CompanyNetworkTable";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
 import { OutsideMissingDinTable } from "@/components/OutsideMissingDinTable";
+import { ConnectedStocksTable } from "@/components/ConnectedStocksTable";
 import { GroupRankTable } from "@/components/GroupRankTable";
 import {
   TickerSuggest,
@@ -30,6 +31,7 @@ type DashView =
   | "holdings"
   | "people"
   | "stock"
+  | "connected"
   | "network"
   | "outside"
   | "outside-din";
@@ -86,6 +88,7 @@ export function FamilyDashboard() {
       "holdings",
       "people",
       "stock",
+      "connected",
       "network",
       "outside",
       "outside-din",
@@ -887,11 +890,20 @@ export function FamilyDashboard() {
             <button
               type="button"
               role="tab"
+              className={dashView === "connected" ? "tab on" : "tab"}
+              aria-selected={dashView === "connected"}
+              onClick={() => setDashView("connected")}
+            >
+              Connected
+            </button>
+            <button
+              type="button"
+              role="tab"
               className={dashView === "stock" ? "tab on" : "tab"}
               aria-selected={dashView === "stock"}
               onClick={() => setDashView("stock")}
             >
-              Stock
+              Board map
             </button>
             <button
               type="button"
@@ -939,17 +951,20 @@ export function FamilyDashboard() {
                 ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
                 ? "Recent joins sort first (new badge / teal node). Name opens Governance; ticker shows that stock’s related boards."
+                : dashView === "connected"
+                  ? "Stocks ranked by shared-director links to other listed boards. Click a ticker → hub graph + dashed connected boards + bottom chips."
                 : dashView === "network"
                   ? "Cap Gap and Holdings: board-linked market-cap gap columns. Counts are facts, not scores."
                   : dashView === "outside"
-                    ? "Commons list: stocks that appear as Outside boards across many business groups. Higher count = more cross-group director links."
+                    ? "Commons: tickers as Outside boards on other houses. “As outside in” = those houses (not own group). Click a ticker → Board map (graph + bottom chips)."
                     : dashView === "outside-din"
-                      ? "Outside boards still missing DIN coverage (0 seats or verified < directors). Same stocks as Outside, filtered to DIN gaps."
-                  : "Search a stock. The graph is its directors plus every other listed company those directors sit on. Names open TradingView."}
+                      ? "Outside boards still missing DIN coverage (0 seats or verified < directors). Click a ticker → Board map."
+                  : "Board map: search a stock → hub + connected boards (dashed = outside this listing). Bottom chips jump ticker-to-ticker. Not the house Outside filter."}
           </p>
         </div>
         <div className="fam-dash-actions">
           {dashView !== "stock" &&
+          dashView !== "connected" &&
           dashView !== "network" &&
           dashView !== "outside" &&
           dashView !== "outside-din" &&
@@ -1032,7 +1047,7 @@ export function FamilyDashboard() {
           ) : null}
             </>
           ) : null}
-          {dashView !== "stock" ? (
+          {dashView !== "stock" && dashView !== "connected" ? (
           <button
             type="button"
             className="btn-ghost"
@@ -1143,6 +1158,7 @@ export function FamilyDashboard() {
       ) : null}
       {error &&
       dashView !== "stock" &&
+      dashView !== "connected" &&
       dashView !== "network" &&
       dashView !== "outside" &&
       dashView !== "outside-din" &&
@@ -1161,6 +1177,14 @@ export function FamilyDashboard() {
           onOpenGroup={(key) => {
             setGroupFilter(key);
             setDashView("groups");
+          }}
+        />
+      ) : dashView === "connected" ? (
+        <ConnectedStocksTable
+          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+          onTicker={(t) => {
+            setStockFocus(t);
+            setDashView("stock");
           }}
         />
       ) : dashView === "outside" ? (

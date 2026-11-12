@@ -48,6 +48,7 @@ import {
   loadHoldingsCapitalGapDetail,
   loadTinyCapitalGap,
   loadTinyCapitalGapDetail,
+  loadConnectedStockHubs,
 } from "@/lib/company-network";
 import {
   confirmMappingWrites,
@@ -76,6 +77,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
 type View = "director" | "company" | "role" | "family" | "ungrouped" | "holdings" | "independence" | "network" | "company-network"   | "director-network"
+  | "connected-stocks"
   | "company-connectivity"
   | "network-discovery"
   | "network-candidates"
@@ -605,6 +607,25 @@ async function buildGovernanceMapResponse(req: NextRequest) {
   if (view === "company-network") {
     const result = loadCompanyNetwork({ q, page, pageSize, refresh });
     return NextResponse.json({ view: "company-network", ...result });
+  }
+  if (view === "connected-stocks") {
+    const minLinked = Math.max(
+      1,
+      Number.parseInt(sp.get("minLinked") || "1", 10) || 1,
+    );
+    // Hub list is ~1.5k rows; do not use the global pageSize cap of 200.
+    const hubPageSize = Math.min(
+      5000,
+      Math.max(10, Number(sp.get("pageSize") || 2000) || 2000),
+    );
+    const result = loadConnectedStockHubs({
+      q,
+      page,
+      pageSize: hubPageSize,
+      refresh,
+      minLinked,
+    });
+    return NextResponse.json({ view: "connected-stocks", ...result });
   }
   if (view === "company-connectivity") {
     const caps = (sp.get("caps") || "")

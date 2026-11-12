@@ -242,7 +242,18 @@ export function FamilyGraph({
         y: 0,
       });
     }
+    // Only draw outside listings that a person on this map actually links —
+    // otherwise they float as unconnected orphans (e.g. ego-network extras).
+    const linkedOutside = new Set<string>();
+    for (const p of people) {
+      for (const t of [...p.tickers, ...(p.span_tickers ?? [])]) {
+        const u = t.trim().toUpperCase();
+        if (u) linkedOutside.add(u);
+      }
+    }
     for (const o of outside) {
+      const u = o.ticker.toUpperCase();
+      if (!linkedOutside.has(u)) continue;
       const cap = capBand(o.cap_code, o.market_cap_cr);
       const { title, hint } = listingTitle(o.ticker, o.name, {
         cap,
@@ -250,7 +261,7 @@ export function FamilyGraph({
         extra: "outside group",
       });
       add({
-        id: `c:${o.ticker.toUpperCase()}`,
+        id: `c:${u}`,
         kind: "outside",
         label: o.ticker,
         cap,

@@ -173,7 +173,8 @@ export function StockNetworkSearch({
         </article>
       ) : !loading && !error ? (
         <div className="table-meta">
-          Pick a stock to see its directors and every listed board they sit on.
+          Search a stock for its board map: directors, connected listings as
+          dashed outside nodes, and bottom ticker chips to jump between them.
         </div>
       ) : null}
     </div>

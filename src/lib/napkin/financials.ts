@@ -591,7 +591,9 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   let pe =
     num(det.trailingPE) ?? num(fin.trailingPE) ?? num(stats.forwardPE);
 
-  // 7-rule ROE/ROCE: Screener primary → Tickertape backup → Yahoo last resort.
+  // Current ROE/ROCE: Screener top ratios (same as Screener company card) →
+  // annual last resort → Tickertape → Yahoo. Do not prefer annual over top —
+  // FY series can lag the live ratio (e.g. annual 11% vs top 19%).
   let roce: number | null = null;
   let roe: number | null = null;
   let screenerAnnualRoce: number | null = null;
@@ -625,16 +627,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   } catch {
     /* leave annual null */
   }
-  roce = screenerAnnualRoce ?? screenerTopRoce;
-  // Distrust top-ratios ROE when it conflicts with annual ROCE (common inflation).
-  if (
-    roe != null &&
-    screenerAnnualRoce != null &&
-    screenerTopRoce != null &&
-    Math.abs(screenerAnnualRoce - screenerTopRoce) > 0.05
-  ) {
-    roe = null;
-  }
+  roce = screenerTopRoce ?? screenerAnnualRoce;
 
   if (roe == null || roce == null) {
     try {

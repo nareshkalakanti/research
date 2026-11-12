@@ -80,7 +80,9 @@ function sliceRelated(
   const focus = ticker.trim().toUpperCase();
   const peopleAll = f.people ?? [];
   const people = peopleAll.filter((p) =>
-    p.tickers.some((t) => t.toUpperCase() === focus),
+    [...p.tickers, ...(p.span_tickers ?? [])].some(
+      (t) => t.toUpperCase() === focus,
+    ),
   );
   if (!people.length) {
     return {
@@ -91,7 +93,7 @@ function sliceRelated(
   }
   const keep = new Set<string>([focus]);
   for (const p of people) {
-    for (const t of p.tickers) {
+    for (const t of [...p.tickers, ...(p.span_tickers ?? [])]) {
       const u = t.toUpperCase();
       if (u) keep.add(u);
     }
@@ -190,12 +192,23 @@ function overlayNetwork(
     else addOutside(u);
   }
   for (const p of net.people) {
-    for (const t of p.tickers) {
+    for (const t of [...p.tickers, ...(p.span_tickers ?? [])]) {
       const u = t.toUpperCase();
       if (!u) continue;
       if (group.has(u)) addCompany(u);
       else addOutside(u);
     }
+  }
+  // Drop ego companies that no returned person sits on (orphan outside nodes).
+  const seated = new Set<string>();
+  for (const p of net.people) {
+    for (const t of [...p.tickers, ...(p.span_tickers ?? [])]) {
+      const u = t.toUpperCase();
+      if (u) seated.add(u);
+    }
+  }
+  for (let i = outside.length - 1; i >= 0; i--) {
+    if (!seated.has(outside[i]!.ticker.toUpperCase())) outside.splice(i, 1);
   }
   // Keep family recent_join flags when ego network replaces the people list.
   const famJoin = new Map(
@@ -235,7 +248,7 @@ function outsideFromPeople(
   const out: NonNullable<FamilyRow["outside"]> = [];
   const seen = new Set<string>();
   for (const p of people) {
-    for (const t of p.tickers) {
+    for (const t of [...p.tickers, ...(p.span_tickers ?? [])]) {
       const u = t.toUpperCase();
       if (!u || group.has(u) || seen.has(u)) continue;
       seen.add(u);
@@ -266,7 +279,9 @@ function sliceExternal(opts: {
     opts.outside.map((o) => o.ticker.toUpperCase()).filter(Boolean),
   );
   const people = opts.people.filter((p) =>
-    p.tickers.some((t) => ext.has(t.toUpperCase())),
+    [...p.tickers, ...(p.span_tickers ?? [])].some((t) =>
+      ext.has(t.toUpperCase()),
+    ),
   );
   return { companies: [], people, outside: opts.outside };
 }
@@ -440,9 +455,26 @@ function FamilyGroupCard({
       return (b.dir_score ?? 0) - (a.dir_score ?? 0);
     });
   }, [f.people]);
+  // Refetch ego network when focus changes or the group row is refreshed
+  // (DIN chips / people otherwise stay stale while a ticker tab is open).
+  const groupEpoch = useMemo(
+    () =>
+      [
+        f.group_id || f.family_name,
+        f.company_count,
+        (f.people ?? []).length,
+        f.companies
+          .map((c) => `${c.ticker}:${c.din_verified ?? 0}/${c.directors ?? 0}`)
+          .join(","),
+        refreshing ? "1" : "0",
+      ].join("|"),
+    [f, refreshing],
+  );
   useEffect(() => {
     setNet(null);
     if (!focus) return;
+    // Wait until box refresh finishes so we don't race a mid-refresh map.
+    if (refreshing) return;
     const ticker = focus;
     let cancelled = false;
     void (async () => {
@@ -462,7 +494,7 @@ function FamilyGroupCard({
     return () => {
       cancelled = true;
     };
-  }, [focus]);
+  }, [focus, groupEpoch, refreshing]);
   const sliced = focus ? sliceRelated(f, focus) : null;
   const ego = focus && net ? overlayNetwork(f, net) : null;
   let companies = ego?.companies ?? sliced?.companies ?? f.companies;

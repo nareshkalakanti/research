@@ -217,7 +217,9 @@ export function OutsideMissingDinTable({
                 <th className="num col-groups">Groups</th>
                 <th className="col-cap">Cap</th>
                 <th className="num col-mcap_cr">MCap</th>
-                <th className="col-houses">Houses</th>
+                <th className="col-houses" title="Business groups where this ticker sits as an outside board (not its own house)">
+                  As outside in
+                </th>
               </tr>
             </thead>
             <tbody>
