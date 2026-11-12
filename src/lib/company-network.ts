@@ -167,6 +167,152 @@ export type CompanyNetworkRow = {
   name_b: string | null;
 };
 
+/** Hub stock + how many other listed boards share ≥1 director (Board map chips). */
+export type ConnectedStockHubRow = {
+  ticker: string;
+  name: string | null;
+  market_cap_cr: number | null;
+  cap_code: string | null;
+  linked_cos: number;
+  directors: number;
+  /** Sample connected tickers (strongest shared-director links first). */
+  linked: string[];
+};
+
+export function loadConnectedStockHubs(opts?: {
+  q?: string | null;
+  minLinked?: number;
+  page?: number;
+  pageSize?: number;
+  refresh?: boolean;
+}): {
+  rows: ConnectedStockHubRow[];
+  total: number;
+  page: number;
+  pages: number;
+} {
+  const pageSize = Math.min(5000, Math.max(1, opts?.pageSize ?? 200));
+  const page = Math.max(1, opts?.page ?? 1);
+  const minLinked = Math.max(1, opts?.minLinked ?? 1);
+  const q = (opts?.q || "").trim();
+  const db = openSqliteNamed("governance.db", { wal: true });
+  try {
+    ensureNetworkViews(db, opts?.refresh === true);
+    db.exec(ifNotExists(COMPANY_NETWORK_VIEW_SQL, "company_network"));
+    const like = q ? likePattern(q) : null;
+    const whereQ = like
+      ? `WHERE (h.ticker LIKE @like ESCAPE '\\'
+           OR IFNULL(c.name, '') LIKE @like ESCAPE '\\')`
+      : "";
+    const params: Record<string, string | number> = {
+      minLinked,
+      ...(like ? { like } : {}),
+    };
+    const hubs = db
+      .prepare(
+        `WITH edges AS (
+           SELECT ticker_a AS ticker, ticker_b AS other, shared_directors AS shared
+           FROM company_network
+           UNION ALL
+           SELECT ticker_b, ticker_a, shared_directors
+           FROM company_network
+         ),
+         hub AS (
+           SELECT ticker,
+                  COUNT(*) AS linked_cos,
+                  SUM(shared) AS shared_seats
+           FROM edges
+           GROUP BY ticker
+           HAVING linked_cos >= @minLinked
+         )
+         SELECT h.ticker,
+                c.name,
+                cm.market_cap AS market_cap_cr,
+                h.linked_cos,
+                (SELECT COUNT(DISTINCT person_id)
+                   FROM board_seats bs
+                  WHERE bs.ticker = h.ticker) AS directors
+         FROM hub h
+         LEFT JOIN companies c ON c.ticker = h.ticker
+         LEFT JOIN company_metrics cm ON cm.ticker = h.ticker
+         ${whereQ}
+         ORDER BY h.linked_cos DESC, IFNULL(cm.market_cap, -1) DESC, h.ticker
+         LIMIT @limit OFFSET @offset`,
+      )
+      .all({
+        ...params,
+        limit: pageSize,
+        offset: (page - 1) * pageSize,
+      }) as Array<{
+      ticker: string;
+      name: string | null;
+      market_cap_cr: number | null;
+      linked_cos: number;
+      directors: number;
+    }>;
+
+    const totalRow = db
+      .prepare(
+        `WITH edges AS (
+           SELECT ticker_a AS ticker, ticker_b AS other FROM company_network
+           UNION ALL
+           SELECT ticker_b, ticker_a FROM company_network
+         ),
+         hub AS (
+           SELECT ticker, COUNT(*) AS linked_cos
+           FROM edges
+           GROUP BY ticker
+           HAVING linked_cos >= @minLinked
+         )
+         SELECT COUNT(*) AS n
+         FROM hub h
+         LEFT JOIN companies c ON c.ticker = h.ticker
+         ${whereQ}`,
+      )
+      .get(params) as { n: number };
+
+    const linkStmt = db.prepare(
+      `WITH edges AS (
+         SELECT ticker_a AS ticker, ticker_b AS other, shared_directors AS shared
+         FROM company_network
+         UNION ALL
+         SELECT ticker_b, ticker_a, shared_directors
+         FROM company_network
+       )
+       SELECT other, shared
+       FROM edges
+       WHERE ticker = ?
+       ORDER BY shared DESC, other
+       LIMIT 8`,
+    );
+
+    const rows: ConnectedStockHubRow[] = hubs.map((h) => {
+      const linked = (
+        linkStmt.all(h.ticker) as Array<{ other: string; shared: number }>
+      ).map((r) => r.other);
+      const mcap =
+        h.market_cap_cr != null && Number.isFinite(h.market_cap_cr)
+          ? Number(h.market_cap_cr)
+          : null;
+      return {
+        ticker: h.ticker,
+        name: h.name,
+        market_cap_cr: mcap,
+        cap_code: mcap != null ? mcapCapCode(mcap) : null,
+        linked_cos: h.linked_cos,
+        directors: h.directors,
+        linked,
+      };
+    });
+
+    const total = totalRow?.n ?? rows.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    return { rows, total, page: Math.min(page, pages), pages };
+  } finally {
+    db.close();
+  }
+}
+
 function likePattern(q: string): string {
   const escaped = q.replace(/[\\%_]/g, (ch) => `\\${ch}`);
   return `%${escaped}%`;

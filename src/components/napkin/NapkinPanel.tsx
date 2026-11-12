@@ -221,8 +221,6 @@ export function NapkinPanel() {
               price={parseDisplayedMoney(napkinMetric(data.overview, "price"))}
               roe={parseDisplayedPct(napkinMetric(data.overview, "roe"))}
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
-              performance={data.performance}
-              growth={data.growth}
             />
 
             <div className="napkin-sheet-section">
