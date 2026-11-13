@@ -87,6 +87,8 @@ export function SectorShotPanel() {
   const [creating, setCreating] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
 
   const loadList = useCallback(async () => {
     try {
@@ -510,11 +512,29 @@ export function SectorShotPanel() {
     await loadMembers(selectedId);
   };
 
-  const renameSector = async (id: string, label: string) => {
-    const next = window.prompt("Rename sector", label);
-    if (next == null) return;
-    const name = next.replace(/\s+/g, " ").trim();
-    if (name.length < 2 || name.toLowerCase() === label.toLowerCase()) return;
+  const startRename = (id: string, label: string) => {
+    setRenamingId(id);
+    setRenameDraft(label);
+  };
+
+  const cancelRename = () => {
+    setRenamingId(null);
+    setRenameDraft("");
+  };
+
+  const commitRename = async () => {
+    const id = renamingId;
+    if (!id) return;
+    const prev = rows.find((r) => r.id === id)?.label || "";
+    const name = renameDraft.replace(/\s+/g, " ").trim();
+    if (name.length < 2) {
+      cancelRename();
+      return;
+    }
+    if (name.toLowerCase() === prev.toLowerCase()) {
+      cancelRename();
+      return;
+    }
     setError(null);
     const res = await fetch("/api/sector-rotation", {
       method: "POST",
@@ -532,6 +552,7 @@ export function SectorShotPanel() {
     }
     const keptId = json.sector?.id || id;
     const wasOpen = selectedId === id;
+    cancelRename();
     if (wasOpen) setSelectedId(keptId);
     await loadList();
     if (wasOpen) await loadMembers(keptId);
@@ -559,6 +580,68 @@ export function SectorShotPanel() {
 
   return (
     <div className="rot-shot-simple">
+      <div className="rot-shot-simple-top">
+        <form
+          className="fam-dash-create"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void createSector();
+          }}
+        >
+          <input
+            className="fam-dash-search"
+            placeholder="Sector name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            aria-label="New sector name"
+          />
+          <div className="fam-dash-create-cos">
+            {newTickers.map((t) => (
+              <span key={t.ticker} className="fam-dash-create-chip">
+                <span className="mono">{t.ticker}</span>
+                <button
+                  type="button"
+                  title={`Remove ${t.ticker}`}
+                  onClick={() =>
+                    setNewTickers((rows) =>
+                      rows.filter((x) => x.ticker !== t.ticker),
+                    )
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <TickerSuggest
+              value={newQ}
+              onChange={setNewQ}
+              onSelect={(h) => {
+                setNewTickers((rows) =>
+                  rows.some((x) => x.ticker === h.ticker) ? rows : [...rows, h],
+                );
+                setNewQ("");
+              }}
+              clearOnSelect
+              persistGroww={false}
+              placeholder="Add company…"
+              className="fam-dash-search"
+              submitLabel="add"
+            />
+          </div>
+          <button
+            type="submit"
+            className="btn-ghost"
+            disabled={creating || newName.trim().length < 2}
+          >
+            {creating ? "Saving…" : "Create sector"}
+          </button>
+        </form>
+        <p className="rot-create-pick">
+          {selected
+            ? `Open ${selected.label} below to add or remove stocks.`
+            : "Create a sector here, or paste a Screener table on the left."}
+        </p>
+      </div>
       <div className="rot-shot-simple-main">
       <p className="rot-shot-simple-lead">
         Paste a Screener table (Name + Industry) or drop a screenshot. Each
@@ -670,25 +753,64 @@ export function SectorShotPanel() {
             <Fragment key={r.id}>
             <tr
               className={r.id === selectedId ? "rot-row is-on" : "rot-row"}
-              onClick={() =>
-                setSelectedId((cur) => (cur === r.id ? null : r.id))
-              }
+              onClick={() => {
+                if (renamingId === r.id) return;
+                setSelectedId((cur) => (cur === r.id ? null : r.id));
+              }}
             >
               <td>{i + 1}</td>
-              <td>{r.label}</td>
+              <td>
+                {renamingId === r.id ? (
+                  <input
+                    className="fam-dash-search rot-rename-inline"
+                    value={renameDraft}
+                    autoFocus
+                    aria-label={`Rename ${r.label}`}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        void commitRename();
+                      } else if (e.key === "Escape") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        cancelRename();
+                      }
+                    }}
+                    onBlur={() => void commitRename()}
+                  />
+                ) : (
+                  r.label
+                )}
+              </td>
               <td>{r.n}</td>
               <td>
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  title={`Rename ${r.label}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    void renameSector(r.id, r.label);
-                  }}
-                >
-                  Rename
-                </button>{" "}
+                {renamingId === r.id ? (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void commitRename();
+                    }}
+                  >
+                    Save
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    title={`Rename ${r.label}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startRename(r.id, r.label);
+                    }}
+                  >
+                    Rename
+                  </button>
+                )}{" "}
                 <button
                   type="button"
                   className="btn-ghost"
@@ -763,68 +885,6 @@ export function SectorShotPanel() {
         </tbody>
       </table>
       </div>
-      <aside className="rot-shot-simple-side">
-        <form
-          className="fam-dash-create"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void createSector();
-          }}
-        >
-          <input
-            className="fam-dash-search"
-            placeholder="Sector name"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            aria-label="New sector name"
-          />
-          <div className="fam-dash-create-cos">
-            {newTickers.map((t) => (
-              <span key={t.ticker} className="fam-dash-create-chip">
-                <span className="mono">{t.ticker}</span>
-                <button
-                  type="button"
-                  title={`Remove ${t.ticker}`}
-                  onClick={() =>
-                    setNewTickers((rows) =>
-                      rows.filter((x) => x.ticker !== t.ticker),
-                    )
-                  }
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <TickerSuggest
-              value={newQ}
-              onChange={setNewQ}
-              onSelect={(h) => {
-                setNewTickers((rows) =>
-                  rows.some((x) => x.ticker === h.ticker) ? rows : [...rows, h],
-                );
-                setNewQ("");
-              }}
-              clearOnSelect
-              persistGroww={false}
-              placeholder="Add company…"
-              className="fam-dash-search"
-              submitLabel="add"
-            />
-          </div>
-          <button
-            type="submit"
-            className="btn-ghost"
-            disabled={creating || newName.trim().length < 2}
-          >
-            {creating ? "Saving…" : "Create sector"}
-          </button>
-        </form>
-        <p className="rot-create-pick" style={{ marginTop: 10 }}>
-          {selected
-            ? `Add or remove stocks in ${selected.label} (list on the left).`
-            : "Click a sector in the list to add or remove stocks."}
-        </p>
-      </aside>
     </div>
   );
 }

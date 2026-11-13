@@ -5,6 +5,7 @@ import {
   companyLabelKey,
   listingCorpusMatches,
   listingQueryMatches,
+  listingQueryVariants,
   rankListingQuery,
   shouldAugmentListingSearch,
 } from "@/lib/listing-name-match";
@@ -12,6 +13,7 @@ import {
   tickerFromBseScrip,
   resolveTickerFromBseScrip,
 } from "@/lib/bse-investor-discover";
+import { searchBseEquityListings } from "@/lib/bse-sme";
 import { openSqliteNamed } from "@/lib/sqlite-utils";
 import { searchGrowwListings } from "@/lib/web-mcap";
 
@@ -293,7 +295,57 @@ export async function GET(req: NextRequest) {
       err instanceof Error ? err.message : err,
     );
   }
-  // Live BSE header when scrip isn't cached yet (Sector fill / typeahead).
+  // Live BSE when scrip isn't cached yet (Sector fill / typeahead).
+  // PeerSmartSearch is usually faster than getScripHeaderData.
+  if (!hits.length && /^\d{5,7}$/.test(q)) {
+    try {
+      const peer = await searchBseEquityListings(q, 3);
+      const hit = peer[0];
+      if (hit?.ticker) {
+        try {
+          await bootstrapCompanyTicker(hit.ticker, {
+            name: hit.name,
+            market: "BSE",
+          });
+          const { cacheBseScripCode } = await import(
+            "@/lib/bse-investor-discover"
+          );
+          cacheBseScripCode(hit.ticker, hit.bse_scrip || q);
+          invalidateCompanyCache();
+        } catch {
+          /* row may already exist */
+        }
+        const co = loadAllCompanies().find(
+          (c) => c.ticker.toUpperCase() === hit.ticker,
+        );
+        const coName = String(co?.name || "").trim();
+        const peerName = String(hit.name || "").trim();
+        const name = (
+          coName && coName.toUpperCase() !== hit.ticker
+            ? coName
+            : peerName || coName || hit.ticker
+        ).replace(/-\$$/, "");
+        hits = [
+          {
+            ticker: hit.ticker,
+            name,
+            market: co?.market || "BSE",
+            sector: co?.sector || null,
+            mcap_cr:
+              co?.mcap_cr != null && Number.isFinite(co.mcap_cr)
+                ? co.mcap_cr
+                : null,
+            source: "local",
+          },
+        ];
+      }
+    } catch (err) {
+      console.warn(
+        "[tickers] BSE peer scrip search failed:",
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
   if (!hits.length && /^\d{5,7}$/.test(q)) {
     try {
       const live = await resolveTickerFromBseScrip(q);
@@ -363,6 +415,51 @@ export async function GET(req: NextRequest) {
       }
     } catch {
       /* local hits still usable */
+    }
+    // BSE PeerSmartSearch covers suspended / thin names Groww skips.
+    // Also try OCR n↔m query variants (Aagan → Aagam).
+    try {
+      const bseQueries = listingQueryVariants(q).slice(0, 4);
+      for (const bq of bseQueries) {
+        if (hits.length >= limit) break;
+        const remote = await searchBseEquityListings(bq, limit);
+        for (const r of remote) {
+          if (have.has(r.ticker)) continue;
+          if (
+            !listingMatches(q, r.ticker, r.name) &&
+            !listingMatches(bq, r.ticker, r.name)
+          ) {
+            continue;
+          }
+          have.add(r.ticker);
+          hits.push({
+            ticker: r.ticker,
+            name: r.name,
+            market: r.market,
+            sector: null,
+            mcap_cr: null,
+            source: "groww",
+          });
+          try {
+            await bootstrapCompanyTicker(r.ticker, {
+              name: r.name,
+              market: "BSE",
+            });
+            if (r.bse_scrip) {
+              const { cacheBseScripCode } = await import(
+                "@/lib/bse-investor-discover"
+              );
+              cacheBseScripCode(r.ticker, r.bse_scrip);
+            }
+            invalidateCompanyCache();
+          } catch {
+            /* best-effort */
+          }
+          if (hits.length >= limit) break;
+        }
+      }
+    } catch {
+      /* groww / local still usable */
     }
   }
 

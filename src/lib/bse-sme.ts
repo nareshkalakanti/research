@@ -43,6 +43,9 @@ const COM_HEADER =
   "https://api.bseindia.com/BseIndiaAPI/api/ComHeader/w";
 const SCRIP_HEADER =
   "https://api.bseindia.com/BseIndiaAPI/api/getScripHeaderData/w";
+/** BSE equity typeahead (works for suspended names Groww misses). */
+const PEER_SMART_SEARCH =
+  "https://api.bseindia.com/BseIndiaAPI/api/PeerSmartSearch/w";
 const CACHE_FILE = path.join(process.cwd(), "data", "bse_sme_scrips.json");
 
 const BSE_HEADERS = {
@@ -169,6 +172,75 @@ export async function fetchBseScripIdentity(
     return { ticker: short, name };
   } catch {
     return null;
+  }
+}
+
+export type BseEquitySearchHit = {
+  ticker: string;
+  name: string;
+  market: "BSE";
+  bse_scrip: string;
+};
+
+/**
+ * BSE PeerSmartSearch — name / ticker / scrip typeahead.
+ * Covers suspended names that Groww often omits.
+ */
+export async function searchBseEquityListings(
+  query: string,
+  limit = 8,
+): Promise<BseEquitySearchHit[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const url = `${PEER_SMART_SEARCH}?Type=EQ&text=${encodeURIComponent(q)}`;
+  try {
+    const res = await fetch(url, {
+      headers: BSE_HEADERS,
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    if (/no match found/i.test(html)) return [];
+    const out: BseEquitySearchHit[] = [];
+    const seen = new Set<string>();
+    for (const m of html.matchAll(
+      /liclick\(\s*'(\d{5,7})'\s*,\s*'([^']+)'\s*\)([\s\S]*?)<\/li>/gi,
+    )) {
+      const scrip = m[1]!;
+      const name = m[2]!.replace(/\s+/g, " ").trim();
+      const block = m[3] || "";
+      const span = block.match(/<span[^>]*>([\s\S]*?)<\/span>/i)?.[1] || "";
+      const plain = span
+        .replace(/<[^>]+>/g, "")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const parts = plain.split(" ").filter(Boolean);
+      // Typical: TICKER ISIN SCRIP — ticker may be split across <strong> tags.
+      let ticker = "";
+      for (const p of parts) {
+        if (/^\d{5,7}$/.test(p)) continue;
+        if (/^[A-Z0-9]{12}$/i.test(p)) continue; // ISIN
+        if (/^[A-Z][A-Z0-9-]{1,20}$/i.test(p)) {
+          ticker += p.toUpperCase();
+          continue;
+        }
+        if (ticker) break;
+      }
+      if (!ticker || /^\d+$/.test(ticker)) continue;
+      if (seen.has(ticker)) continue;
+      seen.add(ticker);
+      out.push({
+        ticker,
+        name: name || ticker,
+        market: "BSE",
+        bse_scrip: scrip,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    return [];
   }
 }
 

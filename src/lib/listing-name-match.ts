@@ -99,6 +99,20 @@ export function listingQueryVariants(query: string): string[] {
   const words = key.split(" ").filter((w) => w.length >= 3);
   if (words.length >= 2) push(words.slice(0, 2).join(" "));
   if (words.length >= 3) push(words.slice(0, 3).join(" "));
+  // OCR n↔m on trailing letters (Aagan → Aagam) — try each long token once.
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!;
+    if (w.length < 4) continue;
+    if (w.endsWith("n")) {
+      const flip = [...words];
+      flip[i] = `${w.slice(0, -1)}m`;
+      push(flip.join(" "));
+    } else if (w.endsWith("m")) {
+      const flip = [...words];
+      flip[i] = `${w.slice(0, -1)}n`;
+      push(flip.join(" "));
+    }
+  }
   return out;
 }
 
