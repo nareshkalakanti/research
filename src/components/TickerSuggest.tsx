@@ -191,8 +191,12 @@ export function TickerSuggest({
     const t = window.setTimeout(() => {
       setLoading(true);
       setTriedRemote(false);
-      const signal = AbortSignal.timeout(12_000);
-      // Fast local first; if empty, one Groww pass (same /api/tickers path everywhere).
+      // BSE scrip live resolve can exceed 12s on a cold cache.
+      const digitQ = /^\d{5,7}$/.test(q);
+      const localMs = digitQ ? 28_000 : 12_000;
+      const remoteMs = digitQ ? 28_000 : 16_000;
+      const signal = AbortSignal.timeout(localMs);
+      // Fast local first; if empty, one Groww/BSE pass.
       void fetch(
         `/api/tickers?q=${encodeURIComponent(q)}&limit=14&remote=0`,
         { signal },
@@ -209,7 +213,7 @@ export function TickerSuggest({
             try {
               const res2 = await fetch(
                 `/api/tickers?q=${encodeURIComponent(q)}&limit=14&remote=1`,
-                { signal: AbortSignal.timeout(12_000) },
+                { signal: AbortSignal.timeout(remoteMs) },
               );
               const json2 = (await res2.json()) as {
                 hits?: TickerSuggestHit[];

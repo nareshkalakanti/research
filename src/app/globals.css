@@ -28217,60 +28217,42 @@ button.rot-stat-best-name:not(:disabled):hover {
   margin: 0 0 10px;
 }
 .rot-shot-simple {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 36rem);
-  gap: 16px 24px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
   max-width: none;
   width: 100%;
+}
+.rot-shot-simple-top {
+  width: 100%;
+  max-width: 52rem;
+}
+.rot-shot-simple-top .fam-dash-create {
+  flex-wrap: wrap;
+  align-items: center;
+  width: 100%;
+}
+.rot-shot-simple-top .fam-dash-create-cos {
+  flex: 1 1 16rem;
+  min-width: 12rem;
+}
+.rot-shot-simple-top .rot-create-pick {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 6px 0 0;
 }
 .rot-shot-simple-main {
   min-width: 0;
-}
-.rot-shot-simple-side {
-  position: sticky;
-  top: 12px;
-  min-width: 0;
-}
-.rot-shot-simple-side .fam-dash-create {
-  flex-direction: column;
-  align-items: stretch;
   width: 100%;
 }
-.rot-shot-simple-side .fam-dash-create-cos {
+.rot-rename-inline {
   width: 100%;
-  flex: 1 1 100%;
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-}
-.rot-shot-simple-side .fam-dash-search,
-.rot-shot-simple-side .ticker-suggest,
-.rot-shot-simple-side .ticker-suggest-field,
-.rot-shot-simple-side .ticker-suggest-field input {
-  flex: 1 1 100%;
-  width: 100%;
-  max-width: none;
-  min-width: 0;
-}
-.rot-shot-simple-side .btn-ghost {
-  width: 100%;
-}
-.rot-shot-simple-side .rot-create-pick {
-  font-size: 0.78rem;
-  color: var(--muted);
-  margin: 0 0 6px;
+  max-width: 28rem;
+  margin: 0;
 }
 .rot-table tr.is-on td {
   background: var(--accent-soft);
-}
-@media (max-width: 860px) {
-  .rot-shot-simple {
-    grid-template-columns: 1fr;
-  }
-  .rot-shot-simple-side {
-    position: static;
-  }
 }
 .rot-shot-simple-lead {
   margin: 0 0 10px;
