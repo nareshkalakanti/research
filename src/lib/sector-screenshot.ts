@@ -89,6 +89,8 @@ export type SectorShotImport = {
   names: string[];
   unresolved: string[];
   sector: RotationSector;
+  /** Every basket filled (table screenshots can span many industries). */
+  sectors?: RotationSector[];
 };
 
 export type SectorShotEvent =
@@ -131,6 +133,23 @@ export async function importSectorFromScreenshot(
 ): Promise<SectorShotImport> {
   if (!imageDataUrl.startsWith("data:image")) {
     throw new Error("screenshot image required");
+  }
+  // Fast path: Name | … | Industry table read by layout (~1s, per-row
+  // industry). Falls through to the vision import when no such table.
+  {
+    const { importTableScreenshot } = await import("./sector-table-shot");
+    const table = await importTableScreenshot(imageDataUrl, onEvent);
+    if (table) {
+      void Promise.all(
+        table.matched.map((m) =>
+            bootstrapCompanyTicker(m.ticker, { name: m.name, market: m.market }).catch(
+              () => undefined,
+            ),
+          ),
+      ).then(() => invalidateCompanyCache());
+      const { matched: _matched, ...rest } = table;
+      return { ocr: "", ...rest };
+    }
   }
   onEvent?.({ t: "ocr" });
   const beat = setInterval(() => onEvent?.({ t: "ocr" }), 12_000);
