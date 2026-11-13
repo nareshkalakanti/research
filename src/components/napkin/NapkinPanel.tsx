@@ -15,9 +15,13 @@ import {
 import { tradingviewSymbol, tradingviewUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
+import { NapkinPeadStrip } from "@/components/napkin/NapkinPeadStrip";
+import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
 import { parseDisplayedMoney } from "@/lib/napkin/format";
 import { WatchButton } from "@/components/WatchButton";
+import { StockNetworkSearch } from "@/components/StockNetworkSearch";
+import { governancePersonUrl } from "@/lib/links";
 
 function na(v: string | undefined): string {
   return !v || v === "N/A" ? "N/A" : v;
@@ -124,6 +128,16 @@ export function NapkinPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const napkinPrice = data
+    ? parseDisplayedMoney(napkinMetric(data.overview, "price"))
+    : null;
+  const qtr = useExpandQuarters(
+    data?.ticker ?? "",
+    (data?.exchange || "").trim() || null,
+    napkinPrice,
+    !!data,
+  );
+
   const hist5 = data ? napkinMetric(data.financials, "eps5") : "N/A";
   const status = data?.data_status ?? "insufficient";
   const dq = data?.data_quality;
@@ -212,13 +226,19 @@ export function NapkinPanel() {
                 Market Cap {napkinMetric(data.overview, "mcap")}
                 {data.sector ? ` · ${data.sector}` : ""}
               </div>
+              <NapkinPeadStrip
+                data={qtr}
+                pe={napkinPeDisplay(napkinMetric(data.overview, "pe"))}
+                ttmEps={parseDisplayedMoney(napkinMetric(data.overview, "eps"))}
+              />
             </div>
 
             <NapkinCompanyContext
               ticker={data.ticker}
               exchange={data.exchange}
               companyName={data.name}
-              price={parseDisplayedMoney(napkinMetric(data.overview, "price"))}
+              price={napkinPrice}
+              qtr={qtr}
               roe={parseDisplayedPct(napkinMetric(data.overview, "roe"))}
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
@@ -246,6 +266,22 @@ export function NapkinPanel() {
             </div>
 
             <NapkinValuation data={data} />
+
+            <div className="napkin-sheet-section napkin-board-map">
+              <h2 className="napkin-block-title">Board map</h2>
+              <StockNetworkSearch
+                hideSearch
+                initialTicker={data.ticker}
+                onOpenCompany={(t) => void run(t)}
+                onPerson={(id) =>
+                  window.open(
+                    governancePersonUrl(id),
+                    "_blank",
+                    "noopener,noreferrer",
+                  )
+                }
+              />
+            </div>
 
             <div className="napkin-sheet-section napkin-foot">
               <p className={`napkin-status-line napkin-status-line--${status}`}>

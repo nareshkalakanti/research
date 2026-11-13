@@ -40,10 +40,15 @@ export function useExpandQuarters(
       prev.ticker !== ticker ||
       prev.market !== market ||
       prev.price !== price;
+    const identityChanged =
+      prev.ticker !== ticker || prev.market !== market;
     paramsRef.current = { ticker, market, price };
     if (!changed) return;
     genRef.current += 1;
-    if (!ticker) {
+    // New stock: drop the previous stock's panel so its score / Fwd PE never
+    // show under the new name (or stick there if the new fetch fails).
+    // A price-only change keeps the panel while it refreshes.
+    if (!ticker || identityChanged) {
       setPanel(null);
       setForwardPe(null);
       setYoy(null);

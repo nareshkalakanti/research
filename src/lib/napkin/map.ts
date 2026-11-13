@@ -21,8 +21,9 @@ export function napkinExchangeFromStock(row: {
   yf_symbol?: string | null;
 }): string {
   const yf = (row.yf_symbol || "").toUpperCase();
-  if (yf.endsWith(".BO")) return "BSE";
   const m = (row.listing_market || "").trim();
+  // `.BO` beats a stale NSE tag, but keep a BSE segment like "BSE SME".
+  if (yf.endsWith(".BO")) return /^BSE\b/i.test(m) ? m : "BSE";
   if (m) return m;
   return "NSE";
 }

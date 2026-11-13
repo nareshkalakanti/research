@@ -81,7 +81,7 @@ export function ExpandMetricsStrip({
       <div className="expand-metrics-group expand-metrics-group--stats">
         <Stat
           label="Fwd PE"
-          title="Price ÷ annualized EPS (latest quarter × 4)"
+          title="Price ÷ latest quarter EPS × 4 (TTM if latest is a loss). N/M = loss-making"
         >
           {forwardPe != null ? (
             <strong className={forwardPeClass(forwardPe)}>

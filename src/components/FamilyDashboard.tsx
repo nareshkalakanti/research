@@ -7,10 +7,8 @@ import {
   PeopleBoardCards,
   type PersonBoardRow,
 } from "@/components/PeopleBoardCards";
-import { CompanyNetworkTable } from "@/components/CompanyNetworkTable";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
-import { OutsideMissingDinTable } from "@/components/OutsideMissingDinTable";
 import { ConnectedStocksTable } from "@/components/ConnectedStocksTable";
 import { GroupRankTable } from "@/components/GroupRankTable";
 import {
@@ -32,9 +30,7 @@ type DashView =
   | "people"
   | "stock"
   | "connected"
-  | "network"
-  | "outside"
-  | "outside-din";
+  | "outside";
 
 function stubCompany(
   ticker: string,
@@ -89,9 +85,7 @@ export function FamilyDashboard() {
       "people",
       "stock",
       "connected",
-      "network",
       "outside",
-      "outside-din",
     ];
     if (!ok.includes(dashView)) setDashView("groups");
   }, [dashView]);
@@ -99,8 +93,6 @@ export function FamilyDashboard() {
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [refreshingBox, setRefreshingBox] = useState<string | null>(null);
-  const [networkRefreshKey, setNetworkRefreshKey] = useState(0);
-  const [networkLoading, setNetworkLoading] = useState(false);
   const [holdPattern, setHoldPattern] = useState<{
     tickers: string[];
     lines: string[];
@@ -114,9 +106,12 @@ export function FamilyDashboard() {
   const groupsStale = useRef(false);
   const peopleStale = useRef(false);
   const holdingsStale = useRef(false);
-  const networkStale = useRef(false);
   const loadGen = useRef(0);
+  const peopleGen = useRef(0);
   const mapChangeTimer = useRef<number | null>(null);
+  // Latest view / search for the GOV_MAP_CHANGED listener (registered once).
+  const dashViewRef = useRef<DashView>("groups");
+  const qRef = useRef("");
 
   const load = useCallback(
     async (opts?: { refresh?: boolean; soft?: boolean }) => {
@@ -193,6 +188,8 @@ export function FamilyDashboard() {
   }, []);
 
   const loadPeople = useCallback(async (opts?: { refresh?: boolean; q?: string }) => {
+    // Typing fires overlapping searches; only the newest may write results.
+    const gen = ++peopleGen.current;
     setPeopleLoading(true);
     if (opts?.refresh) setRefreshingBox((cur) => cur || "*");
     setError(null);
@@ -224,10 +221,12 @@ export function FamilyDashboard() {
           rows?: PersonBoardRow[];
           pages?: number;
         };
+        if (gen !== peopleGen.current) return;
         collected.push(...(json.rows ?? []));
         pages = Math.max(1, json.pages ?? 1);
         page += 1;
       }
+      if (gen !== peopleGen.current) return;
       const seen = new Set<string>();
       setPeople(
         collected.filter((r) => {
@@ -237,10 +236,13 @@ export function FamilyDashboard() {
         }),
       );
     } catch (e) {
+      if (gen !== peopleGen.current) return;
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setPeopleLoading(false);
-      setRefreshingBox(null);
+      if (gen === peopleGen.current) {
+        setPeopleLoading(false);
+        setRefreshingBox(null);
+      }
     }
   }, []);
 
@@ -250,7 +252,6 @@ export function FamilyDashboard() {
     if (
       dashView !== "groups" &&
       dashView !== "outside" &&
-      dashView !== "outside-din" &&
       dashView !== "group-rank"
     ) {
       return;
@@ -266,7 +267,6 @@ export function FamilyDashboard() {
       groupsStale.current = true;
       peopleStale.current = true;
       holdingsStale.current = true;
-      networkStale.current = true;
       if (mapChangeTimer.current != null) {
         window.clearTimeout(mapChangeTimer.current);
       }
@@ -275,18 +275,16 @@ export function FamilyDashboard() {
         mapChangeTimer.current = null;
         // Soft fetch: cache already cleared by writer; avoid refresh=1 race.
         void load({ soft: true });
-        if (dashView === "people") {
+        const view = dashViewRef.current;
+        if (view === "people") {
           peopleStale.current = false;
-          const needle = q.trim();
+          const needle = qRef.current.trim();
           void loadPeople({
             q: needle.length >= 2 ? needle : undefined,
           });
-        } else if (dashView === "holdings") {
+        } else if (view === "holdings") {
           holdingsStale.current = false;
           void loadHoldingMaps();
-        } else if (dashView === "network") {
-          networkStale.current = false;
-          setNetworkRefreshKey((k) => k + 1);
         }
       }, 350);
     };
@@ -298,7 +296,18 @@ export function FamilyDashboard() {
         mapChangeTimer.current = null;
       }
     };
-  }, [dashView, q, load, loadPeople, loadHoldingMaps]);
+    // Not keyed on view / search: re-registering cleared the pending reload.
+  }, [load, loadPeople, loadHoldingMaps]);
+
+  useEffect(() => {
+    dashViewRef.current = dashView;
+    qRef.current = q;
+  }, [dashView, q]);
+
+  // Errors belong to the view that raised them.
+  useEffect(() => {
+    setError(null);
+  }, [dashView]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -342,13 +351,6 @@ export function FamilyDashboard() {
     holdingsStale.current = false;
     void loadHoldingMaps(hard ? { refresh: true } : undefined);
   }, [dashView, loadHoldingMaps]);
-
-  useEffect(() => {
-    if (dashView !== "network") return;
-    if (!networkStale.current) return;
-    networkStale.current = false;
-    setNetworkRefreshKey((k) => k + 1);
-  }, [dashView]);
 
   useEffect(() => {
     void fetch("/api/holdings-pattern", { cache: "no-store" })
@@ -592,6 +594,9 @@ export function FamilyDashboard() {
         });
       }
     }
+    // Only digit-only queries (DIN search) match DINs — "3m india" must not
+    // match every DIN containing a 3.
+    const dinNeedle = /^\d+$/.test(needle) ? needle : "";
     const seenP = new Set<string>();
     const personPool: Array<{ person_id: string; name: string; din: string | null }> = [
       ...people.map((p) => ({
@@ -611,7 +616,7 @@ export function FamilyDashboard() {
       if (seenP.has(p.person_id)) continue;
       if (
         p.name.toLowerCase().replace(/[.,]+/g, " ").includes(low.replace(/[.,]+/g, " ").trim()) ||
-        (p.din || "").includes(needle.replace(/\D/g, "") || needle)
+        (dinNeedle.length >= 3 && (p.din || "").includes(dinNeedle))
       ) {
         seenP.add(p.person_id);
         local.push({
@@ -867,7 +872,7 @@ export function FamilyDashboard() {
               aria-selected={dashView === "groups"}
               onClick={() => setDashView("groups")}
             >
-              Business groups
+              Groups
             </button>
             <button
               type="button"
@@ -885,7 +890,7 @@ export function FamilyDashboard() {
               aria-selected={dashView === "people"}
               onClick={() => setDashView("people")}
             >
-              People & boards
+              Directors
             </button>
             <button
               type="button"
@@ -903,16 +908,7 @@ export function FamilyDashboard() {
               aria-selected={dashView === "stock"}
               onClick={() => setDashView("stock")}
             >
-              Board map
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "network" ? "tab on" : "tab"}
-              aria-selected={dashView === "network"}
-              onClick={() => setDashView("network")}
-            >
-              Network
+              Stock map
             </button>
             <button
               type="button"
@@ -926,20 +922,11 @@ export function FamilyDashboard() {
             <button
               type="button"
               role="tab"
-              className={dashView === "outside-din" ? "tab on" : "tab"}
-              aria-selected={dashView === "outside-din"}
-              onClick={() => setDashView("outside-din")}
-            >
-              Outside DIN
-            </button>
-            <button
-              type="button"
-              role="tab"
               className={dashView === "group-rank" ? "tab on" : "tab"}
               aria-selected={dashView === "group-rank"}
               onClick={() => setDashView("group-rank")}
             >
-              Group
+              Group rank
             </button>
           </div>
           <p className="fam-dash-sub">
@@ -953,21 +940,15 @@ export function FamilyDashboard() {
                 ? "Recent joins sort first (new badge / teal node). Name opens Governance; ticker shows that stock’s related boards."
                 : dashView === "connected"
                   ? "Stocks ranked by shared-director links to other listed boards. Click a ticker → hub graph + dashed connected boards + bottom chips."
-                : dashView === "network"
-                  ? "Cap Gap and Holdings: board-linked market-cap gap columns. Counts are facts, not scores."
                   : dashView === "outside"
-                    ? "Commons: tickers as Outside boards on other houses. “As outside in” = those houses (not own group). Click a ticker → Board map (graph + bottom chips)."
-                    : dashView === "outside-din"
-                      ? "Outside boards still missing DIN coverage (0 seats or verified < directors). Click a ticker → Board map."
-                  : "Board map: search a stock → hub + connected boards (dashed = outside this listing). Bottom chips jump ticker-to-ticker. Not the house Outside filter."}
+                    ? "Commons: tickers as Outside boards on other houses. “As outside in” = those houses (not own group). Click a ticker → Stock map (graph + bottom chips)."
+                  : "Stock map: search a stock → hub + connected boards (dashed = outside this listing). Bottom chips jump ticker-to-ticker. Not the house Outside filter."}
           </p>
         </div>
         <div className="fam-dash-actions">
           {dashView !== "stock" &&
           dashView !== "connected" &&
-          dashView !== "network" &&
           dashView !== "outside" &&
-          dashView !== "outside-din" &&
           dashView !== "group-rank" ? (
             <>
           {dashView === "groups" ? (
@@ -1052,9 +1033,7 @@ export function FamilyDashboard() {
             type="button"
             className="btn-ghost"
             onClick={() =>
-              void (dashView === "network"
-                ? setNetworkRefreshKey((k) => k + 1)
-                : dashView === "people"
+              void (dashView === "people"
                   ? loadPeople({
                       refresh: true,
                       q: q.trim().length >= 2 ? q.trim() : undefined,
@@ -1064,18 +1043,14 @@ export function FamilyDashboard() {
                     : load({ refresh: true }))
             }
             disabled={
-              dashView === "network"
-                ? networkLoading
-                : dashView === "people"
+              dashView === "people"
                   ? peopleLoading
                   : dashView === "holdings"
                     ? holdingsLoading
                     : loading
             }
           >
-            {(dashView === "network"
-              ? networkLoading
-              : dashView === "people"
+            {(dashView === "people"
                 ? peopleLoading
                 : dashView === "holdings"
                   ? holdingsLoading
@@ -1159,9 +1134,7 @@ export function FamilyDashboard() {
       {error &&
       dashView !== "stock" &&
       dashView !== "connected" &&
-      dashView !== "network" &&
       dashView !== "outside" &&
-      dashView !== "outside-din" &&
       dashView !== "group-rank" ? (
         <div className="table-meta">Could not load: {error}</div>
       ) : null}
@@ -1196,27 +1169,6 @@ export function FamilyDashboard() {
             setStockFocus(t);
             setDashView("stock");
           }}
-        />
-      ) : dashView === "outside-din" ? (
-        <OutsideMissingDinTable
-          rows={rows}
-          loading={loading}
-          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-          onTicker={(t) => {
-            setStockFocus(t);
-            setDashView("stock");
-          }}
-        />
-      ) : dashView === "network" ? (
-        <CompanyNetworkTable
-          onPerson={(id, name) => openPerson(id, name)}
-          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-          onTargetTicker={(t) => {
-            setStockFocus(t);
-            setDashView("stock");
-          }}
-          refreshKey={networkRefreshKey}
-          onLoadingChange={setNetworkLoading}
         />
       ) : dashView === "stock" ? (
         <StockNetworkSearch

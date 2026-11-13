@@ -46,6 +46,17 @@ export const PEAD2_ABSOLUTE_WEIGHTS = {
 const GROWTH_CAP = 100;
 const PE_IDEAL = 15;
 const PE_BAD = 50;
+/** PE at or above this (incl. the 999 sentinel) or ≤ 0 is "not meaningful". */
+const PE_NM_MIN = 500;
+/**
+ * A score needs inputs covering at least this share of the weight that the
+ * universe can supply — otherwise 2 lucky metrics outrank 11 solid ones.
+ */
+export const PEAD_MIN_COVERAGE = 0.5;
+
+function isNmPe(pe: number): boolean {
+  return pe <= 0 || pe >= PE_NM_MIN;
+}
 
 type MetricSpec = {
   key: keyof PeadInputs;
@@ -84,7 +95,9 @@ function absoluteGrowthScore(val: number | null): number | null {
 
 function absolutePeScore(pe: number | null): number | null {
   const v = num(pe);
-  if (v == null || v <= 0) return null;
+  if (v == null) return null;
+  // Loss-making / N/M PE is the worst valuation, not missing data.
+  if (isNmPe(v)) return 0;
   return clamp(100 - ((v - PE_IDEAL) / (PE_BAD - PE_IDEAL)) * 100);
 }
 
@@ -108,6 +121,7 @@ export function peadScoreAbsolute(row: PeadInputs): number | null {
   if (!parts.length) return null;
   const weightSum = parts.reduce((a, [, w]) => a + w, 0);
   const full = Object.values(PEAD2_ABSOLUTE_WEIGHTS).reduce((a, b) => a + b, 0);
+  if (weightSum < full * PEAD_MIN_COVERAGE) return null;
   const composite = parts.reduce((a, [s, w]) => a + s * w, 0);
   const scaled = composite * (full / weightSum);
   return Math.round(Math.min(100, scaled) * 10) / 10;
@@ -123,12 +137,8 @@ function percentileOf(values: Array<number | null>, invert: boolean): Array<numb
     }
   });
   const out: Array<number | null> = values.map(() => null);
-  if (nums.length < 2) {
-    rankedIdx.forEach((i) => {
-      out[i] = 50;
-    });
-    return out;
-  }
+  // One value can't be ranked — leave it out rather than invent a 50.
+  if (nums.length < 2) return out;
   const sorted = [...nums].sort((a, b) => a - b);
   rankedIdx.forEach((i, k) => {
     const v = nums[k]!;
@@ -152,6 +162,20 @@ export function peadScoresPercentile(rows: PeadInputs[]): Array<number | null> {
   const pctByKey = new Map<keyof PeadInputs, Array<number | null>>();
   for (const spec of PERCENTILE_SPECS) {
     if (spec.weight <= 0) continue;
+    if (spec.key === "forward_pe") {
+      // Rank usable PEs; loss-making / N/M PE gets the bottom percentile
+      // explicitly instead of riding on the 999 sentinel.
+      const raw = rows.map((r) => num(r.forward_pe));
+      const ranked = percentileOf(
+        raw.map((v) => (v != null && !isNmPe(v) ? v : null)),
+        spec.invert,
+      );
+      pctByKey.set(
+        spec.key,
+        raw.map((v, i) => (v != null && isNmPe(v) ? 0 : ranked[i]!)),
+      );
+      continue;
+    }
     pctByKey.set(
       spec.key,
       percentileOf(
@@ -160,6 +184,11 @@ export function peadScoresPercentile(rows: PeadInputs[]): Array<number | null> {
       ),
     );
   }
+  // Weight the universe can actually supply (a column nobody has is skipped).
+  const available = PERCENTILE_SPECS.reduce((a, spec) => {
+    const col = pctByKey.get(spec.key);
+    return col?.some((v) => v != null) ? a + spec.weight : a;
+  }, 0);
   return rows.map((row, i) => {
     let composite = 0;
     let weight = 0;
@@ -170,6 +199,7 @@ export function peadScoresPercentile(rows: PeadInputs[]): Array<number | null> {
       weight += spec.weight;
     }
     if (weight <= 0) return peadScoreAbsolute(row);
+    if (weight < available * PEAD_MIN_COVERAGE) return null;
     return Math.round((composite / weight) * 10) / 10;
   });
 }

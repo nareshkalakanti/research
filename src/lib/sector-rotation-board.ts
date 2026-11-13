@@ -16,6 +16,7 @@ import {
   rebaseCloses,
   rotationFetchYears,
   rotationMaxLookbackStart,
+  ROTATION_RANGES,
   rotationWindowStart,
   seriesReturnPct,
   windowRebaseSeries,
@@ -463,6 +464,21 @@ async function memberBars(members: SectorMember[], years: number) {
   return members.map((m, i) => ({ member: m, bars: bars[i] ?? [] }));
 }
 
+/**
+ * Nifty 500 bars or a clear error. An empty benchmark (Yahoo rate limit)
+ * used to give `as_of` "" → every window started in 1970, so cards showed
+ * whole-history returns (+30,000%) for every range.
+ */
+async function niftyBarsOrThrow(years: number) {
+  const bars = await fetchNifty500DailyBars(years);
+  if (!bars.length || !bars[bars.length - 1]?.date) {
+    throw new Error(
+      "Nifty 500 prices unavailable right now (Yahoo) — returns not computed. Try again in a minute.",
+    );
+  }
+  return bars;
+}
+
 export type RotationWeight = "equal" | "cap";
 
 function sectorIndex(
@@ -575,7 +591,7 @@ export async function hydrateRotationCards(
   const sectors = listRotationSectors().filter((s) => want.has(s.id));
   const years = rotationFetchYears();
   const metrics = loadMetricsMap();
-  const nifty = await fetchNifty500DailyBars(years);
+  const nifty = await niftyBarsOrThrow(years);
   const last = nifty[nifty.length - 1]?.date || "";
   const start = rotationWindowStart(last, range);
   const lookback = rotationMaxLookbackStart(last);
@@ -591,10 +607,117 @@ export async function hydrateRotationCards(
   };
 }
 
+/** Window returns for one sector across every range chip. */
+type RankEntry = {
+  /** Members signature — recompute just this sector when it changes. */
+  sig: string;
+  pct: Record<string, number | null>;
+};
+
+type RankSnapshot = {
+  at: number;
+  last: string;
+  bench: Record<string, number | null>;
+  bySector: Map<string, RankEntry>;
+};
+
+/** Ranking is ~1 min for the whole board — cache it per weight. */
+const RANK_TTL_MS = 15 * 60 * 1000;
+const rankCache = new Map<RotationWeight, RankSnapshot>();
+const rankInflight = new Map<RotationWeight, Promise<RankSnapshot>>();
+
+function sectorSig(s: RotationSector): string {
+  return s.members
+    .map((m) => `${m.ticker.toUpperCase()}:${m.market || ""}`)
+    .sort()
+    .join(",");
+}
+
+function pctByRange(
+  series: SeriesPoint[],
+  last: string,
+): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const r of ROTATION_RANGES) {
+    out[r] = seriesReturnPct(
+      windowRebaseSeries(series, rotationWindowStart(last, r)),
+    );
+  }
+  return out;
+}
+
+async function buildRankSnapshot(
+  weight: RotationWeight,
+  prev: RankSnapshot | null,
+): Promise<RankSnapshot> {
+  const sectors = listRotationSectors();
+  const years = rotationFetchYears();
+  const metrics = loadMetricsMap();
+  const nifty = await niftyBarsOrThrow(years);
+  const last = nifty[nifty.length - 1]?.date || "";
+  const lookback = rotationMaxLookbackStart(last);
+  const benchLong = rebaseCloses(nifty, lookback);
+  // Same trading day + still fresh: only (re)compute sectors whose members changed.
+  const reuse =
+    prev && prev.last === last && Date.now() - prev.at < RANK_TTL_MS
+      ? prev
+      : null;
+  const bySector = new Map<string, RankEntry>();
+  const todo: RotationSector[] = [];
+  for (const sec of sectors) {
+    const sig = sectorSig(sec);
+    const hit = reuse?.bySector.get(sec.id);
+    if (hit && hit.sig === sig) bySector.set(sec.id, hit);
+    else todo.push(sec);
+  }
+  const fresh = await runConcurrent(todo, 4, async (sec) => {
+    const packed = await memberBars(sec.members, years);
+    const seriesLong = sectorIndex(packed, lookback, weight, metrics);
+    return { id: sec.id, sig: sectorSig(sec), pct: pctByRange(seriesLong, last) };
+  });
+  for (const f of fresh) {
+    if (f) bySector.set(f.id, { sig: f.sig, pct: f.pct });
+  }
+  return {
+    at: reuse ? reuse.at : Date.now(),
+    last,
+    bench: pctByRange(benchLong, last),
+    bySector,
+  };
+}
+
+async function rankSnapshot(weight: RotationWeight): Promise<RankSnapshot> {
+  const cached = rankCache.get(weight) ?? null;
+  if (cached && Date.now() - cached.at < RANK_TTL_MS) {
+    // Cheap when membership is unchanged: only edited sectors recompute.
+    const sectors = listRotationSectors();
+    const stale = sectors.some(
+      (sec) => cached.bySector.get(sec.id)?.sig !== sectorSig(sec),
+    );
+    if (!stale) return cached;
+  }
+  const running = rankInflight.get(weight);
+  if (running) return running;
+  const job = buildRankSnapshot(weight, cached)
+    .then((snap) => {
+      rankCache.set(weight, snap);
+      return snap;
+    })
+    .finally(() => rankInflight.delete(weight));
+  rankInflight.set(weight, job);
+  return job;
+}
+
+/** Drop cached ranks (e.g. after a full price refresh). */
+export function invalidateRotationRank(): void {
+  rankCache.clear();
+}
+
 /**
- * Compute window returns for every sector (no sparklines).
- * Needed so Top/Bottom 20 and Above filters rank on real period returns,
- * not the lite board’s null sector_pct / today_pct fallback.
+ * Window returns for every sector (no sparklines), so Top/Bottom 20, Above
+ * and the default return sort rank on real period returns. All range chips
+ * are computed in one pass and cached for RANK_TTL_MS, so switching range or
+ * filter after the first load is instant.
  */
 export async function rankRotationBoard(
   range: string,
@@ -605,39 +728,22 @@ export async function rankRotationBoard(
   bench_label: string;
   sectors: RotationSectorCard[];
 }> {
-  const sectors = listRotationSectors();
-  const years = rotationFetchYears();
+  const key = (range || "6M").toUpperCase();
+  const snap = await rankSnapshot(weight);
   const metrics = loadMetricsMap();
-  const nifty = await fetchNifty500DailyBars(years);
-  const last = nifty[nifty.length - 1]?.date || "";
-  const start = rotationWindowStart(last, range);
-  const lookback = rotationMaxLookbackStart(last);
-  const benchLong = rebaseCloses(nifty, lookback);
-  const cards = await runConcurrent(sectors, 4, async (s) => {
-    const card = await cardWithSeries(
-      s,
-      years,
-      start,
-      lookback,
-      weight,
-      metrics,
-      benchLong,
-      false,
-    );
-    // Rank payload is pct-only; keep *_full empty so clients don't drop charts.
+  const sectors = listRotationSectors().map((sec) => {
+    const card = liteCard(sec, metrics);
     return {
       ...card,
-      sector: [],
-      bench: [],
-      sector_full: undefined,
-      bench_full: undefined,
+      sector_pct: snap.bySector.get(sec.id)?.pct[key] ?? null,
+      bench_pct: snap.bench[key] ?? null,
     };
   });
   return {
-    range: (range || "6M").toUpperCase(),
-    as_of: nifty[nifty.length - 1]?.date ?? null,
+    range: key,
+    as_of: snap.last || null,
     bench_label: NIFTY_INDEX_META.NIFTY_500.label,
-    sectors: cards.filter(Boolean),
+    sectors,
   };
 }
 
@@ -674,7 +780,7 @@ export async function buildRotationDetail(
   const years = rotationFetchYears();
   const metrics = loadMetricsMap();
   const [nifty, packed, htCache] = await Promise.all([
-    fetchNifty500DailyBars(years),
+    niftyBarsOrThrow(years),
     memberBars(sector.members, years),
     ensureHtIvForMembers(sector.members),
   ]);

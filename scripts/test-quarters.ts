@@ -102,10 +102,22 @@ function main() {
   assert.equal(computeForwardPe(475, eps), 8.9);
   assert.equal(computeTrailingPe(475, eps), 25.7);
   assert.equal(computeForwardPe(100, [-1, -2]), 999);
+  // Loss-making TTM + loss latest quarter: N/M, not an old 0.56 quarter × 4.
   assert.equal(
     computeForwardPe(49.76, [-3.66, 0.56, -0.04, 0.04, -2.29]),
-    22.2,
+    999,
   );
+  // Latest × 4 regardless of history.
+  assert.equal(computeForwardPe(200, [2, 2, 2, 2, 4]), 12.5);
+  // One-off loss latest, profitable TTM → TTM.
+  assert.equal(computeForwardPe(100, [1, 2, 2, 2, -1]), 20);
+  // FF Result Monitor parity: ALEMBIC PHARMA Q2 FY27, price 803.20 → FF 11.9.
+  assert.equal(
+    computeForwardPe(803.2, [9.4, 6.76, 10.31, 8.8, 17.05]),
+    11.8,
+  );
+  // Turnaround: loss TTM but profitable latest quarter → latest × 4.
+  assert.equal(computeForwardPe(120, [-5, -5, -5, 3]), 10);
 
   const yoyPanel = buildQuarterPanel(growingSeries());
   assert.ok(yoyPanel);

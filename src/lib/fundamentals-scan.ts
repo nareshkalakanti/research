@@ -14,8 +14,12 @@ import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
 import { loadRoceDeltaMap } from "./screener-annual";
 import {
   peadScoresPercentile,
+  returnsPctFromEntry,
   type PeadInputs,
 } from "./pead-score";
+import { loadSmaStackMap } from "./sma-stack-cache";
+import { usableAnnounceResultDate } from "./pead-announced";
+import { computeForwardPe } from "./valuation";
 import {
   bandGrowth,
   bandMarginBps,
@@ -186,6 +190,7 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
 
   const overlay = loadQuarterOverlayMap();
   const metrics = loadQuarterMetricsMap();
+  const sma = loadSmaStackMap();
   const tickers = new Set<string>([
     ...[...metrics.keys()].map((t) => t.toUpperCase()),
     ...overlay.keys(),
@@ -204,6 +209,19 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
     const sales_yoy = firstFinite(o?.sales_yoy, m?.sales_yoy);
     const np_yoy = firstFinite(o?.np_yoy, m?.np_yoy);
     const eps_yoy = firstFinite(o?.eps_yoy, m?.eps_yoy);
+    const s = sma.get(ticker);
+    // Ret since result: cached result-day close → latest cached price. Only
+    // when the cached baseline belongs to the current result date.
+    const resultDate = usableAnnounceResultDate(m?.result_date);
+    const returns_pct =
+      resultDate && s?.entry_date === resultDate
+        ? returnsPctFromEntry(s.entry_close, s.price)
+        : null;
+    // Fwd PE at today's price from current quarter EPS; cached value as fallback.
+    const fresh =
+      s?.price != null && o?.eps_values.length
+        ? computeForwardPe(s.price, o.eps_values)
+        : null;
     rows.push({
       ticker,
       sales_yoy,
@@ -211,7 +229,7 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
       eps_yoy,
       opm_bps: o?.opm_bps ?? null,
       inputs: {
-        returns_pct: null,
+        returns_pct,
         sales_yoy,
         sales_qoq: o?.sales_qoq ?? m?.sales_qoq ?? null,
         np_yoy,
@@ -220,7 +238,7 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
         eps_qoq: o?.eps_qoq ?? m?.eps_qoq ?? null,
         ebidt_yoy: o?.ebidt_yoy ?? m?.ebidt_yoy ?? null,
         ebidt_qoq: o?.ebidt_qoq ?? m?.ebidt_qoq ?? null,
-        forward_pe: m?.forward_pe ?? null,
+        forward_pe: fresh ?? m?.forward_pe ?? null,
         cf_profit: m?.cf_profit ?? null,
       },
     });

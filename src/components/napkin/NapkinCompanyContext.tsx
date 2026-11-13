@@ -5,7 +5,7 @@ import { CompanyAboutCard } from "@/components/CompanyAboutCard";
 import { QuartersRankCard } from "@/components/QuartersRankCard";
 import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
-import { useExpandQuarters } from "@/lib/use-expand-quarters";
+import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 
 export function NapkinCompanyContext({
   ticker,
@@ -14,7 +14,10 @@ export function NapkinCompanyContext({
   companyName,
   roe,
   roce,
+  qtr,
 }: {
+  /** Quarter data loaded once by the panel (shared with the PEAD strip). */
+  qtr: ExpandQuarterData;
   ticker: string;
   exchange?: string | null;
   price: number | null;
@@ -23,7 +26,6 @@ export function NapkinCompanyContext({
   roce?: number | null;
 }) {
   const market = (exchange || "").trim() || null;
-  const qtr = useExpandQuarters(ticker, market, price, true);
   const sevenRule = useMemo(
     () =>
       qtr.panel
