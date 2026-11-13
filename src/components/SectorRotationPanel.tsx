@@ -868,6 +868,7 @@ export function SectorRotationPanel() {
         industry?: string;
         unresolved?: string[];
         sector?: { id: string; label: string; members?: unknown[] };
+        sectors?: Array<{ id: string; label: string; members?: unknown[] }>;
       } | null = null;
       let streamError: string | null = null;
       while (true) {
@@ -895,6 +896,7 @@ export function SectorRotationPanel() {
             after?: number;
             error?: string;
             sector?: { id: string; label: string; members?: unknown[] };
+            sectors?: Array<{ id: string; label: string; members?: unknown[] }>;
           };
           try {
             ev = JSON.parse(line) as typeof ev;
@@ -940,8 +942,9 @@ export function SectorRotationPanel() {
           } else if (ev.t === "done") {
             donePayload = {
               industry: ev.industry,
-              unresolved: ev.unresolved,
+              unresolved: ev.unresolved as string[] | undefined,
               sector: ev.sector,
+              sectors: ev.sectors,
             };
           } else if (ev.t === "error") {
             streamError = ev.error || "Extract failed";
@@ -955,6 +958,13 @@ export function SectorRotationPanel() {
         throw new Error("Screenshot import did not finish");
       }
       setNewName("");
+      if ((json.sectors?.length ?? 0) > 1) {
+        pushLog(
+          `Filled ${json.sectors!.length} sectors: ${json
+            .sectors!.map((s) => `${s.label} (${s.members?.length ?? 0})`)
+            .join(" · ")} — opening the largest`,
+        );
+      }
       setOpenId(json.sector.id);
       const miss = (json.unresolved || []).filter(Boolean);
       if (miss.length) {
@@ -1170,11 +1180,14 @@ export function SectorRotationPanel() {
     setPage(0);
   }, [filter, stockFilter, boardFilter, aboveOn, sortKey]);
 
-  const pageCount = Math.max(1, Math.ceil(sortedCards.length / PAGE_SIZE));
+  // Top / Bottom 20 show all 20 on one page (chart hydrate takes ≤24 ids).
+  const pageSize =
+    boardFilter === "top" || boardFilter === "bottom" ? 20 : PAGE_SIZE;
+  const pageCount = Math.max(1, Math.ceil(sortedCards.length / pageSize));
   const pageSafe = Math.min(page, pageCount - 1);
   const pageCards = sortedCards.slice(
-    pageSafe * PAGE_SIZE,
-    pageSafe * PAGE_SIZE + PAGE_SIZE,
+    pageSafe * pageSize,
+    pageSafe * pageSize + pageSize,
   );
   const pageIds = pageCards.map((c) => c.id).join(",");
 
@@ -2020,9 +2033,9 @@ export function SectorRotationPanel() {
         <div className="rot-page">
           <span>
             {sortedCards.length
-              ? `${pageSafe * PAGE_SIZE + 1}–${Math.min(
+              ? `${pageSafe * pageSize + 1}–${Math.min(
                   sortedCards.length,
-                  (pageSafe + 1) * PAGE_SIZE,
+                  (pageSafe + 1) * pageSize,
                 )} of ${sortedCards.length}`
               : rankingWait
                 ? "Ranking…"

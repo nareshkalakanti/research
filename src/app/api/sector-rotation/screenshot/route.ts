@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
             names: result.names,
             unresolved: result.unresolved,
             sector: result.sector,
+            sectors: result.sectors,
           });
         }
       } catch (e) {
