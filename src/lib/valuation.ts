@@ -1,41 +1,36 @@
 import type { QuarterPanel, QuarterRow } from "@/lib/quarter-panel";
 
-/** Ignore tiny EPS blips when falling back from a loss quarter. */
-const MATERIAL_EPS = 0.05;
+/** Sentinel for loss-making / >500 PE (shown as N/M, ranked worst). */
+export const FORWARD_PE_NM = 999;
 
 /**
- * Annualized EPS for forward PE: latest quarter × 4, else TTM, else last
- * material positive quarter (handles one-off loss quarters like BPL).
+ * Forward EPS run-rate (FinanciallyFree PEAD definition), oldest → newest:
+ * latest quarter × 4; if that quarter is a loss, TTM when positive.
+ * Otherwise null — never annualizes an old profitable quarter.
+ * Checked against FF Result Monitor cards (Alembic 11.8 vs FF 11.9).
  */
 export function forwardPeRunRate(epsValues: number[]): number | null {
   const eps = epsValues.filter((v) => v != null && Number.isFinite(v));
   if (!eps.length) return null;
-
-  const latestRate = eps[eps.length - 1]! * 4;
-  if (latestRate > 0) return latestRate;
-
+  const latest = eps[eps.length - 1]!;
+  if (latest > 0) return latest * 4;
   if (eps.length >= 4) {
     const ttm = eps.slice(-4).reduce((a, b) => a + b, 0);
     if (ttm > 0) return ttm;
   }
-
-  for (let i = eps.length - 1; i >= 0; i--) {
-    const e = eps[i]!;
-    if (e >= MATERIAL_EPS) return e * 4;
-  }
   return null;
 }
 
-/** PEAD2 run-rate forward PE: price ÷ annualized EPS (see forwardPeRunRate). */
+/** PEAD2 forward PE: price ÷ forward EPS (see forwardPeRunRate). */
 export function computeForwardPe(
   price: number | null | undefined,
   epsValues: number[],
 ): number | null {
   if (price == null || price <= 0) return null;
   const runRate = forwardPeRunRate(epsValues);
-  if (runRate == null || runRate <= 0) return 999;
+  if (runRate == null || runRate <= 0) return FORWARD_PE_NM;
   const pe = price / runRate;
-  if (pe > 500) return 999;
+  if (pe > 500) return FORWARD_PE_NM;
   return Math.round(pe * 10) / 10;
 }
 
@@ -71,13 +66,15 @@ export function peRowsFromPanel(
   if (!epsRow) return [];
 
   const eps = epsRow.values;
-  const forwardPe = eps.map((e) => {
+  // Same rule as the snapshot Fwd PE, using EPS available as of each column.
+  const forwardPe = eps.map((e, i) => {
     if (e == null || !Number.isFinite(e)) return null;
-    const run = e * 4;
-    if (run <= 0) return null;
-    const pe = price / run;
-    if (pe > 500) return null;
-    return Math.round(pe * 100) / 100;
+    const upTo = eps
+      .slice(0, i + 1)
+      .filter((v): v is number => v != null && Number.isFinite(v));
+    const pe = computeForwardPe(price, upTo);
+    if (pe == null || pe >= FORWARD_PE_NM) return null;
+    return pe;
   });
   const trailingPe = eps.map((_, i) => {
     const slice = eps

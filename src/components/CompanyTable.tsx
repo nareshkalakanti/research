@@ -17,6 +17,7 @@ import { useExpandBrief } from "@/lib/use-expand-brief";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { formatInr, formatMcap, formatMomPct, formatRsiM } from "@/lib/types";
 import { SecCell } from "@/components/SecCell";
+import { napkinUrl } from "@/lib/links";
 import { WatchButton } from "@/components/WatchButton";
 import { useOptionalSetAppTab } from "@/lib/app-tab";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
@@ -58,6 +59,8 @@ type HeaderDef = {
 };
 
 type Props = {
+  /** Skip the LLM business brief in the expanded row (Scan). */
+  hideBrief?: boolean;
   rows: Company[];
   sort: SortKey;
   dir: "asc" | "desc";
@@ -223,6 +226,7 @@ export function CompanyTable({
   onScrapeDone,
   toolbar,
   expandTicker,
+  hideBrief = false,
 }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [more, setMore] = useState<Record<string, boolean>>({});
@@ -568,6 +572,7 @@ export function CompanyTable({
                   showMatched={showMatched}
                   showMissing={showMissing}
                   signalMode={mode}
+                  hideBrief={hideBrief}
                   allowDelete={allowDelete}
                   onDeleteStock={onDeleteStock}
                   deleteLabel={deleteLabel}
@@ -933,6 +938,7 @@ function CompanyRows({
   showMatched,
   showMissing,
   signalMode,
+  hideBrief = false,
   allowDelete,
   onDeleteStock,
   deleteLabel,
@@ -952,6 +958,7 @@ function CompanyRows({
   showMatched?: boolean;
   showMissing?: boolean;
   signalMode?: "mom" | "rsi" | "overlap" | "pead" | "rule7" | "quant" | null;
+  hideBrief?: boolean;
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
   deleteLabel?: string;
@@ -1017,7 +1024,8 @@ function CompanyRows({
     r.market,
     r.price,
     quarterData,
-    open && panel === "about",
+    // Scan hides the brief — don't spend an LLM call building it.
+    open && panel === "about" && !hideBrief,
   );
 
   const matchWhy =
@@ -1082,6 +1090,16 @@ function CompanyRows({
                 >
                   {r.name}
                 </a>
+                <a
+                  className="np-chip"
+                  href={napkinUrl(r.ticker)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open ${r.ticker} in Napkin`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  NP
+                </a>
                 {displaySubSector || displaySector ? (
                   <span className="pead-sector">
                     {displaySubSector || displaySector}
@@ -1101,6 +1119,16 @@ function CompanyRows({
             onClick={(e) => e.stopPropagation()}
           >
             {r.ticker}
+          </a>
+          <a
+            className="np-chip"
+            href={napkinUrl(r.ticker)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`Open ${r.ticker} in Napkin`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            NP
           </a>
         </td>
         <td className="col-name">
@@ -1558,7 +1586,7 @@ function CompanyRows({
                       {showMore ? "Show less" : "Show more"}
                     </button>
                   ) : null}
-                  <ExpandBusiness data={briefData} />
+                  {hideBrief ? null : <ExpandBusiness data={briefData} />}
                 </>
               ) : (
                 <NotesPanel ticker={r.ticker} onSaved={onNoteSaved} />

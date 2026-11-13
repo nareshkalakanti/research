@@ -38,7 +38,7 @@ const STATUSES = new Set<ConcallStatus>([
 
 function strList(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
-  return v.filter((x): x is string => typeof x === "string" && x.trim()).map((x) => x.trim());
+  return v.filter((x): x is string => typeof x === "string" && x.trim() !== "").map((x) => x.trim());
 }
 
 function parseTrack(raw: string): Pick<

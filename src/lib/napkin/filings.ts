@@ -232,12 +232,12 @@ function fromNse(row: NseAnnRow): NapkinFilingRow | null {
 function fromBseHit(hit: {
   title: string;
   url: string;
-  announced_at: string | null;
+  announced_at?: string | null;
 }): NapkinFilingRow {
   return {
     document_title: hit.title,
     document_type: classifyFiling(hit.title, hit.url),
-    date: hit.announced_at,
+    date: hit.announced_at ?? null,
     source: "BSE",
     url: hit.url,
   };

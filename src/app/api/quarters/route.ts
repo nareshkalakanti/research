@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveQuarterPanelData } from "@/lib/quarter-metrics-compute";
 import { loadMetricsMap } from "@/lib/metrics";
+import { computeForwardPe, epsFromQuarterPanel } from "@/lib/valuation";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -44,6 +45,13 @@ export async function GET(req: NextRequest) {
     }
 
     const snapshot = result.snapshot;
+    // Recompute at the request price so a cached (older-formula / older-price)
+    // value never leaks through.
+    const livePrice = result.price ?? rowPrice;
+    const forwardPe =
+      result.panel && livePrice
+        ? computeForwardPe(livePrice, epsFromQuarterPanel(result.panel))
+        : (snapshot?.forward_pe ?? null);
     const mk = (market || "").trim().toUpperCase();
     const noPanelError = !result.panel
       ? mk === "NSE SME" || mk === "BSE SME"
@@ -58,7 +66,7 @@ export async function GET(req: NextRequest) {
       symbol: result.symbol || undefined,
       source: result.panel ? result.source : result.source,
       price: result.price ?? rowPrice ?? undefined,
-      forward_pe: snapshot?.forward_pe ?? undefined,
+      forward_pe: forwardPe ?? undefined,
       yoy: snapshot
         ? {
             sales_yoy: snapshot.sales_yoy,

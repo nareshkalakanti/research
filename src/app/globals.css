@@ -28803,3 +28803,62 @@ button.rot-stat-best-name:not(:disabled):hover {
     max-height: min(48vh, 420px);
   }
 }
+
+/* Napkin header strip — Fwd PE under the company name */
+.napkin-pead-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.napkin-pead-strip {
+  align-items: center;
+}
+
+.napkin-pead-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.napkin-pead-stat + .napkin-pead-stat {
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+
+.napkin-pead-stat-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.napkin-pead-stat-num {
+  font-size: 1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* NP chip — open the stock in Napkin (next to TradingView ticker link) */
+.np-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.5;
+  color: var(--muted);
+  text-decoration: none;
+  vertical-align: middle;
+}
+
+.np-chip:hover {
+  color: #2563eb;
+  border-color: #2563eb;
+}

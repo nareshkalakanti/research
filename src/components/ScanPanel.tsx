@@ -63,12 +63,12 @@ export function ScanPanel() {
   const [ageMin, setAgeMin] = useState<number | null>(null);
   const [scanScope, setScanScope] = useState<ScanScope>("list");
   const [view, setView] = useState<ViewFilter>("all");
-  const [page, setPage] = useState(1);
   const [sort, setSort] = useState<SortKey>("name");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const hasDataRef = useRef(false);
   const loadSeqRef = useRef(0);
   hasDataRef.current = !!data;
@@ -99,12 +99,23 @@ export function ScanPanel() {
     filterNote,
     ageMin,
   ].join("|");
-  const filtersKeyRef = useRef(filtersKey);
-  const pageForLoad =
-    filtersKeyRef.current !== filtersKey ? 1 : page;
-  if (filtersKeyRef.current !== filtersKey) {
-    filtersKeyRef.current = filtersKey;
-  }
+  // Page belongs to one filter set: any filter change starts at page 1.
+  // (Before, page 1 loaded once, then the old page number reloaded on the
+  // next render — "401–500 of 1,068" right after toggling SME on page 5.)
+  const [pageAt, setPageAt] = useState({ key: filtersKey, page: 1 });
+  const page = pageAt.key === filtersKey ? pageAt.page : 1;
+  const setPage = useCallback(
+    (next: number | ((p: number) => number)) =>
+      setPageAt((prev) => {
+        const cur = prev.key === filtersKey ? prev.page : 1;
+        return {
+          key: filtersKey,
+          page: typeof next === "function" ? next(cur) : next,
+        };
+      }),
+    [filtersKey],
+  );
+  const pageForLoad = page;
 
   const load = useCallback(
     async (opts?: { refresh?: boolean }) => {
@@ -143,11 +154,13 @@ export function ScanPanel() {
         });
         if (seq !== loadSeqRef.current) return;
         if (!res.ok) {
-          console.warn("[ScanPanel] refresh/load failed:", res.status);
+          // Don't leave the previous filter's rows looking like this result.
+          setLoadError(`Could not load stocks (HTTP ${res.status}). Showing the previous result.`);
           return;
         }
         const json = (await res.json()) as ApiResponse;
         if (seq !== loadSeqRef.current) return;
+        setLoadError(null);
         setData(json);
         if (json.signals) {
           setListCounts({
@@ -166,7 +179,10 @@ export function ScanPanel() {
           });
         }
       } catch (err) {
-        console.warn("[ScanPanel] load error:", err);
+        if (seq !== loadSeqRef.current) return;
+        setLoadError(
+          `Could not load stocks (${err instanceof Error ? err.message : String(err)}). Showing the previous result.`,
+        );
       } finally {
         if (seq === loadSeqRef.current) {
           setLoading(false);
@@ -259,7 +275,7 @@ export function ScanPanel() {
         setDir("asc");
       }
     },
-    [sort],
+    [sort, setPage],
   );
 
   const markets = data?.markets ?? {};
@@ -507,6 +523,14 @@ export function ScanPanel() {
         </p>
       ) : null}
 
+      {loadError ? (
+        <p className="scan-empty-hint">
+          {loadError}{" "}
+          <button type="button" className="link-btn" onClick={hardReload}>
+            Retry
+          </button>
+        </p>
+      ) : null}
       {loading && !data ? <div className="loading">Loading…</div> : null}
 
       <CompanyTable
@@ -515,6 +539,7 @@ export function ScanPanel() {
         dir={dir}
         onSort={onSort}
         signalMode={signalMode}
+        hideBrief
         onNoteChange={softReload}
         onScrapeDone={softReload}
         toolbar={

@@ -15,6 +15,7 @@ import {
   buildRotationDetail,
   buildRotationLiteBoard,
   hydrateRotationCards,
+  invalidateRotationRank,
   rankRotationBoard,
   loadRotationMemberHtPatches,
   refreshAllMissingHtIv,
@@ -120,6 +121,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, ...result });
     }
     if (body.refreshMetrics) {
+      // Fresh prices → cached period ranks are stale.
+      invalidateRotationRank();
       const id = (body.id || "").trim();
       if (id) {
         const sector = getRotationSector(id);

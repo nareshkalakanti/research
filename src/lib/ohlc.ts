@@ -745,6 +745,11 @@ export async function fetchNifty500DailyBars(yearsBack = 2): Promise<Bar[]> {
     }
     await sleep(300 + attempt * 400);
   }
+  // Yahoo down / rate-limited: last good copy beats no benchmark at all
+  // (callers would otherwise compute returns from an empty date window).
+  if (nifty500DailyCache && nifty500DailyCache.bars.length >= 40) {
+    return nifty500DailyCache.bars;
+  }
   return [];
 }
 

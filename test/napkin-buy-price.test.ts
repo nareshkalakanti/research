@@ -45,19 +45,19 @@ assert.equal(napkinDefaultMaxBuyPrice({ eps, price: null, pe }), null);
 assert.equal(napkinDefaultMaxBuyPrice({ eps, price, pe: null }), null);
 assert.match(
   napkinBuyPricePosition(0) || "",
-  /matches the calculated maximum buy price/,
+  /matches your max pay-today/,
 );
 assert.match(
   napkinBuyPricePosition(buy / price - 1) || "",
-  /below the calculated maximum buy price/,
+  /below your max pay-today/,
 );
 assert.match(
   napkinBuyPricePosition(0.01) || "",
-  /below the calculated maximum buy price/,
+  /below your max pay-today/,
 );
 assert.match(
   napkinBuyPricePosition(-0.01) || "",
-  /above the calculated maximum buy price/,
+  /above your max pay-today/,
 );
 assert.deepEqual(NAPKIN_BUY_SENSITIVITY_PES, [20, 25, 30, 35, 40]);
 const scenes = napkinIllustrativeBuyRows({ eps, price, target_return: target });

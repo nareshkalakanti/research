@@ -34,9 +34,15 @@ type Network = {
 export function StockNetworkSearch({
   onPerson,
   initialTicker,
+  hideSearch = false,
+  onOpenCompany,
 }: {
   onPerson: (personId: string, name: string) => void;
   initialTicker?: string | null;
+  /** Embedded use (Napkin): the host page already has a ticker search. */
+  hideSearch?: boolean;
+  /** Override node / chip clicks (e.g. open that stock in Napkin). */
+  onOpenCompany?: (ticker: string) => void;
 }) {
   const [stockQ, setStockQ] = useState("");
   const [focus, setFocus] = useState<string | null>(null);
@@ -88,6 +94,8 @@ export function StockNetworkSearch({
   const marketByTicker = new Map(
     (row?.companies ?? []).map((c) => [c.ticker.toUpperCase(), c.market]),
   );
+  const openCompany = (t: string) =>
+    onOpenCompany ? onOpenCompany(t) : void pick(t);
   const focalTicker = (row?.ticker || "").toUpperCase();
   const hub = (row?.companies ?? []).filter(
     (c) => c.ticker.toUpperCase() === focalTicker,
@@ -98,6 +106,7 @@ export function StockNetworkSearch({
 
   return (
     <div className="fam-stock-net">
+      {hideSearch ? null : (
       <div className="theme-stock-search theme-stock-search--inline fam-stock-search">
         <TickerSuggest
           value={stockQ}
@@ -122,6 +131,7 @@ export function StockNetworkSearch({
           className="theme-stock-suggest-input"
         />
       </div>
+      )}
       {loading ? (
         <div className="table-meta">Loading directors and connected boards…</div>
       ) : null}
@@ -148,7 +158,7 @@ export function StockNetworkSearch({
             companies={hub.length ? hub : row.companies.slice(0, 1)}
             people={row.people}
             outside={connected}
-            onCompany={(t) => void pick(t)}
+            onCompany={openCompany}
             onPerson={onPerson}
             chartUrl={(t) =>
               tradingviewUrl(t, marketByTicker.get(t.toUpperCase()) ?? row.market)
@@ -163,7 +173,7 @@ export function StockNetworkSearch({
                   type="button"
                   className={`gov-family-chip${focal ? " full" : " part"}`}
                   title={`${c.ticker} · ${c.name} — show this stock and related boards`}
-                  onClick={() => void pick(c.ticker)}
+                  onClick={() => openCompany(c.ticker)}
                 >
                   <span className="mono">{c.ticker}</span>
                 </button>
@@ -171,7 +181,7 @@ export function StockNetworkSearch({
             })}
           </div>
         </article>
-      ) : !loading && !error ? (
+      ) : !loading && !error && !hideSearch ? (
         <div className="table-meta">
           Search a stock for its board map: directors, connected listings as
           dashed outside nodes, and bottom ticker chips to jump between them.

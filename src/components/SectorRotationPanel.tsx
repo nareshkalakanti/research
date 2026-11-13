@@ -402,8 +402,10 @@ export function SectorRotationPanel() {
   const [shotPreview, setShotPreview] = useState<string | null>(null);
   const [shotDrag, setShotDrag] = useState(false);
   const [shotLog, setShotLog] = useState<string[]>([]);
+  const [notice, setNotice] = useState<string | null>(null);
   const hydrateGen = useRef(0);
   const rankGen = useRef(0);
+  const detailGen = useRef(0);
   const shotUrl = useRef<string | null>(null);
   const shotWell = useRef<HTMLDivElement>(null);
   const shotQueue = useRef<File[]>([]);
@@ -417,6 +419,7 @@ export function SectorRotationPanel() {
   detailRef.current = detail;
   const asOfRef = useRef(asOf);
   asOfRef.current = asOf;
+  const openIdRef = useRef<string | null>(null);
 
   const loadBoard = useCallback(async (opts?: { silent?: boolean }) => {
     if (!opts?.silent) setLoading(true);
@@ -445,6 +448,8 @@ export function SectorRotationPanel() {
 
   const loadDetail = useCallback(
     async (id: string) => {
+      // Opening A then B quickly: only the newest request may paint.
+      const gen = ++detailGen.current;
       setError(null);
       setDetailLoading(true);
       try {
@@ -458,14 +463,16 @@ export function SectorRotationPanel() {
           card?: Card;
           members?: Member[];
         };
+        if (gen !== detailGen.current || openIdRef.current !== id) return;
         if (!res.ok || json.ok === false || !json.card) {
           throw new Error(json.error || `HTTP ${res.status}`);
         }
         setDetail({ card: json.card, members: json.members ?? [] });
       } catch (e) {
+        if (gen !== detailGen.current) return;
         setError(e instanceof Error ? e.message : String(e));
       } finally {
-        setDetailLoading(false);
+        if (gen === detailGen.current) setDetailLoading(false);
       }
     },
     [weight],
@@ -504,6 +511,7 @@ export function SectorRotationPanel() {
   const refreshMissingHt = useCallback(async () => {
     setFillingHt(true);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch("/api/sector-rotation", {
         method: "POST",
@@ -568,13 +576,13 @@ export function SectorRotationPanel() {
       const tried = json.tried ?? 0;
       const filled = json.filled ?? 0;
       const left = json.still_missing ?? 0;
-      if (tried === 0) {
-        setError(null);
-      } else if (left > 0) {
-        setError(
-          `Filled ${filled} of ${tried} missing ranks · ${left} still incomplete (Screener/Yahoo).`,
-        );
-      }
+      setNotice(
+        tried === 0
+          ? "No missing Sales / ROCE / P/B ranks."
+          : left > 0
+            ? `Filled ${filled} of ${tried} missing ranks · ${left} still incomplete (Screener/Yahoo).`
+            : `Filled all ${filled} missing ranks.`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -583,8 +591,7 @@ export function SectorRotationPanel() {
   }, [openId]);
 
   const rankKey = `${range}:${weight}`;
-  const needsRank =
-    boardFilter === "top" || boardFilter === "bottom" || aboveOn;
+  const rankedReady = rankedKey === rankKey;
 
   // Weight changes the basket index — drop cached series so hydrate/detail refetch.
   useEffect(() => {
@@ -621,7 +628,9 @@ export function SectorRotationPanel() {
           !seriesCoversStart(srcS, start) ||
           !seriesCoversStart(srcB, start)
         ) {
-          return c;
+          // History too short for this range: blank until rank / hydrate fill
+          // it — never show the previous range's return under the new label.
+          return { ...c, sector_pct: null, bench_pct: null, sector: [], bench: [] };
         }
         const sectorWin = windowRebaseSeries(srcS, start);
         const benchWin = windowRebaseSeries(srcB, start);
@@ -682,12 +691,12 @@ export function SectorRotationPanel() {
     });
   }, [range, asOf]);
 
+  // Board-wide period returns: the only source for return sort, Best,
+  // Top/Bottom 20 and Above (server caches all ranges, so re-ranks are fast).
   useEffect(() => {
-    if (!needsRank) return;
     if (rankedKey === rankKey) return;
     const gen = ++rankGen.current;
     setRanking(true);
-    setError(null);
     void (async () => {
       try {
         const res = await fetch(
@@ -730,11 +739,15 @@ export function SectorRotationPanel() {
         if (gen === rankGen.current) setRanking(false);
       }
     })();
-  }, [needsRank, rankedKey, rankKey, range, weight]);
+  }, [rankedKey, rankKey, range, weight]);
 
   useEffect(() => {
     void loadBoard();
   }, [loadBoard]);
+
+  useEffect(() => {
+    openIdRef.current = openId;
+  }, [openId]);
 
   useEffect(() => {
     if (openId) void loadDetail(openId);
@@ -794,8 +807,10 @@ export function SectorRotationPanel() {
       setNewQ("");
       setAdding(false);
       setOpenId(json.sector.id);
+      openIdRef.current = json.sector.id;
+      const failed: string[] = [];
       for (const h of newTickers) {
-        await fetch("/api/sector-rotation", {
+        const add = await fetch("/api/sector-rotation", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -805,10 +820,17 @@ export function SectorRotationPanel() {
             name: h.name,
             market: h.market || "NSE",
           }),
-        });
+        }).catch(() => null);
+        const addJson = add
+          ? ((await add.json().catch(() => ({}))) as { ok?: boolean })
+          : null;
+        if (!add || !add.ok || addJson?.ok === false) failed.push(h.ticker);
       }
       await loadBoard();
       await loadDetail(json.sector.id);
+      if (failed.length) {
+        setError(`Sector created, but could not add: ${failed.join(", ")}`);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1077,11 +1099,19 @@ export function SectorRotationPanel() {
 
   const removeTicker = async (ticker: string) => {
     if (!openId) return;
-    await fetch("/api/sector-rotation", {
+    const res = await fetch("/api/sector-rotation", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: openId, remove: true, ticker }),
     });
+    const json = (await res.json().catch(() => ({}))) as {
+      ok?: boolean;
+      error?: string;
+    };
+    if (!res.ok || json.ok === false) {
+      setError(json.error || `Could not remove ${ticker} (${res.status})`);
+      return;
+    }
     await Promise.all([loadBoard({ silent: true }), loadDetail(openId)]);
   };
 
@@ -1096,18 +1126,22 @@ export function SectorRotationPanel() {
       }
       return true;
     });
-    rows.sort((a, b) => {
-      if (sortKey === "today") return (b.today_pct ?? -999) - (a.today_pct ?? -999);
-      if (sortKey === "name") return a.label.localeCompare(b.label);
-      if (sortKey === "n") return b.n - a.n;
-      return (
-        (b.sector_pct ?? b.today_pct ?? -999) -
-        (a.sector_pct ?? a.today_pct ?? -999)
-      );
-    });
+    const byReturn = (a: Card, b: Card) =>
+      (b.sector_pct ?? -Infinity) - (a.sector_pct ?? -Infinity);
+    if (sortKey === "today") {
+      rows.sort((a, b) => (b.today_pct ?? -999) - (a.today_pct ?? -999));
+    } else if (sortKey === "name") {
+      rows.sort((a, b) => a.label.localeCompare(b.label));
+    } else if (sortKey === "n") {
+      rows.sort((a, b) => b.n - a.n);
+    } else if (rankedReady) {
+      // Return sort only on board-wide ranks. Before they land, keep the
+      // stable board order: sorting on whichever cards had hydrated mixed
+      // period returns with today % and reshuffled pages in a loop.
+      rows.sort(byReturn);
+    }
     if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
-    const rankedReady = rankedKey === `${range}:${weight}`;
-    // Wait for full-board returns before Top/Bottom/Above — lite cards have null sector_pct
+    // Top/Bottom/Above need board-wide returns (see rankingWait).
     if ((boardFilter === "top" || boardFilter === "bottom" || aboveOn) && !rankedReady) {
       return [];
     }
@@ -1119,10 +1153,18 @@ export function SectorRotationPanel() {
           c.sector_pct > c.bench_pct,
       );
     }
-    if (boardFilter === "top") rows = rows.slice(0, 20);
-    if (boardFilter === "bottom") rows = rows.slice(-20).reverse();
+    // Top/Bottom always by period return, whatever the display sort.
+    if (boardFilter === "top" || boardFilter === "bottom") {
+      const ranked = rows.filter((c) => c.sector_pct != null).sort(byReturn);
+      rows =
+        boardFilter === "top" ? ranked.slice(0, 20) : ranked.slice(-20).reverse();
+    }
     return rows;
-  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey, rankedKey, range, weight]);
+  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey, rankedReady]);
+
+  /** Filter needs ranks that are still computing — say so, not "No sectors". */
+  const rankingWait =
+    (boardFilter === "top" || boardFilter === "bottom" || aboveOn) && !rankedReady;
 
   useEffect(() => {
     setPage(0);
@@ -1194,7 +1236,16 @@ export function SectorRotationPanel() {
     })();
   }, [pageIds, range, weight, boardTick]);
 
-  const bestSector = sortedCards[0] ?? null;
+  // Best = highest period return across the ranked board, never a partial page.
+  const bestSector = useMemo(() => {
+    if (!rankedReady) return null;
+    let best: Card | null = null;
+    for (const c of sortedCards) {
+      if (c.sector_pct == null) continue;
+      if (!best || c.sector_pct > (best.sector_pct ?? -Infinity)) best = c;
+    }
+    return best;
+  }, [sortedCards, rankedReady]);
   const stocksShown = useMemo(
     () => sortedCards.reduce((sum, c) => sum + (c.n || 0), 0),
     [sortedCards],
@@ -1241,6 +1292,8 @@ export function SectorRotationPanel() {
   }, [detail?.members, openId]);
 
   const closeSector = useCallback(() => {
+    detailGen.current += 1;
+    setDetailLoading(false);
     setOpenId(null);
     setDetail(null);
     setAddQ("");
@@ -1287,14 +1340,28 @@ export function SectorRotationPanel() {
   };
 
   const toggleStar = async (id: string, next: boolean) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, starred: next } : c)),
-    );
-    await fetch("/api/sector-rotation", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, star: true, starred: next }),
-    });
+    const set = (v: boolean) =>
+      setCards((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, starred: v } : c)),
+      );
+    set(next);
+    try {
+      const res = await fetch("/api/sector-rotation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, star: true, starred: next }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (!res.ok || json.ok === false) {
+        throw new Error(json.error || `Star failed (${res.status})`);
+      }
+    } catch (e) {
+      set(!next); // undo the optimistic star
+      setError(e instanceof Error ? e.message : String(e));
+    }
   };
 
   useEffect(() => {
@@ -1499,7 +1566,6 @@ export function SectorRotationPanel() {
                 key={id}
                 type="button"
                 className={boardFilter === id ? "rot-chip on" : "rot-chip"}
-                disabled={ranking && id !== "all"}
                 onClick={() =>
                   setBoardFilter((prev) =>
                     id === "all" ? "all" : prev === id ? "all" : id,
@@ -1512,7 +1578,6 @@ export function SectorRotationPanel() {
             <button
               type="button"
               className={aboveOn ? "rot-chip on" : "rot-chip"}
-              disabled={ranking}
               onClick={() => setAboveOn((v) => !v)}
             >
               Above: {aboveOn ? "On" : "Off"}
@@ -1683,6 +1748,20 @@ export function SectorRotationPanel() {
       ) : null}
 
       {error ? <div className="table-meta">{error}</div> : null}
+      {notice ? (
+        <div className="table-meta rot-notice">
+          {notice}{" "}
+          <button type="button" className="link-btn" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+      {!openId && rankingWait ? (
+        <div className="table-meta">
+          Ranking all {cards.length} sectors by {range} return… the first run
+          takes about a minute, then range and filter changes are instant.
+        </div>
+      ) : null}
 
       {!openId ? (
         <div className="rot-stats" aria-label="Rotation summary">
@@ -1707,7 +1786,7 @@ export function SectorRotationPanel() {
               }
               onClick={() => bestSector && setOpenId(bestSector.id)}
             >
-              {bestSector?.label ?? (ranking ? "…" : "—")}
+              {bestSector?.label ?? (ranking || !rankedReady ? "Ranking…" : "—")}
             </button>
           </div>
         </div>
@@ -1945,7 +2024,9 @@ export function SectorRotationPanel() {
                   sortedCards.length,
                   (pageSafe + 1) * PAGE_SIZE,
                 )} of ${sortedCards.length}`
-              : "No sectors"}
+              : rankingWait
+                ? "Ranking…"
+                : "No sectors"}
           </span>
           <button
             type="button"
