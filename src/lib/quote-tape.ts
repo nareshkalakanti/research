@@ -2,7 +2,7 @@
  * Price tape for watchlist expand: SMA 20/50/100/200, 52-week range, PE, CAGR.
  * All figures from Yahoo daily bars / quote — no issuer hardcoding.
  */
-import { fetchDailyBars } from "./ohlc";
+import { fetchDailyBars, fetchWeeklyBars } from "./ohlc";
 import { rollingMean } from "./indicators";
 import { yfSymbolCandidates } from "./yfinance";
 import YahooFinance from "yahoo-finance2";
@@ -33,8 +33,12 @@ export type QuoteTape = {
   dma200: number | null;
   breakout20: number | null;
   dma200_alert: "below_200_breakout" | null;
-  /** Fresh close above 200 DMA after ≥2 prior closes below — not a one-day dip reclaim. */
+  /** Fresh daily close ≥1% above 200 DMA after 5 closes below (dma200-cross). */
   crossed_above_200dma: boolean;
+  /** 200-week SMA — only when loaded with `{ weekly: true }`. */
+  wma200?: number | null;
+  /** Weekly close ≥1% above 200-week SMA after 2 weekly closes below. */
+  crossed_above_200wma?: boolean;
   mas: QuoteTapeMa[];
   returns_pct: number | null;
   result_date: string | null;
@@ -101,6 +105,7 @@ async function quoteLiveBits(
 export async function loadQuoteTape(
   ticker: string,
   market?: string | null,
+  opts?: { weekly?: boolean },
 ): Promise<QuoteTape> {
   const empty: QuoteTape = {
     price: null,
@@ -126,9 +131,13 @@ export async function loadQuoteTape(
   const t = ticker.trim().toUpperCase();
   if (!t) return empty;
 
-  const [bars, quote] = await Promise.all([
+  const [bars, quote, weeklyBars] = await Promise.all([
     fetchDailyBars(t, market, 4),
     quoteLiveBits(t, market),
+    // 200 weeks ≈ 3.9 years — fetch 5 for the prior-week checks.
+    opts?.weekly
+      ? fetchWeeklyBars(t, market, 5).catch(() => [])
+      : Promise.resolve([]),
   ]);
   const closes = bars.map((b) => b.close).filter((c) => Number.isFinite(c));
   const lastClose = closes.length ? round2(closes[closes.length - 1]!) : null;
@@ -165,6 +174,14 @@ export async function loadQuoteTape(
       ? "below_200_breakout"
       : null;
   const crossed_above_200dma = crossedAbove200DmaFromCloses(closes);
+  const wCloses = weeklyBars
+    .map((b) => b.close)
+    .filter((c) => Number.isFinite(c));
+  const wma200 = opts?.weekly ? lastMean(wCloses, 200) : null;
+  // Weekly bars move slowly — 2 prior weeks below is a real base, not noise.
+  const crossed_above_200wma = opts?.weekly
+    ? crossedAbove200DmaFromCloses(wCloses, { minDaysBelow: 2 })
+    : undefined;
 
   let week52_low = quote.low;
   let week52_high = quote.high;
@@ -219,6 +236,12 @@ export async function loadQuoteTape(
     breakout20,
     dma200_alert,
     crossed_above_200dma,
+    ...(opts?.weekly
+      ? {
+          wma200: wma200 != null ? round2(wma200) : null,
+          crossed_above_200wma,
+        }
+      : {}),
     mas,
     returns_pct,
     result_date,

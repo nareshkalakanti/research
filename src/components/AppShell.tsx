@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { memo, useEffect, useState, type ComponentType } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -13,7 +14,7 @@ import { useAuth } from "@/lib/auth";
 
 function PanelFallback() {
   // Quiet placeholder inside an already-mounted chrome — avoid full-page flash.
-  return <div className="panel-boot" aria-busy="true">Loading…</div>;
+  return <Loading variant="page" />;
 }
 
 const ThemeScanner = dynamic(
@@ -58,6 +59,12 @@ const MissingDataPanel = dynamic(
 
 const WatchlistPanel = dynamic(
   () => import("@/components/WatchlistPanel").then((m) => m.WatchlistPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
+const ListedVenturePanel = dynamic(
+  () =>
+    import("@/components/ListedVentureScreen").then((m) => m.ListedVenturePanel),
   { loading: PanelFallback, ssr: false },
 );
 
@@ -108,6 +115,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   research: ResearchPanel,
   missing: MissingDataPanel,
   watchlist: WatchlistPanel,
+  lv: ListedVenturePanel,
 };
 
 const KeptPanel = memo(function KeptPanel({
@@ -219,7 +227,7 @@ export function AppShell() {
   }, []);
 
   if (!ready || !user) {
-    return <div className="boot">Loading…</div>;
+    return <Loading variant="page" />;
   }
 
   return (

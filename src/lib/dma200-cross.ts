@@ -15,20 +15,28 @@ function sma200At(closes: number[], endIdx: number): number | null {
   return mean(closes.slice(endIdx - 199, endIdx + 1));
 }
 
+/** Prior sessions that must close below their 200 DMA (filters whipsaws). */
+export const DMA200_MIN_DAYS_BELOW = 5;
+/** Today's close must clear the 200 DMA by this % (filters 1-paisa crosses). */
+export const DMA200_MIN_CLEAR_PCT = 1;
+
 /**
- * @param minDaysBelow how many prior closes must be strictly below their DMA
- *   (default 1 = “moved above today”).
+ * Fresh breakout above the 200 DMA: today's close ≥ DMA × (1 + minClearPct%)
+ * and each of the previous `minDaysBelow` closes strictly below its own DMA.
+ * Defaults stop sideways names chopping around the line (e.g. INFOMEDIA
+ * 5.55 → 5.52 → 5.40 → 5.48 vs DMA 5.47) from flagging every wiggle.
  */
 export function crossedAbove200DmaFromCloses(
   closes: number[],
-  opts?: { minDaysBelow?: number },
+  opts?: { minDaysBelow?: number; minClearPct?: number },
 ): boolean {
-  const minDaysBelow = Math.max(1, opts?.minDaysBelow ?? 1);
+  const minDaysBelow = Math.max(1, opts?.minDaysBelow ?? DMA200_MIN_DAYS_BELOW);
+  const minClear = Math.max(0, opts?.minClearPct ?? DMA200_MIN_CLEAR_PCT) / 100;
   const i = closes.length - 1;
   if (i < 199 + minDaysBelow) return false;
   const price = closes[i]!;
   const dmaToday = sma200At(closes, i);
-  if (dmaToday == null || !(price > dmaToday)) return false;
+  if (dmaToday == null || !(price >= dmaToday * (1 + minClear))) return false;
   for (let k = 1; k <= minDaysBelow; k++) {
     const j = i - k;
     const dma = sma200At(closes, j);

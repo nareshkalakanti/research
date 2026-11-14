@@ -193,6 +193,7 @@ function mergeWeeklyTipFromDaily(weekly: Bar[], daily: Bar[], weeks = 3): Bar[] 
   const byDate = new Map<string, Bar>();
   for (const b of weekly) byDate.set(b.date.slice(0, 10), b);
 
+  const latestKey = replaceFrom.at(-1)?.date.slice(0, 10);
   for (const dBar of replaceFrom) {
     const key = dBar.date.slice(0, 10);
     const fri = toTradingWeekFriday(key);
@@ -202,8 +203,10 @@ function mergeWeeklyTipFromDaily(weekly: Bar[], daily: Bar[], weeks = 3): Bar[] 
       byDate.set(key, dBar);
       continue;
     }
-    // Only overwrite when daily has the Friday print (complete week).
-    if (hasFridaySession) byDate.set(key, dBar);
+    // Completed weeks: overwrite only with the Friday print. The in-progress
+    // week always comes from daily — Yahoo freezes that tip mid-week (HLEGLAS
+    // weekly 438.60 vs Thursday close 454.05), which flipped 200W / TQ.
+    if (hasFridaySession || key === latestKey) byDate.set(key, dBar);
   }
   return normalizeWeeklyBars(
     [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),

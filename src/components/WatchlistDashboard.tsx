@@ -1,23 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { tradingviewUrl } from "@/lib/links";
+import { useCallback, useMemo, useState } from "react";
+import { napkinUrl, tradingviewUrl } from "@/lib/links";
+import {
+  loadCrossed200Dma,
+  loadIqRows,
+  type IqDashRow,
+} from "@/lib/signal-hits";
 
 export type DashSourceEntry = {
   ticker: string;
   sources: string[];
-};
-
-type IqDashRow = {
-  ticker: string;
-  company: string;
-  market: string | null;
-  price: number | null;
-  market_cap_cr: number | null;
-  sector: string | null;
-  has_bb_w?: boolean;
-  has_tq?: boolean;
-  tq_score?: number | null;
 };
 
 type DashRow = IqDashRow & {
@@ -42,74 +35,38 @@ function sourceChipClass(label: string): string {
   return "tag-named";
 }
 
-async function loadIqRows(syms: string[]): Promise<IqDashRow[]> {
-  const CHUNK = 40;
-  const collected: IqDashRow[] = [];
-  for (let i = 0; i < syms.length; i += CHUNK) {
-    const chunk = syms.slice(i, i + CHUNK);
-    const res = await fetch(
-      `/api/iq-master?tickers=${encodeURIComponent(chunk.join(","))}`,
-    );
-    const json = (await res.json()) as { ok?: boolean; rows?: IqDashRow[] };
-    collected.push(...(json.rows ?? []));
+/** Last scan survives list switches, list reloads and page reloads. */
+const SCAN_STORE_KEY = "wl-dash-scan-v1";
+type SavedScan = { at: string; rows: DashRow[] };
+
+function readSavedScan(key = SCAN_STORE_KEY): SavedScan | null {
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const j = JSON.parse(raw) as SavedScan;
+    return Array.isArray(j?.rows) ? j : null;
+  } catch {
+    return null;
   }
-  const byTicker = new Map(collected.map((r) => [r.ticker.toUpperCase(), r]));
-  return syms.map((t) => {
-    const hit = byTicker.get(t.toUpperCase());
-    return (
-      hit ?? {
-        ticker: t,
-        company: t,
-        market: null,
-        price: null,
-        market_cap_cr: null,
-        sector: null,
-        has_bb_w: false,
-        has_tq: false,
-        tq_score: null,
-      }
-    );
-  });
 }
 
-async function loadCrossed200Dma(
-  rows: IqDashRow[],
-): Promise<Map<string, { crossed: boolean; price: number | null }>> {
-  const hits = new Map<string, { crossed: boolean; price: number | null }>();
-  const CHUNK = 8;
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const chunk = rows.slice(i, i + CHUNK);
-    await Promise.all(
-      chunk.map(async (row) => {
-        const key = row.ticker.toUpperCase();
-        try {
-          const q = new URLSearchParams({ ticker: row.ticker });
-          if (row.market) q.set("market", row.market);
-          const res = await fetch(`/api/quote-tape?${q}`, {
-            signal: AbortSignal.timeout(30_000),
-          });
-          const json = (await res.json()) as {
-            ok?: boolean;
-            tape?: {
-              price: number | null;
-              crossed_above_200dma?: boolean;
-            };
-          };
-          if (!json.ok || !json.tape) {
-            hits.set(key, { crossed: false, price: null });
-            return;
-          }
-          hits.set(key, {
-            crossed: !!json.tape.crossed_above_200dma,
-            price: json.tape.price ?? null,
-          });
-        } catch {
-          hits.set(key, { crossed: false, price: null });
-        }
-      }),
-    );
+function writeSavedScan(scan: SavedScan, key = SCAN_STORE_KEY): void {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(scan));
+  } catch {
+    /* storage blocked — in-memory result still shows */
   }
-  return hits;
+}
+
+function fmtScannedAt(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return "";
+  return d.toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function hasAnySignal(r: DashRow): boolean {
@@ -118,7 +75,9 @@ function hasAnySignal(r: DashRow): boolean {
 
 function bySignalThenMcap(a: DashRow, b: DashRow): number {
   const score = (r: DashRow) =>
-    (r.crossed_200dma ? 8 : 0) + (r.has_bb_w ? 4 : 0) + (r.has_tq ? 2 : 0);
+    (r.crossed_200dma ? 8 : 0) +
+    (r.has_bb_w ? 4 : 0) +
+    (r.has_tq ? 2 : 0);
   const ds = score(b) - score(a);
   if (ds) return ds;
   const am = a.market_cap_cr ?? -1;
@@ -129,11 +88,25 @@ function bySignalThenMcap(a: DashRow, b: DashRow): number {
 
 export function WatchlistDashboard({
   entries,
+  storeKey = SCAN_STORE_KEY,
+  sourceLabel = "From",
+  onSource,
 }: {
   /** Holdings + named-list universe with source labels. */
   entries: DashSourceEntry[];
+  /** Saved-scan slot — separate dashboards must not share one. */
+  storeKey?: string;
+  /** Column / filter heading for `sources` (e.g. "Group"). */
+  sourceLabel?: string;
+  /** Click a source chip (e.g. open that group's map). */
+  onSource?: (label: string) => void;
 }) {
-  const [rows, setRows] = useState<DashRow[]>([]);
+  // Last scan (restored from storage on mount) — rows derive from it below.
+  const [scan, setScan] = useState<SavedScan | null>(() =>
+    typeof window === "undefined" ? null : readSavedScan(storeKey),
+  );
+  const [sourcePick, setSourcePick] = useState<string | null>(null);
+  const scannedAt = scan?.at ?? null;
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -154,7 +127,7 @@ export function WatchlistDashboard({
     const syms = tickers;
     setError(null);
     if (!syms.length) {
-      setRows([]);
+      setScan(null);
       return;
     }
 
@@ -162,8 +135,11 @@ export function WatchlistDashboard({
     setStatus("Loading BB W / TQ W…");
     try {
       const loaded = await loadIqRows(syms);
-      setStatus("Checking 200 DMA crosses…");
-      const dmaHits = await loadCrossed200Dma(loaded);
+      setStatus(`Checking 200 DMA crosses… 0/${loaded.length}`);
+      const dmaHits = await loadCrossed200Dma(loaded, {
+        onProgress: (done, total) =>
+          setStatus(`Checking 200 DMA crosses… ${done}/${total}`),
+      });
       const built: DashRow[] = loaded.map((r) => {
         const t = r.ticker.toUpperCase();
         const dma = dmaHits.get(t);
@@ -176,28 +152,42 @@ export function WatchlistDashboard({
         };
       });
       const next = built.filter(hasAnySignal).sort(bySignalThenMcap);
-      setRows(next);
+      const at = new Date().toISOString();
+      setScan({ at, rows: next });
+      writeSavedScan({ at, rows: next }, storeKey);
       setBusy(false);
       setStatus(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
       setBusy(false);
     }
-  }, [tickers, sourcesByTicker]);
+  }, [tickers, sourcesByTicker, storeKey]);
 
-  const entriesKey = useMemo(
+  // When lists change, keep hits for names still listed (refresh their
+  // "From" labels) instead of wiping the results.
+  const rows = useMemo(
     () =>
-      entries
-        .map((e) => `${e.ticker}:${e.sources.join(",")}`)
-        .join("|"),
-    [entries],
+      (scan?.rows ?? [])
+        .filter((r) => sourcesByTicker.has(r.ticker.toUpperCase()))
+        .map((r) => ({
+          ...r,
+          sources: sourcesByTicker.get(r.ticker.toUpperCase()) ?? r.sources,
+        }))
+        // Older saved scans may hold 200W-only rows — no longer a signal.
+        .filter(hasAnySignal),
+    [scan, sourcesByTicker],
   );
 
-  useEffect(() => {
-    setRows([]);
-    setStatus(null);
-    setError(null);
-  }, [entriesKey]);
+  /** Sources with hits, most first — quick filter chips above the table. */
+  const sourceTally = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) for (const s of r.sources) m.set(s, (m.get(s) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [rows]);
+  const shown = useMemo(
+    () => (sourcePick ? rows.filter((r) => r.sources.includes(sourcePick)) : rows),
+    [rows, sourcePick],
+  );
 
   const counts = useMemo(() => {
     let dma = 0;
@@ -238,11 +228,34 @@ export function WatchlistDashboard({
       <p className="wl-dash-summary">
         {tickers.length} names · {counts.dma} × 200 DMA · {counts.bbw} × BB W ·{" "}
         {counts.tq} × TQ W
+        {scannedAt ? ` · scanned ${fmtScannedAt(scannedAt)}` : ""}
       </p>
+      {sourceTally.length > 1 ? (
+        <div className="wl-dash-sources" role="group" aria-label={`Filter by ${sourceLabel}`}>
+          <span className="wl-dash-sources-k">{sourceLabel}</span>
+          <button
+            type="button"
+            className={`result-tag${sourcePick ? "" : " on"}`}
+            onClick={() => setSourcePick(null)}
+          >
+            All {rows.length}
+          </button>
+          {sourceTally.map(([s, n]) => (
+            <button
+              key={s}
+              type="button"
+              className={`result-tag ${sourceChipClass(s)}${sourcePick === s ? " on" : ""}`}
+              onClick={() => setSourcePick((v) => (v === s ? null : s))}
+            >
+              {s} {n}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <section className="wl-dash-section">
         <header className="wl-dash-section-head">
           <h2>Signals</h2>
-          <span>{rows.length}</span>
+          <span>{shown.length}</span>
         </header>
         {rows.length === 0 ? (
           <p className="miq-empty-hint">
@@ -259,11 +272,11 @@ export function WatchlistDashboard({
                   <th className="num col-mcap_cr">MCap</th>
                   <th className="num col-price">Price</th>
                   <th className="col-signal">Signals</th>
-                  <th className="col-from">From</th>
+                  <th className="col-from">{sourceLabel}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {shown.map((r) => {
                   const tv = tradingviewUrl(r.ticker, r.market);
                   return (
                     <tr key={r.ticker}>
@@ -280,6 +293,15 @@ export function WatchlistDashboard({
                           </a>
                           <span className="company-meta">
                             <span className="ticker">{r.ticker}</span>
+                            <a
+                              className="np-chip"
+                              href={napkinUrl(r.ticker)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title={`Open ${r.ticker} in Napkin`}
+                            >
+                              NP
+                            </a>
                           </span>
                         </div>
                       </td>
@@ -293,7 +315,7 @@ export function WatchlistDashboard({
                           {r.crossed_200dma ? (
                             <span
                               className="result-tag tag-dash-dma200"
-                              title="Last close moved above 200 DMA (prior close was below)"
+                              title="Daily close ≥1% above 200 DMA after 5 closes below"
                             >
                               200 DMA ↑
                             </span>
@@ -321,14 +343,26 @@ export function WatchlistDashboard({
                       <td className="col-from">
                         <span className="result-tags wl-dash-from-tags">
                           {r.sources.length ? (
-                            r.sources.map((s) => (
-                              <span
-                                key={`${r.ticker}|${s}`}
-                                className={`result-tag ${sourceChipClass(s)}`}
-                              >
-                                {s}
-                              </span>
-                            ))
+                            r.sources.map((s) =>
+                              onSource ? (
+                                <button
+                                  key={`${r.ticker}|${s}`}
+                                  type="button"
+                                  className={`result-tag ${sourceChipClass(s)}`}
+                                  title={`Open ${s}`}
+                                  onClick={() => onSource(s)}
+                                >
+                                  {s}
+                                </button>
+                              ) : (
+                                <span
+                                  key={`${r.ticker}|${s}`}
+                                  className={`result-tag ${sourceChipClass(s)}`}
+                                >
+                                  {s}
+                                </span>
+                              ),
+                            )
                           ) : (
                             <span className="result-tag">—</span>
                           )}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useEffect, useState, Fragment } from "react";
 import { tradingviewUrl } from "@/lib/links";
 
@@ -3259,7 +3260,7 @@ export function CompanyNetworkTable({
                               ) : null}
                             </div>
                           ) : (
-                            <p className="table-meta">Loading…</p>
+                            <Loading variant="inline" />
                           )}
                         </td>
                       </tr>
@@ -3454,7 +3455,7 @@ export function CompanyNetworkTable({
                       ) : open ? (
                         <tr className="net-drill">
                           <td colSpan={2}>
-                            <p className="table-meta">Loading group…</p>
+                            <Loading label="Loading group" variant="inline" />
                           </td>
                         </tr>
                       ) : null}
@@ -3926,7 +3927,7 @@ export function CompanyNetworkTable({
                                   </button>
                                 </div>
                               ) : (
-                                <p className="table-meta">Loading review…</p>
+                                <Loading label="Loading review" variant="inline" />
                               )}
                             </td>
                           </tr>
@@ -4419,7 +4420,7 @@ export function CompanyNetworkTable({
                               ) : null}
                             </div>
                           ) : (
-                            <p className="table-meta">Loading cluster…</p>
+                            <Loading label="Loading cluster" variant="inline" />
                           )}
                         </td>
                       </tr>

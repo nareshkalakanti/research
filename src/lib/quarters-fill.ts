@@ -211,6 +211,8 @@ export async function runQuartersFillBatch(opts: {
   limit?: number;
   concurrency?: number;
   missingOnly?: boolean;
+  /** Never fall back to Screener (Yahoo / NSE / BSE / Groww only). */
+  noScreener?: boolean;
 }): Promise<QuartersFillResult> {
   const limit = Math.min(24, Math.max(1, opts.limit ?? 12));
   const concurrency = Math.min(4, Math.max(1, opts.concurrency ?? 2));
@@ -262,7 +264,7 @@ export async function runQuartersFillBatch(opts: {
   let failed = 0;
   // Screener extends thin BSE/Yahoo series for same-quarter YoY (7-Rule).
   // Budget keeps Fill Quarters from stalling on Screener gaps.
-  let screenerBudget = 6;
+  let screenerBudget = opts.noScreener ? 0 : 6;
 
   await runConcurrent(batch, concurrency, async (ticker) => {
     try {

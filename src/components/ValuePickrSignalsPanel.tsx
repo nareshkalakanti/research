@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { tradingviewUrl } from "@/lib/links";
 
@@ -423,7 +424,7 @@ export function ValuePickrSignalsPanel() {
       </header>
 
       {error ? <div className="vp-banner is-err">{error}</div> : null}
-      {loading ? <div className="vp-banner">Loading…</div> : null}
+      {loading ? <Loading variant="block" /> : null}
 
       {!loading && board && board.posts_total === 0 ? (
         <div className="vp-empty">
@@ -585,7 +586,7 @@ export function ValuePickrSignalsPanel() {
                 </div>
 
                 {detailLoading ? (
-                  <p className="vp-empty-inline">Loading sentiment…</p>
+                  <Loading label="Loading sentiment" variant="inline" />
                 ) : months.length ? (
                   <SentimentGraph months={months} />
                 ) : (

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import type { ReactNode } from "react";
 import {
   cfProfitClass,
@@ -56,7 +57,7 @@ export function ExpandMetricsStrip({
   if (loading) {
     return (
       <div className="expand-metrics expand-metrics--loading">
-        <span className="expand-metrics-muted">Loading metrics…</span>
+        <Loading label="Loading metrics" variant="inline" />
       </div>
     );
   }

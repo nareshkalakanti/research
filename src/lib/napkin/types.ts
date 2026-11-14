@@ -32,6 +32,7 @@ export type NapkinCagr = {
   revenue_2y: number | null;
   revenue_3y: number | null;
   revenue_5y: number | null;
+  eps_2y?: number | null;
   eps_3y: number | null;
   eps_5y: number | null;
   profit_3y: number | null;

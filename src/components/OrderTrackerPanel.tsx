@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { tradingviewUrl, bseScripCodeFromTicker } from "@/lib/links";
@@ -774,7 +775,7 @@ export function OrderTrackerPanel({
         </div>
 
         {error ? <p className="otrd-error">{error}</p> : null}
-        {loading && !data ? <p className="otrd-empty">Loading orders…</p> : null}
+        {loading && !data ? <Loading label="Loading orders" variant="block" /> : null}
 
         {!loading && data && view === "all" ? (
           <OrdersTable orders={data.orders} onOpenCompany={openCompany} />

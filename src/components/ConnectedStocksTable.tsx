@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type ConnectedStockHubRow = {
@@ -124,7 +125,7 @@ export function ConnectedStocksTable({
   }, [rows, cap]);
 
   if (loading && !rows.length) {
-    return <div className="table-meta">Loading connected stocks…</div>;
+    return <Loading label="Loading connected stocks" variant="block" />;
   }
 
   return (

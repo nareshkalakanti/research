@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useState } from "react";
 import { FamilyGraph } from "@/components/FamilyGraph";
 import { BoxRefreshButton } from "@/components/RefreshButton";
@@ -133,7 +134,7 @@ export function StockNetworkSearch({
       </div>
       )}
       {loading ? (
-        <div className="table-meta">Loading directors and connected boards…</div>
+        <Loading label="Loading directors and connected boards" variant="block" />
       ) : null}
       {error ? <div className="table-meta">{error}</div> : null}
       {row ? (

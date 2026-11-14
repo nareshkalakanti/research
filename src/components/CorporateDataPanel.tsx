@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { LiveNseFeedBadge } from "@/components/LiveNseFeedBadge";
 import { LiveBseFeedBadge } from "@/components/LiveBseFeedBadge";
@@ -938,7 +939,7 @@ export function CorporateDataPanel() {
         </div>
 
         {loading && !rows.length ? (
-          <div className="ann-loading">Loading…</div>
+          <Loading variant="block" />
         ) : visible.length === 0 ? (
           <div className="ann-loading">No matching announcements.</div>
         ) : (

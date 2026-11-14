@@ -24,6 +24,7 @@ export type AppTab =
   | "napkin"
   | "concall-drift"
   | "rotation"
+  | "lv"
   | "signals";
 
 /** Top nav tabs only — other panels stay wired but are not listed here. */
@@ -34,6 +35,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
+  { id: "lv", label: "LV", short: "LV" },
   { id: "missing", label: "Data", short: "Data" },
   { id: "research", label: "Research", short: "Research" },
 ];
@@ -55,7 +57,7 @@ const HIDDEN_TABS: AppTab[] = [
 ];
 
 function isPageTab(id: AppTab): boolean {
-  return id === "watchlist" || id === "dashboard";
+  return id === "watchlist" || id === "dashboard" || id === "lv";
 }
 
 export function tabFromParam(raw: string | null): AppTab {
@@ -98,6 +100,7 @@ export function readTabFromLocation(): AppTab {
   const path = pathOnly();
   if (path === "/watchlist" || path === "/fund") return "watchlist";
   if (path === "/dashboard") return "dashboard";
+  if (path === "/lv") return "lv";
   if (path === "/pead") return "napkin";
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
@@ -129,6 +132,7 @@ function buildHomeSearch(
 export function hrefForTab(next: AppTab): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "dashboard") return "/dashboard";
+  if (next === "lv") return "/lv";
   if (next === "napkin") return "/";
   return `/?tab=${encodeURIComponent(next)}`;
 }
@@ -136,6 +140,7 @@ export function hrefForTab(next: AppTab): string {
 function urlForTab(next: AppTab, ticker?: string | null): string {
   if (next === "watchlist") return "/watchlist";
   if (next === "dashboard") return "/dashboard";
+  if (next === "lv") return "/lv";
   const fromHome =
     pathOnly() === "/"
       ? new URLSearchParams(window.location.search)

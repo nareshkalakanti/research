@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     getMetrics(ticker)?.market ||
     resolveListingMarket(ticker);
   try {
-    const tape = await loadQuoteTape(ticker, market);
+    const weekly = req.nextUrl.searchParams.get("weekly") === "1";
+    const tape = await loadQuoteTape(ticker, market, { weekly });
     return NextResponse.json({ ok: true, ticker, tape });
   } catch (e) {
     return NextResponse.json(

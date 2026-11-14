@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   addWatch,
@@ -34,7 +35,12 @@ import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
 import type { FundamentalsScanRow } from "@/lib/pead-bands";
 
-type ChipList = "watch" | "holdings" | "named" | "common" | "dashboard";
+type ChipList =
+  | "watch"
+  | "holdings"
+  | "named"
+  | "common"
+  | "dashboard";
 
 /** Distinct hues for named-list chips (not tied to any list label). */
 const NAMED_LIST_HUES = [
@@ -694,7 +700,7 @@ function WatchlistRow({
                   <section className="wl-card-qtr">
                     <h3>Quarters</h3>
                     {qtr.loading ? (
-                      <p className="wl-card-muted">Loading…</p>
+                      <Loading variant="inline" />
                     ) : qtr.error ? (
                       <p className="wl-card-muted">{qtr.error}</p>
                     ) : qtr.panel?.labels?.length ? (
@@ -1390,6 +1396,7 @@ export function WatchlistPanel() {
         >
           Dashboard
         </button>
+
         {list === "named" && renameOpen ? (
           <span className="wl-new-list">
             <input

@@ -28844,3 +28844,595 @@ button.rot-stat-best-name:not(:disabled):hover {
   color: #2563eb;
   border-color: #2563eb;
 }
+.quarters-rank-summary {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+.quarters-rank-pts {
+  margin-left: 6px;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+.quarters-rank-how {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+.seven-rule-segs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 3px;
+  margin: 0.45rem 0 0.25rem;
+}
+.seven-rule-seg {
+  height: 6px;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+.seven-rule-seg--pass {
+  background: #10b981;
+}
+.seven-rule-seg--fail {
+  background: #ef4444;
+}
+
+/* ——— Shared loading state (components/Loading.tsx) ——— */
+.ld {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+.ld-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.ld-spin {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: ld-spin 0.8s linear infinite;
+}
+.ld--block {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  margin: 8px 0;
+}
+.ld-skel {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+.ld-bar {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--badge) 0%,
+    var(--line) 50%,
+    var(--badge) 100%
+  );
+  background-size: 200% 100%;
+  animation: ld-shimmer 1.4s ease-in-out infinite;
+}
+.ld--inline {
+  display: inline-flex;
+  padding: 4px 0;
+  font-size: 0.82rem;
+}
+.ld--inline .ld-spin {
+  width: 12px;
+  height: 12px;
+}
+.ld--page {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  font-size: 0.95rem;
+}
+.ld--page .ld-spin {
+  width: 22px;
+  height: 22px;
+  border-width: 3px;
+}
+@keyframes ld-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ld-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ld-spin,
+  .ld-bar {
+    animation: none;
+  }
+}
+.rot-more {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 12px;
+  margin: 16px 0 8px;
+  font-size: 0.82rem;
+  color: var(--muted, #64748b);
+}
+.rot-more .rot-chip:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+/* Hover-only Napkin link under graph nodes (FamilyGraph). */
+.fam-node text.fam-np {
+  fill: var(--accent);
+  font-family: var(--font-ui, inherit);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.fam-node rect.fam-np-hit {
+  fill: transparent;
+  stroke: none;
+  pointer-events: all;
+}
+/* ——— Group-card breakout signals (FamilyMapCards) ——— */
+.gov-sig-btn {
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gov-sig-btn:hover,
+.gov-sig-btn.is-on {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.gov-sig-btn.is-on {
+  background: var(--accent-soft);
+}
+.gov-sig-btn:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+.gov-sig-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--badge);
+  font-size: 0.78rem;
+}
+.gov-sig-bar.is-empty {
+  color: var(--muted);
+}
+.gov-sig-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.gov-sig-tk {
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.gov-sig-tk:hover,
+.gov-sig-tk.is-focus {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.gov-sig-tags {
+  display: inline-flex;
+  gap: 2px;
+}
+.gov-sig-tag {
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+}
+.gov-sig-tag.sig-crossed_200dma {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.gov-sig-tag.sig-bb_w {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.gov-sig-tag.sig-tq_w {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.gov-sig-tag.sig-crossed_200wma {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+.tag-dash-wma200 {
+  background: #f3e8ff;
+  border-color: #d8b4fe;
+  color: #7e22ce;
+}
+/* ——— Group signals tab (GroupSignalsTable) ——— */
+.grp-sig-table td {
+  vertical-align: top;
+}
+.grp-sig-name {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.grp-sig-name:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.grp-sig-sub {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.grp-sig-cell {
+  min-width: 120px;
+}
+.grp-sig-tk {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 10px 4px 0;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+.grp-sig-tk a.mono {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.grp-sig-tk a.mono:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.grp-sig-tk .np-chip {
+  margin-left: 4px;
+}
+/* Tech & Val CAGR window switch (QuoteTapeCard) */
+.tape-cagr-pick {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.tape-cagr-pick button {
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.tape-cagr-pick button.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.tape-cagr-pick button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+/* Dashboard source filter chips (WatchlistDashboard — From / Group) */
+.wl-dash-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.wl-dash-sources-k {
+  margin-right: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.wl-dash-sources .result-tag {
+  cursor: pointer;
+}
+.wl-dash-sources .result-tag.on {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.wl-dash-from-tags button.result-tag {
+  cursor: pointer;
+}
+.wl-dash-from-tags button.result-tag:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* ——— Groups view: one-scan signal strip (GroupSignalStrip) ——— */
+.grp-strip {
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.grp-strip-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.grp-strip-meta,
+.grp-strip-empty {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.grp-strip-empty {
+  margin: 8px 0 0;
+}
+.grp-strip-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.grp-strip-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) 1fr;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.grp-strip-group {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.grp-strip-group:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.grp-strip-stocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.grp-strip-stock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+.grp-strip-stock a.mono {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.grp-strip-stock a.mono:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+@media (max-width: 640px) {
+  .grp-strip-row {
+    grid-template-columns: 1fr;
+  }
+}
+.grp-strip-sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 8px;
+  margin: 14px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.grp-strip-sub span {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.grp-strip-sub em {
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+/* ——— Listed Venture screen ——— */
+.lv-validate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font-size: 0.8rem;
+  color: var(--ink);
+}
+.lv-validate em {
+  font-style: normal;
+  color: var(--muted);
+}
+.lv-table tr.lv-in-list td {
+  background: var(--gold-soft);
+}
+.lv-table button.result-tag {
+  cursor: pointer;
+}
+.lv-filter-k {
+  margin-left: 10px;
+}
+.lv-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.lv-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0 4px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.lv-industry {
+  width: auto;
+  max-width: 240px;
+  padding: 3px 8px;
+  font-size: 0.78rem;
+}
+.lv-ind {
+  max-width: 190px;
+  font-size: 0.8rem;
+}
+.lv-ind-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.lv-ind-btn:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+/* LV page — shared MarketCapRangeBar sits in the filter row */
+.lv-mcap {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 10px;
+}
+.lv-opm {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* LV — my-holdings sector / industry checkboxes */
+.lv-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0 0 12px;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lv-groups legend {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.lv-groupby {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+.lv-groupby.on {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.lv-groups-hint {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.lv-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.8rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+.lv-group em {
+  font-style: normal;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+/* LV — validation + similar sections */
+.lv-h {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 18px 0 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.lv-h span {
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+.lv-table tr.lv-missed td {
+  color: var(--muted);
+}
+.result-tag.lv-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.result-tag.lv-no {
+  background: var(--danger-soft);
+  color: var(--danger);
+}

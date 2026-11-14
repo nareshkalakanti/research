@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useMemo, useState } from "react";
 import { ExpandQuarters } from "@/components/ExpandQuarters";
 import {
@@ -19,7 +20,7 @@ type Props = {
 };
 
 /**
- * Compact quarters rank (growth mean + Growing/Mixed/Declining).
+ * Compact quarters rank (0–10 growth score + Strong/Growing/Mixed/Weak).
  * Click the score head to expand the quarter table — no subtitle / Show link.
  */
 export function QuartersRankCard({
@@ -42,7 +43,7 @@ export function QuartersRankCard({
   if (data.loading && !data.panel) {
     return (
       <div className={root}>
-        <p className="table-meta">Loading quarters…</p>
+        <Loading label="Loading quarters" variant="inline" />
       </div>
     );
   }
@@ -61,10 +62,8 @@ export function QuartersRankCard({
     );
   }
 
-  const barCls = rank ? quarterRankRatingClass(rank.signal) : "";
-  const pct = rank
-    ? Math.min(100, Math.max(0, ((rank.score + 50) / 100) * 100))
-    : 0;
+  const barCls = rank ? quarterRankRatingClass(rank.band) : "";
+  const pct = rank ? Math.min(100, Math.max(0, rank.score * 10)) : 0;
 
   return (
     <div className={`${root}${expanded ? "" : " seven-rule-card--compact"}`}>
@@ -79,10 +78,9 @@ export function QuartersRankCard({
           {rank ? (
             <>
               <span className="seven-rule-score-num">
-                {rank.score >= 0 ? "+" : ""}
                 {rank.score.toFixed(1)}
               </span>
-              <span className="seven-rule-score-denom">growth</span>
+              <span className="seven-rule-score-denom">/10 growth</span>
               <span className={`seven-rule-rating ${barCls}`}>
                 {rank.ratingLabel}
               </span>
@@ -91,6 +89,9 @@ export function QuartersRankCard({
             <span className="seven-rule-score-denom">No growth score</span>
           )}
         </div>
+        {rank?.summary ? (
+          <p className="quarters-rank-summary">{rank.summary}</p>
+        ) : null}
         {rank ? (
           <div className="seven-rule-bar" aria-hidden>
             <div
@@ -102,26 +103,45 @@ export function QuartersRankCard({
       </button>
 
       {expanded && rank?.metrics.length ? (
-        <ul className="seven-rule-rules quarters-rank-metrics">
-          {rank.metrics.map((m) => (
-            <li
-              key={m.id}
-              className={`seven-rule-rule ${
-                m.tone === "good"
-                  ? "seven-rule-rule--pass"
-                  : m.tone === "bad"
-                    ? "seven-rule-rule--fail"
-                    : "seven-rule-rule--unknown"
-              }`}
-            >
-              <span className="seven-rule-rule-label">{m.label}</span>
-              <span className="seven-rule-rule-val">{m.value}</span>
-              <span className="seven-rule-rule-verdict">
-                {m.tone === "good" ? "Up" : m.tone === "bad" ? "Down" : "Flat"}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="seven-rule-rules quarters-rank-metrics">
+            {rank.metrics.map((m) => (
+              <li
+                key={m.id}
+                className={`seven-rule-rule ${
+                  m.tone === "good"
+                    ? "seven-rule-rule--pass"
+                    : m.tone === "bad"
+                      ? "seven-rule-rule--fail"
+                      : "seven-rule-rule--unknown"
+                }`}
+              >
+                <span className="seven-rule-rule-label">{m.label}</span>
+                <span className="seven-rule-rule-val">
+                  {m.value}
+                  {Number.isFinite(m.points) && Number.isFinite(m.weight) ? (
+                    <span className="quarters-rank-pts">
+                      {" "}
+                      {m.points.toFixed(1)} pts × {Math.round(m.weight * 100)}%
+                    </span>
+                  ) : null}
+                </span>
+                <span className="seven-rule-rule-verdict">
+                  {m.tone === "good"
+                    ? "Up"
+                    : m.tone === "bad"
+                      ? "Down"
+                      : "Flat"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="quarters-rank-how">
+            Each growth % maps to 0–10 (−25% → 0, flat → 5, +25% → 10), then a
+            weighted average: YoY 30% each, QoQ 20% each. 7+ Strong · 5.5+
+            Growing · 4+ Mixed · below 4 Weak.
+          </p>
+        </>
       ) : null}
 
       {expanded ? (

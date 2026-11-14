@@ -5,6 +5,7 @@
  */
 import YahooFinance from "yahoo-finance2";
 import {
+  alignQuarterSeriesUnits,
   mergeQuarterFill,
   missingSalesOrProfit,
   trimReportedQuarters,
@@ -71,6 +72,32 @@ const CFO_NP_FIELDS = [
 ] as const;
 
 const yf = new YahooFinance({ suppressNotices: ["yahooSurvey"] });
+
+/**
+ * True when two series report the same basis (consolidated vs standalone).
+ * BSE/NSE results APIs often return standalone while Screener/Groww are
+ * consolidated — mixing them makes the latest quarter look like a collapse
+ * (e.g. ANURAS Sep 2026: BSE standalone ₹397 Cr vs consolidated ₹821 Cr).
+ * Compares revenue on overlapping quarters; >12% median gap = different basis.
+ */
+export function sameReportingBasis(
+  a: QuarterPoint[],
+  b: QuarterPoint[],
+): boolean {
+  const [left, right] = alignQuarterSeriesUnits(a, b);
+  const rev = new Map(
+    right.map((q) => [q.date.slice(0, 10), q.revenue] as const),
+  );
+  const gaps: number[] = [];
+  for (const q of left) {
+    const other = rev.get(q.date.slice(0, 10));
+    if (q.revenue == null || other == null || other === 0) continue;
+    gaps.push(Math.abs(q.revenue / other - 1));
+  }
+  if (!gaps.length) return true;
+  gaps.sort((x, y) => x - y);
+  return gaps[Math.floor(gaps.length / 2)]! <= 0.12;
+}
 
 /** Allow limited parallel Yahoo calls (global mutex was ~1 req / 200ms). */
 const YAHOO_MAX_CONCURRENT = 6;
@@ -371,11 +398,17 @@ export async function fetchQuarterlyFundamentals(
       }
       if (screener.length >= 2) {
         const before = quarters.length;
+        // Filings on a different basis (standalone) — keep Screener's series
+        // whole; Groww tip-extend below adds newer consolidated quarters.
+        const filingsMismatch =
+          before >= 2 &&
+          (source === "nse" || source === "bse") &&
+          !sameReportingBasis(quarters, screener);
         quarters =
-          before >= 2
+          before >= 2 && !filingsMismatch
             ? mergeScreenerQuarterOverlay(quarters, screener)
             : screener;
-        if (before < 2) source = "screener";
+        if (before < 2 || filingsMismatch) source = "screener";
         else if (quarters.length > before) source = "screener";
       }
     }
@@ -450,12 +483,10 @@ export async function fetchQuarterlyFundamentals(
 
   let operating_cashflow: number | null = null;
   let operating_cashflow_np: number | null = null;
-  // Screener overlay sets source to "yahoo+screener"; still use Yahoo for CFO.
-  if (
-    quarters.length >= 2 &&
-    usedSymbol &&
-    (source === "yahoo" || source === "yahoo+screener")
-  ) {
+  // CFO always comes from Yahoo's cash-flow module, whatever source supplied
+  // the quarters (Screener / NSE / BSE / Groww) — otherwise CF/P is blank for
+  // every non-Yahoo stock. Annual fallback pairs CFO with same-period NP.
+  if (quarters.length >= 2 && usedSymbol) {
     const hit = await fetchLatestOperatingCashflow(usedSymbol);
     if (hit) {
       operating_cashflow = hit.cfo;

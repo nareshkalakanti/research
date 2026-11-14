@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
 import { QuartersRankCard } from "@/components/QuartersRankCard";
+import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
 import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
@@ -56,6 +57,17 @@ export function NapkinCompanyContext({
       <div className="napkin-sheet-section">
         <h2 className="napkin-block-title">Quarters</h2>
         <QuartersRankCard data={qtr} price={price} />
+      </div>
+
+      <div className="napkin-sheet-section">
+        <h2 className="napkin-block-title">Tech</h2>
+        <QuoteTapeCard
+          ticker={ticker}
+          market={market}
+          hideTitle
+          hideVal
+          className="napkin-tape-card"
+        />
       </div>
     </>
   );

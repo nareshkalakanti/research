@@ -1,5 +1,6 @@
 "use client";
 
+import { napkinUrl } from "@/lib/links";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type Company = {
@@ -500,6 +501,16 @@ export function FamilyGraph({
                 ) : null
               ) : (
                 <>
+                  {chartUrl && hover === node.id ? (
+                    // Invisible bridge so moving down to NP keeps the hover.
+                    <rect
+                      className="fam-np-hit"
+                      x={-36}
+                      y={node.r}
+                      width={72}
+                      height={node.kind === "outside" ? 40 : 28}
+                    />
+                  ) : null}
                   {chartUrl ? (
                     <a
                       href={chartUrl(node.id.slice(2))}
@@ -518,6 +529,24 @@ export function FamilyGraph({
                     <text y={node.r + 22} className="fam-mcap-tip">
                       {node.hint || "mcap —"}
                     </text>
+                  ) : null}
+                  {chartUrl && hover === node.id ? (
+                    // Napkin alt link — hover-only so the graph stays clean.
+                    <a
+                      href={napkinUrl(node.id.slice(2))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <title>{`Open ${node.id.slice(2)} in Napkin`}</title>
+                      <text
+                        y={node.r + (node.kind === "outside" ? 34 : 22)}
+                        className="fam-link fam-np"
+                      >
+                        NP ↗
+                      </text>
+                    </a>
                   ) : null}
                 </>
               )}

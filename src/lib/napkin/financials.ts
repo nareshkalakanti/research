@@ -142,6 +142,8 @@ type QuoteSummaryResult = {
   bare: string;
   /** Yahoo 429 — skip further Yahoo calls; Screener fills current levels. */
   yahooLimited: boolean;
+  /** Set when Yahoo has no quote at all for any candidate symbol. */
+  yahooMissing?: string;
 };
 
 /** Try NSE / NSE SME / BSE Yahoo symbols until quoteSummary succeeds. */
@@ -172,10 +174,16 @@ async function quoteSummaryForTicker(ticker: string): Promise<QuoteSummaryResult
       }
     }
   }
-  throw new StockDataError(
-    "yahoo_unavailable",
-    `Yahoo Finance unavailable: ${lastErr?.message || "no quote"}`,
-  );
+  // No Yahoo listing (InvITs, thin BSE scrips, fresh listings) — continue on
+  // Screener / Tickertape like the rate-limited path; getStockData throws
+  // only if those find no price either.
+  return {
+    symbol: candidates[0]!,
+    qs: null,
+    bare,
+    yahooLimited: true,
+    yahooMissing: lastErr?.message || "no quote",
+  };
 }
 
 function bag(o: object | null | undefined): Record<string, unknown> {
@@ -402,9 +410,14 @@ async function fillFiveYearFromAltSources(
 }
 
 export async function getStockData(ticker: string): Promise<NapkinStockJson> {
-  const { symbol, qs, bare, yahooLimited } = await quoteSummaryForTicker(ticker);
+  const { symbol, qs, bare, yahooLimited, yahooMissing } =
+    await quoteSummaryForTicker(ticker);
   const warnings: string[] = [];
-  if (yahooLimited) {
+  if (yahooMissing) {
+    warnings.push(
+      "Not on Yahoo Finance — current levels from Screener / Tickertape",
+    );
+  } else if (yahooLimited) {
     warnings.push(
       "Yahoo rate-limited — current levels from Screener / Tickertape / bars",
     );
@@ -466,6 +479,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   const rev5 = windowCagr(revenueS, 5);
   const profit3 = windowCagr(niS, 3);
   const profit5 = windowCagr(niS, 5);
+  const eps2 = windowCagr(epsS, 2);
   const eps3 = windowCagr(epsS, 3);
   const eps5 = windowCagr(epsS, 5);
 
@@ -491,12 +505,14 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     const sRev5 = annualCagr(pairs.revenue.map(([, v]) => v), 5);
     const sP3 = annualCagr(pairs.profit.map(([, v]) => v), 3);
     const sP5 = annualCagr(pairs.profit.map(([, v]) => v), 5);
+    const sE2 = annualCagr(pairs.eps.map(([, v]) => v), 2);
     const sE3 = annualCagr(pairs.eps.map(([, v]) => v), 3);
     const sE5 = annualCagr(pairs.eps.map(([, v]) => v), 5);
     if (sRev2.value != null) {
       rev2.value = sRev2.value;
       delete reasons.revenue_2y;
     }
+    if (sE2.value != null) eps2.value = sE2.value;
     if (sRev3.value != null) {
       rev3.value = sRev3.value;
       delete reasons.revenue_3y;
@@ -675,6 +691,12 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
       /* leave price null */
     }
   }
+  if (yahooMissing && price == null) {
+    throw new StockDataError(
+      "yahoo_unavailable",
+      `${bare}: not on Yahoo Finance and no price from Screener / Tickertape (${yahooMissing})`,
+    );
+  }
 
   let marginNow: number | null = null;
   if (latestNi != null && latestRev != null && latestRev !== 0) {
@@ -767,6 +789,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     revenue_2y: rev2.value,
     revenue_3y: rev3.value,
     revenue_5y: rev5.value,
+    eps_2y: eps2.value,
     eps_3y: eps3.value,
     eps_5y: eps5.value,
     profit_3y: profit3.value,

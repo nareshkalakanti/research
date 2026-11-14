@@ -4,7 +4,8 @@ import { useState } from "react";
 import type { SevenRuleResult, SevenRuleRule } from "@/lib/seven-rule-score";
 
 function ratingClass(rating: SevenRuleResult["rating"]): string {
-  if (rating === "strong_buy" || rating === "buy") return "seven-rule-rating--buy";
+  if (rating === "strong_buy" || rating === "buy")
+    return "seven-rule-rating--buy";
   if (rating === "deep_dive") return "seven-rule-rating--hold";
   return "seven-rule-rating--sell";
 }
@@ -21,6 +22,13 @@ function verdictLabel(verdict: SevenRuleRule["verdict"]): string {
   return "Unknown";
 }
 
+const QUALITY_IDS = new Set<SevenRuleRule["id"]>(["roce", "roe"]);
+
+function groupTally(rules: SevenRuleRule[], quality: boolean): string {
+  const g = rules.filter((r) => QUALITY_IDS.has(r.id) === quality);
+  return `${g.filter((r) => r.verdict === "pass").length}/${g.length}`;
+}
+
 type Props = {
   result: SevenRuleResult;
   /** Start collapsed with a Show toggle (Quarters / Quality rhythm). */
@@ -34,11 +42,8 @@ export function SevenRuleScoreCard({
   compact,
   defaultExpanded = false,
 }: Props) {
-  const [expanded, setExpanded] = useState(
-    compact ? defaultExpanded : true,
-  );
-  const pct = Math.min(100, Math.max(0, (result.score / 10) * 100));
-  const barClass = ratingClass(result.rating);
+  const [expanded, setExpanded] = useState(compact ? defaultExpanded : true);
+  const total = result.rules.length;
   const showRules = !compact || expanded;
 
   return (
@@ -49,8 +54,8 @@ export function SevenRuleScoreCard({
     >
       <div className="seven-rule-head">
         <div className="seven-rule-score-line">
-          <span className="seven-rule-score-num">{result.score.toFixed(2)}</span>
-          <span className="seven-rule-score-denom">/10</span>
+          <span className="seven-rule-score-num">{result.passed}</span>
+          <span className="seven-rule-score-denom">/ {total} rules</span>
           {result.ratingLabel ? (
             <span
               className={`seven-rule-rating ${ratingClass(result.rating)}`}
@@ -64,14 +69,18 @@ export function SevenRuleScoreCard({
             </span>
           ) : null}
         </div>
-        <div className="seven-rule-bar" aria-hidden>
-          <div
-            className={`seven-rule-bar-fill ${barClass}`}
-            style={{ width: `${pct}%` }}
-          />
+        <div className="seven-rule-segs" aria-hidden>
+          {result.rules.map((rule) => (
+            <span
+              key={rule.id}
+              title={`${rule.label}: ${verdictLabel(rule.verdict)}`}
+              className={`seven-rule-seg seven-rule-seg--${rule.verdict}`}
+            />
+          ))}
         </div>
         <p className="seven-rule-sub">
-          {result.passed} of 7 rules passed
+          Quality {groupTally(result.rules, true)} · Momentum{" "}
+          {groupTally(result.rules, false)}
           {result.provisional ? " · incomplete inputs" : ""}
         </p>
       </div>
@@ -85,7 +94,10 @@ export function SevenRuleScoreCard({
               <span className="seven-rule-rule-label">{rule.label}</span>
               <span className="seven-rule-rule-val">
                 {rule.value ?? "—"}
-                <span className="seven-rule-rule-thresh"> ({rule.threshold})</span>
+                <span className="seven-rule-rule-thresh">
+                  {" "}
+                  ({rule.threshold})
+                </span>
               </span>
               <span className="seven-rule-rule-verdict">
                 {verdictLabel(rule.verdict)}

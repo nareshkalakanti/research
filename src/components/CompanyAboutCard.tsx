@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useEffect, useState } from "react";
 
 export type CompanyAboutPayload = {
@@ -98,7 +99,7 @@ export function CompanyAboutCard({
     <section className={`company-about-card ${className || ""}`.trim()}>
       <h3 className="company-about-card-title">About</h3>
       {loading ? (
-        <p className="company-about-card-muted">Loading about…</p>
+        <Loading label="Loading about" variant="inline" />
       ) : error ? (
         <p className="company-about-card-muted">{error}</p>
       ) : hasAbout ? (
