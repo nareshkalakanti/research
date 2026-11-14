@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import {
   useCallback,
   useEffect,
@@ -106,7 +107,10 @@ function sma(pts: Point[], n: number): Point[] {
   return out;
 }
 
-const PAGE_SIZE = 12;
+/** Cards shown first on "All"; "Show more" adds this many each click. */
+const PAGE_SIZE = 24;
+/** Server hydrate cap per request (route slices ids to 24). */
+const HYDRATE_CHUNK = 24;
 
 function DualSpark({
   a,
@@ -1150,6 +1154,8 @@ export function SectorRotationPanel() {
       // period returns with today % and reshuffled pages in a loop.
       rows.sort(byReturn);
     }
+    // Sectors with no members can't chart — keep them after real sectors.
+    rows = [...rows.filter((c) => c.n > 0), ...rows.filter((c) => !(c.n > 0))];
     if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
     // Top/Bottom/Above need board-wide returns (see rankingWait).
     if ((boardFilter === "top" || boardFilter === "bottom" || aboveOn) && !rankedReady) {
@@ -1180,15 +1186,12 @@ export function SectorRotationPanel() {
     setPage(0);
   }, [filter, stockFilter, boardFilter, aboveOn, sortKey]);
 
-  // Top / Bottom 20 show all 20 on one page (chart hydrate takes ≤24 ids).
+  // "page" = how many extra batches are revealed (0 → first PAGE_SIZE).
+  // Top / Bottom 20 always fit in one batch.
   const pageSize =
     boardFilter === "top" || boardFilter === "bottom" ? 20 : PAGE_SIZE;
-  const pageCount = Math.max(1, Math.ceil(sortedCards.length / pageSize));
-  const pageSafe = Math.min(page, pageCount - 1);
-  const pageCards = sortedCards.slice(
-    pageSafe * pageSize,
-    pageSafe * pageSize + pageSize,
-  );
+  const shownCount = Math.min(sortedCards.length, (page + 1) * pageSize);
+  const pageCards = sortedCards.slice(0, shownCount);
   const pageIds = pageCards.map((c) => c.id).join(",");
 
   useEffect(() => {
@@ -1218,9 +1221,16 @@ export function SectorRotationPanel() {
     }
     const gen = ++hydrateGen.current;
     setHydrating(true);
-    const hydrateIds = missing.join(",");
+    // Route hydrates ≤24 ids per call — fetch larger reveals in batches.
+    const chunks: string[][] = [];
+    for (let i = 0; i < missing.length; i += HYDRATE_CHUNK) {
+      chunks.push(missing.slice(i, i + HYDRATE_CHUNK));
+    }
     void (async () => {
       try {
+       for (const chunk of chunks) {
+        if (gen !== hydrateGen.current) return;
+        const hydrateIds = chunk.join(",");
         const res = await fetch(
           `/api/sector-rotation?hydrate=${encodeURIComponent(hydrateIds)}&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
           { cache: "no-store" },
@@ -1240,6 +1250,7 @@ export function SectorRotationPanel() {
         setBenchLabel(json.bench_label || "Nifty 500");
         const next = new Map((json.sectors ?? []).map((c) => [c.id, c]));
         setCards((prev) => prev.map((c) => next.get(c.id) ?? c));
+       }
       } catch (e) {
         if (gen !== hydrateGen.current) return;
         setError(e instanceof Error ? e.message : String(e));
@@ -1890,7 +1901,7 @@ export function SectorRotationPanel() {
               }
             />
           ) : openCard ? null : (
-            <div className="table-meta">Loading sector…</div>
+            <Loading label="Loading sector" variant="block" />
           )}
           <p className="rot-tone-hint">
             Sector line: green = at/above {benchLabel}, red = below. Change % follows
@@ -2033,30 +2044,14 @@ export function SectorRotationPanel() {
         <div className="rot-page">
           <span>
             {sortedCards.length
-              ? `${pageSafe * pageSize + 1}–${Math.min(
-                  sortedCards.length,
-                  (pageSafe + 1) * pageSize,
-                )} of ${sortedCards.length}`
+              ? `Showing ${shownCount} of ${sortedCards.length} sectors`
               : rankingWait
                 ? "Ranking…"
                 : "No sectors"}
+            {sortedCards.length > 0 && !rankedReady && sortKey === "return"
+              ? " · ranking by return…"
+              : ""}
           </span>
-          <button
-            type="button"
-            className="rot-chip"
-            disabled={pageSafe <= 0}
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-          >
-            Prev
-          </button>
-          <button
-            type="button"
-            className="rot-chip"
-            disabled={pageSafe >= pageCount - 1}
-            onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
-          >
-            Next
-          </button>
         </div>
         {view === "table" ? (
         <table className="rot-table">
@@ -2120,7 +2115,7 @@ export function SectorRotationPanel() {
       ) : (
         <div className="rot-grid">
           {loading && !cards.length ? (
-            <div className="table-meta">Loading sectors…</div>
+            <Loading label="Loading sectors" variant="block" />
           ) : null}
           {pageCards.map((c) => (
             <article
@@ -2218,6 +2213,32 @@ export function SectorRotationPanel() {
           ))}
         </div>
         )}
+        {shownCount < sortedCards.length ? (
+          <div className="rot-more">
+            <span>
+              {shownCount} of {sortedCards.length} shown
+            </span>
+            <button
+              type="button"
+              className="rot-chip"
+              disabled={hydrating}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Show {Math.min(pageSize, sortedCards.length - shownCount)} more
+            </button>
+            <button
+              type="button"
+              className="rot-chip"
+              disabled={hydrating}
+              title="Loads charts in batches of 24 — may take a minute"
+              onClick={() =>
+                setPage(Math.ceil(sortedCards.length / pageSize) - 1)
+              }
+            >
+              Show all
+            </button>
+          </div>
+        ) : null}
         </>
       )}
     </section>

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import type { ReactNode } from "react";
 import { QuarterPanel } from "@/components/QuarterPanel";
 import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
@@ -32,7 +33,7 @@ export function ExpandQuarters({
   const { panel, yoy, source, loading, error } = data;
 
   if (loading) {
-    return <p className="q-empty">Loading quarterly…</p>;
+    return <Loading label="Loading quarterly" variant="inline" />;
   }
   if (error) {
     return <p className="q-empty">{error}</p>;

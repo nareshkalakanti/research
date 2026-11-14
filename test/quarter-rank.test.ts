@@ -29,7 +29,7 @@ function panel(partial: {
 }
 
 describe("quarterRankFromPanel", () => {
-  it("scores rising sales YoY/QoQ as Growing with positive mean", () => {
+  it("scores strong sales + profit growth high on the 0–10 scale", () => {
     const r = quarterRankFromPanel(
       panel({
         labels: ["Sep 2024", "Dec 2024", "Mar 2025", "Jun 2025", "Sep 2025"],
@@ -38,10 +38,25 @@ describe("quarterRankFromPanel", () => {
       }),
     );
     assert.ok(r);
-    assert.equal(r!.signal, "Growing");
-    assert.equal(r!.ratingLabel, "Growing");
-    assert.ok(r!.score > 0);
+    assert.equal(r!.band, "Strong");
+    assert.equal(r!.ratingLabel, "Strong");
+    assert.ok(r!.score >= 7 && r!.score <= 10);
     assert.ok(r!.metrics.some((m) => m.id === "sales_yoy"));
+  });
+
+  it("penalises a profit drop even when sales grow (not 'Growing')", () => {
+    // Mirrors Dec 2025 → Sep 2026 panel: sales +6.5% YoY, NP −28.4% YoY.
+    const r = quarterRankFromPanel(
+      panel({
+        labels: ["Sep 2025", "Dec 2025", "Mar 2026", "Jun 2026", "Sep 2026"],
+        sales: [1588, 1617, 1711, 1675, 1691],
+        np: [169, 133, 163, 116, 121],
+      }),
+    );
+    assert.ok(r);
+    assert.ok(r!.score < 5.5, `score ${r!.score}`);
+    assert.notEqual(r!.band, "Growing");
+    assert.match(r!.summary, /Profit −?-?28/);
   });
 
   it("returns null when panel has no growth pairs", () => {

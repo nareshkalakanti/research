@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   companyFundTags,
@@ -1760,7 +1761,7 @@ function NotesPanel({
   }
 
   if (loading) {
-    return <p className="notes-muted">Loading note…</p>;
+    return <Loading label="Loading note" variant="inline" />;
   }
 
   const display = saved || "";

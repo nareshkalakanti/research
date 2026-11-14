@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useState } from "react";
 import { formatMcap } from "@/lib/types";
 
@@ -167,7 +168,7 @@ export function GovernanceChangesPanel({
       ) : null}
 
       {loading && !data ? (
-        <p className="gov-changes-empty">Loading changes…</p>
+        <Loading label="Loading changes" variant="block" />
       ) : events.length === 0 ? (
         <p className="gov-changes-empty">
           {corpPushes ? (

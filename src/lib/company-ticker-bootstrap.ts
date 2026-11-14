@@ -206,13 +206,21 @@ async function bootstrapListedTicker(
     const listed = (p?.listed_ticker || "")
       .toUpperCase()
       .replace(/-EQ$/i, "");
-    if (listed && TICKER_RE.test(listed)) key = listed;
+    // Web profiles can blend two listings (ISCITRUST name/ISIN/price with
+    // ALTIUSINVIT's ticker + scrip). Only adopt a different listed ticker
+    // when the requested one has no exchange quote of its own.
+    const adoptListed =
+      listed && TICKER_RE.test(listed) && (listed === key || !hasQuote);
+    if (adoptListed) key = listed;
     const ex = (p?.exchange || "").toUpperCase();
     if (hintMarket.startsWith("BSE") && p?.bse_tradable) market = "BSE";
     else if (p?.bse_tradable && !p?.nse_tradable) market = "BSE";
     else if (!nse && ex.includes("BSE")) market = "BSE";
     else if (!nse && ex.includes("NSE") && !ex.includes("BSE")) market = "NSE";
-    if (p?.bse_scrip) cacheBseScripCode(key, p.bse_scrip);
+    // Scrip belongs to the profile's listed ticker — skip when we rejected it.
+    if (p?.bse_scrip && (!listed || listed === key)) {
+      cacheBseScripCode(key, p.bse_scrip);
+    }
   } catch {
     /* name/exchange from Yahoo is enough */
   }

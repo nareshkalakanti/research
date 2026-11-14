@@ -311,7 +311,10 @@ export function SignalScanBar({
 
       try {
         for (let round = 1; round <= 200; round += 1) {
-          const batchLimit = 40;
+          // Weekly-only scans (TQ / BB) are light per name — bigger batches
+          // halve request round-trips. Server caps at 80.
+          const batchLimit =
+            effectiveKind === "tq" || effectiveKind === "bb" ? 80 : 40;
           let json: Awaited<ReturnType<typeof scanOnce>> | null = null;
           let attemptError: Error | null = null;
           for (let attempt = 1; attempt <= 3; attempt += 1) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import {
@@ -531,7 +532,7 @@ export function ScanPanel() {
           </button>
         </p>
       ) : null}
-      {loading && !data ? <div className="loading">Loading…</div> : null}
+      {loading && !data ? <Loading variant="block" /> : null}
 
       <CompanyTable
         rows={data?.rows ?? []}

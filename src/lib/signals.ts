@@ -884,20 +884,25 @@ export function analyzeBbWeekly(bars: Bar[]) {
 }
 
 /**
- * TradingView TQ : W52 zones (stocks-ai tq_recovery):
- * green ≥ 0 · yellow = below 0 and rising · red = below 0 flat/falling.
+ * TradingView TQ : W52 line colour (read off the TV pane, MSTCLTD 2023–26):
+ * green  = every TQ entry condition true this week (see `tqEntryOk`)
+ * red    = W52 RS below 0 and falling
+ * yellow = anything else (incl. RS above 0 without the full entry set)
  */
 export function classifyTqW52Zone(
   rs: number | null | undefined,
   prevRs: number | null | undefined,
+  entryOk = false,
 ): "green" | "yellow" | "red" | null {
   if (rs == null || !Number.isFinite(rs)) return null;
-  if (rs >= 0) return "green";
-  if (prevRs != null && Number.isFinite(prevRs) && rs > prevRs) return "yellow";
-  return "red";
+  if (entryOk) return "green";
+  if (rs < 0 && (prevRs == null || !Number.isFinite(prevRs) || rs <= prevRs)) {
+    return "red";
+  }
+  return "yellow";
 }
 
-/** W52 RS crosses from below zero into green (TV: from below → up + green). */
+/** @deprecated TQ hits are "line turns green", not an RS zero-cross. */
 export function isTqW52GreenFromBelow(
   rs: number | null | undefined,
   prevRs: number | null | undefined,
@@ -908,8 +913,8 @@ export function isTqW52GreenFromBelow(
 }
 
 /**
- * Weekly TQ — TradingView TQ : W52 enters green from below, with RSI / ADX /
- * Supertrend gates (stocks-ai tq_bb). 13W-only turn-ups are not TQ hits.
+ * Weekly TQ — the week TradingView's TQ : W52 line turns green (all entry
+ * conditions true this week, not last week). Wilder RSI / ATR / DMI.
  */
 export function analyzeTqWeekly(
   stockBars: Bar[],
@@ -938,40 +943,51 @@ export function analyzeTqWeekly(
   const longRs = relativeStrength(closes, niftyCloses, 52);
   const shortRs = relativeStrength(closes, niftyCloses, 13);
 
+  // TV TQ : W52 entry set (inputs: RS 52/13 vs NSE:NIFTY, ST 10×3, RSI 21
+  // > 55, ADX > 20 with DMI 13, price & volume above 13-week MA). The line is
+  // green while all hold; a TQ hit is the week it turns green.
+  const entryOk = (k: number): boolean => {
+    const lrs = longRs[k];
+    const srs = shortRs[k];
+    const r = rsiVals[k];
+    const s = stLine[k];
+    const a = adxVals[k];
+    const dp = diPlus[k];
+    const dm = diMinus[k];
+    const pma = priceMa[k];
+    const vma = volMa[k];
+    const c = closes[k];
+    const v = volumes[k];
+    if (
+      lrs == null || srs == null || r == null || s == null || a == null ||
+      dp == null || dm == null || pma == null || vma == null ||
+      !Number.isFinite(c) || !Number.isFinite(v)
+    ) {
+      return false;
+    }
+    return (
+      lrs >= 0 &&
+      srs > 0 &&
+      r > 55 &&
+      c > s &&
+      a > 20 &&
+      dp > dm &&
+      c > pma &&
+      v > vma
+    );
+  };
+
   const i = stock.length - 1;
   const prev = i - 1;
-  const curRsi = rsiVals[i];
-  const curSt = stLine[i];
-  const curAdx = adxVals[i];
-  const curDiP = diPlus[i];
-  const curDiM = diMinus[i];
-  const curPma = priceMa[i];
-  const curVma = volMa[i];
-  const curLrs = longRs[i];
-  const curSrs = shortRs[i];
-  const prevLrs = longRs[prev];
+  if (!entryOk(i) || entryOk(prev)) return null;
+
+  const curRsi = rsiVals[i]!;
+  const curAdx = adxVals[i]!;
+  const curDiP = diPlus[i]!;
+  const curDiM = diMinus[i]!;
+  const curLrs = longRs[i]!;
+  const curSrs = shortRs[i]!;
   const prevSrs = shortRs[prev];
-  const price = closes[i];
-  const vol = volumes[i];
-
-  // Must match TV: W52 from below → up into green (≥ 0).
-  if (!isTqW52GreenFromBelow(curLrs, prevLrs)) return null;
-  if (classifyTqW52Zone(curLrs, prevLrs) !== "green") return null;
-
-  if (curRsi == null || curRsi <= 55) return null;
-  if (curSt == null || price <= curSt) return null;
-  const prevPrice = closes[prev];
-  const prevSt = stLine[prev];
-  // Fresh: last week at/below Supertrend, this week above (same idea as BB NEW / 200 DMA ↑).
-  if (prevSt == null || !Number.isFinite(prevPrice) || prevPrice > prevSt) {
-    return null;
-  }
-  if (curAdx == null || curAdx <= 20) return null;
-  if (curDiP == null || curDiM == null || curDiP <= curDiM) return null;
-  if (curPma == null || price <= curPma) return null;
-  if (curVma == null || vol <= curVma) return null;
-  // Short RS supportive (above zero); not a substitute for W52 green-from-below.
-  if (curSrs == null || curSrs <= 0) return null;
 
   const shortX =
     prevSrs != null &&
@@ -985,7 +1001,7 @@ export function analyzeTqWeekly(
   const rsiScore = Math.min(25, Math.max(0, (curRsi - 55) * 2.5));
   const adxScore = Math.min(25, Math.max(0, (curAdx - 20) * 1.25));
   const dmiScore = Math.min(25, Math.max(0, (curDiP - curDiM) * 2));
-  const rsScore = Math.min(25, Math.max(0, (curLrs! + curSrs) * 1000));
+  const rsScore = Math.min(25, Math.max(0, (curLrs + curSrs) * 1000));
   const score = Math.round((rsiScore + adxScore + dmiScore + rsScore) * 100) / 100;
 
   return {
@@ -1782,8 +1798,21 @@ export async function runSignalBatch(
     1,
     Math.min(
       opts?.concurrency ??
-        (kind === "mom" ? 2 : kind === "mrsi" || kind === "all" ? 6 : 4),
-      kind === "all" || kind === "mrsi" ? 8 : 6,
+        (kind === "mom"
+          ? 2
+          : kind === "tq" || kind === "bb" || kind === "both"
+            ? 8
+            : kind === "mrsi" || kind === "all"
+              ? 6
+              : 4),
+      // Weekly-only kinds are 2 light Yahoo calls/name — 8 in flight is safe.
+      kind === "all" ||
+        kind === "mrsi" ||
+        kind === "tq" ||
+        kind === "bb" ||
+        kind === "both"
+        ? 8
+        : 6,
     ),
   );
   const bbTf = opts?.bbTimeframe ?? "weekly";

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useEffect, useState } from "react";
 import type { QuoteTape } from "@/lib/quote-tape";
 
@@ -17,7 +18,22 @@ type MaPeriod = 20 | 50 | 100 | 200;
 export type QuoteTapeFundamentals = {
   revenue_cagr_5y?: number | null;
   eps_cagr_5y?: number | null;
+  revenue_cagr_3y?: number | null;
+  eps_cagr_3y?: number | null;
+  revenue_cagr_2y?: number | null;
+  eps_cagr_2y?: number | null;
 };
+
+type CagrYears = 5 | 3 | 2;
+const CAGR_YEARS: CagrYears[] = [5, 3, 2];
+
+function fundAt(f: QuoteTapeFundamentals | null, y: CagrYears) {
+  if (!f) return { rev: null, eps: null };
+  const rev =
+    y === 5 ? f.revenue_cagr_5y : y === 3 ? f.revenue_cagr_3y : f.revenue_cagr_2y;
+  const eps = y === 5 ? f.eps_cagr_5y : y === 3 ? f.eps_cagr_3y : f.eps_cagr_2y;
+  return { rev: rev ?? null, eps: eps ?? null };
+}
 
 type Props = {
   ticker: string;
@@ -32,6 +48,10 @@ type Props = {
   variant?: "full" | "range";
   /** When present, show Revenue/EPS 5Y CAGR (Snapshot) instead of price CAGR. */
   fundamentals?: QuoteTapeFundamentals | null;
+  /** Parent renders its own section heading (e.g. Napkin). */
+  hideTitle?: boolean;
+  /** Drop the Val row (Price · PE · Rev/EPS CAGR) — technicals only. */
+  hideVal?: boolean;
 };
 
 /** Format napkin ratio (0.147 → +14.7%). */
@@ -53,9 +73,13 @@ export function QuoteTapeCard({
   periods,
   variant = "full",
   fundamentals = null,
+  hideTitle = false,
+  hideVal = false,
 }: Props) {
   const [tape, setTape] = useState<QuoteTape | null>(null);
   const [loading, setLoading] = useState(false);
+  /** Chosen CAGR window; null = longest one with data (5Y → 3Y → 2Y). */
+  const [cagrPick, setCagrPick] = useState<CagrYears | null>(null);
 
   useEffect(() => {
     if (!active || !ticker.trim()) {
@@ -91,8 +115,8 @@ export function QuoteTapeCard({
   if (loading && !tape) {
     return (
       <section className={rootClass}>
-        <h3>{title}</h3>
-        <p className="wl-card-muted">Loading…</p>
+        {hideTitle ? null : <h3>{title}</h3>}
+        <Loading variant="inline" />
       </section>
     );
   }
@@ -108,12 +132,22 @@ export function QuoteTapeCard({
     span != null && px != null
       ? Math.min(100, Math.max(0, ((px - low!) / span) * 100))
       : null;
-  const useFundCagr =
-    fundamentals != null &&
-    (fundamentals.revenue_cagr_5y != null ||
-      fundamentals.eps_cagr_5y != null);
-  const rev5 = fundamentals?.revenue_cagr_5y ?? null;
-  const eps5 = fundamentals?.eps_cagr_5y ?? null;
+  const cagrAvail = CAGR_YEARS.filter((y) => {
+    const f = fundAt(fundamentals, y);
+    return f.rev != null || f.eps != null;
+  });
+  // Default: longest window with EPS (the headline number), e.g. ALICON has
+  // Rev 5Y but no EPS 5Y → open on 3Y. Fall back to any window with data.
+  const cagrAuto =
+    cagrAvail.find((y) => fundAt(fundamentals, y).eps != null) ??
+    cagrAvail[0] ??
+    null;
+  const cagrYears: CagrYears | null =
+    cagrPick != null && cagrAvail.includes(cagrPick) ? cagrPick : cagrAuto;
+  const useFundCagr = cagrYears != null;
+  const { rev: rev5, eps: eps5 } = cagrYears
+    ? fundAt(fundamentals, cagrYears)
+    : { rev: null, eps: null };
   const priceCagrCls =
     tape.cagr_pct == null
       ? undefined
@@ -138,9 +172,9 @@ export function QuoteTapeCard({
 
   return (
     <section className={rootClass}>
-      <h3>{heading}</h3>
+      {hideTitle ? null : <h3>{heading}</h3>}
       <div className="wl-tape">
-        {!rangeOnly ? (
+        {!rangeOnly && !hideVal ? (
           <div className="wl-tape-stats">
             <span className="wl-tape-stat">
               <span className="wl-tape-stat-label">Price</span>{" "}
@@ -154,18 +188,38 @@ export function QuoteTapeCard({
               <>
                 <span
                   className="wl-tape-stat"
-                  title="Same as Snapshot / Quality — revenue CAGR"
+                  title={`Revenue CAGR over ${cagrYears} years (annual P&L)`}
                 >
-                  <span className="wl-tape-stat-label">Rev 5Y</span>{" "}
+                  <span className="wl-tape-stat-label">Rev {cagrYears}Y</span>{" "}
                   <strong className={revCls}>{fmtFundCagr(rev5)}</strong>
                 </span>
                 <span
                   className="wl-tape-stat"
-                  title="Same as Snapshot — EPS CAGR"
+                  title={`EPS CAGR over ${cagrYears} years (annual P&L)`}
                 >
-                  <span className="wl-tape-stat-label">EPS 5Y</span>{" "}
+                  <span className="wl-tape-stat-label">EPS {cagrYears}Y</span>{" "}
                   <strong className={epsCls}>{fmtFundCagr(eps5)}</strong>
                 </span>
+                {cagrAvail.length > 1 ? (
+                  <span className="tape-cagr-pick" role="group" aria-label="CAGR period">
+                    {CAGR_YEARS.map((y) => (
+                      <button
+                        key={y}
+                        type="button"
+                        className={y === cagrYears ? "on" : undefined}
+                        disabled={!cagrAvail.includes(y)}
+                        title={
+                          cagrAvail.includes(y)
+                            ? `Show ${y}-year CAGR`
+                            : `No ${y}-year history`
+                        }
+                        onClick={() => setCagrPick(y)}
+                      >
+                        {y}Y
+                      </button>
+                    ))}
+                  </span>
+                ) : null}
               </>
             ) : (
               <span

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useMemo, useState } from "react";
 import type { FamilyRow } from "@/components/FamilyMapCards";
 
@@ -167,7 +168,7 @@ export function GroupRankTable({
   }, [ranked, q, cap]);
 
   if (loading && !rows.length) {
-    return <div className="table-meta">Loading group companies…</div>;
+    return <Loading label="Loading group companies" variant="block" />;
   }
 
   return (

@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useMemo, useState } from "react";
 import type { FamilyRow } from "@/components/FamilyMapCards";
 
@@ -168,7 +169,7 @@ export function OutsideMissingDinTable({
   }, [ranked, q, cap]);
 
   if (loading && !rows.length) {
-    return <div className="table-meta">Loading outside Missing DIN…</div>;
+    return <Loading label="Loading outside Missing DIN" variant="block" />;
   }
 
   return (

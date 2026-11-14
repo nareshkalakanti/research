@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import { FillLlmAboutButton } from "@/components/FillLlmAboutButton";
@@ -507,7 +508,7 @@ export function MissingDataPanel() {
         </div>
       </div>
 
-      {loading && !data ? <div className="loading">Loading…</div> : null}
+      {loading && !data ? <Loading variant="block" /> : null}
 
       {!loading && data && data.total === 0 ? (
         <div className="empty-state ok-state">

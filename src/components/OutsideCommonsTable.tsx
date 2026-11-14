@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { useMemo, useState } from "react";
 import type { FamilyRow } from "@/components/FamilyMapCards";
 
@@ -154,7 +155,7 @@ export function OutsideCommonsTable({
   }, [ranked, q, cap]);
 
   if (loading && !rows.length) {
-    return <div className="table-meta">Loading outside commons…</div>;
+    return <Loading label="Loading outside commons" variant="block" />;
   }
 
   return (

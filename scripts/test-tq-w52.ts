@@ -1,22 +1,16 @@
 /**
- * TQ : W52 zone helpers — green-from-below must match TradingView coloring.
+ * TQ : W52 line colour — must match TradingView (green = full entry set,
+ * red = RS < 0 and falling, yellow otherwise).
  * Run: npx tsx scripts/test-tq-w52.ts
  */
 import assert from "node:assert/strict";
-import {
-  classifyTqW52Zone,
-  isTqW52GreenFromBelow,
-} from "../src/lib/signals";
+import { classifyTqW52Zone } from "../src/lib/signals";
 
-assert.equal(classifyTqW52Zone(0.23, -0.05), "green");
-assert.equal(classifyTqW52Zone(-0.05, -0.1), "yellow");
-assert.equal(classifyTqW52Zone(-0.1, -0.05), "red");
+// Green only when every entry condition holds — RS above 0 alone is yellow.
+assert.equal(classifyTqW52Zone(0.54, 0.12, true), "green");
+assert.equal(classifyTqW52Zone(0.9, 1.2), "yellow"); // 2024 decline above 0
+assert.equal(classifyTqW52Zone(-0.35, -0.4), "yellow"); // below 0 but rising
+assert.equal(classifyTqW52Zone(-0.45, -0.4), "red"); // below 0 and falling
 assert.equal(classifyTqW52Zone(null, -0.05), null);
 
-assert.equal(isTqW52GreenFromBelow(0.18, -0.057), true);
-assert.equal(isTqW52GreenFromBelow(0.18, 0.05), false);
-assert.equal(isTqW52GreenFromBelow(-0.05, -0.1), false);
-assert.equal(isTqW52GreenFromBelow(0, -0.01), true);
-assert.equal(isTqW52GreenFromBelow(null, -0.01), false);
-
-console.log("✓ TQ W52 green-from-below helpers");
+console.log("✓ TQ W52 colour helpers");

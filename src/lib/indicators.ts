@@ -92,16 +92,49 @@ export function bollingerBands(
   return { upper, mid, lower };
 }
 
+/**
+ * Wilder's moving average (TradingView `ta.rma`): seed with the SMA of the
+ * first `period` values, then avg = (prev × (period − 1) + x) / period.
+ * Leading null/NaN values are skipped; a later gap carries the last value.
+ */
+export function rma(
+  values: Array<number | null>,
+  period: number,
+): (number | null)[] {
+  const n = values.length;
+  const out: (number | null)[] = new Array(n).fill(null);
+  let start = 0;
+  while (start < n && !isNum(values[start])) start += 1;
+  if (start + period > n) return out;
+  let sum = 0;
+  for (let i = start; i < start + period; i += 1) {
+    const v = values[i];
+    if (!isNum(v)) return out;
+    sum += v;
+  }
+  let prev = sum / period;
+  out[start + period - 1] = prev;
+  for (let i = start + period; i < n; i += 1) {
+    const v = values[i];
+    if (isNum(v)) prev = (prev * (period - 1) + v) / period;
+    out[i] = prev;
+  }
+  return out;
+}
+
+/** RSI with Wilder smoothing — matches TradingView `ta.rsi`. */
 export function rsi(closes: number[], period = 21): (number | null)[] {
-  const gains: number[] = new Array(closes.length).fill(0);
-  const losses: number[] = new Array(closes.length).fill(0);
-  for (let i = 1; i < closes.length; i += 1) {
+  const n = closes.length;
+  const gains: (number | null)[] = new Array(n).fill(null);
+  const losses: (number | null)[] = new Array(n).fill(null);
+  for (let i = 1; i < n; i += 1) {
     const d = closes[i] - closes[i - 1];
+    if (!Number.isFinite(d)) continue;
     gains[i] = d > 0 ? d : 0;
     losses[i] = d < 0 ? -d : 0;
   }
-  const avgGain = rollingMean(gains, period);
-  const avgLoss = rollingMean(losses, period);
+  const avgGain = rma(gains, period);
+  const avgLoss = rma(losses, period);
   return avgGain.map((g, i) => {
     const l = avgLoss[i];
     if (g == null || l == null) return null;
@@ -126,8 +159,9 @@ function trueRange(bars: Bar[]): number[] {
   return out;
 }
 
+/** ATR with Wilder smoothing — matches TradingView `ta.atr` (SuperTrend). */
 export function atr(bars: Bar[], period = 10): (number | null)[] {
-  return rollingMean(trueRange(bars), period);
+  return rma(trueRange(bars), period);
 }
 
 export function supertrend(
@@ -178,6 +212,10 @@ export function supertrend(
   return { line, direction };
 }
 
+/**
+ * ADX / +DI / −DI with Wilder smoothing — matches TradingView
+ * `ta.dmi(period, period)` (DMI length = ADX smoothing).
+ */
 export function adx(
   bars: Bar[],
   period = 13,
@@ -187,18 +225,18 @@ export function adx(
   diMinus: (number | null)[];
 } {
   const n = bars.length;
-  const tr = trueRange(bars);
-  const dmPlus: number[] = new Array(n).fill(0);
-  const dmMinus: number[] = new Array(n).fill(0);
+  const tr: (number | null)[] = trueRange(bars).map((v, i) => (i === 0 ? null : v));
+  const dmPlus: (number | null)[] = new Array(n).fill(null);
+  const dmMinus: (number | null)[] = new Array(n).fill(null);
   for (let i = 1; i < n; i += 1) {
     const up = bars[i].high - bars[i - 1].high;
     const down = bars[i - 1].low - bars[i].low;
     dmPlus[i] = up > down && up > 0 ? up : 0;
     dmMinus[i] = down > up && down > 0 ? down : 0;
   }
-  const trSmooth = rollingSum(tr, period);
-  const plusSmooth = rollingSum(dmPlus, period);
-  const minusSmooth = rollingSum(dmMinus, period);
+  const trSmooth = rma(tr, period);
+  const plusSmooth = rma(dmPlus, period);
+  const minusSmooth = rma(dmMinus, period);
   const diPlus: (number | null)[] = new Array(n).fill(null);
   const diMinus: (number | null)[] = new Array(n).fill(null);
   const dx: (number | null)[] = new Array(n).fill(null);
@@ -212,29 +250,11 @@ export function adx(
     diPlus[i] = p;
     diMinus[i] = m;
     const den = p + m;
-    dx[i] = den === 0 ? 0 : (100 * Math.abs(p - m)) / den;
+    dx[i] = (100 * Math.abs(p - m)) / (den === 0 ? 1 : den);
   }
-  const dxNums = dx.map((v) => (v == null ? 0 : v));
-  // Only average when we have full windows of defined DX — use rolling mean on dx with nulls as skip
-  const adxOut: (number | null)[] = new Array(n).fill(null);
-  for (let i = 0; i < n; i += 1) {
-    if (i < period * 2 - 2) continue;
-    let sum = 0;
-    let ok = true;
-    for (let j = i - period + 1; j <= i; j += 1) {
-      if (dx[j] == null) {
-        ok = false;
-        break;
-      }
-      sum += dx[j] as number;
-    }
-    if (ok) adxOut[i] = sum / period;
-  }
-  void dxNums;
-  return { adx: adxOut, diPlus, diMinus };
+  return { adx: rma(dx, period), diPlus, diMinus };
 }
 
-/** Relative strength vs benchmark over `period` bars. */
 export function relativeStrength(
   stockCloses: number[],
   benchCloses: number[],

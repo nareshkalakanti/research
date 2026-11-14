@@ -1,5 +1,6 @@
 "use client";
 
+import { Loading } from "@/components/Loading";
 import { Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AppChrome } from "@/components/AppChrome";
@@ -13,7 +14,7 @@ function Gate() {
   useEffect(() => {
     if (ready && !user) router.replace("/login");
   }, [ready, user, router]);
-  if (!ready || !user) return <div className="boot">Loading…</div>;
+  if (!ready || !user) return <Loading variant="page" />;
   return (
     <AppTabProvider>
       <AppChrome>
@@ -25,7 +26,7 @@ function Gate() {
 
 export default function PortfolioPage() {
   return (
-    <Suspense fallback={<div className="boot">Loading…</div>}>
+    <Suspense fallback={<Loading variant="page" />}>
       <Gate />
     </Suspense>
   );
