@@ -13,7 +13,6 @@ import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
 import { ConnectedStocksTable } from "@/components/ConnectedStocksTable";
 import { GroupRankTable } from "@/components/GroupRankTable";
 import { GroupSignalsTable } from "@/components/GroupSignalsTable";
-import { GroupSignalStrip } from "@/components/GroupSignalStrip";
 import {
   TickerSuggest,
   type TickerSuggestHit,
@@ -90,6 +89,8 @@ export function FamilyDashboard() {
       "stock",
       "connected",
       "outside",
+      // Missing before: clicking Group signals bounced straight back to Groups.
+      "group-signals",
     ];
     if (!ok.includes(dashView)) setDashView("groups");
   }, [dashView]);
@@ -944,7 +945,7 @@ export function FamilyDashboard() {
           </div>
           <p className="fam-dash-sub">
             {dashView === "groups"
-              ? "Scan signals checks every group stock and its connected companies (outside boards via shared directors) for 200 DMA ↑ (daily), BB W and TQ W."
+              ? "Largest groups first. Teal nodes mark recent board joins. Click a ticker for related boards; Outside filters to external seats."
               : dashView === "group-rank"
                 ? "Group companies only (member listings). Same layout as Outside, with market-cap chips. Default house size Cos 3+."
               : dashView === "group-signals"
@@ -967,8 +968,7 @@ export function FamilyDashboard() {
           dashView !== "group-rank" &&
           dashView !== "group-signals" ? (
             <>
-          {/* Group filters drove the graph cards — Groups is signals-only now. */}
-          {false ? (
+          {dashView === "groups" ? (
             <>
             <label className="fam-dash-group-filter">
               <select
@@ -1239,13 +1239,218 @@ export function FamilyDashboard() {
         )
       ) : loading && !rows.length ? (
         <Loading label="Loading business groups" variant="block" />
+      ) : rows.length > 0 && filteredWithPattern.length === 0 ? (
+        <div className="table-meta">
+          No groups match the current filters.{" "}
+          <button
+            type="button"
+            className="link-btn"
+            onClick={() => {
+              setGroupFilter("");
+              setOnlyMissingDin(false);
+              setOnlyUnconnected(false);
+              setQ("");
+            }}
+          >
+            Clear filters
+          </button>
+        </div>
       ) : (
-        // Groups view = signals only (one scan → group stocks + connected
-        // companies). Graph cards live on Group rank / Stock map instead.
-        <GroupSignalStrip
-          rows={rows}
-          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-        />
+        // Groups = graph cards only; signals live on the Group signals tab.
+          <FamilyMapCards
+            rows={filteredWithPattern}
+            editable
+            addWork={addWork}
+            onPerson={(id, name) => openPerson(id, name)}
+            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
+            onRefresh={(g) => {
+              setRefreshingBox(g.group_id || g.family_name);
+              void load({ refresh: true });
+            }}
+            refreshing={refreshingBox}
+            onDeleteGroup={async (g) => {
+              if (!g.group_id) return;
+              const tickers = [
+                ...new Set(
+                  [
+                    ...g.companies.map((c) => c.ticker),
+                    ...(g.listings ?? []).map((c) => c.ticker),
+                  ]
+                    .map((t) => t.trim().toUpperCase())
+                    .filter(Boolean),
+                ),
+              ];
+              const res = await fetch("/api/family-groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  group_id: g.group_id,
+                  deleteGroup: true,
+                  tickers,
+                }),
+              });
+              const json = (await res.json().catch(() => null)) as {
+                error?: string;
+              } | null;
+              if (!res.ok) {
+                setError(json?.error || `Could not remove group (${res.status})`);
+                return;
+              }
+              setRows((prev) => prev.filter((row) => row.group_id !== g.group_id));
+              groupsStale.current = false;
+              notifyGovMapChanged();
+            }}
+            onRename={async (g, label) => {
+              if (!g.group_id) return;
+              const res = await fetch("/api/family-groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ group_id: g.group_id, rename: true, label }),
+              });
+              const json = (await res.json().catch(() => null)) as {
+                error?: string;
+              } | null;
+              if (!res.ok) {
+                setError(json?.error || `Could not rename (${res.status})`);
+                return;
+              }
+              const name = label.replace(/\s+/g, " ").trim();
+              setRows((prev) =>
+                prev.map((row) =>
+                  row.group_id === g.group_id ? { ...row, family_name: name } : row,
+                ),
+              );
+            }}
+            onRemoveCompany={async (g, ticker) => {
+              if (!g.group_id) return;
+              const res = await fetch("/api/family-groups", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  group_id: g.group_id,
+                  remove: true,
+                  ticker,
+                }),
+              });
+              const json = (await res.json().catch(() => null)) as {
+                error?: string;
+              } | null;
+              if (!res.ok) {
+                setError(json?.error || `Could not remove company (${res.status})`);
+                return;
+              }
+              const t = ticker.trim().toUpperCase();
+              setRows((prev) =>
+                prev.map((row) => {
+                  if (row.group_id !== g.group_id) return row;
+                  const companies = row.companies.filter(
+                    (c) => c.ticker.toUpperCase() !== t,
+                  );
+                  return {
+                    ...row,
+                    companies,
+                    company_count: companies.length,
+                  };
+                }),
+              );
+              groupsStale.current = false;
+              notifyGovMapChanged();
+            }}
+            onAddCompany={async (g, ticker, name) => {
+              if (!g.group_id) return;
+              const shown = ticker.trim().toUpperCase();
+              setAddWork({
+                groupId: g.group_id,
+                pct: 8,
+                label: "Listing",
+                detail: `${shown} · exchange, quote, profile`,
+              });
+              try {
+                const boot = await fetch("/api/tickers", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    ticker: shown,
+                    name: name || shown,
+                  }),
+                });
+                const bootJson = (await boot.json()) as {
+                  ok?: boolean;
+                  error?: string;
+                  hit?: {
+                    ticker: string;
+                    name: string;
+                    market: string;
+                    mcap_cr: number | null;
+                  };
+                };
+                if (!boot.ok || bootJson.ok === false) {
+                  throw new Error(bootJson.error || `Add listing failed (${boot.status})`);
+                }
+                setAddWork({
+                  groupId: g.group_id,
+                  pct: 58,
+                  label: "Group",
+                  detail: `${shown} → ${g.family_name}`,
+                });
+                const fam = await fetch("/api/family-groups", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    group_id: g.group_id,
+                    add: true,
+                    ticker: shown,
+                  }),
+                });
+                if (!fam.ok) throw new Error(`Save group failed (${fam.status})`);
+                const hit = bootJson.hit;
+                const extra = stubCompany(
+                  hit?.ticker || shown,
+                  hit?.name || name || shown,
+                  hit?.market,
+                  hit?.mcap_cr,
+                );
+                setRows((prev) =>
+                  prev.map((row) => {
+                    if (row.group_id !== g.group_id) {
+                      return {
+                        ...row,
+                        companies: row.companies.filter(
+                          (c) => c.ticker.toUpperCase() !== extra.ticker,
+                        ),
+                        company_count: row.companies.filter(
+                          (c) => c.ticker.toUpperCase() !== extra.ticker,
+                        ).length,
+                      };
+                    }
+                    if (row.companies.some((c) => c.ticker === extra.ticker)) {
+                      return row;
+                    }
+                    const companies = [...row.companies, extra];
+                    return { ...row, companies, company_count: companies.length };
+                  }),
+                );
+                setAddWork({
+                  groupId: g.group_id,
+                  pct: 100,
+                  label: "Done",
+                  detail: `${shown} in ${g.family_name}`,
+                  done: true,
+                });
+                notifyGovMapChanged();
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : String(e);
+                setError(msg);
+                setAddWork({
+                  groupId: g.group_id,
+                  pct: 100,
+                  label: "Failed",
+                  detail: msg,
+                  error: true,
+                });
+              }
+            }}
+          />
       )}
     </section>
   );

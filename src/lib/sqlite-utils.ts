@@ -351,7 +351,12 @@ export function hydrateWorkingDbFromSeed(name: string): boolean {
   if (fs.existsSync(dest)) {
     const destStat = fs.statSync(dest);
     const seedStat = fs.statSync(seed);
-    if (destStat.mtimeMs >= seedStat.mtimeMs && destStat.size === seedStat.size) {
+    // Only a genuinely newer seed (e.g. git pull) replaces the working copy.
+    // A size difference alone used to re-copy the seed: every insert grew the
+    // file, so the next open silently rolled company_about back to the seed —
+    // new listings / bootstrapped tickers never stuck (and copying over an
+    // open file caused "disk I/O error").
+    if (destStat.mtimeMs >= seedStat.mtimeMs) {
       return false;
     }
   }

@@ -109,6 +109,12 @@ export function ConcallDriftPanel() {
   const [search, setSearch] = useState("");
   const [searchQ, setSearchQ] = useState("");
   const loadGen = useRef(0);
+  /**
+   * Price updates have their own generation. Sharing loadGen made a price
+   * update discard an in-flight board load (filter change), leaving the old
+   * filter's rows under the new filter. New loads still cancel price runs.
+   */
+  const priceGen = useRef(0);
   const skipPinsReload = useRef(false);
   /** Shared Latest/Gainers/Losers board — reused when hopping tabs (no re-fetch). */
   const universeCache = useRef<{
@@ -147,6 +153,7 @@ export function ConcallDriftPanel() {
   }): Promise<StrategyConcallDriftRowData[]> => {
     const cacheKey = opts?.cacheKey ?? universeKey;
     const gen = ++loadGen.current;
+    priceGen.current += 1; // a new board supersedes any running price update
     const silent = opts?.silent === true;
     const refreshPrices = opts?.refreshPrices === true;
     if (!silent) {
@@ -164,7 +171,9 @@ export function ConcallDriftPanel() {
         // One board for Latest / Gainers / Losers — client sorts/filters.
         sort: "all",
         window: "last30",
-        limit: searchQ ? "80" : "400",
+        // Whole last-30-day board (~400–500 events): a 400 cap dropped real
+        // movers from Gainers / Losers. Search stays narrow.
+        limit: searchQ ? "80" : "2000",
         lite: "1",
       });
       if (searchQ) params.set("q", searchQ);
@@ -230,6 +239,7 @@ export function ConcallDriftPanel() {
       opts?: { soft?: boolean; refreshPrices?: boolean },
     ) => {
       const gen = ++loadGen.current;
+      priceGen.current += 1;
       const soft = opts?.soft === true;
       const refreshPrices = opts?.refreshPrices === true;
       if (!soft) {
@@ -486,13 +496,13 @@ export function ConcallDriftPanel() {
         return;
       }
 
-      const gen = ++loadGen.current;
+      const gen = ++priceGen.current;
       setRefreshingPrices(true);
       setPriceProgress({ done: 0, total: targets.length });
 
       try {
         for (let i = 0; i < targets.length; i += PRICE_CHUNK) {
-          if (gen !== loadGen.current) return;
+          if (gen !== priceGen.current) return;
           const chunk = targets.slice(i, i + PRICE_CHUNK);
           const chunkSet = new Set(chunk);
           const params = new URLSearchParams({
@@ -508,12 +518,12 @@ export function ConcallDriftPanel() {
           if (!isTrack) params.set("window", "last30");
           applyMcapParams(params);
           const res = await fetch(`/api/strategy?${params}`);
-          if (gen !== loadGen.current) return;
+          if (gen !== priceGen.current) return;
           const json = await parseFetchJson<ApiResponse>(res);
           if (!res.ok || json.error) {
             throw new Error(json.error || `Price update failed (${res.status})`);
           }
-          if (gen !== loadGen.current) return;
+          if (gen !== priceGen.current) return;
           // Patch in place — never drop a name if this chunk response is sparse.
           const byTicker = new Map<string, StrategyConcallDriftRowData>();
           for (const r of json.rows || []) {
@@ -546,7 +556,7 @@ export function ConcallDriftPanel() {
             total: targets.length,
           });
         }
-        if (gen === loadGen.current) {
+        if (gen === priceGen.current) {
           setAddMsg(
             stale.length
               ? `Updated ${targets.length} live price${targets.length === 1 ? "" : "s"} — % since recalculated`
@@ -554,7 +564,7 @@ export function ConcallDriftPanel() {
           );
         }
       } catch (err) {
-        if (gen === loadGen.current) {
+        if (gen === priceGen.current) {
           setAddMsg(
             err instanceof Error &&
               /abort|timeout/i.test(`${err.name} ${err.message}`)
@@ -563,8 +573,8 @@ export function ConcallDriftPanel() {
           );
         }
       } finally {
-        // Always clear — a view switch bumps loadGen and would otherwise leave
-        // the bar stuck on "Updating…".
+        // Always clear — a view switch / new load bumps priceGen and would
+        // otherwise leave the bar stuck on "Updating…".
         setRefreshingPrices(false);
         setPriceProgress(null);
       }
@@ -863,7 +873,7 @@ export function ConcallDriftPanel() {
           ) : (
             <span>
               {meta.total != null
-                ? `${meta.total.toLocaleString()} shown`
+                ? `${meta.total.toLocaleString()} filings · last ~30 days`
                 : "Events"}
               {meta.baseline != null
                 ? ` · ${meta.baseline.toLocaleString()} with baseline`

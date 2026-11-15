@@ -37,9 +37,11 @@ const HIGH52_TF = "daily";
 const HIGH52_LOOKBACK = 252;
 /** 12−1 momentum — daily closes (~1y lookback, skip latest ~1m). */
 const MOM_TF = "daily";
-const MOM_LOOKBACK_1Y = 395;
-const MOM_LOOKBACK_1M = 30;
-const MOM_MIN_HISTORY = 400;
+/** 12−1 momentum by calendar date: ~1 year back vs ~1 month back. */
+const MOM_LOOKBACK_1Y_DAYS = 365;
+const MOM_LOOKBACK_1M_DAYS = 30;
+/** ~1 year of sessions (the 365-day lookback must exist). */
+const MOM_MIN_HISTORY = 240;
 /** Monthly RSI(14) — ~2y+ of monthly bars. */
 const MRSI_TF = "monthly";
 const MRSI_PERIOD = 14;
@@ -1116,12 +1118,24 @@ export function analyzeMomentumDaily(bars: Bar[]): {
   signal_date: string;
 } | null {
   if (bars.length < MOM_MIN_HISTORY) return null;
-  const closes = bars.map((b) => b.close).filter((n) => Number.isFinite(n));
-  if (closes.length < MOM_MIN_HISTORY) return null;
-  const price = closes[closes.length - 1]!;
-  const price_1y = closes[closes.length - MOM_LOOKBACK_1Y]!;
-  const price_1m = closes[closes.length - MOM_LOOKBACK_1M]!;
-  if (!(price_1y > 0) || !Number.isFinite(price_1m)) return null;
+  const valid = bars.filter((b) => Number.isFinite(b.close) && b.close > 0);
+  if (valid.length < MOM_MIN_HISTORY) return null;
+  const price = valid[valid.length - 1]!.close;
+  // Look back by calendar date. Indexing 395 / 30 *trading* bars measured
+  // ~19 months and ~6 weeks, not the 12−1 months the label promises.
+  const lastMs = Date.parse(`${valid[valid.length - 1]!.date.slice(0, 10)}T00:00:00Z`);
+  const closeOnOrBefore = (daysBack: number): number | null => {
+    const cutoff = lastMs - daysBack * 86_400_000;
+    for (let i = valid.length - 1; i >= 0; i -= 1) {
+      if (Date.parse(`${valid[i]!.date.slice(0, 10)}T00:00:00Z`) <= cutoff) {
+        return valid[i]!.close;
+      }
+    }
+    return null;
+  };
+  const price_1y = closeOnOrBefore(MOM_LOOKBACK_1Y_DAYS);
+  const price_1m = closeOnOrBefore(MOM_LOOKBACK_1M_DAYS);
+  if (price_1y == null || price_1m == null || !(price_1y > 0)) return null;
   const round = (n: number) => Math.round(n * 100) / 100;
   return {
     price: round(price),

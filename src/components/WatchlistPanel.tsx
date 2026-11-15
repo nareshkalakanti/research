@@ -10,7 +10,7 @@ import {
 } from "@/lib/user-watchlist";
 import { WatchButton } from "@/components/WatchButton";
 import { TickerSuggest } from "@/components/TickerSuggest";
-import { tradingviewUrl } from "@/lib/links";
+import { tradingviewUrl, napkinUrl } from "@/lib/links";
 import { formatRsiM } from "@/lib/types";
 import { GOV_BOARD_SCORE_TITLE } from "@/lib/gov-score";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
@@ -569,6 +569,15 @@ function WatchlistRow({
               ) : null}
               <span className="company-meta">
                 <span className="ticker">{r.ticker}</span>
+                <a
+                  className="np-chip"
+                  href={napkinUrl(r.ticker)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open ${r.ticker} in Napkin`}
+                >
+                  NP
+                </a>
                 {/\bSME\b/i.test(r.market || "") ? (
                   <span
                     className="result-tag tag-mkt-sme"

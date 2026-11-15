@@ -557,12 +557,50 @@ export async function fetchMonthlyBarsForRsi(
 }
 
 /** Daily OHLC — Yahoo board aliases, then Groww when history is thin (app-wide). */
+/** One-session close ratios no Indian exchange circuit allows (max ±20%). */
+const SPLIT_DROP = 0.45;
+const SPLIT_JUMP = 2.2;
+
+/**
+ * Yahoo sometimes leaves Indian splits / bonuses unadjusted (BHAGYANGR fell
+ * to 9% of the prior close on 2026-10-08), which corrupts momentum, MAs and
+ * the 52-week range. A one-day move beyond any circuit is a corporate action:
+ * back-adjust every earlier bar (prices × factor, volume ÷ factor).
+ */
+export function adjustSplitJumps(bars: Bar[]): Bar[] {
+  if (bars.length < 2) return bars;
+  let out: Bar[] | null = null;
+  for (let i = bars.length - 1; i >= 1; i -= 1) {
+    const src = out ?? bars;
+    const prev = src[i - 1]!.close;
+    const cur = src[i]!.close;
+    if (!(prev > 0) || !(cur > 0)) continue;
+    const ratio = cur / prev;
+    if (ratio >= SPLIT_DROP && ratio <= SPLIT_JUMP) continue;
+    // Prefer the session open (first post-action print) for the factor.
+    const open = src[i]!.open;
+    const factor = open > 0 && open / prev < SPLIT_DROP === ratio < SPLIT_DROP ? open / prev : ratio;
+    out = out ?? bars.map((b) => ({ ...b }));
+    for (let j = 0; j < i; j += 1) {
+      const b = out[j]!;
+      b.open *= factor;
+      b.high *= factor;
+      b.low *= factor;
+      b.close *= factor;
+      b.volume = factor > 0 ? b.volume / factor : b.volume;
+    }
+  }
+  return out ?? bars;
+}
+
 export async function fetchDailyBars(
   ticker: string,
   market?: string | null,
   yearsBack = 1,
 ): Promise<Bar[]> {
-  return fetchBarsWithCandidates(ticker, market, "1d", yearsBack);
+  return adjustSplitJumps(
+    await fetchBarsWithCandidates(ticker, market, "1d", yearsBack),
+  );
 }
 
 let niftyCache: { at: number; bars: Bar[] } | null = null;

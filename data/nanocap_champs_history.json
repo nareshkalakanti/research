@@ -1,0 +1,15 @@
+{
+  "note": "Nanocap Champs (Lotusdew) constituents over time, oldest first. Order reconstructed from the constituents sheet; no dates given.",
+  "stages": [
+    {
+      "label": "Start",
+      "in": ["ALPHAGEO", "ASAHISONG", "CLEDUCATE", "HIRECT", "HERCULES", "IRISDOREME", "MAHEPC", "PPL", "PRIMESECU", "HALEOSLABS", "TCPLPACK", "TVSELECT"],
+      "out": []
+    },
+    { "label": "2", "in": ["LAGNAM", "RPGLIFE"], "out": ["ASAHISONG", "HALEOSLABS"] },
+    { "label": "3", "in": ["CLSEL"], "out": ["LAGNAM", "HIRECT", "PRIMESECU"] },
+    { "label": "4", "in": ["PFS", "PNBGILTS", "BHAGYANGR"], "out": ["CLEDUCATE", "CLSEL"] },
+    { "label": "5", "in": ["FOODSIN", "ZODIAC"], "out": ["IRISDOREME", "HERCULES"] },
+    { "label": "Latest", "in": ["SUKHJITS", "20MICRONS"], "out": ["ALPHAGEO", "FOODSIN"] }
+  ]
+}

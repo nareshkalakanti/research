@@ -272,17 +272,17 @@ function DualSpark({
           <g>
             <rect
               x={width - 42}
-              y={yAt(lastA.value) - 8}
+              y={yAt(lastA.value) - 9}
               width="40"
-              height="14"
+              height="16"
               rx="3"
               fill={aFill}
             />
             <text
               x={width - 22}
-              y={yAt(lastA.value) + 2}
+              y={yAt(lastA.value) + 3}
               textAnchor="middle"
-              fontSize="8"
+              fontSize="10"
               fill={aText}
             >
               {lastA.value.toFixed(1)}
@@ -293,17 +293,17 @@ function DualSpark({
           <g>
             <rect
               x={width - 42}
-              y={yAt(lastB.value) - 8}
+              y={yAt(lastB.value) - 9}
               width="40"
-              height="14"
+              height="16"
               rx="3"
               fill="#64748b"
             />
             <text
               x={width - 22}
-              y={yAt(lastB.value) + 2}
+              y={yAt(lastB.value) + 3}
               textAnchor="middle"
-              fontSize="8"
+              fontSize="10"
               fill="#fff"
             >
               {lastB.value.toFixed(1)}

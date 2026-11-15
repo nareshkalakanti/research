@@ -114,15 +114,21 @@ export function applyWebProfiles(
         sub_sector: p.subsector,
       });
     }
-    const seats = [];
+    const seats: Parameters<typeof saveCompanyBoard>[0]["seats"] = [];
     const pushPerson = (name: string, designation: string) => {
       const hit = matchGrowwNameToDin(name, dinIndex);
+      // Groww has no board / DIN data. A profile CEO / MD that doesn't match a
+      // known DIN is not a verified director — saving it as a board seat made
+      // every SME look like "1 director missing a DIN" and could link
+      // unrelated companies that share a CEO name. Keep it on the profile
+      // (company_about) only.
+      if (!hit) return;
       seats.push({
-        din: hit?.din ?? "",
+        din: hit.din,
         name,
         designation,
         category: "Executive",
-        source: hit ? "groww_din_map" : "groww",
+        source: "groww_din_map",
         as_of: "",
       });
     };

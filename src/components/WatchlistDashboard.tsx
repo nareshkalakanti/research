@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { napkinUrl, tradingviewUrl } from "@/lib/links";
 import {
   loadCrossed200Dma,
@@ -33,6 +33,27 @@ function sourceChipClass(label: string): string {
   if (key === "holdings") return "tag-hold";
   if (key === "watchlist" || key === "watch") return "tag-watch";
   return "tag-named";
+}
+
+/** Latest NSE session close (15:45 IST incl. settle) at or before `now`. */
+function lastSessionClose(now = new Date()): number {
+  const IST_MS = 5.5 * 3600_000;
+  const ist = new Date(now.getTime() + IST_MS);
+  const close = new Date(ist);
+  close.setUTCHours(15, 45, 0, 0);
+  if (ist.getTime() < close.getTime()) close.setUTCDate(close.getUTCDate() - 1);
+  // Weekend → back to Friday's close.
+  while (close.getUTCDay() === 0 || close.getUTCDay() === 6) {
+    close.setUTCDate(close.getUTCDate() - 1);
+  }
+  return close.getTime() - IST_MS;
+}
+
+/** No scan yet, or the saved one predates the latest market close. */
+function scanIsStale(at: string | null): boolean {
+  if (!at) return true;
+  const t = Date.parse(at);
+  return !Number.isFinite(t) || t < lastSessionClose();
 }
 
 /** Last scan survives list switches, list reloads and page reloads. */
@@ -163,6 +184,18 @@ export function WatchlistDashboard({
     }
   }, [tickers, sourcesByTicker, storeKey]);
 
+  // Auto-scan: run once on open when the saved scan predates the latest NSE
+  // close (15:45 IST). Later visits reuse it until the next session closes.
+  const autoRan = useRef(false);
+  const [auto, setAuto] = useState(false);
+  useEffect(() => {
+    if (autoRan.current || busy || !tickers.length) return;
+    if (!scanIsStale(scan?.at ?? null)) return;
+    autoRan.current = true;
+    setAuto(true);
+    void loadAll().finally(() => setAuto(false));
+  }, [tickers.length, busy, scan?.at, loadAll]);
+
   // When lists change, keep hits for names still listed (refresh their
   // "From" labels) instead of wiping the results.
   const rows = useMemo(
@@ -211,7 +244,7 @@ export function WatchlistDashboard({
           onClick={() => void loadAll()}
           title="Scan 200 DMA ↑, BB W, TQ W"
         >
-          {busy ? "Checking…" : "Scan signals"}
+          {busy ? (auto ? "Auto-scanning…" : "Checking…") : "Scan signals"}
           <span className="chip-count">{rows.length}</span>
         </button>
       </div>

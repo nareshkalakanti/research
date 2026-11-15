@@ -128,6 +128,29 @@ export function NapkinPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // App's own sector › sub-sector (same label as Scan / Rotation), not Yahoo's broad bucket.
+  const [appSector, setAppSector] = useState<{ ticker: string; label: string } | null>(null);
+  const sectorTicker = data?.ticker ?? "";
+  useEffect(() => {
+    if (!sectorTicker) return;
+    let alive = true;
+    void fetch(`/api/napkin/sector?ticker=${encodeURIComponent(sectorTicker)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: { ok?: boolean; sector?: string | null; sub_sector?: string | null }) => {
+        if (!alive || !j.ok || !j.sector) return;
+        const label = j.sub_sector ? `${j.sector} › ${j.sub_sector}` : j.sector;
+        setAppSector({ ticker: sectorTicker, label });
+      })
+      .catch(() => {
+        /* keep Yahoo sector */
+      });
+    return () => {
+      alive = false;
+    };
+  }, [sectorTicker]);
+  const sectorLabel =
+    appSector && appSector.ticker === sectorTicker ? appSector.label : data?.sector ?? null;
+
   const napkinPrice = data
     ? parseDisplayedMoney(napkinMetric(data.overview, "price"))
     : null;
@@ -224,7 +247,7 @@ export function NapkinPanel() {
               </div>
               <div className="napkin-meta-row">
                 Market Cap {napkinMetric(data.overview, "mcap")}
-                {data.sector ? ` · ${data.sector}` : ""}
+                {sectorLabel ? ` · ${sectorLabel}` : ""}
               </div>
               <NapkinPeadStrip
                 data={qtr}

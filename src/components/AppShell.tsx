@@ -62,9 +62,8 @@ const WatchlistPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
-const ListedVenturePanel = dynamic(
-  () =>
-    import("@/components/ListedVentureScreen").then((m) => m.ListedVenturePanel),
+const NanocapPanel = dynamic(
+  () => import("@/components/NanocapPanel").then((m) => m.NanocapPanel),
   { loading: PanelFallback, ssr: false },
 );
 
@@ -115,7 +114,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   research: ResearchPanel,
   missing: MissingDataPanel,
   watchlist: WatchlistPanel,
-  lv: ListedVenturePanel,
+  nano: NanocapPanel,
 };
 
 const KeptPanel = memo(function KeptPanel({

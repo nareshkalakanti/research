@@ -714,6 +714,28 @@ export function invalidateCompanyCache(): void {
 }
 
 /** Ticker / name / site only — skip enrichAll (theme corpus + metrics). */
+/**
+ * Tickers marked delisted / renamed by the daily listing sync
+ * (lib/listing-sync.ts). They stay in the DBs but leave the universe.
+ */
+function inactiveTickers(db: ReturnType<typeof getAbout>): Set<string> {
+  try {
+    const has = db
+      .prepare(
+        `SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_status'`,
+      )
+      .get();
+    if (!has) return new Set();
+    return new Set(
+      (db.prepare(`SELECT UPPER(ticker) AS t FROM listing_status`).all() as Array<{
+        t: string;
+      }>).map((r) => r.t),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
 export function listListingCompaniesLite(): Array<{
   ticker: string;
   name: string;
@@ -730,7 +752,7 @@ export function listListingCompaniesLite(): Array<{
       market: string;
       website: string | null;
     }>;
-  const seen = new Set<string>();
+  const seen = inactiveTickers(getAbout());
   const out: Array<{
     ticker: string;
     name: string;
@@ -766,7 +788,8 @@ export function loadAllCompanies(): CompanyRow[] {
   try {
     const db = getAbout();
     const rows = db.prepare(sql).all() as RawAbout[];
-    const seen = new Set<string>();
+    // Pre-seeding `seen` drops delisted / renamed tickers from the universe.
+    const seen = inactiveTickers(db);
     for (const row of rows) {
       const key = row.ticker.toUpperCase();
       if (seen.has(key)) continue;
@@ -778,7 +801,7 @@ export function loadAllCompanies(): CompanyRow[] {
     resetAboutHandle();
     const db = getAbout();
     const rows = db.prepare(sql).all() as RawAbout[];
-    const seen = new Set<string>();
+    const seen = inactiveTickers(db);
     for (const row of rows) {
       const key = row.ticker.toUpperCase();
       if (seen.has(key)) continue;

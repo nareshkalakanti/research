@@ -7,6 +7,7 @@ import { FillLlmAboutButton } from "@/components/FillLlmAboutButton";
 import { FillMissingButton } from "@/components/FillMissingButton";
 import { FillSectorButton } from "@/components/FillSectorButton";
 import { FillWebMcapButton } from "@/components/FillWebMcapButton";
+import { SyncListingsButton } from "@/components/SyncListingsButton";
 import { GovernanceScanBar } from "@/components/GovernanceScanBar";
 import { MapGrowwDinButton } from "@/components/MapGrowwDinButton";
 import { RefreshButton } from "@/components/RefreshButton";
@@ -257,6 +258,8 @@ export function MissingDataPanel() {
           />
         </div>
       </div>
+
+      <SyncListingsButton onDone={() => load({ refresh: true })} />
 
       <FillMissingButton
         market={market}

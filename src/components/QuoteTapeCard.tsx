@@ -132,6 +132,21 @@ export function QuoteTapeCard({
     span != null && px != null
       ? Math.min(100, Math.max(0, ((px - low!) / span) * 100))
       : null;
+  // Drawdown context: how far price sits from the 52-week high / low.
+  const fromHigh =
+    high != null && high > 0 && px != null ? (px / high - 1) * 100 : null;
+  const toHigh = high != null && px != null && px > 0 ? (high / px - 1) * 100 : null;
+  const fromLow = low != null && low > 0 && px != null ? (px / low - 1) * 100 : null;
+  const drawLabel =
+    fromHigh == null
+      ? null
+      : fromHigh >= -10
+        ? "Near high"
+        : fromHigh >= -20
+          ? "Correction"
+          : "Deep correction";
+  const fmtSigned = (v: number) =>
+    Math.abs(v) < 0.5 ? "0%" : `${v >= 0 ? "+" : "−"}${Math.abs(v).toFixed(0)}%`;
   const cagrAvail = CAGR_YEARS.filter((y) => {
     const f = fundAt(fundamentals, y);
     return f.rev != null || f.eps != null;
@@ -254,6 +269,27 @@ export function QuoteTapeCard({
               </span>
               <span className="wl-range-hi">{fmtPrice(high)}</span>
             </div>
+            {!rangeOnly && fromHigh != null ? (
+              <p
+                className="wl-range-draw"
+                title="Distance of the current price from its 52-week high and low"
+              >
+                {drawLabel ? <span className="wl-range-draw-tag">{drawLabel}</span> : null}
+                <span>
+                  <strong>{fmtSigned(fromHigh)}</strong> from high
+                  {high != null ? ` (${fmtPrice(high)})` : ""}
+                </span>
+                {toHigh != null && toHigh > 0.5 ? (
+                  <span>needs {fmtSigned(toHigh)} to get back</span>
+                ) : null}
+                {fromLow != null ? (
+                  <span>
+                    <strong>{fmtSigned(fromLow)}</strong> above low
+                  </span>
+                ) : null}
+                {pct != null ? <span>{pct.toFixed(0)}% of range</span> : null}
+              </p>
+            ) : null}
             {rangeOnly && px != null ? (
               <p className="wl-range-px">
                 <strong>{fmtPrice(px)}</strong>
@@ -303,6 +339,14 @@ export function QuoteTapeCard({
                             maximumFractionDigits: 2,
                           })
                         : "—"}
+                    </span>
+                  ) : null}
+                  {!rangeOnly && m.value != null && m.value > 0 && px != null ? (
+                    <span
+                      className="wl-ma-dist"
+                      title={`Price is ${Math.abs((px / m.value - 1) * 100).toFixed(1)}% ${px >= m.value ? "above" : "below"} the ${m.period}-day average`}
+                    >
+                      {fmtSigned((px / m.value - 1) * 100)}
                     </span>
                   ) : null}
                 </span>
