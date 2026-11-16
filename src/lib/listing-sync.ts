@@ -362,7 +362,15 @@ export async function runListingSync(opts?: {
         at,
       });
     }
-    const summary = `+${res.added.nse.length} NSE · +${res.added.nse_sme.length} NSE SME · +${res.added.bse_sme.length} BSE SME · ${res.retagged.length} retagged · ${res.renamed.length} renamed · ${res.delisted.length} delisted`;
+    const parts = [
+      res.added.nse.length ? `+${res.added.nse.length} NSE` : "",
+      res.added.nse_sme.length ? `+${res.added.nse_sme.length} NSE SME` : "",
+      res.added.bse_sme.length ? `+${res.added.bse_sme.length} BSE SME` : "",
+      res.retagged.length ? `${res.retagged.length} board moves` : "",
+      res.renamed.length ? `${res.renamed.length} renamed` : "",
+      res.delisted.length ? `${res.delisted.length} delisted` : "",
+    ].filter(Boolean);
+    const summary = parts.length ? parts.join(" · ") : "no changes — matches official lists";
     // One short write: tags, statuses, meta — then checkpoint into the file.
     withAbout(true, (db) => {
       db.exec(STATUS_DDL);

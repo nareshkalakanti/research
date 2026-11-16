@@ -481,7 +481,7 @@ async function fetchPdfWithReferer(
       : host.includes("bseindia")
         ? "https://www.bseindia.com/"
         : host.includes("nseindia")
-          ? "https://www.nseindia.com/"
+          ? "https://www.nseindia.in/"
           : `${parsed.protocol}//${parsed.host}/`;
     const res = await fetch(url, {
       headers: {

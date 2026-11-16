@@ -222,7 +222,7 @@ export async function downloadBuybackPdf(
         Accept: "application/pdf,*/*",
         Referer: url.includes("bseindia")
           ? "https://www.bseindia.com/"
-          : "https://www.nseindia.com/",
+          : "https://www.nseindia.in/",
       },
       signal: AbortSignal.timeout(opts?.timeoutMs ?? 90_000),
       redirect: "follow",

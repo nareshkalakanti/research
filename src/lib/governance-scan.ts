@@ -81,6 +81,8 @@ export function pendingGovernanceJobs(opts: {
   return jobs;
 }
 
+const PER_COMPANY_MS = 90_000;
+
 export async function runGovernanceScanBatch(opts: {
   market?: string;
   tickers?: string[];
@@ -133,11 +135,13 @@ export async function runGovernanceScanBatch(opts: {
     await Promise.all(
       wave.map(async (job) => {
         try {
-          const payload = await fetchBoardFromNse(
-            job.ticker,
-            job.market,
-            jar,
-          );
+          // Hard cap per company so one stalled NSE call can't freeze the batch.
+          const payload = await Promise.race([
+            fetchBoardFromNse(job.ticker, job.market, jar),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("NSE timed out")), PER_COMPANY_MS),
+            ),
+          ]);
           if (!payload?.seats?.length) {
             skippedEmpty += 1;
             recordScanAttempt(

@@ -743,6 +743,13 @@ export function WatchlistPanel() {
   const [rows, setRows] = useState<WatchRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Short confirmation after adding a holding ("Added X" / "X is already in Holdings").
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const id = window.setTimeout(() => setNotice(null), 5000);
+    return () => window.clearTimeout(id);
+  }, [notice]);
   const [q, setQ] = useState("");
   const [addQ, setAddQ] = useState("");
   const [listEpoch, setListEpoch] = useState(0);
@@ -1012,6 +1019,7 @@ export function WatchlistPanel() {
     }) => {
       const ticker = hit.ticker.trim().toUpperCase();
       if (!ticker) return;
+      const already = holdTickers.includes(ticker);
       try {
         const res = await fetch("/api/holdings", {
           method: "POST",
@@ -1036,11 +1044,12 @@ export function WatchlistPanel() {
         selectHoldings();
         setAddQ("");
         setError(null);
+        setNotice(already ? `${ticker} is already in Holdings` : `Added ${ticker} to Holdings`);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not add holding");
       }
     },
-    [applyHoldTickers],
+    [applyHoldTickers, holdTickers],
   );
 
   const removeHolding = useCallback(
@@ -1338,7 +1347,9 @@ export function WatchlistPanel() {
             ? "Dashboard"
             : error
               ? error
-              : busy
+              : notice
+                ? notice
+                : busy
                 ? "Loading…"
                 : activeTickers.length === 0
                   ? "Empty"

@@ -32,9 +32,9 @@ export type NapkinFilingRow = {
   picked?: boolean;
 };
 
-const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
+const CORP_ANN_URL = "https://www.nseindia.in/api/corporate-announcements";
 const NSE_ANN_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
+  "https://www.nseindia.in/companies-listing/corporate-filings-announcements";
 
 function str(v: unknown): string {
   return v == null ? "" : String(v).trim();
@@ -88,7 +88,7 @@ type OnFilings = (rows: NapkinFilingRow[]) => void;
 
 const NSE_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-const NSE_HOME = "https://www.nseindia.com/";
+const NSE_HOME = "https://www.nseindia.in/";
 const SESSION_MS = 25_000;
 const ANN_MS = 15_000;
 

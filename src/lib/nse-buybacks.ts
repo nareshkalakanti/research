@@ -6,10 +6,10 @@ import { nseHttp1Fetch } from "./nse-http";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-const NSE_HOME = "https://www.nseindia.com/";
-const NSE_QUOTE = "https://www.nseindia.com/get-quotes/equity";
+const NSE_HOME = "https://www.nseindia.in/";
+const NSE_QUOTE = "https://www.nseindia.in/get-quotes/equity";
 const NSE_ANN_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
+  "https://www.nseindia.in/companies-listing/corporate-filings-announcements";
 const TIMEOUT_MS = 45_000;
 
 export type NseCookieJar = { cookie: string };

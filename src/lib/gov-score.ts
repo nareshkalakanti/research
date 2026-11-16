@@ -112,7 +112,7 @@ export function roleWeight(
   ) {
     return 1.2;
   }
-  if (text.includes("independent")) return 1.15;
+  if (!/non[-\s]?independent/.test(text) && text.includes("independent")) return 1.15;
   return 1.0;
 }
 

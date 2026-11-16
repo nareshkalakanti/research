@@ -25,6 +25,7 @@ export type AppTab =
   | "concall-drift"
   | "rotation"
   | "nano"
+  | "special"
   | "signals";
 
 /** Top nav tabs only — other panels stay wired but are not listed here. */
@@ -36,6 +37,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "nano", label: "Nano", short: "Nano" },
+  { id: "special", label: "Special", short: "Special" },
   { id: "missing", label: "Data", short: "Data" },
   { id: "research", label: "Research", short: "Research" },
 ];

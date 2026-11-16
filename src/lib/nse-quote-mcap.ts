@@ -6,8 +6,8 @@ import {
 import { runConcurrent } from "@/lib/scrape-pool";
 import type { YfQuote } from "@/lib/yfinance";
 
-const QUOTE_URL = "https://www.nseindia.com/api/quote-equity";
-const QUOTE_PAGE = "https://www.nseindia.com/get-quotes/equity";
+const QUOTE_URL = "https://www.nseindia.in/api/quote-equity";
+const QUOTE_PAGE = "https://www.nseindia.in/get-quotes/equity";
 
 function num(v: unknown): number | null {
   if (v == null || v === "") return null;
@@ -54,7 +54,7 @@ async function quoteOne(
   try {
     await nseFetch(QUOTE_PAGE, jar, {
       params: { symbol },
-      referer: "https://www.nseindia.com/",
+      referer: "https://www.nseindia.in/",
     });
     const res = await nseFetch(QUOTE_URL, jar, {
       params: { symbol },

@@ -170,7 +170,11 @@ export function companyHasControlPattern(companies: GovCompanySeat[]): boolean {
   let independentCount = 0;
 
   for (const seat of seats) {
-    if (/independent/i.test(seat.designation || seat.category || "")) independentCount += 1;
+    const seatText = `${seat.designation || ""} ${seat.category || ""}`;
+    // "Non Independent" (space or hyphen) is not independent.
+    if (!/non[-\s]?independent/i.test(seatText) && /\bindependent\b/i.test(seatText)) {
+      independentCount += 1;
+    }
     if (looksLikeControlRole(seat.designation, seat.category)) controlRoles += 1;
   }
 

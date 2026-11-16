@@ -33,11 +33,11 @@ import {
 
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-const QUOTE_URL = "https://www.nseindia.com/api/quote-equity";
-const QUOTE_PAGE = "https://www.nseindia.com/get-quotes/equity";
-const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
+const QUOTE_URL = "https://www.nseindia.in/api/quote-equity";
+const QUOTE_PAGE = "https://www.nseindia.in/get-quotes/equity";
+const CORP_ANN_URL = "https://www.nseindia.in/api/corporate-announcements";
 const NSE_ANN_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
+  "https://www.nseindia.in/companies-listing/corporate-filings-announcements";
 
 export type AutoDinHit = {
   name: string;
@@ -144,7 +144,7 @@ async function nseCompanyName(
   try {
     await nseFetch(QUOTE_PAGE, jar, {
       params: { symbol },
-      referer: "https://www.nseindia.com/",
+      referer: "https://www.nseindia.in/",
     });
     const res = await nseFetch(QUOTE_URL, jar, {
       params: { symbol },
@@ -296,7 +296,7 @@ async function downloadPdf(url: string): Promise<Buffer | null> {
       headers: {
         "User-Agent": UA,
         Accept: "application/pdf,*/*",
-        Referer: "https://www.nseindia.com/",
+        Referer: "https://www.nseindia.in/",
       },
       signal: AbortSignal.timeout(45_000),
       redirect: "follow",

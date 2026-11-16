@@ -62,6 +62,11 @@ const WatchlistPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const SpecialSituationsPanel = dynamic(
+  () => import("@/components/SpecialSituationsPanel").then((m) => m.SpecialSituationsPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const NanocapPanel = dynamic(
   () => import("@/components/NanocapPanel").then((m) => m.NanocapPanel),
   { loading: PanelFallback, ssr: false },
@@ -115,6 +120,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   missing: MissingDataPanel,
   watchlist: WatchlistPanel,
   nano: NanocapPanel,
+  special: SpecialSituationsPanel,
 };
 
 const KeptPanel = memo(function KeptPanel({
@@ -148,6 +154,22 @@ function AppShellPanels() {
       return next;
     });
   }, [tab]);
+
+  // Keep the Nano-tab baskets fresh while the app is open: ping on load and
+  // every 30 min; the server only runs what is due and skips if busy.
+  useEffect(() => {
+    const ping = () => {
+      void fetch("/api/baskets-refresh", { method: "POST" }).catch(() => {
+        /* best effort */
+      });
+    };
+    const first = window.setTimeout(ping, 20_000);
+    const every = window.setInterval(ping, 30 * 60_000);
+    return () => {
+      window.clearTimeout(first);
+      window.clearInterval(every);
+    };
+  }, []);
 
   useEffect(() => {
     const run = () => preloadPanelModules();

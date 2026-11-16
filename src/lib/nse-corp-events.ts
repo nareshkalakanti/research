@@ -17,9 +17,9 @@ export {
   repairLegacyNseIso,
 } from "./nse-time";
 
-const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
+const CORP_ANN_URL = "https://www.nseindia.in/api/corporate-announcements";
 const NSE_ANN_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
+  "https://www.nseindia.in/companies-listing/corporate-filings-announcements";
 
 export type NseCorpEventKind = "earn" | "concall";
 

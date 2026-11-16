@@ -22,9 +22,9 @@ import {
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const ABOUT_PATH = path.join(DATA_DIR, "company_about.db");
-const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
+const CORP_ANN_URL = "https://www.nseindia.in/api/corporate-announcements";
 const NSE_ANN_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
+  "https://www.nseindia.in/companies-listing/corporate-filings-announcements";
 
 const TICKER_RE = /^[A-Z][A-Z0-9-]{0,19}$/;
 

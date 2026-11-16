@@ -4,7 +4,7 @@ import type { NseFeedStatus } from "./nse-feed-status-types";
 export type { NseFeedStatus } from "./nse-feed-status-types";
 export { formatNseFeedAge } from "./nse-feed-status-types";
 
-const NSE_HOME = "https://www.nseindia.com/";
+const NSE_HOME = "https://www.nseindia.in/";
 const CACHE_MS = 60_000;
 
 type CacheEntry = { at: number; status: NseFeedStatus };

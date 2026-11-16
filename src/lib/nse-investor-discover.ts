@@ -18,9 +18,9 @@ import {
 } from "./nse-time";
 import type { DiscoveredMaterialSource, InvestorMaterialKind } from "./investor-material-types";
 
-const CORP_ANN_URL = "https://www.nseindia.com/api/corporate-announcements";
+const CORP_ANN_URL = "https://www.nseindia.in/api/corporate-announcements";
 const NSE_ANN_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-announcements";
+  "https://www.nseindia.in/companies-listing/corporate-filings-announcements";
 
 const ANNOUNCEMENT_KIND: Array<{ re: RegExp; kind: InvestorMaterialKind; title: string }> = [
   {

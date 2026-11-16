@@ -6,16 +6,15 @@ import * as cheerio from "cheerio";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-const NSE_HOME = "https://www.nseindia.com/";
-const NSE_QUOTE = "https://www.nseindia.com/get-quotes/equity";
-const NSE_GOV_REF =
-  "https://www.nseindia.com/companies-listing/corporate-filings-governance";
-const INTEGRATED_URL =
-  "https://www.nseindia.com/api/integrated-filing-results";
-const CG_MASTER_URL =
-  "https://www.nseindia.com/api/corporate-governance-master";
-const CG_DETAIL_URL =
-  "https://www.nseindia.com/api/corporate-governance";
+// NSE moved its site and APIs to nseindia.in (the .com URLs 301-redirect
+// there and the redirect loses the session). Override with NSE_ORIGIN if needed.
+const NSE_ORIGIN = (process.env.NSE_ORIGIN || "https://www.nseindia.in").replace(/\/+$/, "");
+const NSE_HOME = `${NSE_ORIGIN}/`;
+const NSE_QUOTE = `${NSE_ORIGIN}/get-quotes/equity`;
+const NSE_GOV_REF = `${NSE_ORIGIN}/companies-listing/corporate-filings-governance`;
+const INTEGRATED_URL = `${NSE_ORIGIN}/api/integrated-filing-results`;
+const CG_MASTER_URL = `${NSE_ORIGIN}/api/corporate-governance-master`;
+const CG_DETAIL_URL = `${NSE_ORIGIN}/api/corporate-governance`;
 const TIMEOUT_MS = 30_000;
 const DUMMY_DINS = new Set(["99999999", "00000000", "12345678", "87654321"]);
 
@@ -196,7 +195,10 @@ async function nseFetch(
         }
       }
     }
-    return res;
+    // Read the body while the timeout is still armed — NSE can stall mid-body,
+    // and an unguarded res.json()/text() later would hang forever.
+    const body = await res.arrayBuffer();
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers });
   } finally {
     clearTimeout(t);
   }

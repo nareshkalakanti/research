@@ -21,7 +21,8 @@ export const NANO_RULES = {
   minBoard: 4,
   minIndependentShare: 0.5,
   minLinkedBoards: 2,
-  minQuarter: "2026-06-30",
+  /** Latest reported quarter must end within this many days (about two quarters). */
+  maxQuarterAgeDays: 200,
 } as const;
 
 /** Second kind of holding: larger, steady, group-backed, strong board (RPG Life type). */
@@ -29,7 +30,7 @@ export const QUALITY_RULES = {
   minMcapCr: 500,
   maxMcapCr: 5000,
   minBoard: 5,
-  minIndependentShare: 2 / 3,
+  minIndependentShare: 0.5,
   minRoce: 0.15,
 } as const;
 
@@ -50,19 +51,23 @@ export type NanoStock = {
   linked_boards: number;
   momentum_12m: number | null;
   group?: string | null;
+  /** Latest quarter's net profit and the same quarter a year earlier (₹ Cr). */
+  np_now?: number | null;
+  np_year_ago?: number | null;
 };
 
 export type NanoStage = { label: string; in: string[]; out: string[] };
 
 export type NanoPage = {
+  basket: "nano";
   current: NanoStock[];
   past: Array<NanoStock & { sold_at: string }>;
   stages: NanoStage[];
   candidates: NanoStock[];
-  coverage: { universe: number; with_quarters: number; missing: number };
+  coverage: { universe: number; with_quarters: number; missing: number; to_try: number };
   rules: typeof NANO_RULES;
   quality: NanoStock[];
-  quality_coverage: { universe: number; with_roce: number; missing: number };
+  quality_coverage: { universe: number; with_roce: number; missing: number; to_try: number };
   quality_rules: typeof QUALITY_RULES;
 };
 
@@ -82,16 +87,30 @@ function pct(a: number | null | undefined, b: number | null | undefined): number
   return (a / b - 1) * 100;
 }
 
-/** Sales / profit YoY (latest quarter vs same quarter last year) and TTM profit. */
+/** Month index (year*12 + month) of a YYYY-MM-DD quarter end. */
+function monthIdx(d: string): number {
+  return Number(d.slice(0, 4)) * 12 + Number(d.slice(5, 7));
+}
+
+/**
+ * Sales / profit YoY (latest quarter vs the same quarter a year earlier,
+ * matched by date — stored quarters can have gaps) and TTM profit from four
+ * consecutive quarters.
+ */
 function quarterStats(qs: Quarter[]) {
   const sorted = [...qs].sort((a, b) => a.date.localeCompare(b.date));
   const n = sorted.length;
-  if (!n) return { sales_yoy: null, profit_yoy: null, ttm_np: null, latest: null };
+  if (!n) {
+    return { sales_yoy: null, profit_yoy: null, ttm_np: null, latest: null, np_now: null, np_year_ago: null };
+  }
   const last = sorted[n - 1];
-  const yearAgo = n >= 5 ? sorted[n - 5] : null;
+  const lastM = monthIdx(last.date);
+  const yearAgo = sorted.find((q) => monthIdx(q.date) === lastM - 12) ?? null;
   const last4 = sorted.slice(-4);
+  const consecutive =
+    last4.length === 4 && monthIdx(last4[3].date) - monthIdx(last4[0].date) === 9;
   const ttm =
-    last4.length === 4 && last4.every((q) => q.netIncome != null)
+    consecutive && last4.every((q) => q.netIncome != null)
       ? last4.reduce((s, q) => s + (q.netIncome as number), 0)
       : null;
   return {
@@ -99,6 +118,8 @@ function quarterStats(qs: Quarter[]) {
     profit_yoy: yearAgo ? pct(last.netIncome, yearAgo.netIncome) : null,
     ttm_np: ttm,
     latest: last.date,
+    np_now: last.netIncome ?? null,
+    np_year_ago: yearAgo?.netIncome ?? null,
   };
 }
 
@@ -123,13 +144,32 @@ function loadQuarters(): Map<string, Quarter[]> {
   return out;
 }
 
+/** Market cap (₹ Cr): the fresher of the quote cache and Screener's top ratios. */
 function loadMcap(): Map<string, number> {
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
   try {
-    const rows = db
-      .prepare(`SELECT ticker, market_cap_cr FROM stock_metrics WHERE market_cap_cr > 0`)
-      .all() as Array<{ ticker: string; market_cap_cr: number }>;
-    return new Map(rows.map((r) => [r.ticker.toUpperCase(), r.market_cap_cr]));
+    const best = new Map<string, { v: number; at: string }>();
+    const take = (t: string, v: number, at: string) => {
+      const k = t.toUpperCase();
+      const cur = best.get(k);
+      if (!cur || at > cur.at) best.set(k, { v, at });
+    };
+    for (const r of db
+      .prepare(`SELECT ticker, market_cap_cr, fetched_at FROM stock_metrics WHERE market_cap_cr > 0`)
+      .all() as Array<{ ticker: string; market_cap_cr: number; fetched_at: string }>) {
+      take(r.ticker, r.market_cap_cr, r.fetched_at || "");
+    }
+    for (const r of db
+      .prepare(`SELECT ticker, ratios_json, fetched_at FROM screener_ratios_cache`)
+      .all() as Array<{ ticker: string; ratios_json: string; fetched_at: string }>) {
+      try {
+        const v = (JSON.parse(r.ratios_json) as { market_cap_cr?: number | null }).market_cap_cr;
+        if (v != null && v > 0) take(r.ticker, v, r.fetched_at || "");
+      } catch {
+        /* skip */
+      }
+    }
+    return new Map([...best].map(([k, x]) => [k, x.v]));
   } finally {
     db.close();
   }
@@ -163,12 +203,22 @@ function loadBoards(): Map<string, Board> {
     const seats = db
       .prepare(
         `SELECT UPPER(ticker) AS t, COUNT(*) AS n,
-                SUM(CASE WHEN LOWER(COALESCE(category, '') || ' ' || designation)
-                         LIKE '%independent%'
-                         AND LOWER(COALESCE(category, '') || ' ' || designation)
-                         NOT LIKE '%non-independent%'
-                    THEN 1 ELSE 0 END) AS ind
-         FROM board_seats GROUP BY UPPER(ticker)`,
+                -- Role text decides ("Non Independent" with space or hyphen);
+                -- the category column only counts when the role is a plain title.
+                SUM(CASE
+                      WHEN LOWER(designation) LIKE '%non independent%'
+                        OR LOWER(designation) LIKE '%non-independent%' THEN 0
+                      WHEN LOWER(designation) LIKE '%independent%' THEN 1
+                      WHEN LOWER(COALESCE(category, '')) = 'independent' THEN 1
+                      ELSE 0 END) AS ind
+         FROM board_seats
+         WHERE NOT (LOWER(COALESCE(category, '') || ' ' || designation) LIKE '%kmp%'
+                 OR LOWER(COALESCE(category, '') || ' ' || designation) LIKE '%cfo%'
+                 OR LOWER(designation) LIKE '%chief financial%'
+                 OR LOWER(designation) LIKE '%company secretary%'
+                 OR LOWER(TRIM(COALESCE(category, ''))) = 'cs'
+                 OR LOWER(TRIM(designation)) = 'cs')
+         GROUP BY UPPER(ticker)`,
       )
       .all() as Array<{ t: string; n: number; ind: number }>;
     for (const s of seats) out.set(s.t, { board: s.n, independent: s.ind, linked: 0 });
@@ -202,20 +252,20 @@ function loadCompanies(): Map<string, { name: string; market: string }> {
   }
 }
 
-function loadCurrent(): string[] {
+function loadCurrent(listKey: string = NANO_LIST_KEY): string[] {
   const db = openSqliteNamed("named_watchlists.db", { readonly: true, wal: true });
   try {
     return (
       db
         .prepare(`SELECT UPPER(ticker) AS t FROM named_watchlists WHERE list_key = ? ORDER BY ticker`)
-        .all(NANO_LIST_KEY) as Array<{ t: string }>
+        .all(listKey) as Array<{ t: string }>
     ).map((r) => r.t);
   } finally {
     db.close();
   }
 }
 
-type Ctx = {
+export type Ctx = {
   quarters: Map<string, Quarter[]>;
   mcap: Map<string, number>;
   mom: Map<string, number>;
@@ -225,7 +275,7 @@ type Ctx = {
   groups: Map<string, string>;
 };
 
-function buildStock(t: string, ctx: Ctx): NanoStock {
+export function buildStock(t: string, ctx: Ctx): NanoStock {
   const r = ctx.ratios.get(t);
   const mcap = ctx.mcap.get(t) ?? r?.market_cap_cr ?? null;
   const q = quarterStats(ctx.quarters.get(t) ?? []);
@@ -244,6 +294,8 @@ function buildStock(t: string, ctx: Ctx): NanoStock {
     roce: r?.roce ?? null,
     sales_yoy: q.sales_yoy,
     profit_yoy: q.profit_yoy,
+    np_now: q.np_now,
+    np_year_ago: q.np_year_ago,
     latest_quarter: q.latest,
     board: b?.board ?? 0,
     independent: b?.independent ?? 0,
@@ -253,7 +305,7 @@ function buildStock(t: string, ctx: Ctx): NanoStock {
   };
 }
 
-function loadCtx(): Ctx {
+export function loadCtx(): Ctx {
   return {
     quarters: loadQuarters(),
     mcap: loadMcap(),
@@ -307,7 +359,7 @@ function fitsQuality(s: NanoStock): boolean {
     s.board >= QUALITY_RULES.minBoard &&
     s.independent < s.board &&
     s.independent / s.board >= QUALITY_RULES.minIndependentShare &&
-    (s.latest_quarter ?? "") >= NANO_RULES.minQuarter
+    recentQuarter(s.latest_quarter)
   );
 }
 
@@ -324,6 +376,12 @@ function universe(ctx: Ctx): string[] {
   return out;
 }
 
+export function recentQuarter(d: string | null): boolean {
+  if (!d) return false;
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return Number.isFinite(t) && Date.now() - t <= NANO_RULES.maxQuarterAgeDays * 86_400_000;
+}
+
 function fits(s: NanoStock): boolean {
   return (
     s.pe != null &&
@@ -338,7 +396,7 @@ function fits(s: NanoStock): boolean {
     s.independent < s.board &&
     s.independent / s.board >= NANO_RULES.minIndependentShare &&
     s.linked_boards >= NANO_RULES.minLinkedBoards &&
-    (s.latest_quarter ?? "") >= NANO_RULES.minQuarter
+    recentQuarter(s.latest_quarter)
   );
 }
 
@@ -368,6 +426,11 @@ export function buildNanoPage(): NanoPage {
     );
 
   const withQ = uni.filter((t) => (ctx.quarters.get(t)?.length ?? 0) >= 5).length;
+  const triedNano = recentlyTried("nano");
+  const triedQuality = recentlyTried("quality");
+  const nanoToTry = uni.filter(
+    (t) => (ctx.quarters.get(t)?.length ?? 0) < 5 && !triedNano.has(t),
+  ).length;
   const candSet = new Set(candidates.map((c) => c.ticker));
   const qUni = qualityUniverse(ctx);
   const quality = qUni
@@ -376,76 +439,156 @@ export function buildNanoPage(): NanoPage {
     .filter(fitsQuality)
     .sort((a, b) => (b.roce ?? 0) - (a.roce ?? 0));
   const withRoce = qUni.filter((t) => ctx.ratios.get(t)?.roce != null).length;
+  const qualityToTry = qUni.filter(
+    (t) => ctx.ratios.get(t)?.roce == null && !triedQuality.has(t),
+  ).length;
   return {
+    basket: "nano",
     current: current.map((t) => buildStock(t, ctx)),
     past,
     stages,
     candidates,
-    coverage: { universe: uni.length, with_quarters: withQ, missing: uni.length - withQ },
+    coverage: {
+      universe: uni.length,
+      with_quarters: withQ,
+      missing: uni.length - withQ,
+      to_try: nanoToTry,
+    },
     rules: NANO_RULES,
     quality,
-    quality_coverage: { universe: qUni.length, with_roce: withRoce, missing: qUni.length - withRoce },
+    quality_coverage: {
+      universe: qUni.length,
+      with_roce: withRoce,
+      missing: qUni.length - withRoce,
+      to_try: qualityToTry,
+    },
     quality_rules: QUALITY_RULES,
   };
 }
 
 /** Fetch quarterly results for nanocaps that have none yet (Screener, throttled). */
-type Progress = (done: number, total: number, filled: number) => void;
+export type Progress = (done: number, total: number, filled: number) => void;
+export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice";
+export type FillResult = { tried: number; filled: number; left: number; not_found: number };
 
-export async function fillNanoQuarters(
-  limit = 25,
+const RETRY_AFTER_DAYS = 7;
+
+function withAttempts<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.pragma("busy_timeout = 5000");
+    db.exec(`CREATE TABLE IF NOT EXISTS nano_fill_attempts (
+      ticker TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      attempted_at TEXT NOT NULL,
+      PRIMARY KEY (ticker, kind)
+    )`);
+    return fn(db);
+  } finally {
+    db.close();
+  }
+}
+
+/** Tickers tried within the retry window (Screener had nothing) — skip them. */
+export function recentlyTried(kind: FillKind): Set<string> {
+  const since = new Date(Date.now() - RETRY_AFTER_DAYS * 86_400_000).toISOString();
+  return withAttempts(
+    (db) =>
+      new Set(
+        (
+          db
+            .prepare(`SELECT ticker FROM nano_fill_attempts WHERE kind = ? AND attempted_at >= ?`)
+            .all(kind, since) as Array<{ ticker: string }>
+        ).map((r) => r.ticker),
+      ),
+  );
+}
+
+function markTried(kind: FillKind, ticker: string): void {
+  withAttempts((db) =>
+    db
+      .prepare(
+        `INSERT INTO nano_fill_attempts (ticker, kind, attempted_at) VALUES (?, ?, ?)
+         ON CONFLICT(ticker, kind) DO UPDATE SET attempted_at = excluded.attempted_at`,
+      )
+      .run(ticker, kind, new Date().toISOString()),
+  );
+}
+
+/**
+ * Run one batch: skip names tried in the last week (so failures don't block
+ * the queue), record every attempt, report how many are left to try.
+ */
+export async function runFill(
+  kind: FillKind,
+  missing: string[],
+  limit: number,
+  fetchOne: (t: string) => Promise<boolean>,
   onProgress?: Progress,
-): Promise<{ tried: number; filled: number; left: number }> {
-  const ctx = loadCtx();
-  const missing = universe(ctx).filter((t) => (ctx.quarters.get(t)?.length ?? 0) < 5);
-  const batch = missing.slice(0, limit);
+): Promise<FillResult> {
+  const tried = recentlyTried(kind);
+  const todo = missing.filter((t) => !tried.has(t));
+  const batch = todo.slice(0, limit);
   let filled = 0;
   let done = 0;
   onProgress?.(0, batch.length, 0);
   for (const t of batch) {
     try {
-      const qs = await fetchScreenerQuarterlyFundamentals(t);
-      if (qs.length >= 5) filled += 1;
+      if (await fetchOne(t)) filled += 1;
     } catch (e) {
+      // Screener paused us — stop without marking, so these names are retried.
       if (String(e).toLowerCase().includes("paused")) throw e;
     }
+    markTried(kind, t);
     onProgress?.(++done, batch.length, filled);
   }
-  return { tried: batch.length, filled, left: Math.max(0, missing.length - filled) };
+  return {
+    tried: batch.length,
+    filled,
+    left: Math.max(0, todo.length - batch.length),
+    not_found: missing.length - todo.length + (batch.length - filled),
+  };
+}
+
+/** Fetch quarterly results for nanocap-band stocks that have none yet. */
+export function fillNanoQuarters(limit = 25, onProgress?: Progress): Promise<FillResult> {
+  const ctx = loadCtx();
+  const missing = universe(ctx).filter((t) => (ctx.quarters.get(t)?.length ?? 0) < 5);
+  return runFill(
+    "nano",
+    missing,
+    limit,
+    async (t) => (await fetchScreenerQuarterlyFundamentals(t)).length >= 5,
+    onProgress,
+  );
 }
 
 /** Fetch ROCE (and quarters) for group companies in the quality band that lack it. */
-export async function fillQualityRatios(
-  limit = 25,
-  onProgress?: Progress,
-): Promise<{ tried: number; filled: number; left: number }> {
+export function fillQualityRatios(limit = 25, onProgress?: Progress): Promise<FillResult> {
   const ctx = loadCtx();
   const missing = qualityUniverse(ctx).filter((t) => ctx.ratios.get(t)?.roce == null);
-  const batch = missing.slice(0, limit);
-  let filled = 0;
-  let done = 0;
-  onProgress?.(0, batch.length, 0);
-  for (const t of batch) {
-    try {
+  return runFill(
+    "quality",
+    missing,
+    limit,
+    async (t) => {
       const r = await fetchScreenerTopRatios(t, { force: true });
-      if (r.roce != null) filled += 1;
       if ((ctx.quarters.get(t)?.length ?? 0) < 5) await fetchScreenerQuarterlyFundamentals(t);
-    } catch (e) {
-      if (String(e).toLowerCase().includes("paused")) throw e;
-    }
-    onProgress?.(++done, batch.length, filled);
-  }
-  return { tried: batch.length, filled, left: Math.max(0, missing.length - filled) };
+      return r.roce != null;
+    },
+    onProgress,
+  );
 }
 
-
 export type NanoFillJob = {
-  kind: "nano" | "quality";
+  kind: FillKind;
   running: boolean;
   done: number;
   total: number;
   filled: number;
   left: number | null;
+  /** Tried within the last week with no data on Screener. */
+  not_found: number | null;
   error: string | null;
   started_at: string;
   finished_at: string | null;
@@ -455,12 +598,17 @@ export type NanoFillJob = {
 const JOB_KEY = "__nanoFillJob";
 type JobHolder = { [JOB_KEY]?: NanoFillJob };
 
+export { loadCurrent };
+
 export function nanoFillJob(): NanoFillJob | null {
   return (globalThis as JobHolder)[JOB_KEY] ?? null;
 }
 
 /** Start a background fill (25 stocks). Returns the running job if one is already going. */
-export function startNanoFill(kind: "nano" | "quality"): NanoFillJob {
+export function startNanoFill(
+  kind: FillKind,
+  runner?: (onProgress: Progress) => Promise<FillResult>,
+): NanoFillJob {
   const holder = globalThis as JobHolder;
   const cur = holder[JOB_KEY];
   if (cur?.running) return cur;
@@ -471,6 +619,7 @@ export function startNanoFill(kind: "nano" | "quality"): NanoFillJob {
     total: 0,
     filled: 0,
     left: null,
+    not_found: null,
     error: null,
     started_at: new Date().toISOString(),
     finished_at: null,
@@ -481,10 +630,15 @@ export function startNanoFill(kind: "nano" | "quality"): NanoFillJob {
     job.total = total;
     job.filled = filled;
   };
-  const run = kind === "quality" ? fillQualityRatios(25, onProgress) : fillNanoQuarters(25, onProgress);
+  const run = runner
+    ? runner(onProgress)
+    : kind === "quality"
+      ? fillQualityRatios(25, onProgress)
+      : fillNanoQuarters(25, onProgress);
   run
     .then((res) => {
       job.left = res.left;
+      job.not_found = res.not_found;
     })
     .catch((e) => {
       job.error = String(e).toLowerCase().includes("paused")

@@ -8,12 +8,12 @@ import { trimReportedQuarters } from "./quarter-panel";
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-const NSE_HOME = "https://www.nseindia.com/";
-const NSE_QUOTE = "https://www.nseindia.com/get-quotes/equity";
+const NSE_HOME = "https://www.nseindia.in/";
+const NSE_QUOTE = "https://www.nseindia.in/get-quotes/equity";
 const INTEGRATED_URL =
-  "https://www.nseindia.com/api/integrated-filing-results";
+  "https://www.nseindia.in/api/integrated-filing-results";
 const CORPORATES_RESULTS_URL =
-  "https://www.nseindia.com/api/corporates-financial-results";
+  "https://www.nseindia.in/api/corporates-financial-results";
 /** Per-request cap — keep short so a stuck NSE host can't burn the quarters UI (90s). */
 const TIMEOUT_MS = 12_000;
 
