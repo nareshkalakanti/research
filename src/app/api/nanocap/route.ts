@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildFaPage, runFaPriceCheck } from "@/lib/fallen-angels";
 import { buildHgPage, runHgPriceCheck, runHolderScan } from "@/lib/hidden-gems";
 import { buildLvPage, fillLvData } from "@/lib/listed-ventures";
+import { buildMomPage, fillMomQuarters } from "@/lib/momentum";
 import {
   buildNanoPage,
   fillNanoQuarters,
@@ -13,7 +14,7 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET ?basket=nano|lv|fa|hg: page data. GET ?job=1: progress of the background fill. */
+/** GET ?basket=nano|lv|fa|hg|mom: page data. GET ?job=1: progress of the background fill. */
 export async function GET(req: NextRequest) {
   if (req.nextUrl.searchParams.get("job") === "1") {
     return NextResponse.json({ ok: true, job: nanoFillJob() });
@@ -21,7 +22,9 @@ export async function GET(req: NextRequest) {
   try {
     const basket = req.nextUrl.searchParams.get("basket");
     const page =
-      basket === "lv"
+      basket === "mom"
+        ? buildMomPage()
+        : basket === "lv"
         ? buildLvPage()
         : basket === "fa"
           ? await buildFaPage()
@@ -42,7 +45,9 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as { kind?: string; all?: boolean };
   const limit = body.all ? 5000 : 25;
   const job =
-    body.kind === "hgscan"
+    body.kind === "mom"
+      ? startNanoFill("mom", (p) => fillMomQuarters(body.all ? 60 : 20, p))
+      : body.kind === "hgscan"
       ? startNanoFill("hgscan", (p) => runHolderScan(p))
       : body.kind === "hgprice"
       ? startNanoFill("hgprice", (p) => runHgPriceCheck(p))

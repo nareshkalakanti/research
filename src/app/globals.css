@@ -29665,3 +29665,30 @@ button.rot-stat-best-name:not(:disabled):hover {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Momentum basket check chips */
+.mom-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.mom-ck {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  cursor: help;
+}
+.mom-ck.ok {
+  background: #d1fae5;
+  color: #047857;
+}
+.mom-ck.bad {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.mom-ck.unk {
+  background: #f1f5f9;
+  color: #64748b;
+}

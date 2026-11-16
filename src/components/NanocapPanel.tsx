@@ -7,8 +7,9 @@ import type { NanoFillJob, NanoPage, NanoStock } from "@/lib/nanocap-champs";
 import type { LvPage } from "@/lib/listed-ventures";
 import type { FaPage, FaStock } from "@/lib/fallen-angels";
 import type { HgPage, HgStock } from "@/lib/hidden-gems";
+import type { MomPage, MomStock } from "@/lib/momentum";
 
-type Basket = "nano" | "lv" | "fa" | "hg";
+type Basket = "nano" | "lv" | "fa" | "hg" | "mom";
 type Kind = NanoFillJob["kind"];
 const BASKET_KEY = "nano-basket";
 
@@ -177,6 +178,79 @@ function fmtQuarter(iso: string | null | undefined): string {
     : iso;
 }
 
+const CHECK_LABEL: Record<MomStock["checks"][number]["id"], string> = {
+  sustained: "Sustained",
+  organic: "Organic",
+  clean: "Clean profit",
+  value: "Value",
+  board: "Board",
+};
+
+/** Momentum: 7/7 rules + Quarters score, with the five sanity checks as chips. */
+function MomTable({ rows }: { rows: MomStock[] }) {
+  return (
+    <div className="table-wrap nano-wrap">
+      <table className="data-table nano-table mom-table">
+        <thead>
+          <tr>
+            <th className="nano-col-name">Stock</th>
+            <th className="num">Value ₹ Cr</th>
+            <th className="num">P/E</th>
+            <th className="num">ROCE</th>
+            <th className="num">Sales YoY</th>
+            <th className="num">Profit YoY</th>
+            <th className="num">Sales QoQ</th>
+            <th className="num">Profit QoQ</th>
+            <th className="num" title="Quarters growth score out of 10">
+              Quarters
+            </th>
+            <th title="Hover a chip for the reason">Checks</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.ticker}>
+              <td className="nano-col-name">
+                <a className="nano-name" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noreferrer">
+                  {r.name}
+                </a>
+                <span className="nano-meta">
+                  {r.ticker}
+                  {r.latest_quarter ? <span>· {quarterLabel(r.latest_quarter)}</span> : null}
+                  <a className="np-chip" href={napkinUrl(r.ticker)} title="Open in Napkin">
+                    NP
+                  </a>
+                </span>
+              </td>
+              <td className="num">{num(r.mcap_cr)}</td>
+              <td className="num">{num(r.pe, 1)}</td>
+              <td className="num">{r.roce == null ? "—" : `${Math.round(r.roce * 100)}%`}</td>
+              <td className="num">{growth(r.sales_yoy)}</td>
+              <td className="num">{growth(r.np_yoy)}</td>
+              <td className="num">{growth(r.sales_qoq)}</td>
+              <td className="num">{growth(r.np_qoq)}</td>
+              <td className="num">{r.quarter_score.toFixed(1)}</td>
+              <td>
+                <span className="mom-checks">
+                  {r.checks.map((c) => (
+                    <span
+                      key={c.id}
+                      className={`mom-ck ${c.ok === true ? "ok" : c.ok === false ? "bad" : "unk"}`}
+                      title={c.note}
+                    >
+                      {c.ok === true ? "✓" : c.ok === false ? "✗" : "?"} {CHECK_LABEL[c.id]}
+                    </span>
+                  ))}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /** Hidden Gems: ATAM-like metrics, score and named funds. */
 function HgTable({ rows, showStake }: { rows: HgStock[]; showStake?: boolean }) {
   return (
@@ -245,12 +319,12 @@ export function NanocapPanel() {
   const [basket, setBasket] = useState<Basket>(() => {
     try {
       const v = window.localStorage.getItem(BASKET_KEY);
-      return v === "lv" || v === "fa" || v === "hg" ? v : "nano";
+      return v === "lv" || v === "fa" || v === "hg" || v === "mom" ? v : "nano";
     } catch {
       return "nano";
     }
   });
-  const [data, setData] = useState<NanoPage | LvPage | FaPage | HgPage | null>(null);
+  const [data, setData] = useState<NanoPage | LvPage | FaPage | HgPage | MomPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<NanoFillJob | null>(null);
   const wasRunning = useRef(false);
@@ -258,7 +332,7 @@ export function NanocapPanel() {
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/nanocap?basket=${basket}`, { cache: "no-store" });
-      const json = (await res.json()) as (NanoPage | LvPage | FaPage | HgPage) & {
+      const json = (await res.json()) as (NanoPage | LvPage | FaPage | HgPage | MomPage) & {
         ok: boolean;
         error?: string;
         job?: NanoFillJob | null;
@@ -402,6 +476,7 @@ export function NanocapPanel() {
           ["lv", "Listed Ventures"],
           ["fa", "Fallen Angels"],
           ["hg", "Hidden Gems"],
+          ["mom", "Momentum"],
         ] as const
       ).map(([id, label]) => (
         <button
@@ -438,6 +513,8 @@ export function NanocapPanel() {
                 ? "Loading Fallen Angels"
                 : basket === "hg"
                   ? "Loading Hidden Gems"
+                  : basket === "mom"
+                  ? "Scoring quarters for Momentum"
                   : "Loading Nanocap Champs"
           }
           variant="block"
@@ -475,6 +552,89 @@ export function NanocapPanel() {
         </button>
       </>
     ) : null;
+
+  if (data.basket === "mom") {
+    const mr = data.rules;
+    const cov = data.coverage;
+    const clean = data.strong.filter((r) => r.checks.every((c) => c.ok !== false));
+    const flagged = data.strong.filter((r) => r.checks.some((c) => c.ok === false));
+    return (
+      <div className="panel nano-panel">
+        {switcher}
+        {autoNote}
+        <div className="missing-head">
+          <div>
+            <h2>Momentum</h2>
+            <p className="missing-sub">
+              Passes all 7 rules (ROCE and ROE over 15%, sales and profit up on last quarter and last year, margin up)
+              and scores Strong ({mr.minQuarterScore}+/10) on quarterly growth. Then five checks weed out one-off jumps.
+            </p>
+          </div>
+        </div>
+
+        <section className="nano-section">
+          <h3>
+            7/7 and every check clear <span className="nano-count">{clean.length}</span>
+          </h3>
+          <p className="nano-note">
+            <strong>Sustained</strong> — 5+ of 7 the quarter before too · <strong>Organic</strong> — no sales jump over{" "}
+            {mr.bigJumpQoq}% in a quarter or {mr.bigJumpYoy}% on the year, share count within ±{mr.maxShareChangePct}% ·{" "}
+            <strong>Clean profit</strong> — other income under {Math.round(mr.maxOtherIncomeShare * 100)}% of profit ·{" "}
+            <strong>Value</strong> — P/E ÷ yearly profit growth ≤ {mr.maxPeg} · <strong>Board</strong> — a third or more
+            independent. “?” means the data is missing, not a fail.
+          </p>
+          {clean.length ? <MomTable rows={clean} /> : <p className="miq-empty-hint">None right now.</p>}
+        </section>
+
+        <section className="nano-section">
+          <h3>
+            7/7 but a check failed <span className="nano-count">{flagged.length}</span>
+          </h3>
+          <p className="nano-note">Hover a ✗ for the reason — often a merger, a weak base quarter or a first good quarter.</p>
+          {flagged.length ? <MomTable rows={flagged} /> : <p className="miq-empty-hint">None.</p>}
+        </section>
+
+        <section className="nano-section">
+          <h3>
+            6 of 7 — one rule away <span className="nano-count">{data.near.length}</span>
+          </h3>
+          <p className="nano-note">Strong quarterly growth but one rule short; could turn 7/7 with the next results.</p>
+          {data.near.length ? <MomTable rows={data.near} /> : <p className="miq-empty-hint">None.</p>}
+        </section>
+
+        <div className="nano-fill">
+          <span className="status-line">
+            Scored <strong>{cov.fresh}</strong> stocks with recent results and known ROCE / ROE
+            {cov.to_try ? (
+              <>
+                {" "}
+                · <strong>{cov.to_try}</strong> close to passing are missing the latest quarter
+              </>
+            ) : null}
+          </span>
+          {cov.to_try && !cov.paused_until ? (
+            <>
+              <button type="button" className="btn-fill" disabled={running} onClick={() => void fill("mom")}>
+                {fillLabel("mom", `Fetch latest results (${Math.min(20, cov.to_try)})`)}
+              </button>
+              <button type="button" className="btn-fill-all" disabled={running} onClick={() => void fill("mom", true)}>
+                Fetch up to 60
+              </button>
+            </>
+          ) : null}
+        </div>
+        <p className="nano-note">
+          Screener-safe: one page every 2.5–5 s, at most {mr.fetchesPerHour} pages an hour from this basket (
+          {cov.used_last_hour} used), names already tried skip for a week, and everything pauses automatically if Screener
+          pushes back.
+          {cov.paused_until
+            ? ` Screener is paused until ${new Date(cov.paused_until).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}.`
+            : ""}
+        </p>
+        {fillNote("mom")}
+      </div>
+    );
+  }
 
   if (data.basket === "hg") {
     const hr = data.rules;

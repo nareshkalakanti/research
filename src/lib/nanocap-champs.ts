@@ -376,6 +376,17 @@ function universe(ctx: Ctx): string[] {
   return out;
 }
 
+/** Latest quarter end that every company should have reported by now (60-day window). */
+export function expectedQuarter(now = new Date()): string {
+  const d = new Date(now.getTime() - 60 * 86_400_000);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + 1;
+  const qEndMonth = m >= 12 ? 12 : m >= 9 ? 9 : m >= 6 ? 6 : m >= 3 ? 3 : 0;
+  if (qEndMonth === 0) return `${y - 1}-12-31`;
+  const day = qEndMonth === 6 || qEndMonth === 9 ? 30 : 31;
+  return `${y}-${String(qEndMonth).padStart(2, "0")}-${day}`;
+}
+
 export function recentQuarter(d: string | null): boolean {
   if (!d) return false;
   const t = Date.parse(`${d}T00:00:00Z`);
@@ -468,7 +479,7 @@ export function buildNanoPage(): NanoPage {
 
 /** Fetch quarterly results for nanocaps that have none yet (Screener, throttled). */
 export type Progress = (done: number, total: number, filled: number) => void;
-export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice";
+export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom";
 export type FillResult = { tried: number; filled: number; left: number; not_found: number };
 
 const RETRY_AFTER_DAYS = 7;

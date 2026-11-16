@@ -1,6 +1,14 @@
 import { buildFaPage, runFaPriceCheck } from "./fallen-angels";
 import { buildLvPage } from "./listed-ventures";
-import { buildNanoPage, nanoFillJob, startNanoFill, type FillResult, type Progress } from "./nanocap-champs";
+import { buildMomPage } from "./momentum";
+import {
+  buildNanoPage,
+  expectedQuarter,
+  nanoFillJob,
+  startNanoFill,
+  type FillResult,
+  type Progress,
+} from "./nanocap-champs";
 import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -16,17 +24,6 @@ import { openSqliteNamed } from "./sqlite-utils";
 const PRICE_DUE_MS = 86_400_000;
 const RESULTS_PER_RUN = 40;
 const META_KEY = "baskets_refresh_last";
-
-/** Latest quarter end that every company should have reported by now (60-day window). */
-function expectedQuarter(now = new Date()): string {
-  const d = new Date(now.getTime() - 60 * 86_400_000);
-  const y = d.getUTCFullYear();
-  const m = d.getUTCMonth() + 1;
-  const qEndMonth = m >= 12 ? 12 : m >= 9 ? 9 : m >= 6 ? 6 : m >= 3 ? 3 : 0;
-  if (qEndMonth === 0) return `${y - 1}-12-31`;
-  const day = qEndMonth === 6 || qEndMonth === 9 ? 30 : 31;
-  return `${y}-${String(qEndMonth).padStart(2, "0")}-${day}`;
-}
 
 function withMeta<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
   const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
@@ -58,13 +55,16 @@ function priceCheckAge(): number {
   });
 }
 
-/** Holdings and listed candidates across the three baskets whose results are out of date. */
+/** Holdings and listed candidates across the baskets whose results are out of date. */
 async function staleResultTickers(): Promise<string[]> {
   const want = expectedQuarter();
   const nano = buildNanoPage();
   const lv = buildLvPage();
   const fa = await buildFaPage();
+  const mom = buildMomPage();
   const rows = [
+    ...mom.strong,
+    ...mom.near,
     ...nano.current,
     ...nano.candidates,
     ...nano.quality,
