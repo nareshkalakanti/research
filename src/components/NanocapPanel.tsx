@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loading } from "@/components/Loading";
-import { napkinUrl, tradingviewUrl } from "@/lib/links";
+import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
 import type { NanoFillJob, NanoPage, NanoStock } from "@/lib/nanocap-champs";
 import type { LvPage } from "@/lib/listed-ventures";
 import type { FaPage, FaStock } from "@/lib/fallen-angels";
@@ -79,7 +79,7 @@ function StockTable({
                 </a>
                 <span className="nano-meta">
                   {r.ticker}
-                  <a className="np-chip" href={napkinUrl(r.ticker)} title="Open in Napkin">
+                  <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                     NP
                   </a>
                 </span>
@@ -147,7 +147,7 @@ function FaTable({ rows, holdings }: { rows: FaStock[]; holdings?: boolean }) {
                 </a>
                 <span className="nano-meta">
                   {r.ticker}
-                  <a className="np-chip" href={napkinUrl(r.ticker)} title="Open in Napkin">
+                  <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                     NP
                   </a>
                   {r.group ? <span>· {r.group}</span> : null}
@@ -186,6 +186,154 @@ const CHECK_LABEL: Record<MomStock["checks"][number]["id"], string> = {
   board: "Board",
 };
 
+/** Fast run: ~7.5 s a stock. */
+function fmtFastTime(n: number): string {
+  const min = Math.round((n * 7.5) / 60);
+  if (min < 60) return `${Math.max(1, min)} min`;
+  const h = min / 60;
+  return `${h < 10 ? h.toFixed(1).replace(/\.0$/, "") : Math.round(h)} h`;
+}
+
+function fmtLeftTime(hours: number): string {
+  if (hours < 1) return "under an hour";
+  if (hours < 36) return `about ${Math.round(hours)} h of app time`;
+  return `about ${Math.round(hours / 24)} days of app time`;
+}
+
+/** ROCE / ROE fill: always-visible progress (filled · left · next batch), live while a batch runs. */
+function RatioFill({
+  cov,
+  perHour,
+  job,
+  disabled,
+  onFast,
+  onStop,
+}: {
+  cov: MomPage["coverage"];
+  perHour: number;
+  job: NanoFillJob | null;
+  disabled: boolean;
+  onFast: () => void;
+  onStop: () => void;
+}) {
+  // Tick so "next batch in ~N min" counts down without reloading the page.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const live = job?.running && (job.kind === "momratio" || job.kind === "auto") ? job : null;
+  const liveDone = live?.kind === "momratio" ? live.done : 0;
+  const noData = cov.no_ratios - cov.ratio_to_try;
+  const left = Math.max(0, cov.ratio_to_try - liveDone);
+  // Everything that started without ROCE / ROE: done (got it or nothing on Screener) + still to try.
+  const checked = cov.ratio_filled + noData + liveDone;
+  const total = checked + left;
+  const pct = total ? Math.max(1, Math.round((checked / total) * 100)) : 100;
+  const nextMin = cov.next_auto_at ? Math.round((Date.parse(cov.next_auto_at) - now) / 60_000) : null;
+  const doneAll = left === 0;
+  const pace = cov.ratio_pace || Math.max(1, perHour - 30);
+  return (
+    <div
+      className={`filter-progress status-block nano-progress mom-ratio ${doneAll ? "is-done" : ""}`}
+      role="status"
+      aria-live="polite"
+    >
+      <div className="mom-ratio-head">
+        <strong>ROCE / ROE fill</strong>
+        <span className="mom-ratio-nums">
+          <b>{checked.toLocaleString("en-IN")}</b> of {total.toLocaleString("en-IN")} checked ·{" "}
+          <b>{left.toLocaleString("en-IN")}</b> left · {pct}%
+        </span>
+        {live?.kind === "momratio" ? (
+          <button type="button" className="btn-fill-all" onClick={onStop}>
+            Stop
+          </button>
+        ) : !doneAll && cov.ratio_to_try && !cov.paused_until ? (
+          <button
+            type="button"
+            className="btn-fill"
+            disabled={disabled}
+            onClick={onFast}
+            title="One Screener page every 6–9 s until done; stops by itself if Screener pushes back"
+          >
+            Fill all now (~{fmtFastTime(left)})
+          </button>
+        ) : null}
+      </div>
+      <div className="filter-progress-track">
+        <div className="filter-progress-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="filter-progress-text">
+        {doneAll ? (
+          "Every stock with recent results has ROCE / ROE — all can be scored."
+        ) : live ? (
+          <>
+            <span className="ld-spin" aria-hidden />{" "}
+            {live.kind === "momratio" ? "Fetching ROCE / ROE" : "Background batch running"} · {live.done} of{" "}
+            {live.total || "…"}
+            {live.kind === "momratio" && live.total > 60
+              ? ` · ~${fmtFastTime(live.total - live.done)} left · runs on the server, safe to close the tab`
+              : " · the list updates when it finishes"}
+          </>
+        ) : cov.paused_until ? (
+          `Screener asked us to slow down — paused until ${new Date(cov.paused_until).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}, then it carries on.`
+        ) : (
+          <>
+            {cov.ratio_filled} got ROCE / ROE → <b>{cov.ratio_scored}</b> can now be scored (the rest are mostly
+            loss-making, so profit growth can&apos;t be measured)
+            {noData ? ` · ${noData} had nothing on Screener` : ""} · recent pace ~{pace} an hour, fastest growers first
+            {nextMin != null ? (nextMin > 0 ? ` · next batch in ~${nextMin} min` : " · next batch starting soon") : ""} ·{" "}
+            {fmtLeftTime(left / pace)} left
+          </>
+        )}
+      </span>
+    </div>
+  );
+}
+
+/** One list: 7-Rule Strong Buy + Buy with Strong quarters; filter chips for rating and clean checks. */
+function MomList({ strong, near, rules }: { strong: MomStock[]; near: MomStock[]; rules: MomPage["rules"] }) {
+  const [show, setShow] = useState<"all" | "sb" | "buy">("all");
+  const [cleanOnly, setCleanOnly] = useState(false);
+  const all = [...strong, ...near].sort(
+    (a, b) => b.passed - a.passed || b.quarter_score - a.quarter_score || (b.mcap_cr ?? 0) - (a.mcap_cr ?? 0),
+  );
+  const rows = all.filter(
+    (r) =>
+      (show === "all" || (show === "sb" ? r.passed >= 7 : r.passed === 6)) &&
+      (!cleanOnly || r.checks.every((c) => c.ok !== false)),
+  );
+  const chip = (id: typeof show, label: string, n: number) => (
+    <button type="button" className={`chip${show === id ? " on" : ""}`} onClick={() => setShow(id)}>
+      {label} <span className="nano-count">{n}</span>
+    </button>
+  );
+  return (
+    <section className="nano-section">
+      <div className="ss-filters">
+        <div className="ss-chips" role="group" aria-label="Rating">
+          {chip("all", "All", all.length)}
+          {chip("sb", "Strong Buy", strong.length)}
+          {chip("buy", "Buy", near.length)}
+        </div>
+        <label className="mom-clean">
+          <input type="checkbox" checked={cleanOnly} onChange={(e) => setCleanOnly(e.target.checked)} /> Hide stocks
+          with a failed check
+        </label>
+      </div>
+      {rows.length ? <MomTable rows={rows} /> : <p className="miq-empty-hint">None right now.</p>}
+      <p className="nano-note">
+        Checks (hover a chip for the reason): <strong>Sustained</strong> — 5+ of 7 the quarter before too ·{" "}
+        <strong>Organic</strong> — no sales jump over {rules.bigJumpQoq}% in a quarter or {rules.bigJumpYoy}% on the
+        year, share count within ±{rules.maxShareChangePct}% · <strong>Clean profit</strong> — other income under{" "}
+        {Math.round(rules.maxOtherIncomeShare * 100)}% of profit · <strong>Value</strong> — P/E ÷ yearly profit growth ≤{" "}
+        {rules.maxPeg} · <strong>Board</strong> — a third or more independent. “?” means the data is missing.
+      </p>
+    </section>
+  );
+}
+
 /** Momentum: 7/7 rules + Quarters score, with the five sanity checks as chips. */
 function MomTable({ rows }: { rows: MomStock[] }) {
   return (
@@ -194,6 +342,10 @@ function MomTable({ rows }: { rows: MomStock[] }) {
         <thead>
           <tr>
             <th className="nano-col-name">Stock</th>
+            <th>7-Rule</th>
+            <th className="num" title="Quarters growth score out of 10">
+              Quarters
+            </th>
             <th className="num">Value ₹ Cr</th>
             <th className="num">P/E</th>
             <th className="num">ROCE</th>
@@ -201,9 +353,6 @@ function MomTable({ rows }: { rows: MomStock[] }) {
             <th className="num">Profit YoY</th>
             <th className="num">Sales QoQ</th>
             <th className="num">Profit QoQ</th>
-            <th className="num" title="Quarters growth score out of 10">
-              Quarters
-            </th>
             <th title="Hover a chip for the reason">Checks</th>
           </tr>
         </thead>
@@ -217,10 +366,35 @@ function MomTable({ rows }: { rows: MomStock[] }) {
                 <span className="nano-meta">
                   {r.ticker}
                   {r.latest_quarter ? <span>· {quarterLabel(r.latest_quarter)}</span> : null}
-                  <a className="np-chip" href={napkinUrl(r.ticker)} title="Open in Napkin">
+                  <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                     NP
                   </a>
+                  {websiteUrl(r.website) ? (
+                    <a
+                      className="np-chip"
+                      href={websiteUrl(r.website)!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={r.website ?? ""}
+                    >
+                      Web
+                    </a>
+                  ) : null}
                 </span>
+                {r.sector ? (
+                  <span className="mom-sector">
+                    {r.sector}
+                    {r.sub_sector ? ` › ${r.sub_sector}` : ""}
+                  </span>
+                ) : null}
+              </td>
+              <td>
+                <span className={`seven-rule-rating ${r.passed >= 7 ? "seven-rule-rating--buy mom-sb" : "seven-rule-rating--buy"}`}>
+                  {r.passed >= 7 ? "Strong Buy" : "Buy"} · {r.passed}/7
+                </span>
+              </td>
+              <td className="num">
+                <span className="mom-q">{r.quarter_score.toFixed(1)}</span>
               </td>
               <td className="num">{num(r.mcap_cr)}</td>
               <td className="num">{num(r.pe, 1)}</td>
@@ -229,7 +403,6 @@ function MomTable({ rows }: { rows: MomStock[] }) {
               <td className="num">{growth(r.np_yoy)}</td>
               <td className="num">{growth(r.sales_qoq)}</td>
               <td className="num">{growth(r.np_qoq)}</td>
-              <td className="num">{r.quarter_score.toFixed(1)}</td>
               <td>
                 <span className="mom-checks">
                   {r.checks.map((c) => (
@@ -287,7 +460,7 @@ function HgTable({ rows, showStake }: { rows: HgStock[]; showStake?: boolean }) 
                 <span className="nano-meta">
                   {r.ticker}
                   {r.market && r.market !== "NSE" ? <span>· {r.market}</span> : null}
-                  <a className="np-chip" href={napkinUrl(r.ticker)} title="Open in Napkin">
+                  <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                     NP
                   </a>
                 </span>
@@ -384,12 +557,12 @@ export function NanocapPanel() {
     return () => window.clearInterval(id);
   }, [running, load]);
 
-  const fill = async (kind: Kind, all = false) => {
+  const fill = async (kind: Kind, all = false, extra?: Record<string, unknown>) => {
     try {
       const res = await fetch("/api/nanocap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, all }),
+        body: JSON.stringify({ kind, all, ...extra }),
       });
       const json = (await res.json()) as { job?: NanoFillJob };
       if (json.job) {
@@ -429,6 +602,8 @@ export function NanocapPanel() {
     const what =
       kind === "quality"
         ? "ROCE"
+        : kind === "momratio"
+          ? "ROCE and ROE"
         : kind === "lv"
           ? "ROCE and results"
           : kind === "fa" || kind === "hgprice"
@@ -556,8 +731,6 @@ export function NanocapPanel() {
   if (data.basket === "mom") {
     const mr = data.rules;
     const cov = data.coverage;
-    const clean = data.strong.filter((r) => r.checks.every((c) => c.ok !== false));
-    const flagged = data.strong.filter((r) => r.checks.some((c) => c.ok === false));
     return (
       <div className="panel nano-panel">
         {switcher}
@@ -566,41 +739,14 @@ export function NanocapPanel() {
           <div>
             <h2>Momentum</h2>
             <p className="missing-sub">
-              Passes all 7 rules (ROCE and ROE over 15%, sales and profit up on last quarter and last year, margin up)
-              and scores Strong ({mr.minQuarterScore}+/10) on quarterly growth. Then five checks weed out one-off jumps.
+              7-Rule <strong>Strong Buy</strong> (7/7) or <strong>Buy</strong> (6/7) — ROCE and ROE over 15%, sales and
+              profit up on last quarter and last year, margin up — <em>and</em> a Strong quarterly growth score (
+              {mr.minQuarterScore}+/10).
             </p>
           </div>
         </div>
 
-        <section className="nano-section">
-          <h3>
-            7/7 and every check clear <span className="nano-count">{clean.length}</span>
-          </h3>
-          <p className="nano-note">
-            <strong>Sustained</strong> — 5+ of 7 the quarter before too · <strong>Organic</strong> — no sales jump over{" "}
-            {mr.bigJumpQoq}% in a quarter or {mr.bigJumpYoy}% on the year, share count within ±{mr.maxShareChangePct}% ·{" "}
-            <strong>Clean profit</strong> — other income under {Math.round(mr.maxOtherIncomeShare * 100)}% of profit ·{" "}
-            <strong>Value</strong> — P/E ÷ yearly profit growth ≤ {mr.maxPeg} · <strong>Board</strong> — a third or more
-            independent. “?” means the data is missing, not a fail.
-          </p>
-          {clean.length ? <MomTable rows={clean} /> : <p className="miq-empty-hint">None right now.</p>}
-        </section>
-
-        <section className="nano-section">
-          <h3>
-            7/7 but a check failed <span className="nano-count">{flagged.length}</span>
-          </h3>
-          <p className="nano-note">Hover a ✗ for the reason — often a merger, a weak base quarter or a first good quarter.</p>
-          {flagged.length ? <MomTable rows={flagged} /> : <p className="miq-empty-hint">None.</p>}
-        </section>
-
-        <section className="nano-section">
-          <h3>
-            6 of 7 — one rule away <span className="nano-count">{data.near.length}</span>
-          </h3>
-          <p className="nano-note">Strong quarterly growth but one rule short; could turn 7/7 with the next results.</p>
-          {data.near.length ? <MomTable rows={data.near} /> : <p className="miq-empty-hint">None.</p>}
-        </section>
+        <MomList strong={data.strong} near={data.near} rules={mr} />
 
         <div className="nano-fill">
           <span className="status-line">
@@ -623,9 +769,17 @@ export function NanocapPanel() {
             </>
           ) : null}
         </div>
+        <RatioFill
+          cov={cov}
+          perHour={mr.fetchesPerHour}
+          job={job}
+          disabled={running}
+          onFast={() => void fill("momratio", false, { fast: true })}
+          onStop={() => void fill("momratio", false, { stop: true })}
+        />
         <p className="nano-note">
-          Screener-safe: one page every 2.5–5 s, at most {mr.fetchesPerHour} pages an hour from this basket (
-          {cov.used_last_hour} used), names already tried skip for a week, and everything pauses automatically if Screener
+          Screener-safe: one page every 2.5–5 s, at most {mr.fetchesPerHour} pages an hour across this basket and the
+          background refresh ({cov.used_last_hour} used), names already tried skip for a week, and everything pauses automatically if Screener
           pushes back.
           {cov.paused_until
             ? ` Screener is paused until ${new Date(cov.paused_until).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}.`

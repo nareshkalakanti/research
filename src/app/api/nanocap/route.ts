@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { buildFaPage, runFaPriceCheck } from "@/lib/fallen-angels";
 import { buildHgPage, runHgPriceCheck, runHolderScan } from "@/lib/hidden-gems";
 import { buildLvPage, fillLvData } from "@/lib/listed-ventures";
-import { buildMomPage, fillMomQuarters } from "@/lib/momentum";
+import { buildMomPage, fillMomQuarters, fillMomRatios, stopMomRatios } from "@/lib/momentum";
 import {
   buildNanoPage,
   fillNanoQuarters,
@@ -42,10 +42,18 @@ export async function GET(req: NextRequest) {
 
 /** POST {kind: nano|quality|lv, all?}: start a background fill (25, or the whole queue); returns at once. */
 export async function POST(req: NextRequest) {
-  const body = (await req.json().catch(() => ({}))) as { kind?: string; all?: boolean };
+  const body = (await req.json().catch(() => ({}))) as { kind?: string; all?: boolean; fast?: boolean; stop?: boolean };
+  if (body.kind === "momratio" && body.stop) {
+    stopMomRatios();
+    return NextResponse.json({ ok: true, job: nanoFillJob() });
+  }
   const limit = body.all ? 5000 : 25;
   const job =
-    body.kind === "mom"
+    body.kind === "momratio"
+      ? startNanoFill("momratio", (p) =>
+          body.fast ? fillMomRatios(5000, p, false, { fast: true }) : fillMomRatios(body.all ? 60 : 20, p),
+        )
+      : body.kind === "mom"
       ? startNanoFill("mom", (p) => fillMomQuarters(body.all ? 60 : 20, p))
       : body.kind === "hgscan"
       ? startNanoFill("hgscan", (p) => runHolderScan(p))

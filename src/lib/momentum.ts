@@ -4,6 +4,7 @@ import {
   expectedQuarter,
   loadCtx,
   recentQuarter,
+  recentlyTried,
   runFill,
   type FillResult,
   type Progress,
@@ -12,7 +13,7 @@ import { quarterRankFromPanel } from "./quarter-rank";
 import { buildQuarterPanel, qoqFromPanel, yoyFromPanel, type QuarterPanel, type QuarterPoint } from "./quarter-panel";
 import { screenerPausedUntil } from "./screener-fetch";
 import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
-import { loadScreenerRatiosMap } from "./screener-ratios";
+import { fetchScreenerTopRatios, loadScreenerRatiosMap } from "./screener-ratios";
 import { sevenRuleFromPanel } from "./seven-rule-score";
 import { openSqliteNamed } from "./sqlite-utils";
 import { loadTickertapeRatiosMap } from "./tickertape-ratios-cache";
@@ -62,13 +63,34 @@ export type MomStock = {
   checks: MomCheck[];
   checks_ok: number;
   group: string | null;
+  sector: string | null;
+  sub_sector: string | null;
+  website: string | null;
 };
 
 export type MomPage = {
   basket: "mom";
   strong: MomStock[];
   near: MomStock[];
-  coverage: { scored: number; fresh: number; to_try: number; paused_until: string | null; used_last_hour: number };
+  coverage: {
+    scored: number;
+    fresh: number;
+    to_try: number;
+    /** Recent results but no ROCE / ROE yet — can't be judged on the 7 rules. */
+    no_ratios: number;
+    /** Of those, not tried in the last week. */
+    ratio_to_try: number;
+    /** Stocks this fill has given ROCE / ROE so far (all time). */
+    ratio_filled: number;
+    /** …of which now have all 7 rules judgeable (the rest are loss-making etc.). */
+    ratio_scored: number;
+    /** ROCE / ROE pages fetched per hour over the last 3 hours. */
+    ratio_pace: number;
+    /** When the next 30-min background batch is due (ISO), if the app has run one. */
+    next_auto_at: string | null;
+    paused_until: string | null;
+    used_last_hour: number;
+  };
   rules: typeof MOM_RULES;
 };
 
@@ -156,13 +178,21 @@ function scoreUniverse() {
     roce: screener.get(t)?.roce ?? tape.get(t)?.roce ?? null,
   });
   const scored: Scored[] = [];
+  /** Recent results but no ROCE / ROE — fastest growers first. */
+  const noRatios: Array<{ t: string; q: number }> = [];
   for (const [t, { qs }] of raw) {
     if (inactive.has(t)) continue;
-    const s = scoreOne(qs, ratiosOf(t));
+    const r = ratiosOf(t);
+    if ((r.roe == null || r.roce == null) && qs.length >= 5 && recentQuarter(qs[qs.length - 1]?.date ?? null)) {
+      const panel = buildQuarterPanel(qs);
+      noRatios.push({ t, q: (panel && quarterRankFromPanel(panel)?.score) ?? 0 });
+    }
+    const s = scoreOne(qs, r);
     if (!s || s.provisional) continue;
     scored.push({ t, qs, panel: s.panel, passed: s.passed, quarterScore: s.quarterScore });
   }
-  return { raw, scored, ratiosOf };
+  noRatios.sort((a, b) => b.q - a.q);
+  return { raw, scored, ratiosOf, ratioQueue: noRatios.map((x) => x.t) };
 }
 
 function buildRow(s: Scored, ctx: ReturnType<typeof loadCtx>, ratiosOf: (t: string) => { roe: number | null; roce: number | null }): MomStock {
@@ -251,6 +281,9 @@ function buildRow(s: Scored, ctx: ReturnType<typeof loadCtx>, ratiosOf: (t: stri
     checks,
     checks_ok: checks.filter((c) => c.ok === true).length,
     group: base.group ?? null,
+    sector: null,
+    sub_sector: null,
+    website: null,
   };
 }
 
@@ -271,15 +304,25 @@ function withAttempts<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
   }
 }
 
-/** Screener pages this basket asked for in the last hour. */
-function usedLastHour(): number {
+/** Kinds that share the hourly Screener budget (this basket + the 30-min background refresh). */
+const BUDGET_KINDS = [FILL_KIND, "momratio", "auto"] as const;
+
+/** Screener pages asked for in the last hour by this basket and the background refresh. */
+export function usedLastHour(): number {
   const since = new Date(Date.now() - 3_600_000).toISOString();
   return withAttempts(
     (db) =>
       (db
-        .prepare(`SELECT COUNT(*) AS n FROM nano_fill_attempts WHERE kind = ? AND attempted_at >= ?`)
-        .get(FILL_KIND, since) as { n: number }).n,
+        .prepare(
+          `SELECT COUNT(*) AS n FROM nano_fill_attempts WHERE kind IN (${BUDGET_KINDS.map(() => "?").join(",")}) AND attempted_at >= ?`,
+        )
+        .get(...BUDGET_KINDS, since) as { n: number }).n,
   );
+}
+
+/** Pages still allowed this hour. */
+export function screenerBudgetLeft(): number {
+  return Math.max(0, MOM_RULES.fetchesPerHour - usedLastHour());
 }
 
 /**
@@ -297,6 +340,95 @@ function refreshQueue(raw: Map<string, { qs: QuarterPoint[]; fetched_at: string 
     .map((s) => s.t);
 }
 
+/** Sector › sub-sector (classifications.db — same label Scan and Rotation use) and website, for listed rows only. */
+function addLabels(rows: MomStock[]): void {
+  if (!rows.length) return;
+  const ph = rows.map(() => "?").join(",");
+  const keys = rows.map((r) => r.ticker);
+  const bySym = new Map(rows.map((r) => [r.ticker, r]));
+  try {
+    const db = openSqliteNamed("classifications.db", { readonly: true, wal: true });
+    try {
+      for (const c of db
+        .prepare(
+          `SELECT UPPER(ticker) AS t, sector, sub_sector FROM classifications
+           WHERE UPPER(ticker) IN (${ph}) AND TRIM(COALESCE(sector, '')) != ''`,
+        )
+        .all(...keys) as Array<{ t: string; sector: string; sub_sector: string | null }>) {
+        const r = bySym.get(c.t);
+        if (r && !r.sector) {
+          r.sector = c.sector;
+          r.sub_sector = c.sub_sector || null;
+        }
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* labels optional */
+  }
+  try {
+    const db = openSqliteNamed("company_about.db", { readonly: true, wal: true });
+    try {
+      for (const c of db
+        .prepare(
+          `SELECT UPPER(ticker) AS t, website FROM company_about
+           WHERE UPPER(ticker) IN (${ph}) AND TRIM(COALESCE(website, '')) != ''`,
+        )
+        .all(...keys) as Array<{ t: string; website: string }>) {
+        const r = bySym.get(c.t);
+        if (r) r.website = c.website.trim();
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* website optional */
+  }
+}
+
+/** What the ROCE / ROE fill has achieved: filled, now scoreable, and the real recent pace. */
+function ratioFillStats(
+  ratiosOf: (t: string) => { roe: number | null; roce: number | null },
+  scoredSet: Set<string>,
+): { ratio_filled: number; ratio_scored: number; ratio_pace: number } {
+  const rows = withAttempts(
+    (db) =>
+      db.prepare(`SELECT ticker, attempted_at FROM nano_fill_attempts WHERE kind = 'momratio'`).all() as Array<{
+        ticker: string;
+        attempted_at: string;
+      }>,
+  );
+  const since = new Date(Date.now() - 3 * 3_600_000).toISOString();
+  let filled = 0;
+  let scoredNow = 0;
+  let recent = 0;
+  for (const r of rows) {
+    const x = ratiosOf(r.ticker);
+    if (x.roe != null && x.roce != null) filled += 1;
+    if (scoredSet.has(r.ticker)) scoredNow += 1;
+    if (r.attempted_at >= since) recent += 1;
+  }
+  return { ratio_filled: filled, ratio_scored: scoredNow, ratio_pace: Math.round(recent / 3) };
+}
+
+/** Last background refresh + 30 min (read directly — baskets-refresh imports this file). */
+function nextAutoAt(): string | null {
+  try {
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      const row = db
+        .prepare(`SELECT value FROM baskets_refresh_meta WHERE key = 'baskets_refresh_last'`)
+        .get() as { value: string } | undefined;
+      return row?.value ? new Date(Date.parse(row.value) + 30 * 60_000).toISOString() : null;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
 // Scoring ~3,000 quarter series takes several seconds — reuse for a minute.
 const CACHE_MS = 60_000;
 let pageCache: { at: number; page: MomPage } | null = null;
@@ -311,8 +443,9 @@ export function buildMomPage(): MomPage {
 }
 
 function computeMomPage(): MomPage {
-  const { raw, scored, ratiosOf } = scoreUniverse();
+  const { raw, scored, ratiosOf, ratioQueue } = scoreUniverse();
   const ctx = loadCtx();
+  const triedRatios = recentlyTried("momratio");
   const fresh = scored.filter((s) => recentQuarter(s.qs[s.qs.length - 1]?.date ?? null));
   const strong: MomStock[] = [];
   const near: MomStock[] = [];
@@ -323,6 +456,7 @@ function computeMomPage(): MomPage {
   }
   strong.sort(rank);
   near.sort(rank);
+  addLabels([...strong, ...near]);
   let paused: string | null = null;
   try {
     paused = screenerPausedUntil();
@@ -337,6 +471,10 @@ function computeMomPage(): MomPage {
       scored: scored.length,
       fresh: fresh.length,
       to_try: refreshQueue(raw, scored).length,
+      no_ratios: ratioQueue.length,
+      ratio_to_try: ratioQueue.filter((t) => !triedRatios.has(t)).length,
+      ...ratioFillStats(ratiosOf, new Set(scored.map((x) => x.t))),
+      next_auto_at: nextAutoAt(),
       paused_until: paused,
       used_last_hour: usedLastHour(),
     },
@@ -348,7 +486,7 @@ function computeMomPage(): MomPage {
 export async function fillMomQuarters(limit: number, onProgress?: Progress): Promise<FillResult> {
   const until = screenerPausedUntil();
   if (until) throw new Error(`Screener paused until ${until}`);
-  const budget = MOM_RULES.fetchesPerHour - usedLastHour();
+  const budget = screenerBudgetLeft();
   if (budget <= 0) {
     throw new Error(`Hourly Screener limit reached (${MOM_RULES.fetchesPerHour} pages) — try again in an hour.`);
   }
@@ -366,6 +504,75 @@ export async function fillMomQuarters(limit: number, onProgress?: Progress): Pro
       onProgress,
     );
   } finally {
+    pageCache = null;
+  }
+}
+
+/**
+ * Fetch ROCE / ROE (Screener top ratios) for stocks with recent results but
+ * none stored, fastest growers first, inside the shared hourly budget. With
+ * `quiet`, an exhausted budget just returns (background refresh).
+ */
+/** Fast run: one page every ~6–9 s (the global 2.5–5 s gap + this), about 450 an hour. */
+const FAST_EXTRA_MS = 3_500;
+const STOP_KEY = "__momRatioStop";
+type StopHolder = { [STOP_KEY]?: boolean };
+
+/** Ask a running ROCE / ROE fill to stop after the current stock. */
+export function stopMomRatios(): void {
+  (globalThis as StopHolder)[STOP_KEY] = true;
+}
+
+/**
+ * Fetch ROCE / ROE (Screener top ratios) for stocks with recent results but
+ * none stored, fastest growers first. Normal runs stay inside the shared
+ * hourly budget; `fast` runs the whole queue at a steady ~450 an hour and
+ * stops at the first sign of a block. With `quiet`, an exhausted budget just
+ * returns (background refresh).
+ */
+export async function fillMomRatios(
+  limit: number,
+  onProgress?: Progress,
+  quiet = false,
+  opts?: { fast?: boolean },
+): Promise<FillResult> {
+  const empty: FillResult = { tried: 0, filled: 0, left: 0, not_found: 0 };
+  const fast = !!opts?.fast;
+  const until = screenerPausedUntil();
+  if (until) {
+    if (quiet) return empty;
+    throw new Error(`Screener paused until ${until}`);
+  }
+  const budget = fast ? limit : screenerBudgetLeft();
+  if (budget <= 0) {
+    if (quiet) return empty;
+    throw new Error(`Hourly Screener limit reached (${MOM_RULES.fetchesPerHour} pages) — try again in an hour.`);
+  }
+  const holder = globalThis as StopHolder;
+  holder[STOP_KEY] = false;
+  const { ratioQueue } = scoreUniverse();
+  let n = 0;
+  try {
+    return await runFill(
+      "momratio",
+      ratioQueue,
+      Math.min(limit, budget),
+      async (t) => {
+        // The ratio fetch swallows errors — check the pause first so a block stops the run.
+        const paused = screenerPausedUntil();
+        if (paused) throw new Error(`Screener paused until ${paused}`);
+        if (fast && n > 0) await new Promise((r) => setTimeout(r, FAST_EXTRA_MS * (0.6 + Math.random() * 0.8)));
+        n += 1;
+        // Let the list pick up new scores now and then during a long run.
+        if (n % 50 === 0) pageCache = null;
+        const r = await fetchScreenerTopRatios(t, { force: true });
+        return r.roe != null && r.roce != null;
+      },
+      onProgress,
+      () => !!holder[STOP_KEY],
+    );
+  } finally {
+    holder[STOP_KEY] = false;
     pageCache = null;
   }
 }

@@ -29692,3 +29692,54 @@ button.rot-stat-best-name:not(:disabled):hover {
   background: #f1f5f9;
   color: #64748b;
 }
+
+/* Momentum: ROCE / ROE fill progress */
+.mom-ratio {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+.mom-ratio-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.mom-ratio-nums {
+  font-variant-numeric: tabular-nums;
+  color: #475569;
+}
+.mom-ratio-nums b {
+  color: #0f172a;
+}
+.mom-ratio-head .btn-fill {
+  margin-left: auto;
+}
+
+.mom-sb {
+  background: #047857;
+  color: #fff;
+}
+.mom-q {
+  font-weight: 600;
+  color: #047857;
+}
+.mom-clean {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.mom-table .seven-rule-rating {
+  white-space: nowrap;
+}
+
+.mom-sector {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: #64748b;
+}

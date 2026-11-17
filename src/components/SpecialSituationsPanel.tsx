@@ -201,7 +201,7 @@ export function SpecialSituationsPanel() {
                     <span className="nano-meta">
                       {r.symbol}
                       {r.market && r.market !== "NSE" ? <span>· {r.market}</span> : null}
-                      <a className="np-chip" href={napkinUrl(r.symbol)} title="Open in Napkin">
+                      <a className="np-chip" href={napkinUrl(r.symbol)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                         NP
                       </a>
                     </span>

@@ -479,7 +479,7 @@ export function buildNanoPage(): NanoPage {
 
 /** Fetch quarterly results for nanocaps that have none yet (Screener, throttled). */
 export type Progress = (done: number, total: number, filled: number) => void;
-export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom";
+export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio";
 export type FillResult = { tried: number; filled: number; left: number; not_found: number };
 
 const RETRY_AFTER_DAYS = 7;
@@ -515,7 +515,7 @@ export function recentlyTried(kind: FillKind): Set<string> {
   );
 }
 
-function markTried(kind: FillKind, ticker: string): void {
+export function markTried(kind: FillKind, ticker: string): void {
   withAttempts((db) =>
     db
       .prepare(
@@ -536,6 +536,7 @@ export async function runFill(
   limit: number,
   fetchOne: (t: string) => Promise<boolean>,
   onProgress?: Progress,
+  shouldStop?: () => boolean,
 ): Promise<FillResult> {
   const tried = recentlyTried(kind);
   const todo = missing.filter((t) => !tried.has(t));
@@ -544,6 +545,7 @@ export async function runFill(
   let done = 0;
   onProgress?.(0, batch.length, 0);
   for (const t of batch) {
+    if (shouldStop?.()) break;
     try {
       if (await fetchOne(t)) filled += 1;
     } catch (e) {
@@ -556,7 +558,7 @@ export async function runFill(
   return {
     tried: batch.length,
     filled,
-    left: Math.max(0, todo.length - batch.length),
+    left: Math.max(0, todo.length - done),
     not_found: missing.length - todo.length + (batch.length - filled),
   };
 }
