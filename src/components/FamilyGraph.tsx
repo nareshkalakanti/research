@@ -99,7 +99,10 @@ function capBand(
   }
   const cap = (cap_code || "").toLowerCase();
   if (cap === "ti" || cap === "mic") return "sub500";
-  return cap || null;
+  if (cap) return cap;
+  // No band from the feed: derive it from market cap (₹ Cr) so the node still gets its colour.
+  if (mcap == null || !Number.isFinite(mcap) || mcap <= 0) return null;
+  return mcap >= 20_000 ? "lc" : mcap >= 5_000 ? "mc" : "sc";
 }
 
 function layout(
