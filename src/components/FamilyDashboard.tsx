@@ -4,10 +4,8 @@ import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FamilyMapCards, type FamilyRow, FamilyAddProgress, type FamilyAddWork } from "@/components/FamilyMapCards";
 import { FamilyDashSearch, type DashSuggestHit } from "@/components/FamilyDashSearch";
-import {
-  PeopleBoardCards,
-  type PersonBoardRow,
-} from "@/components/PeopleBoardCards";
+import type { PersonBoardRow } from "@/components/PeopleBoardCards";
+import { DirectorRank } from "@/components/DirectorRank";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
 import { ConnectedStocksTable } from "@/components/ConnectedStocksTable";
@@ -97,6 +95,8 @@ export function FamilyDashboard() {
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
+  /** Bumped to make the Directors ranking refetch. */
+  const [rankReload, setRankReload] = useState(0);
   const [refreshingBox, setRefreshingBox] = useState<string | null>(null);
   const [holdPattern, setHoldPattern] = useState<{
     tickers: string[];
@@ -283,6 +283,7 @@ export function FamilyDashboard() {
         const view = dashViewRef.current;
         if (view === "people") {
           peopleStale.current = false;
+          setRankReload((n) => n + 1);
           const needle = qRef.current.trim();
           void loadPeople({
             q: needle.length >= 2 ? needle : undefined,
@@ -533,34 +534,6 @@ export function FamilyDashboard() {
     });
     return withSizeFirst(list);
   }, [holdings, q, holdingFilter]);
-
-  const filteredPeople = useMemo(() => {
-    const needle = q.trim().toLowerCase().replace(/[.,]+/g, " ").replace(/\s+/g, " ").trim();
-    const dinQ = needle.replace(/\D/g, "");
-    const list = !needle
-      ? people
-      : people.filter((p) => {
-          const name = p.name
-            .toLowerCase()
-            .replace(/[.,]+/g, " ")
-            .replace(/\s+/g, " ");
-          return (
-            name.includes(needle) ||
-            (dinQ && (p.din || "").includes(dinQ)) ||
-            p.companies.some(
-              (c) =>
-                c.ticker.toLowerCase().startsWith(needle) ||
-                c.name.toLowerCase().includes(needle),
-            )
-          );
-        });
-    return [...list].sort((a, b) => {
-      if (Boolean(b.recent_join) !== Boolean(a.recent_join)) {
-        return a.recent_join ? -1 : 1;
-      }
-      return (b.board_count || 0) - (a.board_count || 0);
-    });
-  }, [people, q]);
 
   useEffect(() => {
     const needle = q.trim();
@@ -953,7 +926,7 @@ export function FamilyDashboard() {
               : dashView === "holdings"
                 ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
               : dashView === "people"
-                ? "Recent joins sort first (new badge / teal node). Name opens Governance; ticker shows that stock’s related boards."
+                ? "Everyone on 2+ listed boards, ranked. Click a name for a graph of their boards and the people who share two or more of them; a ticker shows that stock’s related boards."
                 : dashView === "connected"
                   ? "Stocks ranked by shared-director links to other listed boards. Click a ticker → hub graph + dashed connected boards + bottom chips."
                   : dashView === "outside"
@@ -1052,10 +1025,11 @@ export function FamilyDashboard() {
             className="btn-ghost"
             onClick={() =>
               void (dashView === "people"
-                  ? loadPeople({
+                  ? (setRankReload((n) => n + 1),
+                    loadPeople({
                       refresh: true,
                       q: q.trim().length >= 2 ? q.trim() : undefined,
-                    })
+                    }))
                   : dashView === "holdings"
                     ? loadHoldingMaps({ refresh: true })
                     : load({ refresh: true }))
@@ -1221,24 +1195,13 @@ export function FamilyDashboard() {
           />
         )
       ) : dashView === "people" ? (
-        peopleLoading && !people.length ? (
-          <Loading label="Loading people and boards" variant="block" />
-        ) : (
-          <PeopleBoardCards
-            rows={filteredPeople}
+          <DirectorRank
+            q={q}
+            reloadKey={rankReload}
             onTicker={(t) => openCompany(t)}
             onPerson={(id, name) => openPerson(id, name)}
             chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-            onRefresh={() => {
-              const needle = q.trim();
-              void loadPeople({
-                refresh: true,
-                q: needle.length >= 2 ? needle : undefined,
-              });
-            }}
-            refreshingId={refreshingBox}
           />
-        )
       ) : loading && !rows.length ? (
         <Loading label="Loading business groups" variant="block" />
       ) : rows.length > 0 && filteredWithPattern.length === 0 ? (
