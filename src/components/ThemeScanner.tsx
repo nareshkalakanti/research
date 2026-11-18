@@ -276,6 +276,7 @@ export function ThemeScanner() {
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
   const bseSmeCount = markets["BSE SME"] ?? 0;
+  const bseCount = markets["BSE"] ?? 0;
   const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
 
   return (
@@ -386,6 +387,9 @@ export function ThemeScanner() {
             <option value="NSE">NSE ({nseCount.toLocaleString() || "…"})</option>
             <option value="NSE SME">
               NSE SME ({smeCount.toLocaleString() || "…"})
+            </option>
+            <option value="BSE" title="BSE main board — companies not listed on NSE">
+              BSE ({bseCount.toLocaleString() || "…"})
             </option>
             <option value="BSE SME">
               BSE SME ({bseSmeCount.toLocaleString() || "…"})

@@ -29743,3 +29743,44 @@ button.rot-stat-best-name:not(:disabled):hover {
   font-size: 0.74rem;
   color: #64748b;
 }
+a.mom-ck-link{text-decoration:none;cursor:pointer}
+a.mom-ck-link:hover{text-decoration:underline}
+
+.turn-his { margin-left: 4px; padding: 0 6px; border-radius: 4px; background: #ede9fe; color: #6d28d9; font-size: 0.68rem; white-space: nowrap; }
+.turn-sub { color: #94a3b8; }
+
+/* Dashboard on phones: sub-tabs scroll sideways, filters wrap to the screen width. */
+@media (max-width: 720px) {
+  .fam-dash-head > div:first-child {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+  .fam-dash-tabs {
+    display: flex;
+    max-width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .fam-dash-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .fam-dash-tabs .tab {
+    flex: 0 0 auto;
+  }
+  .fam-dash-actions {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+  .fam-dash-actions > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .fam-dash-group-filter {
+    flex: 1 1 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+}

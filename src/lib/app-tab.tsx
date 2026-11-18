@@ -18,13 +18,12 @@ export type AppTab =
   | "marketiq"
   | "orderbookiq"
   | "boardroomiq"
-  | "missing"
   | "research"
   | "watchlist"
   | "napkin"
   | "concall-drift"
   | "rotation"
-  | "nano"
+  | "quality"
   | "special"
   | "signals";
 
@@ -36,9 +35,8 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
-  { id: "nano", label: "Nano", short: "Nano" },
+  { id: "quality", label: "Quality Growth", short: "Quality" },
   { id: "special", label: "Special", short: "Special" },
-  { id: "missing", label: "Data", short: "Data" },
   { id: "research", label: "Research", short: "Research" },
 ];
 
@@ -64,6 +62,7 @@ function isPageTab(id: AppTab): boolean {
 
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
+  if (raw === "nano" || raw === "momentum") return "quality";
   if (raw === "pead") return "napkin";
   if (
     raw === "strategy" ||

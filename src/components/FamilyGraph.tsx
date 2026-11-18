@@ -58,6 +58,7 @@ const CAP_LEGEND = [
 function fmtMcapCr(cr: number | null | undefined): string {
   const n = cr == null ? NaN : Number(cr);
   if (!Number.isFinite(n) || n <= 0) return "";
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)} lakh Cr`;
   if (n >= 10_000) return `₹${(n / 1000).toFixed(1)}k Cr`;
   if (n >= 100) return `₹${Math.round(n).toLocaleString("en-IN")} Cr`;
   if (n >= 10) return `₹${n.toFixed(0)} Cr`;
@@ -376,6 +377,11 @@ export function FamilyGraph({
   const lit = (id: string) =>
     !hover || id === hover || Boolean(neighbours.get(hover)?.has(id));
 
+  // Small maps (a single holding) have room to name every director.
+  const namePeople = useMemo(
+    () => nodes.filter((n) => n.kind === "person").length <= 10,
+    [nodes],
+  );
   const newJoinLinked = useMemo(() => {
     const ids = new Set<string>();
     for (const n of nodes) {
@@ -494,7 +500,7 @@ export function FamilyGraph({
               <title>{node.title}</title>
               <circle r={node.r} />
               {node.kind === "person" ? (
-                hover === node.id ? (
+                hover === node.id || namePeople ? (
                   <text y={node.r + 11} className="fam-person-tip">
                     {node.title.split(" · ")[0]}
                   </text>

@@ -101,6 +101,12 @@ export const maxDuration = 180;
 
 export type { CapTier };
 
+/** List filter: "MAIN" = NSE + BSE main boards (Data tab), else an exact market. */
+function marketMatches(cm: string | null | undefined, market: string): boolean {
+  if (market === "MAIN") return cm === "NSE" || cm === "BSE";
+  return cm === market;
+}
+
 export async function GET(req: NextRequest) {
   try {
     return await buildCompaniesResponse(req);
@@ -528,7 +534,7 @@ async function buildCompaniesResponse(req: NextRequest) {
           (c) => c.market === "NSE" || c.market === "NSE SME",
         );
       } else {
-        out = out.filter((c) => c.market === market);
+        out = out.filter((c) => marketMatches(c.market, market));
       }
     }
     if (scanListMode) {
@@ -699,7 +705,7 @@ async function buildCompaniesResponse(req: NextRequest) {
           (c) => c.market === "NSE" || c.market === "NSE SME",
         );
       } else {
-        pool = pool.filter((c) => c.market === market);
+        pool = pool.filter((c) => marketMatches(c.market, market));
       }
     }
     if (sector && sector !== "All") {
@@ -1019,7 +1025,7 @@ async function buildCompaniesResponse(req: NextRequest) {
           (c) => c.market === "NSE" || c.market === "NSE SME",
         );
       } else {
-        themePool = themePool.filter((c) => c.market === market);
+        themePool = themePool.filter((c) => marketMatches(c.market, market));
       }
     }
     companies = mergeThemePortfolioRows(companies, themePool, selectedThemes, {
@@ -1517,7 +1523,7 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   let gapUniverse = loadAllCompanies().filter(
-    (c) => !market || market === "All" || c.market === market,
+    (c) => !market || market === "All" || marketMatches(c.market, market),
   );
   if (missing) {
     gapUniverse = mergeFundWatchlistUniverse(gapUniverse, loadAllCompanies());

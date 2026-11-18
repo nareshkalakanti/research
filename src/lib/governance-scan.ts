@@ -55,7 +55,9 @@ export function pendingGovernanceJobs(opts: {
   let companies = loadAllCompanies().filter((c) => isNseMarket(c.market));
 
   if (opts.market && opts.market !== "All") {
-    companies = companies.filter((c) => c.market === opts.market);
+    companies = companies.filter((c) =>
+      opts.market === "MAIN" ? c.market === "NSE" : c.market === opts.market,
+    );
   }
   if (opts.tickers?.length) {
     const set = new Set(opts.tickers.map((t) => t.toUpperCase()));

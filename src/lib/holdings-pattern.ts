@@ -60,6 +60,10 @@ function linesFromClusters(
   return top.map((c) => `${c.count} · ${c.label}`);
 }
 
+/** LLM summary per tally — the Dashboard asks on every open; holdings rarely change. */
+let patternCache: { key: string; at: number; value: HoldingsPattern } | null = null;
+const PATTERN_TTL_MS = 6 * 3_600_000;
+
 export async function loadHoldingsPattern(): Promise<HoldingsPattern> {
   const rows = loadHoldings();
   const clusters = holdingsPatternFromRows(rows);
@@ -68,7 +72,11 @@ export async function loadHoldingsPattern(): Promise<HoldingsPattern> {
     count: rows.length,
     clusters: clusters.slice(0, 12),
   };
+  const key = JSON.stringify(tally);
+  if (patternCache && patternCache.key === key && Date.now() - patternCache.at < PATTERN_TTL_MS)
+    return patternCache.value;
   let lines = fallback;
+  let fromLlm = false;
   try {
     const cfg = loadLlmConfig();
     const status = await checkLlmStatus(cfg);
@@ -110,10 +118,16 @@ export async function loadHoldingsPattern(): Promise<HoldingsPattern> {
             ["listed", "names", "names", "book", "holdings"].includes(w),
         );
       });
-      if (kept.length) lines = kept.slice(0, 4);
+      if (kept.length) {
+        lines = kept.slice(0, 4);
+        fromLlm = true;
+      }
     }
   } catch {
     /* tally lines still usable */
   }
-  return { count: rows.length, clusters, lines };
+  const value = { count: rows.length, clusters, lines };
+  // Keep only LLM answers, so a down Ollama is retried next time.
+  if (fromLlm) patternCache = { key, at: Date.now(), value };
+  return value;
 }

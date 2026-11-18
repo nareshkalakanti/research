@@ -51,11 +51,6 @@ const ResearchPanel = dynamic(
   () => import("@/components/ResearchPanel").then((m) => m.ResearchPanel),
   { loading: PanelFallback, ssr: false },
 );
-const MissingDataPanel = dynamic(
-  () =>
-    import("@/components/MissingDataPanel").then((m) => m.MissingDataPanel),
-  { loading: PanelFallback, ssr: false },
-);
 
 const WatchlistPanel = dynamic(
   () => import("@/components/WatchlistPanel").then((m) => m.WatchlistPanel),
@@ -117,9 +112,8 @@ const PANELS: Record<AppTab, ComponentType> = {
   orderbookiq: OrderBookIqPanel,
   boardroomiq: BoardRoomIqPanel,
   research: ResearchPanel,
-  missing: MissingDataPanel,
   watchlist: WatchlistPanel,
-  nano: NanocapPanel,
+  quality: NanocapPanel,
   special: SpecialSituationsPanel,
 };
 

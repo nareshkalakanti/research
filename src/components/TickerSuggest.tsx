@@ -43,6 +43,7 @@ type PanelPos = { top: number; left: number; width: number };
 
 function fmtMcap(cr: number | null | undefined): string | null {
   if (cr == null || !Number.isFinite(cr)) return null;
+  if (cr >= 100_000) return `₹${(cr / 100_000).toFixed(1)} lakh Cr`;
   if (cr >= 10_000) return `₹${(cr / 1000).toFixed(1)}k Cr`;
   if (cr >= 100) return `₹${Math.round(cr).toLocaleString("en-IN")} Cr`;
   if (cr >= 10) return `₹${cr.toFixed(0)} Cr`;

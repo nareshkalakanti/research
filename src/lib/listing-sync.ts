@@ -5,6 +5,8 @@
  *   NSE main  — nsearchives EQUITY_L.csv
  *   NSE SME   — nsearchives SME_EQUITY_L.csv
  *   BSE SME   — BSE List-of-Scrips API, groups M + MT
+ *   BSE main  — same API, other groups; only names NOT on NSE (by ISIN),
+ *               ₹100 Cr+ and not in penalty group Z, are added (market "BSE")
  *
  * Each run: add missing listings, fix market tags for names that moved board,
  * map renamed tickers by ISIN (moving watchlist / holdings / rotation rows),
@@ -29,6 +31,13 @@ import {
   type BseSmeListing,
 } from "./bse-sme";
 import { applyNseEquityUniverse } from "./nse-sme-universe";
+import { cacheBseScripCode } from "./bse-investor-discover";
+import {
+  BSE_MAIN_MIN_ROWS,
+  bseMainWanted,
+  fetchBseMainListings,
+  type BseMainListing,
+} from "./bse-main";
 import { ensureCompanyAboutRow } from "./company-about-write";
 import { ensureGovernanceCompanyStub } from "./governance-write";
 import { invalidateCompanyCache } from "./db";
@@ -51,8 +60,8 @@ export type ListingSyncResult = {
   ok: boolean;
   dry_run: boolean;
   skipped?: string;
-  official: { nse: number; nse_sme: number; bse_sme: number };
-  added: { nse: string[]; nse_sme: string[]; bse_sme: string[] };
+  official: { nse: number; nse_sme: number; bse_sme: number; bse?: number };
+  added: { nse: string[]; nse_sme: string[]; bse_sme: string[]; bse?: string[] };
   retagged: Array<{ ticker: string; from: string; to: string }>;
   renamed: Array<{ from: string; to: string; moved_rows: number }>;
   delisted: string[];
@@ -186,8 +195,8 @@ export async function runListingSync(opts?: {
   const empty: ListingSyncResult = {
     ok: false,
     dry_run: dry,
-    official: { nse: 0, nse_sme: 0, bse_sme: 0 },
-    added: { nse: [], nse_sme: [], bse_sme: [] },
+    official: { nse: 0, nse_sme: 0, bse_sme: 0, bse: 0 },
+    added: { nse: [], nse_sme: [], bse_sme: [], bse: [] },
     retagged: [],
     renamed: [],
     delisted: [],
@@ -196,10 +205,11 @@ export async function runListingSync(opts?: {
     at,
   };
 
-  const [mainRaw, smeRaw, bseSme] = await Promise.all([
+  const [mainRaw, smeRaw, bseSme, bseMainRaw] = await Promise.all([
     fetchNseMainEquityList().catch(() => [] as NseEquityListRow[]),
     fetchNseSmeEquityList().catch(() => [] as NseEquityListRow[]),
     fetchBseSmeListings().catch(() => [] as BseSmeListing[]),
+    fetchBseMainListings().catch(() => [] as BseMainListing[]),
   ]);
   const main = mainRaw.filter((r) => !isNseRightsEntitlement(r));
   const smeIssuers = nseSmeIssuers(smeRaw);
@@ -223,6 +233,21 @@ export async function runListingSync(opts?: {
   for (const r of [...main, ...smeIssuers]) {
     if (r.isin) isinToNse.set(r.isin, r.ticker.toUpperCase());
   }
+  // BSE main board: optional — if BSE is down the rest of the sync still runs,
+  // it just doesn't add, retag or delist "BSE" names this time.
+  const bseMainOk = bseMainRaw.length >= BSE_MAIN_MIN_ROWS;
+  const nseIsins = new Set([...mainRaw, ...smeRaw].map((r) => r.isin).filter(Boolean) as string[]);
+  /** Every BSE main ticker (any size / group) — used for delisting. */
+  const bseMainAll = new Set(bseMainOk ? bseMainRaw.map((r) => r.ticker) : []);
+  /** BSE-only: ISIN not on NSE and the symbol not used by another list. */
+  const bseOnlyBy = new Map(
+    (bseMainOk ? bseMainRaw : [])
+      // Companies only (INE…) — ETFs / fund units (INF…) are not stocks.
+      .filter((r) => r.isin && /^INE/i.test(r.isin) && !nseIsins.has(r.isin))
+      .filter((r) => !mainBy.has(r.ticker) && !smeBy.has(r.ticker) && !bseBy.has(r.ticker))
+      .map((r) => [r.ticker, r]),
+  );
+  empty.official.bse = bseOnlyBy.size;
 
   {
     const appMarket = withAbout(false, (db) =>
@@ -245,6 +270,7 @@ export async function runListingSync(opts?: {
     for (const [t] of mainBy) if (!appMarket.has(t)) res.added.nse.push(t);
     for (const [t] of smeBy) if (!appMarket.has(t) && !mainBy.has(t)) res.added.nse_sme.push(t);
     for (const [t] of bseBy) if (!appMarket.has(t) && !collide.has(t)) res.added.bse_sme.push(t);
+    for (const [t, r] of bseOnlyBy) if (!appMarket.has(t) && bseMainWanted(r)) res.added.bse!.push(t);
 
     // 2) Market tags for names that moved board.
     for (const [t, m] of appMarket) {
@@ -255,7 +281,9 @@ export async function runListingSync(opts?: {
           ? "NSE SME"
           : bseBy.has(t)
             ? "BSE SME"
-            : null;
+            : bseOnlyBy.has(t)
+              ? "BSE"
+              : null;
       if (want && want !== m) res.retagged.push({ ticker: t, from: m, to: want });
     }
 
@@ -275,20 +303,48 @@ export async function runListingSync(opts?: {
     } catch {
       /* no ISINs — renames fall back to delisted */
     }
+    // No stored ISIN (HEG → HEGAM): one new NSE symbol that starts with the old
+    // ticker AND whose name starts with the old name ("HEG Limited" → "HEG Advanced …").
+    const appName = withAbout(false, (db) =>
+      new Map(
+        (db
+          .prepare(`SELECT UPPER(ticker) AS t, COALESCE(name, '') AS n FROM company_about`)
+          .all() as Array<{ t: string; n: string }>).map((r) => [r.t, r.n]),
+      ),
+    );
+    const nameCore = (n: string) =>
+      n
+        .toLowerCase()
+        .replace(/[^a-z0-9 ]+/g, " ")
+        .replace(/\b(limited|ltd|the)\b/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const renameByName = (t: string): string | undefined => {
+      const core = nameCore(appName.get(t) || "");
+      if (core.length < 3) return undefined;
+      const hits = main.filter((r) => {
+        const sym = r.ticker.toUpperCase();
+        if (sym === t || !sym.startsWith(t) || prevStatus.has(sym)) return false;
+        const n = nameCore(r.name);
+        return n === core || n.startsWith(`${core} `);
+      });
+      return hits.length === 1 ? hits[0]!.ticker.toUpperCase() : undefined;
+    };
     const renameTo = new Map<string, string>();
     for (const [t, m] of appMarket) {
-      if (mainBy.has(t) || smeBy.has(t) || bseBy.has(t)) continue;
+      if (mainBy.has(t) || smeBy.has(t) || bseBy.has(t) || bseOnlyBy.has(t)) continue;
       // Already marked on an earlier run — nothing new to do.
       if (prevStatus.has(t)) continue;
-      // BSE main board isn't covered by a source list — never auto-delist it.
-      if (m.toUpperCase() === "BSE") continue;
-      const nt = govIsin.get(t) ? isinToNse.get(govIsin.get(t)!) : undefined;
+      // BSE main board: only delist when BSE's full list loaded and it's not on it.
+      if (m.toUpperCase() === "BSE" && (!bseMainOk || bseMainAll.has(t))) continue;
+      const nt =
+        (govIsin.get(t) ? isinToNse.get(govIsin.get(t)!) : undefined) ?? renameByName(t);
       if (nt && nt !== t) renameTo.set(t, nt);
       else res.delisted.push(t);
     }
     // Back on a list → clear the old status.
     for (const t of prevStatus) {
-      if (mainBy.has(t) || smeBy.has(t) || bseBy.has(t)) res.relisted.push(t);
+      if (mainBy.has(t) || smeBy.has(t) || bseBy.has(t) || bseOnlyBy.has(t)) res.relisted.push(t);
     }
 
     if (dry) {
@@ -313,14 +369,29 @@ export async function runListingSync(opts?: {
       newBse.push(r);
     }
     addBseSmeToCache(newBse);
+    for (const t of res.added.bse!) {
+      const r = bseOnlyBy.get(t)!;
+      ensureCompanyAboutRow(r.ticker, { name: r.name, market: "BSE" });
+      ensureGovernanceCompanyStub({ ticker: r.ticker, name: r.name, market: "BSE", isin: r.isin });
+    }
+    // Screener pages for BSE-only names live under the scrip code — keep it cached.
+    for (const [t, r] of bseOnlyBy) {
+      if ((appMarket.has(t) || res.added.bse!.includes(t)) && r.scrip_code) {
+        try {
+          cacheBseScripCode(t, r.scrip_code);
+        } catch {
+          /* best effort */
+        }
+      }
+    }
 
     for (const x of res.retagged) {
       const src = mainBy.get(x.ticker) ?? smeBy.get(x.ticker);
       ensureGovernanceCompanyStub({
         ticker: x.ticker,
-        name: src?.name ?? bseBy.get(x.ticker)?.name ?? null,
+        name: src?.name ?? bseBy.get(x.ticker)?.name ?? bseOnlyBy.get(x.ticker)?.name ?? null,
         market: x.to,
-        isin: src?.isin ?? bseBy.get(x.ticker)?.isin ?? null,
+        isin: src?.isin ?? bseBy.get(x.ticker)?.isin ?? bseOnlyBy.get(x.ticker)?.isin ?? null,
       });
     }
 
@@ -358,7 +429,7 @@ export async function runListingSync(opts?: {
         status: "delisted" satisfies ListingStatus,
         new_ticker: null,
         isin: govIsin.get(t) ?? null,
-        detail: "Not on NSE / NSE SME / BSE SME official lists",
+        detail: "Not on NSE / NSE SME / BSE official lists",
         at,
       });
     }
@@ -366,6 +437,7 @@ export async function runListingSync(opts?: {
       res.added.nse.length ? `+${res.added.nse.length} NSE` : "",
       res.added.nse_sme.length ? `+${res.added.nse_sme.length} NSE SME` : "",
       res.added.bse_sme.length ? `+${res.added.bse_sme.length} BSE SME` : "",
+      res.added.bse?.length ? `+${res.added.bse.length} BSE` : "",
       res.retagged.length ? `${res.retagged.length} board moves` : "",
       res.renamed.length ? `${res.renamed.length} renamed` : "",
       res.delisted.length ? `${res.delisted.length} delisted` : "",
@@ -414,6 +486,14 @@ export async function runListingSync(opts?: {
       } catch {
         /* boards fill on later runs / manual DIN tools */
       }
+    }
+
+    // Sector for BSE-only names (new adds, and any earlier ones still missing).
+    try {
+      const { fillBseMainSectors } = await import("./bse-main");
+      await fillBseMainSectors();
+    } catch {
+      /* next sync retries */
     }
 
     invalidateCompanyCache();

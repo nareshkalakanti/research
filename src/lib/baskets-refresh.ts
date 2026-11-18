@@ -1,8 +1,5 @@
-import { buildFaPage, runFaPriceCheck } from "./fallen-angels";
-import { buildLvPage } from "./listed-ventures";
 import { buildMomPage, fillMomRatios, screenerBudgetLeft } from "./momentum";
 import {
-  buildNanoPage,
   expectedQuarter,
   markTried,
   nanoFillJob,
@@ -14,18 +11,15 @@ import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
 import { openSqliteNamed } from "./sqlite-utils";
 
 /**
- * Background refresh for the Nano tab baskets while the app is open (pinged
+ * Background refresh for the Nano tab (Momentum) while the app is open (pinged
  * from the browser on load and every 30 min). Only does what is due:
- *  - NSE surveillance lists (refreshed inside buildFaPage when > 12h old)
- *  - Fallen Angels price check when the last one is > 1 day old
- *  - quarterly results for holdings and listed candidates whose latest
- *    quarter is out of date (Screener cache refetches once > 7 days old)
+ *  - quarterly results for Momentum names whose latest quarter is out of
+ *    date (Screener cache refetches once > 7 days old)
  *  - ROCE / ROE for stocks with results but no ratios (Momentum scoring)
  * Screener work shares one hourly budget (see momentum.ts) on top of the
  * global 2.5–5 s gap and automatic pause.
  */
 
-const PRICE_DUE_MS = 86_400_000;
 const RESULTS_PER_RUN = 40;
 /** ROCE / ROE pages per run for stocks that can't be scored yet (2 runs an hour). */
 const RATIOS_PER_RUN = 25;
@@ -50,58 +44,23 @@ export function lastBasketsRefresh(): string | null {
   );
 }
 
-function priceCheckAge(): number {
-  return withMeta((db) => {
-    try {
-      const r = db.prepare(`SELECT MAX(checked_at) AS at FROM fa_price`).get() as { at: string | null } | undefined;
-      return r?.at ? Date.now() - Date.parse(r.at) : Infinity;
-    } catch {
-      return Infinity;
-    }
-  });
-}
-
-/** Holdings and listed candidates across the baskets whose results are out of date. */
-async function staleResultTickers(): Promise<string[]> {
+/** Momentum names whose results are out of date. */
+function staleResultTickers(): string[] {
   const want = expectedQuarter();
-  const nano = buildNanoPage();
-  const lv = buildLvPage();
-  const fa = await buildFaPage();
   const mom = buildMomPage();
-  const rows = [
-    ...mom.strong,
-    ...mom.near,
-    ...nano.current,
-    ...nano.candidates,
-    ...nano.quality,
-    ...lv.current,
-    ...lv.candidates,
-    ...fa.current,
-    ...fa.on_list,
-    ...fa.candidates,
-  ];
   const out = new Set<string>();
-  for (const r of rows) if (!r.latest_quarter || r.latest_quarter < want) out.add(r.ticker);
+  for (const r of [...mom.strong, ...mom.near]) if (!r.latest_quarter || r.latest_quarter < want) out.add(r.ticker);
   return [...out];
 }
 
 async function runRefresh(onProgress?: Progress): Promise<FillResult> {
   let done = 0;
   let filled = 0;
-  // 1) Surveillance lists + holdings prices refresh inside buildFaPage.
-  const stale = (await staleResultTickers()).slice(0, Math.min(RESULTS_PER_RUN, screenerBudgetLeft()));
-  const priceDue = priceCheckAge() > PRICE_DUE_MS;
+  const stale = staleResultTickers().slice(0, Math.min(RESULTS_PER_RUN, screenerBudgetLeft()));
   const ratioSlots = Math.max(0, Math.min(RATIOS_PER_RUN, screenerBudgetLeft() - stale.length));
-  let total = stale.length + (priceDue ? 1 : 0) + ratioSlots;
+  let total = stale.length + ratioSlots;
   onProgress?.(0, total, 0);
-  // 2) Fallen Angels price check (whole shortlist, fast).
-  if (priceDue) {
-    await runFaPriceCheck();
-    done += 1;
-    filled += 1;
-    onProgress?.(done, total, filled);
-  }
-  // 3) New quarterly results (Screener; cached copies refetch once > 7 days old).
+  // 1) New quarterly results (Screener; cached copies refetch once > 7 days old).
   let paused = false;
   for (const t of stale) {
     try {
@@ -117,7 +76,7 @@ async function runRefresh(onProgress?: Progress): Promise<FillResult> {
     done += 1;
     onProgress?.(done, total, filled);
   }
-  // 4) ROCE / ROE so more stocks can be scored on the 7 rules (whatever budget is left).
+  // 2) ROCE / ROE so more stocks can be scored on the 7 rules (whatever budget is left).
   if (!paused && ratioSlots > 0) {
     const base = done;
     try {

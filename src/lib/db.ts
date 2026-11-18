@@ -736,6 +736,11 @@ function inactiveTickers(db: ReturnType<typeof getAbout>): Set<string> {
   }
 }
 
+/** Delisted / renamed tickers (listing sync), upper-case. */
+export function inactiveListingTickerSet(): Set<string> {
+  return inactiveTickers(getAbout());
+}
+
 export function listListingCompaniesLite(): Array<{
   ticker: string;
   name: string;

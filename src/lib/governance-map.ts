@@ -33,7 +33,6 @@ import {
 } from "./family-group-refine";
 import { applyFamilyGroupEdits, loadFamilyGroupEditMap } from "./family-group-edits";
 import {
-  closeGovernanceWriteDb,
   getGovernanceWriteDb,
   recoverGovernanceWal,
 } from "./governance-write";
@@ -134,7 +133,16 @@ type AboutBits = {
   industry: string | null;
 };
 
+const surnameCache = new Map<string, string>();
 function normalizedSurname(name: string): string {
+  const hit = surnameCache.get(name);
+  if (hit !== undefined) return hit;
+  if (surnameCache.size > 50_000) surnameCache.clear();
+  const v = normalizedSurnameRaw(name);
+  surnameCache.set(name, v);
+  return v;
+}
+function normalizedSurnameRaw(name: string): string {
   const bits = name
     .replace(/[().,]/g, " ")
     .split(/\s+/)
@@ -403,6 +411,18 @@ const HOUSE_SKIP = new Set([
 
 /** Shared first-name glue: sector / filler words, not a house. */
 const GENERIC_HOUSE_TOKEN = new Set([
+  // Name words shared by unrelated listings (ITDC/HDIL "Development", GAIL/MGL/MTNL "Mahanagar" …).
+  "development",
+  "electrical",
+  "electricals",
+  "mahanagar",
+  "network",
+  "networks",
+  "prudential",
+  "resource",
+  "resources",
+  "venture",
+  "ventures",
   "advanced",
   "agriculture",
   "agri",
@@ -874,7 +894,22 @@ function canonicalHouseLabel(name: string): string {
     .join(" ");
 }
 
-function isHouseControlSeat(designation: string, category: string | null): boolean {
+/** Pure helpers below run millions of times in the family-map build; designations and names repeat. */
+function memo2<R>(fn: (a: string, b: string | null) => R): (a: string, b: string | null) => R {
+  const cache = new Map<string, R>();
+  return (a, b) => {
+    const k = `${a}\u0000${b ?? ""}`;
+    let v = cache.get(k);
+    if (v === undefined) {
+      v = fn(a, b);
+      if (cache.size > 50_000) cache.clear();
+      cache.set(k, v);
+    }
+    return v;
+  };
+}
+const isHouseControlSeat = memo2(isHouseControlSeatRaw);
+function isHouseControlSeatRaw(designation: string, category: string | null): boolean {
   const text = `${designation} ${category || ""}`.toLowerCase();
   if (/nominee/.test(text)) return false;
   // Independent chairs/directors are not house control.
@@ -893,7 +928,8 @@ function isHouseControlSeat(designation: string, category: string | null): boole
 }
 
 /** Chair / promoter / founder — used to name a house, not every ED. */
-function isHouseFamilySeat(designation: string, category: string | null): boolean {
+const isHouseFamilySeat = memo2(isHouseFamilySeatRaw);
+function isHouseFamilySeatRaw(designation: string, category: string | null): boolean {
   const text = `${designation} ${category || ""}`.toLowerCase();
   if (/nominee/.test(text)) return false;
   if (/independent/.test(text) && !/non[-\s]?independent/.test(text)) {
@@ -901,7 +937,8 @@ function isHouseFamilySeat(designation: string, category: string | null): boolea
   }
   return /promoter|founder|chair/.test(text);
 }
-function isHouseLinkSeat(designation: string, category: string | null): boolean {
+const isHouseLinkSeat = memo2(isHouseLinkSeatRaw);
+function isHouseLinkSeatRaw(designation: string, category: string | null): boolean {
   return (
     isHouseFamilySeat(designation, category) ||
     /promoter/.test(`${designation} ${category || ""}`.toLowerCase())
@@ -1063,9 +1100,35 @@ const SEAT_SELECT = `
       JOIN companies c ON c.ticker = s.ticker
       WHERE UPPER(c.market) IN ('NSE', 'NSE SME', 'BSE', 'BSE SME')`;
 
+/** Delisted / renamed tickers (listing sync) — kept in the DB, hidden from every map view. */
+let inactiveCache: { at: number; set: Set<string> } | null = null;
+function inactiveListingTickers(): Set<string> {
+  if (inactiveCache && Date.now() - inactiveCache.at < 60_000) return inactiveCache.set;
+  const set = new Set<string>();
+  try {
+    const about = getAbout();
+    const has = about
+      ?.prepare(`SELECT 1 FROM sqlite_master WHERE type='table' AND name='listing_status'`)
+      .get();
+    if (about && has)
+      for (const r of about.prepare(`SELECT UPPER(ticker) AS t FROM listing_status`).all() as Array<{ t: string }>)
+        set.add(r.t);
+  } catch {
+    /* optional */
+  }
+  inactiveCache = { at: Date.now(), set };
+  return set;
+}
+
+function dropInactiveSeats(rows: SeatRow[]): SeatRow[] {
+  const gone = inactiveListingTickers();
+  if (!gone.size) return rows;
+  return rows.filter((r) => !gone.has((r.ticker || "").toUpperCase()));
+}
+
 function loadAllBoardSeats(): SeatRow[] {
   if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) return [];
-  return withGovRetry(
+  return dropInactiveSeats(withGovRetry(
     () =>
       getGov()
         .prepare(
@@ -1075,7 +1138,7 @@ function loadAllBoardSeats(): SeatRow[] {
       `,
         )
         .all() as SeatRow[],
-  );
+  ));
 }
 
 function loadAboutBlobByTicker(): Map<string, string> {
@@ -1399,8 +1462,8 @@ export function loadGovernanceFamilyMap(opts?: {
     return paintFamilyGroupCaps(familyMapCache.groups);
   }
   try {
+    // Opens (and migrates) the one shared writer; keep it open — other modules hold it.
     getGovernanceWriteDb();
-    closeGovernanceWriteDb();
     closeGovReader();
   } catch {
     /* SME listing stubs optional */
@@ -1507,13 +1570,14 @@ export function loadGovernanceFamilyMap(opts?: {
   }
 
   const listingMeta = new Map<string, GovFamilyCompany>();
+  const inactive = inactiveListingTickers();
   const addListingRow = (r: {
     ticker: string;
     name: string;
     market: string;
   }) => {
     const ticker = (r.ticker || "").toUpperCase();
-    if (!ticker) return;
+    if (!ticker || inactive.has(ticker)) return;
     let market = (r.market || "NSE").toUpperCase();
     const isSme = market === "NSE SME" || market === "BSE SME";
     if (!isSme && market.startsWith("NSE")) market = "NSE";
@@ -1654,7 +1718,7 @@ export function loadGovernanceFamilyMap(opts?: {
     const companies: GovFamilyCompany[] = [];
     const seen = new Set<string>();
     for (const t of tickers) {
-      if (seen.has(t)) continue;
+      if (seen.has(t) || inactive.has(t)) continue;
       seen.add(t);
       const meta = metaByTicker.get(t) ?? listingMeta.get(t);
       if (!meta) continue;
@@ -1674,6 +1738,38 @@ export function loadGovernanceFamilyMap(opts?: {
     });
     return companies;
   }
+
+  // Indexes for addAffiliates (it runs once per house; scanning every board each time was ~10 s).
+  const tickerOrder = new Map<string, number>();
+  const ctrlTickersBySurname = new Map<string, Set<string>>();
+  const linkTickersBySurname = new Map<string, Set<string>>();
+  const linkPeopleByTicker = new Map<string, Set<string>>();
+  const linkTickersByPerson = new Map<string, Set<string>>();
+  for (const [ticker, grp] of byTicker) {
+    tickerOrder.set(ticker, tickerOrder.size);
+    for (const s of grp) {
+      const sn = normalizedSurname(s.director_name);
+      if (isHouseControlSeat(s.designation, s.category)) {
+        let set = ctrlTickersBySurname.get(sn);
+        if (!set) ctrlTickersBySurname.set(sn, (set = new Set()));
+        set.add(ticker);
+      }
+      if (isHouseLinkSeat(s.designation, s.category)) {
+        let set = linkTickersBySurname.get(sn);
+        if (!set) linkTickersBySurname.set(sn, (set = new Set()));
+        set.add(ticker);
+        let ppl = linkPeopleByTicker.get(ticker);
+        if (!ppl) linkPeopleByTicker.set(ticker, (ppl = new Set()));
+        ppl.add(s.person_id);
+        let tk = linkTickersByPerson.get(s.person_id);
+        if (!tk) linkTickersByPerson.set(s.person_id, (tk = new Set()));
+        tk.add(ticker);
+      }
+    }
+  }
+  /** Candidate tickers in the same order a full byTicker scan would visit them. */
+  const inOrder = (tickers: Iterable<string>) =>
+    [...tickers].sort((a, b) => (tickerOrder.get(a) ?? 0) - (tickerOrder.get(b) ?? 0));
 
   function addAffiliates(members: Set<string>, house: string) {
     const houseKey = houseSurnameKey(house);
@@ -1744,14 +1840,9 @@ export function loadGovernanceFamilyMap(opts?: {
     for (const src of members) {
       for (const pid of controlOn(src)) houseControlPeople.add(pid);
     }
-    for (const [ticker, grp] of byTicker) {
+    for (const ticker of inOrder(ctrlTickersBySurname.get(houseKey) ?? [])) {
       if (members.has(ticker)) continue;
-      const hasHouseControl = grp.some(
-        (s) =>
-          isHouseControlSeat(s.designation, s.category) &&
-          normalizedSurname(s.director_name) === houseKey,
-      );
-      if (!hasHouseControl) continue;
+      const grp = byTicker.get(ticker) ?? [];
       const sharesControl = grp.some((s) => houseControlPeople.has(s.person_id));
       if (!sharesControl) continue;
       members.add(ticker);
@@ -1760,23 +1851,22 @@ export function loadGovernanceFamilyMap(opts?: {
     for (const src of members) {
       for (const pid of promoterOn(src)) memberPromoters.add(pid);
     }
-    for (const [ticker, grp] of byTicker) {
+    const promoterTickers = new Set<string>();
+    for (const pid of memberPromoters) for (const t of linkTickersByPerson.get(pid) ?? []) promoterTickers.add(t);
+    for (const ticker of inOrder(promoterTickers)) {
       if (members.has(ticker)) continue;
-      const shared = new Set(
-        grp
-          .filter((s) => isHouseLinkSeat(s.designation, s.category))
-          .map((s) => s.person_id)
-          .filter((pid) => memberPromoters.has(pid)),
-      );
-      if (shared.size < 2) continue;
+      let shared = 0;
+      for (const pid of linkPeopleByTicker.get(ticker) ?? []) if (memberPromoters.has(pid)) shared += 1;
+      if (shared < 2) continue;
       members.add(ticker);
     }
     const memberPeople = new Set<string>();
     for (const src of members) {
       for (const s of byTicker.get(src) ?? []) memberPeople.add(s.person_id);
     }
-    for (const [ticker, grp] of byTicker) {
+    for (const ticker of inOrder(linkTickersBySurname.get(houseKey) ?? [])) {
       if (members.has(ticker)) continue;
+      const grp = byTicker.get(ticker) ?? [];
       const otherFirst = nameHousesByTicker.get(ticker)?.[0];
       if (
         otherFirst &&
@@ -1786,12 +1876,6 @@ export function loadGovernanceFamilyMap(opts?: {
       ) {
         continue;
       }
-      const hasHousePromoter = grp.some(
-        (s) =>
-          isHouseLinkSeat(s.designation, s.category) &&
-          normalizedSurname(s.director_name) === houseKey,
-      );
-      if (!hasHousePromoter) continue;
       if (!grp.some((s) => memberPeople.has(s.person_id))) continue;
       members.add(ticker);
     }
@@ -2008,8 +2092,31 @@ export function loadGovernanceFamilyMap(opts?: {
       for (let i = 1; i < list.length; i++) unite(uf, list[0]!, list[i]!);
     }
     if (nameBrandUnite.has(house)) {
+      // Same lead name word alone isn't a house (Phoenix Mills ≠ Phoenix International):
+      // join two listings only when someone sits on both boards.
       const seated = uniq.filter((t) => byTicker.has(t));
-      for (let i = 1; i < seated.length; i++) unite(uf, seated[0]!, seated[i]!);
+      const boardPeople = new Map(
+        seated.map((t) => [t, new Set((byTicker.get(t) ?? []).map((x) => x.person_id))] as const),
+      );
+      // …or the names share two lead words (Bannari Amman, Procter & Gamble), or the
+      // word is a director surname on both boards (Dhanuka, Garware).
+      const lead2 = (t: string) =>
+        companyNameTokens(metaByTicker.get(t)?.name || "")
+          .map((w) => w.toLowerCase())
+          .filter((w) => !ACRONYM_SKIP.has(w))
+          .slice(0, 2)
+          .join(" ");
+      const houseUp = house.toUpperCase();
+      const surnameOnBoard = (t: string) => surnamesByTicker.get(t)?.has(houseUp) ?? false;
+      for (let i = 0; i < seated.length; i++)
+        for (let j = i + 1; j < seated.length; j++) {
+          const a = seated[i]!;
+          const b = seated[j]!;
+          const pa = boardPeople.get(a)!;
+          const shared = [...boardPeople.get(b)!].some((pid) => pa.has(pid));
+          const twoWords = lead2(a).includes(" ") && lead2(a) === lead2(b);
+          if (shared || twoWords || (surnameOnBoard(a) && surnameOnBoard(b))) unite(uf, a, b);
+        }
     }
     const components = new Map<string, Set<string>>();
     for (const t of uniq) {
@@ -2570,7 +2677,13 @@ export function loadGovernanceFamilyMap(opts?: {
         best = { name: seed.name, overlap, spec };
       }
     }
-    if (best?.name) g.family_name = seedDisplayName(best.name);
+    if (!best?.name) continue;
+    // Members' own declared group beats the external seed list when they all agree
+    // (NOCIL + Mafatlal declare "Arvind Mafatlal Group"; the seed says Lalbhai).
+    const declared = new Set(g.companies.map((c) => declaredMergeKey(declaredByTicker.get(c.ticker) || "")));
+    const own = declared.size === 1 ? [...declared][0]! : "";
+    const seedKey = declaredMergeKey(best.name) || best.name.trim().toLowerCase();
+    g.family_name = own && own !== seedKey ? displayGroupLabel(own) : seedDisplayName(best.name);
   }
 
   applyFamilyGroupEdits(groups, (ticker) => {
@@ -2807,6 +2920,11 @@ export function loadGovernanceFamilyMap(opts?: {
         din_verified: row.din_verified ?? 0,
       }));
   };
+  // Saved edits / seed houses can still name delisted or renamed tickers.
+  for (const g of groups) {
+    g.companies = g.companies.filter((c) => !inactive.has(c.ticker.toUpperCase()));
+    g.company_count = g.companies.length;
+  }
   for (const g of groups) attachFamilyGraphLinks(g);
 
   const editMap = loadFamilyGroupEditMap();
@@ -3361,7 +3479,7 @@ export function loadSmeCompanyMaps(opts?: {
 
 function loadMultiBoardSeats(minBoards: number): SeatRow[] {
   const min = Math.max(1, minBoards);
-  return withGovRetry(
+  return dropInactiveSeats(withGovRetry(
     () =>
       getGov()
         .prepare(
@@ -3379,7 +3497,7 @@ function loadMultiBoardSeats(minBoards: number): SeatRow[] {
       `,
         )
         .all(min) as SeatRow[],
-  );
+  ));
 }
 
 /**
@@ -3498,7 +3616,7 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
   const folded = foldDirectorQuery(term);
   const like = `%${needle}%`;
   const foldedLike = folded ? `%${folded}%` : like;
-  return withGovRetry(
+  return dropInactiveSeats(withGovRetry(
     () =>
       getGov()
         .prepare(
@@ -3522,7 +3640,7 @@ function loadSeatsForSearchQuery(q: string): SeatRow[] {
       `,
         )
         .all(like, foldedLike, like, needle, `${needle}%`, like) as SeatRow[],
-  );
+  ));
 }
 
 function loadSeatsForTickers(tickers: string[]): SeatRow[] {
@@ -3531,7 +3649,7 @@ function loadSeatsForTickers(tickers: string[]): SeatRow[] {
   ];
   if (!keys.length) return [];
   if (!fs.existsSync(path.join(SQLITE_DATA_DIR, "governance.db"))) return [];
-  return withGovRetry(() => {
+  return dropInactiveSeats(withGovRetry(() => {
     const db = getGov();
     const out: SeatRow[] = [];
     const chunk = 200;
@@ -3554,7 +3672,7 @@ function loadSeatsForTickers(tickers: string[]): SeatRow[] {
       out.push(...rows);
     }
     return out;
-  });
+  }));
 }
 
 export type StockBoardNetwork = {

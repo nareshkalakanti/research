@@ -283,6 +283,7 @@ export function ScanPanel() {
   const nseCount = markets["NSE"] ?? 0;
   const smeCount = markets["NSE SME"] ?? 0;
   const bseSmeCount = markets["BSE SME"] ?? 0;
+  const bseCount = markets["BSE"] ?? 0;
   const allCount = Object.values(markets).reduce((a, b) => a + b, 0);
   const start = data ? (data.page - 1) * 100 + 1 : 0;
   const end = data ? Math.min(data.page * 100, data.total) : 0;
@@ -368,6 +369,9 @@ export function ScanPanel() {
             <option value="NSE">NSE ({nseCount.toLocaleString()})</option>
             <option value="NSE SME">
               NSE SME ({smeCount.toLocaleString()})
+            </option>
+            <option value="BSE" title="BSE main board — companies not listed on NSE">
+              BSE ({bseCount.toLocaleString()})
             </option>
             <option value="BSE SME">
               BSE SME ({bseSmeCount.toLocaleString()})

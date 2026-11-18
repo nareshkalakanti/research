@@ -1014,7 +1014,8 @@ export function FamilyDashboard() {
                 <option value="">All holdings ({holdingOptions.length})</option>
                 {holdingOptions.map((g) => (
                   <option key={g.key} value={g.key}>
-                    {g.label} ({g.n})
+                    {g.label}
+                    {g.n ? ` · ${g.n} outside board${g.n === 1 ? "" : "s"}` : ""}
                   </option>
                 ))}
               </select>
@@ -1208,6 +1209,7 @@ export function FamilyDashboard() {
           <Loading label="Loading holdings graphs" variant="block" />
         ) : (
           <FamilyMapCards
+            unit="holdings"
             rows={filteredHoldings}
             onPerson={(id, name) => openPerson(id, name)}
             chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}

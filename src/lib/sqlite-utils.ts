@@ -262,6 +262,11 @@ export function recoverCorruptDb(dbPath: string): boolean {
  */
 /** Empty WAL/SHM files make SQLite throw disk I/O even when the main .db is fine. */
 export function stripEmptyWalSidecars(dbPath: string): void {
+  // A -shm file means some connection may have the DB open (WAL index).
+  // Deleting the -wal under a live connection makes the next connection start
+  // a fresh WAL while the old one still writes to the unlinked file — that
+  // corrupted governance.db. Only strip when no -shm exists (truly stale).
+  if (fs.existsSync(dbPath + "-shm")) return;
   for (const suffix of ["-wal", "-shm"]) {
     const p = dbPath + suffix;
     try {

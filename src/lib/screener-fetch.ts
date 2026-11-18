@@ -112,9 +112,37 @@ async function waitScreenerGap(): Promise<void> {
   lastScreenerAt = Date.now();
 }
 
+let bseOnlyCache: { at: number; set: Set<string> } | null = null;
+
+/** Tickers tagged BSE main board (not on NSE) — Screener files them under the BSE scrip code. */
+function bseOnlyTickers(): Set<string> {
+  if (bseOnlyCache && Date.now() - bseOnlyCache.at < 5 * 60_000) return bseOnlyCache.set;
+  let set = new Set<string>();
+  try {
+    const db = openSqliteNamed("company_about.db", { readonly: true, wal: true });
+    try {
+      set = new Set(
+        (db.prepare(`SELECT UPPER(ticker) AS t FROM company_about WHERE UPPER(TRIM(market)) = 'BSE'`).all() as Array<{
+          t: string;
+        }>).map((r) => r.t),
+      );
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* fall back to ticker-first */
+  }
+  bseOnlyCache = { at: Date.now(), set };
+  return set;
+}
+
 async function resolveScreenerPageKeys(ticker: string): Promise<string[]> {
   const key = ticker.trim().toUpperCase();
   if (!key) return [];
+  // BSE-only names: the scrip-code page is the real one — try it first and
+  // skip the extra lookup, so each stock costs one Screener request, not two.
+  const cachedCode = getCachedBseScripCode(key);
+  if (cachedCode && /^\d{5,7}$/.test(cachedCode) && bseOnlyTickers().has(key)) return [cachedCode, key];
   const keys = [key];
   const pushBse = (raw: string | null | undefined) => {
     const bse = String(raw || "").trim();

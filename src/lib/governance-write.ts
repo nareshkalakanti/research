@@ -57,6 +57,21 @@ function inferCategory(designation: string): string {
   return inferDirectorCategory(designation);
 }
 
+/**
+ * The shared writer for code written as open → use → close: close() is a no-op,
+ * so callers never open a second write connection on governance.db.
+ */
+export function sharedGovernanceDb(): Database.Database {
+  const db = getGovernanceWriteDb();
+  return new Proxy(db, {
+    get(target, key) {
+      if (key === "close") return () => undefined;
+      const v = Reflect.get(target, key, target);
+      return typeof v === "function" ? v.bind(target) : v;
+    },
+  });
+}
+
 export function getGovernanceWriteDb(): Database.Database {
   if (writeDb) return writeDb;
   if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });

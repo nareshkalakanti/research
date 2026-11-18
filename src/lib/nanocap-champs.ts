@@ -51,6 +51,11 @@ export type NanoStock = {
   linked_boards: number;
   momentum_12m: number | null;
   group?: string | null;
+  /** Sector › sub-sector (classifications.db — same label Scan and Rotation use). */
+  sector?: string | null;
+  sub_sector?: string | null;
+  /** Company website (company_about.db). */
+  website?: string | null;
   /** Latest quarter's net profit and the same quarter a year earlier (₹ Cr). */
   np_now?: number | null;
   np_year_ago?: number | null;
@@ -273,7 +278,48 @@ export type Ctx = {
   cos: Map<string, { name: string; market: string }>;
   ratios: ReturnType<typeof loadScreenerRatiosMap>;
   groups: Map<string, string>;
+  labels: Map<string, { sector: string; sub_sector: string | null }>;
+  websites: Map<string, string>;
 };
+
+function loadWebsites(): Map<string, string> {
+  const out = new Map<string, string>();
+  try {
+    const db = openSqliteNamed("company_about.db", { readonly: true, wal: true });
+    try {
+      for (const r of db
+        .prepare(`SELECT UPPER(ticker) AS t, website FROM company_about WHERE TRIM(COALESCE(website, '')) != ''`)
+        .all() as Array<{ t: string; website: string }>)
+        out.set(r.t, r.website.trim());
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* optional */
+  }
+  return out;
+}
+
+/** Ticker → sector › sub-sector for every classified company. */
+function loadLabels(): Map<string, { sector: string; sub_sector: string | null }> {
+  const out = new Map<string, { sector: string; sub_sector: string | null }>();
+  try {
+    const db = openSqliteNamed("classifications.db", { readonly: true, wal: true });
+    try {
+      for (const r of db
+        .prepare(
+          `SELECT UPPER(ticker) AS t, sector, sub_sector FROM classifications WHERE TRIM(COALESCE(sector, '')) != ''`,
+        )
+        .all() as Array<{ t: string; sector: string; sub_sector: string | null }>)
+        if (!out.has(r.t)) out.set(r.t, { sector: r.sector, sub_sector: r.sub_sector || null });
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* labels optional */
+  }
+  return out;
+}
 
 export function buildStock(t: string, ctx: Ctx): NanoStock {
   const r = ctx.ratios.get(t);
@@ -302,6 +348,9 @@ export function buildStock(t: string, ctx: Ctx): NanoStock {
     linked_boards: b?.linked ?? 0,
     momentum_12m: ctx.mom.get(t) ?? null,
     group: ctx.groups.get(t) ?? null,
+    sector: ctx.labels.get(t)?.sector ?? null,
+    sub_sector: ctx.labels.get(t)?.sub_sector ?? null,
+    website: ctx.websites.get(t) ?? null,
   };
 }
 
@@ -314,6 +363,8 @@ export function loadCtx(): Ctx {
     cos: loadCompanies(),
     ratios: loadScreenerRatiosMap(),
     groups: loadGroups(),
+    labels: loadLabels(),
+    websites: loadWebsites(),
   };
 }
 
@@ -479,7 +530,7 @@ export function buildNanoPage(): NanoPage {
 
 /** Fetch quarterly results for nanocaps that have none yet (Screener, throttled). */
 export type Progress = (done: number, total: number, filled: number) => void;
-export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio";
+export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio" | "bse" | "turn";
 export type FillResult = { tried: number; filled: number; left: number; not_found: number };
 
 const RETRY_AFTER_DAYS = 7;

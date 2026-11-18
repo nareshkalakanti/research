@@ -181,6 +181,7 @@ export function WatchlistDashboard({
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load");
       setBusy(false);
+      setStatus(null);
     }
   }, [tickers, sourcesByTicker, storeKey]);
 
@@ -288,9 +289,11 @@ export function WatchlistDashboard({
       <section className="wl-dash-section">
         <header className="wl-dash-section-head">
           <h2>Signals</h2>
-          <span>{shown.length}</span>
+          <span>{busy && !rows.length ? "…" : shown.length}</span>
         </header>
-        {rows.length === 0 ? (
+        {rows.length === 0 && busy ? (
+          <p className="miq-empty-hint">Scanning these lists for 200 DMA ↑, BB W and TQ W…</p>
+        ) : rows.length === 0 ? (
           <p className="miq-empty-hint">
             No 200 DMA ↑, BB W, or TQ W hits on these lists yet. Run Scan
             signals.

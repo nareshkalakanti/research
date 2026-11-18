@@ -84,9 +84,10 @@ export function companyNeedsScrapeClean(c: {
   return true;
 }
 
+/** Markets where a missing DIN board counts as a gap (NSE main + SME, BSE main). */
 function isNseGovMarket(market?: string | null): boolean {
   const m = (market || "").trim().toUpperCase();
-  return m === "NSE" || m === "NSE SME";
+  return m === "NSE" || m === "NSE SME" || m === "BSE";
 }
 
 export function companyGapFlags(
@@ -266,7 +267,10 @@ export function loadMissingCompanies(
   let companies = allCompanies;
 
   if (market && market !== "All") {
-    companies = companies.filter((c) => c.market === market);
+    // "MAIN" = NSE + BSE main boards (Data tab list).
+    companies = companies.filter((c) =>
+      market === "MAIN" ? c.market === "NSE" || c.market === "BSE" : c.market === market,
+    );
   }
 
   companies = mergeFundWatchlistUniverse(companies, allCompanies);

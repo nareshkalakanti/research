@@ -361,13 +361,16 @@ export function pendingWebDinJobs(opts: {
 }): WebDinJob[] {
   const missingOnly = opts.missingOnly !== false;
   const dinDone = missingOnly ? dinBoardTickerSet() : new Set<string>();
+  // NSE main / SME and BSE main (BSE-only names have no NSE filing — web is the only source).
   let companies = listListingCompaniesLite().filter((c) => {
     const m = (c.market || "").toUpperCase();
-    return m === "NSE" || m === "NSE SME";
+    return m === "NSE" || m === "NSE SME" || m === "BSE";
   });
 
   if (opts.market && opts.market !== "All") {
-    companies = companies.filter((c) => c.market === opts.market);
+    companies = companies.filter((c) =>
+      opts.market === "MAIN" ? c.market === "NSE" || c.market === "BSE" : c.market === opts.market,
+    );
   }
   if (opts.tickers?.length) {
     const set = new Set(opts.tickers.map((t) => t.toUpperCase()));
@@ -381,7 +384,7 @@ export function pendingWebDinJobs(opts: {
     jobs.push({
       ticker,
       name: c.name || ticker,
-      market: c.market.toUpperCase() === "NSE SME" ? "NSE SME" : "NSE",
+      market: c.market.toUpperCase() === "NSE SME" ? "NSE SME" : c.market.toUpperCase() === "BSE" ? "BSE" : "NSE",
       website: c.website || null,
     });
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
+import { usePagedRows } from "@/components/MoreRows";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type ConnectedStockHubRow = {
@@ -25,6 +26,7 @@ const CAP_FILTERS: Array<{ id: CapBand | "all"; label: string; cls: string }> = 
 
 function fmtCr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)} lakh Cr`;
   if (n >= 10_000) return `₹${(n / 1000).toFixed(1)}k Cr`;
   return `₹${Math.round(n).toLocaleString("en-IN")} Cr`;
 }
@@ -123,6 +125,7 @@ export function ConnectedStocksTable({
       return true;
     });
   }, [rows, cap]);
+  const { visible: pagedRows, more: moreRows } = usePagedRows(filtered);
 
   if (loading && !rows.length) {
     return <Loading label="Loading connected stocks" variant="block" />;
@@ -203,7 +206,7 @@ export function ConnectedStocksTable({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => {
+              {pagedRows.map((r, i) => {
                 const tv = chartUrl?.(r.ticker);
                 const band = capBand(r.cap_code, r.market_cap_cr);
                 const expanded = open === r.ticker;
@@ -290,6 +293,7 @@ export function ConnectedStocksTable({
               })}
             </tbody>
           </table>
+          {moreRows}
         </div>
       )}
     </div>

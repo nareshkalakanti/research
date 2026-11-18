@@ -28,6 +28,7 @@ const CAP_FILTERS: Array<{ id: CapBand | "all"; label: string; cls: string }> = 
 
 function fmtCr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
+  if (n >= 100_000) return `₹${(n / 100_000).toFixed(1)} lakh Cr`;
   if (n >= 10_000) return `₹${(n / 1000).toFixed(1)}k Cr`;
   return `₹${Math.round(n).toLocaleString("en-IN")} Cr`;
 }

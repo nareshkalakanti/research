@@ -38,7 +38,7 @@ import {
   type NapkinStockScanRow,
 } from "@/lib/napkin/scan-filters";
 import { loadNapkinStockScan } from "@/lib/napkin/stock-scan";
-import { openSqliteNamed } from "@/lib/sqlite-utils";
+import { sharedGovernanceDb } from "@/lib/governance-write";
 
 /** Signal B threshold: connected company market cap above this, in ₹ Cr. */
 export const LARGE_CONNECTION_MCAP_CR = 10_000;
@@ -142,14 +142,14 @@ export type CandidateSort = "cross_group" | "large" | "ratio" | "external";
  */
 export function openNetworkDb(refresh = false): Database.Database {
   let stale = true;
-  const probe = openSqliteNamed("governance.db", { wal: true });
+  const probe = sharedGovernanceDb();
   try {
     stale = companyGroupsStale(probe);
   } finally {
     probe.close();
   }
   const links = stale || refresh ? loadCompanyGroupLinks(refresh) : null;
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     if (links?.length) writeCompanyGroups(db, links);

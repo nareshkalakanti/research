@@ -6,9 +6,10 @@ import type Database from "better-sqlite3";
 import { ensureCompanyGroupsTable } from "@/lib/company-groups";
 import { ensureCompanyMetricsFresh } from "@/lib/company-metrics";
 import { CAP_CODE_BANDS, mcapCapCode } from "@/lib/gov-score";
+import { inactiveListingTickerSet } from "@/lib/db";
 import { loadHoldings } from "@/lib/holdings";
 import { loadMetricsMap } from "@/lib/metrics";
-import { openSqliteNamed } from "@/lib/sqlite-utils";
+import { sharedGovernanceDb } from "@/lib/governance-write";
 
 export const COMPANY_NETWORK_VIEW_SQL = `
 CREATE VIEW company_network AS
@@ -195,7 +196,11 @@ export function loadConnectedStockHubs(opts?: {
   const page = Math.max(1, opts?.page ?? 1);
   const minLinked = Math.max(1, opts?.minLinked ?? 1);
   const q = (opts?.q || "").trim();
-  const db = openSqliteNamed("governance.db", { wal: true });
+  // Delisted / renamed listings leave the hub list and every linked list.
+  const gone = JSON.stringify([...inactiveListingTickerSet()]);
+  const GONE_FILTER = ` WHERE ticker NOT IN (SELECT value FROM json_each(@gone))
+      AND other NOT IN (SELECT value FROM json_each(@gone))`;
+  const db = sharedGovernanceDb();
   try {
     ensureNetworkViews(db, opts?.refresh === true);
     db.exec(ifNotExists(COMPANY_NETWORK_VIEW_SQL, "company_network"));
@@ -206,6 +211,7 @@ export function loadConnectedStockHubs(opts?: {
       : "";
     const params: Record<string, string | number> = {
       minLinked,
+      gone,
       ...(like ? { like } : {}),
     };
     const hubs = db
@@ -217,11 +223,12 @@ export function loadConnectedStockHubs(opts?: {
            SELECT ticker_b, ticker_a, shared_directors
            FROM company_network
          ),
+         live AS (SELECT * FROM edges${GONE_FILTER}),
          hub AS (
            SELECT ticker,
                   COUNT(*) AS linked_cos,
                   SUM(shared) AS shared_seats
-           FROM edges
+           FROM live
            GROUP BY ticker
            HAVING linked_cos >= @minLinked
          )
@@ -260,7 +267,7 @@ export function loadConnectedStockHubs(opts?: {
          ),
          hub AS (
            SELECT ticker, COUNT(*) AS linked_cos
-           FROM edges
+           FROM (SELECT * FROM edges${GONE_FILTER})
            GROUP BY ticker
            HAVING linked_cos >= @minLinked
          )
@@ -280,15 +287,15 @@ export function loadConnectedStockHubs(opts?: {
          FROM company_network
        )
        SELECT other, shared
-       FROM edges
-       WHERE ticker = ?
+       FROM (SELECT * FROM edges${GONE_FILTER})
+       WHERE ticker = @ticker
        ORDER BY shared DESC, other
        LIMIT 8`,
     );
 
     const rows: ConnectedStockHubRow[] = hubs.map((h) => {
       const linked = (
-        linkStmt.all(h.ticker) as Array<{ other: string; shared: number }>
+        linkStmt.all({ ticker: h.ticker, gone }) as Array<{ other: string; shared: number }>
       ).map((r) => r.other);
       const mcap =
         h.market_cap_cr != null && Number.isFinite(h.market_cap_cr)
@@ -327,7 +334,7 @@ export function loadCompanyNetwork(opts?: {
   const pageSize = Math.min(200, Math.max(1, opts?.pageSize ?? 50));
   const page = Math.max(1, opts?.page ?? 1);
   const q = (opts?.q || "").trim();
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureNetworkViews(db, opts?.refresh === true);
     db.exec(ifNotExists(COMPANY_NETWORK_VIEW_SQL, "company_network"));
@@ -395,7 +402,7 @@ export function loadCompanyConnectivity(opts?: {
   const q = (opts?.q || "").trim().toUpperCase();
   const caps = opts?.caps?.length ? opts.caps : DEFAULT_CONNECTIVITY_CAPS;
   const capSet = new Set(caps);
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   let base: Array<{
     ticker: string;
     name: string | null;
@@ -575,7 +582,7 @@ export function loadNetworkDiscovery(opts?: {
   const pageSize = Math.min(200, Math.max(1, opts?.pageSize ?? 50));
   const page = Math.max(1, opts?.page ?? 1);
   const q = (opts?.q || "").trim();
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureNetworkViews(db, opts?.refresh === true);
     if (opts?.companies) {
@@ -744,7 +751,7 @@ export function loadDirectorNetwork(opts?: {
   const pageSize = Math.min(200, Math.max(1, opts?.pageSize ?? 50));
   const page = Math.max(1, opts?.page ?? 1);
   const q = (opts?.q || "").trim();
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     db.exec(ifNotExists(DIRECTOR_NETWORK_VIEW_SQL, "director_network"));
     const search = q
@@ -937,7 +944,7 @@ export function loadNewConnections(opts?: {
         : "edges";
   const gapAgg = aggregate === "gap";
   const minN10k = opts?.minN10k ?? 0;
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     ensureNetworkViews(db, opts?.refresh === true);
@@ -1426,7 +1433,7 @@ export function loadHoldingsCapitalGap(opts?: {
   };
   if (!holdings.length) return empty;
 
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     ensureNetworkViews(db, opts?.refresh === true);
@@ -1629,7 +1636,7 @@ export function loadHoldingsCapitalGapDetail(
   if (!t || !loadHoldings().some((h) => h.ticker.toUpperCase() === t)) {
     return { rows: [] };
   }
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     db.exec(ifNotExists(DIRECTOR_NETWORK_VIEW_SQL, "director_network"));
@@ -2027,7 +2034,7 @@ export function loadTinyCapitalGapDetail(
   }));
   directors.sort((a, b) => b.connected_companies - a.connected_companies || a.director.localeCompare(b.director));
   const tickers = [key, ...connections.map((e) => e.connected_ticker)];
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     const placeholders = tickers.map(() => "?").join(",");
@@ -2163,7 +2170,7 @@ export function loadDirectorHubs(opts?: {
   const minSpread = opts?.minSpread ?? 0;
   const cross = opts?.cross || "any";
   const sort: DirectorHubSort = opts?.sort || "boards";
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     ensureNetworkViews(db, opts?.refresh === true);
@@ -2320,7 +2327,7 @@ export function loadDirectorHubs(opts?: {
 export function loadDirectorHubSeats(personId: string): DirectorHubSeatRow[] {
   const id = (personId || "").trim();
   if (!id) return [];
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     return db
@@ -2479,7 +2486,7 @@ export function loadCrossGroupNetwork(opts?: {
   const groupKey = (opts?.groupKey || "").trim();
   const minMcap = opts?.minMcap ?? 0;
   const minXg = opts?.minXgCompanies ?? 0;
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     ensureNetworkViews(db, opts?.refresh === true);
@@ -2830,7 +2837,7 @@ export function loadCrossGroupPairEdges(opts: {
   const a = (opts.groupA || "").trim();
   const b = (opts.groupB || "").trim();
   if (!a || !b) return [];
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureCompanyGroupsTable(db);
     const cte = crossGroupPairsCte();
@@ -3068,7 +3075,7 @@ type ClusterGraph = {
 };
 
 function loadClusterGraph(refresh = false): ClusterGraph {
-  const db = openSqliteNamed("governance.db", { wal: true });
+  const db = sharedGovernanceDb();
   try {
     ensureNetworkViews(db, refresh);
     const seats = db

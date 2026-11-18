@@ -443,7 +443,8 @@ export function matchRegistryCompaniesToListings(
 
 function headerKey(text: string): string {
   const t = text.toLowerCase().replace(/[^a-z]+/g, " ").trim();
-  if (t === "din") return "din";
+  // "DIN", "DIN/PAN" (Tofler), "DIN No".
+  if (t === "din" || /^din\b/.test(t)) return "din";
   if (/\bdirector name\b|\bname\b/.test(t) && !/\bcompany\b/.test(t)) return "name";
   if (/\bdesignation\b|\brole\b|\btitle\b/.test(t)) return "designation";
   if (/\bappointment\b|\bas on\b|\bdate\b/.test(t)) return "as_of";
@@ -481,7 +482,11 @@ export function parseCurrentDirectorsTable(html: string): BoardSeat[] {
         .map((td) => $(td).text().replace(/\s+/g, " ").trim());
       if (cells.length <= Math.max(dinIdx, nameIdx)) return;
       const din = normDin(cells[dinIdx]);
-      const name = (cells[nameIdx] || "").replace(/\s+/g, " ").trim();
+      // Tofler appends a "Shareholder" badge to the name cell.
+      const name = (cells[nameIdx] || "")
+        .replace(/\s+/g, " ")
+        .replace(/\s*\b(shareholder|promoter)\b\s*$/i, "")
+        .trim();
       if (!din || din.length !== 8 || isPlaceholderDin(din) || !name) return;
       if (isPlaceholderDirectorName(name)) return;
       if (seen.has(din)) return;

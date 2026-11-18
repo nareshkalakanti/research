@@ -51,6 +51,14 @@ function namedListChipHue(index: number): number {
   return NAMED_LIST_HUES[index % NAMED_LIST_HUES.length]!;
 }
 
+/**
+ * Nano-tab basket lists the app fills itself (Listed Ventures, LV historical,
+ * Nanocap Champs, Fallen Angels, Hidden Gems). Holdings are bought out of these,
+ * so counting them would make nearly every holding "common" — left out.
+ * Keys match LV_CURRENT_KEY / LV_HISTORY_KEY / NANO_LIST_KEY / FA_LIST_KEY / HG_LIST_KEY.
+ */
+const BASKET_LIST_KEYS = new Set(["others", "lvhistorical", "nanocapchamps", "fallenangels", "hiddengems"]);
+
 function sharedAcrossLists(lists: string[][], min = 2): string[] {
   const counts = new Map<string, number>();
   for (const xs of lists) {
@@ -1179,7 +1187,7 @@ export function WatchlistPanel() {
     () =>
       sharedAcrossLists([
         holdTickers,
-        ...namedLists.map((l) => l.tickers),
+        ...namedLists.filter((l) => !BASKET_LIST_KEYS.has(l.key)).map((l) => l.tickers),
       ]),
     [holdTickers, namedLists],
   );
@@ -1400,7 +1408,7 @@ export function WatchlistPanel() {
           role="tab"
           aria-selected={list === "common"}
           className={`chip tag-chip tag-common${list === "common" ? " on" : ""}`}
-          title="Names on two or more of Holdings and named lists"
+          title="Names on two or more of Holdings and your own lists (Nano-tab baskets not counted)"
           onClick={selectCommon}
         >
           Common

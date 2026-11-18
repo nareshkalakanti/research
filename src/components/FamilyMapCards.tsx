@@ -320,6 +320,8 @@ export function FamilyAddProgress({
   );
 }
 
+const CARDS_PAGE = 20;
+
 export function FamilyMapCards({
   rows,
   onPerson,
@@ -332,7 +334,10 @@ export function FamilyMapCards({
   onRefresh,
   refreshing,
   onDeleteGroup,
+  unit = "groups",
 }: {
+  /** Summary noun: "groups", or "holdings" on the Holdings view. */
+  unit?: string;
   rows: FamilyRow[];
   onTicker?: (ticker: string, group: FamilyRow) => void;
   onPerson: (personId: string, name: string, group: FamilyRow) => void;
@@ -352,11 +357,19 @@ export function FamilyMapCards({
   onDeleteGroup?: (group: FamilyRow) => Promise<void> | void;
 }) {
   const allCompanies = rows.flatMap((f) => f.companies);
+  // Each card draws a network graph — render a page at a time, not all 150.
+  const [shown, setShown] = useState(CARDS_PAGE);
+  const rowsKey = rows.map((f) => f.group_id || f.family_name).join("|");
+  const [prevKey, setPrevKey] = useState(rowsKey);
+  if (prevKey !== rowsKey) {
+    setPrevKey(rowsKey);
+    setShown(CARDS_PAGE);
+  }
   return (
     <>
       {rows.length > 0 ? (
         <div className="gov-family-summary">
-          <strong>{rows.length.toLocaleString()}</strong> groups ·{" "}
+          <strong>{rows.length.toLocaleString()}</strong> {unit} ·{" "}
           <strong>
             {rows.reduce((n, f) => n + f.company_count, 0).toLocaleString()}
           </strong>{" "}
@@ -374,7 +387,7 @@ export function FamilyMapCards({
         </div>
       ) : null}
       <div className="gov-family-grid">
-        {rows.map((f) => {
+        {rows.slice(0, shown).map((f) => {
           const key = `${f.family_name}:${f.companies.map((c) => c.ticker).join(",")}`;
           return (
             <FamilyGroupCard
@@ -397,6 +410,19 @@ export function FamilyMapCards({
           );
         })}
       </div>
+      {shown < rows.length ? (
+        <div className="rot-more">
+          <span>
+            {shown} of {rows.length} shown
+          </span>
+          <button type="button" className="rot-chip" onClick={() => setShown((n) => n + CARDS_PAGE)}>
+            Show {Math.min(CARDS_PAGE, rows.length - shown)} more
+          </button>
+          <button type="button" className="rot-chip" onClick={() => setShown(rows.length)}>
+            Show all
+          </button>
+        </div>
+      ) : null}
       {rows.length === 0 ? (
         <div className="table-meta">No maps found.</div>
       ) : null}
@@ -561,7 +587,8 @@ function FamilyGroupCard({
                 </>
               ) : (
                 <>
-                  {f.company_count} companies · {peopleAll.length} linking people
+                  {f.company_count} {f.company_count === 1 ? "company" : "companies"} ·{" "}
+                  {peopleAll.length} linking {peopleAll.length === 1 ? "person" : "people"}
                   {outsideN ? ` · ${outsideN} outside boards` : ""}
                   {f.pattern ? ` · ${f.pattern}` : ""}
                 </>

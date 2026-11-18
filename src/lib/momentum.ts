@@ -66,6 +66,8 @@ export type MomStock = {
   sector: string | null;
   sub_sector: string | null;
   website: string | null;
+  /** Zaubacorp page (exact when the CIN is known, else a search) — set only when the board is not known. */
+  zauba_url: string | null;
 };
 
 export type MomPage = {
@@ -284,6 +286,7 @@ function buildRow(s: Scored, ctx: ReturnType<typeof loadCtx>, ratiosOf: (t: stri
     sector: null,
     sub_sector: null,
     website: null,
+    zauba_url: null,
   };
 }
 
@@ -385,6 +388,47 @@ function addLabels(rows: MomStock[]): void {
   } catch {
     /* website optional */
   }
+  addZaubaLinks(rows);
+}
+
+/** Zaubacorp company URL: NAME-WITH-DASHES-CIN (the slug Zaubacorp itself uses). */
+export function zaubaUrl(name: string, cin: string | null | undefined): string {
+  const slug = name
+    .toUpperCase()
+    .replace(/&/g, " AND ")
+    .replace(/\bLTD\b\.?/g, "LIMITED")
+    .replace(/\bPVT\b\.?/g, "PRIVATE")
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const c = String(cin || "").trim().toUpperCase();
+  if (/^[LU]\d{5}[A-Z]{2}\d{4}[A-Z]{3}\d{6}$/.test(c)) return `https://www.zaubacorp.com/${slug}-${c}`;
+  // No CIN on file: Zaubacorp blocks server lookups, so open a search that lands on its page.
+  return `https://www.google.com/search?q=${encodeURIComponent(`site:zaubacorp.com ${name}`)}`;
+}
+
+/** Board-not-known rows get a Zaubacorp link to check the directors by hand. */
+function addZaubaLinks(rows: MomStock[]): void {
+  const need = rows.filter((r) => r.checks.some((c) => c.id === "board" && c.ok == null));
+  if (!need.length) return;
+  const cins = new Map<string, string>();
+  try {
+    const db = openSqliteNamed("governance.db", { readonly: true, wal: true });
+    try {
+      const ph = need.map(() => "?").join(",");
+      for (const c of db
+        .prepare(
+          `SELECT UPPER(ticker) AS t, cin FROM companies
+           WHERE UPPER(ticker) IN (${ph}) AND TRIM(COALESCE(cin, '')) != ''`,
+        )
+        .all(...need.map((r) => r.ticker)) as Array<{ t: string; cin: string }>)
+        cins.set(c.t, c.cin);
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* CIN optional */
+  }
+  for (const r of need) r.zauba_url = zaubaUrl(r.name, cins.get(r.ticker));
 }
 
 /** What the ROCE / ROE fill has achieved: filled, now scoreable, and the real recent pace. */
@@ -567,6 +611,67 @@ export async function fillMomRatios(
         if (n % 50 === 0) pageCache = null;
         const r = await fetchScreenerTopRatios(t, { force: true });
         return r.roe != null && r.roce != null;
+      },
+      onProgress,
+      () => !!holder[STOP_KEY],
+    );
+  } finally {
+    holder[STOP_KEY] = false;
+    pageCache = null;
+  }
+}
+
+/** BSE-only main-board names (market "BSE") still missing quarters or ROCE / ROE. */
+export function bseFillQueue(): string[] {
+  const inactive = inactiveListingTickers();
+  const db = openSqliteNamed("company_about.db", { readonly: true, wal: true });
+  let tickers: string[];
+  try {
+    tickers = (
+      db.prepare(`SELECT UPPER(ticker) AS t FROM company_about WHERE UPPER(TRIM(market)) = 'BSE'`).all() as Array<{
+        t: string;
+      }>
+    ).map((r) => r.t);
+  } finally {
+    db.close();
+  }
+  const raw = loadRawQuarters();
+  const screener = loadScreenerRatiosMap();
+  return tickers.filter((t) => {
+    if (inactive.has(t)) return false;
+    const r = screener.get(t);
+    return (raw.get(t)?.qs.length ?? 0) < 5 || r?.roe == null || r?.roce == null;
+  });
+}
+
+/**
+ * New BSE-only listings: quarters, then ROCE / ROE (each from Screener, at
+ * the fast run's steady ~450 pages an hour; stops at the first block).
+ */
+export async function fillBseMain(onProgress?: Progress): Promise<FillResult> {
+  const until = screenerPausedUntil();
+  if (until) throw new Error(`Screener paused until ${until}`);
+  const holder = globalThis as StopHolder;
+  holder[STOP_KEY] = false;
+  let n = 0;
+  const pause = async () => {
+    if (n++ > 0) await new Promise((r) => setTimeout(r, FAST_EXTRA_MS * (0.6 + Math.random() * 0.8)));
+  };
+  try {
+    return await runFill(
+      "bse",
+      bseFillQueue(),
+      5000,
+      async (t) => {
+        const paused = screenerPausedUntil();
+        if (paused) throw new Error(`Screener paused until ${paused}`);
+        await pause();
+        const qs = await fetchScreenerQuarterlyFundamentals(t);
+        if (!qs.length) return false;
+        await pause();
+        const r = await fetchScreenerTopRatios(t);
+        if (n % 40 === 0) pageCache = null;
+        return qs.length >= 5 && r.roe != null && r.roce != null;
       },
       onProgress,
       () => !!holder[STOP_KEY],
