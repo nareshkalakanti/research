@@ -29834,3 +29834,8 @@ a.mom-ck-link:hover{text-decoration:underline}
 .dr-table td:nth-child(8) { max-width: 180px; }
 @media (max-width: 720px) { .dr-table th:nth-child(2), .dr-table td:nth-child(2) { min-width: 200px; } }
 .data-table.dr-table { table-layout: auto; min-width: 980px; }
+.dr-role-bar .o { background: #7a5af8; }
+.dr-tag.r-O { background: #f4f3ff; color: #5925dc; }
+.dr-kind.k-nominee { background: #f4f3ff; color: #5925dc; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .dr-tag.r-O, :root:not([data-theme="light"]) .dr-kind.k-nominee { background: rgba(122, 90, 248, 0.18); color: #bdb4fe; } }
+:root[data-theme="dark"] .dr-tag.r-O, :root[data-theme="dark"] .dr-kind.k-nominee { background: rgba(122, 90, 248, 0.18); color: #bdb4fe; }

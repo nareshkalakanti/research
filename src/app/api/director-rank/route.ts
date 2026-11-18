@@ -4,8 +4,8 @@ import { loadGovernanceFamilyMap, loadGovernanceMap } from "@/lib/governance-map
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** Seat role bucket: Independent, Executive (incl. MD / CFO), or other non-executive. */
-type Role = "I" | "E" | "N";
+/** Seat role bucket: Independent, Executive (incl. MD / CFO), Nominee (government / lender / investor), or other non-executive. */
+type Role = "I" | "E" | "O" | "N";
 
 export type RankSeat = {
   t: string;
@@ -32,6 +32,7 @@ export type RankDirector = {
 
 function roleOf(category: string | null | undefined, designation: string | null | undefined): Role {
   const s = `${category ?? ""} ${designation ?? ""}`.toLowerCase();
+  if (/nominee/.test(s)) return "O";
   if (/independent/.test(s) && !/non[- ]?independent/.test(s)) return "I";
   if (/executive|managing|whole[- ]?time|\bceo\b|\bcfo\b|\bmd\b|chief/.test(s) && !/non[- ]?executive/.test(s)) return "E";
   return "N";

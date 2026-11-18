@@ -14,7 +14,7 @@ import { napkinUrl } from "@/lib/links";
  * share 2+ of those boards.
  */
 
-type Kind = "independent" | "executive" | "bridge" | "nonexec";
+type Kind = "independent" | "executive" | "bridge" | "nominee" | "nonexec";
 type SortKey = "boards" | "mcap" | "groups" | "score" | "recent";
 type KindFilter = "all" | Kind;
 
@@ -22,6 +22,7 @@ type Ranked = RankDirector & {
   boards: number;
   ind: number;
   exec: number;
+  nom: number;
   non: number;
   mcap: number;
   top: RankSeat | null;
@@ -36,13 +37,15 @@ const KIND_LABEL: Record<Kind, string> = {
   independent: "Independent",
   executive: "Executive",
   bridge: "Bridge",
+  nominee: "Nominee",
   nonexec: "Non-executive",
 };
 
 const KIND_HINT: Record<Kind, string> = {
   independent: "Independent director on every board",
   executive: "Executive (MD / whole-time / CFO) on at least one board, all inside one group",
-  bridge: "Non-independent seats in 2+ different business groups — links houses",
+  bridge: "Non-independent, non-nominee seats in 2+ different business groups — links houses",
+  nominee: "Nominee director (government, LIC, bank or investor) on at least one board",
   nonexec: "Non-executive, non-independent (often promoter side) inside one group",
 };
 
@@ -58,6 +61,7 @@ function fmtCr(n: number | null | undefined): string {
 function enrich(r: RankDirector): Ranked {
   let ind = 0;
   let exec = 0;
+  let nom = 0;
   let non = 0;
   let mcap = 0;
   let top: RankSeat | null = null;
@@ -68,22 +72,25 @@ function enrich(r: RankDirector): Ranked {
   for (const s of r.seats) {
     if (s.r === "I") ind += 1;
     else if (s.r === "E") exec += 1;
+    else if (s.r === "O") nom += 1;
     else non += 1;
     if (s.mc) mcap += s.mc;
     if (s.mc && (!top || s.mc > (top.mc ?? 0))) top = s;
     const g = s.g || `solo:${s.t}`;
     groups.add(g);
-    if (s.r !== "I") nonIndGroups.add(g);
+    // Nominees sit for the shareholder that sent them, not for a house.
+    if (s.r === "E" || s.r === "N") nonIndGroups.add(g);
     if (s.sec) sec.set(s.sec, (sec.get(s.sec) ?? 0) + 1);
     if (s.sme) sme += 1;
   }
   const kind: Kind =
-    nonIndGroups.size >= 2 ? "bridge" : exec ? "executive" : non ? "nonexec" : "independent";
+    nonIndGroups.size >= 2 ? "bridge" : nom ? "nominee" : exec ? "executive" : non ? "nonexec" : "independent";
   return {
     ...r,
     boards: r.seats.length,
     ind,
     exec,
+    nom,
     non,
     mcap,
     top,
@@ -100,15 +107,16 @@ function RoleBar({ r }: { r: Ranked }) {
   return (
     <span
       className="dr-role"
-      title={`${r.ind} independent · ${r.exec} executive · ${r.non} other non-executive`}
+      title={`${r.ind} independent · ${r.exec} executive · ${r.nom} nominee · ${r.non} other non-executive`}
     >
       <span className="dr-role-bar">
         <span className="i" style={{ width: pct(r.ind) }} />
         <span className="e" style={{ width: pct(r.exec) }} />
+        <span className="o" style={{ width: pct(r.nom) }} />
         <span className="n" style={{ width: pct(r.non) }} />
       </span>
       <span className="dr-role-n">
-        {r.ind}I · {r.exec}E · {r.non}N
+        {r.ind}I · {r.exec}E{r.nom ? ` · ${r.nom}Nom` : ""} · {r.non}N
       </span>
     </span>
   );
@@ -170,7 +178,7 @@ function DirectorDetail({
                   <button type="button" className="link-btn mono" onClick={() => onTicker(s.t)}>
                     {s.t}
                   </button>{" "}
-                  <span className={`dr-tag r-${s.r}`}>{s.r === "I" ? "Independent" : s.r === "E" ? "Executive" : "Non-exec"}</span>{" "}
+                  <span className={`dr-tag r-${s.r}`}>{s.r === "I" ? "Independent" : s.r === "E" ? "Executive" : s.r === "O" ? "Nominee" : "Non-exec"}</span>{" "}
                   <span className="dr-muted">
                     {fmtCr(s.mc)}
                     {s.m !== "NSE" ? ` · ${s.m}` : ""}
@@ -489,8 +497,9 @@ export function DirectorRank({
         {more}
       </div>
       <p className="nano-note">
-        Roles: <strong>I</strong> independent · <strong>E</strong> executive (MD, whole-time, CFO) · <strong>N</strong> other
-        non-executive. <strong>Bridge</strong> = non-independent seats in two or more business groups. Click a name for the
+        Roles: <strong>I</strong> independent · <strong>E</strong> executive (MD, whole-time, CFO) · <strong>Nom</strong> nominee
+        (government, LIC, bank or investor) · <strong>N</strong> other non-executive. <strong>Bridge</strong> = executive or
+        non-executive (not nominee) seats in two or more business groups. Click a name for the
         graph of their boards (large nodes) and the people who share two or more of them.
       </p>
     </div>
