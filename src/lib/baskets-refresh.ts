@@ -8,6 +8,7 @@ import {
   type Progress,
 } from "./nanocap-champs";
 import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
+import { hasScreenerLogin, pullAllPeople } from "./screener-people";
 import { openSqliteNamed } from "./sqlite-utils";
 
 /**
@@ -92,6 +93,14 @@ async function runRefresh(onProgress?: Progress): Promise<FillResult> {
       filled += r.filled;
     } catch {
       /* paused mid-run — next run continues */
+    }
+  }
+  // 3) Fund watchlists from Screener people pages — once a day, only with a login.
+  if (!paused && hasScreenerLogin()) {
+    try {
+      await pullAllPeople({ onlyStale: true });
+    } catch {
+      /* next run retries */
     }
   }
   withMeta((db) =>

@@ -836,3 +836,32 @@ export async function fetchScreenerAnnualBs(
     return emptyBs();
   }
 }
+
+/**
+ * Shortlist fill: one Screener page → both the annual P&L and the balance
+ * sheet caches (consolidated first; standalone only when it has fewer years).
+ * Throws on a Screener block/pause so a batch can stop.
+ */
+export async function fetchScreenerPlAndBs(
+  ticker: string,
+): Promise<{ pl: boolean; bs: boolean }> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return { pl: false, bs: false };
+  const html = await fetchScreenerCompanyHtml(key, { consolidated: true });
+  let pl = parseScreenerAnnualPlHtml(html);
+  let bs: ScreenerAnnualBs = parseScreenerAnnualBsHtml(html);
+  if (!plUsable(pl) || plYearCount(pl) < 5) {
+    try {
+      const stand = await fetchScreenerCompanyHtml(key, { consolidated: false });
+      pl = pickRicherScreenerAnnualPl(pl, parseScreenerAnnualPlHtml(stand));
+      bs = pickRicherBs(bs, parseScreenerAnnualBsHtml(stand));
+    } catch (e) {
+      if (/blocked|paused|429|403|captcha/i.test(String(e))) throw e;
+    }
+  }
+  const okPl = plUsable(pl);
+  const okBs = bsUsable(bs);
+  if (okPl) writePlCache(key, pl);
+  if (okBs) writeBsCache(key, bs);
+  return { pl: okPl, bs: okBs };
+}

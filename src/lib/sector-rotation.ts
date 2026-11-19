@@ -248,10 +248,11 @@ export function createRotationSector(label: string): RotationSector {
       return getRotationSector(have.id)!;
     }
     const id = newId();
+    const createdAt = new Date().toISOString();
     try {
       db.prepare(
         `INSERT INTO sectors (id, label, created_at) VALUES (?, ?, ?)`,
-      ).run(id, name, new Date().toISOString());
+      ).run(id, name, createdAt);
     } catch {
       const again = db
         .prepare(`SELECT id FROM sectors WHERE label = ? COLLATE NOCASE`)
@@ -259,7 +260,7 @@ export function createRotationSector(label: string): RotationSector {
       if (again?.id) return getRotationSector(again.id)!;
       throw new Error("Could not create sector");
     }
-    return { id, label: name, starred: false, members: [] };
+    return { id, label: name, starred: false, created_at: createdAt, members: [] };
   } finally {
     db.close();
   }
@@ -402,4 +403,85 @@ export function upsertRotationSectorByLabel(
   const id = have?.id ?? createRotationSector(name).id;
   replaceRotationMembers(id, members);
   return getRotationSector(id)!;
+}
+
+export type RotationAssign = { ticker: string; name: string; market: string; industry: string };
+export type RotationSyncResult = {
+  placed: number;
+  moved: number;
+  created: string[];
+  removed_empty: string[];
+  sectors: number;
+};
+
+/**
+ * Put each stock in the basket named after its StockScans industry (creating
+ * baskets as needed). A stock sits in one basket only, so it leaves its old one.
+ * full = true also drops baskets left empty afterwards.
+ */
+export function syncRotationFromStockscans(rows: RotationAssign[], opts?: { full?: boolean }): RotationSyncResult {
+  const db = openWrite();
+  try {
+    const sectors = db.prepare(`SELECT id, label FROM sectors`).all() as Array<{ id: string; label: string }>;
+    const byKey = new Map<string, string>();
+    for (const s of sectors) {
+      byKey.set(s.label.toLowerCase(), s.id);
+      if (!byKey.has(labelKey(s.label))) byKey.set(labelKey(s.label), s.id);
+    }
+    const current = new Map<string, string>();
+    for (const m of db.prepare(`SELECT UPPER(ticker) AS t, sector_id FROM sector_members`).all() as Array<{
+      t: string;
+      sector_id: string;
+    }>)
+      current.set(m.t, m.sector_id);
+    const created: string[] = [];
+    let placed = 0;
+    let moved = 0;
+    let seq = 0;
+    const now = new Date().toISOString();
+    const insSector = db.prepare(`INSERT INTO sectors (id, label, created_at) VALUES (?, ?, ?)`);
+    const delOther = db.prepare(`DELETE FROM sector_members WHERE UPPER(ticker) = ? AND sector_id != ?`);
+    const upsert = db.prepare(
+      `INSERT INTO sector_members (sector_id, ticker, name, market, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(sector_id, ticker) DO UPDATE SET name = excluded.name, market = excluded.market, updated_at = excluded.updated_at`,
+    );
+    db.transaction(() => {
+      for (const r of rows) {
+        const label = collapseSectorLabel(r.industry);
+        if (label.length < 2) continue;
+        const t = r.ticker.trim().toUpperCase();
+        let id = byKey.get(label.toLowerCase()) ?? byKey.get(labelKey(label));
+        if (!id) {
+          id = `sec-${Date.now().toString(36)}-${(seq++).toString(36)}`;
+          insSector.run(id, label, now);
+          byKey.set(label.toLowerCase(), id);
+          byKey.set(labelKey(label), id);
+          created.push(label);
+        }
+        const was = current.get(t);
+        if (was === id) continue;
+        delOther.run(t, id);
+        upsert.run(id, t, (r.name || t).trim() || t, (r.market || "NSE").trim() || "NSE", now);
+        if (was) moved++;
+        else placed++;
+        current.set(t, id);
+      }
+    })();
+    const removed: string[] = [];
+    if (opts?.full) {
+      for (const s of db
+        .prepare(
+          `SELECT id, label FROM sectors WHERE COALESCE(starred, 0) = 0
+           AND id NOT IN (SELECT DISTINCT sector_id FROM sector_members)`,
+        )
+        .all() as Array<{ id: string; label: string }>) {
+        db.prepare(`DELETE FROM sectors WHERE id = ?`).run(s.id);
+        removed.push(s.label);
+      }
+    }
+    const n = (db.prepare(`SELECT COUNT(*) AS n FROM sectors`).get() as { n: number }).n;
+    return { placed, moved, created, removed_empty: removed, sectors: n };
+  } finally {
+    db.close();
+  }
 }

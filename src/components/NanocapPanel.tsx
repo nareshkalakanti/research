@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FilterBar, PageHead, Pick, Seg, Toggle } from "@/components/FilterBar";
 import { Loading } from "@/components/Loading";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
 import type { NanoFillJob } from "@/lib/nanocap-champs";
@@ -159,7 +160,7 @@ function inBand(mcap: number | null | undefined, band: CapBand): boolean {
   return mcap != null && mcap >= b[2] && mcap < b[3];
 }
 
-function MomList({ strong, near, rules }: { strong: MomStock[]; near: MomStock[]; rules: MomPage["rules"] }) {
+function MomList({ strong, near }: { strong: MomStock[]; near: MomStock[] }) {
   const [show, setShow] = useState<"all" | "sb" | "buy">("all");
   const [cleanOnly, setCleanOnly] = useState(false);
   const [mkt, setMkt] = useState<"all" | "nse" | "bse" | "bsesme">("all");
@@ -176,65 +177,41 @@ function MomList({ strong, near, rules }: { strong: MomStock[]; near: MomStock[]
       (show === "all" || (show === "sb" ? r.passed >= 7 : r.passed === 6)) &&
       (!cleanOnly || r.checks.every((c) => c.ok !== false)),
   );
-  const chip = (id: typeof show, label: string, n: number) => (
-    <button type="button" className={`chip${show === id ? " on" : ""}`} onClick={() => setShow(id)}>
-      {label} <span className="nano-count">{n}</span>
-    </button>
-  );
   return (
     <section className="nano-section">
-      <div className="ss-filters">
-        <div className="ss-chips" role="group" aria-label="Rating">
-          {chip("all", "All", inCap.length)}
-          {chip("sb", "Strong Buy", inCap.filter((r) => r.passed >= 7).length)}
-          {chip("buy", "Buy", inCap.filter((r) => r.passed === 6).length)}
-        </div>
-        <div className="ss-chips" role="group" aria-label="Market cap">
-          {CAP_BANDS.map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`chip${cap === id ? " on" : ""}`}
-              onClick={() => setCap(id)}
-            >
-              {label} <span className="nano-count">{inMkt.filter((r) => inBand(r.mcap_cr, id)).length}</span>
-            </button>
-          ))}
-        </div>
-        <div className="ss-chips" role="group" aria-label="Exchange">
-          {(
+      <FilterBar>
+        <Seg
+          label="Rating"
+          value={show}
+          onChange={setShow}
+          options={[
+            { id: "all", label: "All", count: inCap.length },
+            { id: "sb", label: "Strong Buy", count: inCap.filter((r) => r.passed >= 7).length },
+            { id: "buy", label: "Buy", count: inCap.filter((r) => r.passed === 6).length },
+          ]}
+        />
+        <Pick
+          label="Size"
+          value={cap}
+          onChange={setCap}
+          options={CAP_BANDS.map(([id, label]) => ({ id, label, count: inMkt.filter((r) => inBand(r.mcap_cr, id)).length }))}
+        />
+        <Pick
+          label="Exchange"
+          value={mkt}
+          onChange={setMkt}
+          options={(
             [
-              ["all", "All exchanges"],
+              ["all", "All"],
               ["nse", "NSE + NSE SME"],
               ["bse", "BSE"],
               ["bsesme", "BSE SME"],
             ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={`chip${mkt === id ? " on" : ""}`}
-              onClick={() => setMkt(id)}
-              title={id === "bse" ? "BSE main board — not listed on NSE" : undefined}
-            >
-              {label}{" "}
-              <span className="nano-count">{id === "all" ? all.length : all.filter((r) => mktOf(r.market) === id).length}</span>
-            </button>
-          ))}
-        </div>
-        <label className="mom-clean">
-          <input type="checkbox" checked={cleanOnly} onChange={(e) => setCleanOnly(e.target.checked)} /> Hide stocks
-          with a failed check
-        </label>
-      </div>
+          ).map(([id, label]) => ({ id, label, count: id === "all" ? all.length : all.filter((r) => mktOf(r.market) === id).length }))}
+        />
+        <Toggle label="Hide failed checks" checked={cleanOnly} onChange={setCleanOnly} title="Hide stocks with any ✗ check" />
+      </FilterBar>
       {rows.length ? <MomTable rows={rows} /> : <p className="miq-empty-hint">None right now.</p>}
-      <p className="nano-note">
-        Checks (hover a chip for the reason): <strong>Sustained</strong> — 5+ of 7 the quarter before too ·{" "}
-        <strong>Organic</strong> — no sales jump over {rules.bigJumpQoq}% in a quarter or {rules.bigJumpYoy}% on the
-        year, share count within ±{rules.maxShareChangePct}% · <strong>Clean profit</strong> — other income under{" "}
-        {Math.round(rules.maxOtherIncomeShare * 100)}% of profit · <strong>Value</strong> — P/E ÷ yearly profit growth ≤{" "}
-        {rules.maxPeg} · <strong>Board</strong> — a third or more independent. “?” means the data is missing.
-      </p>
     </section>
   );
 }
@@ -520,18 +497,30 @@ export function NanocapPanel() {
   return (
     <div className="panel nano-panel">
       {autoNote}
-      <div className="missing-head">
-        <div>
-          <h2>Quality Growth</h2>
-          <p className="missing-sub">
-            7-Rule <strong>Strong Buy</strong> (7/7) or <strong>Buy</strong> (6/7) — ROCE and ROE over 15%, sales and
-            profit up on last quarter and last year, margin up — <em>and</em> a Strong quarterly growth score (
-            {mr.minQuarterScore}+/10).
-          </p>
-        </div>
-      </div>
+      <PageHead
+        title="Quality Growth"
+        sub="High-return companies (ROCE and ROE over 15%) with fast, clean earnings growth."
+      >
+        <p>
+          7-Rule <strong>Strong Buy</strong> (7/7) or <strong>Buy</strong> (6/7) — ROCE and ROE over 15%, sales and
+          profit up on last quarter and last year, margin up — <em>and</em> a Strong quarterly growth score (
+          {mr.minQuarterScore}+/10).
+        </p>
+        <p>
+          Checks (hover a chip for the reason): <strong>Sustained</strong> — 5+ of 7 the quarter before too ·{" "}
+          <strong>Organic</strong> — no sales jump over {mr.bigJumpQoq}% in a quarter or {mr.bigJumpYoy}% on the year,
+          share count within ±{mr.maxShareChangePct}% · <strong>Clean profit</strong> — other income under{" "}
+          {Math.round(mr.maxOtherIncomeShare * 100)}% of profit · <strong>Value</strong> — P/E ÷ yearly profit growth ≤{" "}
+          {mr.maxPeg} · <strong>Board</strong> — a third or more independent. “?” means the data is missing.
+        </p>
+        <p>
+          Screener-safe: one page every 2.5–5 s, at most {mr.fetchesPerHour} pages an hour across this basket and the
+          background refresh ({cov.used_last_hour} used); names already tried skip for a week; everything pauses if
+          Screener pushes back.
+        </p>
+      </PageHead>
 
-      <MomList strong={data.strong} near={data.near} rules={mr} />
+      <MomList strong={data.strong} near={data.near} />
 
       <div className="nano-fill">
         <span className="status-line">
@@ -562,14 +551,12 @@ export function NanocapPanel() {
         onFast={() => void fill("momratio", false, { fast: true })}
         onStop={() => void fill("momratio", false, { stop: true })}
       />
-      <p className="nano-note">
-        Screener-safe: one page every 2.5–5 s, at most {mr.fetchesPerHour} pages an hour across this basket and the
-        background refresh ({cov.used_last_hour} used), names already tried skip for a week, and everything pauses automatically if Screener
-        pushes back.
-        {cov.paused_until
-          ? ` Screener is paused until ${new Date(cov.paused_until).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}.`
-          : ""}
-      </p>
+      {cov.paused_until ? (
+        <p className="table-meta">
+          Screener is paused until{" "}
+          {new Date(cov.paused_until).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}.
+        </p>
+      ) : null}
       {fillNote("mom")}
       {fillNote("bse")}
     </div>

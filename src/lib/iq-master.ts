@@ -3,6 +3,7 @@
  */
 
 import { openSqliteNamed } from "@/lib/sqlite-utils";
+import { masterLabels } from "./stock-master";
 import { companyBoardScoresForTickers } from "@/lib/governance-map";
 import { getMetrics } from "@/lib/metrics";
 import { listLatestMarketIqByTickers } from "@/lib/marketiq-screen";
@@ -156,6 +157,12 @@ function loadTaxonomy(
   const out = new Map<string, { sector: string | null; sub_sector: string | null }>();
   for (const t of tickers) out.set(t, empty);
   if (!tickers.length) return out;
+  // Stock master first.
+  const master = masterLabels();
+  for (const t of tickers) {
+    const m = master.get(t.toUpperCase());
+    if (m?.sector || m?.industry) out.set(t, { sector: m.sector ?? m.industry, sub_sector: m.industry });
+  }
   try {
     const db = openSqliteNamed("classifications.db", {
       readonly: true,

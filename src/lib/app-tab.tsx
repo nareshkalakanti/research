@@ -23,8 +23,7 @@ export type AppTab =
   | "napkin"
   | "concall-drift"
   | "rotation"
-  | "quality"
-  | "special"
+  | "scanner"
   | "signals";
 
 /** Top nav tabs only — other panels stay wired but are not listed here. */
@@ -35,8 +34,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "scan", label: "Scan", short: "Scan" },
   { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
-  { id: "quality", label: "Quality Growth", short: "Quality" },
-  { id: "special", label: "Special", short: "Special" },
+  { id: "scanner", label: "Scanner", short: "Scanner" },
   { id: "research", label: "Research", short: "Research" },
 ];
 
@@ -62,7 +60,16 @@ function isPageTab(id: AppTab): boolean {
 
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
-  if (raw === "nano" || raw === "momentum") return "quality";
+  // Removed tabs (Quality Growth, Shortlist, Smart Money, Special) open the Scanner.
+  if (
+    raw === "nano" ||
+    raw === "momentum" ||
+    raw === "quality" ||
+    raw === "shortlist" ||
+    raw === "smart-money" ||
+    raw === "special"
+  )
+    return "scanner";
   if (raw === "pead") return "napkin";
   if (
     raw === "strategy" ||

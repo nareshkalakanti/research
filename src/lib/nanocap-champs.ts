@@ -4,6 +4,7 @@ import { loadGovernanceFamilyMap } from "./governance-map";
 import { inactiveListingTickers } from "./listing-sync";
 import { fetchScreenerTopRatios, loadScreenerRatiosMap } from "./screener-ratios";
 import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
+import { loadStockMaster } from "./stock-master";
 import { openSqliteNamed } from "./sqlite-utils";
 
 /**
@@ -303,6 +304,9 @@ function loadWebsites(): Map<string, string> {
 /** Ticker → sector › sub-sector for every classified company. */
 function loadLabels(): Map<string, { sector: string; sub_sector: string | null }> {
   const out = new Map<string, { sector: string; sub_sector: string | null }>();
+  // Primary: the stock master (StockScans industry, then our own classification).
+  for (const [t, m] of loadStockMaster())
+    if (m.sector || m.industry) out.set(t, { sector: m.sector ?? m.industry!, sub_sector: m.industry });
   try {
     const db = openSqliteNamed("classifications.db", { readonly: true, wal: true });
     try {
@@ -317,6 +321,23 @@ function loadLabels(): Map<string, { sector: string; sub_sector: string | null }
     }
   } catch {
     /* labels optional */
+  }
+  // Not classified yet: fall back to the sector on the company record.
+  try {
+    const db = openSqliteNamed("company_about.db", { readonly: true, wal: true });
+    try {
+      for (const r of db
+        .prepare(
+          `SELECT UPPER(ticker) AS t, company_sector AS sector, company_industry AS sub_sector FROM company_about
+           WHERE TRIM(COALESCE(company_sector, '')) != ''`,
+        )
+        .all() as Array<{ t: string; sector: string; sub_sector: string | null }>)
+        if (!out.has(r.t)) out.set(r.t, { sector: r.sector, sub_sector: r.sub_sector || null });
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* optional */
   }
   return out;
 }
@@ -530,7 +551,7 @@ export function buildNanoPage(): NanoPage {
 
 /** Fetch quarterly results for nanocaps that have none yet (Screener, throttled). */
 export type Progress = (done: number, total: number, filled: number) => void;
-export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio" | "bse" | "turn";
+export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio" | "bse" | "turn" | "shortlist" | "smartmoney" | "smmodel" | "stockscans";
 export type FillResult = { tried: number; filled: number; left: number; not_found: number };
 
 const RETRY_AFTER_DAYS = 7;

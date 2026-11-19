@@ -1,4 +1,5 @@
-import { fetchDailyBars, fetchNifty500DailyBars } from "./ohlc";
+import { fetchNifty500DailyBars } from "./ohlc";
+import { onRotationBarsRefreshed, rotationCloses } from "./rotation-bars";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
 import { loadMetricsMap, refreshPagePrices } from "./metrics";
 import { tradingviewUrl } from "./links";
@@ -26,6 +27,7 @@ import {
   fetchScreenerAnnual,
   fetchScreenerAnnualBs,
 } from "./screener-annual";
+import { screenerPausedUntil } from "./screener-fetch";
 import { fetchScreenerTopRatios } from "./screener-ratios";
 import { fetchHtIvForTicker } from "./strategy/ht-fetch";
 import { rankIntrinsicValue } from "./strategy/ht-math";
@@ -168,9 +170,9 @@ async function fetchHtIvFromScreener(opts: {
 async function ensureHtIvForMembers(
   members: SectorMember[],
 ): Promise<Map<string, HtCachedRow>> {
-  let cache = loadHtIvMap();
+  const cache = loadHtIvMap();
   const need = members.filter((m) => !htRankable(cache.get(m.ticker.toUpperCase())));
-  if (!need.length) return cache;
+  if (!need.length || screenerPausedUntil()) return cache;
 
   const batch = need.slice(0, 24);
   const results: HtCachedRow[] = await runConcurrent(batch, 2, async (m) => {
@@ -215,18 +217,27 @@ export function countMissingHtIv(members: SectorMember[]): number {
  * User-triggered fill for Sales Growth / ROCE / P/B gaps.
  * Prefer Screener (Yahoo often 429s); process every incomplete member.
  */
+const HT_PER_CLICK = 40;
+
 export async function refreshMissingHtIvForMembers(
   members: SectorMember[],
 ): Promise<{ tried: number; filled: number; still_missing: number }> {
   const cache = loadHtIvMap();
-  const need = members.filter(
+  const missing = members.filter(
     (m) => !htRankable(cache.get(m.ticker.toUpperCase())),
   );
-  if (!need.length) {
+  if (!missing.length) {
     return { tried: 0, filled: 0, still_missing: 0 };
   }
+  // Screener blocks bursts: at most HT_PER_CLICK stocks per click (3 pages
+  // each), nothing while Screener has us paused. Click again for the next lot.
+  if (screenerPausedUntil()) {
+    return { tried: 0, filled: 0, still_missing: missing.length };
+  }
+  const need = missing.slice(0, HT_PER_CLICK);
 
-  const results: HtCachedRow[] = await runConcurrent(need, 2, async (m) => {
+  const got = await runConcurrent(need, 2, async (m): Promise<HtCachedRow | null> => {
+    if (screenerPausedUntil()) return null;
     const prev = cache.get(m.ticker.toUpperCase());
     // Screener first — force refresh so a prior empty scrape does not stick.
     let row = await fetchHtIvFromScreener({
@@ -248,6 +259,7 @@ export async function refreshMissingHtIvForMembers(
     return row;
   });
 
+  const results = got.filter((r): r is HtCachedRow => !!r);
   const toSave = results.filter((r) => {
     if (htRankable(r)) return true;
     if (isHtRateLimited(r)) return false;
@@ -260,7 +272,7 @@ export async function refreshMissingHtIvForMembers(
   const filled = need.filter((m) =>
     htRankable(next.get(m.ticker.toUpperCase())),
   ).length;
-  const still_missing = need.length - filled;
+  const still_missing = missing.length - filled;
   return { tried: need.length, filled, still_missing };
 }
 
@@ -456,7 +468,7 @@ function dayStats(
 async function memberBars(members: SectorMember[], years: number) {
   const bars = await runConcurrent(members, 4, async (m) => {
     try {
-      return await fetchDailyBars(m.ticker, m.market, years);
+      return await rotationCloses(m.ticker, m.market, years);
     } catch {
       return [];
     }
@@ -712,6 +724,8 @@ async function rankSnapshot(weight: RotationWeight): Promise<RankSnapshot> {
 export function invalidateRotationRank(): void {
   rankCache.clear();
 }
+// Stale prices refresh in the background; re-rank once they are all in.
+onRotationBarsRefreshed(invalidateRotationRank);
 
 /**
  * Window returns for every sector (no sparklines), so Top/Bottom 20, Above
@@ -775,15 +789,20 @@ export async function buildRotationDetail(
   card: RotationSectorCard;
   members: RotationMemberRow[];
 }> {
-  // Fill missing mcap / price / today % before painting the member table
-  await refreshRotationMemberMetrics(sector.members);
+  // Prices and HT legs refresh in the background: wait at most 3 s, then paint
+  // with what is stored (the rest lands for the next open). Waiting on them
+  // made big sectors take minutes.
+  const capped = <T,>(p: Promise<T>) =>
+    Promise.race([p.catch(() => undefined), new Promise<undefined>((r) => setTimeout(r, 3000))]);
   const years = rotationFetchYears();
-  const metrics = loadMetricsMap();
-  const [nifty, packed, htCache] = await Promise.all([
+  const [, nifty, packed] = await Promise.all([
+    capped(refreshRotationMemberMetrics(sector.members)),
     niftyBarsOrThrow(years),
     memberBars(sector.members, years),
-    ensureHtIvForMembers(sector.members),
+    capped(ensureHtIvForMembers(sector.members)),
   ]);
+  const metrics = loadMetricsMap();
+  const htCache = loadHtIvMap();
   // When Nifty Yahoo flakes, still window Change % / Trend off member tips.
   const last =
     nifty[nifty.length - 1]?.date ||

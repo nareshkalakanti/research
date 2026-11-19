@@ -57,13 +57,8 @@ const WatchlistPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
-const SpecialSituationsPanel = dynamic(
-  () => import("@/components/SpecialSituationsPanel").then((m) => m.SpecialSituationsPanel),
-  { loading: PanelFallback, ssr: false },
-);
-
-const NanocapPanel = dynamic(
-  () => import("@/components/NanocapPanel").then((m) => m.NanocapPanel),
+const ScannerPanel = dynamic(
+  () => import("@/components/ScannerPanel").then((m) => m.ScannerPanel),
   { loading: PanelFallback, ssr: false },
 );
 
@@ -113,8 +108,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   boardroomiq: BoardRoomIqPanel,
   research: ResearchPanel,
   watchlist: WatchlistPanel,
-  quality: NanocapPanel,
-  special: SpecialSituationsPanel,
+  scanner: ScannerPanel,
 };
 
 const KeptPanel = memo(function KeptPanel({
@@ -149,7 +143,7 @@ function AppShellPanels() {
     });
   }, [tab]);
 
-  // Keep the Nano-tab baskets fresh while the app is open: ping on load and
+  // Keep Scanner data (results, ROCE/ROE) and Screener fund lists fresh while the app is open: ping on load and
   // every 30 min; the server only runs what is due and skips if busy.
   useEffect(() => {
     const ping = () => {

@@ -3,6 +3,7 @@
  * Schema + system prompt: prompts/concall-research-extract.system.txt
  */
 import { createHash } from "crypto";
+import { masterLabel } from "./stock-master";
 import fs from "fs";
 import path from "path";
 import { downloadBuybackPdf } from "./buyback-screen";
@@ -2307,8 +2308,10 @@ function lookupCompanySector(ticker: string | null): {
 } {
   if (!ticker) return { sector: null, industry: null };
   const sym = ticker.toUpperCase().trim();
+  const ml = masterLabel(sym);
+  if (ml?.sector || ml?.industry) return { sector: ml.sector ?? ml.industry, industry: ml.industry };
 
-  // Prefer classifications.db (same taxonomy as Company table / Scan)
+  // Then classifications.db (same taxonomy as Company table / Scan)
   try {
     const db = openSqliteNamed("classifications.db", { readonly: true });
     const row = db

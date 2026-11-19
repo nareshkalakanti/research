@@ -71,7 +71,7 @@ export function screenerBackoffMs(strikes: number): number {
   return Math.min(BACKOFF_BASE_MS * 2 ** (Math.max(1, strikes) - 1), BACKOFF_MAX_MS);
 }
 
-function recordScreenerBlock(): string {
+export function recordScreenerBlock(): string {
   const db = openBackoff();
   try {
     const row = db

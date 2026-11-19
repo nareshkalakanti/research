@@ -380,11 +380,6 @@ export function FamilyGraph({
   const lit = (id: string) =>
     !hover || id === hover || Boolean(neighbours.get(hover)?.has(id));
 
-  // Small maps (a single holding) have room to name every director.
-  const namePeople = useMemo(
-    () => nodes.filter((n) => n.kind === "person").length <= 10,
-    [nodes],
-  );
   const newJoinLinked = useMemo(() => {
     const ids = new Set<string>();
     for (const n of nodes) {
@@ -403,6 +398,7 @@ export function FamilyGraph({
     if (!legendOn.size) return true;
     if (legendOn.has("new-join")) return newJoinLinked.has(node.id);
     if (node.kind === "person") return legendOn.has("person");
+    if (node.kind === "company" && legendOn.has("group")) return true;
     if (node.kind === "outside") {
       if (legendOn.has("outside")) return true;
       return Boolean(node.cap && legendOn.has(node.cap));
@@ -503,7 +499,8 @@ export function FamilyGraph({
               <title>{node.title}</title>
               <circle r={node.r} />
               {node.kind === "person" ? (
-                hover === node.id || namePeople ? (
+                // People are named on hover only — keeps the map readable.
+                hover === node.id ? (
                   <text y={node.r + 11} className="fam-person-tip">
                     {node.title.split(" · ")[0]}
                   </text>
@@ -606,6 +603,21 @@ export function FamilyGraph({
             onClick={() => toggleLegend("new-join")}
           >
             New join
+          </button>
+        ) : null}
+        {companies.length ? (
+          <button
+            type="button"
+            className={`group${legendOn.has("group") ? " is-on" : ""}`}
+            aria-pressed={legendOn.has("group")}
+            title={
+              legendOn.has("group")
+                ? "Show all nodes again (hide group)"
+                : "Show only this group's own companies"
+            }
+            onClick={() => toggleLegend("group")}
+          >
+            Group
           </button>
         ) : null}
         {outside.length ? (

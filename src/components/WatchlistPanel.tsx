@@ -1,5 +1,6 @@
 "use client";
 
+import { FundPagesBar } from "@/components/FundPagesBar";
 import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -1364,6 +1365,7 @@ export function WatchlistPanel() {
                   : `${visible.length} of ${activeTickers.length}`}
         </span>
       </header>
+      <FundPagesBar />
 
       <div className="wl-list-chips" role="tablist" aria-label="List">
         <button

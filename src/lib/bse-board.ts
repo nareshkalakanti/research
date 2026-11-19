@@ -91,7 +91,10 @@ export function pendingBseBoardJobs(opts?: { tickers?: string[] }): BseBoardJob[
   const jobs: BseBoardJob[] = [];
   for (const c of listListingCompaniesLite()) {
     const t = c.ticker.toUpperCase();
-    if ((c.market || "").toUpperCase() !== "BSE" || done.has(t) || failed.has(t)) continue;
+    const mkt = (c.market || "").toUpperCase();
+    // Main board by default; BSE SME too when the caller names the ticker.
+    const bseOk = mkt === "BSE" || (only != null && mkt.startsWith("BSE"));
+    if (!bseOk || done.has(t) || failed.has(t)) continue;
     if (only && !only.has(t)) continue;
     const code = codes.get(t);
     if (code) jobs.push({ ticker: t, name: c.name || t, scrip_code: code });

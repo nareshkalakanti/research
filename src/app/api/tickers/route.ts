@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { masterLabel } from "@/lib/stock-master";
 import { bootstrapCompanyTicker } from "@/lib/company-ticker-bootstrap";
 import { invalidateCompanyCache, loadAllCompanies } from "@/lib/db";
 import {
@@ -179,8 +180,9 @@ function localHits(q: string, limit: number): TickerHit[] {
         const ticker = String(r.ticker || "").toUpperCase();
         if (!ticker || have.has(ticker)) continue;
         if (!listingQueryMatches(q, ticker, ticker, { fuzzy: false })) continue;
+        const ml = masterLabel(ticker);
         const sector =
-          String(r.industry || r.sub_sector || r.sector || "").trim() || null;
+          String(ml?.industry || r.industry || r.sub_sector || r.sector || "").trim() || null;
         if (sector) classSector.set(ticker, sector);
         push({
           ticker,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { masterLabel } from "@/lib/stock-master";
 import { openSqliteNamed } from "@/lib/sqlite-utils";
 
 export const runtime = "nodejs";
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const ticker = (req.nextUrl.searchParams.get("ticker") || "").trim().toUpperCase();
   if (!ticker) return NextResponse.json({ ok: false, error: "Need ticker" }, { status: 400 });
+  const ml = masterLabel(ticker);
+  if (ml?.sector || ml?.industry)
+    return NextResponse.json({ ok: true, ticker, sector: ml.sector ?? ml.industry, sub_sector: ml.industry });
   try {
     const db = openSqliteNamed("classifications.db", { readonly: true, wal: true });
     try {

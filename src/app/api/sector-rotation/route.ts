@@ -24,6 +24,8 @@ import {
   refreshRotationMemberMetrics,
 } from "@/lib/sector-rotation-board";
 
+import { syncRotationFromMaster } from "@/lib/stock-master";
+
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
@@ -93,6 +95,8 @@ export async function POST(req: NextRequest) {
     refreshMetrics?: boolean;
     /** Fill missing Sales Growth / ROCE / P/B (Hard-Truth ranking legs). */
     refreshHt?: boolean;
+    /** Rebuild baskets from StockScans industries (stock master). */
+    syncStockscans?: boolean;
     ticker?: string;
     name?: string;
     market?: string;
@@ -103,6 +107,11 @@ export async function POST(req: NextRequest) {
     body = {};
   }
   try {
+    if (body.syncStockscans) {
+      const res = syncRotationFromMaster();
+      invalidateRotationRank();
+      return NextResponse.json({ ok: true, ...res, created: res.created.length, created_labels: res.created });
+    }
     if (body.refreshHt) {
       const id = (body.id || "").trim();
       if (id) {

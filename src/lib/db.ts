@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { masterLabels } from "./stock-master";
 import fs from "fs";
 import path from "path";
 import { researchLinks } from "./links";
@@ -464,14 +465,17 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
   const classMaps = loadClassMaps();
   const metricsMap = loadMetricsMap();
   const scrapeSources = loadScrapeSourceMap();
+  const master = masterLabels();
 
   return rows.map((row) => {
     const cls = pickClass(classMaps, row.ticker, row.market);
+    const ml = master.get(row.ticker.toUpperCase());
     const g = govMap.get(row.ticker);
     const m = metricsMap.get(row.ticker.toUpperCase());
 
-    // Prefer listing taxonomy (classifications.db), then Yahoo about, then governance, then YF quote sector.
+    // Stock master first (StockScans, then own labels), then listing taxonomy, Yahoo about, governance, YF quote.
     const sector =
+      nonempty(ml?.sector) ||
       nonempty(cls?.sector) ||
       nonempty(row.company_sector) ||
       nonempty(g?.sector) ||
@@ -479,6 +483,7 @@ function enrichAll(rows: RawAbout[]): CompanyRow[] {
       null;
 
     const sub_sector =
+      nonempty(ml?.industry) ||
       nonempty(cls?.sub_sector) ||
       nonempty(cls?.industry) ||
       nonempty(row.company_industry) ||

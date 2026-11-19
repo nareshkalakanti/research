@@ -1,4 +1,5 @@
 import { inactiveListingTickers } from "./listing-sync";
+import { masterLabels } from "./stock-master";
 import {
   buildStock,
   expectedQuarter,
@@ -349,6 +350,15 @@ function addLabels(rows: MomStock[]): void {
   const ph = rows.map(() => "?").join(",");
   const keys = rows.map((r) => r.ticker);
   const bySym = new Map(rows.map((r) => [r.ticker, r]));
+  // Stock master first; classifications only fill what it lacks.
+  const master = masterLabels();
+  for (const r of rows) {
+    const m = master.get(r.ticker.toUpperCase());
+    if (m && !r.sector) {
+      r.sector = m.sector ?? m.industry;
+      r.sub_sector = m.industry;
+    }
+  }
   try {
     const db = openSqliteNamed("classifications.db", { readonly: true, wal: true });
     try {

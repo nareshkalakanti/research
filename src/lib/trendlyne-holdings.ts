@@ -4,6 +4,7 @@
  */
 
 import fs from "fs";
+import { masterLabels } from "./stock-master";
 import path from "path";
 import Database from "better-sqlite3";
 
@@ -646,6 +647,12 @@ function sectorLookup(): Map<
   } finally {
     db.close();
   }
+  // Stock master overrides.
+  for (const [t, m] of masterLabels())
+    if (m.sector || m.industry) {
+      const cur = map.get(t);
+      map.set(t, { sector: m.sector ?? cur?.sector ?? null, sub_sector: m.industry ?? cur?.sub_sector ?? null, industry: m.industry ?? cur?.industry ?? null });
+    }
   return map;
 }
 
