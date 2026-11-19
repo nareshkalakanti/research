@@ -14,6 +14,7 @@ import {
 import {
   buildRotationDetail,
   buildRotationList,
+  buildRotationTopStocks,
   buildRotationLiteBoard,
   hydrateRotationCards,
   invalidateRotationRank,
@@ -62,6 +63,9 @@ export async function GET(req: NextRequest) {
       }
       const detail = await buildRotationDetail(sector, range, weight);
       return NextResponse.json({ ok: true, ...detail });
+    }
+    if (sp.get("top") === "1") {
+      return NextResponse.json({ ok: true, ...(await buildRotationTopStocks(range, weight)) });
     }
     if (sp.get("lite") === "1") {
       const board = buildRotationLiteBoard();

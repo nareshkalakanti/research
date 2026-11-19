@@ -206,6 +206,381 @@ function SectorStocksRow({
   );
 }
 
+type TopRow = ListRow & {
+  bench_pct?: number | null;
+  sector_id: string;
+  sector_label: string;
+  sector_pct: number | null;
+  sector_n: number;
+  q_rank: number | null;
+  q_of: number;
+  total_score: number | null;
+  is_best: boolean;
+};
+
+const TOP_CAPS = [
+  [0, "Any size"],
+  [200, "₹200 Cr+"],
+  [500, "₹500 Cr+"],
+  [1000, "₹1,000 Cr+"],
+  [5000, "₹5,000 Cr+"],
+] as const;
+/** Top sectors must have at least this many stocks (tiny baskets win on luck). */
+const TOP_MIN_SECTOR_STOCKS = 5;
+/** Benchmark period return, sent with every row by the server. */
+function rotBench(rows: Array<{ bench_pct?: number | null }>): number | null {
+  return rows[0]?.bench_pct ?? null;
+}
+const TOP_EXCH = [
+  ["all", "All"],
+  ["nse", "NSE + SME"],
+  ["bse", "BSE"],
+  ["bsesme", "BSE SME"],
+] as const;
+
+/**
+ * Top sectors and the best stocks in them: the strongest sectors by period
+ * return (5+ stocks), each with its top quality stocks over ₹200 Cr (Total
+ * Score: Sales growth 3Y, ROCE 3Y, P/B). Or every stock by period return.
+ * Follows the board's sector filters (search, Top/Bottom 20, Starred, Beating Nifty).
+ */
+function TopStocksView({
+  range,
+  weight,
+  sectorOrder,
+  stockQ,
+  benchLabel,
+  onOpenSector,
+}: {
+  range: string;
+  weight: string;
+  /** Sector ids passing the board filters. */
+  sectorOrder: string[];
+  stockQ: string;
+  benchLabel: string;
+  onOpenSector: (id: string) => void;
+}) {
+  const [rows, setRows] = useState<TopRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [mode, setMode] = useState<"sectors" | "return">("sectors");
+  const [nSectors, setNSectors] = useState(20);
+  const [perSector, setPerSector] = useState(3);
+  const [minCap, setMinCap] = useState<number>(200);
+  const [exch, setExch] = useState<(typeof TOP_EXCH)[number][0]>("all");
+  const [limit, setLimit] = useState(50);
+
+  useEffect(() => {
+    let live = true;
+    const ctl = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/sector-rotation?top=1&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
+          { cache: "no-store", signal: ctl.signal },
+        );
+        const json = (await res.json()) as { ok?: boolean; error?: string; rows?: TopRow[] };
+        if (!live) return;
+        if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
+        setErr(null);
+        setRows(json.rows ?? []);
+      } catch (e) {
+        if (live && !(e instanceof DOMException && e.name === "AbortError"))
+          setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      live = false;
+      ctl.abort();
+    };
+  }, [range, weight]);
+
+  const allowed = useMemo(() => new Set(sectorOrder), [sectorOrder]);
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const q = stockQ.trim().toLowerCase();
+    const okExch = (m: string) => {
+      const u = (m || "NSE").toUpperCase();
+      if (exch === "nse") return u.startsWith("NSE");
+      if (exch === "bse") return u === "BSE";
+      if (exch === "bsesme") return u === "BSE SME";
+      return true;
+    };
+    return rows.filter(
+      (r) =>
+        allowed.has(r.sector_id) &&
+        okExch(r.market) &&
+        (minCap === 0 || (r.mcap_cr ?? 0) >= minCap) &&
+        (!q || r.name.toLowerCase().includes(q) || r.ticker.toLowerCase().includes(q)),
+    );
+  }, [rows, allowed, stockQ, exch, minCap]);
+
+  /** Top sectors (5+ stocks, by return) with their best-quality stocks. */
+  const groups = useMemo(() => {
+    if (mode !== "sectors") return [];
+    const by = new Map<string, TopRow[]>();
+    for (const r of filtered) {
+      if (!by.has(r.sector_id)) by.set(r.sector_id, []);
+      by.get(r.sector_id)!.push(r);
+    }
+    const heads = [...by.values()]
+      .map((list) => list[0]!)
+      .filter((h) => h.sector_n >= TOP_MIN_SECTOR_STOCKS && h.sector_pct != null)
+      .sort((a, b) => (b.sector_pct ?? 0) - (a.sector_pct ?? 0))
+      .slice(0, nSectors);
+    return heads.map((h) => {
+      const list = by.get(h.sector_id)!;
+      const ranked = list.filter((r) => r.q_rank != null).sort((a, b) => a.q_rank! - b.q_rank!);
+      const byReturn = ranked.length
+        ? []
+        : list.filter((r) => r.window_pct != null).sort((a, b) => (b.window_pct ?? 0) - (a.window_pct ?? 0));
+      return {
+        head: h,
+        stocks: (ranked.length ? ranked : byReturn).slice(0, perSector),
+        byQuality: ranked.length > 0,
+      };
+    });
+  }, [filtered, mode, nSectors, perSector]);
+
+  const byReturn = useMemo(
+    () =>
+      mode === "return"
+        ? filtered.filter((r) => r.window_pct != null).sort((a, b) => (b.window_pct ?? 0) - (a.window_pct ?? 0))
+        : [],
+    [filtered, mode],
+  );
+  const page = byReturn.slice(0, limit);
+
+  const stockCells = (r: TopRow, n: number | string) => {
+    const web = websiteUrl(r.website);
+    return (
+      <>
+        <td className="num rot-sub-rank">{n}</td>
+        <td>
+          <div className="rot-sub-line">
+            <a className="rot-sub-name" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer">
+              {r.name}
+            </a>
+            <span className="rot-sub-tk">{r.ticker}</span>
+            {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
+            <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
+              NP
+            </a>
+            {web ? (
+              <a className="np-chip" href={web} target="_blank" rel="noopener noreferrer" title={r.website ?? ""}>
+                Web
+              </a>
+            ) : null}
+          </div>
+          {r.sector || r.industry ? (
+            <span className="rot-sub-sector">
+              {r.sector ?? r.industry}
+              {r.industry && r.industry !== r.sector ? ` › ${r.industry}` : ""}
+            </span>
+          ) : null}
+        </td>
+        <td className="num">
+          {r.q_rank == null ? (
+            <span className="rot-sub-tk" title="No Sales growth / ROCE / P/B yet — use Missing data">—</span>
+          ) : (
+            <span className="rot-qrank" title="Total Score rank inside its sector (Sales growth 3Y, ROCE 3Y, P/B)">
+              #{r.q_rank}
+              <span> of {r.q_of}</span>
+            </span>
+          )}
+        </td>
+        <td className="num">{r.mcap_cr == null ? "—" : `₹${Math.round(r.mcap_cr).toLocaleString("en-IN")} Cr`}</td>
+        <td className={`num ${(r.change_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{fmtPct(r.change_pct)}</td>
+        <td className="num">
+          <span className={r.window_pct == null ? "rot-pill" : r.window_pct >= 0 ? "rot-pill pos" : "rot-pill neg"}>
+            {fmtPct(r.window_pct)}
+          </span>
+        </td>
+      </>
+    );
+  };
+
+  return (
+    <div className="rot-top">
+      <div className="rot-top-bar">
+        <div className="rot-seg" role="group" aria-label="List">
+          <button
+            type="button"
+            className={mode === "sectors" ? "on" : ""}
+            aria-pressed={mode === "sectors"}
+            onClick={() => setMode("sectors")}
+            title={`Strongest sectors by ${range} return (${TOP_MIN_SECTOR_STOCKS}+ stocks), each with its best-quality stocks`}
+          >
+            Top sectors · best stocks
+          </button>
+          <button
+            type="button"
+            className={mode === "return" ? "on" : ""}
+            aria-pressed={mode === "return"}
+            onClick={() => setMode("return")}
+            title={`Every stock ranked by its ${range} return`}
+          >
+            All stocks by {range} return
+          </button>
+        </div>
+        {mode === "sectors" ? (
+          <>
+            <label className="rot-sort">
+              <span>Sectors</span>
+              <select value={nSectors} onChange={(e) => setNSectors(Number(e.target.value))} aria-label="How many sectors">
+                {[10, 20, 30, 50].map((n) => (
+                  <option key={n} value={n}>
+                    Top {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="rot-sort">
+              <span>Stocks each</span>
+              <select value={perSector} onChange={(e) => setPerSector(Number(e.target.value))} aria-label="Stocks per sector">
+                {[1, 3, 5, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </>
+        ) : null}
+        <label className="rot-sort">
+          <span>Size</span>
+          <select value={minCap} onChange={(e) => setMinCap(Number(e.target.value))} aria-label="Minimum market cap">
+            {TOP_CAPS.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div className="rot-seg" role="group" aria-label="Exchange">
+          {TOP_EXCH.map(([id, label]) => (
+            <button key={id} type="button" className={exch === id ? "on" : ""} aria-pressed={exch === id} onClick={() => setExch(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {err ? (
+        <p className="rot-sub-msg">Could not load: {err}</p>
+      ) : !rows ? (
+        <Loading label="Ranking stocks" variant="block" />
+      ) : mode === "sectors" ? (
+        !groups.length ? (
+          <p className="rot-sub-msg">No sectors match these filters.</p>
+        ) : (
+          <div className="rot-tcard">
+            <table className="rot-table rot-table--modern rot-top-table">
+              <thead>
+                <tr>
+                  <th className="num">#</th>
+                  <th>Stock</th>
+                  <th className="num" title="Total Score rank inside its sector (Sales growth 3Y, ROCE 3Y, P/B)">
+                    Quality rank
+                  </th>
+                  <th className="num">Market cap</th>
+                  <th className="num">Today</th>
+                  <th className="num">{range} return</th>
+                </tr>
+              </thead>
+              <tbody>
+                {groups.map((g, gi) => {
+                  const h = g.head;
+                  const rel = h.sector_pct != null && rotBench(rows) != null ? h.sector_pct - rotBench(rows)! : null;
+                  return (
+                    <Fragment key={h.sector_id}>
+                      <tr className="rot-grp">
+                        <td className="num rot-grp-n">
+                          <span className="rot-grp-badge">{gi + 1}</span>
+                        </td>
+                        <td colSpan={3}>
+                          <button type="button" className="rot-top-sec" onClick={() => onOpenSector(h.sector_id)} title="Open this sector">
+                            {h.sector_label}
+                          </button>
+                          <span className="rot-grp-meta">
+                            <span className="rot-grp-chip">{h.sector_n} stocks</span>
+                            {rel != null ? (
+                              <span className={`rot-grp-chip ${rel >= 0 ? "pos" : "neg"}`}>
+                                {rel >= 0 ? "+" : ""}
+                                {rel.toFixed(1)} pts vs {benchLabel}
+                              </span>
+                            ) : null}
+                            {g.byQuality ? null : (
+                              <span className="rot-grp-chip warn" title="Use Missing data to fetch Sales growth / ROCE / P/B">
+                                No quality data yet · by return
+                              </span>
+                            )}
+                          </span>
+                        </td>
+                        <td />
+                        <td className="num">
+                          <span className={(h.sector_pct ?? 0) >= 0 ? "rot-pill pos" : "rot-pill neg"} title={`Sector ${range} return`}>
+                            {fmtPct(h.sector_pct)}
+                          </span>
+                        </td>
+                      </tr>
+                      {g.stocks.length ? (
+                        g.stocks.map((r, i) => (
+                          <tr key={r.ticker} className="rot-row rot-grp-stock">
+                            {stockCells(r, i === 0 && g.byQuality ? "★" : i + 1)}
+                          </tr>
+                        ))
+                      ) : (
+                        <tr className="rot-grp-stock">
+                          <td />
+                          <td colSpan={5} className="rot-sub-msg">
+                            No stock over this size.
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : !byReturn.length ? (
+        <p className="rot-sub-msg">No stocks match these filters.</p>
+      ) : (
+        <>
+          <div className="rot-tcard">
+            <table className="rot-table rot-table--modern rot-top-table">
+              <thead>
+                <tr>
+                  <th className="num">#</th>
+                  <th>Stock</th>
+                  <th className="num">Quality rank</th>
+                  <th className="num">Market cap</th>
+                  <th className="num">Today</th>
+                  <th className="num">{range} return</th>
+                </tr>
+              </thead>
+              <tbody>
+                {page.map((r, i) => (
+                  <tr key={`${r.sector_id}-${r.ticker}`} className="rot-row">
+                    {stockCells(r, i + 1)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {byReturn.length > page.length ? (
+            <div className="rot-top-more">
+              <button type="button" className="rot-act" onClick={() => setLimit((n) => n + 50)}>
+                Show 50 more · {(byReturn.length - page.length).toLocaleString("en-IN")} left
+              </button>
+            </div>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
 function fmtCr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })} Cr`;
@@ -530,7 +905,7 @@ export function SectorRotationPanel() {
   const [maOn, setMaOn] = useState<number[]>([]);
   const [weight, setWeight] = useState<"equal" | "cap">("equal");
   const [memberQ, setMemberQ] = useState("");
-  const [view, setView] = useState<"grid" | "table">("grid");
+  const [view, setView] = useState<"grid" | "table" | "list">("grid");
   /** Table view: sectors expanded to show their stocks inline. */
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const toggleExpanded = useCallback((id: string) => {
@@ -1572,6 +1947,8 @@ export function SectorRotationPanel() {
                     ? " · sector…"
                     : ""}
           </p>
+        </div>
+        <div className="rot-head-actions">
           {openId ? (
             <button
               type="button"
@@ -1586,7 +1963,7 @@ export function SectorRotationPanel() {
               className="btn-ghost"
               onClick={() => setAdding((v) => !v)}
             >
-              {adding ? "Cancel" : "Add sector"}
+              {adding ? "Cancel" : "+ Add sector"}
             </button>
           )}
         </div>
@@ -1620,6 +1997,7 @@ export function SectorRotationPanel() {
               [
                 ["grid", "Grid"],
                 ["table", "Table"],
+                ["list", "Top stocks"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -2217,7 +2595,9 @@ export function SectorRotationPanel() {
         <>
         <div className="rot-page">
           <span>
-            {sortedCards.length
+            {view === "list"
+              ? ""
+              : sortedCards.length
               ? `Showing ${shownCount} of ${sortedCards.length} sectors`
               : rankingWait
                 ? "Ranking…"
@@ -2227,7 +2607,16 @@ export function SectorRotationPanel() {
               : ""}
           </span>
         </div>
-        {view === "table" ? (
+        {view === "list" ? (
+          <TopStocksView
+            range={range}
+            weight={weight}
+            sectorOrder={sortedCards.map((c) => c.id)}
+            stockQ={stockFilter}
+            benchLabel={benchLabel}
+            onOpenSector={(id) => setOpenId(id)}
+          />
+        ) : view === "table" ? (
         <div className="rot-tcard">
         <table className="rot-table rot-table--modern">
           <thead>
@@ -2437,7 +2826,7 @@ export function SectorRotationPanel() {
           ))}
         </div>
         )}
-        {shownCount < sortedCards.length ? (
+        {view !== "list" && shownCount < sortedCards.length ? (
           <div className="rot-more">
             <span>
               {shownCount} of {sortedCards.length} shown

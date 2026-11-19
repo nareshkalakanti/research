@@ -312,9 +312,10 @@ export type RotationMemberHtPatch = {
 export function loadRotationMemberHtPatches(
   members: SectorMember[],
   sectorLabel: string,
+  pre?: { cache: Map<string, HtCachedRow>; metrics: ReturnType<typeof loadMetricsMap> },
 ): RotationMemberHtPatch[] {
-  const cache = loadHtIvMap();
-  const metrics = loadMetricsMap();
+  const cache = pre?.cache ?? loadHtIvMap();
+  const metrics = pre?.metrics ?? loadMetricsMap();
   const base = members.map((m) => {
     const key = m.ticker.toUpperCase();
     const ht = cache.get(key);
@@ -984,4 +985,89 @@ export async function buildRotationList(
   });
   rows.sort((a, b) => (b.window_pct ?? -Infinity) - (a.window_pct ?? -Infinity));
   return { range: (range || "6M").toUpperCase(), rows };
+}
+
+// ---- Top stocks across every sector ----------------------------------------------------
+
+export type RotationTopRow = RotationListRow & {
+  bench_pct: number | null;
+  sector_id: string;
+  sector_label: string;
+  sector_pct: number | null;
+  sector_n: number;
+  /** Total Score rank inside its rotation sector (1 = best), cache only. */
+  q_rank: number | null;
+  q_of: number;
+  total_score: number | null;
+  /** The sector's "Best ranked" stock (top Total Score over ₹200 Cr). */
+  is_best: boolean;
+};
+
+/**
+ * Every stock on the board with its period return, its sector's return and its
+ * quality rank inside the sector. Cached closes and cached HT legs only — no
+ * live fetches — so it answers in about a second.
+ */
+export async function buildRotationTopStocks(
+  range: string,
+  weight: RotationWeight = "equal",
+): Promise<{ range: string; as_of: string | null; rows: RotationTopRow[] }> {
+  const key = (range || "6M").toUpperCase();
+  const sectors = listRotationSectors();
+  const snap = await rankSnapshot(weight);
+  const years = rotationFetchYears();
+  const metrics = loadMetricsMap();
+  const cache = loadHtIvMap();
+  const labels = masterLabels();
+  const sites = new Map<string, string | null>();
+  try {
+    for (const c of loadAllCompanies()) sites.set(c.ticker.toUpperCase(), c.website ?? null);
+  } catch {
+    /* optional */
+  }
+  const last = snap.last;
+  const start = rotationWindowStart(last, key);
+  const rows: RotationTopRow[] = [];
+  for (const sec of sectors) {
+    const patches = new Map(
+      loadRotationMemberHtPatches(sec.members, sec.label, { cache, metrics }).map((p) => [p.ticker, p]),
+    );
+    const ranked = [...patches.values()].filter((p) => p.rank != null);
+    const best = ranked
+      .filter((p) => (metrics.get(p.ticker)?.market_cap_cr ?? 0) > 200)
+      .sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9))[0]?.ticker;
+    const packed = await memberBars(sec.members, years);
+    for (const { member, bars } of packed) {
+      const t = member.ticker.toUpperCase();
+      const m = metrics.get(t);
+      const lab = labels.get(t);
+      const pt = patches.get(t);
+      const lastClose = bars[bars.length - 1]?.close ?? null;
+      const prevClose = bars[bars.length - 2]?.close ?? null;
+      rows.push({
+        ticker: t,
+        name: member.name,
+        market: member.market,
+        sector: lab?.sector ?? null,
+        industry: lab?.industry ?? null,
+        website: sites.get(t) ?? null,
+        mcap_cr: m?.market_cap_cr ?? null,
+        price: m?.price ?? lastClose,
+        change_pct:
+          m?.change_pct ??
+          (lastClose != null && prevClose ? ((lastClose - prevClose) / prevClose) * 100 : null),
+        window_pct: bars.length ? seriesReturnPct(windowRebaseSeries(rebaseCloses(bars, start), start)) : null,
+        sector_id: sec.id,
+        sector_label: sec.label,
+        sector_pct: snap.bySector.get(sec.id)?.pct[key] ?? null,
+        bench_pct: snap.bench[key] ?? null,
+        sector_n: sec.members.length,
+        q_rank: pt?.rank ?? null,
+        q_of: ranked.length,
+        total_score: pt?.total_score ?? null,
+        is_best: best === t,
+      });
+    }
+  }
+  return { range: key, as_of: last || null, rows };
 }
