@@ -3,11 +3,13 @@ import {
   expectedQuarter,
   markTried,
   nanoFillJob,
+  recentlyTried,
   startNanoFill,
   type FillResult,
   type Progress,
 } from "./nanocap-champs";
 import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
+import { fillHtIvForMember, fillHtIvFromYahoo, invalidateRotationRank, missingHtIvQueue } from "./sector-rotation-board";
 import { hasScreenerLogin, pullAllPeople } from "./screener-people";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -24,6 +26,14 @@ import { openSqliteNamed } from "./sqlite-utils";
 const RESULTS_PER_RUN = 40;
 /** ROCE / ROE pages per run for stocks that can't be scored yet (2 runs an hour). */
 const RATIOS_PER_RUN = 25;
+/**
+ * Rotation quality (Sales growth / ROCE / P/B) stocks per run, from whatever
+ * hourly budget is left (3 pages each). 2 runs an hour → ≤ 16 stocks/hour.
+ */
+const ROTATION_QUALITY_PER_RUN = 8;
+/** Yahoo tries per run (~0.5 s each + gap) — Yahoo goes first; Screener only gets what Yahoo missed. */
+const ROTATION_YAHOO_PER_RUN = 60;
+const YAHOO_GAP_MS = 800;
 const META_KEY = "baskets_refresh_last";
 
 function withMeta<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
@@ -95,7 +105,55 @@ async function runRefresh(onProgress?: Progress): Promise<FillResult> {
       /* paused mid-run — next run continues */
     }
   }
-  // 3) Fund watchlists from Screener people pages — once a day, only with a login.
+  // 3) Rotation quality legs (Sales growth / ROCE / P/B) for stocks Top stocks
+  //    can't rank yet: Yahoo first (fast, own limits), then Screener — leftover
+  //    hourly budget only — for the ones Yahoo had nothing for.
+  {
+    let got = 0;
+    const yQueue = missingHtIvQueue(recentlyTried("rotqy")).slice(0, ROTATION_YAHOO_PER_RUN);
+    total += yQueue.length;
+    for (const m of yQueue) {
+      try {
+        if (await fillHtIvFromYahoo(m)) {
+          filled += 1;
+          got += 1;
+        }
+      } catch {
+        break; // Yahoo throttling — next run continues
+      }
+      markTried("rotqy", m.ticker.toUpperCase());
+      done += 1;
+      onProgress?.(done, total, filled);
+      await new Promise((r) => setTimeout(r, YAHOO_GAP_MS));
+    }
+    if (!paused) {
+      const yTried = recentlyTried("rotqy");
+      const slots = Math.min(ROTATION_QUALITY_PER_RUN, Math.floor(screenerBudgetLeft() / 3));
+      const queue =
+        slots > 0
+          ? missingHtIvQueue(recentlyTried("rotq"))
+              .filter((m) => yTried.has(m.ticker.toUpperCase()))
+              .slice(0, slots)
+          : [];
+      total += queue.length;
+      for (const m of queue) {
+        try {
+          if (await fillHtIvForMember(m)) {
+            filled += 1;
+            got += 1;
+          }
+        } catch {
+          paused = true;
+          break;
+        }
+        markTried("rotq", m.ticker.toUpperCase());
+        done += 1;
+        onProgress?.(done, total, filled);
+      }
+    }
+    if (got) invalidateRotationRank();
+  }
+  // 4) Fund watchlists from Screener people pages — once a day, only with a login.
   if (!paused && hasScreenerLogin()) {
     try {
       await pullAllPeople({ onlyStale: true });

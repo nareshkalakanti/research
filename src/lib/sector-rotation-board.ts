@@ -220,6 +220,8 @@ export function countMissingHtIv(members: SectorMember[]): number {
  * Prefer Screener (Yahoo often 429s); process every incomplete member.
  */
 const HT_PER_CLICK = 40;
+/** Screener fallbacks per click (3 pages each); the 30-min job does the rest slowly. */
+const SCREENER_PER_CLICK = 6;
 
 export async function refreshMissingHtIvForMembers(
   members: SectorMember[],
@@ -231,34 +233,32 @@ export async function refreshMissingHtIvForMembers(
   if (!missing.length) {
     return { tried: 0, filled: 0, still_missing: 0 };
   }
-  // Screener blocks bursts: at most HT_PER_CLICK stocks per click (3 pages
-  // each), nothing while Screener has us paused. Click again for the next lot.
-  if (screenerPausedUntil()) {
-    return { tried: 0, filled: 0, still_missing: missing.length };
-  }
+  // At most HT_PER_CLICK stocks per click. Yahoo first (fast, separate
+  // limits); Screener (throttled, 3 pages each) only for what Yahoo lacks and
+  // only while Screener isn't paused. Click again for the next lot.
   const need = missing.slice(0, HT_PER_CLICK);
+  let screenerLeft = SCREENER_PER_CLICK;
 
   const got = await runConcurrent(need, 2, async (m): Promise<HtCachedRow | null> => {
-    if (screenerPausedUntil()) return null;
     const prev = cache.get(m.ticker.toUpperCase());
-    // Screener first — force refresh so a prior empty scrape does not stick.
-    let row = await fetchHtIvFromScreener({
+    const viaYahoo = await fetchHtIvForTicker({
+      ticker: m.ticker,
+      market: m.market,
+      name: m.name,
+    });
+    if (htRankable(viaYahoo)) return viaYahoo;
+    // Screener blocks bursts — only a few fallbacks per click.
+    if (screenerLeft <= 0 || screenerPausedUntil()) return htRankable(prev) ? prev! : null;
+    screenerLeft -= 1;
+    const viaScreener = await fetchHtIvFromScreener({
       ticker: m.ticker,
       market: m.market,
       name: m.name,
       force: true,
     });
-    if (!htRankable(row)) {
-      const viaYahoo = await fetchHtIvForTicker({
-        ticker: m.ticker,
-        market: m.market,
-        name: m.name,
-      });
-      if (htRankable(viaYahoo)) row = viaYahoo;
-      else if (isHtRateLimited(viaYahoo) && htRankable(prev)) return prev!;
-      else if (htRankable(prev)) return prev!;
-    }
-    return row;
+    if (htRankable(viaScreener)) return viaScreener;
+    if (htRankable(prev)) return prev!;
+    return isHtRateLimited(viaYahoo) ? viaScreener : viaYahoo;
   });
 
   const results = got.filter((r): r is HtCachedRow => !!r);
@@ -276,6 +276,59 @@ export async function refreshMissingHtIvForMembers(
   ).length;
   const still_missing = missing.length - filled;
   return { tried: need.length, filled, still_missing };
+}
+
+/**
+ * Rotation members without Sales growth / ROCE / P/B, biggest first (₹200 Cr+
+ * names are what Top stocks ranks by default). Skips `skip` (tried recently).
+ */
+export function missingHtIvQueue(skip: Set<string>): SectorMember[] {
+  const cache = loadHtIvMap();
+  const metrics = loadMetricsMap();
+  const seen = new Map<string, SectorMember>();
+  for (const s of listRotationSectors()) {
+    for (const m of s.members) {
+      const k = m.ticker.toUpperCase();
+      if (seen.has(k) || skip.has(k) || htRankable(cache.get(k))) continue;
+      seen.set(k, m);
+    }
+  }
+  const cap = (m: SectorMember) => metrics.get(m.ticker.toUpperCase())?.market_cap_cr ?? 0;
+  return [...seen.values()].sort((a, b) => cap(b) - cap(a));
+}
+
+/**
+ * Fill one stock's quality legs (Screener only, so the background job stays on
+ * the throttled path). Returns true when it is now rankable. Throws
+ * ScreenerPausedError-style errors when Screener is paused.
+ */
+export async function fillHtIvForMember(m: SectorMember): Promise<boolean> {
+  if (screenerPausedUntil()) throw new Error("Screener paused");
+  const cache = loadHtIvMap();
+  const prev = cache.get(m.ticker.toUpperCase());
+  const row = await fetchHtIvFromScreener({ ticker: m.ticker, market: m.market, name: m.name, force: true });
+  if (htRankable(row)) {
+    upsertHtIvRows([row]);
+    return true;
+  }
+  if (!isHtRateLimited(row) && !htRankable(prev)) upsertHtIvRows([row]);
+  if (screenerPausedUntil()) throw new Error("Screener paused");
+  return false;
+}
+
+/**
+ * Fill one stock's quality legs from Yahoo (annual results + balance sheet,
+ * P/B from the quote). Fast and outside Screener's budget; misses most SME /
+ * small BSE names. Throws when Yahoo rate-limits so the caller can stop.
+ */
+export async function fillHtIvFromYahoo(m: SectorMember): Promise<boolean> {
+  const row = await fetchHtIvForTicker({ ticker: m.ticker, market: m.market, name: m.name });
+  if (htRankable(row)) {
+    upsertHtIvRows([row]);
+    return true;
+  }
+  if (isHtRateLimited(row)) throw new Error("Yahoo rate-limited");
+  return false;
 }
 
 export async function refreshAllMissingHtIv(): Promise<{
@@ -445,16 +498,28 @@ export type RotationSectorCard = {
   bench_full?: SeriesPoint[];
 };
 
+/** Metrics older than this are ignored when no bars are at hand (lite board). */
+const STALE_METRICS_MS = 3 * 86_400_000;
+
 function dayStats(
   members: SectorMember[],
   metrics: ReturnType<typeof loadMetricsMap>,
+  packed?: Array<{ member: SectorMember; bars: Array<{ date: string; close: number }> }>,
 ): { today_pct: number | null; up: number; down: number } {
   let up = 0;
   let down = 0;
   let sum = 0;
   let n = 0;
-  for (const m of members) {
-    const ch = metrics.get(m.ticker.toUpperCase())?.change_pct;
+  const now = Date.now();
+  const changes = packed
+    ? packed.map(({ member, bars }) => priceAndChange(metrics.get(member.ticker.toUpperCase()), bars).change_pct)
+    : members.map((m) => {
+        const row = metrics.get(m.ticker.toUpperCase());
+        const at = row?.fetched_at ? Date.parse(row.fetched_at) : NaN;
+        // Without bars, a weeks-old change_pct is worse than none.
+        return Number.isFinite(at) && now - at < STALE_METRICS_MS ? row!.change_pct : null;
+      });
+  for (const ch of changes) {
     if (ch == null || !Number.isFinite(ch)) continue;
     n += 1;
     sum += ch;
@@ -465,6 +530,34 @@ function dayStats(
     today_pct: n ? sum / n : null,
     up,
     down,
+  };
+}
+
+const IST_OFFSET_MS = 5.5 * 3_600_000;
+
+/**
+ * Price and day change for a row. metrics.db can lag by weeks for thinly
+ * refreshed tickers (e.g. VIPULORG showed +3.53% from Oct 23), while the
+ * rotation bars refresh after every close — so the bars win unless the
+ * metrics row was fetched on a later IST day than the last bar.
+ */
+function priceAndChange(
+  m: { price: number | null; change_pct: number | null; fetched_at: string } | undefined,
+  bars: Array<{ date: string; close: number }>,
+): { price: number | null; change_pct: number | null } {
+  const last = bars[bars.length - 1];
+  const prev = bars[bars.length - 2];
+  const barPrice = last && Number.isFinite(last.close) ? last.close : null;
+  const barChange =
+    barPrice != null && prev && prev.close > 0 ? ((barPrice - prev.close) / prev.close) * 100 : null;
+  const fetchedMs = m?.fetched_at ? Date.parse(m.fetched_at) : NaN;
+  const metricsDay = Number.isFinite(fetchedMs)
+    ? new Date(fetchedMs + IST_OFFSET_MS).toISOString().slice(0, 10)
+    : "";
+  const metricsNewer = !!m && (!last || metricsDay > last.date);
+  return {
+    price: metricsNewer ? m!.price ?? barPrice : barPrice ?? m?.price ?? null,
+    change_pct: metricsNewer ? m!.change_pct ?? barChange : barChange ?? m?.change_pct ?? null,
   };
 }
 
@@ -559,7 +652,7 @@ async function cardWithSeries(
   const seriesLong = sectorIndex(packed, lookback, weight, metrics);
   const windowed = windowRebaseSeries(seriesLong, start);
   const benchWin = windowRebaseSeries(benchLong, start);
-  const day = dayStats(s.members, metrics);
+  const day = dayStats(s.members, metrics, packed);
   return {
     id: s.id,
     label: s.label,
@@ -827,15 +920,7 @@ export async function buildRotationDetail(
     const m = metrics.get(key);
     const sparkFull = rebaseCloses(bars, lookback);
     const spark = windowRebaseSeries(sparkFull, start);
-    const lastClose = bars[bars.length - 1]?.close;
-    const prevClose = bars[bars.length - 2]?.close;
-    const barToday =
-      prevClose != null &&
-      lastClose != null &&
-      prevClose > 0 &&
-      Number.isFinite(lastClose)
-        ? ((lastClose - prevClose) / prevClose) * 100
-        : null;
+    const live = priceAndChange(m, bars);
     const ht = htCache.get(key);
     const htOk = htRankable(ht);
     return {
@@ -843,11 +928,8 @@ export async function buildRotationDetail(
       name: member.name,
       market: member.market,
       mcap_cr: m?.market_cap_cr ?? ht?.market_cap_cr ?? null,
-      price:
-        m?.price ??
-        ht?.price ??
-        (lastClose != null && Number.isFinite(lastClose) ? lastClose : null),
-      change_pct: m?.change_pct ?? barToday,
+      price: live.price ?? ht?.price ?? null,
+      change_pct: live.change_pct,
       window_pct: seriesReturnPct(spark),
       spark,
       spark_full: sparkFull,
@@ -897,7 +979,7 @@ export async function buildRotationDetail(
     if (ar !== br) return ar - br;
     return (b.mcap_cr ?? -1) - (a.mcap_cr ?? -1);
   });
-  const day = dayStats(sector.members, metrics);
+  const day = dayStats(sector.members, metrics, packed);
   return {
     range: (range || "6M").toUpperCase(),
     as_of: nifty[nifty.length - 1]?.date ?? null,
@@ -966,8 +1048,6 @@ export async function buildRotationList(
     const key = member.ticker.toUpperCase();
     const m = metrics.get(key);
     const lab = labels.get(key);
-    const lastClose = bars[bars.length - 1]?.close ?? null;
-    const prevClose = bars[bars.length - 2]?.close ?? null;
     return {
       ticker: key,
       name: member.name,
@@ -976,10 +1056,7 @@ export async function buildRotationList(
       industry: lab?.industry ?? null,
       website: sites.get(key) ?? null,
       mcap_cr: m?.market_cap_cr ?? null,
-      price: m?.price ?? lastClose,
-      change_pct:
-        m?.change_pct ??
-        (lastClose != null && prevClose ? ((lastClose - prevClose) / prevClose) * 100 : null),
+      ...priceAndChange(m, bars),
       window_pct: bars.length ? seriesReturnPct(windowRebaseSeries(rebaseCloses(bars, start), start)) : null,
     };
   });
@@ -1042,8 +1119,6 @@ export async function buildRotationTopStocks(
       const m = metrics.get(t);
       const lab = labels.get(t);
       const pt = patches.get(t);
-      const lastClose = bars[bars.length - 1]?.close ?? null;
-      const prevClose = bars[bars.length - 2]?.close ?? null;
       rows.push({
         ticker: t,
         name: member.name,
@@ -1052,10 +1127,7 @@ export async function buildRotationTopStocks(
         industry: lab?.industry ?? null,
         website: sites.get(t) ?? null,
         mcap_cr: m?.market_cap_cr ?? null,
-        price: m?.price ?? lastClose,
-        change_pct:
-          m?.change_pct ??
-          (lastClose != null && prevClose ? ((lastClose - prevClose) / prevClose) * 100 : null),
+        ...priceAndChange(m, bars),
         window_pct: bars.length ? seriesReturnPct(windowRebaseSeries(rebaseCloses(bars, start), start)) : null,
         sector_id: sec.id,
         sector_label: sec.label,

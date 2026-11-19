@@ -309,7 +309,9 @@ function withAttempts<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
 }
 
 /** Kinds that share the hourly Screener budget (this basket + the 30-min background refresh). */
-const BUDGET_KINDS = [FILL_KIND, "momratio", "auto"] as const;
+const BUDGET_KINDS = [FILL_KIND, "momratio", "auto", "rotq"] as const;
+/** Rotation quality fill (rotq) reads up to 3 Screener pages per stock. */
+const PAGES_PER_KIND: Partial<Record<(typeof BUDGET_KINDS)[number], number>> = { rotq: 3 };
 
 /** Screener pages asked for in the last hour by this basket and the background refresh. */
 export function usedLastHour(): number {
@@ -318,7 +320,10 @@ export function usedLastHour(): number {
     (db) =>
       (db
         .prepare(
-          `SELECT COUNT(*) AS n FROM nano_fill_attempts WHERE kind IN (${BUDGET_KINDS.map(() => "?").join(",")}) AND attempted_at >= ?`,
+          `SELECT COALESCE(SUM(CASE kind ${Object.entries(PAGES_PER_KIND)
+            .map(([k, n]) => `WHEN '${k}' THEN ${n}`)
+            .join(" ")} ELSE 1 END), 0) AS n
+           FROM nano_fill_attempts WHERE kind IN (${BUDGET_KINDS.map(() => "?").join(",")}) AND attempted_at >= ?`,
         )
         .get(...BUDGET_KINDS, since) as { n: number }).n,
   );

@@ -27,6 +27,7 @@ import {
 } from "@/lib/sector-rotation-board";
 
 import { syncRotationFromMaster } from "@/lib/stock-master";
+import { screenerPausedUntil } from "@/lib/screener-fetch";
 
 export const runtime = "nodejs";
 
@@ -132,10 +133,10 @@ export async function POST(req: NextRequest) {
           sector.members,
           sector.label,
         );
-        return NextResponse.json({ ok: true, ...result, members });
+        return NextResponse.json({ ok: true, ...result, members, paused_until: screenerPausedUntil() });
       }
       const result = await refreshAllMissingHtIv();
-      return NextResponse.json({ ok: true, ...result });
+      return NextResponse.json({ ok: true, ...result, paused_until: screenerPausedUntil() });
     }
     if (body.refreshMetrics) {
       // Fresh prices → cached period ranks are stale.

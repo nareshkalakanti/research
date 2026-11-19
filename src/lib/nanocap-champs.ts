@@ -551,7 +551,7 @@ export function buildNanoPage(): NanoPage {
 
 /** Fetch quarterly results for nanocaps that have none yet (Screener, throttled). */
 export type Progress = (done: number, total: number, filled: number) => void;
-export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio" | "bse" | "turn" | "shortlist" | "smartmoney" | "smmodel" | "stockscans";
+export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio" | "bse" | "turn" | "shortlist" | "smartmoney" | "smmodel" | "stockscans" | "rotq" | "rotqy";
 export type FillResult = { tried: number; filled: number; left: number; not_found: number };
 
 const RETRY_AFTER_DAYS = 7;

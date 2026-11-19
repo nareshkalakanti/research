@@ -268,6 +268,46 @@ function TopStocksView({
   const [minCap, setMinCap] = useState<number>(200);
   const [exch, setExch] = useState<(typeof TOP_EXCH)[number][0]>("all");
   const [limit, setLimit] = useState(50);
+  const [reload, setReload] = useState(0);
+  /** Per-sector quality fetch state for the "No quality data" button. */
+  const [qFill, setQFill] = useState<Record<string, { busy: boolean; msg?: string }>>({});
+
+  const fillQuality = async (sectorId: string) => {
+    setQFill((p) => ({ ...p, [sectorId]: { busy: true } }));
+    try {
+      const res = await fetch("/api/sector-rotation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshHt: true, id: sectorId }),
+      });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        tried?: number;
+        filled?: number;
+        still_missing?: number;
+        paused_until?: string | null;
+      };
+      if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
+      const until = json.paused_until
+        ? new Date(json.paused_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : null;
+      const msg = !json.tried
+        ? json.still_missing
+          ? until
+            ? `Screener rate-limited — retry after ${until}`
+            : "Screener paused — try again shortly"
+          : "Nothing missing"
+        : `Filled ${json.filled ?? 0} of ${json.tried}${json.still_missing ? ` · ${json.still_missing} left` : ""}`;
+      setQFill((p) => ({ ...p, [sectorId]: { busy: false, msg } }));
+      if (json.filled) setReload((n) => n + 1);
+    } catch (e) {
+      setQFill((p) => ({
+        ...p,
+        [sectorId]: { busy: false, msg: e instanceof Error ? e.message : String(e) },
+      }));
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -292,7 +332,7 @@ function TopStocksView({
       live = false;
       ctl.abort();
     };
-  }, [range, weight]);
+  }, [range, weight, reload]);
 
   const allowed = useMemo(() => new Set(sectorOrder), [sectorOrder]);
   const filtered = useMemo(() => {
@@ -509,9 +549,19 @@ function TopStocksView({
                               </span>
                             ) : null}
                             {g.byQuality ? null : (
-                              <span className="rot-grp-chip warn" title="Use Missing data to fetch Sales growth / ROCE / P/B">
-                                No quality data yet · by return
-                              </span>
+                              <button
+                                type="button"
+                                className="rot-grp-chip warn"
+                                disabled={qFill[h.sector_id]?.busy}
+                                onClick={() => void fillQuality(h.sector_id)}
+                                title="Fetch Sales growth 3Y / ROCE 3Y / P/B for this sector (Screener, up to 40 stocks per click)"
+                              >
+                                {qFill[h.sector_id]?.busy
+                                  ? "Fetching quality data…"
+                                  : qFill[h.sector_id]?.msg
+                                    ? `${qFill[h.sector_id]!.msg} · fetch again`
+                                    : "No quality data yet · by return — fetch"}
+                              </button>
                             )}
                           </span>
                         </td>
@@ -1054,6 +1104,7 @@ export function SectorRotationPanel() {
         tried?: number;
         filled?: number;
         still_missing?: number;
+        paused_until?: string | null;
         members?: Array<{
           ticker: string;
           sales_growth_3y: number | null;
@@ -1103,9 +1154,14 @@ export function SectorRotationPanel() {
       const tried = json.tried ?? 0;
       const filled = json.filled ?? 0;
       const left = json.still_missing ?? 0;
+      const until = json.paused_until
+        ? new Date(json.paused_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        : null;
       setNotice(
         tried === 0
-          ? "No missing Sales / ROCE / P/B ranks."
+          ? left > 0
+            ? `Screener is rate-limiting — ${left} still missing. Try again${until ? ` after ${until}` : " in a few minutes"}.`
+            : "No missing Sales / ROCE / P/B ranks."
           : left > 0
             ? `Filled ${filled} of ${tried} missing ranks · ${left} still incomplete (Screener/Yahoo).`
             : `Filled all ${filled} missing ranks.`,
@@ -2515,7 +2571,7 @@ export function SectorRotationPanel() {
                     {m.rank != null && Number.isFinite(m.rank) ? m.rank : "—"}
                   </td>
                   <td className="rot-stock">
-                    {m.rank === 1 ? (
+                    {m.ticker === bestMemberTicker ? (
                       <span className="rot-best-pill" title="Best ranked in sector (over ₹200 Cr market cap)">
                         Best
                       </span>

@@ -31364,6 +31364,16 @@ a.mom-ck-link:hover{text-decoration:underline}
   border-color: color-mix(in srgb, var(--warn) 30%, var(--line));
   background: var(--warn-soft);
 }
+button.rot-grp-chip {
+  cursor: pointer;
+}
+button.rot-grp-chip.warn:hover:not(:disabled) {
+  border-color: var(--warn);
+}
+button.rot-grp-chip:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
 .rot-top-table tr.rot-grp-stock td {
   padding-top: 9px;
   padding-bottom: 9px;
