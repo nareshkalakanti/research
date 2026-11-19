@@ -66,6 +66,8 @@ type Hit = { ticker: string; name: string; market?: string; source?: string };
 
 /** "Best ranked" stock in a sector must be bigger than this (₹ Cr). */
 const BEST_MIN_MCAP_CR = 200;
+/** "Best ranked" sector needs at least this many stocks. */
+const BEST_MIN_STOCKS = 5;
 
 function fmtPct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -126,7 +128,7 @@ function SectorStocksRow({
   }, [id, range]);
 
   return (
-    <tr className="rot-sub">
+    <tr className="rot-xrow">
       <td colSpan={colSpan}>
         {err ? (
           <p className="rot-sub-msg">Could not load stocks: {err}</p>
@@ -136,28 +138,38 @@ function SectorStocksRow({
           <p className="rot-sub-msg">No stocks in this sector.</p>
         ) : (
           <div className="rot-sub-wrap">
+            <div className="rot-sub-head">
+              <span>
+                {rows.length} stock{rows.length === 1 ? "" : "s"} · best {range} first
+              </span>
+              <button type="button" className="rot-sub-open" onClick={onOpen}>
+                Open chart &amp; ranking →
+              </button>
+            </div>
             <table className="rot-sub-table">
               <thead>
                 <tr>
+                  <th className="rot-sub-rank">#</th>
                   <th>Stock</th>
-                  <th className="num">Value ₹ Cr</th>
+                  <th className="num">Market cap</th>
                   <th className="num">Price</th>
                   <th className="num">Today</th>
                   <th className="num">{range}</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {rows.map((r, i) => {
                   const web = websiteUrl(r.website);
                   return (
                     <tr key={r.ticker}>
+                      <td className="rot-sub-rank">{i + 1}</td>
                       <td>
-                        <a className="rot-sub-name" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer">
-                          {r.name}
-                        </a>
-                        <span className="rot-sub-meta">
-                          {r.ticker}
-                          {r.market && r.market !== "NSE" ? <span> · {r.market}</span> : null}
+                        <div className="rot-sub-line">
+                          <a className="rot-sub-name" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer">
+                            {r.name}
+                          </a>
+                          <span className="rot-sub-tk">{r.ticker}</span>
+                          {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
                           <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                             NP
                           </a>
@@ -166,7 +178,7 @@ function SectorStocksRow({
                               Web
                             </a>
                           ) : null}
-                        </span>
+                        </div>
                         {r.sector || r.industry ? (
                           <span className="rot-sub-sector">
                             {r.sector ?? r.industry}
@@ -174,18 +186,19 @@ function SectorStocksRow({
                           </span>
                         ) : null}
                       </td>
-                      <td className="num">{r.mcap_cr == null ? "—" : Math.round(r.mcap_cr).toLocaleString("en-IN")}</td>
-                      <td className="num">{r.price == null ? "—" : r.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                      <td className="num">{r.mcap_cr == null ? "—" : `₹${Math.round(r.mcap_cr).toLocaleString("en-IN")} Cr`}</td>
+                      <td className="num">{r.price == null ? "—" : `₹${r.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`}</td>
                       <td className={`num ${(r.change_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{fmtPct(r.change_pct)}</td>
-                      <td className={`num ${(r.window_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{fmtPct(r.window_pct)}</td>
+                      <td className="num">
+                        <span className={r.window_pct == null ? "rot-pill" : r.window_pct >= 0 ? "rot-pill pos" : "rot-pill neg"}>
+                          {fmtPct(r.window_pct)}
+                        </span>
+                      </td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
-            <button type="button" className="rot-sub-open" onClick={onOpen}>
-              Open sector chart and ranking →
-            </button>
           </div>
         )}
       </td>
@@ -1400,7 +1413,8 @@ export function SectorRotationPanel() {
     if (!rankedReady) return null;
     let best: Card | null = null;
     for (const c of sortedCards) {
-      if (c.sector_pct == null) continue;
+      // Tiny baskets win on one stock's luck — Best needs a real sector.
+      if (c.sector_pct == null || (c.n ?? 0) < BEST_MIN_STOCKS) continue;
       if (!best || c.sector_pct > (best.sector_pct ?? -Infinity)) best = c;
     }
     return best;
@@ -1544,7 +1558,7 @@ export function SectorRotationPanel() {
     <section className="rot-dash">
       <header className="rot-head">
         <div>
-          <h2 className="rot-title">All Sectors Dashboard</h2>
+          <h2 className="rot-title">Sector Rotation</h2>
           <p className="rot-sub">
             {weight === "cap" ? "Free-float cap" : "Equal-weight"} vs {benchLabel}
             {asOf ? ` · as of ${asOf}` : ""}
@@ -1601,9 +1615,100 @@ export function SectorRotationPanel() {
 
       <div className="rot-bar">
         <div className="rot-bar-row">
+          <div className="rot-seg" role="group" aria-label="View">
+            {(
+              [
+                ["grid", "Grid"],
+                ["table", "Table"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={view === id ? "on" : ""}
+                aria-pressed={view === id}
+                onClick={() => setView(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="rot-seg" role="group" aria-label="Period">
+            {ROTATION_RANGES.map((r) => (
+              <button
+                key={r}
+                type="button"
+                className={range === r ? "on" : ""}
+                aria-pressed={range === r}
+                onClick={() => setRange(r)}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+          <div className="rot-seg" role="group" aria-label="Index type">
+            <button
+              type="button"
+              className={weight === "equal" ? "on" : ""}
+              aria-pressed={weight === "equal"}
+              onClick={() => setWeight("equal")}
+              title="Every stock counts the same"
+            >
+              Equal weight
+            </button>
+            <button
+              type="button"
+              className={weight === "cap" ? "on" : ""}
+              aria-pressed={weight === "cap"}
+              onClick={() => setWeight("cap")}
+              title="Bigger companies count more"
+            >
+              Market cap
+            </button>
+          </div>
+          {view === "grid" || openId ? (
+            <div className="rot-seg rot-seg--quiet" role="group" aria-label="Chart">
+              <span className="rot-seg-k">Chart</span>
+              <button
+                type="button"
+                className={scale === "lin" ? "on" : ""}
+                aria-pressed={scale === "lin"}
+                onClick={() => setScale("lin")}
+              >
+                Lin
+              </button>
+              <button
+                type="button"
+                className={scale === "log" ? "on" : ""}
+                aria-pressed={scale === "log"}
+                onClick={() => setScale("log")}
+              >
+                Log
+              </button>
+              <span className="rot-seg-k">MA</span>
+              {ROTATION_MA_PERIODS.map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={maOn.includes(n) ? "on" : ""}
+                  aria-pressed={maOn.includes(n)}
+                  onClick={() =>
+                    setMaOn((prev) =>
+                      prev.includes(n)
+                        ? prev.filter((x) => x !== n)
+                        : [...prev, n].sort((a, b) => a - b),
+                    )
+                  }
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <span className="rot-bar-spacer" />
           <button
             type="button"
-            className="rot-chip"
+            className="rot-act"
             onClick={() => void refreshBoard()}
             disabled={loading || ranking || fillingHt}
             title="Refresh prices and market caps"
@@ -1612,163 +1717,92 @@ export function SectorRotationPanel() {
           </button>
           <button
             type="button"
-            className="rot-chip"
+            className="rot-act"
             onClick={() => void refreshMissingHt()}
             disabled={loading || ranking || fillingHt || detailLoading}
             title={
               openId
-                ? "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B for this sector (Screener-first), then re-rank"
-                : "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B across all sectors (Screener-first)"
+                ? "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B for this sector (Screener, 40 at a time), then re-rank"
+                : "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B (Screener, 40 at a time)"
             }
           >
             {fillingHt
               ? "Filling…"
               : missingHtCount > 0
-                ? `↻ Missing data (${missingHtCount})`
-                : "↻ Missing data"}
+                ? `Missing data · ${missingHtCount}`
+                : "Missing data"}
           </button>
-          <span className="rot-bar-sep" />
-          <button
-            type="button"
-            className={view === "grid" ? "rot-chip on" : "rot-chip"}
-            onClick={() => setView("grid")}
-          >
-            Grid
-          </button>
-          <button
-            type="button"
-            className={view === "table" ? "rot-chip on" : "rot-chip"}
-            onClick={() => setView("table")}
-          >
-            Table
-          </button>
-          <span className="rot-bar-k">Scale</span>
-          <button
-            type="button"
-            className={scale === "lin" ? "rot-chip on" : "rot-chip"}
-            onClick={() => setScale("lin")}
-          >
-            Lin
-          </button>
-          <button
-            type="button"
-            className={scale === "log" ? "rot-chip on" : "rot-chip"}
-            onClick={() => setScale("log")}
-          >
-            Log
-          </button>
-          <span className="rot-bar-k">MA</span>
-          {ROTATION_MA_PERIODS.map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={maOn.includes(n) ? "rot-chip on" : "rot-chip"}
-              onClick={() =>
-                setMaOn((prev) =>
-                  prev.includes(n)
-                    ? prev.filter((x) => x !== n)
-                    : [...prev, n].sort((a, b) => a - b),
-                )
-              }
-            >
-              {n}
-            </button>
-          ))}
-          <span className="rot-bar-k">Index type</span>
-          <button
-            type="button"
-            className={weight === "equal" ? "rot-chip on" : "rot-chip"}
-            onClick={() => setWeight("equal")}
-          >
-            Equal Weight
-          </button>
-          <button
-            type="button"
-            className={weight === "cap" ? "rot-chip on" : "rot-chip"}
-            onClick={() => setWeight("cap")}
-          >
-            Free-Float Cap
-          </button>
-          <span className="rot-bar-sep" />
-          {ROTATION_RANGES.map((r) => (
-            <button
-              key={r}
-              type="button"
-              className={range === r ? "rot-chip on" : "rot-chip"}
-              onClick={() => setRange(r)}
-            >
-              {r}
-            </button>
-          ))}
         </div>
         {!openId ? (
           <div className="rot-bar-row">
-            <span className="rot-bar-k">Search</span>
-            <input
-              className="rot-bar-search"
-              placeholder="Search sector or industry"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              aria-label="Search sector"
-            />
-            <input
-              className="rot-bar-search"
-              placeholder="Search stock (name, NS)"
-              value={stockFilter}
-              onChange={(e) => setStockFilter(e.target.value)}
-              aria-label="Search stock"
-            />
-            <span className="rot-bar-k">Filter</span>
-            {(
-              [
-                ["all", "All"],
-                ["top", "Top 20"],
-                ["bottom", "Bottom 20"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={boardFilter === id ? "rot-chip on" : "rot-chip"}
-                onClick={() =>
-                  setBoardFilter((prev) =>
-                    id === "all" ? "all" : prev === id ? "all" : id,
-                  )
-                }
-              >
-                {label}
-              </button>
-            ))}
+            <label className="rot-search">
+              <span aria-hidden>⌕</span>
+              <input
+                placeholder="Search sector or industry"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                aria-label="Search sector"
+              />
+            </label>
+            <label className="rot-search">
+              <span aria-hidden>⌕</span>
+              <input
+                placeholder="Search stock"
+                value={stockFilter}
+                onChange={(e) => setStockFilter(e.target.value)}
+                aria-label="Search stock"
+              />
+            </label>
+            <div className="rot-seg" role="group" aria-label="Show">
+              {(
+                [
+                  ["all", "All"],
+                  ["top", "Top 20"],
+                  ["bottom", "Bottom 20"],
+                  ["starred", "★ Starred"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={boardFilter === id ? "on" : ""}
+                  aria-pressed={boardFilter === id}
+                  onClick={() =>
+                    setBoardFilter((prev) =>
+                      id === "all" ? "all" : prev === id ? "all" : id,
+                    )
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
-              className={aboveOn ? "rot-chip on" : "rot-chip"}
+              className={aboveOn ? "rot-toggle on" : "rot-toggle"}
+              aria-pressed={aboveOn}
               onClick={() => setAboveOn((v) => !v)}
+              title="Only sectors beating the Nifty 500"
             >
-              Above: {aboveOn ? "On" : "Off"}
+              <span className="rot-toggle-dot" aria-hidden />
+              Beating Nifty
             </button>
-            <button
-              type="button"
-              className={boardFilter === "starred" ? "rot-chip on" : "rot-chip"}
-              onClick={() =>
-                setBoardFilter((v) => (v === "starred" ? "all" : "starred"))
-              }
-            >
-              ★ Starred
-            </button>
-            <span className="rot-bar-k">Sort</span>
-            <select
-              className="rot-bar-sort"
-              value={sortKey}
-              onChange={(e) =>
-                setSortKey(e.target.value as typeof sortKey)
-              }
-              aria-label="Sort"
-            >
-              <option value="return">Return</option>
-              <option value="today">Today</option>
-              <option value="name">Name</option>
-              <option value="n">Stocks</option>
-            </select>
+            <span className="rot-bar-spacer" />
+            <label className="rot-sort">
+              <span>Sort</span>
+              <select
+                value={sortKey}
+                onChange={(e) =>
+                  setSortKey(e.target.value as typeof sortKey)
+                }
+                aria-label="Sort"
+              >
+                <option value="return">Return</option>
+                <option value="today">Today</option>
+                <option value="name">Name</option>
+                <option value="n">Stocks</option>
+              </select>
+            </label>
           </div>
         ) : null}
       </div>
@@ -2194,45 +2228,87 @@ export function SectorRotationPanel() {
           </span>
         </div>
         {view === "table" ? (
-        <table className="rot-table">
+        <div className="rot-tcard">
+        <table className="rot-table rot-table--modern">
           <thead>
             <tr>
-              <th aria-label="Show stocks"></th>
-              <th></th>
+              <th className="rot-tc-x" aria-label="Show stocks"></th>
               <th>Sector</th>
-              <th>Stocks</th>
-              <th>Today</th>
-              <th>Return</th>
-              <th>{benchLabel}</th>
+              <th className="num">Stocks</th>
+              <th className="num">Today</th>
+              <th className="num">{range} return</th>
+              <th className="num">vs {benchLabel}</th>
+              <th className="rot-tc-star" aria-label="Starred"></th>
             </tr>
           </thead>
           <tbody>
-            {pageCards.map((c) => (
+            {pageCards.map((c) => {
+              const open = expanded.has(c.id);
+              const rel =
+                c.sector_pct != null && c.bench_pct != null ? c.sector_pct - c.bench_pct : null;
+              return (
               <Fragment key={c.id}>
               <tr
-                className={
-                  c.id === bestSector?.id ? "rot-row rot-row--best" : "rot-row"
-                }
+                className={[
+                  "rot-row",
+                  c.id === bestSector?.id ? "rot-row--best" : "",
+                  open ? "is-open" : "",
+                ].join(" ")}
                 onClick={() => toggleExpanded(c.id)}
-                aria-expanded={expanded.has(c.id)}
+                aria-expanded={open}
               >
-                <td>
+                <td className="rot-tc-x">
                   <button
                     type="button"
-                    className={expanded.has(c.id) ? "rot-expand on" : "rot-expand"}
-                    aria-label={expanded.has(c.id) ? `Hide ${c.label} stocks` : `Show ${c.label} stocks`}
+                    className={open ? "rot-expand on" : "rot-expand"}
+                    aria-label={open ? `Hide ${c.label} stocks` : `Show ${c.label} stocks`}
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleExpanded(c.id);
                     }}
                   >
-                    ▸
+                    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
+                      <path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                   </button>
                 </td>
                 <td>
+                  <span className="rot-tname">
+                    {c.label}
+                    {c.id === bestSector?.id ? (
+                      <span className="rot-best-pill">Best</span>
+                    ) : null}
+                  </span>
+                </td>
+                <td className="num">
+                  <span className="rot-tcount">{c.n}</span>
+                  {(c.up ?? 0) > 0 ? <span className="rot-up">▲{c.up}</span> : null}
+                  {(c.down ?? 0) > 0 ? <span className="rot-dn">▼{c.down}</span> : null}
+                </td>
+                <td className={`num ${(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}`}>
+                  {fmtPct(c.today_pct ?? null)}
+                </td>
+                <td className="num">
+                  <span
+                    className={
+                      c.sector_pct == null
+                        ? "rot-pill"
+                        : c.sector_pct >= 0
+                          ? "rot-pill pos"
+                          : "rot-pill neg"
+                    }
+                  >
+                    {fmtPct(c.sector_pct)}
+                  </span>
+                </td>
+                <td className={`num ${rel == null ? "" : rel >= 0 ? "pos" : "neg"}`}>
+                  {rel == null ? "—" : `${rel >= 0 ? "+" : ""}${rel.toFixed(1)} pts`}
+                </td>
+                <td className="rot-tc-star">
                   <button
                     type="button"
                     className={c.starred ? "rot-star on" : "rot-star"}
+                    aria-label={c.starred ? "Unstar" : "Star"}
                     onClick={(e) => {
                       e.stopPropagation();
                       void toggleStar(c.id, !c.starred);
@@ -2241,36 +2317,16 @@ export function SectorRotationPanel() {
                     ★
                   </button>
                 </td>
-                <td>
-                  {c.id === bestSector?.id ? (
-                    <span className="rot-best-pill">Best</span>
-                  ) : null}
-                  {c.label}
-                </td>
-                <td>
-                  {c.n}
-                  {(c.up ?? 0) > 0 ? (
-                    <span className="rot-up">▲ {c.up}</span>
-                  ) : null}
-                  {(c.down ?? 0) > 0 ? (
-                    <span className="rot-dn">▼ {c.down}</span>
-                  ) : null}
-                </td>
-                <td className={(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}>
-                  {fmtPct(c.today_pct ?? null)}
-                </td>
-                <td className={(c.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
-                  {fmtPct(c.sector_pct)}
-                </td>
-                <td>{fmtPct(c.bench_pct)}</td>
               </tr>
-              {expanded.has(c.id) ? (
+              {open ? (
                 <SectorStocksRow id={c.id} range={range} colSpan={7} onOpen={() => setOpenId(c.id)} />
               ) : null}
               </Fragment>
-            ))}
+              );
+            })}
           </tbody>
         </table>
+        </div>
       ) : (
         <div className="rot-grid">
           {loading && !cards.length ? (
@@ -2300,8 +2356,17 @@ export function SectorRotationPanel() {
                   {c.label}
                 </strong>
                 <span className="rot-card-ret">
-                  <span className={(c.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
-                    Sector {fmtPct(c.sector_pct)}
+                  <span
+                    className={
+                      c.sector_pct == null
+                        ? "rot-pill"
+                        : c.sector_pct >= 0
+                          ? "rot-pill pos"
+                          : "rot-pill neg"
+                    }
+                    title={`Sector return, ${range}`}
+                  >
+                    {fmtPct(c.sector_pct)}
                   </span>
                   <button
                     type="button"
