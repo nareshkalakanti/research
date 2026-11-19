@@ -2,6 +2,7 @@
 
 import { Loading } from "@/components/Loading";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -10,6 +11,7 @@ import {
 } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { isRightsOrPartlyPaid } from "@/lib/listing-name-match";
+import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
 import {
   downsampleSeries,
   ROTATION_MA_PERIODS,
@@ -62,10 +64,133 @@ type Member = {
 
 type Hit = { ticker: string; name: string; market?: string; source?: string };
 
+/** "Best ranked" stock in a sector must be bigger than this (₹ Cr). */
+const BEST_MIN_MCAP_CR = 200;
+
 function fmtPct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
   const sign = n > 0 ? "+" : "";
   return `${sign}${n.toFixed(2)}%`;
+}
+
+type ListRow = {
+  ticker: string;
+  name: string;
+  market: string;
+  sector: string | null;
+  industry: string | null;
+  website: string | null;
+  mcap_cr: number | null;
+  price: number | null;
+  change_pct: number | null;
+  window_pct: number | null;
+};
+
+/** Table view: a sector's stocks shown inline under its row. */
+function SectorStocksRow({
+  id,
+  range,
+  colSpan,
+  onOpen,
+}: {
+  id: string;
+  range: string;
+  colSpan: number;
+  onOpen: () => void;
+}) {
+  const [rows, setRows] = useState<ListRow[] | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const ctl = new AbortController();
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/sector-rotation?id=${encodeURIComponent(id)}&list=1&range=${encodeURIComponent(range)}`,
+          { cache: "no-store", signal: ctl.signal },
+        );
+        const json = (await res.json()) as { ok?: boolean; error?: string; rows?: ListRow[] };
+        if (!live) return;
+        if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
+        setErr(null);
+        setRows(json.rows ?? []);
+      } catch (e) {
+        if (live && !(e instanceof DOMException && e.name === "AbortError"))
+          setErr(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      live = false;
+      ctl.abort();
+    };
+  }, [id, range]);
+
+  return (
+    <tr className="rot-sub">
+      <td colSpan={colSpan}>
+        {err ? (
+          <p className="rot-sub-msg">Could not load stocks: {err}</p>
+        ) : !rows ? (
+          <Loading label="Loading stocks" />
+        ) : !rows.length ? (
+          <p className="rot-sub-msg">No stocks in this sector.</p>
+        ) : (
+          <div className="rot-sub-wrap">
+            <table className="rot-sub-table">
+              <thead>
+                <tr>
+                  <th>Stock</th>
+                  <th className="num">Value ₹ Cr</th>
+                  <th className="num">Price</th>
+                  <th className="num">Today</th>
+                  <th className="num">{range}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const web = websiteUrl(r.website);
+                  return (
+                    <tr key={r.ticker}>
+                      <td>
+                        <a className="rot-sub-name" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer">
+                          {r.name}
+                        </a>
+                        <span className="rot-sub-meta">
+                          {r.ticker}
+                          {r.market && r.market !== "NSE" ? <span> · {r.market}</span> : null}
+                          <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
+                            NP
+                          </a>
+                          {web ? (
+                            <a className="np-chip" href={web} target="_blank" rel="noopener noreferrer" title={r.website ?? ""}>
+                              Web
+                            </a>
+                          ) : null}
+                        </span>
+                        {r.sector || r.industry ? (
+                          <span className="rot-sub-sector">
+                            {r.sector ?? r.industry}
+                            {r.industry && r.industry !== r.sector ? ` › ${r.industry}` : ""}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="num">{r.mcap_cr == null ? "—" : Math.round(r.mcap_cr).toLocaleString("en-IN")}</td>
+                      <td className="num">{r.price == null ? "—" : r.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}</td>
+                      <td className={`num ${(r.change_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{fmtPct(r.change_pct)}</td>
+                      <td className={`num ${(r.window_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{fmtPct(r.window_pct)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <button type="button" className="rot-sub-open" onClick={onOpen}>
+              Open sector chart and ranking →
+            </button>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
 }
 
 function fmtCr(n: number | null | undefined): string {
@@ -393,6 +518,16 @@ export function SectorRotationPanel() {
   const [weight, setWeight] = useState<"equal" | "cap">("equal");
   const [memberQ, setMemberQ] = useState("");
   const [view, setView] = useState<"grid" | "table">("grid");
+  /** Table view: sectors expanded to show their stocks inline. */
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const toggleExpanded = useCallback((id: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
   const [page, setPage] = useState(0);
   const [boardTick, setBoardTick] = useState(0);
   const [hydrating, setHydrating] = useState(false);
@@ -1274,7 +1409,10 @@ export function SectorRotationPanel() {
     () => sortedCards.reduce((sum, c) => sum + (c.n || 0), 0),
     [sortedCards],
   );
-  /** Only crow when Total Score ranking exists — never mcap / price fallback. */
+  /**
+   * Only crow when Total Score ranking exists — never mcap / price fallback.
+   * Best must also be over ₹200 Cr market cap (tiny names don't qualify).
+   */
   const bestMemberTicker = useMemo(() => {
     const rows = detail?.members ?? [];
     const withRank = rows.filter(
@@ -1282,7 +1420,9 @@ export function SectorRotationPanel() {
         m.rank != null &&
         Number.isFinite(m.rank) &&
         m.total_score != null &&
-        Number.isFinite(m.total_score),
+        Number.isFinite(m.total_score) &&
+        m.mcap_cr != null &&
+        m.mcap_cr > BEST_MIN_MCAP_CR,
     );
     if (!withRank.length) return null;
     return (
@@ -1964,7 +2104,7 @@ export function SectorRotationPanel() {
                   </td>
                   <td className="rot-stock">
                     {m.rank === 1 ? (
-                      <span className="rot-best-pill" title="Best ranked in sector">
+                      <span className="rot-best-pill" title="Best ranked in sector (over ₹200 Cr market cap)">
                         Best
                       </span>
                     ) : null}
@@ -2057,6 +2197,7 @@ export function SectorRotationPanel() {
         <table className="rot-table">
           <thead>
             <tr>
+              <th aria-label="Show stocks"></th>
               <th></th>
               <th>Sector</th>
               <th>Stocks</th>
@@ -2067,13 +2208,27 @@ export function SectorRotationPanel() {
           </thead>
           <tbody>
             {pageCards.map((c) => (
+              <Fragment key={c.id}>
               <tr
-                key={c.id}
                 className={
                   c.id === bestSector?.id ? "rot-row rot-row--best" : "rot-row"
                 }
-                onClick={() => setOpenId(c.id)}
+                onClick={() => toggleExpanded(c.id)}
+                aria-expanded={expanded.has(c.id)}
               >
+                <td>
+                  <button
+                    type="button"
+                    className={expanded.has(c.id) ? "rot-expand on" : "rot-expand"}
+                    aria-label={expanded.has(c.id) ? `Hide ${c.label} stocks` : `Show ${c.label} stocks`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleExpanded(c.id);
+                    }}
+                  >
+                    ▸
+                  </button>
+                </td>
                 <td>
                   <button
                     type="button"
@@ -2109,6 +2264,10 @@ export function SectorRotationPanel() {
                 </td>
                 <td>{fmtPct(c.bench_pct)}</td>
               </tr>
+              {expanded.has(c.id) ? (
+                <SectorStocksRow id={c.id} range={range} colSpan={7} onOpen={() => setOpenId(c.id)} />
+              ) : null}
+              </Fragment>
             ))}
           </tbody>
         </table>

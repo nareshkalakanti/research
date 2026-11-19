@@ -13,6 +13,7 @@ import {
 } from "@/lib/sector-rotation";
 import {
   buildRotationDetail,
+  buildRotationList,
   buildRotationLiteBoard,
   hydrateRotationCards,
   invalidateRotationRank,
@@ -52,6 +53,9 @@ export async function GET(req: NextRequest) {
       const sector = getRotationSector(id);
       if (!sector) {
         return NextResponse.json({ error: "not found" }, { status: 404 });
+      }
+      if (sp.get("list") === "1") {
+        return NextResponse.json({ ok: true, id: sector.id, ...(await buildRotationList(sector, range)) });
       }
       if (sp.get("members") === "1") {
         return NextResponse.json({ ok: true, sector });

@@ -30669,3 +30669,79 @@ a.mom-ck-link:hover{text-decoration:underline}
   gap: 12px;
   margin: 12px 0;
 }
+
+/* Rotation table view: expandable sector rows */
+.rot-expand {
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+  padding: 2px 6px;
+  transition: transform 0.15s ease;
+}
+.rot-expand.on {
+  transform: rotate(90deg);
+  color: var(--accent, #2563eb);
+}
+.rot-sub > td {
+  padding: 4px 8px 12px 36px !important;
+  background: color-mix(in srgb, currentColor 3%, transparent);
+  cursor: default;
+}
+.rot-sub-wrap {
+  overflow-x: auto;
+}
+.rot-sub-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+.rot-sub-table th,
+.rot-sub-table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid color-mix(in srgb, currentColor 8%, transparent);
+  text-align: left;
+  vertical-align: top;
+}
+.rot-sub-table th {
+  font-weight: 600;
+  font-size: 11px;
+  opacity: 0.7;
+}
+.rot-sub-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rot-sub-name {
+  font-weight: 600;
+  color: inherit;
+  text-decoration: none;
+}
+.rot-sub-name:hover {
+  text-decoration: underline;
+}
+.rot-sub-meta,
+.rot-sub-sector {
+  display: block;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.rot-sub-meta .np-chip {
+  margin-left: 6px;
+}
+.rot-sub-msg {
+  margin: 6px 0;
+  font-size: 12px;
+  opacity: 0.75;
+}
+.rot-sub-open {
+  margin-top: 8px;
+  border: 0;
+  background: none;
+  color: var(--accent, #2563eb);
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+}

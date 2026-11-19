@@ -1,4 +1,6 @@
+import { loadAllCompanies } from "./db";
 import { fetchNifty500DailyBars } from "./ohlc";
+import { masterLabels } from "./stock-master";
 import { onRotationBarsRefreshed, rotationCloses } from "./rotation-bars";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
 import { loadMetricsMap, refreshPagePrices } from "./metrics";
@@ -918,4 +920,68 @@ export async function buildRotationDetail(
     },
     members,
   };
+}
+
+// ---- Table view: one sector's stocks, inline ------------------------------------------
+
+export type RotationListRow = {
+  ticker: string;
+  name: string;
+  market: string;
+  sector: string | null;
+  industry: string | null;
+  website: string | null;
+  mcap_cr: number | null;
+  price: number | null;
+  change_pct: number | null;
+  window_pct: number | null;
+};
+
+/**
+ * Stocks of one sector for the expandable table row: cached closes only (no
+ * live fetches), so it answers in well under a second.
+ */
+export async function buildRotationList(
+  sector: RotationSector,
+  range: string,
+): Promise<{ range: string; rows: RotationListRow[] }> {
+  const years = rotationFetchYears();
+  const metrics = loadMetricsMap();
+  const labels = masterLabels();
+  const sites = new Map<string, string | null>();
+  try {
+    for (const c of loadAllCompanies()) sites.set(c.ticker.toUpperCase(), c.website ?? null);
+  } catch {
+    /* websites optional */
+  }
+  const packed = await memberBars(sector.members, years);
+  const last = packed
+    .map((p) => p.bars[p.bars.length - 1]?.date || "")
+    .filter(Boolean)
+    .sort()
+    .at(-1) || "";
+  const start = rotationWindowStart(last, range);
+  const rows = packed.map(({ member, bars }) => {
+    const key = member.ticker.toUpperCase();
+    const m = metrics.get(key);
+    const lab = labels.get(key);
+    const lastClose = bars[bars.length - 1]?.close ?? null;
+    const prevClose = bars[bars.length - 2]?.close ?? null;
+    return {
+      ticker: key,
+      name: member.name,
+      market: member.market,
+      sector: lab?.sector ?? null,
+      industry: lab?.industry ?? null,
+      website: sites.get(key) ?? null,
+      mcap_cr: m?.market_cap_cr ?? null,
+      price: m?.price ?? lastClose,
+      change_pct:
+        m?.change_pct ??
+        (lastClose != null && prevClose ? ((lastClose - prevClose) / prevClose) * 100 : null),
+      window_pct: bars.length ? seriesReturnPct(windowRebaseSeries(rebaseCloses(bars, start), start)) : null,
+    };
+  });
+  rows.sort((a, b) => (b.window_pct ?? -Infinity) - (a.window_pct ?? -Infinity));
+  return { range: (range || "6M").toUpperCase(), rows };
 }
