@@ -102,3 +102,6 @@ next-env.d.ts
 # Local SQLite recovery junk
 data/.recovered-*
 data/.corrupt-bak/
+
+# Copies kept by db:restore (data/.pre-restore/<time>/) — local only.
+/data/.pre-restore/
