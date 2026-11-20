@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import type { QfCheck, QualityFlags } from "@/lib/napkin/quality-flags";
 
-/** Napkin card: 10-year quality checks + red flags (Screener data). */
-export function NapkinQualityFlags({ ticker }: { ticker: string }) {
+/** Quality checks + red flags + special situations for one stock (Screener / Yahoo). */
+export function useQualityFlags(ticker: string): { q: QualityFlags | null; ready: boolean; err: string | null } {
   const [data, setData] = useState<QualityFlags | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -36,7 +36,14 @@ export function NapkinQualityFlags({ ticker }: { ticker: string }) {
       ctl.abort();
     };
   }, [ticker]);
+  const ready = loadedFor === ticker;
+  return { q: ready ? data : null, ready, err: ready ? err : null };
+}
 
+/** Napkin card: 10-year quality checks + red flags (Screener data). */
+export function NapkinQualityFlags({ ticker }: { ticker: string }) {
+  const { q: data, ready: loaded, err } = useQualityFlags(ticker);
+  const loadedFor = loaded ? ticker : null;
   const ready = loadedFor === ticker;
   const q = ready ? data : null;
   const noData = q && q.quality_scored === 0 && q.flags.every((f) => f.verdict === "na");
@@ -99,7 +106,7 @@ export function NapkinQualityFlags({ ticker }: { ticker: string }) {
               </>
             }
             rating={q.red_flags ? { label: "Watch", cls: "seven-rule-rating--sell" } : { label: "Clean", cls: "seven-rule-rating--buy" }}
-            sub="Pledge < 1% · quarterly sales not down > 10% YoY · interest cover > 5×"
+            sub="Pledge < 1% · promoter ≥ 20% · other income < 10% of revenue · interest cover > 5×"
           />
         </div>
       ) : null}
@@ -129,20 +136,22 @@ export function NapkinQualityFlags({ ticker }: { ticker: string }) {
 }
 
 /** Momentum / Quarters card style: score line, segments, Show checks. */
-function QfCard({
+export function QfCard({
   checks,
   kind,
   headline,
   rating,
   sub,
+  startOpen,
 }: {
   checks: QfCheck[];
   kind: "quality" | "flag" | "special";
   headline: React.ReactNode;
   rating: { label: string; cls: string };
   sub: string;
+  startOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!startOpen);
   // Segments: for red flags a raised flag is the bad state.
   const seg = (c: QfCheck) => (c.verdict === "na" ? "unknown" : c.verdict);
   return (
@@ -162,7 +171,7 @@ function QfCard({
       {open ? (
         <ul className="seven-rule-rules">
           {checks.map((c) => (
-            <Row key={c.id} c={c} kind={kind} />
+            <QfRow key={c.id} c={c} kind={kind} />
           ))}
         </ul>
       ) : null}
@@ -173,7 +182,7 @@ function QfCard({
   );
 }
 
-function Row({ c, kind }: { c: QfCheck; kind: "quality" | "flag" | "special" }) {
+export function QfRow({ c, kind }: { c: QfCheck; kind: "quality" | "flag" | "special" }) {
   const label =
     c.verdict === "na"
       ? "N/A"

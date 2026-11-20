@@ -16,8 +16,8 @@ import { fetchScreenerShareholding } from "../screener-shareholding";
  *   Book value 10Y CAGR ≥ 10%, EPS 10Y CAGR ≥ 10%, ROCE 10Y average ≥ 10%,
  *   promoter holding steady / rising over 10 years, Sales 10Y CAGR ≥ 10%.
  * Red flags — flagged when:
- *   promoter pledge ≥ 1%, latest quarter's sales down > 10% on the same
- *   quarter last year, interest coverage < 5×.
+ *   promoter pledge ≥ 1%, other income ≥ 10% of total revenue (quality of
+ *   turnover), interest coverage < 5×.
  */
 
 export const QF_RULES = {
@@ -41,6 +41,8 @@ export type QfCheck = {
   value: string;
   verdict: QfVerdict;
   note?: string;
+  /** Sub-conditions (special situations): each must hold. */
+  conds?: Array<{ label: string; value: string; ok: boolean | null }>;
 };
 export type PegBand = "cheap" | "fair" | "expensive" | "na";
 export type PegInfo = {
@@ -111,9 +113,10 @@ export function cagrCheck(
       id,
       label,
       rule,
-      value: `${start.v.toFixed(1)} → ${end.v.toFixed(1)}`,
-      verdict: end.v > start.v ? "pass" : "fail",
-      note: "Negative or zero at one end — CAGR not meaningful",
+      value: `${start.v.toFixed(2)} → ${end.v.toFixed(2)}`,
+      // Still ≤ 0 at the end = no real growth. From a loss to a profit = turnaround, not a CAGR.
+      verdict: end.v <= 0 ? "fail" : "na",
+      note: end.v <= 0 ? "Zero or negative now — no growth" : "Turnaround from a loss — CAGR not meaningful",
     };
   }
   const g = (Math.pow(end.v / start.v, 1 / span) - 1) * 100;
@@ -241,25 +244,35 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
       verdict: p == null ? "na" : p >= QF_RULES.pledge ? "fail" : "pass",
     });
   }
-  // 7) Quarterly turnover vs same quarter last year
+  // 6b) Low promoter holding: owners with little skin in the game.
   {
-    const qs = [...(quarters ?? [])].filter((q) => q.revenue != null).sort((a, b) => a.date.localeCompare(b.date));
-    const last = qs[qs.length - 1];
-    const yAgo = last ? qs.find((q) => q.date.slice(0, 7) === `${Number(last.date.slice(0, 4)) - 1}${last.date.slice(4, 7)}`) : undefined;
-    const prev = qs[qs.length - 2];
-    if (last && yAgo && yAgo.revenue && yAgo.revenue > 0) {
-      const ch = ((last.revenue! - yAgo.revenue) / yAgo.revenue) * 100;
-      const qoq = prev?.revenue ? ((last.revenue! - prev.revenue) / prev.revenue) * 100 : null;
+    const promNow = sh ? [...sh.promoters].reverse().find((v) => v != null) ?? null : null;
+    flags.push({
+      id: "promoter_low",
+      label: "Promoter holding",
+      rule: "≥ 20%",
+      value: promNow == null ? "—" : `${promNow.toFixed(1)}%`,
+      verdict: promNow == null ? "na" : promNow < 20 ? "fail" : "pass",
+      note: promNow != null && promNow < 20 ? "Low skin in the game" : undefined,
+    });
+  }
+  // 7) Quality turnover: other income ÷ total revenue (sales + other income), latest year.
+  {
+    const i = pl ? pl.dates.length - 1 : -1;
+    const rev = i >= 0 ? pl!.revenue[i] : null;
+    const oi = i >= 0 ? pl!.other_income[i] : null;
+    if (rev == null || oi == null || rev + Math.max(0, oi) <= 0) {
+      flags.push({ id: "turnover", label: "Quality turnover", rule: "other income < 10% of revenue", value: "—", verdict: "na", note: "No P&L" });
+    } else {
+      const share = (Math.max(0, oi) / (rev + Math.max(0, oi))) * 100;
       flags.push({
         id: "turnover",
-        label: "Quarterly turnover",
-        rule: `not down > ${QF_RULES.turnoverDrop}% YoY`,
-        value: `${ch >= 0 ? "+" : ""}${ch.toFixed(1)}% YoY`,
-        verdict: ch <= -QF_RULES.turnoverDrop ? "fail" : "pass",
-        note: `${last.date.slice(0, 7)} vs ${yAgo.date.slice(0, 7)}${qoq != null ? ` · QoQ ${qoq >= 0 ? "+" : ""}${qoq.toFixed(1)}%` : ""}`,
+        label: "Quality turnover",
+        rule: "other income < 10% of revenue",
+        value: `${share.toFixed(1)}%`,
+        verdict: share >= 10 ? "fail" : "pass",
+        note: `FY ${pl!.dates[i]!.slice(0, 4)} · other income ₹${Math.round(Math.max(0, oi)).toLocaleString("en-IN")} Cr of ₹${Math.round(rev + Math.max(0, oi)).toLocaleString("en-IN")} Cr`,
       });
-    } else {
-      flags.push({ id: "turnover", label: "Quarterly turnover", rule: `not down > ${QF_RULES.turnoverDrop}% YoY`, value: "—", verdict: "na", note: "No year-ago quarter" });
     }
   }
   // 8) Interest coverage, latest year: (PBT + interest) / interest
@@ -421,6 +434,24 @@ async function buildSpecial(
         rule: `net block > ${SPECIAL.capexX}× last year · promoter > ${SPECIAL.capexPromoter}% · mcap > ₹${SPECIAL.capexMcap} Cr`,
         value: `${xNb == null ? "—" : `${xNb.toFixed(2)}×`}${cw.length ? ` · with CWIP ${xT == null ? "—" : `${xT.toFixed(2)}×`}` : ""}`,
         verdict: grew && promOk && capOk ? "pass" : !grew ? "fail" : missing ? "na" : "fail",
+        conds: [
+          {
+            label: `Net block > ${SPECIAL.capexX}× last year`,
+            value: `${cr(prev.v)} → ${cr(cur.v)} (${xNb == null ? "—" : `${xNb.toFixed(2)}×`})`,
+            ok: xNb == null ? null : xNb > SPECIAL.capexX,
+          },
+          ...(cw.length
+            ? [
+                {
+                  label: `or net block + CWIP > ${SPECIAL.capexX}×`,
+                  value: `${cr(prevT)} → ${cr(curT)} (${xT == null ? "—" : `${xT.toFixed(2)}×`})`,
+                  ok: xT == null ? null : xT > SPECIAL.capexX,
+                },
+              ]
+            : []),
+          { label: `Promoter > ${SPECIAL.capexPromoter}%`, value: prom == null ? "—" : `${prom.toFixed(1)}%`, ok: prom == null ? null : promOk },
+          { label: `Market cap > ₹${SPECIAL.capexMcap} Cr`, value: mcap == null ? "—" : cr(mcap), ok: mcap == null ? null : capOk },
+        ],
         note:
           `Net block ${cr(prev.v)} (FY${prev.date.slice(0, 4)}) → ${cr(cur.v)} (FY${cur.date.slice(0, 4)})` +
           (cw.length ? ` · CWIP ${cr(cwAt(prev.date))} → ${cr(cwAt(cur.date))}` : "") +
@@ -451,6 +482,11 @@ async function buildSpecial(
         rule: `cash − debt > market cap · promoter > ${SPECIAL.cashPromoter}% · pledge 0%`,
         value: `${net >= 0 ? "" : "−"}${cr(Math.abs(net))} vs ${cr(mcap)}`,
         verdict: ok ? "pass" : "fail",
+        conds: [
+          { label: "Cash − debt > market cap", value: `${cr(cd.cash_cr)} − ${cr(debt ?? 0)} = ${net >= 0 ? "" : "−"}${cr(Math.abs(net))} vs ${cr(mcap)}`, ok: net > mcap },
+          { label: `Promoter > ${SPECIAL.cashPromoter}%`, value: prom == null ? "—" : `${prom.toFixed(1)}%`, ok: prom == null ? null : prom > SPECIAL.cashPromoter },
+          { label: "Pledge = 0%", value: pledge == null ? "—" : `${pledge}%`, ok: pledge == null ? null : pledge === 0 },
+        ],
         note: `cash ${cr(cd.cash_cr)} − debt ${cr(debt ?? 0)} · ${((net / mcap) * 100).toFixed(0)}% of mcap · promoter ${prom == null ? "—" : `${prom.toFixed(1)}%`} · pledge ${pledge == null ? "—" : `${pledge}%`}`,
       });
     }

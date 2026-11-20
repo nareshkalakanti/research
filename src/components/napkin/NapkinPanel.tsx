@@ -23,9 +23,6 @@ import { WatchButton } from "@/components/WatchButton";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { governancePersonUrl } from "@/lib/links";
 
-function na(v: string | undefined): string {
-  return !v || v === "N/A" ? "N/A" : v;
-}
 
 function fmtUpdated(iso: string | null | undefined): string {
   if (!iso) return "N/A";
@@ -162,7 +159,6 @@ export function NapkinPanel() {
     !!data,
   );
 
-  const hist5 = data ? napkinMetric(data.financials, "eps5") : "N/A";
   const status = data?.data_status ?? "insufficient";
   const dq = data?.data_quality;
   const statusLine =
@@ -272,27 +268,6 @@ export function NapkinPanel() {
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
 
-            <div className="napkin-sheet-section">
-              <h2 className="napkin-block-title">Snapshot</h2>
-              <dl className="napkin-dl napkin-val">
-                <div className="napkin-dl-row">
-                  <dt>P/E</dt>
-                  <dd>{napkinPeDisplay(napkinMetric(data.overview, "pe"))}</dd>
-                </div>
-                <div className="napkin-dl-row">
-                  <dt>ROCE</dt>
-                  <dd>{napkinMetric(data.overview, "roce")}</dd>
-                </div>
-                <div className="napkin-dl-row">
-                  <dt>Revenue 5Y CAGR</dt>
-                  <dd>{na(napkinMetric(data.financials, "rev5"))}</dd>
-                </div>
-                <div className="napkin-dl-row">
-                  <dt>EPS 5Y CAGR</dt>
-                  <dd>{na(hist5)}</dd>
-                </div>
-              </dl>
-            </div>
 
             <NapkinValuation data={data} />
 

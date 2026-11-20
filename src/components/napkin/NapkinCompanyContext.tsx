@@ -2,10 +2,9 @@
 
 import { useMemo } from "react";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
-import { QuartersRankCard } from "@/components/QuartersRankCard";
-import { NapkinQualityFlags } from "@/components/napkin/NapkinQualityFlags";
-import { QuoteTapeCard } from "@/components/QuoteTapeCard";
-import { SevenRuleScoreCard } from "@/components/SevenRuleScoreCard";
+import { NapkinScorecard } from "@/components/napkin/NapkinScorecard";
+import { useQualityFlags } from "@/components/napkin/NapkinQualityFlags";
+import { quarterRankFromPanel } from "@/lib/quarter-rank";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
 import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 
@@ -36,6 +35,12 @@ export function NapkinCompanyContext({
     [qtr.panel, roe, roce],
   );
 
+  const qrank = useMemo(
+    () => (qtr.panel?.labels?.length ? quarterRankFromPanel(qtr.panel, qtr.yoy) : null),
+    [qtr.panel, qtr.yoy],
+  );
+  const quality = useQualityFlags(ticker);
+
   return (
     <>
       <div className="napkin-sheet-section">
@@ -48,30 +53,17 @@ export function NapkinCompanyContext({
         />
       </div>
 
-      {sevenRule ? (
-        <div className="napkin-sheet-section">
-          <h2 className="napkin-block-title">Momentum</h2>
-          <SevenRuleScoreCard result={sevenRule} compact />
-        </div>
-      ) : null}
+      <NapkinScorecard
+        sevenRule={sevenRule}
+        qrank={qrank}
+        qtr={qtr}
+        price={price}
+        quality={quality.q}
+        qualityReady={quality.ready}
+        ticker={ticker}
+        market={market}
+      />
 
-      <div className="napkin-sheet-section">
-        <h2 className="napkin-block-title">Quarters</h2>
-        <QuartersRankCard data={qtr} price={price} />
-      </div>
-
-      <NapkinQualityFlags ticker={ticker} />
-
-      <div className="napkin-sheet-section">
-        <h2 className="napkin-block-title">Tech</h2>
-        <QuoteTapeCard
-          ticker={ticker}
-          market={market}
-          hideTitle
-          hideVal
-          className="napkin-tape-card"
-        />
-      </div>
     </>
   );
 }
