@@ -20,8 +20,7 @@ import {
 } from "@/lib/napkin/format";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinBuyPrice } from "@/components/napkin/NapkinBuyPrice";
-import { NapkinHero } from "@/components/napkin/NapkinHero";
-import { napkinEntryPriceStatus, napkinPathCase } from "@/lib/napkin/composite";
+import { napkinPathCase } from "@/lib/napkin/composite";
 import {
   NAPKIN_DEFAULT_TARGET_RETURN,
   NAPKIN_TARGET_RETURN_PRESETS,
@@ -65,7 +64,6 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
     target_return: target,
     years,
   });
-  const entryStatus = napkinEntryPriceStatus(price, path.case.buy_price);
   const notes = napkinMathNotes({
     historicalEpsCagr: historical,
     usedFiveYear: hist5 !== "N/A",
@@ -85,27 +83,6 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
 
   return (
     <>
-      <div className="napkin-sheet-section napkin-path-hero">
-        <NapkinHero
-          price={price}
-          pe={pe}
-          eps={eps}
-          expected={expected}
-          exitPe={exitPe}
-          target={target}
-          years={years}
-          growthSource={
-            usingHist
-              ? `its ${hist5 !== "N/A" ? "5" : "3"}-year EPS growth${histRatio !== histDefault ? ", kept within 0–30%" : ""}`
-              : histRatio == null && custom === "" && Math.abs(expected - NAPKIN_DEFAULT_EXPECTED_CAGR) < 1e-9
-                ? "default rate, no EPS history"
-                : "your assumption"
-          }
-          quote={path.case}
-          status={entryStatus}
-        />
-      </div>
-
       <div className="napkin-sheet-section">
         <h2 className="napkin-block-title">Napkin</h2>
         <dl className="napkin-dl napkin-val">

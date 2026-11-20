@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addToReview, buildReview, FUND, removeFromReview, resolveTickers } from "@/lib/portfolio-review";
+import {
+  addToReview,
+  buildReview,
+  FUND,
+  listReviewTickers,
+  removeFromReview,
+  resolveTickers,
+} from "@/lib/portfolio-review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET: the review list with Fundamental scores. */
+/** GET: the review list with Fundamental scores. `?tickers=1` = membership only. */
 export async function GET(req: Request) {
   try {
-    const fresh = new URL(req.url).searchParams.get("fresh") === "1";
+    const sp = new URL(req.url).searchParams;
+    if (sp.get("tickers") === "1") {
+      return NextResponse.json({ ok: true, tickers: listReviewTickers() });
+    }
+    const fresh = sp.get("fresh") === "1";
     return NextResponse.json({ ok: true, rules: FUND, ...(await buildReview({ fresh })) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });

@@ -113,8 +113,8 @@ function loadPeers(): {
       }
       for (const r of db.prepare(`SELECT UPPER(ticker) AS t, bs_json FROM screener_annual_bs_cache`).all() as Array<{ t: string; bs_json: string }>) {
         try {
-          const b = JSON.parse(r.bs_json) as { book_value: Array<number | null> };
-          const bv = [...b.book_value].reverse().find((v) => v != null && v > 0) ?? null;
+          const b = JSON.parse(r.bs_json) as { dates: string[]; book_value: Array<number | null> };
+          const bv = fullYearBookValue(b.dates, b.book_value);
           legs.set(r.t, { sales: legs.get(r.t)?.sales ?? null, bv });
         } catch {
           /* skip */
@@ -161,6 +161,20 @@ function loadPeers(): {
     if (e.ps.length >= VALN.peerMin) peers.ps.set(ind, med(e.ps));
   }
   return { industryOf, peers, price, mcap, htPb };
+}
+
+/** Latest positive book value in the full-year columns (the most common month,
+ *  i.e. March), skipping half-year columns Screener appends. */
+function fullYearBookValue(dates: string[] | undefined, values: Array<number | null> | undefined): number | null {
+  if (!dates?.length || !values?.length) return null;
+  const months = new Map<string, number>();
+  for (const d of dates) months.set(d.slice(5, 7), (months.get(d.slice(5, 7)) ?? 0) + 1);
+  const main = [...months].sort((x, y) => y[1] - x[1])[0]?.[0];
+  for (let i = dates.length - 1; i >= 0; i--) {
+    const v = values[i];
+    if (dates[i]!.slice(5, 7) === main && v != null && v > 0) return v;
+  }
+  return null;
 }
 
 function withDb<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
@@ -225,6 +239,17 @@ export function addToReview(tickers: string[]): number {
     })();
     return n;
   });
+}
+
+/** Tickers currently on the Portfolio review list (no scoring). */
+export function listReviewTickers(): string[] {
+  return withDb((db) =>
+    (
+      db.prepare(`SELECT ticker FROM portfolio_review ORDER BY ticker`).all() as Array<{
+        ticker: string;
+      }>
+    ).map((r) => r.ticker.toUpperCase()),
+  );
 }
 
 export function removeFromReview(ticker: string | null): void {
@@ -440,7 +465,9 @@ async function scoreValuation(
   const price = ctx.price.get(t) ?? null;
   const ind = ctx.industryOf.get(t) ?? null;
   const last = <T,>(xs: Array<T | null> | undefined) => (xs ? [...xs].reverse().find((v) => v != null) ?? null : null);
-  const bv = last(bs?.book_value);
+  // Last full-year (March) book value — same as the Value page and the peer
+  // medians; the newest column is often a half-year one (e.g. Sep).
+  const bv = bs ? fullYearBookValue(bs.dates, bs.book_value) : null;
   const sales = last(pl?.revenue ?? annual?.sales);
   const band = (ratio: number) => (ratio <= 1 ? 1 : ratio > VALN.expensive ? -1 : 0) as 1 | 0 | -1;
   const pts = (v: 1 | 0 | -1) => v;

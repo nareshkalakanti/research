@@ -2,6 +2,10 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { MultiPick } from "@/components/FilterBar";
+import {
+  ReviewPlusButton,
+  invalidateReviewMembership,
+} from "@/components/ReviewPlusButton";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
 
 /**
@@ -462,6 +466,7 @@ export function ValuePanel() {
                             <span className="vx-sub">
                               {r.t}
                               {r.market !== "NSE" ? <em>{r.market}</em> : null}
+                              <ReviewPlusButton ticker={r.t} />
                               <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                                 NP
                               </a>
@@ -517,7 +522,10 @@ export function ValuePanel() {
       ) : tab === "valuation" ? (
         <ValuationView onOpen={openIndustry} />
       ) : tab === "review" ? (
-        <ReviewView universe={rows} />
+        <ReviewView
+          universe={rows}
+          onMembershipChange={invalidateReviewMembership}
+        />
       ) : (
         <WindsView onOpen={openIndustry} />
       )}
@@ -683,7 +691,13 @@ const CYCLE_RULE: Record<CycleStatus, string> = {
 const PICKS_MIN_CAP = 200;
 const PICKS_PER_INDUSTRY = 3;
 
-function CycleView({ rows, onOpen }: { rows: Stock[] | null; onOpen: (industry: string) => void }) {
+function CycleView({
+  rows,
+  onOpen,
+}: {
+  rows: Stock[] | null;
+  onOpen: (industry: string) => void;
+}) {
   const [data, setData] = useState<CycleRow[] | null>(null);
   const [asOf, setAsOf] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -862,6 +876,7 @@ function CycleView({ rows, onOpen }: { rows: Stock[] | null; onOpen: (industry: 
                           <span className="vx-sub">
                             {r.t}
                             {r.market !== "NSE" ? <em>{r.market}</em> : null}
+                            <ReviewPlusButton ticker={r.t} />
                             <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                               NP
                             </a>
@@ -1103,6 +1118,7 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
                           </a>
                           <span className="vx-sub">
                             {s.t}
+                            <ReviewPlusButton ticker={s.t} />
                             <a className="np-chip" href={napkinUrl(s.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                               NP
                             </a>
@@ -1164,7 +1180,13 @@ const DRAWER: Record<DrawerKind, { title: string; label: string; max: number; sr
   valuation: { title: "Valuation parameters", label: "Valuation score", max: 6, src: "Peers = same industry (3+ with data) · cash: Yahoo" },
 };
 
-function ReviewView({ universe }: { universe: Stock[] | null }) {
+function ReviewView({
+  universe,
+  onMembershipChange,
+}: {
+  universe: Stock[] | null;
+  onMembershipChange?: () => void;
+}) {
   const [rows, setRows] = useState<ReviewRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -1248,6 +1270,7 @@ function ReviewView({ universe }: { universe: Stock[] | null }) {
       );
       setQ("");
       await load();
+      onMembershipChange?.();
       if (j.added) setMsg(`Added ${j.added}${miss}`);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -1318,6 +1341,7 @@ function ReviewView({ universe }: { universe: Stock[] | null }) {
                 if (!window.confirm("Remove every stock from the review?")) return;
                 await post({ clear: true });
                 await load();
+                onMembershipChange?.();
               }}
             >
               Clear portfolio
@@ -1452,6 +1476,7 @@ function ReviewView({ universe }: { universe: Stock[] | null }) {
                         onClick={async () => {
                           await post({ remove: r.t });
                           await load();
+                          onMembershipChange?.();
                         }}
                       >
                         ✕

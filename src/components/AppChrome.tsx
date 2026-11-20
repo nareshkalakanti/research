@@ -33,7 +33,7 @@ export function AppChrome({
         <a
           className="brand brand-btn"
           href="/"
-          title="Napkin"
+          title="Research · India equities"
           onClick={(e) => {
             if (
               e.metaKey ||

@@ -5,8 +5,8 @@ import { THEME_BOOT } from "@/components/ThemeToggle";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Research · Theme",
-  description: "India equities research — Theme",
+  title: "Research · India equities",
+  description: "India equities research",
 };
 
 /** App font (clean geometric sans) — sets --font-sans used across globals.css. */

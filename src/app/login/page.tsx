@@ -33,7 +33,7 @@ export default function LoginPage() {
         <div className="login-brand">
           <BrandMark large />
           <h1>Research</h1>
-          <p>Demo sign-in for Theme</p>
+          <p>India equities</p>
         </div>
 
         <label className="login-field">

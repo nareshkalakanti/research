@@ -95,14 +95,20 @@ export function NapkinBuyPrice({
         <div className="napkin-entry-box">
           <div className="napkin-entry-left">
             <div>
-              <div className="napkin-buy-kicker">Max entry price</div>
-              <div className="napkin-buy-value">{formatNapkinRupee(quote.buy_price)}</div>
+              <div className="napkin-buy-kicker">Future Value</div>
+              <div className="napkin-buy-value">{formatNapkinRupee(quote.future_price)}</div>
             </div>
-            {status ? (
-              <span className={`napkin-entry-status napkin-entry-status--${status.tone}`}>
-                {status.label}
-              </span>
-            ) : null}
+            <div>
+              <div className="napkin-buy-kicker">Max entry price</div>
+              <div className="napkin-buy-value napkin-buy-value--with-status">
+                {formatNapkinRupee(quote.buy_price)}
+                {status ? (
+                  <span className={`napkin-entry-status napkin-entry-status--${status.tone}`}>
+                    {status.label}
+                  </span>
+                ) : null}
+              </div>
+            </div>
           </div>
           <p className="napkin-buy-note">
             Maximum price today for the selected target return if expected EPS
