@@ -80,7 +80,7 @@ export function CompanyAboutCard({
     };
   }, [ticker, market, companyName, active]);
 
-  const sectorBits = [about?.sector, about?.sub_sector]
+  const sectorBits = [about?.sub_sector || about?.sector]
     .map((x) => (x || "").trim())
     .filter(Boolean);
   const rest = [about?.headquarters, about?.market]

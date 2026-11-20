@@ -73,8 +73,14 @@ export async function fetchBseMainListings(): Promise<BseMainListing[]> {
 }
 
 /** Worth adding to the app: big enough and not in a penalty group. */
+/**
+ * Every active BSE-only company is added (full ~6,000-stock universe, matching
+ * StockScans). Size and Z / ZP group are still exposed for filters — pages
+ * default to ₹200 Cr+ where tiny names would crowd the top.
+ */
 export function bseMainWanted(r: BseMainListing): boolean {
-  return r.mcap_cr != null && r.mcap_cr >= BSE_MAIN_MIN_MCAP_CR && !BSE_MAIN_SKIP_GROUPS.has(r.group);
+  void r;
+  return true;
 }
 
 /** BSE-only tickers (market "BSE") with a known scrip code but no sector yet. */

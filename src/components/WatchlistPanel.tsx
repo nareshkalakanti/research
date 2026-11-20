@@ -1,6 +1,7 @@
 "use client";
 
 import { FundPagesBar } from "@/components/FundPagesBar";
+import { ExchangeSeg, exchangeMatch, type ExchangeId } from "@/components/FilterBar";
 import { Loading } from "@/components/Loading";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -679,7 +680,7 @@ function WatchlistRow({
                           <p className="wl-story-meta">{s.meta.join(" · ")}</p>
                         ) : r.sector || r.sub_sector ? (
                           <p className="wl-story-meta">
-                            {[r.sector, r.sub_sector].filter(Boolean).join(" · ")}
+                            {r.sub_sector || r.sector}
                           </p>
                         ) : null}
                         {s.model ? (
@@ -760,6 +761,7 @@ export function WatchlistPanel() {
     return () => window.clearTimeout(id);
   }, [notice]);
   const [q, setQ] = useState("");
+  const [exch, setExch] = useState<ExchangeId>("all");
   const [addQ, setAddQ] = useState("");
   const [listEpoch, setListEpoch] = useState(0);
   const loadSeqRef = useRef(0);
@@ -1331,6 +1333,7 @@ export function WatchlistPanel() {
 
   const needle = q.trim().toLowerCase();
   const visible = sortedRows.filter((r) => {
+    if (!exchangeMatch(r.market, exch)) return false;
     if (!needle) return true;
     return (
       r.ticker.toLowerCase().includes(needle) ||
@@ -1545,6 +1548,7 @@ export function WatchlistPanel() {
             }}
           />
         </div>
+        <ExchangeSeg value={exch} onChange={setExch} markets={sortedRows.map((r) => r.market)} />
         <input
           className="miq-search"
           type="search"

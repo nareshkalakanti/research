@@ -1143,3 +1143,51 @@ export async function buildRotationTopStocks(
   }
   return { range: key, as_of: last || null, rows };
 }
+
+// ---- Entering an upcycle ----------------------------------------------------------------
+
+export type UpcycleRow = {
+  id: string;
+  label: string;
+  n: number;
+  r1m: number | null;
+  r3m: number | null;
+  r1y: number | null;
+  /** 3M return minus Nifty 500 3M return (points). */
+  rel3m: number | null;
+  /** 1Y return minus Nifty 500 1Y return (points). */
+  rel1y: number | null;
+};
+
+/**
+ * Sectors turning up after a weak stretch: 1Y return below the Nifty 500
+ * (was out of favour), 3M return above it (turning), 1M return positive
+ * (momentum now), 3+ stocks. Sorted by how far 3M beats the Nifty.
+ */
+export async function buildUpcycle(weight: RotationWeight = "equal"): Promise<{
+  as_of: string | null;
+  bench: { r1m: number | null; r3m: number | null; r1y: number | null };
+  sectors: UpcycleRow[];
+}> {
+  const snap = await rankSnapshot(weight);
+  const b1m = snap.bench["1M"] ?? null;
+  const b3m = snap.bench["3M"] ?? null;
+  const b1y = snap.bench["1Y"] ?? null;
+  const out: UpcycleRow[] = [];
+  for (const sec of listRotationSectors()) {
+    if (sec.members.length < 3) continue;
+    const pct = snap.bySector.get(sec.id)?.pct;
+    if (!pct) continue;
+    const r1m = pct["1M"] ?? null;
+    const r3m = pct["3M"] ?? null;
+    const r1y = pct["1Y"] ?? null;
+    if (r1m == null || r3m == null || r1y == null || b3m == null || b1y == null) continue;
+    const wasWeak = r1y < b1y;
+    const turning = r3m > b3m;
+    const nowUp = r1m > 0;
+    if (!(wasWeak && turning && nowUp)) continue;
+    out.push({ id: sec.id, label: sec.label, n: sec.members.length, r1m, r3m, r1y, rel3m: r3m - b3m, rel1y: r1y - b1y });
+  }
+  out.sort((a, b) => (b.rel3m ?? 0) - (a.rel3m ?? 0));
+  return { as_of: snap.last || null, bench: { r1m: b1m, r3m: b3m, r1y: b1y }, sectors: out };
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FilterBar, MultiPick, Pick } from "@/components/FilterBar";
+import { FilterBar, MultiPick, Pick, ExchangeSeg, exchangeMatch, type ExchangeId } from "@/components/FilterBar";
 import { Loading } from "@/components/Loading";
 import { StockscansBar } from "@/components/StockscansBar";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
@@ -137,8 +137,11 @@ export function ScannerPanel() {
     const out = data.rows.filter((r) => {
       if (inds.size && !inds.has(r.industry ?? "")) return false;
       if (cfg.index !== "all" && !r.idx.includes(cfg.index)) return false;
-      if (cfg.exchange !== "all" && (r.market.startsWith("BSE") ? "bse" : "nse") !== cfg.exchange) return false;
-      if (cfg.type !== "all" && (/SME/.test(r.market) ? "sme" : "main") !== cfg.type) return false;
+      // Exchange: All / NSE / NSE SME / BSE / BSE SME (older saved scans used nse/bse + type).
+      if (cfg.exchange === "nse" || cfg.exchange === "bse") {
+        if ((r.market.startsWith("BSE") ? "bse" : "nse") !== cfg.exchange) return false;
+        if (cfg.type !== "all" && (/SME/.test(r.market) ? "sme" : "main") !== cfg.type) return false;
+      } else if (!exchangeMatch(r.market, cfg.exchange as ExchangeId)) return false;
       if (cfg.list !== "all" && !r.lists.includes(cfg.list)) return false;
       for (const c of cfg.conditions) {
         const v = numOf(r, c.field as ColKey);
@@ -248,8 +251,6 @@ export function ScannerPanel() {
   const cur = Math.min(page, pages - 1);
   const shown = filtered.slice(cur * PAGE, cur * PAGE + PAGE);
   const arrow = (k: string) => (cfg.sort.key === k ? (cfg.sort.dir === "desc" ? " ↓" : " ↑") : "");
-  const exCount = (id: string) =>
-    id === "all" ? data.rows.length : data.rows.filter((r) => (r.market.startsWith("BSE") ? "bse" : "nse") === id).length;
 
   return (
     <section className="nano-section sc-panel">
@@ -370,25 +371,10 @@ export function ScannerPanel() {
           onChange={(v) => update({ index: v })}
           options={[{ id: "all", label: "All" }, ...data.indices.map((i) => ({ id: i.id, label: i.label, count: i.count }))]}
         />
-        <Pick
-          label="Exchange"
-          value={cfg.exchange}
-          onChange={(v) => update({ exchange: v })}
-          options={[
-            { id: "all", label: "All", count: exCount("all") },
-            { id: "nse", label: "NSE", count: exCount("nse") },
-            { id: "bse", label: "BSE only", count: exCount("bse") },
-          ]}
-        />
-        <Pick
-          label="Type"
-          value={cfg.type}
-          onChange={(v) => update({ type: v })}
-          options={[
-            { id: "all", label: "All" },
-            { id: "main", label: "Main board", count: data.rows.filter((r) => !/SME/.test(r.market)).length },
-            { id: "sme", label: "SME", count: data.rows.filter((r) => /SME/.test(r.market)).length },
-          ]}
+        <ExchangeSeg
+          value={(["all", "NSE", "NSE SME", "BSE", "BSE SME"].includes(cfg.exchange) ? cfg.exchange : "all") as ExchangeId}
+          onChange={(v) => update({ exchange: v, type: "all" })}
+          markets={data.rows.map((r) => r.market)}
         />
         <Pick
           label="Watchlist"
@@ -452,6 +438,9 @@ export function ScannerPanel() {
                   <span className="nano-meta">
                     {r.t}
                     {r.market !== "NSE" ? <span>· {r.market}</span> : null}
+                    <a className="np-chip" href={tradingviewUrl(r.t, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
+                      TV
+                    </a>
                     <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                       NP
                     </a>
@@ -468,7 +457,6 @@ export function ScannerPanel() {
                       <span title={r.ind_src === "stockscans" ? "Industry from StockScans" : "Industry from the app's own classification"}>
                         {r.industry ?? "—"}
                       </span>
-                      {r.sector ? <span className="sl-sub">{r.sector}</span> : null}
                     </td>
                   ) : (
                     <td key={k} className={`num${k === "chg" && r.chg != null ? (r.chg >= 0 ? " sc-up" : " sc-down") : ""}`}>

@@ -12,7 +12,7 @@ import {
   napkinPeDisplay,
   parseDisplayedPct,
 } from "@/lib/napkin/format";
-import { tradingviewSymbol, tradingviewUrl } from "@/lib/links";
+import { tradingviewSymbol, tradingviewUrl, websiteUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
 import { NapkinPeadStrip } from "@/components/napkin/NapkinPeadStrip";
@@ -129,17 +129,17 @@ export function NapkinPanel() {
   }, []);
 
   // App's own sector › sub-sector (same label as Scan / Rotation), not Yahoo's broad bucket.
-  const [appSector, setAppSector] = useState<{ ticker: string; label: string } | null>(null);
+  const [appSector, setAppSector] = useState<{ ticker: string; label: string | null; website: string | null } | null>(null);
   const sectorTicker = data?.ticker ?? "";
   useEffect(() => {
     if (!sectorTicker) return;
     let alive = true;
     void fetch(`/api/napkin/sector?ticker=${encodeURIComponent(sectorTicker)}`, { cache: "no-store" })
       .then((r) => r.json())
-      .then((j: { ok?: boolean; sector?: string | null; sub_sector?: string | null }) => {
-        if (!alive || !j.ok || !j.sector) return;
-        const label = j.sub_sector ? `${j.sector} › ${j.sub_sector}` : j.sector;
-        setAppSector({ ticker: sectorTicker, label });
+      .then((j: { ok?: boolean; sector?: string | null; sub_sector?: string | null; website?: string | null }) => {
+        if (!alive || !j.ok) return;
+        const label = j.sub_sector || j.sector || null;
+        setAppSector({ ticker: sectorTicker, label, website: j.website ?? null });
       })
       .catch(() => {
         /* keep Yahoo sector */
@@ -149,7 +149,8 @@ export function NapkinPanel() {
     };
   }, [sectorTicker]);
   const sectorLabel =
-    appSector && appSector.ticker === sectorTicker ? appSector.label : data?.sector ?? null;
+    (appSector && appSector.ticker === sectorTicker ? appSector.label : null) ?? data?.sector ?? null;
+  const siteUrl = websiteUrl(appSector && appSector.ticker === sectorTicker ? appSector.website : null);
 
   const napkinPrice = data
     ? parseDisplayedMoney(napkinMetric(data.overview, "price"))
@@ -239,6 +240,11 @@ export function NapkinPanel() {
                         </a>
                       );
                     })()}
+                    {siteUrl ? (
+                      <a className="napkin-tv-link" href={siteUrl} target="_blank" rel="noopener noreferrer" title={siteUrl}>
+                        <span className="napkin-tv-chip">Web</span>
+                      </a>
+                    ) : null}
                   </div>
                 </div>
                 <div className="napkin-card-value">

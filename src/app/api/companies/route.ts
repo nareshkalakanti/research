@@ -460,6 +460,14 @@ async function buildCompaniesResponse(req: NextRequest) {
       ? Number(mcapMaxRaw)
       : null;
   const filterNote = sp.get("note") === "1";
+  /** Industry filter (stock-master industry, comma-separated; empty = all). */
+  const industrySet = new Set(
+    (sp.get("industries") || "")
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  const industryOf = (c: { sub_sector?: string | null; sector?: string | null }) => (c.sub_sector || c.sector || "").trim();
   const fundListMode =
     anyFundFilterActive(fundActive) || !!fundListKey || fundModeActive;
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
@@ -752,6 +760,7 @@ async function buildCompaniesResponse(req: NextRequest) {
         (c) => c.mcap_cr != null && c.mcap_cr <= mcapMax,
       );
     }
+    if (industrySet.size) poolBase = poolBase.filter((c) => industrySet.has(industryOf(c)));
     pool =
       filterAgeMin != null
         ? poolBase.filter((c) => isAgeAtLeast(c.founded_year, filterAgeMin))
@@ -1072,6 +1081,13 @@ async function buildCompaniesResponse(req: NextRequest) {
       (c) => c.mcap_cr != null && c.mcap_cr <= mcapMax,
     );
   }
+  // Industry picker options: counts within the current list before the industry filter.
+  const industryCounts = new Map<string, number>();
+  for (const c of companies) {
+    const k = industryOf(c);
+    if (k) industryCounts.set(k, (industryCounts.get(k) ?? 0) + 1);
+  }
+  if (industrySet.size) companies = companies.filter((c) => industrySet.has(industryOf(c)));
 
   // List-relative MOM rank (1 = highest rounded 12−1 within the current filtered set).
   const listMomRank = new Map<string, number>();
@@ -1538,6 +1554,9 @@ async function buildCompaniesResponse(req: NextRequest) {
     : buildGapSummary(companies);
 
   return NextResponse.json({
+    industries: [...industryCounts]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ name, count })),
     rows: slice,
     total,
     page: pageSafe,

@@ -1,6 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
+import { MultiPick } from "@/components/FilterBar";
 import {
   Fragment,
   useCallback,
@@ -170,6 +171,9 @@ function SectorStocksRow({
                           </a>
                           <span className="rot-sub-tk">{r.ticker}</span>
                           {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
+                          <a className="np-chip" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
+                            TV
+                          </a>
                           <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                             NP
                           </a>
@@ -181,8 +185,7 @@ function SectorStocksRow({
                         </div>
                         {r.sector || r.industry ? (
                           <span className="rot-sub-sector">
-                            {r.sector ?? r.industry}
-                            {r.industry && r.industry !== r.sector ? ` › ${r.industry}` : ""}
+                            {r.industry ?? r.sector}
                           </span>
                         ) : null}
                       </td>
@@ -233,15 +236,16 @@ function rotBench(rows: Array<{ bench_pct?: number | null }>): number | null {
 }
 const TOP_EXCH = [
   ["all", "All"],
-  ["nse", "NSE + SME"],
-  ["bse", "BSE"],
-  ["bsesme", "BSE SME"],
+  ["NSE", "NSE"],
+  ["NSE SME", "NSE SME"],
+  ["BSE", "BSE"],
+  ["BSE SME", "BSE SME"],
 ] as const;
 
 /**
  * Top sectors and the best stocks in them: the strongest sectors by period
- * return (5+ stocks), each with its top quality stocks over ₹200 Cr (Total
- * Score: Sales growth 3Y, ROCE 3Y, P/B). Or every stock by period return.
+ * return (5+ stocks), each with its best-performing stocks (₹200 Cr+ by
+ * default), all measured against the Nifty 500. Or every stock by return.
  * Follows the board's sector filters (search, Top/Bottom 20, Starred, Beating Nifty).
  */
 function TopStocksView({
@@ -268,47 +272,6 @@ function TopStocksView({
   const [minCap, setMinCap] = useState<number>(200);
   const [exch, setExch] = useState<(typeof TOP_EXCH)[number][0]>("all");
   const [limit, setLimit] = useState(50);
-  const [reload, setReload] = useState(0);
-  /** Per-sector quality fetch state for the "No quality data" button. */
-  const [qFill, setQFill] = useState<Record<string, { busy: boolean; msg?: string }>>({});
-
-  const fillQuality = async (sectorId: string) => {
-    setQFill((p) => ({ ...p, [sectorId]: { busy: true } }));
-    try {
-      const res = await fetch("/api/sector-rotation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshHt: true, id: sectorId }),
-      });
-      const json = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        tried?: number;
-        filled?: number;
-        still_missing?: number;
-        paused_until?: string | null;
-      };
-      if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
-      const until = json.paused_until
-        ? new Date(json.paused_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : null;
-      const msg = !json.tried
-        ? json.still_missing
-          ? until
-            ? `Screener rate-limited — retry after ${until}`
-            : "Screener paused — try again shortly"
-          : "Nothing missing"
-        : `Filled ${json.filled ?? 0} of ${json.tried}${json.still_missing ? ` · ${json.still_missing} left` : ""}`;
-      setQFill((p) => ({ ...p, [sectorId]: { busy: false, msg } }));
-      if (json.filled) setReload((n) => n + 1);
-    } catch (e) {
-      setQFill((p) => ({
-        ...p,
-        [sectorId]: { busy: false, msg: e instanceof Error ? e.message : String(e) },
-      }));
-    }
-  };
-
   useEffect(() => {
     let live = true;
     const ctl = new AbortController();
@@ -332,18 +295,15 @@ function TopStocksView({
       live = false;
       ctl.abort();
     };
-  }, [range, weight, reload]);
+  }, [range, weight]);
 
   const allowed = useMemo(() => new Set(sectorOrder), [sectorOrder]);
   const filtered = useMemo(() => {
     if (!rows) return [];
     const q = stockQ.trim().toLowerCase();
     const okExch = (m: string) => {
-      const u = (m || "NSE").toUpperCase();
-      if (exch === "nse") return u.startsWith("NSE");
-      if (exch === "bse") return u === "BSE";
-      if (exch === "bsesme") return u === "BSE SME";
-      return true;
+      // Exact board: NSE · NSE SME · BSE · BSE SME.
+      return exch === "all" || (m || "NSE").toUpperCase() === exch;
     };
     return rows.filter(
       (r) =>
@@ -369,14 +329,12 @@ function TopStocksView({
       .slice(0, nSectors);
     return heads.map((h) => {
       const list = by.get(h.sector_id)!;
-      const ranked = list.filter((r) => r.q_rank != null).sort((a, b) => a.q_rank! - b.q_rank!);
-      const byReturn = ranked.length
-        ? []
-        : list.filter((r) => r.window_pct != null).sort((a, b) => (b.window_pct ?? 0) - (a.window_pct ?? 0));
       return {
         head: h,
-        stocks: (ranked.length ? ranked : byReturn).slice(0, perSector),
-        byQuality: ranked.length > 0,
+        stocks: list
+          .filter((r) => r.window_pct != null)
+          .sort((a, b) => (b.window_pct ?? 0) - (a.window_pct ?? 0))
+          .slice(0, perSector),
       };
     });
   }, [filtered, mode, nSectors, perSector]);
@@ -402,6 +360,9 @@ function TopStocksView({
             </a>
             <span className="rot-sub-tk">{r.ticker}</span>
             {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
+            <a className="np-chip" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
+              TV
+            </a>
             <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
               NP
             </a>
@@ -418,22 +379,17 @@ function TopStocksView({
             </span>
           ) : null}
         </td>
-        <td className="num">
-          {r.q_rank == null ? (
-            <span className="rot-sub-tk" title="No Sales growth / ROCE / P/B yet — use Missing data">—</span>
-          ) : (
-            <span className="rot-qrank" title="Total Score rank inside its sector (Sales growth 3Y, ROCE 3Y, P/B)">
-              #{r.q_rank}
-              <span> of {r.q_of}</span>
-            </span>
-          )}
-        </td>
         <td className="num">{r.mcap_cr == null ? "—" : `₹${Math.round(r.mcap_cr).toLocaleString("en-IN")} Cr`}</td>
         <td className={`num ${(r.change_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{fmtPct(r.change_pct)}</td>
         <td className="num">
           <span className={r.window_pct == null ? "rot-pill" : r.window_pct >= 0 ? "rot-pill pos" : "rot-pill neg"}>
             {fmtPct(r.window_pct)}
           </span>
+        </td>
+        <td className={`num ${r.window_pct == null || r.bench_pct == null ? "" : r.window_pct - r.bench_pct >= 0 ? "pos" : "neg"}`}>
+          {r.window_pct == null || r.bench_pct == null
+            ? "—"
+            : `${r.window_pct - r.bench_pct >= 0 ? "+" : ""}${(r.window_pct - r.bench_pct).toFixed(1)} pts`}
         </td>
       </>
     );
@@ -448,7 +404,7 @@ function TopStocksView({
             className={mode === "sectors" ? "on" : ""}
             aria-pressed={mode === "sectors"}
             onClick={() => setMode("sectors")}
-            title={`Strongest sectors by ${range} return (${TOP_MIN_SECTOR_STOCKS}+ stocks), each with its best-quality stocks`}
+            title={`Strongest sectors by ${range} return (${TOP_MIN_SECTOR_STOCKS}+ stocks), each with its best performers`}
           >
             Top sectors · best stocks
           </button>
@@ -518,12 +474,10 @@ function TopStocksView({
                 <tr>
                   <th className="num">#</th>
                   <th>Stock</th>
-                  <th className="num" title="Total Score rank inside its sector (Sales growth 3Y, ROCE 3Y, P/B)">
-                    Quality rank
-                  </th>
                   <th className="num">Market cap</th>
                   <th className="num">Today</th>
                   <th className="num">{range} return</th>
+                  <th className="num">vs {benchLabel}</th>
                 </tr>
               </thead>
               <tbody>
@@ -542,40 +496,21 @@ function TopStocksView({
                           </button>
                           <span className="rot-grp-meta">
                             <span className="rot-grp-chip">{h.sector_n} stocks</span>
-                            {rel != null ? (
-                              <span className={`rot-grp-chip ${rel >= 0 ? "pos" : "neg"}`}>
-                                {rel >= 0 ? "+" : ""}
-                                {rel.toFixed(1)} pts vs {benchLabel}
-                              </span>
-                            ) : null}
-                            {g.byQuality ? null : (
-                              <button
-                                type="button"
-                                className="rot-grp-chip warn"
-                                disabled={qFill[h.sector_id]?.busy}
-                                onClick={() => void fillQuality(h.sector_id)}
-                                title="Fetch Sales growth 3Y / ROCE 3Y / P/B for this sector (Screener, up to 40 stocks per click)"
-                              >
-                                {qFill[h.sector_id]?.busy
-                                  ? "Fetching quality data…"
-                                  : qFill[h.sector_id]?.msg
-                                    ? `${qFill[h.sector_id]!.msg} · fetch again`
-                                    : "No quality data yet · by return — fetch"}
-                              </button>
-                            )}
                           </span>
                         </td>
-                        <td />
                         <td className="num">
                           <span className={(h.sector_pct ?? 0) >= 0 ? "rot-pill pos" : "rot-pill neg"} title={`Sector ${range} return`}>
                             {fmtPct(h.sector_pct)}
                           </span>
                         </td>
+                        <td className={`num ${rel == null ? "" : rel >= 0 ? "pos" : "neg"}`}>
+                          {rel == null ? "—" : `${rel >= 0 ? "+" : ""}${rel.toFixed(1)} pts`}
+                        </td>
                       </tr>
                       {g.stocks.length ? (
                         g.stocks.map((r, i) => (
                           <tr key={r.ticker} className="rot-row rot-grp-stock">
-                            {stockCells(r, i === 0 && g.byQuality ? "★" : i + 1)}
+                            {stockCells(r, i === 0 ? "★" : i + 1)}
                           </tr>
                         ))
                       ) : (
@@ -603,10 +538,10 @@ function TopStocksView({
                 <tr>
                   <th className="num">#</th>
                   <th>Stock</th>
-                  <th className="num">Quality rank</th>
                   <th className="num">Market cap</th>
                   <th className="num">Today</th>
                   <th className="num">{range} return</th>
+                  <th className="num">vs {benchLabel}</th>
                 </tr>
               </thead>
               <tbody>
@@ -636,25 +571,9 @@ function fmtCr(n: number | null | undefined): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })} Cr`;
 }
 
-function fmtPctPlain(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "—";
-  return `${n.toFixed(2)}%`;
-}
 
-function fmtPb(n: number | null | undefined): string {
-  if (n == null || !Number.isFinite(n)) return "—";
-  return n.toFixed(2);
-}
 
 /** Metric with intra-sector rank in parentheses, e.g. 4.18% (9). */
-function fmtRankedMetric(
-  value: string,
-  rank: number | null | undefined,
-): string {
-  if (value === "—") return "—";
-  if (rank == null || !Number.isFinite(rank)) return value;
-  return `${value} (${rank})`;
-}
 
 function sma(pts: Point[], n: number): Point[] {
   if (n < 2 || pts.length < n) return [];
@@ -942,11 +861,19 @@ export function SectorRotationPanel() {
   const [adding, setAdding] = useState(false);
   const [addQ, setAddQ] = useState("");
   const [creating, setCreating] = useState(false);
-  const [filter, setFilter] = useState("");
+  const [filter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
+  /** Industry picker: rotation baskets are StockScans industries. */
+  const [pickedSec, setPickedSec] = useState<string[]>([]);
   const [boardFilter, setBoardFilter] = useState<
-    "all" | "top" | "bottom" | "starred"
+    "all" | "top" | "bottom" | "starred" | "upcycle"
   >("all");
+  /** Entering an upcycle: weak 1Y, beating the Nifty over 3M, up over 1M. */
+  const [upcycle, setUpcycle] = useState<{
+    weight: string;
+    order: Map<string, number>;
+    info: Map<string, { r1m: number; r3m: number; r1y: number; rel3m: number }>;
+  } | null>(null);
   const [aboveOn, setAboveOn] = useState(false);
   const [sortKey, setSortKey] = useState<"return" | "today" | "name" | "n">(
     "return",
@@ -971,7 +898,6 @@ export function SectorRotationPanel() {
   const [hydrating, setHydrating] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [ranking, setRanking] = useState(false);
-  const [fillingHt, setFillingHt] = useState(false);
   const [rankedKey, setRankedKey] = useState<string | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [shotBusy, setShotBusy] = useState(false);
@@ -1084,94 +1010,6 @@ export function SectorRotationPanel() {
     }
   }, [openId, loadBoard, loadDetail]);
 
-  /** Fill Sales Growth / ROCE / P/B gaps only — do not rebuild charts. */
-  const refreshMissingHt = useCallback(async () => {
-    setFillingHt(true);
-    setError(null);
-    setNotice(null);
-    try {
-      const res = await fetch("/api/sector-rotation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          refreshHt: true,
-          ...(openId ? { id: openId } : {}),
-        }),
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-        tried?: number;
-        filled?: number;
-        still_missing?: number;
-        paused_until?: string | null;
-        members?: Array<{
-          ticker: string;
-          sales_growth_3y: number | null;
-          roce_3y: number | null;
-          pb: number | null;
-          growth_rank: number | null;
-          roce_rank: number | null;
-          pb_rank: number | null;
-          total_score: number | null;
-          rank: number | null;
-        }>;
-      };
-      if (!res.ok || json.ok === false) {
-        throw new Error(json.error || `HT refresh failed (${res.status})`);
-      }
-      // Patch HT columns in place — never loadDetail/loadBoard (those refetch OHLC).
-      if (openId && json.members?.length) {
-        const byTicker = new Map(
-          json.members.map((m) => [m.ticker.toUpperCase(), m]),
-        );
-        setDetail((prev) => {
-          if (!prev) return prev;
-          const members = prev.members.map((row) => {
-            const patch = byTicker.get(row.ticker.toUpperCase());
-            if (!patch) return row;
-            return {
-              ...row,
-              sales_growth_3y: patch.sales_growth_3y,
-              roce_3y: patch.roce_3y,
-              pb: patch.pb,
-              growth_rank: patch.growth_rank,
-              roce_rank: patch.roce_rank,
-              pb_rank: patch.pb_rank,
-              total_score: patch.total_score,
-              rank: patch.rank,
-            };
-          });
-          members.sort((a, b) => {
-            const ar = a.rank ?? 1e9;
-            const br = b.rank ?? 1e9;
-            if (ar !== br) return ar - br;
-            return (b.mcap_cr ?? -1) - (a.mcap_cr ?? -1);
-          });
-          return { ...prev, members };
-        });
-      }
-      const tried = json.tried ?? 0;
-      const filled = json.filled ?? 0;
-      const left = json.still_missing ?? 0;
-      const until = json.paused_until
-        ? new Date(json.paused_until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        : null;
-      setNotice(
-        tried === 0
-          ? left > 0
-            ? `Screener is rate-limiting — ${left} still missing. Try again${until ? ` after ${until}` : " in a few minutes"}.`
-            : "No missing Sales / ROCE / P/B ranks."
-          : left > 0
-            ? `Filled ${filled} of ${tried} missing ranks · ${left} still incomplete (Screener/Yahoo).`
-            : `Filled all ${filled} missing ranks.`,
-      );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setFillingHt(false);
-    }
-  }, [openId]);
 
   const rankKey = `${range}:${weight}`;
   const rankedReady = rankedKey === rankKey;
@@ -1714,6 +1552,7 @@ export function SectorRotationPanel() {
     const stock = stockFilter.trim().toLowerCase();
     let rows = [...cards].filter((c) => {
       if (needle && !c.label.toLowerCase().includes(needle)) return false;
+      if (pickedSec.length && !pickedSec.includes(c.label)) return false;
       if (stock && !(c.search || "").includes(stock) && !c.label.toLowerCase().includes(stock)) {
         return false;
       }
@@ -1736,6 +1575,13 @@ export function SectorRotationPanel() {
     // Sectors with no members can't chart — keep them after real sectors.
     rows = [...rows.filter((c) => c.n > 0), ...rows.filter((c) => !(c.n > 0))];
     if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
+    if (boardFilter === "upcycle") {
+      if (!upcycle || upcycle.weight !== weight) return [];
+      rows = rows
+        .filter((c) => upcycle.order.has(c.id))
+        .sort((a, b) => upcycle.order.get(a.id)! - upcycle.order.get(b.id)!);
+      return rows;
+    }
     // Top/Bottom/Above need board-wide returns (see rankingWait).
     if ((boardFilter === "top" || boardFilter === "bottom" || aboveOn) && !rankedReady) {
       return [];
@@ -1755,7 +1601,32 @@ export function SectorRotationPanel() {
         boardFilter === "top" ? ranked.slice(0, 20) : ranked.slice(-20).reverse();
     }
     return rows;
-  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey, rankedReady]);
+  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey, rankedReady, upcycle, weight, pickedSec]);
+
+  useEffect(() => {
+    if (boardFilter !== "upcycle" || upcycle?.weight === weight) return;
+    let live = true;
+    void (async () => {
+      try {
+        const res = await fetch(`/api/sector-rotation?upcycle=1&weight=${encodeURIComponent(weight)}`, { cache: "no-store" });
+        const j = (await res.json()) as {
+          sectors?: Array<{ id: string; r1m: number; r3m: number; r1y: number; rel3m: number }>;
+        };
+        if (!live) return;
+        const list = j.sectors ?? [];
+        setUpcycle({
+          weight,
+          order: new Map(list.map((x, i) => [x.id, i])),
+          info: new Map(list.map((x) => [x.id, x])),
+        });
+      } catch {
+        /* leave empty; the line below says so */
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [boardFilter, weight, upcycle?.weight]);
 
   /** Filter needs ranks that are still computing — say so, not "No sectors". */
   const rankingWait =
@@ -1763,7 +1634,7 @@ export function SectorRotationPanel() {
 
   useEffect(() => {
     setPage(0);
-  }, [filter, stockFilter, boardFilter, aboveOn, sortKey]);
+  }, [filter, stockFilter, boardFilter, aboveOn, sortKey, pickedSec]);
 
   // "page" = how many extra batches are revealed (0 → first PAGE_SIZE).
   // Top / Bottom 20 always fit in one batch.
@@ -1854,51 +1725,34 @@ export function SectorRotationPanel() {
     () => sortedCards.reduce((sum, c) => sum + (c.n || 0), 0),
     [sortedCards],
   );
-  /**
-   * Only crow when Total Score ranking exists — never mcap / price fallback.
-   * Best must also be over ₹200 Cr market cap (tiny names don't qualify).
-   */
-  const bestMemberTicker = useMemo(() => {
-    const rows = detail?.members ?? [];
-    const withRank = rows.filter(
-      (m) =>
-        m.rank != null &&
-        Number.isFinite(m.rank) &&
-        m.total_score != null &&
-        Number.isFinite(m.total_score) &&
-        m.mcap_cr != null &&
-        m.mcap_cr > BEST_MIN_MCAP_CR,
-    );
-    if (!withRank.length) return null;
-    return (
-      [...withRank].sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9))[0]
-        ?.ticker ?? null
-    );
-  }, [detail?.members]);
+  /** Members ranked by their return over the selected period (best first). */
+  const byReturnMembers = useMemo(
+    () =>
+      [...(detail?.members ?? [])].sort(
+        (a, b) => (b.window_pct ?? -Infinity) - (a.window_pct ?? -Infinity),
+      ),
+    [detail?.members],
+  );
+  /** Best = top return over the period, over ₹200 Cr market cap. */
+  const bestMemberTicker = useMemo(
+    () =>
+      byReturnMembers.find(
+        (m) => m.window_pct != null && m.mcap_cr != null && m.mcap_cr > BEST_MIN_MCAP_CR,
+      )?.ticker ?? null,
+    [byReturnMembers],
+  );
 
   const shownMembers = useMemo(() => {
     const needle = memberQ.trim().toLowerCase();
-    const rows = detail?.members ?? [];
+    const rows = byReturnMembers;
     if (!needle) return rows;
     return rows.filter(
       (m) =>
         m.ticker.toLowerCase().includes(needle) ||
         m.name.toLowerCase().includes(needle),
     );
-  }, [detail, memberQ]);
+  }, [byReturnMembers, memberQ]);
 
-  /** Members lacking a complete HT rank (Sales / ROCE / P/B). */
-  const missingHtCount = useMemo(() => {
-    const rows = detail?.members ?? [];
-    if (!openId || !rows.length) return 0;
-    return rows.filter(
-      (m) =>
-        m.sales_growth_3y == null ||
-        m.roce_3y == null ||
-        m.pb == null ||
-        !(m.pb > 0),
-    ).length;
-  }, [detail?.members, openId]);
 
   const closeSector = useCallback(() => {
     detailGen.current += 1;
@@ -2024,7 +1878,7 @@ export function SectorRotationPanel() {
           )}
         </div>
       </header>
-      {loading || ranking || hydrating || detailLoading || fillingHt ? (
+      {loading || ranking || hydrating || detailLoading ? (
         <div
           className="rot-progress"
           role="status"
@@ -2033,9 +1887,7 @@ export function SectorRotationPanel() {
         >
           <div className="rot-progress-bar" />
           <span>
-            {fillingHt
-              ? "Filling missing Sales / ROCE / P/B…"
-              : loading
+            {loading
                 ? "Loading sectors…"
                 : ranking
                   ? `Ranking ${range}…`
@@ -2144,40 +1996,26 @@ export function SectorRotationPanel() {
             type="button"
             className="rot-act"
             onClick={() => void refreshBoard()}
-            disabled={loading || ranking || fillingHt}
+            disabled={loading || ranking}
             title="Refresh prices and market caps"
           >
             ↻ Refresh
           </button>
-          <button
-            type="button"
-            className="rot-act"
-            onClick={() => void refreshMissingHt()}
-            disabled={loading || ranking || fillingHt || detailLoading}
-            title={
-              openId
-                ? "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B for this sector (Screener, 40 at a time), then re-rank"
-                : "Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B (Screener, 40 at a time)"
-            }
-          >
-            {fillingHt
-              ? "Filling…"
-              : missingHtCount > 0
-                ? `Missing data · ${missingHtCount}`
-                : "Missing data"}
-          </button>
+
         </div>
         {!openId ? (
           <div className="rot-bar-row">
-            <label className="rot-search">
-              <span aria-hidden>⌕</span>
-              <input
-                placeholder="Search sector or industry"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                aria-label="Search sector"
-              />
-            </label>
+            <MultiPick
+              label="Industry"
+              allLabel="All industries"
+              values={pickedSec}
+              onChange={setPickedSec}
+              options={cards
+                .filter((c) => c.n > 0)
+                .map((c) => ({ id: c.label, label: c.label, count: c.n }))
+                .sort((a, b) => a.label.localeCompare(b.label))}
+              searchable
+            />
             <label className="rot-search">
               <span aria-hidden>⌕</span>
               <input
@@ -2193,6 +2031,7 @@ export function SectorRotationPanel() {
                   ["all", "All"],
                   ["top", "Top 20"],
                   ["bottom", "Bottom 20"],
+                  ["upcycle", "↗ Entering upcycle"],
                   ["starred", "★ Starred"],
                 ] as const
               ).map(([id, label]) => (
@@ -2456,19 +2295,7 @@ export function SectorRotationPanel() {
             <span className="rot-muted">
               {openCard ? `${openCard.n} stocks` : ""}
             </span>
-            {missingHtCount > 0 ? (
-              <button
-                type="button"
-                className="btn-ghost"
-                onClick={() => void refreshMissingHt()}
-                disabled={fillingHt || detailLoading}
-                title="Fetch missing Sales Growth 3Y, ROCE 3Y, and P/B"
-              >
-                {fillingHt
-                  ? "Filling ranks…"
-                  : `Refresh missing (${missingHtCount})`}
-              </button>
-            ) : null}
+
             <button
               type="button"
               className="btn-ghost"
@@ -2537,42 +2364,31 @@ export function SectorRotationPanel() {
           <table className="rot-table rot-table--members">
             <thead>
               <tr>
-                <th className="rot-col-num">Rank</th>
+                <th className="rot-col-num" title={`Ranked by ${range} return`}>Rank</th>
                 <th className="rot-col-stock">Company</th>
                 <th className="rot-col-sym">Symbol</th>
                 <th className="rot-col-num">Market Cap</th>
-                <th className="rot-col-num" title="Higher sales growth → better rank">
-                  Sales Growth 3Y ↑
-                </th>
-                <th className="rot-col-num" title="Higher ROCE → better rank">
-                  ROCE 3Y ↑
-                </th>
-                <th className="rot-col-num" title="Lower P/B → better rank">
-                  P/B ↓
-                </th>
-                <th className="rot-col-num" title="Sum of ranks · lower is better">
-                  Total Score
-                </th>
                 <th className="rot-col-num">Today %</th>
-                <th className="rot-col-num">Change %</th>
+                <th className="rot-col-num">{range} return</th>
+                <th className="rot-col-num" title={`Stock return minus ${benchLabel} return over ${range}`}>
+                  vs {benchLabel}
+                </th>
                 <th className="rot-col-trend">Trend</th>
                 <th className="rot-col-act" />
               </tr>
             </thead>
             <tbody>
-              {shownMembers.map((m) => (
+              {shownMembers.map((m, mi) => (
                 <tr
                   key={m.ticker}
                   className={
                     m.ticker === bestMemberTicker ? "rot-row--best" : undefined
                   }
                 >
-                  <td className="rot-num">
-                    {m.rank != null && Number.isFinite(m.rank) ? m.rank : "—"}
-                  </td>
+                  <td className="rot-num">{m.window_pct == null ? "—" : byReturnMembers.indexOf(m) + 1 || mi + 1}</td>
                   <td className="rot-stock">
                     {m.ticker === bestMemberTicker ? (
-                      <span className="rot-best-pill" title="Best ranked in sector (over ₹200 Cr market cap)">
+                      <span className="rot-best-pill" title={`Best ${range} return in sector (over ₹200 Cr market cap)`}>
                         Best
                       </span>
                     ) : null}
@@ -2591,23 +2407,6 @@ export function SectorRotationPanel() {
                   </td>
                   <td className="mono rot-sym">{m.ticker}</td>
                   <td className="rot-num">{fmtCr(m.mcap_cr)}</td>
-                  <td className="rot-num">
-                    {fmtRankedMetric(
-                      fmtPctPlain(m.sales_growth_3y),
-                      m.growth_rank,
-                    )}
-                  </td>
-                  <td className="rot-num">
-                    {fmtRankedMetric(fmtPctPlain(m.roce_3y), m.roce_rank)}
-                  </td>
-                  <td className="rot-num">
-                    {fmtRankedMetric(fmtPb(m.pb), m.pb_rank)}
-                  </td>
-                  <td className="rot-num rot-total-score">
-                    {m.total_score != null && Number.isFinite(m.total_score)
-                      ? m.total_score
-                      : "—"}
-                  </td>
                   <td
                     className={`rot-num ${
                       m.change_pct == null
@@ -2630,6 +2429,15 @@ export function SectorRotationPanel() {
                   >
                     {fmtPct(m.window_pct)}
                   </td>
+                  {(() => {
+                    const b = openCard?.bench_pct;
+                    const rel = m.window_pct != null && b != null ? m.window_pct - b : null;
+                    return (
+                      <td className={`rot-num ${rel == null ? "" : rel >= 0 ? "pos" : "neg"}`.trim()}>
+                        {rel == null ? "—" : `${rel >= 0 ? "+" : ""}${rel.toFixed(1)} pts`}
+                      </td>
+                    );
+                  })()}
                   <td className="rot-trend">
                     <MiniSpark pts={m.spark} />
                   </td>
@@ -2651,7 +2459,11 @@ export function SectorRotationPanel() {
         <>
         <div className="rot-page">
           <span>
-            {view === "list"
+            {boardFilter === "upcycle"
+              ? upcycle && upcycle.weight === weight
+                ? `${sortedCards.length} sectors entering an upcycle · 1Y below ${benchLabel}, 3M beating it, 1M up · strongest turn first`
+                : "Finding sectors that are turning up…"
+              : view === "list"
               ? ""
               : sortedCards.length
               ? `Showing ${shownCount} of ${sortedCards.length} sectors`
@@ -2720,6 +2532,11 @@ export function SectorRotationPanel() {
                 <td>
                   <span className="rot-tname">
                     {c.label}
+                    {boardFilter === "upcycle" && upcycle?.info.get(c.id) ? (
+                      <span className="rot-turn" title="1-year return → 3-month return">
+                        1Y {fmtPct(upcycle.info.get(c.id)!.r1y)} → 3M {fmtPct(upcycle.info.get(c.id)!.r3m)}
+                      </span>
+                    ) : null}
                     {c.id === bestSector?.id ? (
                       <span className="rot-best-pill">Best</span>
                     ) : null}
@@ -2799,6 +2616,11 @@ export function SectorRotationPanel() {
                     <span className="rot-best-pill">Best</span>
                   ) : null}
                   {c.label}
+                  {boardFilter === "upcycle" && upcycle?.info.get(c.id) ? (
+                    <span className="rot-turn" title="1-year return → 3-month return">
+                      1Y {fmtPct(upcycle.info.get(c.id)!.r1y)} → 3M {fmtPct(upcycle.info.get(c.id)!.r3m)}
+                    </span>
+                    ) : null}
                 </strong>
                 <span className="rot-card-ret">
                   <span

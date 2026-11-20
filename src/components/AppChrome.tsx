@@ -4,6 +4,7 @@ import { APP_TABS, hrefForTab, useAppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
 import { OllamaBar } from "@/components/OllamaBar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export type { AppTab };
 export { APP_TABS };
@@ -85,6 +86,7 @@ export function AppChrome({
         </nav>
 
         <div className="user-block">
+          <ThemeToggle />
           <OllamaBar />
           {user ? (
             <span className="user-email" title={user}>

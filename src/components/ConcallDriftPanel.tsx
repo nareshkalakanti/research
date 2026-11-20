@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ExchangeSeg, exchangeMatch, MultiPick, type ExchangeId } from "@/components/FilterBar";
 import {
   StrategyConcallDriftRow,
   type StrategyConcallDriftRowData,
@@ -107,6 +108,9 @@ export function ConcallDriftPanel() {
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
   const [search, setSearch] = useState("");
+  /** Industry picker (stock-master industry). */
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [exch, setExch] = useState<ExchangeId>("all");
   const [searchQ, setSearchQ] = useState("");
   const loadGen = useRef(0);
   /**
@@ -412,6 +416,8 @@ export function ConcallDriftPanel() {
         return blob.includes(q);
       });
     }
+    if (industries.length) list = list.filter((r) => industries.includes((r.sub_sector || r.sector || "").trim()));
+    if (exch !== "all") list = list.filter((r) => exchangeMatch(r.market, exch));
     if (view === "track") {
       const pinSet = new Set(pins);
       const byTicker = new Map<string, StrategyConcallDriftRowData>();
@@ -445,7 +451,15 @@ export function ConcallDriftPanel() {
       );
     }
     return list;
-  }, [rows, view, pins, search]);
+  }, [rows, view, pins, search, industries, exch]);
+  const industryOptions = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      const k = (r.sub_sector || r.sector || "").trim();
+      if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    }
+    return [...m].sort((a, b) => a[0].localeCompare(b[0])).map(([id, count]) => ({ id, label: id, count }));
+  }, [rows]);
 
   const missingPins = useMemo(() => {
     if (!isTrack) return [];
@@ -805,6 +819,16 @@ export function ConcallDriftPanel() {
             />
           </label>
 
+          <MultiPick
+            label="Industry"
+            allLabel="All industries"
+            values={industries}
+            onChange={setIndustries}
+            options={industryOptions}
+            searchable
+          />
+          <ExchangeSeg value={exch} onChange={setExch} markets={rows.map((r) => r.market)} />
+
           {!isTrack ? (
             <div className="pcd-mcap concall-drift-lite-mcap">
               <MarketCapRangeBar
@@ -1008,8 +1032,8 @@ export function ConcallDriftPanel() {
                 ? "Fetching tracked filings…"
                 : "Tracked names have no concall event yet."
               : "Paste tickers above (space or comma separated)."
-            : search.trim()
-              ? "No matching stock in the last ~1 month."
+            : search.trim() || industries.length || exch !== "all"
+              ? "No filings match these filters (industry / exchange / search)."
               : view === "gainers"
                 ? "No gainers in this mcap range yet."
                 : view === "losers"
@@ -1035,7 +1059,7 @@ export function ConcallDriftPanel() {
               <tr>
                 <th>Ticker</th>
                 <th>Company</th>
-                <th>Sec</th>
+                <th>Industry</th>
                 <th className="num">MCap</th>
                 <th className="num">LTP</th>
                 <th title="Conference call / earn event time">Concall</th>

@@ -538,3 +538,26 @@ export async function fetchYfAboutProfile(
   }
   return null;
 }
+
+/** Total cash and total debt (₹ Cr) from Yahoo's financialData, trying NSE / BSE symbols. */
+export async function fetchCashDebt(
+  ticker: string,
+  market?: string | null,
+): Promise<{ cash_cr: number | null; debt_cr: number | null; symbol: string | null }> {
+  for (const symbol of yfSymbolCandidates(ticker, market).slice(0, 3)) {
+    try {
+      const qs = (await yf.quoteSummary(symbol, { modules: ["financialData"] })) as {
+        financialData?: { totalCash?: number | null; totalDebt?: number | null };
+      };
+      const fd = qs?.financialData;
+      if (!fd) continue;
+      const cash = num(fd.totalCash);
+      const debt = num(fd.totalDebt);
+      if (cash == null && debt == null) continue;
+      return { cash_cr: cash == null ? null : cash / 1e7, debt_cr: debt == null ? null : debt / 1e7, symbol };
+    } catch {
+      /* next symbol */
+    }
+  }
+  return { cash_cr: null, debt_cr: null, symbol: null };
+}

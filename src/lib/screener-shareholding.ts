@@ -21,6 +21,9 @@ export type ScreenerShareholding = {
   shareholders: Array<number | null>;
   /** Latest promoter pledge % when disclosed (0 = none). */
   pledged_pct: number | null;
+  /** Screener's yearly shareholding table (~10 years). Missing on old cache rows. */
+  yearly_dates?: string[];
+  promoters_yearly?: Array<number | null>;
 };
 
 type CacheRow = {
@@ -139,6 +142,9 @@ export function parseScreenerShareholdingHtml(html: string): ScreenerShareholdin
     /^No\.?\s*of\s*Shareholders\b/i,
     /^Number of Shareholders\b/i,
   ]);
+  // Yearly table (#yearly-shp) — Screener's ~10-year promoter history.
+  const yearly = parseScreenerSectionTable($, "yearly-shp");
+  const promYearly = yearly ? pickScreenerRow(yearly.rows, [/^Promoters?\b/i]) : null;
   let pledged = parsePledgeFromHtml(html);
   // Screener often omits pledge row when 0 — treat usable promoter series as 0 pledge.
   if (pledged == null && promoters?.some((v) => v != null)) pledged = 0;
@@ -151,6 +157,8 @@ export function parseScreenerShareholdingHtml(html: string): ScreenerShareholdin
     public: align(n, pub),
     shareholders: align(n, holders),
     pledged_pct: pledged,
+    yearly_dates: yearly?.dates ?? [],
+    promoters_yearly: yearly ? align(yearly.dates.length, promYearly) : [],
   };
 }
 

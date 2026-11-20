@@ -265,7 +265,7 @@ export function CompanyTable({
         },
         { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
-        { key: "sector", label: "Sec", align: "left" },
+        { key: "sector", label: "Industry", align: "left" },
         {
           key: "mcap_cr",
           label: "Mcap",
@@ -298,7 +298,7 @@ export function CompanyTable({
         },
         { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
-        { key: "sector", label: "Sec", align: "left" },
+        { key: "sector", label: "Industry", align: "left" },
         {
           key: "mcap_cr",
           label: "Mcap",
@@ -316,7 +316,7 @@ export function CompanyTable({
       return [
         { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
-        { key: "sector", label: "Sec", align: "left" },
+        { key: "sector", label: "Industry", align: "left" },
         {
           key: "mcap_cr",
           label: "Mcap",
@@ -341,7 +341,7 @@ export function CompanyTable({
       return [
         { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
-        { key: "sector", label: "Sec", align: "left" },
+        { key: "sector", label: "Industry", align: "left" },
         { key: "mcap_cr", label: "Mcap", align: "right" },
         { key: "seven_rule_score", label: "Score", align: "right" },
         { id: "passed", key: "seven_rule_score", label: "Pass", align: "right", sortable: false },
@@ -353,7 +353,7 @@ export function CompanyTable({
         { key: "basket_rank", label: "Rank", align: "left" },
         { key: "ticker", label: "Ticker", align: "left" },
         { key: "name", label: "Company", align: "left" },
-        { key: "sector", label: "Sec", align: "left" },
+        { key: "sector", label: "Industry", align: "left" },
         { key: "mcap_cr", label: "Mcap", align: "right" },
         { id: "wt", key: "basket_rank", label: "Wt%", align: "right", sortable: false },
         { key: "basket_score", label: "Score", align: "right" },
@@ -365,7 +365,7 @@ export function CompanyTable({
     return [
       { key: "ticker", label: "Ticker", align: "left" },
       { key: "name", label: "Company", align: "left" },
-      { key: "sector", label: "Sec", align: "left" },
+      { key: "sector", label: "Industry", align: "left" },
       {
         key: "mcap_cr",
         label: "Mcap",
@@ -1093,6 +1093,16 @@ function CompanyRows({
                 </a>
                 <a
                   className="np-chip"
+                  href={r.tv}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${r.ticker} — TradingView`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  TV
+                </a>
+                <a
+                  className="np-chip"
                   href={napkinUrl(r.ticker)}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -1120,6 +1130,16 @@ function CompanyRows({
             onClick={(e) => e.stopPropagation()}
           >
             {r.ticker}
+          </a>
+          <a
+            className="np-chip"
+            href={r.tv}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${r.ticker} — TradingView`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            TV
           </a>
           <a
             className="np-chip"

@@ -57,6 +57,11 @@ const WatchlistPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const ValuePanel = dynamic(
+  () => import("@/components/ValuePanel").then((m) => m.ValuePanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const ScannerPanel = dynamic(
   () => import("@/components/ScannerPanel").then((m) => m.ScannerPanel),
   { loading: PanelFallback, ssr: false },
@@ -109,6 +114,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   research: ResearchPanel,
   watchlist: WatchlistPanel,
   scanner: ScannerPanel,
+  value: ValuePanel,
 };
 
 const KeptPanel = memo(function KeptPanel({

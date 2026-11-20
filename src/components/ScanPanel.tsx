@@ -1,6 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
+import { MultiPick } from "@/components/FilterBar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import {
@@ -34,6 +35,7 @@ const EMPTY_FUNDS = Object.fromEntries(
 ) as FundFilterState;
 
 type ApiResponse = {
+  industries?: Array<{ name: string; count: number }>;
   rows: Company[];
   total: number;
   page: number;
@@ -53,6 +55,8 @@ type ApiResponse = {
 export function ScanPanel() {
   const [list, setList] = useState<ScanList>("All");
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
+  /** Industry picker (stock-master industries; empty = all). */
+  const [industries, setIndustries] = useState<string[]>([]);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
   const [filterHold, setFilterHold] = useState(false);
@@ -148,6 +152,7 @@ export function ScanPanel() {
       const { minCr, maxCr } = mcapBounds;
       if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
       if (maxCr != null) params.set("mcapMax", String(maxCr));
+      if (industries.length) params.set("industries", industries.join("|"));
       if (isRefresh) params.set("refresh", "1");
       try {
         const res = await fetch(`/api/companies?${params}`, {
@@ -205,6 +210,7 @@ export function ScanPanel() {
       filterSme,
       filterNote,
       ageMin,
+      industries,
     ],
   );
 
@@ -416,6 +422,19 @@ export function ScanPanel() {
               govCount={data?.signals?.gov ?? listCounts.gov}
             />
           </div>
+        </div>
+        <div className="scan-filter-row scan-industry-row">
+          <MultiPick
+            label="Industry"
+            allLabel="All industries"
+            values={industries}
+            onChange={(v) => {
+              setIndustries(v);
+              setPage(1);
+            }}
+            options={(data?.industries ?? []).map((i) => ({ id: i.name, label: i.name, count: i.count }))}
+            searchable
+          />
         </div>
         <div className="scan-filter-row scan-mcap-row">
           <span className="scan-filter-label">Mcap</span>

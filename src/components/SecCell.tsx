@@ -12,9 +12,7 @@ export function secDisplay(
   const u = (sub || "").trim();
   const title = [s, u].filter(Boolean).join(" · ") || undefined;
   if (!s && !u) return { primary: "—", secondary: null, title: undefined };
-  if (s && u && s.toLowerCase() !== u.toLowerCase()) {
-    return { primary: s, secondary: u, title };
-  }
+  // Industry (StockScans, via the stock master) is the label shown everywhere.
   return { primary: u || s, secondary: null, title };
 }
 

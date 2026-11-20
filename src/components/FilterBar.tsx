@@ -214,3 +214,47 @@ export function Toggle({
 export function Spacer() {
   return <span className="fb-spacer" />;
 }
+
+export type ExchangeId = "all" | "NSE" | "NSE SME" | "BSE" | "BSE SME";
+const EXCHANGES: Array<{ id: ExchangeId; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "NSE", label: "NSE" },
+  { id: "NSE SME", label: "NSE SME" },
+  { id: "BSE", label: "BSE" },
+  { id: "BSE SME", label: "BSE SME" },
+];
+
+/** Exact board match: NSE main · NSE SME · BSE main · BSE SME. */
+export function exchangeMatch(market: string | null | undefined, ex: ExchangeId): boolean {
+  if (ex === "all") return true;
+  return (market || "NSE").trim().toUpperCase() === ex;
+}
+
+/** All · NSE · NSE SME · BSE · BSE SME switch, with counts when given. */
+export function ExchangeSeg({
+  value,
+  onChange,
+  markets,
+}: {
+  value: ExchangeId;
+  onChange: (v: ExchangeId) => void;
+  /** Rows' market strings, to show a count per board. */
+  markets?: Array<string | null | undefined>;
+}) {
+  const counts = new Map<string, number>();
+  for (const m of markets ?? []) {
+    const k = (m || "NSE").trim().toUpperCase();
+    counts.set(k, (counts.get(k) ?? 0) + 1);
+  }
+  return (
+    <Seg
+      label="Exchange"
+      value={value}
+      onChange={onChange}
+      options={EXCHANGES.map((e) => ({
+        ...e,
+        count: markets ? (e.id === "all" ? markets.length : counts.get(e.id) ?? 0) : undefined,
+      }))}
+    />
+  );
+}

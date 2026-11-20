@@ -671,6 +671,8 @@ export type ScreenerAnnualBs = {
   book_value: Array<number | null>;
   fixed_assets: Array<number | null>;
   borrowings: Array<number | null>;
+  /** Capital work in progress (absent on caches written before it was parsed). */
+  cwip?: Array<number | null>;
 };
 
 function emptyBs(): ScreenerAnnualBs {
@@ -768,6 +770,7 @@ export function parseScreenerAnnualBsHtml(html: string): ScreenerAnnualBs {
     /^Property,? Plant/i,
   ]);
   const borrowings = pickScreenerRow(bs.rows, [/^Borrowings\b/i, /^Total Debt\b/i]);
+  const cwip = pickScreenerRow(bs.rows, [/^CWIP\b/i, /^Capital Work in Progress\b/i]);
   const book = zipAdd(equity, reserves, n) ?? Array(n).fill(null);
   return {
     dates: bs.dates.slice(0, n),
@@ -776,6 +779,7 @@ export function parseScreenerAnnualBsHtml(html: string): ScreenerAnnualBs {
     book_value: alignRow(n, book),
     fixed_assets: alignRow(n, fixed),
     borrowings: alignRow(n, borrowings),
+    cwip: alignRow(n, cwip),
   };
 }
 
@@ -864,4 +868,35 @@ export async function fetchScreenerPlAndBs(
   if (okPl) writePlCache(key, pl);
   if (okBs) writeBsCache(key, bs);
   return { pl: okPl, bs: okBs };
+}
+
+/**
+ * One Screener page → annual series (sales / EPS / ROCE), P&L and balance
+ * sheet, all cached. Falls back to the standalone page only when the
+ * consolidated one has under 4 years of sales. Throws on block / pause.
+ */
+export async function fetchScreenerAllAnnual(ticker: string): Promise<{ annual: boolean; pl: boolean; bs: boolean }> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return { annual: false, pl: false, bs: false };
+  const html = await fetchScreenerCompanyHtml(key, { consolidated: true });
+  let series = parseScreenerAnnualHtml(html);
+  let pl = parseScreenerAnnualPlHtml(html);
+  let bs: ScreenerAnnualBs = parseScreenerAnnualBsHtml(html);
+  if (series.sales.filter((s) => s != null && s > 0).length < 4) {
+    try {
+      const stand = await fetchScreenerCompanyHtml(key, { consolidated: false });
+      series = pickRicherScreenerAnnual(series, parseScreenerAnnualHtml(stand));
+      pl = pickRicherScreenerAnnualPl(pl, parseScreenerAnnualPlHtml(stand));
+      bs = pickRicherBs(bs, parseScreenerAnnualBsHtml(stand));
+    } catch (e) {
+      if (/blocked|paused|429|403|captcha/i.test(String(e))) throw e;
+    }
+  }
+  const okA = series.sales.some((s) => s != null && s > 0);
+  if (okA) writeCache(key, series);
+  const okPl = plUsable(pl);
+  if (okPl) writePlCache(key, pl);
+  const okBs = bsUsable(bs);
+  if (okBs) writeBsCache(key, bs);
+  return { annual: okA, pl: okPl, bs: okBs };
 }

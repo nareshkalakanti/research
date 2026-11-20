@@ -8,6 +8,7 @@ import {
 import { FundWatchlistTags } from "@/components/FundWatchlistTags";
 import { WatchButton } from "@/components/WatchButton";
 import { secDisplay } from "@/components/SecCell";
+import { StockLinks } from "@/components/StockLinks";
 import type { FundWatchlistKey } from "@/lib/fund-watchlist-meta";
 import type { ConcallDocLinks } from "@/lib/strategy/concall-drift-types";
 
@@ -157,6 +158,9 @@ export function StrategyConcallDriftRow({
           >
             {r.ticker}
           </a>
+          <span className="pcd-links">
+            <StockLinks ticker={r.ticker} market={r.market} />
+          </span>
         </td>
         <td className="pcd-td-co">
           <div className="pcd-co-cell">

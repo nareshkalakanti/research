@@ -291,7 +291,11 @@ export function syncStockMaster(opts?: { force?: boolean }): SyncResult {
           }
         }
         if (diff) {
-          if (merged.source === "stockscans" && (old.industry !== merged.industry || old.source !== "stockscans")) rotate.push(t);
+          if (
+            merged.source === "stockscans" &&
+            (old.industry !== merged.industry || old.source !== "stockscans" || (Number(old.tracked) === 0 && merged.tracked === 1))
+          )
+            rotate.push(t);
           upd.run({ ...merged, now });
           changed++;
         }
@@ -332,10 +336,36 @@ export function ensureStockMaster(): void {
 }
 
 /** Ticker → master row (primary sector › industry). */
+/**
+ * StockScans sometimes spells one label two ways ("Textile Machinery" /
+ * "Textile machinery"). Every page uses the most common spelling.
+ */
+function canonicalCase(map: Map<string, MasterRow>): void {
+  for (const key of ["sector", "industry"] as const) {
+    const freq = new Map<string, Map<string, number>>();
+    for (const r of map.values()) {
+      const v = r[key];
+      if (!v) continue;
+      const k = v.toLowerCase();
+      if (!freq.has(k)) freq.set(k, new Map());
+      const f = freq.get(k)!;
+      f.set(v, (f.get(v) ?? 0) + 1);
+    }
+    const best = new Map<string, string>();
+    for (const [k, f] of freq) if (f.size > 1) best.set(k, [...f].sort((a, b) => b[1] - a[1])[0]![0]);
+    if (!best.size) continue;
+    for (const r of map.values()) {
+      const v = r[key];
+      const b = v ? best.get(v.toLowerCase()) : undefined;
+      if (b) r[key] = b;
+    }
+  }
+}
+
 export function loadStockMaster(): Map<string, MasterRow> {
   ensureStockMaster();
   try {
-    return withMaster(
+    const map = withMaster(
       (db) =>
         new Map(
           (
@@ -353,6 +383,8 @@ export function loadStockMaster(): Map<string, MasterRow> {
         ),
       true,
     );
+    canonicalCase(map);
+    return map;
   } catch {
     return new Map();
   }
