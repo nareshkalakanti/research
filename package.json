@@ -5,6 +5,12 @@
   "scripts": {
     "predev": "tsx scripts/db-maintenance.ts prepare-dev",
     "dev": "next dev",
+    "dev:bg": "mkdir -p logs && npm run predev && (nohup next dev > logs/dev.log 2>&1 & echo $! > logs/dev.pid) && (nohup scripts/db-backup.sh --loop 3600 >> logs/db-backup.log 2>&1 & echo $! > logs/db-backup.pid) && sleep 4 && tail -n 6 logs/dev.log",
+    "dev:stop": "(lsof -ti tcp:3000 | xargs kill 2>/dev/null; for f in logs/dev.pid logs/db-backup.pid; do [ -f $f ] && kill $(cat $f) 2>/dev/null; rm -f $f; done; echo 'dev server + hourly backup stopped') || true",
+    "dev:restart": "npm run dev:stop && sleep 1 && rm -rf .next && npm run dev:bg",
+    "dev:logs": "tail -n 50 -f logs/dev.log",
+    "db:backup": "scripts/db-backup.sh",
+    "db:restore": "scripts/db-restore.sh",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

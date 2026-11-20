@@ -45,7 +45,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# SQLite — commit *.db only; never copy or commit WAL sidecars between machines
+# SQLite — databases live on this machine and are backed up to Cloudflare R2
+# (npm run db:backup / db:restore, hourly with dev:bg), not committed to git.
+# Seed snapshots in data/seeds/ stay in git. Never commit WAL sidecars.
+/data/*.db
 **/*.db-wal
 **/*.db-shm
 *.db-wal

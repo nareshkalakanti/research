@@ -130,14 +130,16 @@ function recoverMetricsDb(reason: string): "wal" | "git" | "empty" {
     }
   }
 
-  // Never destroy a populated DB for one bad write — restore tracked copy.
+  // Never destroy a populated DB for one bad write — restore the backed-up copy.
   if (size > 64_000) {
     const tmp = path.join(DATA_DIR, ".metrics-restore.tmp");
     try {
-      execSync(`git show HEAD:data/metrics.db > ${JSON.stringify(tmp)}`, {
+      // Newest verified copy from the Cloudflare R2 backup (databases are no
+      // longer committed to git — see scripts/db-backup.sh).
+      execSync(`scripts/db-restore.sh --to ${JSON.stringify(tmp)} metrics.db`, {
         cwd: process.cwd(),
-        shell: "/bin/bash",
         stdio: ["ignore", "pipe", "ignore"],
+        timeout: 120_000,
       });
       if (fs.existsSync(tmp) && fs.statSync(tmp).size > 64_000) {
         const bak = path.join(
@@ -152,7 +154,7 @@ function recoverMetricsDb(reason: string): "wal" | "git" | "empty" {
         }
         fs.renameSync(tmp, METRICS_PATH);
         removeWalSidecars(METRICS_PATH);
-        console.warn("[metrics] restored data/metrics.db from git HEAD");
+        console.warn("[metrics] restored data/metrics.db from the R2 backup");
         return "git";
       }
       if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
@@ -165,7 +167,7 @@ function recoverMetricsDb(reason: string): "wal" | "git" | "empty" {
         }
       }
       console.warn(
-        "[metrics] git restore failed:",
+        "[metrics] R2 restore failed:",
         e instanceof Error ? e.message : e,
       );
     }

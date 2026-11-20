@@ -86,12 +86,22 @@ FIRECRAWL_API_KEY=
 # BRAND=Research
 ``` 
 
-`data/` SQLite DBs are mostly committed so a fresh clone keeps research state. **Every git add / commit / push must include tracked data files** (`data/governance.db`, `data/family_group_edits.db`, `data/family_group_refine.db`, `data/sector_rotation.db`, other tracked `data/*.db`). Dashboard group add/remove lives in `data/family_group_edits.db`. `company_about.db` is a **local working copy** (gitignored) because the app writes scrapes into it and that blocked `git pull` on every machine. Clones get `data/seeds/company_about.db`; `npm run dev` copies it to `data/company_about.db` if missing. To share About updates: `npm run db:publish-seed -- company_about.db` then commit `data/seeds/company_about.db`. Machine-local scan DBs (`marketiq.db`, `orderbookiq.db`, `boardroomiq.db`) and `logs/` are gitignored — re-run scans on each machine if needed.
+### Databases: backed up to Cloudflare R2, not git
 
-git checkout -- data/company_about.db
+`data/*.db` are **not committed** (they made the repo ~750 MB and hit GitHub's file limits). They live on this machine and are backed up to a Cloudflare R2 bucket:
 
-rm -f data/metrics.db-wal data/metrics.db-shm
-# confirm data is there:
-sqlite3 data/metrics.db "SELECT COUNT(*) FROM stock_metrics;"
-# should be ~3500, not 0
-npm run dev
+| Command | What it does |
+|---|---|
+| `npm run dev:bg` | App in the background **+ an hourly backup** of every `data/*.db` (`logs/db-backup.log`) |
+| `npm run db:backup` | Back up now |
+| `npm run db:restore` | Stop the app first (`npm run dev:stop`), then restore all DBs from the newest backup |
+| `npm run db:restore -- governance.db` | Restore one DB |
+| `DAY=2026-11-19 npm run db:restore` | Restore from a daily backup (14 days kept) |
+
+Backups use SQLite's online backup (safe while the app runs), pass `quick_check` before upload, and are gzipped (~40 MB total). A restore moves the current files to `data/.pre-restore/<time>/` first. If a DB is found corrupt at startup, `db:fix` / `metrics.db` recovery pull the newest backup automatically.
+
+R2 settings in `.env.local` (never commit): `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, optional `R2_BUCKET` (default `research-db-backup`).
+
+**New machine:** clone, add `.env.local`, `npm install`, `npm run db:restore`, `npm run dev:bg`.
+
+`data/seeds/company_about.db` stays in git; `npm run dev` copies it to `data/company_about.db` if missing.

@@ -44,6 +44,30 @@ function gitTrackedDbPath(relUnderData: string): boolean {
   }
 }
 
+/** Newest verified copy from the Cloudflare R2 backup (scripts/db-backup.sh). */
+function restoreFromR2(dbPath: string): boolean {
+  const file = basename(dbPath);
+  const tmp = path.join(DATA_DIR, `.restore-${file}`);
+  try {
+    execSync(`scripts/db-restore.sh --to ${JSON.stringify(tmp)} ${JSON.stringify(file)}`, {
+      cwd: process.cwd(),
+      stdio: "ignore",
+      timeout: 120_000,
+    });
+    if (!fs.existsSync(tmp) || !checkDb(tmp).ok) {
+      if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      return false;
+    }
+    fs.renameSync(tmp, dbPath);
+    removeWalSidecars(dbPath);
+    console.warn(`restored ${file} from the R2 backup`);
+    return true;
+  } catch {
+    if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+    return false;
+  }
+}
+
 function restoreFromGit(dbPath: string): boolean {
   const file = basename(dbPath);
   const gitPath = gitTrackedDbPath(`seeds/${file}`)
@@ -51,7 +75,7 @@ function restoreFromGit(dbPath: string): boolean {
     : gitTrackedDbPath(file)
       ? `data/${file}`
       : null;
-  if (!gitPath) return false;
+  if (!gitPath) return restoreFromR2(dbPath);
   const tmp = path.join(DATA_DIR, `.restore-${file}`);
   try {
     execSync(`git show HEAD:${gitPath} > ${JSON.stringify(tmp)}`, {
