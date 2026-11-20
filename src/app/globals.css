@@ -1595,7 +1595,7 @@ a {
 .login-brand h1 {
   margin: 12px 0 4px;
   font-family: var(--font-ui);
-  font-size: 1.75rem;
+  font-size: 1.4rem;
   font-weight: 650;
   letter-spacing: -0.04em;
 }
@@ -6097,7 +6097,7 @@ button.result-tag {
 
 .scanner-hero h2 {
   margin: 0 0 4px;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
   letter-spacing: -0.03em;
 }
 
@@ -7942,7 +7942,7 @@ button.result-tag {
 
 .gov-disc-title {
   margin: 4px 0 0;
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 800;
 }
 
@@ -8655,7 +8655,7 @@ button.outside-commons-house:hover {
 
 .holdings-mv-head h1 {
   margin: 0 0 8px;
-  font-size: 1.2rem;
+  font-size: 1.05rem;
 }
 
 .holdings-mv-head p {
@@ -9468,7 +9468,7 @@ button.outside-commons-house:hover {
 
 .ag-title {
   margin: 0 0 4px;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
   letter-spacing: -0.03em;
 }
 
@@ -12943,7 +12943,7 @@ button.outside-commons-house:hover {
 
 .exec-sum-title {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: var(--ct-101828);
 }
@@ -13768,7 +13768,7 @@ button.outside-commons-house:hover {
 .miq-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.2rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: -0.02em;
@@ -14884,7 +14884,7 @@ a.miq-co-name:hover {
 .otrd-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.75rem;
+  font-size: 1.4rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -15438,7 +15438,7 @@ button.otrd-co-link {
 
 .wl-simple-title {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -16501,7 +16501,7 @@ button.otrd-co-link {
 .pcd-title {
   margin: 0;
   font-family: var(--pcd-serif);
-  font-size: clamp(1.85rem, 2.6vw, 2.55rem);
+  font-size: clamp(1.4rem, 2vw, 1.85rem);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -17956,7 +17956,7 @@ button.otrd-co-link {
 .rot-title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.25;
@@ -19569,7 +19569,7 @@ button.rot-stat-best-name:not(:disabled):hover {
 }
 .fb-head h2 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
   color: var(--ink);
 }
@@ -20084,7 +20084,7 @@ button.rot-stat-best-name:not(:disabled):hover {
 }
 .rot-dash .rot-title {
   font-family: var(--font-ui);
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   font-weight: 650;
   letter-spacing: -0.025em;
 }
@@ -20865,7 +20865,7 @@ button.rot-grp-chip:disabled {
 }
 .vx-title {
   margin: 0;
-  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-size: clamp(1.3rem, 2.2vw, 1.65rem);
   font-weight: 750;
   letter-spacing: -0.03em;
   line-height: 1.1;
@@ -22024,7 +22024,7 @@ html[data-theme="light"] .vx-rating--mid { color: #b45309; }
 }
 .vx-drawer-title {
   margin: 14px 0 2px;
-  font-size: 1.35rem;
+  font-size: 1.1rem;
   font-weight: 750;
   letter-spacing: -0.02em;
 }
