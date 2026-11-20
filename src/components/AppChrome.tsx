@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { APP_TABS, hrefForTab, useAppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
@@ -86,6 +88,7 @@ export function AppChrome({
         </nav>
 
         <div className="user-block">
+          <RefreshButton />
           <ThemeToggle />
           <OllamaBar />
           {user ? (
@@ -111,5 +114,37 @@ export function AppChrome({
         <span>Refresh NSE/BSE only when you need live filings</span>
       </footer>
     </div>
+  );
+}
+
+/**
+ * Refresh: clear the server's cached lists/prices, then reload the open tab's
+ * data (AppShell remounts the active panel on "app:refresh").
+ */
+function RefreshButton() {
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      className="btn-ghost btn-refresh"
+      disabled={busy}
+      aria-busy={busy}
+      title="Reload this page's data (clears cached lists and prices)"
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await fetch("/api/refresh", { method: "POST" });
+        } catch {
+          /* still reload the panel */
+        }
+        window.dispatchEvent(new Event("app:refresh"));
+        window.setTimeout(() => setBusy(false), 600);
+      }}
+    >
+      <span className={busy ? "btn-refresh-icon spin" : "btn-refresh-icon"} aria-hidden>
+        ↻
+      </span>
+      <span className="btn-refresh-label">Refresh</span>
+    </button>
   );
 }

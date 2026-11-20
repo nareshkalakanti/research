@@ -43,6 +43,11 @@ export type ScannerData = {
 
 let cache: { at: number; data: ScannerData } | null = null;
 
+/** Drop the cached stock list (app Refresh button). */
+export function clearScannerCache(): void {
+  cache = null;
+}
+
 function loadPrices(): { px: Map<string, { price: number | null; chg: number | null }>; asOf: string | null } {
   const px = new Map<string, { price: number | null; chg: number | null }>();
   let asOf: string | null = null;

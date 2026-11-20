@@ -165,6 +165,14 @@ function AppShellPanels() {
     };
   }, []);
 
+  // Top-bar Refresh: remount the open tab so it refetches everything.
+  const [nonce, setNonce] = useState<Partial<Record<AppTab, number>>>({});
+  useEffect(() => {
+    const onRefresh = () => setNonce((n) => ({ ...n, [tab]: (n[tab] ?? 0) + 1 }));
+    window.addEventListener("app:refresh", onRefresh);
+    return () => window.removeEventListener("app:refresh", onRefresh);
+  }, [tab]);
+
   useEffect(() => {
     const run = () => preloadPanelModules();
     if (typeof requestIdleCallback !== "undefined") {
@@ -188,7 +196,7 @@ function AppShellPanels() {
             hidden={!active}
             inert={!active ? true : undefined}
           >
-            <KeptPanel Panel={Panel} />
+            <KeptPanel key={nonce[id] ?? 0} Panel={Panel} />
           </div>
         );
       })}

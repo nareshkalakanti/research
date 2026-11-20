@@ -189,6 +189,13 @@ export const WIND = {
   minStocks: 1,
 } as const;
 
+/** Drop cached Headwind / Cycle / Valuation results (app Refresh button). */
+export function clearValueCaches(): void {
+  windCache = null;
+  cycleCache = null;
+  valCache = null;
+}
+
 let windCache: { at: number; data: { rows: WindRow[]; as_of: string | null } } | null = null;
 
 function median(xs: number[]): number | null {

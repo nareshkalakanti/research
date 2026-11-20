@@ -22990,3 +22990,32 @@ html[data-theme="light"] .nsc-drawer-wrap {
 .rot-dash .rot-card .rot-star {
   font-size: 14px;
 }
+
+/* Top-bar Refresh button */
+.btn-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.btn-refresh:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+.btn-refresh-icon {
+  display: inline-block;
+  font-size: 1rem;
+  line-height: 1;
+}
+.btn-refresh-icon.spin {
+  animation: btn-refresh-spin 0.8s linear infinite;
+}
+@keyframes btn-refresh-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 720px) {
+  .btn-refresh-label {
+    display: none;
+  }
+}

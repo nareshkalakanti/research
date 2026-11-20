@@ -4,6 +4,7 @@ import { buildScannerData } from "./scanner";
 import { fetchScreenerAnnual, fetchScreenerAnnualBs, fetchScreenerAnnualPl } from "./screener-annual";
 import { loadCachedQuartersSeries } from "./screener-quarters";
 import { fetchScreenerShareholding } from "./screener-shareholding";
+import { screenerPausedUntil } from "./screener-fetch";
 import { loadHtIvMap } from "./strategy/ht-store";
 import { fetchCashDebt } from "./yfinance";
 import { trailingYear } from "./ttm";
@@ -193,8 +194,8 @@ function withDb<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
 const pct = (v: number) => `${v.toFixed(1)}%`;
 
 /** Name, NSE symbol or BSE code → our ticker. */
-export function resolveTickers(inputs: string[]): { found: string[]; missing: string[] } {
-  const rows = buildScannerData().rows;
+export function resolveTickers(inputs: string[], fresh = false): { found: string[]; missing: string[] } {
+  const rows = buildScannerData({ fresh }).rows;
   const byT = new Map(rows.map((r) => [r.t.toUpperCase(), r.t]));
   const byName = new Map<string, string>();
   const norm = (s: string) =>
@@ -224,6 +225,12 @@ export function resolveTickers(inputs: string[]): { found: string[]; missing: st
     const hit = byT.get(x.toUpperCase()) ?? (/^\d{6}$/.test(x) ? bse.get(x) : undefined) ?? byName.get(norm(x));
     if (hit && byT.has(hit.toUpperCase())) found.push(byT.get(hit.toUpperCase())!);
     else missing.push(raw.trim());
+  }
+  // The stock list is cached for 10 min: a listing added since then (e.g. a
+  // new IPO from the ticker search) would read as "not found". Rebuild once.
+  if (missing.length && !fresh) {
+    const again = resolveTickers(missing, true);
+    return { found: [...new Set([...found, ...again.found])], missing: again.missing };
   }
   return { found: [...new Set(found)], missing };
 }
@@ -615,23 +622,32 @@ async function scoreValuation(
 
 /** Scores kept per stock for 6 h: reloads are instant and never re-hit Screener. */
 const SCORE_TTL_MS = 6 * 3_600_000;
-const scoreMemo = new Map<string, { at: number; checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] }>();
+/** A stock with nothing scored is retried after this. */
+const EMPTY_SCORE_TTL_MS = 5 * 60_000;
+const scoreMemo = new Map<string, { at: number; ttl: number; checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] }>();
 async function cachedScore(
   t: string,
   market: string,
   ctx: () => ReturnType<typeof loadPeers>,
 ): Promise<{ checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] }> {
   const hit = scoreMemo.get(t);
-  if (hit && Date.now() - hit.at < SCORE_TTL_MS) return hit;
-  // The three scores are independent — run them together.
+  if (hit && Date.now() - hit.at < hit.ttl) return hit;
   // The three scores are independent — run them together.
   const [checks, m, val] = await Promise.all([scoreFundamental(t), scoreManagement(t), scoreValuation(t, market, ctx())]);
-  const v = { at: Date.now(), checks, m, val };
+  // Nothing scored usually means Screener was paused or slow: keep that only
+  // briefly so the stock is retried, instead of showing "No data" for 6 h.
+  const empty = !checks.some((c) => c.points != null) && !m.some((c) => c.points != null);
+  const v = { at: Date.now(), ttl: empty ? EMPTY_SCORE_TTL_MS : SCORE_TTL_MS, checks, m, val };
   scoreMemo.set(t, v);
   return v;
 }
 
-export async function buildReview(opts?: { fresh?: boolean }): Promise<{ rows: ReviewRow[] }> {
+/** Forget every kept score (app Refresh button). */
+export function clearReviewScores(): void {
+  scoreMemo.clear();
+}
+
+export async function buildReview(opts?: { fresh?: boolean }): Promise<{ rows: ReviewRow[]; screener_paused_until: string | null }> {
   if (opts?.fresh) scoreMemo.clear();
   const list = withDb((db) => db.prepare(`SELECT ticker, added_at FROM portfolio_review ORDER BY added_at, ticker`).all() as Array<{ ticker: string; added_at: string }>);
   const scan = new Map(buildScannerData().rows.map((r) => [r.t.toUpperCase(), r]));
@@ -686,5 +702,5 @@ export async function buildReview(opts?: { fresh?: boolean }): Promise<{ rows: R
       rating,
     } satisfies ReviewRow;
   });
-  return { rows: rows.filter((r): r is ReviewRow => !!r) };
+  return { rows: rows.filter((r): r is ReviewRow => !!r), screener_paused_until: screenerPausedUntil() };
 }

@@ -1193,14 +1193,17 @@ function ReviewView({
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState<{ row: ReviewRow; kind: DrawerKind } | null>(null);
+  /** Screener rate-limit: stocks without data cannot be scored until then. */
+  const [pausedUntil, setPausedUntil] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/portfolio-review", { cache: "no-store" });
-      const j = (await res.json()) as { ok?: boolean; error?: string; rows?: ReviewRow[] };
+      const j = (await res.json()) as { ok?: boolean; error?: string; rows?: ReviewRow[]; screener_paused_until?: string | null };
       if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
       setErr(null);
       setRows(j.rows ?? []);
+      setPausedUntil(j.screener_paused_until ?? null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     }
@@ -1278,7 +1281,7 @@ function ReviewView({
       setBusy(false);
     }
   };
-  const suggestions = useMemo(() => {
+  const local = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!universe || needle.length < 2) return [];
     return universe
@@ -1286,6 +1289,69 @@ function ReviewView({
       .sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0))
       .slice(0, 8);
   }, [universe, q]);
+
+  // The ranking list is cached and misses brand-new listings (e.g. a recent
+  // IPO): also ask the app-wide ticker search, then Groww/BSE if that is empty.
+  type Hit = { t: string; name: string; market: string; mcap: number | null; remote: boolean };
+  const [extra, setExtra] = useState<Hit[]>([]);
+  useEffect(() => {
+    const needle = q.trim();
+    if (needle.length < 2) {
+      setExtra([]);
+      return;
+    }
+    const ctl = new AbortController();
+    const id = window.setTimeout(async () => {
+      type Api = { hits?: Array<{ ticker: string; name: string; market: string; mcap_cr?: number | null; source?: string }> };
+      const ask = async (remote: 0 | 1) =>
+        ((await (await fetch(`/api/tickers?q=${encodeURIComponent(needle)}&limit=8&remote=${remote}`, { signal: ctl.signal })).json()) as Api).hits ?? [];
+      try {
+        let hits = await ask(0);
+        if (!hits.length) hits = await ask(1);
+        setExtra(
+          hits.map((h) => ({
+            t: h.ticker.toUpperCase(),
+            name: h.name,
+            market: h.market || "NSE",
+            mcap: h.mcap_cr ?? null,
+            remote: h.source === "groww" || h.source === "bse",
+          })),
+        );
+      } catch {
+        /* typing moved on, or search failed — keep the local list */
+      }
+    }, 300);
+    return () => {
+      window.clearTimeout(id);
+      ctl.abort();
+    };
+  }, [q]);
+
+  const suggestions = useMemo(() => {
+    const seen = new Set(local.map((r) => r.t));
+    const more = extra.filter((h) => !seen.has(h.t));
+    return [...local.map((r) => ({ t: r.t, name: r.name, market: r.market, mcap: r.mcap, remote: false })), ...more].slice(0, 8);
+  }, [local, extra]);
+
+  /** A listing the app has never seen: save it first (as the Dashboard does), then add. */
+  const pick = async (h: { t: string; name: string; market: string; remote: boolean }) => {
+    if (h.remote) {
+      setBusy(true);
+      setMsg(`Adding ${h.t} as a new listing…`);
+      try {
+        await fetch("/api/tickers", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker: h.t, name: h.name, market: h.market }),
+        });
+      } catch {
+        /* add() reports "not found" if this failed */
+      } finally {
+        setBusy(false);
+      }
+    }
+    await add([h.t]);
+  };
 
   /** Colour by share of checks passed: ≥ 65% green · ≥ 40% amber · else red. */
   const cls = (got: number, of: number) => (!of ? "na" : got / of >= 0.65 ? "good" : got / of >= 0.4 ? "mid" : "bad");
@@ -1311,7 +1377,7 @@ function ReviewView({
               <ul className="vx-suggest" role="listbox">
                 {suggestions.map((r) => (
                   <li key={r.t}>
-                    <button type="button" onClick={() => void add([r.t])}>
+                    <button type="button" onClick={() => void pick(r)}>
                       <strong>{r.name}</strong>
                       <span>
                         {r.t} · {r.market}
@@ -1328,6 +1394,13 @@ function ReviewView({
           </button>
         </form>
         {msg ? <p className="vx-hint vx-add-msg">{msg}</p> : null}
+        {pausedUntil && rows?.some((r) => r.rating === "No data") ? (
+          <p className="vx-hint vx-add-msg">
+            Screener is rate-limiting until{" "}
+            {new Date(pausedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} — stocks showing
+            “No data” are scored after that (use Refresh at the top).
+          </p>
+        ) : null}
       </div>
 
       <div className="vx-card vx-table-card">
