@@ -4,6 +4,7 @@ import { buildScannerData } from "./scanner";
 import { fetchScreenerAnnual, fetchScreenerAnnualBs, fetchScreenerAnnualPl } from "./screener-annual";
 import { loadCachedQuartersSeries } from "./screener-quarters";
 import { fetchScreenerShareholding } from "./screener-shareholding";
+import { fetchScreenerPeers } from "./screener-peers";
 import { screenerPausedUntil } from "./screener-fetch";
 import { loadHtIvMap } from "./strategy/ht-store";
 import { fetchCashDebt } from "./yfinance";
@@ -527,6 +528,8 @@ async function scoreManagement(t: string): Promise<FundCheck[]> {
  * Valuation score (−4 … +6):
  *   P/B peer valuation   P/B ≤ industry median +1 · > 2× median −1
  *   P/S peer valuation   P/S ≤ industry median +1 · > 2× median −1
+ *                        (Screener's peer table + Median row when logged in, else
+ *                        our industry's median)
  *   Graham analysis      price < √(22.5 × EPS × book value per share) +1 · > 2× −1
  *   Intrinsic value      price < EPS × (8.5 + 2g), g = 5-yr EPS growth capped 0–20 % +1 · > 2× −1
  *   Cash rich rating     cash − debt > market cap +2 (cash: Yahoo, debt: Yahoo else Screener)
@@ -536,10 +539,12 @@ async function scoreValuation(
   market: string,
   ctx: ReturnType<typeof loadPeers>,
 ): Promise<FundCheck[]> {
-  const [annual, pl, bs] = await Promise.all([
+  const [annual, pl, bs, sp] = await Promise.all([
     fetchScreenerAnnual(t).catch(() => null),
     fetchScreenerAnnualPl(t).catch(() => null),
     fetchScreenerAnnualBs(t).catch(() => null),
+    // Screener's own peer table (its industry + Median row) — preferred for P/B, P/S.
+    fetchScreenerPeers(t).catch(() => null),
   ]);
   const out: FundCheck[] = [];
   const mcap = ctx.mcap.get(t) ?? null;
@@ -552,8 +557,15 @@ async function scoreValuation(
   const sales = last(pl?.revenue ?? annual?.sales);
   const band = (ratio: number) => (ratio <= 1 ? 1 : ratio > VALN.expensive ? -1 : 0) as 1 | 0 | -1;
   const pts = (v: 1 | 0 | -1) => v;
-  // P/B peers
-  {
+  // Screener's median needs as many peers as ours (VALN.peerMin) to count.
+  const spOk = (sp?.n ?? 0) >= VALN.peerMin;
+  const spNote = (what: string) => `Screener peer median ${what}${sp?.n ? ` (${sp.n} cos)` : ""}${sp?.industry ? ` · ${sp.industry}` : ""}`;
+  // P/B peers: Screener's own P/B vs its peer median; else our industry median.
+  const pbMine = mcap && bv && bv > 0 ? mcap / bv : ctx.htPb.get(t) ?? null;
+  const pbUse = sp?.pb_own ?? pbMine;
+  if (pbUse != null && pbUse > 0 && spOk && sp?.pb_median != null && sp.pb_median > 0) {
+    out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${pbUse.toFixed(2)} vs ${sp.pb_median.toFixed(2)}`, points: pts(band(pbUse / sp.pb_median)), note: spNote("P/B") });
+  } else {
     const m = ind ? ctx.peers.pb.get(ind) : undefined;
     const pbOwn = mcap && bv && bv > 0 ? mcap / bv : ctx.htPb.get(t) ?? null;
     if (pbOwn != null && pbOwn > 0 && m) {
@@ -561,8 +573,12 @@ async function scoreValuation(
       out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${pb.toFixed(2)} vs ${m.toFixed(2)}`, points: pts(band(pb / m)), note: `industry median P/B · ${ind}` });
     } else out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: "—", points: null, note: m ? "No book value" : "Fewer than 3 peers with data" });
   }
-  // P/S peers
-  {
+  // P/S peers: Screener first, as for P/B.
+  const psMine = mcap && sales && sales > 0 ? mcap / sales : null;
+  const psUse = sp?.ps_own ?? psMine;
+  if (psUse != null && psUse > 0 && spOk && sp?.ps_median != null && sp.ps_median > 0) {
+    out.push({ id: "ps", label: "P/S peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${psUse.toFixed(2)} vs ${sp.ps_median.toFixed(2)}`, points: pts(band(psUse / sp.ps_median)), note: spNote("P/S") });
+  } else {
     const m = ind ? ctx.peers.ps.get(ind) : undefined;
     const q4 = recentQuarters(t);
     const salesUse = sales ?? (q4 && q4.every((x) => x.revenue != null) ? q4.reduce((a, x) => a + (x.revenue as number), 0) : null);

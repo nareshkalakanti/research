@@ -200,6 +200,44 @@ async function fetchScreenerHtmlAt(
   });
 }
 
+/**
+ * Screener's peer-comparison table for one company (its own industry, with a
+ * Median row). Uses the logged-in session (SCREENER_SESSIONID) so the account's
+ * chosen columns — e.g. CMP / BV, CMP / Sales — come back. Same gap, pause and
+ * block handling as company pages. Returns null without a login.
+ */
+export async function fetchScreenerPeersHtml(warehouseId: string): Promise<string | null> {
+  const session = (process.env.SCREENER_SESSIONID || "").trim();
+  if (!session) return null;
+  const paused = screenerPausedUntil();
+  if (paused) throw new ScreenerPausedError(paused);
+  const url = `https://www.screener.in/api/company/${encodeURIComponent(warehouseId)}/peers/`;
+  await waitScreenerGap();
+  return withWebsiteFetch(url, async () => {
+    const res = await fetch(url, {
+      headers: {
+        "user-agent": USER_AGENT,
+        accept: "text/html,*/*;q=0.8",
+        "accept-language": "en-IN,en;q=0.9",
+        cookie: `sessionid=${session}`,
+      },
+      signal: AbortSignal.timeout(30_000),
+      redirect: "manual",
+    });
+    if (res.status >= 300 && res.status < 400) {
+      throw new Error("Screener login expired — copy a fresh sessionid into .env.local");
+    }
+    const html = await res.text();
+    if (screenerBlocked(html, res.status)) {
+      const until = recordScreenerBlock();
+      throw new Error(`Screener blocked or unavailable (${res.status}); paused until ${until}`);
+    }
+    if (!res.ok) throw new Error(`Screener peers failed (${res.status})`);
+    recordScreenerOk();
+    return html;
+  });
+}
+
 /** Fetch one company page — serialized gap + per-host pool from scrape-pool. */
 export async function fetchScreenerCompanyHtml(
   ticker: string,
