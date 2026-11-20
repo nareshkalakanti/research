@@ -10,6 +10,8 @@ import {
 import { openSqliteNamed } from "./sqlite-utils";
 
 const CACHE_MS = 7 * 24 * 60 * 60 * 1000;
+/** Page had no shareholding table: wait this long before asking again. */
+const EMPTY_RETRY_MS = 24 * 60 * 60 * 1000;
 const BLOCK_MS = 6 * 60 * 60 * 1000;
 
 export type ScreenerShareholding = {
@@ -131,7 +133,8 @@ export function parseScreenerShareholdingHtml(html: string): ScreenerShareholdin
   const out = empty();
   if (/captcha|access denied|rate limit/i.test(html)) return out;
   const $ = cheerio.load(html);
-  const section = parseScreenerSectionTable($, "shareholding");
+  // One column is valid: a company listed this quarter has a single filing.
+  const section = parseScreenerSectionTable($, "shareholding", 1);
   if (!section?.dates.length) return out;
   const n = section.dates.length;
   const promoters = pickScreenerRow(section.rows, [/^Promoters?\b/i]);
@@ -143,7 +146,7 @@ export function parseScreenerShareholdingHtml(html: string): ScreenerShareholdin
     /^Number of Shareholders\b/i,
   ]);
   // Yearly table (#yearly-shp) — Screener's ~10-year promoter history.
-  const yearly = parseScreenerSectionTable($, "yearly-shp");
+  const yearly = parseScreenerSectionTable($, "yearly-shp", 1);
   const promYearly = yearly ? pickScreenerRow(yearly.rows, [/^Promoters?\b/i]) : null;
   let pledged = parsePledgeFromHtml(html);
   // Screener often omits pledge row when 0 — treat usable promoter series as 0 pledge.
@@ -182,7 +185,10 @@ export async function fetchScreenerShareholding(
   try {
     const html = await fetchScreenerCompanyHtml(key, { consolidated: true });
     const series = parseScreenerShareholdingHtml(html);
+    // Nothing usable: remember that for a day so every page view does not
+    // ask Screener again for the same empty table.
     if (usable(series)) writeCache(key, series);
+    else writeCache(key, empty(), new Date(Date.now() + EMPTY_RETRY_MS).toISOString());
     return series;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

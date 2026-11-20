@@ -1,3 +1,4 @@
+import { trailingYear } from "./ttm";
 import { rotationCloses } from "./rotation-bars";
 import { fetchScreenerAllAnnual, screenerPagesTriedSince } from "./screener-annual";
 import { screenerPausedUntil } from "./screener-fetch";
@@ -523,8 +524,8 @@ export async function buildSectorValuation(opts?: { fresh?: boolean }): Promise<
       const sorted = [...hist].sort((x, y) => x - y);
       const med = sorted.length % 2 ? sorted[sorted.length >> 1]! : (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2;
       // Today's EPS: last 4 quarters, else latest annual.
-      const qs = (loadCachedQuartersSeries(r.t) ?? []).filter((q) => q.eps != null).sort((x, y) => x.date.localeCompare(y.date)).slice(-4);
-      const ttm = qs.length === 4 ? qs.reduce((s, q) => s + (q.eps as number), 0) : null;
+      const qs = trailingYear(loadCachedQuartersSeries(r.t) ?? [], Date.now(), (q) => q.eps != null);
+      const ttm = qs ? qs.reduce((s, q) => s + (q.eps as number), 0) : null;
       const lastAnnual = [...a.eps].reverse().find((e) => e != null) ?? null;
       const epsNow = ttm ?? lastAnnual;
       if (epsNow == null || epsNow <= 0 || med <= 0) return null;

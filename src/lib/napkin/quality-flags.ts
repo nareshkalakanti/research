@@ -7,6 +7,7 @@ import { loadMetricsMap } from "../metrics";
 import { fetchCashDebt } from "../yfinance";
 import { fetchScreenerQuarterlyFundamentals } from "../screener-quarters";
 import { fetchScreenerShareholding } from "../screener-shareholding";
+import { trailingYear } from "../ttm";
 
 /**
  * Napkin "Quality checks & red flags" (10-year view), from Screener's company
@@ -335,12 +336,12 @@ function buildPeg(
   const price = loadMetricsMap().get(ticker)?.price ?? null;
 
   // P/E: price ÷ TTM EPS (last 4 quarters), else latest annual EPS.
-  const qs = [...quarters].filter((q) => q.eps != null).sort((a, b) => a.date.localeCompare(b.date)).slice(-4);
-  const ttm = qs.length === 4 ? qs.reduce((a, q) => a + (q.eps as number), 0) : null;
+  const qs = trailingYear(quarters, Date.now(), (q) => q.eps != null);
+  const ttm = qs ? qs.reduce((a, q) => a + (q.eps as number), 0) : null;
   const lastFy = pts.at(-1)?.v ?? null;
   const epsNow = ttm ?? lastFy;
   const pe = price != null && epsNow != null && epsNow > 0 ? price / epsNow : null;
-  const peBasis = ttm != null ? "price ÷ TTM EPS (last 4 quarters)" : "price ÷ latest annual EPS";
+  const peBasis = ttm != null ? "price ÷ TTM EPS (last 12 months)" : "price ÷ latest annual EPS";
   if (price != null && epsNow != null && epsNow <= 0) warnings.push("Loss-making on current earnings — P/E and PEG not meaningful.");
 
   const growth = (years: number): { g: number | null; start: number | null; startYear: string | null } => {

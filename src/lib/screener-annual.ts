@@ -217,6 +217,8 @@ type CheerioLoaded = ReturnType<typeof cheerio.load>;
 export function parseScreenerSectionTable(
   $: CheerioLoaded,
   sectionId: string,
+  /** Fewest date columns accepted (annual tables need 2; a new listing's shareholding has 1). */
+  minCols = 2,
 ): { dates: string[]; rows: Map<string, Array<number | null>> } | null {
   const section = $(`#${sectionId}`);
   if (!section.length) return null;
@@ -261,7 +263,7 @@ export function parseScreenerSectionTable(
       }
     }
   });
-  if (dates.length < 2) return null;
+  if (dates.length < minCols) return null;
 
   const rows = new Map<string, Array<number | null>>();
   table.find("tbody tr").each((_, tr) => {

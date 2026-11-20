@@ -6,6 +6,7 @@ import { loadCachedQuartersSeries } from "./screener-quarters";
 import { fetchScreenerShareholding } from "./screener-shareholding";
 import { loadHtIvMap } from "./strategy/ht-store";
 import { fetchCashDebt } from "./yfinance";
+import { trailingYear } from "./ttm";
 import { openSqliteNamed } from "./sqlite-utils";
 
 /**
@@ -83,10 +84,8 @@ function recentQuarters(t: string) {
           }
         : q,
     );
-  const last4 = qs.slice(-4);
-  const newest = last4.at(-1)?.date;
-  if (last4.length < 4 || !newest || Date.now() - Date.parse(`${newest}T00:00:00Z`) > 270 * 86_400_000) return null;
-  return last4;
+  // 4 consecutive quarters or 2 consecutive half-years (SME filers), recent.
+  return trailingYear(qs, Date.now(), (q) => q.revenue != null || q.netIncome != null);
 }
 
 /** Industry medians of P/B and P/S (3+ peers with data), built once per review. */
@@ -358,26 +357,60 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
  *   Promoter holding, 3 yrs promoter stake higher than 3 years ago (unchanged = 0)
  *   Promoter holding, qtr   promoter stake higher than last quarter (unchanged = 0)
  */
+type DatedPoint = { d: string; v: number };
+const monthIndex = (d: string) => Number(d.slice(0, 4)) * 12 + Number(d.slice(5, 7));
+
+/**
+ * The point about `months` before the latest one, chosen by date (not by
+ * column count — Screener has gaps, half-yearly filers and odd extra columns).
+ * Within ±`tol` months → exact. Otherwise the earliest point after the target
+ * (young listing / short history) → `partial`. Never a point far older than
+ * the target.
+ */
+export function pointMonthsBack(s: DatedPoint[], months: number, tol = 2): { p: DatedPoint; partial: boolean } | null {
+  if (s.length < 2) return null;
+  const latest = s[s.length - 1]!;
+  const target = monthIndex(latest.d) - months;
+  let best: DatedPoint | null = null;
+  for (const x of s.slice(0, -1)) {
+    const gap = Math.abs(monthIndex(x.d) - target);
+    if (gap <= tol && (!best || gap < Math.abs(monthIndex(best.d) - target))) best = x;
+  }
+  if (best) return { p: best, partial: false };
+  const after = s.slice(0, -1).find((x) => monthIndex(x.d) > target);
+  return after ? { p: after, partial: true } : null;
+}
+
+/** Previous filing at least ~2 months before the latest (skips same-quarter extra columns). */
+export function previousFiling(s: DatedPoint[]): DatedPoint | null {
+  if (s.length < 2) return null;
+  const cut = monthIndex(s[s.length - 1]!.d) - 2;
+  for (let i = s.length - 2; i >= 0; i--) if (monthIndex(s[i]!.d) <= cut) return s[i]!;
+  return null;
+}
+
 async function scoreManagement(t: string): Promise<FundCheck[]> {
   const sh = await fetchScreenerShareholding(t).catch(() => null);
   const out: FundCheck[] = [];
   const seq = (vals: Array<number | null> | undefined) =>
     (sh?.dates ?? []).map((d, i) => ({ d, v: vals?.[i] ?? null })).filter((x): x is { d: string; v: number } => x.v != null);
   const q = (d: string) => d.slice(0, 7);
-  // 1) Shareholder variation (latest vs 4 quarters back)
+  // 1) Shareholder variation (latest vs ~1 year back, by date)
   {
     const s = seq(sh?.shareholders);
-    if (s.length >= 2) {
+    const back = pointMonthsBack(s, 12);
+    if (back) {
       const now = s[s.length - 1]!;
-      const ago = s[Math.max(0, s.length - 5)]!;
+      const ago = back.p;
       const ch = ((now.v - ago.v) / ago.v) * 100;
+      const span = monthIndex(now.d) - monthIndex(ago.d);
       out.push({
         id: "holders",
         label: "Shareholder variation",
         rule: "number of shareholders down over 1 yr",
         value: `${ch >= 0 ? "+" : ""}${ch.toFixed(1)}%`,
         points: now.v < ago.v ? 1 : 0,
-        note: `${Math.round(ago.v).toLocaleString("en-IN")} (${q(ago.d)}) → ${Math.round(now.v).toLocaleString("en-IN")} (${q(now.d)})${s.length < 5 ? ` · since listing (${s.length} quarters)` : ""}`,
+        note: `${Math.round(ago.v).toLocaleString("en-IN")} (${q(ago.d)}) → ${Math.round(now.v).toLocaleString("en-IN")} (${q(now.d)})${back.partial ? ` · only ${span} months of data` : ""}`,
       });
     } else out.push({ id: "holders", label: "Shareholder variation", rule: "number of shareholders down over 1 yr", value: "—", points: null, note: "No shareholder count" });
   }
@@ -409,31 +442,44 @@ async function scoreManagement(t: string): Promise<FundCheck[]> {
       });
     }
   }
-  // 4–5) Promoter holding: 3 years and quarterly
+  // 4–5) Promoter holding: 3 years (quarterly + Screener's yearly table, by
+  //      date) and vs the previous filing.
   {
     const s = seq(sh?.promoters);
-    if (s.length >= 2) {
-      const now = s[s.length - 1]!;
-      const ago3 = s[Math.max(0, s.length - 13)]!;
-      const prev = s[s.length - 2]!;
-      const ch3 = now.v - ago3.v;
-      const chq = now.v - prev.v;
-      out.push({
-        id: "prom3y",
-        label: "Change in promoter holding (3 years)",
-        rule: "up vs 3 yrs ago",
-        value: `${ch3 >= 0 ? "+" : ""}${ch3.toFixed(2)} pp`,
-        points: ch3 > 0 ? 1 : 0,
-        note: `${ago3.v.toFixed(2)}% (${q(ago3.d)}) → ${now.v.toFixed(2)}% (${q(now.d)})${s.length < 13 ? ` · only ${s.length} quarters` : ""}`,
-      });
-      out.push({
-        id: "promq",
-        label: "Change in promoter holding (quarterly)",
-        rule: "up vs last quarter",
-        value: `${chq >= 0 ? "+" : ""}${chq.toFixed(2)} pp`,
-        points: chq > 0 ? 1 : 0,
-        note: `${prev.v.toFixed(2)}% (${q(prev.d)}) → ${now.v.toFixed(2)}% (${q(now.d)})`,
-      });
+    const yearly = (sh?.yearly_dates ?? [])
+      .map((d, i) => ({ d, v: sh?.promoters_yearly?.[i] ?? null }))
+      .filter((x): x is DatedPoint => x.v != null);
+    const now = s.at(-1) ?? null;
+    if (now && s.length >= 2) {
+      // Older yearly points extend the quarterly series; the latest stays quarterly.
+      const merged = [...yearly.filter((y) => y.d < s[0]!.d), ...s];
+      const back = pointMonthsBack(merged, 36, 3);
+      if (back) {
+        const ago3 = back.p;
+        const ch3 = now.v - ago3.v;
+        const span = monthIndex(now.d) - monthIndex(ago3.d);
+        out.push({
+          id: "prom3y",
+          label: "Change in promoter holding (3 years)",
+          rule: "up vs 3 yrs ago",
+          value: `${ch3 >= 0 ? "+" : ""}${ch3.toFixed(2)} pp`,
+          points: ch3 > 0 ? 1 : 0,
+          note: `${ago3.v.toFixed(2)}% (${q(ago3.d)}) → ${now.v.toFixed(2)}% (${q(now.d)})${back.partial ? ` · only ${span} months of data` : ""}`,
+        });
+      } else out.push({ id: "prom3y", label: "Change in promoter holding (3 years)", rule: "up vs 3 yrs ago", value: "—", points: null, note: "No promoter history" });
+      const prev = previousFiling(s);
+      if (prev) {
+        const chq = now.v - prev.v;
+        const gap = monthIndex(now.d) - monthIndex(prev.d);
+        out.push({
+          id: "promq",
+          label: "Change in promoter holding (quarterly)",
+          rule: "up vs last quarter",
+          value: `${chq >= 0 ? "+" : ""}${chq.toFixed(2)} pp`,
+          points: chq > 0 ? 1 : 0,
+          note: `${prev.v.toFixed(2)}% (${q(prev.d)}) → ${now.v.toFixed(2)}% (${q(now.d)})${gap >= 5 ? " · half-yearly filer" : ""}`,
+        });
+      } else out.push({ id: "promq", label: "Change in promoter holding (quarterly)", rule: "up vs last quarter", value: "—", points: null, note: "Only one filing" });
     } else {
       out.push({ id: "prom3y", label: "Change in promoter holding (3 years)", rule: "up vs 3 yrs ago", value: "—", points: null, note: "No promoter history" });
       out.push({ id: "promq", label: "Change in promoter holding (quarterly)", rule: "up vs last quarter", value: "—", points: null, note: "No promoter history" });
@@ -515,7 +561,13 @@ async function scoreValuation(
       if (eps <= 0) out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: "Loss", points: 0, note: "Needs positive EPS" });
       else {
         const iv = eps * (8.5 + 2 * g);
-        out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: `₹${price.toFixed(0)} vs ₹${iv.toFixed(0)}`, points: pts(band(price / iv)), note: `g = ${g.toFixed(1)}% (5-yr EPS growth, capped ${VALN.growthCap}%)` });
+        out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: `₹${price.toFixed(0)} vs ₹${iv.toFixed(0)}`, points: pts(band(price / iv)), note:
+            e5 == null || eN == null
+              ? "g = 0% (less than 6 years of EPS history)"
+              : e5 <= 0 || eN <= 0
+                ? "g = 0% (loss in the start or latest year)"
+                : `g = ${g.toFixed(1)}% (5-yr EPS growth, capped ${VALN.growthCap}%)`,
+        });
       }
     } else out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: "—", points: null, note: "No EPS / price" });
   }
