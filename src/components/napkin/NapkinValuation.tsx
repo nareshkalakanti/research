@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   DEFAULT_NAPKIN_CONFIG,
   NAPKIN_DEFAULT_EXPECTED_CAGR,
@@ -20,36 +20,40 @@ import {
 } from "@/lib/napkin/format";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinBuyPrice } from "@/components/napkin/NapkinBuyPrice";
-import { napkinPathCase } from "@/lib/napkin/composite";
+import { napkinEntryPriceStatus, napkinPathCase } from "@/lib/napkin/composite";
 import {
   NAPKIN_DEFAULT_TARGET_RETURN,
   NAPKIN_TARGET_RETURN_PRESETS,
   NAPKIN_BUY_YEARS,
+  NAPKIN_EXIT_PE_CAP,
+  NAPKIN_HIST_GROWTH_MAX,
+  NAPKIN_HIST_GROWTH_MIN,
+  napkinDefaultExitPe,
+  napkinDefaultGrowth,
 } from "@/lib/napkin/buy-price";
 
 export function NapkinValuation({ data }: { data: NapkinResearch }) {
-  const [expected, setExpected] = useState(NAPKIN_DEFAULT_EXPECTED_CAGR);
-  const [custom, setCustom] = useState("");
-  const [target, setTarget] = useState(NAPKIN_DEFAULT_TARGET_RETURN);
   const pe = parseDisplayedPe(napkinPeDisplay(napkinMetric(data.overview, "pe")));
-  const [exitPe, setExitPe] = useState<number | null>(pe);
-  const [exitText, setExitText] = useState("");
-
-  useEffect(() => {
-    setExpected(NAPKIN_DEFAULT_EXPECTED_CAGR);
-    setCustom("");
-    setTarget(NAPKIN_DEFAULT_TARGET_RETURN);
-    setExitPe(pe);
-    setExitText("");
-  }, [data.ticker, pe]);
-
   const hist5 = napkinMetric(data.financials, "eps5");
   const hist3 = napkinMetric(data.financials, "eps3");
   const historical = hist5 !== "N/A" ? hist5 : hist3;
+  const histRatio = parseDisplayedPct(historical);
+  // Defaults come from the stock itself. Using a flat 15% growth with the
+  // current P/E as exit made every stock read "2x price" and "at entry".
+  const histDefault = histRatio != null ? napkinDefaultGrowth(histRatio) : NAPKIN_DEFAULT_EXPECTED_CAGR;
+  const exitDefault = napkinDefaultExitPe(pe);
+
+  const [expected, setExpected] = useState(histDefault);
+  const [custom, setCustom] = useState("");
+  const [target, setTarget] = useState(NAPKIN_DEFAULT_TARGET_RETURN);
+  const [exitPe, setExitPe] = useState<number | null>(exitDefault);
+  const [exitText, setExitText] = useState("");
+
+  // State resets per stock because the parent keys this component by ticker.
+
   const eps = parseDisplayedMoney(napkinMetric(data.overview, "eps"));
   const price = parseDisplayedMoney(napkinMetric(data.overview, "price"));
   const requiredRatio = napkinRequiredEpsCagr(pe);
-  const histRatio = parseDisplayedPct(historical);
   const years = NAPKIN_BUY_YEARS;
   const path = napkinPathCase({
     eps,
@@ -60,6 +64,7 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
     target_return: target,
     years,
   });
+  const entryStatus = napkinEntryPriceStatus(price, path.case.buy_price);
   const notes = napkinMathNotes({
     historicalEpsCagr: historical,
     usedFiveYear: hist5 !== "N/A",
@@ -68,6 +73,9 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
   });
   const usingCurrent =
     pe != null && exitPe != null && Math.abs(exitPe - pe) < 1e-9;
+  const capApplies = pe != null && pe > NAPKIN_EXIT_PE_CAP;
+  const usingCap = capApplies && exitPe != null && Math.abs(exitPe - NAPKIN_EXIT_PE_CAP) < 1e-9 && exitText === "";
+  const usingHist = histRatio != null && Math.abs(expected - histDefault) < 1e-9 && custom === "";
 
   const pick = (rate: number) => {
     setExpected(rate);
@@ -85,6 +93,17 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
           <div className="napkin-dl-row napkin-path-hero-row">
             <dt>Current Price</dt>
             <dd>{formatNapkinRupee(price)}</dd>
+          </div>
+          <div className="napkin-dl-row napkin-path-hero-row">
+            <dt>Max Entry Price</dt>
+            <dd className="napkin-hero-entry" title="Highest price to pay today for the selected target return">
+              {formatNapkinRupee(path.case.buy_price)}
+              {entryStatus ? (
+                <span className={`napkin-entry-status napkin-entry-status--${entryStatus.tone}`}>
+                  {entryStatus.label}
+                </span>
+              ) : null}
+            </dd>
           </div>
         </dl>
       </div>
@@ -126,8 +145,19 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
         <h2 className="napkin-block-title">Your assumptions</h2>
         <p className="napkin-cagr-label">Expected EPS CAGR</p>
         <div className="napkin-cagr-chips" role="group" aria-label="Expected EPS CAGR">
+          {histRatio != null ? (
+            <button
+              type="button"
+              className={`napkin-cagr-chip${usingHist ? " is-on" : ""}`}
+              aria-pressed={usingHist}
+              title={`Historical EPS CAGR ${historical}${histRatio !== histDefault ? `, kept within ${NAPKIN_HIST_GROWTH_MIN * 100}–${NAPKIN_HIST_GROWTH_MAX * 100}%` : ""}`}
+              onClick={() => pick(histDefault)}
+            >
+              {`[ Historical ${formatNapkinPctWhole(histDefault)} ]`}
+            </button>
+          ) : null}
           {NAPKIN_EXPECTED_CAGR_PRESETS.map((rate) => {
-            const on = Math.abs(expected - rate) < 1e-9 && custom === "";
+            const on = !usingHist && Math.abs(expected - rate) < 1e-9 && custom === "";
             return (
               <button
                 key={rate}
@@ -191,6 +221,20 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
           >
             [ Current P/E ]
           </button>
+          {capApplies ? (
+            <button
+              type="button"
+              className={`napkin-cagr-chip${usingCap ? " is-on" : ""}`}
+              aria-pressed={usingCap}
+              title={`Current P/E ${pe?.toFixed(1)}x assumed to cool to ${NAPKIN_EXIT_PE_CAP}x by exit`}
+              onClick={() => {
+                setExitPe(NAPKIN_EXIT_PE_CAP);
+                setExitText("");
+              }}
+            >
+              {`[ Capped ${NAPKIN_EXIT_PE_CAP}x ]`}
+            </button>
+          ) : null}
           <label className="napkin-cagr-custom">
             <input
               type="number"

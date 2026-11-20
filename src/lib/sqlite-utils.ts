@@ -183,6 +183,13 @@ function sqliteFileUri(dbPath: string, query: string): string {
   return `file:${path.resolve(dbPath)}?${query}`;
 }
 
+const QUICK_CHECK_TTL_MS = 10 * 60_000;
+const quickCheckOk = new Map<string, number>();
+function quickCheckedRecently(dbPath: string): boolean {
+  const at = quickCheckOk.get(dbPath);
+  return at != null && Date.now() - at < QUICK_CHECK_TTL_MS;
+}
+
 function openRaw(
   dbPath: string,
   opts: OpenSqliteOpts,
@@ -206,12 +213,16 @@ function openRaw(
     db.pragma("journal_mode = WAL");
   }
   if (readonly) db.pragma("query_only = ON");
-  if (opts.quickCheck ?? true) {
+  // quick_check reads the whole file (~40 ms on metrics.db) — run it once per
+  // file every few minutes, not on every open (pages open a DB many times).
+  if ((opts.quickCheck ?? true) && !quickCheckedRecently(dbPath)) {
     const detail = readQuickCheck(db);
     if (detail !== "ok") {
+      quickCheckOk.delete(dbPath);
       db.close();
       throw Object.assign(new Error(detail), { code: "SQLITE_CORRUPT" });
     }
+    quickCheckOk.set(dbPath, Date.now());
   }
   return db;
 }

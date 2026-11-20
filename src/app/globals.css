@@ -27950,13 +27950,27 @@ tr.wl-prove-fail td {
 
 .napkin-path-hero-dl {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 20px;
+}
+
+@media (max-width: 480px) {
+  .napkin-path-hero-dl {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.napkin-path-hero-row dd.napkin-hero-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
 }
 
 .napkin-path-hero-row {
   flex-direction: column;
   align-items: flex-start;
+  justify-content: flex-start;
   gap: 4px;
   padding: 10px 0;
 }

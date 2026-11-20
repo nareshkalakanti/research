@@ -15,7 +15,7 @@ export const NAPKIN_DEFAULT_TARGET_RETURN = 0.15;
 export const NAPKIN_BUY_SENSITIVITY_CAGRS = [0.1, 0.15, 0.2, 0.25, 0.3];
 export const NAPKIN_BUY_SENSITIVITY_PES = [20, 25, 30, 35, 40];
 
-/** Scanner column. Exit P/E is the row's current P/E, not a fixed multiple. */
+/** Fallback scanner assumptions (growth used only when there is no EPS history). */
 export const NAPKIN_SCAN_BUY_ASSUMPTIONS = {
   expected_cagr: 0.15,
   target_return: 0.15,
@@ -97,11 +97,38 @@ export function napkinBuyCase(input: {
   };
 }
 
-/** Default scanner scenario. Missing EPS, price, or P/E stays null. */
+/** Exit P/E ceiling for the default case: rich multiples are assumed to cool to this. */
+export const NAPKIN_EXIT_PE_CAP = 25;
+/** Historical EPS CAGR used as the default growth is kept inside this band. */
+export const NAPKIN_HIST_GROWTH_MIN = 0;
+export const NAPKIN_HIST_GROWTH_MAX = 0.3;
+
+/**
+ * Default expected EPS CAGR: the stock's own history (5Y, else 3Y), kept in
+ * 0–30%. Falls back to the flat scanner rate when there is no history.
+ * A flat 15% with a 15% target and current P/E as exit always returns
+ * "max entry = price" — the defaults must come from the stock.
+ */
+export function napkinDefaultGrowth(historical: number | null | undefined): number {
+  const h = finite(historical);
+  if (h == null) return NAPKIN_SCAN_BUY_ASSUMPTIONS.expected_cagr;
+  return Math.min(NAPKIN_HIST_GROWTH_MAX, Math.max(NAPKIN_HIST_GROWTH_MIN, h));
+}
+
+/** Default exit P/E: current P/E, capped at NAPKIN_EXIT_PE_CAP. */
+export function napkinDefaultExitPe(pe: number | null | undefined): number | null {
+  const p = finite(pe);
+  if (p == null || p <= 0) return null;
+  return Math.min(p, NAPKIN_EXIT_PE_CAP);
+}
+
+/** Default scenario. Missing EPS, price, or P/E stays null. */
 export function napkinDefaultMaxBuyPrice(input: {
   eps: number | null | undefined;
   price: number | null | undefined;
   pe: number | null | undefined;
+  /** Historical EPS CAGR (5Y, else 3Y) as a ratio. */
+  historical_cagr?: number | null;
 }): number | null {
   const eps = finite(input.eps);
   const price = finite(input.price);
@@ -110,8 +137,8 @@ export function napkinDefaultMaxBuyPrice(input: {
   return napkinBuyCase({
     eps,
     price,
-    expected_cagr: NAPKIN_SCAN_BUY_ASSUMPTIONS.expected_cagr,
-    exit_pe: pe,
+    expected_cagr: napkinDefaultGrowth(input.historical_cagr),
+    exit_pe: napkinDefaultExitPe(pe),
     target_return: NAPKIN_SCAN_BUY_ASSUMPTIONS.target_return,
     years: NAPKIN_SCAN_BUY_ASSUMPTIONS.years,
   }).buy_price;

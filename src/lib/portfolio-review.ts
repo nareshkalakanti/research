@@ -90,7 +90,13 @@ function recentQuarters(t: string) {
 }
 
 /** Industry medians of P/B and P/S (3+ peers with data), built once per review. */
-function loadPeers(): { industryOf: Map<string, string | null>; peers: Peers; price: Map<string, number | null>; mcap: Map<string, number | null> } {
+function loadPeers(): {
+  industryOf: Map<string, string | null>;
+  peers: Peers;
+  price: Map<string, number | null>;
+  mcap: Map<string, number | null>;
+  htPb: Map<string, number>;
+} {
   const scan = buildScannerData().rows;
   const legs = new Map<string, { sales: number | null; bv: number | null }>();
   try {
@@ -154,7 +160,7 @@ function loadPeers(): { industryOf: Map<string, string | null>; peers: Peers; pr
     if (e.pb.length >= VALN.peerMin) peers.pb.set(ind, med(e.pb));
     if (e.ps.length >= VALN.peerMin) peers.ps.set(ind, med(e.ps));
   }
-  return { industryOf, peers, price, mcap };
+  return { industryOf, peers, price, mcap, htPb };
 }
 
 function withDb<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
@@ -441,7 +447,7 @@ async function scoreValuation(
   // P/B peers
   {
     const m = ind ? ctx.peers.pb.get(ind) : undefined;
-    const pbOwn = mcap && bv && bv > 0 ? mcap / bv : loadHtIvMap().get(t)?.pb ?? null;
+    const pbOwn = mcap && bv && bv > 0 ? mcap / bv : ctx.htPb.get(t) ?? null;
     if (pbOwn != null && pbOwn > 0 && m) {
       const pb = pbOwn;
       out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${pb.toFixed(2)} vs ${m.toFixed(2)}`, points: pts(band(pb / m)), note: `industry median P/B · ${ind}` });
@@ -517,20 +523,26 @@ async function cachedScore(
 ): Promise<{ checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] }> {
   const hit = scoreMemo.get(t);
   if (hit && Date.now() - hit.at < SCORE_TTL_MS) return hit;
-  const checks = await scoreFundamental(t);
-  const m = await scoreManagement(t);
-  const val = await scoreValuation(t, market, ctx());
+  // The three scores are independent — run them together.
+  // The three scores are independent — run them together.
+  const [checks, m, val] = await Promise.all([scoreFundamental(t), scoreManagement(t), scoreValuation(t, market, ctx())]);
   const v = { at: Date.now(), checks, m, val };
   scoreMemo.set(t, v);
   return v;
 }
 
-export async function buildReview(): Promise<{ rows: ReviewRow[] }> {
+export async function buildReview(opts?: { fresh?: boolean }): Promise<{ rows: ReviewRow[] }> {
+  if (opts?.fresh) scoreMemo.clear();
   const list = withDb((db) => db.prepare(`SELECT ticker, added_at FROM portfolio_review ORDER BY added_at, ticker`).all() as Array<{ ticker: string; added_at: string }>);
   const scan = new Map(buildScannerData().rows.map((r) => [r.t.toUpperCase(), r]));
   let peerCtx: ReturnType<typeof loadPeers> | null = null;
-  const ctx = () => (peerCtx ??= loadPeers());
-  const rows = await runConcurrent(list, 2, async ({ ticker, added_at }) => {
+  const ctx = () => {
+    if (!peerCtx) {
+      peerCtx = loadPeers();
+    }
+    return peerCtx;
+  };
+  const rows = await runConcurrent(list, 6, async ({ ticker, added_at }) => {
     const s = scan.get(ticker);
     const { checks, m, val } = await cachedScore(ticker, s?.market ?? "NSE", ctx);
     const scored = checks.filter((c) => c.points != null).length;

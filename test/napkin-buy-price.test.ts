@@ -6,6 +6,11 @@ import {
   NAPKIN_BUY_SENSITIVITY_PES,
   napkinBuyCase,
   napkinBuyPricePosition,
+  NAPKIN_EXIT_PE_CAP,
+  NAPKIN_HIST_GROWTH_MAX,
+  NAPKIN_HIST_GROWTH_MIN,
+  napkinDefaultExitPe,
+  napkinDefaultGrowth,
   napkinDefaultMaxBuyPrice,
   napkinIllustrativeBuyRows,
 } from "../src/lib/napkin/buy-price";
@@ -39,7 +44,24 @@ assert.ok(Math.abs((row.price_gap ?? 0) - (buy / price - 1)) < 1e-12);
 assert.ok(Math.abs(futureEps - 62.55) < 0.02);
 assert.ok(Math.abs(futurePrice - 2177) < 1);
 assert.ok(Math.abs(buy - 1082) < 1);
-assert.ok(Math.abs((napkinDefaultMaxBuyPrice({ eps, price, pe }) ?? 0) - buy) < 1e-9);
+// Default: no history -> 15% growth, exit P/E capped at 25x (current 34.8x).
+const cappedBuy = (eps * Math.pow(1.15, 5) * NAPKIN_EXIT_PE_CAP) / Math.pow(1.15, 5);
+assert.ok(Math.abs((napkinDefaultMaxBuyPrice({ eps, price, pe }) ?? 0) - cappedBuy) < 1e-9);
+// History drives growth, kept within 0–30%.
+assert.equal(napkinDefaultGrowth(0.08), 0.08);
+assert.equal(napkinDefaultGrowth(-0.2), NAPKIN_HIST_GROWTH_MIN);
+assert.equal(napkinDefaultGrowth(0.9), NAPKIN_HIST_GROWTH_MAX);
+assert.equal(napkinDefaultGrowth(null), 0.15);
+assert.equal(napkinDefaultExitPe(18), 18);
+assert.equal(napkinDefaultExitPe(40), NAPKIN_EXIT_PE_CAP);
+assert.equal(napkinDefaultExitPe(-5), null);
+// Regression: defaults must not collapse to "max entry = price" for every stock.
+{
+  const e = 10, p2 = 200; // P/E 20, history 8%
+  const b = napkinDefaultMaxBuyPrice({ eps: e, price: p2, pe: 20, historical_cagr: 0.08 }) ?? 0;
+  assert.ok(Math.abs(b - (e * Math.pow(1.08, 5) * 20) / Math.pow(1.15, 5)) < 1e-9);
+  assert.ok(b < p2 * 0.8);
+}
 assert.equal(napkinDefaultMaxBuyPrice({ eps: null, price, pe }), null);
 assert.equal(napkinDefaultMaxBuyPrice({ eps, price: null, pe }), null);
 assert.equal(napkinDefaultMaxBuyPrice({ eps, price, pe: null }), null);

@@ -37,7 +37,9 @@ export function parseDisplayedPe(s: string | undefined): number | null {
 
 export function formatNapkinRupee(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return "N/A";
-  const digits = Math.abs(v) >= 100 ? 0 : 1;
+  // Penny stocks: one decimal turns ₹0.04 EPS into "₹0".
+  const a = Math.abs(v);
+  const digits = a >= 100 ? 0 : a >= 10 ? 1 : 2;
   return `₹${v.toLocaleString("en-IN", { maximumFractionDigits: digits })}`;
 }
 

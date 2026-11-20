@@ -5,9 +5,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** GET: the review list with Fundamental scores. */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    return NextResponse.json({ ok: true, rules: FUND, ...(await buildReview()) });
+    const fresh = new URL(req.url).searchParams.get("fresh") === "1";
+    return NextResponse.json({ ok: true, rules: FUND, ...(await buildReview({ fresh })) });
   } catch (e) {
     return NextResponse.json({ ok: false, error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

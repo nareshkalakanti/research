@@ -540,7 +540,21 @@ export async function fetchYfAboutProfile(
 }
 
 /** Total cash and total debt (₹ Cr) from Yahoo's financialData, trying NSE / BSE symbols. */
+const cashMemo = new Map<string, { at: number; v: { cash_cr: number | null; debt_cr: number | null; symbol: string | null } }>();
+/** Hits kept 6 h, misses 24 h (small SME / BSE names never have a Yahoo cash figure). */
 export async function fetchCashDebt(
+  ticker: string,
+  market?: string | null,
+): Promise<{ cash_cr: number | null; debt_cr: number | null; symbol: string | null }> {
+  const key = `${ticker.toUpperCase()}|${market ?? ""}`;
+  const hit = cashMemo.get(key);
+  if (hit && Date.now() - hit.at < (hit.v.symbol ? 6 : 24) * 3_600_000) return hit.v;
+  const v = await fetchCashDebtRaw(ticker, market);
+  cashMemo.set(key, { at: Date.now(), v });
+  return v;
+}
+
+async function fetchCashDebtRaw(
   ticker: string,
   market?: string | null,
 ): Promise<{ cash_cr: number | null; debt_cr: number | null; symbol: string | null }> {

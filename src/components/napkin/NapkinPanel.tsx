@@ -269,7 +269,7 @@ export function NapkinPanel() {
             />
 
 
-            <NapkinValuation data={data} />
+            <NapkinValuation key={data.ticker} data={data} />
 
             <div className="napkin-sheet-section napkin-board-map">
               <h2 className="napkin-block-title">Board map</h2>

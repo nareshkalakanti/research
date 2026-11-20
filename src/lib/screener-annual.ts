@@ -75,6 +75,28 @@ function readCache(ticker: string): ScreenerAnnualSeries | "blocked" | null {
   }
 }
 
+/**
+ * Young companies only have a few years on Screener: a short cached series is
+ * still the full answer when it was fetched recently — don't refetch it on
+ * every read (that made one stock take ~10 s each time).
+ */
+const SHORT_OK_MS = 7 * 86_400_000;
+function fetchedWithin(table: string, ticker: string, ms: number): boolean {
+  try {
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      const r = db.prepare(`SELECT fetched_at FROM ${table} WHERE ticker = ?`).get(ticker.toUpperCase()) as
+        | { fetched_at: string }
+        | undefined;
+      return !!r && Date.now() - Date.parse(r.fetched_at) < ms;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
+  }
+}
+
 function writeCache(
   ticker: string,
   series: ScreenerAnnualSeries,
@@ -568,7 +590,7 @@ export async function fetchScreenerAnnualPl(
     const cached = readPlCache(key);
     if (cached === "blocked") return empty;
     // Short cache is often consolidated-only; refetch so standalone years can win.
-    if (cached && plUsable(cached) && plYearCount(cached) >= 6) return cached;
+    if (cached && plUsable(cached) && (plYearCount(cached) >= 6 || fetchedWithin("screener_annual_pl_cache", key, SHORT_OK_MS))) return cached;
   }
 
   try {
@@ -621,7 +643,7 @@ export async function fetchScreenerAnnual(
     if (
       cached &&
       cached.sales.some((s) => s != null && s > 0) &&
-      seriesYearCount(cached) >= 6
+      (seriesYearCount(cached) >= 6 || fetchedWithin("screener_annual_cache", key, SHORT_OK_MS))
     ) {
       return cached;
     }
@@ -812,7 +834,7 @@ export async function fetchScreenerAnnualBs(
   if (!opts?.force) {
     const cached = readBsCache(key);
     if (cached === "blocked") return emptyBs();
-    if (cached && bsUsable(cached) && bsYearCount(cached) >= 3) return cached;
+    if (cached && bsUsable(cached) && (bsYearCount(cached) >= 3 || fetchedWithin("screener_annual_bs_cache", key, SHORT_OK_MS))) return cached;
   }
 
   try {

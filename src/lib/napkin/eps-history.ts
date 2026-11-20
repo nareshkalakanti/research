@@ -126,7 +126,12 @@ export function napkinStockScanRow(input: {
     growth_gap: epsGrowthGap5y(hist.eps_5y, required),
     price,
     eps: currentEps,
-    buy_price: napkinDefaultMaxBuyPrice({ eps: currentEps, price, pe }),
+    buy_price: napkinDefaultMaxBuyPrice({
+      eps: currentEps,
+      price,
+      pe,
+      historical_cagr: hist.eps_5y ?? hist.eps_3y,
+    }),
     market: (input.market || "").trim() || null,
     warning: historyWarning(hist.history),
   };
