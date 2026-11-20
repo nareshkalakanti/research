@@ -426,15 +426,21 @@ export async function fetchScreenerQuarterlyFundamentals(
   if (!key) return [];
 
   const prior = peekUsableCache(key);
+  // A series whose newest quarter is 9+ months old is re-checked (at most weekly):
+  // the company may have stopped consolidated filing (KAMDHENU: ends Mar 2022).
+  const staleSeries = (qs: QuarterPoint[]) => {
+    const n = qs.map((q) => q.date).sort().at(-1);
+    return !!n && Date.now() - Date.parse(`${n}T00:00:00Z`) > 270 * 86_400_000 && !screenerQuartersFetchedWithin(key, 7 * 86_400_000);
+  };
 
   if (!opts?.force) {
     const cached = readCache(key);
     if (cached === "blocked") return [];
     // Short cache (<5) cannot support same-quarter YoY — refetch when allowed.
-    if (cached && cached.length >= 5) return cached;
+    if (cached && cached.length >= 5 && (opts?.cacheOnly || !staleSeries(cached))) return cached;
     if (cached && opts?.cacheOnly) return cached;
     if (opts?.cacheOnly) return cached ?? [];
-  } else if (prior && prior.length >= 5) {
+  } else if (prior && prior.length >= 5 && !staleSeries(prior)) {
     // YoY-depth already cached — keep Scan/Napkin on the same series; skip
     // network that can 404/empty and drop overlay (e.g. NSE-thin SME names).
     return prior;
@@ -450,14 +456,19 @@ export async function fetchScreenerQuarterlyFundamentals(
       const html = await fetchScreenerCompanyHtml(key, { consolidated: false });
       quarters = parseScreenerQuarterlyHtml(html);
     }
-    // Some SME / young listings only populate standalone quarterly results.
-    if (quarters.length < 2 && preferCons) {
+    // Some SME / young listings only populate standalone quarterly results, and
+    // some companies stopped consolidated filing years ago (e.g. KAMDHENU after
+    // its demerger: consolidated ends Mar 2022) — use standalone when newer.
+    const newest = quarters.map((q) => q.date).sort().at(-1) ?? "";
+    const staleCons = !!newest && Date.now() - Date.parse(`${newest}T00:00:00Z`) > 270 * 86_400_000;
+    if ((quarters.length < 2 || staleCons) && preferCons) {
       try {
         const standHtml = await fetchScreenerCompanyHtml(key, {
           consolidated: false,
         });
         const stand = parseScreenerQuarterlyHtml(standHtml);
-        if (stand.length >= 2) quarters = stand;
+        const standNewest = stand.map((q) => q.date).sort().at(-1) ?? "";
+        if (stand.length >= 2 && (quarters.length < 2 || standNewest > newest)) quarters = stand;
       } catch {
         /* keep consolidated parse */
       }

@@ -494,6 +494,33 @@ function plYearCount(pl: ScreenerAnnualPl): number {
   ).length;
 }
 
+/** Newest column date (ISO) of an annual series, "" when none. */
+function newestDate(dates: string[]): string {
+  return [...dates].sort().at(-1) ?? "";
+}
+
+/**
+ * Consolidated vs standalone: when one stops more than a year before the other
+ * (e.g. KAMDHENU's consolidated accounts end FY2022 after a demerger), the
+ * newer one wins whatever its length. null = no clear winner on recency.
+ */
+function newerByYear<T extends { dates: string[] }>(a: T, b: T): T | null {
+  const na = newestDate(a.dates);
+  const nb = newestDate(b.dates);
+  if (!na || !nb) return null;
+  const gap = Date.parse(`${nb}T00:00:00Z`) - Date.parse(`${na}T00:00:00Z`);
+  if (gap > 365 * 86_400_000) return b;
+  if (gap < -365 * 86_400_000) return a;
+  return null;
+}
+
+/** Older than this, a cached annual series is re-checked (company may have switched to standalone). */
+const STALE_SERIES_MS = 548 * 86_400_000;
+function seriesStale(dates: string[]): boolean {
+  const n = newestDate(dates);
+  return !!n && Date.now() - Date.parse(`${n}T00:00:00Z`) > STALE_SERIES_MS;
+}
+
 /** Prefer the parse with a usable P&L and more annual columns (standalone vs consolidated). */
 export function pickRicherScreenerAnnualPl(
   a: ScreenerAnnualPl,
@@ -504,7 +531,7 @@ export function pickRicherScreenerAnnualPl(
   if (ua && !ub) return a;
   if (ub && !ua) return b;
   if (!ua && !ub) return a;
-  return plYearCount(b) > plYearCount(a) ? b : a;
+  return newerByYear(a, b) ?? (plYearCount(b) > plYearCount(a) ? b : a);
 }
 
 function seriesYearCount(s: ScreenerAnnualSeries): number {
@@ -520,7 +547,7 @@ function pickRicherScreenerAnnual(
   if (ua && !ub) return a;
   if (ub && !ua) return b;
   if (!ua && !ub) return a;
-  return seriesYearCount(b) > seriesYearCount(a) ? b : a;
+  return newerByYear(a, b) ?? (seriesYearCount(b) > seriesYearCount(a) ? b : a);
 }
 
 function readPlCache(ticker: string): ScreenerAnnualPl | "blocked" | null {
@@ -651,7 +678,8 @@ export async function fetchScreenerAnnual(
     if (
       cached &&
       cached.sales.some((s) => s != null && s > 0) &&
-      (seriesYearCount(cached) >= 6 || fetchedWithin("screener_annual_cache", key, SHORT_OK_MS))
+      ((seriesYearCount(cached) >= 6 && !seriesStale(cached.dates)) ||
+        fetchedWithin("screener_annual_cache", key, SHORT_OK_MS))
     ) {
       return cached;
     }
