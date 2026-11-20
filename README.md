@@ -1,111 +1,124 @@
 # Research
 
-India equities research app.
+India equities research app (Next.js). Runs locally at [http://localhost:3000](http://localhost:3000) — **demo login:** any email, password `demo`.
 
-## Setup
+Code lives in git. **Databases (`data/*.db`) do not** — they are backed up to Cloudflare R2 and restored from there.
 
-```bash
-git clone https://github.com/nareshkalakanti/research.git
-cd research
-cp .env.example .env.local   # or paste the block below into .env.local
-npm install
-npm run dev
-```
+## Set up a new machine
 
-Open [http://localhost:3000](http://localhost:3000).
+You need Node, `git`, `curl` and `sqlite3` (macOS has the last two). [Ollama](https://ollama.com) is optional, for the LLM features.
 
-**Demo login:** any email · password `demo`
+1. **Clone and install**
 
-## BoardRoom / DIN intake
+   ```bash
+   git clone https://github.com/nareshkalakanti/research.git
+   cd research
+   npm install
+   ```
 
-Background scan (separate from `next dev`; resumes by skipping already-screened PDFs):
+2. **Create `.env.local`** — copy it from your other machine (AirDrop / password manager, never git), or start from the template and fill in the secrets:
 
-```bash
-# Daily (default --days 2 --limit 40)
-npm run scan:boardroom-bg
+   ```bash
+   cp .env.example .env.local
+   ```
 
-# Catch up a week / month, then drain the queue
-npm run scan:boardroom-bg -- --days 7 --limit 80
-npm run scan:boardroom-bg -- --days 30 --limit 200
-npm run scan:boardroom-bg -- --pending-only --limit 80
+3. **Name this machine** (skip only on your *main* machine). Add to `.env.local`:
 
-# Re-push extracted DINs into governance.db (additive)
-npm run push:boardroom-gov
-npm run push:boardroom-gov -- --limit 200
-```
+   ```bash
+   R2_MACHINE=laptop        # any short name, unique per machine
+   ```
 
-Then refresh **Dashboard → Business groups / People** — new joins show as teal nodes (click **New join** in the legend). Lookback days: `GOV_RECENT_JOIN_DAYS` (default 30).
+   Without it, this machine's backups overwrite the main machine's. See [More than one machine](#more-than-one-machine).
 
-## `.env.local` (copy to other machines)
+4. **Get the databases from R2**
 
-Create `.env.local` in the repo root. **Do not commit this file.**
+   ```bash
+   npm run db:restore
+   ```
 
-```bash
-# --- LLM (local Ollama — default, no API cost) ---
-LLM_PROVIDER=ollama
-LLM_MODEL=qwen2.5:3b-instruct
-LLM_MODEL_OCR=glm-ocr
-LLM_MODEL_HIGHLIGHTS=qwen2.5:3b-instruct
-LLM_MODEL_QUANT=qwen2.5:3b-instruct
-LLM_MODEL_UNIFIED=qwen2.5:3b-instruct
-LLM_MODEL_TRANSCRIPT_FACTS=qwen2.5:3b-instruct
-LLM_MODEL_RESULT_QUALITY=qwen2.5:3b-instruct
-LLM_MODEL_MGMT_SENTIMENT=qwen2.5:3b-instruct
-LLM_MODEL_CODE=qwen2.5:3b-instruct
-# OLLAMA_BASE_URL=http://127.0.0.1:11434
+   A machine with no backups of its own yet pulls the main machine's.
 
-# Pull models once:
-#   ollama pull qwen2.5:3b-instruct
-#   ollama pull glm-ocr
+5. **Run**
 
-# --- Vision OCR (Ollama OpenAI-compatible) ---
-QIANFAN_OCR_BASE_URL=http://127.0.0.1:11434/v1
-QIANFAN_OCR_MODEL=glm-ocr
+   ```bash
+   npm run dev:bg      # app in the background + hourly DB backup (recommended)
+   # or: npm run dev   # foreground, no automatic backup
+   ```
 
-# --- Concall / OrderBook / MarketIQ ---
-CONCALL_UNIFIED_LLM=1
-CONCALL_OCR_MAX_PAGES=40
-# CONCALL_PPT_OCR=0
-ORDERBOOK_OCR=0
-ORDERBOOK_OCR_MAX_PAGES=4
-# MARKETIQ_OCR=0
-# MARKETIQ_OCR_MAX_PAGES=12
+6. Optional, for LLM features: `ollama pull qwen2.5:3b-instruct` and `ollama pull glm-ocr`.
 
-# --- Firecrawl (optional — scanned PDF/DOCX parse) ---
-FIRECRAWL_API_KEY=
-# FIRECRAWL_API_URL=https://api.firecrawl.dev
-# FIRECRAWL_MAX_PAGES=80
-# FIRECRAWL_PDF_MODE=auto
+## `.env.local`
 
-# --- Cloud LLMs (optional; set LLM_PROVIDER=openai|anthropic) ---
-# OPENAI_API_KEY=
-# ANTHROPIC_API_KEY=
+[`.env.example`](.env.example) is the template and lists every setting with comments. Never commit `.env.local`.
 
-# --- Optional ---
-# PORT=3000
-# BRAND=Research
-``` 
+| Setting | Needed for |
+|---|---|
+| `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`, `R2_ENDPOINT` | Database backup / restore (required) |
+| `R2_MACHINE` | Every machine except the main one |
+| `R2_BUCKET` | Only if not `research-db-backup` |
+| `LLM_PROVIDER`, `LLM_MODEL*`, `QIANFAN_OCR_*` | Concall / OCR / Napkin LLM features (default: local Ollama) |
+| `SCREENER_SESSIONID` | Fund watchlists from Screener people pages (your logged-in Screener cookie) |
+| `FIRECRAWL_API_KEY` | Optional: scanned PDF/DOCX parsing |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Optional: cloud LLMs (`LLM_PROVIDER=openai\|anthropic`) |
 
-### Databases: backed up to Cloudflare R2, not git
-
-`data/*.db` are **not committed** (they made the repo ~750 MB and hit GitHub's file limits). They live on this machine and are backed up to a Cloudflare R2 bucket:
+## Everyday commands
 
 | Command | What it does |
 |---|---|
-| `npm run dev:bg` | App in the background **+ an hourly backup** of every `data/*.db` (`logs/db-backup.log`) |
+| `npm run dev:bg` | Start the app in the background + hourly backup (`logs/dev.log`, `logs/db-backup.log`) |
+| `npm run dev:stop` | Stop both |
+| `npm run dev:restart` | Stop, clear `.next`, start again |
+| `npm run dev:logs` | Follow the app log |
+| `git pull` | Get the latest code (databases are untouched) |
+
+## Databases
+
+Backups use SQLite's online backup (safe while the app runs), must pass `quick_check` before upload, and are gzipped (~40 MB total). Only changed databases are uploaded, within Cloudflare's free tier.
+
+| Command | What it does |
+|---|---|
 | `npm run db:backup` | Back up now |
-| `npm run db:restore` | Stop the app first (`npm run dev:stop`), then restore all DBs from the newest backup |
+| `npm run db:restore` | Restore every DB from the newest backup — **stop the app first** (`npm run dev:stop`) |
 | `npm run db:restore -- governance.db` | Restore one DB |
 | `DAY=2026-11-19 npm run db:restore` | Restore from a daily backup (14 days kept) |
 
-Backups use SQLite's online backup (safe while the app runs), pass `quick_check` before upload, and are gzipped (~40 MB total). A restore moves the current files to `data/.pre-restore/<time>/` first. If a DB is found corrupt at startup, `db:fix` / `metrics.db` recovery pull the newest backup automatically.
+A restore first moves the current files to `data/.pre-restore/<time>/`, so it can be undone. If a database is found corrupt at startup, `npm run db:fix` (and the app's `metrics.db` recovery) pull the newest backup automatically.
 
-R2 settings in `.env.local` (never commit): `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, optional `R2_BUCKET` (default `research-db-backup`), optional `R2_MACHINE`. Free-tier guard rails are built into `scripts/db-backup.sh` (changed DBs only, ≤300k writes/month, size caps).
+`data/seeds/company_about.db` is the one database kept in git; `npm run dev` copies it to `data/company_about.db` when missing.
 
-**New machine:** clone, copy `.env.local` over (AirDrop / password manager — never git), `npm install`, `npm run db:restore`, `npm run dev`.
+### More than one machine
 
-**More than one machine:** only one machine should back up to the main folder. On any other machine add `R2_MACHINE=<name>` (e.g. `laptop`) to its `.env.local`: its backups go to `<name>/latest/` and `<name>/daily/` and can never overwrite the main ones. `db:restore` reads that machine's own backups (or the main ones until it has any); `FROM=main npm run db:restore` / `FROM=laptop npm run db:restore` picks a source explicitly.
+R2 keeps one folder per machine:
 
-**Existing clone from before the history rewrite (2026-11-20):** stop the app, copy `data/` aside, then `git fetch origin && git reset --hard origin/main`, `npm run db:restore`.
+| Machine | `.env.local` | Backs up to | `db:restore` reads |
+|---|---|---|---|
+| Main | no `R2_MACHINE` | `latest/`, `daily/` | its own backups |
+| Others | `R2_MACHINE=<name>` | `<name>/latest/`, `<name>/daily/` | its own, or the main machine's until it has some |
 
-`data/seeds/company_about.db` stays in git; `npm run dev` copies it to `data/company_about.db` if missing.
+Pick a source explicitly with `FROM=main npm run db:restore` or `FROM=laptop npm run db:restore`. Only one machine should run without `R2_MACHINE`.
+
+### Clones from before 2026-11-20
+
+The git history was rewritten on 2026-11-20 to take the databases out. On an older clone: stop the app, copy `data/` somewhere safe, then
+
+```bash
+git fetch origin
+git reset --hard origin/main
+npm run db:restore
+```
+
+## BoardRoom / DIN intake
+
+Background scan, separate from the app (resumes by skipping PDFs already screened):
+
+```bash
+npm run scan:boardroom-bg                              # daily (--days 2 --limit 40)
+npm run scan:boardroom-bg -- --days 7 --limit 80       # catch up a week
+npm run scan:boardroom-bg -- --days 30 --limit 200     # catch up a month
+npm run scan:boardroom-bg -- --pending-only --limit 80 # drain the queue
+
+npm run push:boardroom-gov                 # push extracted DINs into governance.db (additive)
+npm run push:boardroom-gov -- --limit 200
+```
+
+Then refresh **Dashboard → Business groups / People**: new joins show as teal nodes (click **New join** in the legend). Lookback: `GOV_RECENT_JOIN_DAYS` (default 30).

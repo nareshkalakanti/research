@@ -22453,10 +22453,10 @@ html[data-theme="dark"] .fam-edges line { stroke: rgba(255, 255, 255, 0.16); }
 html[data-theme="dark"] ::placeholder,
 html[data-theme="dark"] .vx-field input::placeholder { color: #63636b; }
 
-/* Larger base text (Outfit reads small at 14px). rem sizes scale with it. */
+/* Base text (Outfit reads small at 14px). rem sizes scale with it. */
 html,
 body {
-  font-size: 17.4px;
+  font-size: 16px;
 }
 .pcd-links {
   display: inline-flex;
