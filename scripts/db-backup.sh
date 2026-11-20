@@ -10,8 +10,10 @@
 # uploaded, so a good backup is never replaced by a broken one.
 #
 # R2 layout (bucket R2_BUCKET, default research-db-backup):
-#   latest/<name>.db.gz          newest copy of each database
-#   daily/YYYY-MM-DD/<name>.db.gz one per day; days older than KEEP_DAYS removed
+#   [<R2_MACHINE>/]latest/<name>.db.gz           newest copy of each database
+#   [<R2_MACHINE>/]daily/YYYY-MM-DD/<name>.db.gz  one per day; older than KEEP_DAYS removed
+# R2_MACHINE is unset on the main machine; give any other machine its own name
+# so two machines never overwrite each other's backups.
 #
 # Free-tier guard rails (R2 free tier: 10 GB storage, 1M writes/month, free
 # downloads). This script stays far below and refuses to go further:
@@ -35,11 +37,14 @@ STATE=logs/r2-state; mkdir -p "$STATE"
 # Rebuildable caches / leftovers that are not worth the space.
 SKIP_RE='^(rotation_bars)\.db$'
 
-envval() { grep -E "^$1=" .env.local 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"' \r"; }
+# Environment first (e.g. R2_MACHINE=laptop npm run db:backup), then .env.local.
+envval() { if [[ -n "${!1:-}" ]]; then printf %s "${!1}"; else grep -E "^$1=" .env.local 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"' \r"; fi; }
 KEY="$(envval LITESTREAM_ACCESS_KEY_ID)"
 SECRET="$(envval LITESTREAM_SECRET_ACCESS_KEY)"
 ENDPOINT="$(envval R2_ENDPOINT)"; ENDPOINT="${ENDPOINT%/}"
 BUCKET="$(envval R2_BUCKET)"; BUCKET="${BUCKET:-research-db-backup}"
+MACHINE="$(envval R2_MACHINE | tr -cd 'A-Za-z0-9_-')"
+ROOT="${MACHINE:+$MACHINE/}"
 if [[ -z "$KEY" || -z "$SECRET" || -z "$ENDPOINT" ]]; then
   echo "db-backup: R2 settings missing in .env.local" >&2
   exit 1
@@ -93,11 +98,11 @@ backup_once() {
     local up_ok=1
     if [[ $need_latest -eq 1 ]]; then
       count_write
-      r2 -o /dev/null -T "$tmp/$name.gz" "$ENDPOINT/$BUCKET/latest/$name.gz" && echo "$h" > "$STATE/$name.sha" || up_ok=0
+      r2 -o /dev/null -T "$tmp/$name.gz" "$ENDPOINT/$BUCKET/${ROOT}latest/$name.gz" && echo "$h" > "$STATE/$name.sha" || up_ok=0
     fi
     if [[ $up_ok -eq 1 && $need_daily -eq 1 ]]; then
       count_write
-      r2 -o /dev/null -T "$tmp/$name.gz" "$ENDPOINT/$BUCKET/daily/$day/$name.gz" && touch "$STATE/daily-$day-$name" || up_ok=0
+      r2 -o /dev/null -T "$tmp/$name.gz" "$ENDPOINT/$BUCKET/${ROOT}daily/$day/$name.gz" && touch "$STATE/daily-$day-$name" || up_ok=0
     fi
     if [[ $up_ok -eq 1 ]]; then ok=$((ok + 1)); else echo "  ✗ $name: upload failed"; bad=$((bad + 1)); fi
     rm -f "$tmp/$name.gz"
@@ -107,7 +112,7 @@ backup_once() {
   if [[ ! -f "$STATE/pruned-$day" ]]; then prune_daily && touch "$STATE/pruned-$day"; fi
   find "$STATE" -name 'daily-*' -mtime +3 -delete 2>/dev/null; find "$STATE" -name 'pruned-*' -mtime +3 -delete 2>/dev/null
   local failed=""; [[ $bad -gt 0 ]] && failed=", $bad failed"
-  echo "$(date '+%F %T') db-backup: $ok uploaded, $same unchanged of $total$failed · writes this month $(writes_used)/$MAX_WRITES_PER_MONTH · r2://$BUCKET/latest/"
+  echo "$(date '+%F %T') db-backup: $ok uploaded, $same unchanged of $total$failed · writes this month $(writes_used)/$MAX_WRITES_PER_MONTH · r2://$BUCKET/${ROOT}latest/"
   [[ $bad -eq 0 ]]
 }
 
@@ -117,10 +122,10 @@ prune_daily() {
   cutoff="$(date -u -v-"${KEEP_DAYS}"d +%F 2>/dev/null || date -u -d "-${KEEP_DAYS} days" +%F)"
   budget_ok 1 || return 0
   count_write
-  keys="$(r2 "$ENDPOINT/$BUCKET?list-type=2&prefix=daily/&max-keys=1000" 2>/dev/null | grep -oE '<Key>[^<]+</Key>' | sed -E 's#</?Key>##g')"
+  keys="$(r2 "$ENDPOINT/$BUCKET?list-type=2&prefix=${ROOT}daily/&max-keys=1000" 2>/dev/null | grep -oE '<Key>[^<]+</Key>' | sed -E 's#</?Key>##g')"
   while IFS= read -r k; do
     [[ -z "$k" ]] && continue
-    local d="${k#daily/}"; d="${d%%/*}"
+    local d="${k#"${ROOT}"daily/}"; d="${d%%/*}"
     if [[ "$d" < "$cutoff" ]]; then count_write; r2 -o /dev/null -X DELETE "$ENDPOINT/$BUCKET/$k" || true; fi
   done <<< "$keys"
 }

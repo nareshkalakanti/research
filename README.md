@@ -100,8 +100,12 @@ FIRECRAWL_API_KEY=
 
 Backups use SQLite's online backup (safe while the app runs), pass `quick_check` before upload, and are gzipped (~40 MB total). A restore moves the current files to `data/.pre-restore/<time>/` first. If a DB is found corrupt at startup, `db:fix` / `metrics.db` recovery pull the newest backup automatically.
 
-R2 settings in `.env.local` (never commit): `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, optional `R2_BUCKET` (default `research-db-backup`).
+R2 settings in `.env.local` (never commit): `LITESTREAM_ACCESS_KEY_ID`, `LITESTREAM_SECRET_ACCESS_KEY`, `R2_ENDPOINT`, optional `R2_BUCKET` (default `research-db-backup`), optional `R2_MACHINE`. Free-tier guard rails are built into `scripts/db-backup.sh` (changed DBs only, ≤300k writes/month, size caps).
 
-**New machine:** clone, add `.env.local`, `npm install`, `npm run db:restore`, `npm run dev:bg`.
+**New machine:** clone, copy `.env.local` over (AirDrop / password manager — never git), `npm install`, `npm run db:restore`, `npm run dev`.
+
+**More than one machine:** only one machine should back up to the main folder. On any other machine add `R2_MACHINE=<name>` (e.g. `laptop`) to its `.env.local`: its backups go to `<name>/latest/` and `<name>/daily/` and can never overwrite the main ones. `db:restore` reads that machine's own backups (or the main ones until it has any); `FROM=main npm run db:restore` / `FROM=laptop npm run db:restore` picks a source explicitly.
+
+**Existing clone from before the history rewrite (2026-11-20):** stop the app, copy `data/` aside, then `git fetch origin && git reset --hard origin/main`, `npm run db:restore`.
 
 `data/seeds/company_about.db` stays in git; `npm run dev` copies it to `data/company_about.db` if missing.

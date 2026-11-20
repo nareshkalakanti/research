@@ -4,6 +4,9 @@
 #   npm run db:restore                      all databases, newest copy
 #   npm run db:restore -- governance.db     one database
 #   DAY=2026-11-19 npm run db:restore       from a daily backup
+#   FROM=laptop npm run db:restore          from another machine's backups
+#   FROM=main npm run db:restore            from the main machine (no R2_MACHINE)
+# Default source: this machine's own backups (R2_MACHINE), else the main ones.
 #
 # Stop the app first (npm run dev:stop). Each current file is moved to
 # data/.pre-restore/<time>/ before it is replaced, and a download that fails
@@ -21,15 +24,19 @@ if [[ -z "$TO_OUT" ]] && lsof -ti tcp:3000 >/dev/null 2>&1; then
   exit 1
 fi
 
-envval() { grep -E "^$1=" .env.local 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"' \r"; }
+# Environment first (e.g. R2_MACHINE=laptop npm run db:backup), then .env.local.
+envval() { if [[ -n "${!1:-}" ]]; then printf %s "${!1}"; else grep -E "^$1=" .env.local 2>/dev/null | head -1 | cut -d= -f2- | tr -d "\"' \r"; fi; }
 KEY="$(envval LITESTREAM_ACCESS_KEY_ID)"
 SECRET="$(envval LITESTREAM_SECRET_ACCESS_KEY)"
 ENDPOINT="$(envval R2_ENDPOINT)"; ENDPOINT="${ENDPOINT%/}"
 BUCKET="$(envval R2_BUCKET)"; BUCKET="${BUCKET:-research-db-backup}"
+SRC="${FROM-$(envval R2_MACHINE)}"; SRC="$(printf %s "$SRC" | tr -cd 'A-Za-z0-9_-')"
+[[ "$SRC" == "main" ]] && SRC=""
+ROOT="${SRC:+$SRC/}"
 [[ -z "$KEY" || -z "$SECRET" || -z "$ENDPOINT" ]] && { echo "db-restore: R2 settings missing in .env.local" >&2; exit 1; }
 r2() { curl -sS --fail-with-body --retry 3 --aws-sigv4 "aws:amz:auto:s3" --user "$KEY:$SECRET" "$@"; }
 
-PREFIX="latest"; [[ -n "${DAY:-}" ]] && PREFIX="daily/$DAY"
+PREFIX="${ROOT}latest"; [[ -n "${DAY:-}" ]] && PREFIX="${ROOT}daily/$DAY"
 if [[ -n "$TO_OUT" ]]; then
   [[ -z "$TO_NAME" ]] && { echo "usage: db-restore.sh --to OUT NAME" >&2; exit 2; }
   r2 -o "$TO_OUT.gz" "$ENDPOINT/$BUCKET/$PREFIX/${TO_NAME%.gz}.gz" || { rm -f "$TO_OUT.gz"; exit 1; }
@@ -41,6 +48,12 @@ if [[ $# -gt 0 ]]; then
   names=("$@")
 else
   names=()
+  while IFS= read -r n; do [[ -n "$n" ]] && names+=("$n"); done < <(r2 "$ENDPOINT/$BUCKET?list-type=2&prefix=$PREFIX/&max-keys=1000" | grep -oE '<Key>[^<]+</Key>' | sed -E "s#</?Key>##g; s#^$PREFIX/##; s#\.gz\$##")
+fi
+# A machine with no backups of its own yet starts from the main machine's.
+if [[ ${#names[@]} -eq 0 && -z "${FROM+x}" && -n "$ROOT" && $# -eq 0 ]]; then
+  echo "db-restore: no backups for '${ROOT%/}' yet — using the main machine's"
+  ROOT=""; PREFIX="latest"; [[ -n "${DAY:-}" ]] && PREFIX="daily/$DAY"
   while IFS= read -r n; do [[ -n "$n" ]] && names+=("$n"); done < <(r2 "$ENDPOINT/$BUCKET?list-type=2&prefix=$PREFIX/&max-keys=1000" | grep -oE '<Key>[^<]+</Key>' | sed -E "s#</?Key>##g; s#^$PREFIX/##; s#\.gz\$##")
 fi
 [[ ${#names[@]} -eq 0 ]] && { echo "db-restore: nothing found under $PREFIX/"; exit 1; }
