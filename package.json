@@ -17,7 +17,6 @@
     "fill-metrics": "tsx scripts/fill-metrics.ts",
     "fill:mcap-web": "tsx scripts/fetch-market-cap.ts",
     "test:tv-urls": "tsx scripts/test-tradingview-urls.ts",
-    "test:scan-pead-gold": "tsx scripts/test-scan-pead-gold.ts",
     "test:gov": "tsx scripts/test-gov-map.ts",
     "test:gov-changes": "tsx scripts/test-gov-changes.ts",
     "test:gov-scan": "tsx scripts/test-gov-scan.ts",
@@ -52,8 +51,6 @@
     "refresh:board": "tsx scripts/refresh-company-board.ts",
     "scan:concall-drift": "tsx scripts/scan-concall-drift.ts",
     "backfill:announced": "tsx scripts/backfill-announced.ts",
-    "backfill:announced:3m": "tsx scripts/backfill-announced.ts --days 90",
-    "backfill:announced:6m": "tsx scripts/backfill-announced.ts --days 180",
     "scan:orderbook-bg": "tsx scripts/scan-orderbook-bg.ts",
     "scan:marketiq-bg": "tsx scripts/scan-marketiq-bg.ts",
     "scan:boardroom-bg": "tsx scripts/scan-boardroom-bg.ts",
@@ -83,14 +80,12 @@
     "yahoo-finance2": "^4.0.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
-    "tailwindcss": "^4",
     "tsx": "^4.23.9",
     "typescript": "^5"
   }
