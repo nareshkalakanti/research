@@ -54,7 +54,7 @@ let aboutDb: Database.Database | null = null;
 let govDb: Database.Database | null = null;
 let classDb: Database.Database | null = null;
 let cache: { at: number; rows: CompanyRow[] } | null = null;
-const CACHE_MS = 30_000;
+const CACHE_MS = 5 * 60_000;
 let scrapeSourceCache: Map<string, string> | null = null;
 
 function loadScrapeSourceMap(): Map<string, string> {
@@ -783,9 +783,38 @@ export function listListingCompaniesLite(): Array<{
   return out;
 }
 
+let refreshQueued = false;
+
+/** All companies. In-app writes call invalidateCompanyCache(); the timer only
+ *  catches outside changes, so a stale list is served at once and rebuilt in
+ *  the background (the rebuild takes ~1 s and used to stall a request every
+ *  30 s). */
 export function loadAllCompanies(): CompanyRow[] {
   const now = Date.now();
-  if (cache && now - cache.at < CACHE_MS) return cache.rows;
+  if (cache) {
+    if (now - cache.at >= CACHE_MS && !refreshQueued) {
+      refreshQueued = true;
+      setTimeout(() => {
+        try {
+          const prev = cache;
+          cache = null;
+          try {
+            buildAllCompanies();
+          } catch {
+            cache = prev;
+          }
+        } finally {
+          refreshQueued = false;
+        }
+      }, 0);
+    }
+    return cache.rows;
+  }
+  return buildAllCompanies();
+}
+
+function buildAllCompanies(): CompanyRow[] {
+  const now = Date.now();
 
   const sql = `SELECT ticker, name, market, website, about, yf_about, scraped_about,
               scraped_about_clean, llm_about,

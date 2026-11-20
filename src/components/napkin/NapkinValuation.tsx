@@ -20,6 +20,7 @@ import {
 } from "@/lib/napkin/format";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinBuyPrice } from "@/components/napkin/NapkinBuyPrice";
+import { NapkinHero } from "@/components/napkin/NapkinHero";
 import { napkinEntryPriceStatus, napkinPathCase } from "@/lib/napkin/composite";
 import {
   NAPKIN_DEFAULT_TARGET_RETURN,
@@ -85,27 +86,24 @@ export function NapkinValuation({ data }: { data: NapkinResearch }) {
   return (
     <>
       <div className="napkin-sheet-section napkin-path-hero">
-        <dl className="napkin-dl napkin-val napkin-path-hero-dl">
-          <div className="napkin-dl-row napkin-path-hero-row">
-            <dt>Future Value</dt>
-            <dd>{formatNapkinRupee(path.case.future_price)}</dd>
-          </div>
-          <div className="napkin-dl-row napkin-path-hero-row">
-            <dt>Current Price</dt>
-            <dd>{formatNapkinRupee(price)}</dd>
-          </div>
-          <div className="napkin-dl-row napkin-path-hero-row">
-            <dt>Max Entry Price</dt>
-            <dd className="napkin-hero-entry" title="Highest price to pay today for the selected target return">
-              {formatNapkinRupee(path.case.buy_price)}
-              {entryStatus ? (
-                <span className={`napkin-entry-status napkin-entry-status--${entryStatus.tone}`}>
-                  {entryStatus.label}
-                </span>
-              ) : null}
-            </dd>
-          </div>
-        </dl>
+        <NapkinHero
+          price={price}
+          pe={pe}
+          eps={eps}
+          expected={expected}
+          exitPe={exitPe}
+          target={target}
+          years={years}
+          growthSource={
+            usingHist
+              ? `its ${hist5 !== "N/A" ? "5" : "3"}-year EPS growth${histRatio !== histDefault ? ", kept within 0–30%" : ""}`
+              : histRatio == null && custom === "" && Math.abs(expected - NAPKIN_DEFAULT_EXPECTED_CAGR) < 1e-9
+                ? "default rate, no EPS history"
+                : "your assumption"
+          }
+          quote={path.case}
+          status={entryStatus}
+        />
       </div>
 
       <div className="napkin-sheet-section">

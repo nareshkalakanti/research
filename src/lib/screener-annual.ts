@@ -47,6 +47,12 @@ function ensureCacheSchema(): void {
         fetched_at TEXT NOT NULL,
         blocked_until TEXT
       );
+      CREATE TABLE IF NOT EXISTS screener_page_tried (
+        ticker TEXT PRIMARY KEY,
+        tried_at TEXT NOT NULL,
+        got_annual INTEGER NOT NULL,
+        got_bs INTEGER NOT NULL
+      );
     `);
   } finally {
     db.close();
@@ -920,5 +926,57 @@ export async function fetchScreenerAllAnnual(ticker: string): Promise<{ annual: 
   if (okPl) writePlCache(key, pl);
   const okBs = bsUsable(bs);
   if (okBs) writeBsCache(key, bs);
+  markPageTried(key, okA, okBs);
   return { annual: okA, pl: okPl, bs: okBs };
+}
+
+/** Remember every company-page pull (even empty ones) so bulk fills do not
+ *  ask Screener again for a page that had nothing. */
+function markPageTried(ticker: string, gotAnnual: boolean, gotBs: boolean): void {
+  try {
+    ensureCacheSchema();
+    const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+    try {
+      db.prepare(
+        `INSERT INTO screener_page_tried (ticker, tried_at, got_annual, got_bs) VALUES (?, ?, ?, ?)
+         ON CONFLICT(ticker) DO UPDATE SET tried_at = excluded.tried_at, got_annual = excluded.got_annual, got_bs = excluded.got_bs`,
+      ).run(ticker.toUpperCase(), new Date().toISOString(), gotAnnual ? 1 : 0, gotBs ? 1 : 0);
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* best effort */
+  }
+}
+
+/** Tickers whose Screener page was pulled (or annual + balance sheet cached) since `sinceMs` ago. */
+export function screenerPagesTriedSince(sinceMs: number): Set<string> {
+  const out = new Set<string>();
+  const cutoff = new Date(Date.now() - sinceMs).toISOString();
+  try {
+    ensureCacheSchema();
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      for (const r of db.prepare(`SELECT UPPER(ticker) AS t FROM screener_page_tried WHERE tried_at >= ?`).all(cutoff) as Array<{ t: string }>)
+        out.add(r.t);
+      // Annual + balance sheet both cached recently: the page has nothing new to give.
+      try {
+        for (const r of db
+          .prepare(
+            `SELECT UPPER(a.ticker) AS t FROM screener_annual_cache a
+             JOIN screener_annual_bs_cache b ON UPPER(b.ticker) = UPPER(a.ticker)
+             WHERE a.fetched_at >= ?`,
+          )
+          .all(cutoff) as Array<{ t: string }>)
+          out.add(r.t);
+      } catch {
+        /* bs table not created yet */
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* no db */
+  }
+  return out;
 }

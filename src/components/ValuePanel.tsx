@@ -73,7 +73,7 @@ function rankSet(rows: Stock[]): Ranked[] {
 type Job = { kind: string; running: boolean; done: number; total: number; filled: number; error: string | null } | null;
 
 /** "Fetch missing data": Yahoo fill for stocks without Sales / ROCE / P/B. */
-function FillBar({ missing, onDone }: { missing: number; onDone: () => void }) {
+function FillBar({ missing, fetchable, onDone }: { missing: number; fetchable: number; onDone: () => void }) {
   const [job, setJob] = useState<Job>(null);
   const load = useCallback(async () => {
     try {
@@ -120,17 +120,34 @@ function FillBar({ missing, onDone }: { missing: number; onDone: () => void }) {
       ) : (
         <>
           <span>
-            {missing.toLocaleString("en-IN")} stocks have no Sales growth / ROCE / P/B yet, so they can&apos;t be ranked.
+            {missing.toLocaleString("en-IN")} stocks can&apos;t be ranked yet.{" "}
+            {fetchable > 0 ? (
+              <>
+                {fetchable.toLocaleString("en-IN")} still need their data fetched
+                {missing - fetchable > 0
+                  ? `; ${(missing - fetchable).toLocaleString("en-IN")} have no usable data (new listing, sales of zero, negative book value or not on Screener)`
+                  : ""}
+                .
+              </>
+            ) : (
+              <>All have been checked — they have no usable data (new listing, sales of zero, negative book value or not on Screener).</>
+            )}
           </span>
-          <button
-            type="button"
-            className="vx-btn"
-            disabled={!!job?.running}
-            title={job?.running ? "Another background job is running — try again shortly" : "Biggest first · Yahoo, then Screener (slow, one page per stock) for what Yahoo lacks"}
-            onClick={() => void post({})}
-          >
-            Fetch missing data
-          </button>
+          {fetchable > 0 ? (
+            <button
+              type="button"
+              className="vx-btn"
+              disabled={!!job?.running}
+              title={
+                job?.running
+                  ? "Another background job is running — try again shortly"
+                  : "Biggest first · Yahoo, then Screener: one page every 5–7 s, at most 150 per click, stops if Screener pushes back"
+              }
+              onClick={() => void post({})}
+            >
+              Fetch next {Math.min(150, fetchable)}
+            </button>
+          ) : null}
         </>
       )}
     </div>
@@ -148,6 +165,8 @@ export function ValuePanel() {
   const [page, setPage] = useState(0);
   /** Bumped after a quality fill so the table picks up the new data. */
   const [reloadKey, setReloadKey] = useState(0);
+  /** Unranked stocks Screener has not been asked about in the last 30 days. */
+  const [fetchable, setFetchable] = useState(0);
   const reload = useCallback(() => setReloadKey((n) => n + 1), []);
 
   useEffect(() => {
@@ -155,12 +174,20 @@ export function ValuePanel() {
     void (async () => {
       try {
         const res = await fetch("/api/value-tools?kind=universe", { cache: "no-store" });
-        const j = (await res.json()) as { ok?: boolean; error?: string; rows?: Stock[]; industries?: Industry[]; as_of?: string | null };
+        const j = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          rows?: Stock[];
+          industries?: Industry[];
+          as_of?: string | null;
+          unranked_fetchable?: number;
+        };
         if (!live) return;
         if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
         setRows(j.rows ?? []);
         setIndustries(j.industries ?? []);
         setAsOf(j.as_of ?? null);
+        setFetchable(j.unranked_fetchable ?? 0);
       } catch (e) {
         if (live) setErr(e instanceof Error ? e.message : String(e));
       }
@@ -365,7 +392,7 @@ export function ValuePanel() {
             </div>
           </form>
 
-          {rows ? <FillBar missing={missingAll} onDone={reload} /> : null}
+          {rows ? <FillBar missing={missingAll} fetchable={fetchable} onDone={reload} /> : null}
 
           <div className="vx-kpis">
             <div className="vx-card vx-kpi">
@@ -435,14 +462,11 @@ export function ValuePanel() {
                             <span className="vx-sub">
                               {r.t}
                               {r.market !== "NSE" ? <em>{r.market}</em> : null}
-                              <a href={tradingviewUrl(r.t, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
-                                TV
-                              </a>
-                              <a href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
+                              <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                                 NP
                               </a>
                               {web ? (
-                                <a href={web} target="_blank" rel="noopener noreferrer" title={r.web ?? ""}>
+                                <a className="np-chip" href={web} target="_blank" rel="noopener noreferrer" title={r.web ?? ""}>
                                   Web
                                 </a>
                               ) : null}
@@ -838,14 +862,11 @@ function CycleView({ rows, onOpen }: { rows: Stock[] | null; onOpen: (industry: 
                           <span className="vx-sub">
                             {r.t}
                             {r.market !== "NSE" ? <em>{r.market}</em> : null}
-                            <a href={tradingviewUrl(r.t, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
-                              TV
-                            </a>
-                            <a href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer">
+                            <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                               NP
                             </a>
                             {websiteUrl(r.web) ? (
-                              <a href={websiteUrl(r.web)!} target="_blank" rel="noopener noreferrer">
+                              <a className="np-chip" href={websiteUrl(r.web)!} target="_blank" rel="noopener noreferrer" title={r.web ?? ""}>
                                 Web
                               </a>
                             ) : null}
@@ -1077,13 +1098,12 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
                     {sel.stocks.map((s) => (
                       <tr key={s.t}>
                         <td>
-                          <span className="vx-co">{s.name}</span>
+                          <a className="vx-co" href={tradingviewUrl(s.t, "NSE")} target="_blank" rel="noopener noreferrer">
+                            {s.name}
+                          </a>
                           <span className="vx-sub">
                             {s.t}
-                            <a href={tradingviewUrl(s.t, "NSE")} target="_blank" rel="noopener noreferrer" title="TradingView">
-                              TV
-                            </a>
-                            <a href={napkinUrl(s.t)} target="_blank" rel="noopener noreferrer">
+                            <a className="np-chip" href={napkinUrl(s.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                               NP
                             </a>
                           </span>
@@ -1353,14 +1373,13 @@ function ReviewView({ universe }: { universe: Stock[] | null }) {
                 rows.map((r) => (
                   <tr key={r.t}>
                     <td>
-                      <span className="vx-co">{r.name}</span>
+                      <a className="vx-co" href={tradingviewUrl(r.t, r.market)} target="_blank" rel="noopener noreferrer">
+                        {r.name}
+                      </a>
                       <span className="vx-sub">
                         {r.t}
                         {r.market !== "NSE" ? <em>{r.market}</em> : null}
-                        <a href={tradingviewUrl(r.t, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
-                          TV
-                        </a>
-                        <a href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer">
+                        <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                           NP
                         </a>
                       </span>

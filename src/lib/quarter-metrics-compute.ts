@@ -164,6 +164,21 @@ function needsQuarterRefetch(
   return false;
 }
 
+/** Quarter series for the panel. Cached snapshot is fresh here, so reuse the
+ *  series for a while instead of hitting Groww / Yahoo on every page view.
+ *  The price comes from the row, so the chart pull is skipped. */
+const PANEL_LIVE_MS = 30 * 60_000;
+const panelLiveMemo = new Map<string, { at: number; p: ReturnType<typeof fetchQuarterlyFundamentals> }>();
+function panelLive(key: string, market: string | null, force: boolean) {
+  const hit = panelLiveMemo.get(key);
+  if (!force && hit && Date.now() - hit.at < PANEL_LIVE_MS) return hit.p;
+  const p = fetchQuarterlyFundamentals(key, market, { screenerForce: force, skipChart: true });
+  panelLiveMemo.set(key, { at: Date.now(), p });
+  p.catch(() => panelLiveMemo.delete(key));
+  if (panelLiveMemo.size > 500) panelLiveMemo.delete(panelLiveMemo.keys().next().value!);
+  return p;
+}
+
 /** Load QTR panel + metrics; refetch and heal cache when stale or empty. */
 export async function resolveQuarterPanelData(
   ticker: string,
@@ -188,9 +203,7 @@ export async function resolveQuarterPanelData(
   const rowPrice = resolveRowPrice(key, priceOverride);
 
   try {
-    const live = await fetchQuarterlyFundamentals(key, market, {
-      screenerForce: opts?.force,
-    });
+    const live = await panelLive(key, market, !!opts?.force);
     const panel = buildQuarterPanel(live.quarters);
     if (!panel) {
       return computeAndCacheQuarterMetrics(ticker, market, priceOverride, {

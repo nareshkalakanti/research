@@ -1081,36 +1081,28 @@ function CompanyRows({
         {signalMode === "pead" ? (
           <td className="col-name col-pead-co">
             <div className="pead-co-text">
-                <a
-                  className="pead-name-link"
-                  href={r.tv}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`${r.name} — TradingView`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {r.name}
-                </a>
-                <a
-                  className="np-chip"
-                  href={r.tv}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`${r.ticker} — TradingView`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  TV
-                </a>
-                <a
-                  className="np-chip"
-                  href={napkinUrl(r.ticker)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`Open ${r.ticker} in Napkin`}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  NP
-                </a>
+                <div className="pead-co-head">
+                  <a
+                    className="pead-name-link"
+                    href={r.tv}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`${r.name} — TradingView`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {r.name}
+                  </a>
+                  <a
+                    className="np-chip"
+                    href={napkinUrl(r.ticker)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={`Open ${r.ticker} in Napkin`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    NP
+                  </a>
+                </div>
                 {displaySubSector || displaySector ? (
                   <span className="pead-sector">
                     {displaySubSector || displaySector}
@@ -1121,36 +1113,28 @@ function CompanyRows({
         ) : (
         <>
         <td className="col-ticker">
-          <a
-            className="ticker-col-link"
-            href={r.tv}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`${r.ticker} — TradingView`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {r.ticker}
-          </a>
-          <a
-            className="np-chip"
-            href={r.tv}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`${r.ticker} — TradingView`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            TV
-          </a>
-          <a
-            className="np-chip"
-            href={napkinUrl(r.ticker)}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={`Open ${r.ticker} in Napkin`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            NP
-          </a>
+          <span className="ticker-np-line">
+            <a
+              className="ticker-col-link"
+              href={r.tv}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`${r.ticker} — TradingView`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {r.ticker}
+            </a>
+            <a
+              className="np-chip"
+              href={napkinUrl(r.ticker)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Open ${r.ticker} in Napkin`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              NP
+            </a>
+          </span>
         </td>
         <td className="col-name">
           <div className="company-watch-row">

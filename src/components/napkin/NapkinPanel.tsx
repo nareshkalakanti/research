@@ -51,9 +51,9 @@ export function NapkinPanel() {
       .toUpperCase()
       .replace(/\.NS$/i, "")
       .replace(/[^A-Z0-9]/g, "");
-    try {
+    const lookup = async (remote: boolean): Promise<string | null> => {
       const res = await fetch(
-        `/api/tickers?q=${encodeURIComponent(typed)}&limit=14`,
+        `/api/tickers?q=${encodeURIComponent(typed)}&limit=14${remote ? "" : "&remote=0"}`,
         { signal: AbortSignal.timeout(14_000) },
       );
       const json = (await res.json()) as { hits?: TickerSuggestHit[] };
@@ -71,6 +71,12 @@ export function NapkinPanel() {
       ) {
         return top.ticker.trim().toUpperCase();
       }
+      return null;
+    };
+    try {
+      // Local DB first (~25 ms); only go to the outside listing search when
+      // the stock is not already known.
+      return (await lookup(false)) ?? (await lookup(true)) ?? compact;
     } catch {
       /* fall through to compact ticker */
     }

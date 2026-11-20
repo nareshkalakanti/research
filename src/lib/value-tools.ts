@@ -1,5 +1,5 @@
 import { rotationCloses } from "./rotation-bars";
-import { fetchScreenerAllAnnual } from "./screener-annual";
+import { fetchScreenerAllAnnual, screenerPagesTriedSince } from "./screener-annual";
 import { screenerPausedUntil } from "./screener-fetch";
 import { openSqliteNamed } from "./sqlite-utils";
 import { fillHtIvFromYahoo } from "./sector-rotation-board";
@@ -41,10 +41,13 @@ function loadScreenerLegs(): Map<string, { sales3y: number | null; roce3y: numbe
           const roce = idx.map((i) => a.roce[i] ?? null);
           const n = sales.length;
           const end = sales[n - 1];
-          const start = sales[n - 4];
-          const sales3y = n >= 4 && end != null && start != null && start > 0 && end > 0 ? (Math.pow(end / start, 1 / 3) - 1) * 100 : null;
+          // 3-year CAGR; a company listed only 3 years uses its 2-year CAGR.
+          const yrs = n >= 4 ? 3 : n === 3 ? 2 : 0;
+          const start = yrs ? sales[n - 1 - yrs] : null;
+          const sales3y = yrs && end != null && start != null && start > 0 && end > 0 ? (Math.pow(end / start, 1 / yrs) - 1) * 100 : null;
+          // ROCE: average of the last 3 years; one missing year is allowed.
           const last3 = roce.slice(-3).filter((v): v is number => v != null && Number.isFinite(v));
-          const roce3y = last3.length === 3 ? last3.reduce((x, y) => x + y, 0) / 3 : null;
+          const roce3y = last3.length >= 2 ? last3.reduce((x, y) => x + y, 0) / last3.length : null;
           out.set(r.t, { sales3y, roce3y, fy: idx.length ? a.dates[idx[idx.length - 1]!]!.slice(0, 4) : null });
         } catch {
           /* bad row */
@@ -82,6 +85,10 @@ function loadScreenerLegs(): Map<string, { sales3y: number | null; roce3y: numbe
   return out;
 }
 
+/** Don't re-pull a Screener page within this window; at most this many pages per click. */
+const SCREENER_RETRY_MS = 30 * 86_400_000;
+const SCREENER_PAGES_PER_RUN = 150;
+
 export type ValueStock = {
   t: string;
   name: string;
@@ -100,6 +107,8 @@ export type ValueStock = {
 
 export type ValueUniverse = {
   rows: ValueStock[];
+  /** Unranked stocks whose Screener page has not been tried in the last 30 days. */
+  unranked_fetchable: number;
   industries: Array<{ name: string; n: number; ranked: number }>;
   as_of: string | null;
 };
@@ -149,6 +158,10 @@ export function buildValueUniverse(): ValueUniverse {
     rows,
     industries: [...ind.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => a.name.localeCompare(b.name)),
     as_of: asOf,
+    unranked_fetchable: (() => {
+      const tried = screenerPagesTriedSince(SCREENER_RETRY_MS);
+      return rows.filter((r) => r.sales3y == null && !tried.has(r.t)).length;
+    })(),
   };
 }
 
@@ -296,7 +309,13 @@ export async function fillValueQuality(onProgress: (done: number, total: number,
     await new Promise((s) => setTimeout(s, 700));
   }
   // 2) Screener for what Yahoo lacks: one page per stock, slow, stop on any block.
+  //    Skip pages pulled in the last 30 days (empty or already cached) and cap
+  //    each run so a click never turns into hundreds of Screener hits.
   //    Progress restarts as "Screener i of n".
+  const tried = screenerPagesTriedSince(SCREENER_RETRY_MS);
+  const todo = leftover.filter((r) => !tried.has(r.t)).slice(0, SCREENER_PAGES_PER_RUN);
+  leftover.length = 0;
+  leftover.push(...todo);
   done = 0;
   const n2 = leftover.length;
   onProgress(0, n2, filled);

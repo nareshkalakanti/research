@@ -438,9 +438,6 @@ export function ScannerPanel() {
                   <span className="nano-meta">
                     {r.t}
                     {r.market !== "NSE" ? <span>· {r.market}</span> : null}
-                    <a className="np-chip" href={tradingviewUrl(r.t, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
-                      TV
-                    </a>
                     <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                       NP
                     </a>

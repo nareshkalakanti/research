@@ -6865,6 +6865,13 @@ button.result-tag {
   gap: 2px;
   min-width: 0;
 }
+.pead-co-head {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
 .pead-name-link {
   color: var(--ct-2563eb);
   font-weight: 600;
@@ -27948,44 +27955,185 @@ tr.wl-prove-fail td {
   padding-top: 4px;
 }
 
-.napkin-path-hero-dl {
+/* Napkin hero: three price tiles, price ruler, plain-English walkthrough. */
+.nph {
+  display: grid;
+  gap: 18px;
+  font-family: var(--font-ui);
+}
+
+.nph-tiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 20px;
+  gap: 10px;
 }
 
-@media (max-width: 480px) {
-  .napkin-path-hero-dl {
-    grid-template-columns: 1fr 1fr;
-  }
+.nph-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  min-width: 0;
 }
 
-.napkin-path-hero-row dd.napkin-hero-entry {
+.nph-tile--key {
+  border-width: 1.5px;
+}
+.nph-tile--good { border-color: color-mix(in srgb, var(--ok) 55%, var(--line)); background: var(--ok-soft); }
+.nph-tile--near { border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); background: var(--warn-soft); }
+.nph-tile--high { border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); background: var(--danger-soft); }
+
+.nph-label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.nph-value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.nph-sub {
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.nph-sub.is-up { color: var(--ok); }
+.nph-sub.is-down { color: var(--danger); }
+.nph-sub--row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 10px;
 }
 
-.napkin-path-hero-row {
-  flex-direction: column;
+.nph-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: var(--surface);
+  border: 1px solid currentColor;
+}
+.nph-pill--good { color: var(--ok); }
+.nph-pill--near { color: var(--warn); }
+.nph-pill--high { color: var(--danger); }
+
+/* Ruler */
+.nph-ruler {
+  padding: 30px 4px 30px;
+}
+.nph-ruler-track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line);
+}
+.nph-ruler-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.nph-ruler-pin {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.nph-ruler-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+.nph-ruler-pin--entry .nph-ruler-dot { background: var(--ok); }
+.nph-ruler-pin--price .nph-ruler-dot { background: var(--ink); }
+.nph-ruler-pin--future .nph-ruler-dot { background: var(--accent); }
+.nph-ruler-tag {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.nph-ruler-tag b { color: var(--ink); font-weight: 600; }
+.nph-ruler-pin.is-start .nph-ruler-tag { left: -2px; transform: none; }
+.nph-ruler-pin.is-end .nph-ruler-tag { left: auto; right: -2px; transform: none; }
+.nph-ruler-pin--price .nph-ruler-tag { bottom: 20px; }
+.nph-ruler-pin--entry .nph-ruler-tag,
+.nph-ruler-pin--future .nph-ruler-tag { top: 20px; }
+
+/* Walkthrough */
+.nph-how {
+  padding: 16px 18px;
+  border-radius: var(--radius);
+  background: var(--badge);
+}
+.nph-how-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+.nph-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.nph-steps li {
+  display: flex;
+  gap: 12px;
   align-items: flex-start;
-  justify-content: flex-start;
-  gap: 4px;
-  padding: 10px 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--muted);
 }
-
-.napkin-path-hero-row dt {
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+.nph-steps b { color: var(--ink); font-weight: 600; }
+.nph-step-n {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
 }
+.nph-verdict {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.nph-verdict b { color: var(--ink); font-weight: 600; }
+.nph-verdict b.is-up { color: var(--ok); }
+.nph-verdict b.is-down { color: var(--danger); }
 
-.napkin-path-hero-row dd {
-  font-size: 1.45rem;
-  font-weight: 800;
-  line-height: 1.15;
+@media (max-width: 720px) {
+  .nph-tiles { grid-template-columns: 1fr; }
+  .nph-value { font-size: 1.2rem; }
 }
 
 .napkin-warns p {
@@ -29836,9 +29984,12 @@ button.rot-stat-best-name:not(:disabled):hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* NP chip — open the stock in Napkin (next to TradingView ticker link) */
+/* NP chip — Napkin only (TradingView is the name/ticker link) */
 .np-chip {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   margin-left: 6px;
   padding: 0 5px;
   border: 1px solid var(--line);
@@ -29855,6 +30006,26 @@ button.rot-stat-best-name:not(:disabled):hover {
 .np-chip:hover {
   color: var(--ct-2563eb);
   border-color: var(--cl-2563eb);
+}
+
+/* Flex parents already set gap — drop the extra left margin */
+.pead-co-head .np-chip,
+.ticker-np-line .np-chip,
+.nano-meta .np-chip,
+.company-meta .np-chip,
+.rot-sub-line .np-chip,
+.rot-sym-line .np-chip,
+.vx-sub .np-chip,
+.pcd-links .np-chip,
+.grp-sig-tk .np-chip {
+  margin-left: 0;
+}
+
+.ticker-np-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 .quarters-rank-summary {
   margin: 6px 0 0;
@@ -34631,4 +34802,15 @@ html[data-theme="light"] .nsc-drawer-wrap {
   margin: 4px 0 0;
   font-size: 0.74rem;
   color: var(--muted);
+}
+
+/* Rotation sector detail: ticker + TV / NP chips on one line. */
+.rot-sym-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.rot-sym-line .np-chip {
+  font-family: var(--font-ui);
 }

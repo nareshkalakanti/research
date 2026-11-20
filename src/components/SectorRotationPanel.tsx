@@ -13,6 +13,7 @@ import {
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { isRightsOrPartlyPaid } from "@/lib/listing-name-match";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
+import { StockLinks } from "@/components/StockLinks";
 import {
   downsampleSeries,
   ROTATION_MA_PERIODS,
@@ -171,9 +172,6 @@ function SectorStocksRow({
                           </a>
                           <span className="rot-sub-tk">{r.ticker}</span>
                           {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
-                          <a className="np-chip" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
-                            TV
-                          </a>
                           <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                             NP
                           </a>
@@ -360,9 +358,6 @@ function TopStocksView({
             </a>
             <span className="rot-sub-tk">{r.ticker}</span>
             {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
-            <a className="np-chip" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer" title="TradingView">
-              TV
-            </a>
             <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
               NP
             </a>
@@ -2405,7 +2400,12 @@ export function SectorRotationPanel() {
                       <span title={m.name}>{m.name}</span>
                     )}
                   </td>
-                  <td className="mono rot-sym">{m.ticker}</td>
+                  <td className="mono rot-sym">
+                    <span className="rot-sym-line">
+                      {m.ticker}
+                      <StockLinks ticker={m.ticker} market={m.market} />
+                    </span>
+                  </td>
                   <td className="rot-num">{fmtCr(m.mcap_cr)}</td>
                   <td
                     className={`rot-num ${

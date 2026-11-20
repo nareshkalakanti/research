@@ -13,7 +13,12 @@ import {
 } from "./quarter-panel";
 import { fetchNseQuarterlyFundamentals } from "./nse-quarters";
 import { fetchBseQuarterlyByTicker } from "./bse-quarters";
-import { fetchScreenerQuarterlyFundamentals, mergeScreenerQuarterOverlay } from "./screener-quarters";
+import {
+  fetchScreenerQuarterlyFundamentals,
+  mergeScreenerQuarterOverlay,
+  SCREENER_SHORT_QUARTERS_OK_MS,
+  screenerQuartersFetchedWithin,
+} from "./screener-quarters";
 import { fetchGrowwQuarterlyFundamentals } from "./groww-quarters";
 import { fetchDailyBars } from "./ohlc";
 import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
@@ -383,14 +388,23 @@ export async function fetchQuarterlyFundamentals(
 
   // Screener — backup / OP+YoY depth overlay (cached when Screener is blocked).
   if (!opts?.skipScreener) {
-    const needYoyDepth = quarters.length > 0 && quarters.length < 5;
+    // Short series wants a deeper Screener pull — but not again within a week
+    // of the last one (young listings genuinely have < 5 quarters).
+    const needYoyDepth =
+      quarters.length > 0 &&
+      quarters.length < 5 &&
+      !screenerQuartersFetchedWithin(ticker, SCREENER_SHORT_QUARTERS_OK_MS);
     if (quarters.length >= 2 || needYoyDepth || quarters.length < 2) {
       let screener = await fetchScreenerQuarterlyFundamentals(ticker, {
         cacheOnly: !opts?.screenerForce && !needYoyDepth && quarters.length >= 2,
         force: opts?.screenerForce || needYoyDepth,
         consolidated: true,
       });
-      if (!screener.length && !opts?.screenerForce) {
+      if (
+        !screener.length &&
+        !opts?.screenerForce &&
+        !screenerQuartersFetchedWithin(ticker, SCREENER_SHORT_QUARTERS_OK_MS)
+      ) {
         screener = await fetchScreenerQuarterlyFundamentals(ticker, {
           consolidated: true,
           force: needYoyDepth || quarters.length < 2,

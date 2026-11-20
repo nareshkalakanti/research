@@ -316,7 +316,26 @@ function meanRatio(
   return take.reduce((a, b) => a + b, 0) / take.length;
 }
 
+/** Annual statements change once a year: keep them 6 h (misses 1 h) so a
+ *  Napkin reload does not repeat three Yahoo calls. */
+const ANNUAL_HIT_MS = 6 * 60 * 60_000;
+const ANNUAL_MISS_MS = 60 * 60_000;
+const annualMemo = new Map<string, { at: number; rows: Array<Record<string, unknown>> }>();
+
 async function annualModule(
+  symbol: string,
+  module: "financials" | "cash-flow" | "balance-sheet",
+): Promise<Array<Record<string, unknown>>> {
+  const key = `${symbol}|${module}`;
+  const hit = annualMemo.get(key);
+  if (hit && Date.now() - hit.at < (hit.rows.length ? ANNUAL_HIT_MS : ANNUAL_MISS_MS)) return hit.rows;
+  const rows = await annualModuleRaw(symbol, module);
+  annualMemo.set(key, { at: Date.now(), rows });
+  if (annualMemo.size > 1500) annualMemo.delete(annualMemo.keys().next().value!);
+  return rows;
+}
+
+async function annualModuleRaw(
   symbol: string,
   module: "financials" | "cash-flow" | "balance-sheet",
 ): Promise<Array<Record<string, unknown>>> {

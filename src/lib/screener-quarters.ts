@@ -117,6 +117,14 @@ function peekUsableCache(ticker: string): QuarterPoint[] | null {
 }
 
 /** Public read of any usable cached quarterly series (ignores TTL). */
+/** Short series fetched recently: the company really has few quarters, so
+ *  re-asking Screener on every page view only adds load (and blocks). */
+export const SCREENER_SHORT_QUARTERS_OK_MS = 7 * 24 * 60 * 60 * 1000;
+export function screenerQuartersFetchedWithin(ticker: string, ms: number): boolean {
+  const row = readCacheRow(ticker.trim().toUpperCase());
+  return !!row && Date.now() - Date.parse(row.fetched_at) < ms;
+}
+
 export function loadCachedQuartersSeries(ticker: string): QuarterPoint[] | null {
   return peekUsableCache(ticker);
 }
