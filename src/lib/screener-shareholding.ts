@@ -2,7 +2,7 @@
  * Screener.in shareholding pattern for Management Score.
  */
 import * as cheerio from "cheerio";
-import { fetchScreenerCompanyHtml } from "./screener-fetch";
+import { fetchScreenerCompanyHtml, stockBlockedUntil } from "./screener-fetch";
 import {
   parseScreenerSectionTable,
   pickScreenerRow,
@@ -206,7 +206,7 @@ export async function fetchScreenerShareholding(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/blocked|429|403|captcha/i.test(msg)) {
-      writeCache(key, empty(), new Date(Date.now() + BLOCK_MS).toISOString());
+      writeCache(key, empty(), stockBlockedUntil());
     }
     return empty();
   }

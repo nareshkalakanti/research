@@ -2,7 +2,7 @@
  * Screener.in annual P&L + ratios (Sales, EPS, ROCE %) for Brutal scanner.
  */
 import * as cheerio from "cheerio";
-import { fetchScreenerCompanyHtml } from "./screener-fetch";
+import { fetchScreenerCompanyHtml, stockBlockedUntil } from "./screener-fetch";
 import { openSqliteNamed } from "./sqlite-utils";
 
 const CACHE_MS = 14 * 24 * 60 * 60 * 1000;
@@ -626,7 +626,7 @@ export async function fetchScreenerAnnualPl(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/blocked|429|403|captcha/i.test(msg)) {
-      const until = new Date(Date.now() + BLOCK_MS).toISOString();
+      const until = stockBlockedUntil();
       writePlCache(key, empty, until);
     }
     return empty;
@@ -865,7 +865,7 @@ export async function fetchScreenerAnnualBs(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/blocked|429|403|captcha/i.test(msg)) {
-      writeBsCache(key, emptyBs(), new Date(Date.now() + BLOCK_MS).toISOString());
+      writeBsCache(key, emptyBs(), stockBlockedUntil());
     }
     return emptyBs();
   }

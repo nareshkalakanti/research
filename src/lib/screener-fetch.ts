@@ -52,6 +52,15 @@ function openBackoff() {
   return db;
 }
 
+/**
+ * How long one stock stays marked "blocked" after Screener refuses it: only
+ * until the global pause ends (15 min if none is recorded). It used to be 6 h,
+ * which left Portfolio review scores empty long after Screener was back.
+ */
+export function stockBlockedUntil(): string {
+  return screenerPausedUntil() ?? new Date(Date.now() + 15 * 60_000).toISOString();
+}
+
 /** ISO time Screener fetches resume, or null when not paused. */
 export function screenerPausedUntil(): string | null {
   const db = openBackoff();

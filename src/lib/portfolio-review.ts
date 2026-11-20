@@ -412,8 +412,15 @@ export function previousFiling(s: DatedPoint[]): DatedPoint | null {
 async function scoreManagement(t: string): Promise<FundCheck[]> {
   const sh = await fetchScreenerShareholding(t).catch(() => null);
   const out: FundCheck[] = [];
+  // Screener sometimes adds an off-cycle filing column (e.g. PVRINOX "2026-10-01"
+  // one day after the Sep quarter): compare quarter-end filings only, as the
+  // reference tool does, when the stock has any.
+  const QUARTER_END = /-(03-31|06-30|09-30|12-31)$/;
+  const keep = (sh?.dates ?? []).some((d) => QUARTER_END.test(d)) ? (d: string) => QUARTER_END.test(d) : () => true;
   const seq = (vals: Array<number | null> | undefined) =>
-    (sh?.dates ?? []).map((d, i) => ({ d, v: vals?.[i] ?? null })).filter((x): x is { d: string; v: number } => x.v != null);
+    (sh?.dates ?? [])
+      .map((d, i) => ({ d, v: vals?.[i] ?? null }))
+      .filter((x): x is { d: string; v: number } => x.v != null && keep(x.d));
   const q = (d: string) => d.slice(0, 7);
   // 1) Shareholder variation (latest vs ~1 year back, by date)
   {

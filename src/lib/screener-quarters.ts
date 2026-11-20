@@ -5,7 +5,7 @@
  */
 import * as cheerio from "cheerio";
 import { openSqliteNamed } from "./sqlite-utils";
-import { fetchScreenerCompanyHtml } from "./screener-fetch";
+import { fetchScreenerCompanyHtml, stockBlockedUntil } from "./screener-fetch";
 import type { QuarterPoint } from "./quarter-panel";
 import {
   mergeQuarterFill,
@@ -474,7 +474,7 @@ export async function fetchScreenerQuarterlyFundamentals(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/blocked|429|403|captcha/i.test(msg)) {
-      const until = new Date(Date.now() + BLOCK_MS).toISOString();
+      const until = stockBlockedUntil();
       writeMissBlock(key, until);
     }
     return prior ?? [];
