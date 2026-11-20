@@ -23019,3 +23019,30 @@ html[data-theme="light"] .nsc-drawer-wrap {
     display: none;
   }
 }
+
+/* Value tab: background auto-fill status line */
+.vx-auto {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 0;
+}
+.vx-auto-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted, #888);
+  flex: none;
+}
+.vx-auto-dot.on {
+  background: var(--ok, #2e9d5b);
+  animation: vx-auto-pulse 1.2s ease-in-out infinite;
+}
+.vx-auto-dot.paused {
+  background: var(--warn, #c98a00);
+}
+@keyframes vx-auto-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}

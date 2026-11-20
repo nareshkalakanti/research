@@ -76,6 +76,51 @@ function rankSet(rows: Stock[]): Ranked[] {
 
 type Job = { kind: string; running: boolean; done: number; total: number; filled: number; error: string | null } | null;
 
+/** One line: what the 30-min background job has filled, and when it runs next. */
+function AutoFillStatus() {
+  type S = {
+    last_run: string | null;
+    next_run: string | null;
+    tried_24h: number;
+    filled_24h: number;
+    screener_paused_until: string | null;
+    pages_left_this_hour: number;
+    job: Job & { kind?: string };
+  };
+  const [st, setSt] = useState<S | null>(null);
+  useEffect(() => {
+    let live = true;
+    const load = async () => {
+      try {
+        const j = (await (await fetch("/api/value-tools?kind=auto", { cache: "no-store" })).json()) as S & { ok?: boolean };
+        if (live && j.ok !== false) setSt(j);
+      } catch {
+        /* status is optional */
+      }
+    };
+    void load();
+    const id = window.setInterval(load, 60_000);
+    return () => {
+      live = false;
+      window.clearInterval(id);
+    };
+  }, []);
+  if (!st) return null;
+  const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—");
+  const running = !!st.job?.running && st.job.kind === "auto";
+  return (
+    <p className="vx-hint vx-auto">
+      <span className={`vx-auto-dot${running ? " on" : st.screener_paused_until ? " paused" : ""}`} aria-hidden />
+      Auto-fill (every 30 min while the app is open):{" "}
+      {running ? `running now · ${st.job!.done} of ${st.job!.total}` : `last run ${hm(st.last_run)} · next ≈ ${hm(st.next_run)}`} ·{" "}
+      {st.filled_24h} filled of {st.tried_24h} tried in 24 h ·{" "}
+      {st.screener_paused_until
+        ? `Screener paused until ${hm(st.screener_paused_until)}`
+        : `Screener OK · ${st.pages_left_this_hour} pages left this hour`}
+    </p>
+  );
+}
+
 /** "Fetch missing data": Yahoo fill for stocks without Sales / ROCE / P/B. */
 function FillBar({ missing, fetchable, onDone }: { missing: number; fetchable: number; onDone: () => void }) {
   const [job, setJob] = useState<Job>(null);
@@ -109,6 +154,7 @@ function FillBar({ missing, fetchable, onDone }: { missing: number; fetchable: n
   };
   if (!missing && !mine) return null;
   return (
+    <>
     <div className="vx-fill">
       {mine ? (
         <>
@@ -155,6 +201,8 @@ function FillBar({ missing, fetchable, onDone }: { missing: number; fetchable: n
         </>
       )}
     </div>
+    <AutoFillStatus />
+    </>
   );
 }
 

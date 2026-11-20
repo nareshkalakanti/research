@@ -9,6 +9,9 @@ import {
   type Progress,
 } from "./nanocap-champs";
 import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
+import { fetchScreenerAllAnnual, screenerPagesTriedSince } from "./screener-annual";
+import { screenerPausedUntil } from "./screener-fetch";
+import { buildValueUniverse } from "./value-tools";
 import { fillHtIvForMember, fillHtIvFromYahoo, invalidateRotationRank, missingHtIvQueue } from "./sector-rotation-board";
 import { hasScreenerLogin, pullAllPeople } from "./screener-people";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -34,6 +37,12 @@ const ROTATION_QUALITY_PER_RUN = 8;
 /** Yahoo tries per run (~0.5 s each + gap) — Yahoo goes first; Screener only gets what Yahoo missed. */
 const ROTATION_YAHOO_PER_RUN = 60;
 const YAHOO_GAP_MS = 800;
+/**
+ * Value-tab ranking gaps (no Sales growth 3Y / ROCE 3Y / P/B): Screener pages
+ * per run from the leftover hourly budget (2 pages each). Stocks tried in the
+ * last 30 days are skipped, so young listings / banks are not retried.
+ */
+const VALUE_PER_RUN = 10;
 const META_KEY = "baskets_refresh_last";
 
 function withMeta<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
@@ -152,6 +161,34 @@ async function runRefresh(onProgress?: Progress): Promise<FillResult> {
       }
     }
     if (got) invalidateRotationRank();
+  }
+  // 3b) Value-tab ranking gaps, biggest first, same slow Screener path.
+  if (!paused) {
+    const slots = Math.min(VALUE_PER_RUN, Math.floor(screenerBudgetLeft() / 2));
+    if (slots > 0) {
+      const tried = screenerPagesTriedSince(30 * 86_400_000);
+      const queue = buildValueUniverse()
+        .rows.filter((r) => r.sales3y == null && !tried.has(r.t.toUpperCase()))
+        .sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0))
+        .slice(0, slots);
+      total += queue.length;
+      for (const r of queue) {
+        if (screenerPausedUntil()) {
+          paused = true;
+          break;
+        }
+        try {
+          const res = await fetchScreenerAllAnnual(r.t);
+          if (res.annual && res.bs) filled += 1;
+        } catch {
+          paused = true;
+          break;
+        }
+        markTried("valq", r.t.toUpperCase());
+        done += 1;
+        onProgress?.(done, total, filled);
+      }
+    }
   }
   // 4) Fund watchlists from Screener people pages — once a day, only with a login.
   if (!paused && hasScreenerLogin()) {

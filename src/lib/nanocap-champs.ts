@@ -551,7 +551,7 @@ export function buildNanoPage(): NanoPage {
 
 /** Fetch quarterly results for nanocaps that have none yet (Screener, throttled). */
 export type Progress = (done: number, total: number, filled: number) => void;
-export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio" | "bse" | "turn" | "shortlist" | "smartmoney" | "smmodel" | "stockscans" | "rotq" | "rotqy";
+export type FillKind = "nano" | "quality" | "lv" | "fa" | "auto" | "hgscan" | "hgprice" | "mom" | "momratio" | "bse" | "turn" | "shortlist" | "smartmoney" | "smmodel" | "stockscans" | "rotq" | "rotqy" | "valq";
 export type FillResult = { tried: number; filled: number; left: number; not_found: number };
 
 const RETRY_AFTER_DAYS = 7;
@@ -584,6 +584,16 @@ export function recentlyTried(kind: FillKind): Set<string> {
             .all(kind, since) as Array<{ ticker: string }>
         ).map((r) => r.ticker),
       ),
+  );
+}
+
+/** Tickers tried for `kind` within the last `ms` (status lines). */
+export function triedWithin(kind: FillKind, ms: number): string[] {
+  const since = new Date(Date.now() - ms).toISOString();
+  return withAttempts((db) =>
+    (db.prepare(`SELECT ticker FROM nano_fill_attempts WHERE kind = ? AND attempted_at >= ?`).all(kind, since) as Array<{ ticker: string }>).map(
+      (r) => r.ticker,
+    ),
   );
 }
 

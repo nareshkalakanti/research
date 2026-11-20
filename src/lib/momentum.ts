@@ -309,9 +309,10 @@ function withAttempts<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
 }
 
 /** Kinds that share the hourly Screener budget (this basket + the 30-min background refresh). */
-const BUDGET_KINDS = [FILL_KIND, "momratio", "auto", "rotq"] as const;
+const BUDGET_KINDS = [FILL_KIND, "momratio", "auto", "rotq", "valq"] as const;
 /** Rotation quality fill (rotq) reads up to 3 Screener pages per stock. */
-const PAGES_PER_KIND: Partial<Record<(typeof BUDGET_KINDS)[number], number>> = { rotq: 3 };
+/** Value-tab fill (valq): consolidated page, plus standalone when needed. */
+const PAGES_PER_KIND: Partial<Record<(typeof BUDGET_KINDS)[number], number>> = { rotq: 3, valq: 2 };
 
 /** Screener pages asked for in the last hour by this basket and the background refresh. */
 export function usedLastHour(): number {
