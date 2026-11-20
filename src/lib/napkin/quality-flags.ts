@@ -237,12 +237,16 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
   // 6) Pledge — "fail" here means the red flag is raised.
   {
     const p = sh?.pledged_pct ?? null;
+    const prom = sh ? [...sh.promoters].reverse().find((v) => v != null) ?? null : null;
+    // Screener reports pledge as a share of the promoters' own holding.
+    const ofCompany = p != null && prom != null && p > 0 ? (p * prom) / 100 : null;
     flags.push({
       id: "pledge",
       label: "Promoter pledging",
       rule: `< ${QF_RULES.pledge}%`,
-      value: p == null ? "—" : pct(p, 2),
+      value: p == null ? "—" : `${pct(p, 1)} of promoter shares`,
       verdict: p == null ? "na" : p >= QF_RULES.pledge ? "fail" : "pass",
+      note: ofCompany != null ? `≈ ${ofCompany.toFixed(1)}% of the company (promoters hold ${prom!.toFixed(1)}%)` : undefined,
     });
   }
   // 6b) Low promoter holding: owners with little skin in the game.

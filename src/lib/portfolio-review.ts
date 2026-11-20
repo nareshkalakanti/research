@@ -277,9 +277,22 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
       note: c.note,
     } as FundCheck;
   };
-  // Per share: book value ÷ equity capital (bonus issues scale both; fresh
-  // issues dilute — that is not growth for an existing shareholder).
-  const bvps = bs ? bs.book_value.map((v, i) => (v != null && bs.equity_capital[i] ? v / bs.equity_capital[i]! : null)) : undefined;
+  // Per share: book value ÷ shares, with shares = net profit ÷ EPS for the
+  // same year. Screener's EPS is bonus/split-adjusted, so a bonus issue does
+  // not look like a fall in book value per share (equity capital doubles on a
+  // 1:1 bonus — TCS 2018). Fresh issues still dilute, as they should.
+  const plShares = new Map<string, number>();
+  if (pl) pl.dates.forEach((d, i) => {
+    const pat = pl.pat[i];
+    const eps = pl.eps[i];
+    if (pat != null && eps != null && pat > 0 && eps > 0) plShares.set(d.slice(0, 7), pat / eps);
+  });
+  const bvps = bs
+    ? bs.book_value.map((v, i) => {
+        const sh = plShares.get(bs.dates[i]!.slice(0, 7));
+        return v != null && sh ? v / sh : null;
+      })
+    : undefined;
   {
     const c = fromCagr("bv", "Book value growth (per share)", bs?.dates, bvps);
     checks.push(c);
@@ -417,12 +430,20 @@ async function scoreManagement(t: string): Promise<FundCheck[]> {
   // 2) Pledge
   {
     const p = sh?.pledged_pct ?? null;
+    const prom = seq(sh?.promoters).at(-1)?.v ?? null;
+    const ofCompany = p != null && prom != null && p > 0 ? (p * prom) / 100 : null;
     out.push({
       id: "pledge",
       label: "Pledged percentage",
       rule: "promoter pledge = 0%",
       value: p == null ? "—" : `${p.toFixed(2)}%`,
       points: p == null ? null : p <= MGMT.pledgeMax ? 1 : 0,
+      note:
+        ofCompany != null
+          ? `of promoter shares · ≈ ${ofCompany.toFixed(1)}% of the company (promoters hold ${prom!.toFixed(1)}%)`
+          : p === 0
+            ? "no promoter shares pledged"
+            : undefined,
     });
   }
   // 3) Holding investor: FII + DII

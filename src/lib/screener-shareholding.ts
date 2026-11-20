@@ -117,16 +117,29 @@ function align(
   return (vals ?? Array(n).fill(null)).slice(0, n);
 }
 
-function parsePledgeFromHtml(html: string): number | null {
-  const m = html.match(
-    /pledged[^%]{0,80}?(\d+(?:\.\d+)?)\s*%|(\d+(?:\.\d+)?)\s*%[^%]{0,40}?pledged/i,
-  );
+/**
+ * Promoter pledge as a % of the promoters' own shares (Screener's wording:
+ * "Promoters have pledged 87.4% of their holding"). Not % of the company.
+ */
+export function parsePledgeFromHtml(html: string): number | null {
+  const text = html.replace(/<[^>]+>/g, " ").replace(/&nbsp;|&#160;/g, " ").replace(/\s+/g, " ");
+  const num = (v: string | undefined) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 && n <= 100 ? n : null;
+  };
+  // 1) Screener's own sentence.
+  const own = text.match(/promoters?\s+ha(?:ve|s)\s+pledged\s+(\d+(?:\.\d+)?)\s*%\s+of\s+their\s+holding/i);
+  if (own) return num(own[1]);
+  // 2) A change line ("… pledge … from 30% to 10%") — the new figure counts.
+  const change = text.match(/pledg[^.%]{0,80}?from\s+\d+(?:\.\d+)?\s*%\s+to\s+(\d+(?:\.\d+)?)\s*%/i);
+  if (change) return num(change[1]);
+  // 3) Generic fallback.
+  const m = text.match(/pledged[^%.]{0,80}?(\d+(?:\.\d+)?)\s*%|(\d+(?:\.\d+)?)\s*%[^%.]{0,40}?pledged/i);
   if (!m) {
-    if (/no\s+pledged|pledged\s*[:=]\s*0|pledged.*?none/i.test(html)) return 0;
+    if (/no\s+pledged|pledged\s*[:=]\s*0|pledged.*?none/i.test(text)) return 0;
     return null;
   }
-  const n = Number(m[1] || m[2]);
-  return Number.isFinite(n) ? n : null;
+  return num(m[1] || m[2]);
 }
 
 export function parseScreenerShareholdingHtml(html: string): ScreenerShareholding {

@@ -21,7 +21,8 @@ import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
  *   Tech          info only (moving averages, 52-week position) — not in the total
  *
  * Rating: Excellent ≥ 15 · Good 11–14 · Average 7–10 · Poor ≤ 6.
- * Caps: promoter pledge → at most Good · 2+ red flags → at most Average.
+ * Caps: promoter pledge → at most Good · 2+ red flags → at most Average ·
+ *   quality ≤ 3/6 → at most Average (≤ 2/6 with ROCE failing → Poor).
  */
 
 type Kind = "quality" | "momentum" | "quarters" | "flags" | "special" | "tech";
@@ -171,12 +172,18 @@ export function NapkinScorecard({
     if (r !== rating) caps.push("promoter pledge");
     rating = r;
   }
-  // Weak long-run quality can't be rescued by short-term momentum.
+  // Weak long-run quality can't be rescued by short-term momentum. "Poor"
+  // only when returns are weak too (no growth AND low ROCE); a high-ROCE
+  // business that is merely growing slowly (TCS: ROCE 53%, EPS 8%) is capped
+  // at Average, not Poor.
   if (qPts != null && qPts <= 3) {
-    const r = capAt(rating, qPts <= 2 ? "Poor" : "Average");
-    if (r !== rating) caps.push(`weak 10-yr quality (${qPts}/6)`);
+    const roceOk = quality?.quality.find((c) => c.id === "roce")?.verdict === "pass";
+    const floor: Rating = qPts <= 2 && !roceOk ? "Poor" : "Average";
+    const r = capAt(rating, floor);
+    if (r !== rating) caps.push(`weak 10-yr ${roceOk ? "growth" : "quality"} (${qPts}/6)`);
     rating = r;
   }
+
   if (raised >= 2) {
     const r = capAt(rating, "Average");
     if (r !== rating) caps.push(`${raised} red flags`);
