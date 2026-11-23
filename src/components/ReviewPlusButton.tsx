@@ -9,6 +9,8 @@ type BagCache = {
   listeners: Set<Listener>;
   cached: Set<string> | null;
   inflight: Promise<Set<string>> | null;
+  /** Bumped by each load and local change, so a slower old response can't win. */
+  seq: number;
 };
 
 const bags = new Map<ReviewBag, BagCache>();
@@ -16,7 +18,7 @@ const bags = new Map<ReviewBag, BagCache>();
 function cacheFor(bag: ReviewBag): BagCache {
   let hit = bags.get(bag);
   if (!hit) {
-    hit = { listeners: new Set(), cached: null, inflight: null };
+    hit = { listeners: new Set(), cached: null, inflight: null, seq: 0 };
     bags.set(bag, hit);
   }
   return hit;
@@ -30,6 +32,7 @@ async function loadReviewSet(bag: ReviewBag, force = false): Promise<Set<string>
   const state = cacheFor(bag);
   if (!force && state.cached) return state.cached;
   if (!force && state.inflight) return state.inflight;
+  const seq = ++state.seq;
   const req = (async () => {
     const res = await fetch(
       `/api/portfolio-review?tickers=1&bag=${encodeURIComponent(bag)}`,
@@ -37,8 +40,9 @@ async function loadReviewSet(bag: ReviewBag, force = false): Promise<Set<string>
     );
     const j = (await res.json()) as { ok?: boolean; tickers?: string[] };
     if (!res.ok || j.ok === false) throw new Error("review tickers failed");
-    state.cached = new Set((j.tickers ?? []).map((t) => t.toUpperCase()));
-    return state.cached;
+    const fresh = new Set((j.tickers ?? []).map((t) => t.toUpperCase()));
+    if (seq === state.seq) state.cached = fresh;
+    return state.cached ?? fresh;
   })();
   if (!force) state.inflight = req;
   try {
@@ -48,7 +52,44 @@ async function loadReviewSet(bag: ReviewBag, force = false): Promise<Set<string>
   }
 }
 
+/** Reload from the server; tell the UI only if the list actually changed. */
+function refetchMembership(bag: ReviewBag) {
+  const before = cacheFor(bag).cached;
+  void loadReviewSet(bag, true)
+    .then((after) => {
+      const same =
+        before != null &&
+        before.size === after.size &&
+        [...after].every((t) => before.has(t));
+      if (!same) notify(bag);
+    })
+    .catch(() => {});
+}
+
+const SYNC_CHANNEL = "portfolio-membership";
+let syncChannel: BroadcastChannel | null = null;
+let syncStarted = false;
+
+/** Keep open browser tabs in step: on a change elsewhere, and on returning to a tab. */
+function startTabSync() {
+  if (syncStarted || typeof window === "undefined") return;
+  syncStarted = true;
+  if ("BroadcastChannel" in window) {
+    syncChannel = new BroadcastChannel(SYNC_CHANNEL);
+    syncChannel.onmessage = () => refetchMembership(PORTFOLIO_BAG);
+  }
+  window.addEventListener("focus", () => refetchMembership(PORTFOLIO_BAG));
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refetchMembership(PORTFOLIO_BAG);
+  });
+}
+
+function announceMembershipChange() {
+  syncChannel?.postMessage("changed");
+}
+
 function subscribeReview(bag: ReviewBag, fn: Listener): () => void {
+  startTabSync();
   const state = cacheFor(bag);
   state.listeners.add(fn);
   return () => state.listeners.delete(fn);
@@ -56,6 +97,7 @@ function subscribeReview(bag: ReviewBag, fn: Listener): () => void {
 
 function markInReview(bag: ReviewBag, tickers: string[]) {
   const state = cacheFor(bag);
+  state.seq += 1;
   const next = new Set(state.cached ?? []);
   for (const t of tickers) next.add(t.toUpperCase());
   state.cached = next;
@@ -64,6 +106,7 @@ function markInReview(bag: ReviewBag, tickers: string[]) {
 
 function markOutOfReview(bag: ReviewBag, ticker: string) {
   const state = cacheFor(bag);
+  state.seq += 1;
   const next = new Set(state.cached ?? []);
   next.delete(ticker.toUpperCase());
   state.cached = next;
@@ -84,6 +127,7 @@ export function invalidateReviewMembership(bag: ReviewBag = PORTFOLIO_BAG): void
   state.cached = null;
   notify(bag);
   void loadReviewSet(bag, true).then(() => notify(bag)).catch(() => {});
+  announceMembershipChange();
 }
 
 /** Icon-only + / ✓ — toggles Portfolio. No tab switch. */
@@ -164,6 +208,8 @@ export function ReviewPlusButton({
             };
             if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
             if (!removing && j.found?.length) markInReview(targetBag, j.found);
+            refetchMembership(targetBag);
+            announceMembershipChange();
             // Value / Trend hide Portfolio names — nudge them to refetch.
             window.dispatchEvent(new CustomEvent("portfolio-review-changed"));
           } catch {

@@ -404,7 +404,7 @@ export function ValuePanel() {
                 />
               </label>
               <div className="vx-field vx-field--wide vx-field--pick">
-                <span className="vx-label">&nbsp;</span>
+                <span className="vx-label">Industry</span>
                 <div className="vx-pick-row">
                   <MultiPick
                     label="Industry"
@@ -452,9 +452,10 @@ export function ValuePanel() {
               </label>
             </div>
             <div className="vx-actions">
+              <span className="vx-hint">Filters apply instantly · ranks are recomputed inside the filtered set · lower total score = better</span>
               <button
                 type="button"
-                className="vx-btn"
+                className="vx-btn vx-push"
                 onClick={() => {
                   setDraft(EMPTY);
                   apply(EMPTY);
@@ -462,7 +463,6 @@ export function ValuePanel() {
               >
                 Reset
               </button>
-              <span className="vx-hint">Filters apply instantly · ranks are recomputed inside the filtered set · lower total score = better</span>
             </div>
           </form>
 

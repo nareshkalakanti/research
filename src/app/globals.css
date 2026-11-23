@@ -23598,6 +23598,104 @@ body {
   vertical-align: middle;
 }
 
+/* Value filters: every control on one baseline at one height */
+.vx-filters .vx-grid {
+  grid-template-columns:
+    minmax(200px, 1.5fr) minmax(300px, 2fr) minmax(130px, 1fr)
+    repeat(2, minmax(100px, 0.8fr)) minmax(110px, 0.8fr);
+  align-items: end;
+}
+.vx-filters .vx-field input,
+.vx-filters .vx-field select {
+  height: 40px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.vx-filters .vx-pick-row {
+  flex-wrap: nowrap;
+  height: 40px;
+}
+.vx .vx-filters .vx-pick-row .fb-multi {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 40px;
+}
+.vx .vx-filters .vx-pick-row .fb-multi-btn,
+.vx-filters .vx-pick-row .fb-hold-ind {
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--vx-line);
+  border-radius: 10px;
+  font: 500 0.86rem var(--font-ui);
+}
+.vx .vx-filters .vx-pick-row .fb-multi-btn {
+  width: 100%;
+  max-width: none;
+  justify-content: space-between;
+  background: rgba(6, 10, 22, 0.7);
+  color: var(--vx-ink);
+}
+.vx-filters .vx-pick-row .fb-hold-ind {
+  flex: 0 0 auto;
+}
+.vx-filters .vx-pick-row .fb-hold-ind:not(.on) {
+  background: rgba(6, 10, 22, 0.7);
+}
+html[data-theme="light"] .vx .vx-filters .vx-pick-row .fb-multi-btn,
+html[data-theme="light"] .vx-filters .vx-pick-row .fb-hold-ind:not(.on) {
+  background: #ffffff;
+}
+html[data-theme="dark"] .vx .vx-filters .vx-pick-row .fb-multi-btn,
+html[data-theme="dark"] .vx-filters .vx-pick-row .fb-hold-ind:not(.on) {
+  background: rgba(9, 9, 11, 0.8);
+}
+.vx .vx-filters .vx-pick-row .fb-multi--open .fb-multi-btn {
+  border-color: rgba(240, 170, 80, 0.6);
+  box-shadow: 0 0 0 3px rgba(240, 170, 80, 0.15);
+}
+/* The field label above already says "Industry" */
+.vx-filters .vx-pick-row .fb-k {
+  display: none;
+}
+.vx-filters .vx-pick-row .fb-v {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 500;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vx-filters .vx-actions {
+  margin-top: 12px;
+}
+.vx-filters .vx-actions .vx-btn {
+  padding: 8px 14px;
+}
+@media (max-width: 1400px) {
+  .vx-filters .vx-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .vx-filters .vx-field--wide {
+    grid-column: span 2;
+  }
+}
+@media (max-width: 1000px) {
+  .vx-filters .vx-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .vx-filters .vx-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .vx-filters .vx-field--wide {
+    grid-column: auto;
+  }
+}
+
 /* Value: search suggestions sit above the cards below (cards make their own stacking context) */
 .vx-filters {
   position: relative;

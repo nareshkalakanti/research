@@ -13,6 +13,7 @@ import {
 } from "./sector-rotation";
 import { NIFTY_INDEX_META } from "./nse-index-constituents";
 import {
+  barsCoverWindow,
   capWeightIndex,
   downsampleSeries,
   equalWeightIndex,
@@ -22,7 +23,9 @@ import {
   ROTATION_RANGES,
   rotationWindowStart,
   seriesReturnPct,
+  stitchWarmup,
   windowRebaseSeries,
+  windowReturnPct,
   type SeriesPoint,
 } from "./sector-rotation-series";
 import {
@@ -497,9 +500,11 @@ export type RotationSectorCard = {
   tickers: string[];
   sector: SeriesPoint[];
   bench: SeriesPoint[];
-  /** Max-lookback series so shorter range chips window without refetch. */
+  /** Sector line with moving-average warm-up, valid for `window_range` only. */
   sector_full?: SeriesPoint[];
   bench_full?: SeriesPoint[];
+  /** Period the sector series was built for; its stock set differs by period. */
+  window_range?: string;
 };
 
 /** Metrics older than this are ignored when no bars are at hand (lite board). */
@@ -593,17 +598,44 @@ async function niftyBarsOrThrow(years: number) {
 
 export type RotationWeight = "equal" | "cap";
 
+type PackedMember = { member: SectorMember; bars: Array<{ date: string; close: number }> };
+
+/** Drop rights / partly-paid stubs so they don't dilute the sector line. */
+function coreMembers(packed: PackedMember[]): PackedMember[] {
+  const core = packed.filter(
+    (p) => !isRightsOrPartlyPaid(p.member.ticker, p.member.name),
+  );
+  return core.length ? core : packed;
+}
+
+/**
+ * Sector line for one period: only stocks with prices across the whole period,
+ * each starting at the same base on the first day. A recent listing can't
+ * inflate the return. `long` adds earlier history for moving-average warm-up.
+ */
+function sectorWindow(
+  packed: PackedMember[],
+  start: string,
+  lookback: string,
+  weight: RotationWeight,
+  metrics: ReturnType<typeof loadMetricsMap>,
+): { windowed: SeriesPoint[]; long: SeriesPoint[] } {
+  const use = coreMembers(packed).filter((p) => barsCoverWindow(p.bars, start));
+  if (!use.length) return { windowed: [], long: [] };
+  const windowed = sectorIndex(use, start, weight, metrics);
+  return {
+    windowed,
+    long: stitchWarmup(sectorIndex(use, lookback, weight, metrics), windowed),
+  };
+}
+
 function sectorIndex(
-  packed: Array<{ member: SectorMember; bars: Array<{ date: string; close: number }> }>,
+  packed: PackedMember[],
   start: string,
   weight: RotationWeight,
   metrics: ReturnType<typeof loadMetricsMap>,
 ) {
-  // Drop rights / partly-paid stubs so they don't dilute the sector line.
-  const core = packed.filter(
-    (p) => !isRightsOrPartlyPaid(p.member.ticker, p.member.name),
-  );
-  const use = core.length ? core : packed;
+  const use = coreMembers(packed);
   if (weight === "cap") {
     return capWeightIndex(
       use.map((p) => ({
@@ -660,12 +692,12 @@ async function cardWithSeries(
   weight: RotationWeight,
   metrics: ReturnType<typeof loadMetricsMap>,
   benchLong: SeriesPoint[],
+  windowRange: string,
   spark = true,
 ): Promise<RotationSectorCard> {
   const members = s.members;
   const packed = await memberBars(members, years);
-  const seriesLong = sectorIndex(packed, lookback, weight, metrics);
-  const windowed = windowRebaseSeries(seriesLong, start);
+  const { windowed, long: seriesLong } = sectorWindow(packed, start, lookback, weight, metrics);
   const benchWin = windowRebaseSeries(benchLong, start);
   const day = dayStats(members, metrics, packed);
   return {
@@ -687,6 +719,7 @@ async function cardWithSeries(
     bench: spark ? downsampleSeries(benchWin) : benchWin,
     sector_full: seriesLong,
     bench_full: benchLong,
+    window_range: windowRange,
   };
 }
 
@@ -722,7 +755,7 @@ export async function hydrateRotationCards(
   const lookback = rotationMaxLookbackStart(last);
   const benchLong = rebaseCloses(nifty, lookback);
   const cards = await runConcurrent(sectors, 3, (s) =>
-    cardWithSeries(s, years, start, lookback, weight, metrics, benchLong, true),
+    cardWithSeries(s, years, start, lookback, weight, metrics, benchLong, (range || "6M").toUpperCase(), true),
   );
   return {
     range: (range || "6M").toUpperCase(),
@@ -797,8 +830,13 @@ async function buildRankSnapshot(
   }
   const fresh = await runConcurrent(todo, 4, async (sec) => {
     const packed = await memberBars(sec.members, years);
-    const seriesLong = sectorIndex(packed, lookback, weight, metrics);
-    return { id: sec.id, sig: sectorSig(sec), pct: pctByRange(seriesLong, last) };
+    const pct: Record<string, number | null> = {};
+    for (const r of ROTATION_RANGES) {
+      const start = rotationWindowStart(last, r);
+      const use = coreMembers(packed).filter((p) => barsCoverWindow(p.bars, start));
+      pct[r] = use.length ? seriesReturnPct(sectorIndex(use, start, weight, metrics)) : null;
+    }
+    return { id: sec.id, sig: sectorSig(sec), pct };
   });
   for (const f of fresh) {
     if (f) bySector.set(f.id, { sig: f.sig, pct: f.pct });
@@ -929,8 +967,7 @@ export async function buildRotationDetail(
   const lookback = rotationMaxLookbackStart(last);
   const benchLong = rebaseCloses(nifty, lookback);
   const bench = windowRebaseSeries(benchLong, start);
-  const seriesLong = sectorIndex(packed, lookback, weight, metrics);
-  const windowed = windowRebaseSeries(seriesLong, start);
+  const { windowed, long: seriesLong } = sectorWindow(packed, start, lookback, weight, metrics);
   const sector_pct = seriesReturnPct(windowed);
   const members: RotationMemberRow[] = packed.map(({ member, bars }) => {
     const key = member.ticker.toUpperCase();
@@ -947,7 +984,7 @@ export async function buildRotationDetail(
       mcap_cr: m?.market_cap_cr ?? ht?.market_cap_cr ?? null,
       price: live.price ?? ht?.price ?? null,
       change_pct: live.change_pct,
-      window_pct: seriesReturnPct(spark),
+      window_pct: windowReturnPct(sparkFull, start),
       spark,
       spark_full: sparkFull,
       tv_url: tradingviewUrl(member.ticker, member.market),
@@ -1019,6 +1056,7 @@ export async function buildRotationDetail(
       bench,
       sector_full: seriesLong,
       bench_full: benchLong,
+      window_range: (range || "6M").toUpperCase(),
     },
     members,
   };
@@ -1076,7 +1114,7 @@ export async function buildRotationList(
       website: sites.get(key) ?? null,
       mcap_cr: m?.market_cap_cr ?? null,
       ...priceAndChange(m, bars),
-      window_pct: bars.length ? seriesReturnPct(windowRebaseSeries(rebaseCloses(bars, start), start)) : null,
+      window_pct: windowReturnPct(bars.map((b) => ({ date: b.date, value: b.close })), start),
     };
   });
   rows.sort((a, b) => (b.window_pct ?? -Infinity) - (a.window_pct ?? -Infinity));
@@ -1147,7 +1185,7 @@ export async function buildRotationTopStocks(
         website: sites.get(t) ?? null,
         mcap_cr: m?.market_cap_cr ?? null,
         ...priceAndChange(m, bars),
-        window_pct: bars.length ? seriesReturnPct(windowRebaseSeries(rebaseCloses(bars, start), start)) : null,
+        window_pct: windowReturnPct(bars.map((b) => ({ date: b.date, value: b.close })), start),
         sector_id: sec.id,
         sector_label: sec.label,
         sector_pct: snap.bySector.get(sec.id)?.pct[key] ?? null,

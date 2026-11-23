@@ -74,6 +74,62 @@ export function seriesCoversStart(
   return !!first && !!start && first <= start;
 }
 
+/** A window can open on a weekend or market holiday, so allow a short gap. */
+const WINDOW_START_GRACE_DAYS = 4;
+
+/**
+ * Return over the whole window, or null when price history starts too late
+ * (recent listing, partial cache) or has fewer than two closes in the window.
+ * Pass the full series, not one already cut to the window.
+ */
+export function windowReturnPct(
+  points: SeriesPoint[],
+  startDate: string,
+): number | null {
+  if (!startsInWindow(points[0]?.date, startDate)) return null;
+  const win = windowRebaseSeries(points, startDate);
+  return win.length >= 2 ? seriesReturnPct(win) : null;
+}
+
+function startsInWindow(firstDate: string | undefined, startDate: string): boolean {
+  const first = firstDate?.slice(0, 10);
+  const start = (startDate || "").slice(0, 10);
+  if (!first || !start) return false;
+  const gapDays =
+    (Date.parse(`${first}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) /
+    86_400_000;
+  return gapDays <= WINDOW_START_GRACE_DAYS;
+}
+
+/** Closes span the whole window, so the stock can count toward a sector return. */
+export function barsCoverWindow(
+  bars: Array<{ date: string; close: number }>,
+  startDate: string,
+): boolean {
+  if (!startsInWindow(bars[0]?.date, startDate)) return false;
+  const start = startDate.slice(0, 10);
+  return bars.filter((b) => b.date >= start && b.close > 0).length >= 2;
+}
+
+/**
+ * Window index with earlier history scaled onto it, so moving averages have
+ * warm-up data while the visible line stays the true window index.
+ */
+export function stitchWarmup(
+  long: SeriesPoint[],
+  windowed: SeriesPoint[],
+): SeriesPoint[] {
+  const first = windowed[0];
+  if (!first) return [];
+  const anchor = long.find((p) => p.date >= first.date);
+  if (!anchor || !(anchor.value > 0)) return windowed;
+  const k = first.value / anchor.value;
+  const warmup = long
+    .filter((p) => p.date < first.date)
+    .map((p) => ({ date: p.date, value: p.value * k }));
+  return [...warmup, ...windowed];
+}
+
 /** Filter to `[startDate, …]` and rebase first point to `base`. */
 export function windowRebaseSeries(
   points: SeriesPoint[],

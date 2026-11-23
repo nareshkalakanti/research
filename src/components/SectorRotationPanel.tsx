@@ -16,13 +16,11 @@ import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
 import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { StockLinks } from "@/components/StockLinks";
 import {
-  downsampleSeries,
   ROTATION_MA_PERIODS,
   ROTATION_RANGES,
   rotationWindowStart,
-  seriesCoversStart,
-  seriesReturnPct,
   windowRebaseSeries,
+  windowReturnPct,
 } from "@/lib/sector-rotation-series";
 import { useUrlEnumParam } from "@/lib/url-enum-param";
 
@@ -49,6 +47,8 @@ type Card = {
   bench: Point[];
   sector_full?: Point[];
   bench_full?: Point[];
+  /** Period this sector line was built for; its stock set differs by period. */
+  window_range?: string;
 };
 
 /** Same rule as Value ranking: blank min/max = no bound; missing mcap counts as 0. */
@@ -637,8 +637,6 @@ export function SectorRotationPanel() {
   rangeRef.current = range;
   const detailRef = useRef(detail);
   detailRef.current = detail;
-  const asOfRef = useRef(asOf);
-  asOfRef.current = asOf;
   const openIdRef = useRef<string | null>(null);
 
   const loadBoard = useCallback(async (opts?: { silent?: boolean }) => {
@@ -745,85 +743,49 @@ export function SectorRotationPanel() {
         bench: [],
         sector_full: undefined,
         bench_full: undefined,
+        window_range: undefined,
       })),
     );
   }, [weight]);
 
-  // Range chips: rewindow long series locally — no OHLC pull when history covers it.
+  // Range chips: each period has its own stock set, so a sector line can't be
+  // re-cut locally. Blank it until rank / hydrate / detail load the new period.
   useEffect(() => {
     setRankedKey(null);
     if (!asOf) return;
     const start = rotationWindowStart(asOf, range);
     setCards((prev) =>
-      prev.map((c) => {
-        const fullS =
-          c.sector_full && c.sector_full.length > 0 ? c.sector_full : null;
-        const fullB =
-          c.bench_full && c.bench_full.length > 0 ? c.bench_full : null;
-        const srcS = fullS ?? (c.sector.length > 0 ? c.sector : null);
-        const srcB = fullB ?? (c.bench.length > 0 ? c.bench : null);
-        if (
-          !srcS ||
-          !srcB ||
-          !seriesCoversStart(srcS, start) ||
-          !seriesCoversStart(srcB, start)
-        ) {
-          // History too short for this range: blank until rank / hydrate fill
-          // it — never show the previous range's return under the new label.
-          return { ...c, sector_pct: null, bench_pct: null, sector: [], bench: [] };
-        }
-        const sectorWin = windowRebaseSeries(srcS, start);
-        const benchWin = windowRebaseSeries(srcB, start);
-        return {
-          ...c,
-          sector: downsampleSeries(sectorWin),
-          bench: downsampleSeries(benchWin),
-          sector_pct: seriesReturnPct(sectorWin),
-          bench_pct: seriesReturnPct(benchWin),
-          sector_full: fullS ?? c.sector_full,
-          bench_full: fullB ?? c.bench_full,
-        };
-      }),
+      prev.map((c) =>
+        c.window_range === range
+          ? c
+          : {
+              ...c,
+              sector_pct: null,
+              bench_pct: null,
+              sector: [],
+              bench: [],
+              sector_full: undefined,
+              bench_full: undefined,
+              window_range: undefined,
+            },
+      ),
     );
     setDetail((prev) => {
       if (!prev) return prev;
-      const fullS =
-        prev.card.sector_full && prev.card.sector_full.length > 0
-          ? prev.card.sector_full
-          : prev.card.sector;
-      const fullB =
-        prev.card.bench_full && prev.card.bench_full.length > 0
-          ? prev.card.bench_full
-          : null;
-      if (
-        !fullS.length ||
-        !fullB ||
-        !seriesCoversStart(fullS, start) ||
-        !seriesCoversStart(fullB, start)
-      ) {
-        return prev;
-      }
-      const bench = windowRebaseSeries(fullB, start);
-      const sectorWin = windowRebaseSeries(fullS, start);
+      const stale = prev.card.window_range !== range;
       return {
-        card: {
-          ...prev.card,
-          sector: fullS,
-          bench,
-          sector_pct: seriesReturnPct(sectorWin),
-          bench_pct: seriesReturnPct(bench),
-          sector_full: fullS,
-          bench_full: fullB,
-        },
+        card: stale
+          ? { ...prev.card, sector_pct: null, bench_pct: null, sector: [], bench: [] }
+          : prev.card,
         members: prev.members.map((m) => {
           const full =
             m.spark_full && m.spark_full.length > 0 ? m.spark_full : m.spark;
-          if (!full.length || !seriesCoversStart(full, start)) return m;
-          const spark = windowRebaseSeries(full, start);
+          if (!full.length) return { ...m, window_pct: null };
           return {
             ...m,
-            spark,
-            window_pct: seriesReturnPct(spark),
+            spark: windowRebaseSeries(full, start),
+            // Blank when history is shorter than the range, never last range's value.
+            window_pct: windowReturnPct(full, start),
             spark_full: m.spark_full ?? full,
           };
         }),
@@ -893,26 +855,11 @@ export function SectorRotationPanel() {
     if (openId) void loadDetail(openId);
   }, [openId, loadDetail]);
 
-  // Only refetch detail OHLC when the open sector lacks history for this range.
+  // Refetch the open sector when its line was built for another period.
   useEffect(() => {
     if (!openId || !asOf) return;
     const d = detailRef.current;
-    if (!d || d.card.id !== openId) return;
-    const start = rotationWindowStart(asOf, range);
-    const fullS =
-      d.card.sector_full && d.card.sector_full.length > 0
-        ? d.card.sector_full
-        : d.card.sector;
-    const fullB = d.card.bench_full;
-    if (
-      fullS.length > 0 &&
-      fullB &&
-      fullB.length > 0 &&
-      seriesCoversStart(fullS, start) &&
-      seriesCoversStart(fullB, start)
-    ) {
-      return;
-    }
+    if (!d || d.card.id !== openId || d.card.window_range === range) return;
     void loadDetail(openId);
   }, [range, openId, asOf, loadDetail]);
 
@@ -1473,19 +1420,8 @@ export function SectorRotationPanel() {
       return;
     }
     const ids = pageIds.split(",").filter(Boolean);
-    const asOfNow = asOfRef.current;
-    const start = asOfNow ? rotationWindowStart(asOfNow, range) : "";
     const byId = new Map(cardsRef.current.map((c) => [c.id, c]));
-    const missing = ids.filter((id) => {
-      const c = byId.get(id);
-      if (!c?.sector_full?.length || !c?.bench_full?.length || !start) {
-        return true;
-      }
-      return (
-        !seriesCoversStart(c.sector_full, start) ||
-        !seriesCoversStart(c.bench_full, start)
-      );
-    });
+    const missing = ids.filter((id) => byId.get(id)?.window_range !== range);
     if (!missing.length) {
       hydrateGen.current += 1;
       setHydrating(false);

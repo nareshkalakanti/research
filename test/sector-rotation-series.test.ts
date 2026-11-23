@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+  barsCoverWindow,
   capWeightIndex,
   downsampleSeries,
   equalWeightIndex,
@@ -9,7 +10,9 @@ import {
   rotationYearsBack,
   seriesCoversStart,
   seriesReturnPct,
+  stitchWarmup,
   windowRebaseSeries,
+  windowReturnPct,
 } from "../src/lib/sector-rotation-series";
 
 const a = [
@@ -83,5 +86,42 @@ assert.ok(Math.abs((win[win.length - 1]?.value ?? 0) - (125 / 75) * 100) < 1e-9)
 assert.equal(downsampleSeries(long, 2).length, 2);
 assert.ok(rotationFetchYears() >= rotationYearsBack("5Y"));
 assert.equal(rotationFetchYears(), rotationYearsBack("5Y"));
+
+// Full window: a normal return.
+assert.ok(Math.abs((windowReturnPct(long, "2026-02-01") ?? 0) - (125 / 75 - 1) * 100) < 1e-9);
+// Window opened on a weekend/holiday: first close 4 days later still counts.
+assert.equal(windowReturnPct(long, "2025-12-28"), 150);
+// History starts after the window (recent listing): no return.
+assert.equal(windowReturnPct(long, "2025-12-01"), null);
+// A single close is not a 0% return.
+assert.equal(windowReturnPct([{ date: "2026-11-23", value: 100 }], "2026-08-22"), null);
+assert.equal(windowReturnPct([{ date: "2026-11-23", value: 100 }], "2026-11-23"), null);
+assert.equal(windowReturnPct([], "2026-01-01"), null);
+
+// Sector set: a recent listing is left out, a full-history stock counts.
+const fullBars = [
+  { date: "2026-01-01", close: 100 },
+  { date: "2026-02-01", close: 110 },
+  { date: "2026-03-01", close: 90 },
+];
+const lateBars = [
+  { date: "2026-02-20", close: 10 },
+  { date: "2026-03-01", close: 120 },
+];
+assert.equal(barsCoverWindow(fullBars, "2026-01-01"), true);
+assert.equal(barsCoverWindow(lateBars, "2026-01-01"), false);
+assert.equal(barsCoverWindow([{ date: "2026-03-01", close: 5 }], "2026-03-01"), false);
+
+// Warm-up is scaled onto the window line; the window itself is unchanged.
+const windowLine = [
+  { date: "2026-03-01", value: 100 },
+  { date: "2026-04-01", value: 120 },
+];
+const stitched = stitchWarmup(long, windowLine);
+assert.equal(stitched.length, 4);
+assert.equal(stitched[0]?.value, 50);
+assert.equal(stitched[2]?.value, 100);
+assert.equal(stitched[3]?.value, 120);
+assert.deepEqual(stitchWarmup(long, []), []);
 
 console.log("ok");
