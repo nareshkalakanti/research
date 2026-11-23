@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import { masterLabels } from "./stock-master";
+import { loadStockMaster, masterLabels } from "./stock-master";
 import fs from "fs";
 import path from "path";
 import { researchLinks } from "./links";
@@ -764,6 +764,43 @@ function buildAllCompanies(): CompanyRow[] {
       seen.add(key);
       unique.push(row);
     }
+  }
+  // stock_master is the full universe (~6k). Names without a company_about row
+  // join as bare rows so scans / lists cover every active listing.
+  const have = new Set(unique.map((r) => r.ticker.toUpperCase()));
+  let delisted = new Set<string>();
+  try {
+    delisted = inactiveTickers(getAbout());
+  } catch {
+    /* ignore */
+  }
+  for (const m of loadStockMaster().values()) {
+    const key = m.ticker.toUpperCase();
+    if (!m.active || have.has(key) || delisted.has(key)) continue;
+    have.add(key);
+    unique.push({
+      ticker: m.ticker,
+      name: m.name,
+      market: m.exchange || "NSE",
+      website: null,
+      about: null,
+      yf_about: null,
+      llm_about: null,
+      scraped_about: null,
+      scraped_about_clean: null,
+      company_sector: m.sector,
+      company_industry: m.industry,
+      headquarters: null,
+      ceo: null,
+      managing_director: null,
+      founded_year: null,
+      products: null,
+      end_markets: null,
+      theme_tags: null,
+      group_name: null,
+      recent_moves: null,
+      business_model: null,
+    });
   }
   unique.sort((a, b) =>
     (a.name || a.ticker).localeCompare(b.name || b.ticker, undefined, {
