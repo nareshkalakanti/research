@@ -1,4 +1,4 @@
-import { adjustSplitJumps, fetchDailyBars } from "./ohlc";
+import { adjustSplitJumps, fetchDailyBars, fetchGrowwDailyBarsOne } from "./ohlc";
 import { yfSymbolCandidates } from "./yfinance";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -82,7 +82,8 @@ function marketOpen(now = Date.now()): boolean {
 }
 
 function isFresh(e: Entry, now = Date.now()): boolean {
-  if (!e.bars.length) return now - e.at < EMPTY_RETRY_MS;
+  // One close is a stub from the source, not a history: retry like an empty series.
+  if (e.bars.length < 2) return now - e.at < EMPTY_RETRY_MS;
   if (e.at >= lastCloseMs(now)) return !marketOpen(now) || now - e.at < INTRADAY_TTL_MS;
   return false;
 }
@@ -153,14 +154,31 @@ async function chartCloses(symbol: string, years: number): Promise<Close[]> {
   return out;
 }
 
+const isRecent = (bars: Close[]) =>
+  Date.now() - Date.parse(`${bars.at(-1)?.date ?? "1970-01-01"}T12:00:00Z`) < 12 * 86_400_000;
+
+/**
+ * NSE SME: Yahoo's -SM.NS now returns a single close and bare .NS can be stale
+ * or a different listing, so read the NSE board from Groww first.
+ */
+async function nseSmeCloses(ticker: string, years: number): Promise<Close[]> {
+  const sym = ticker.trim().toUpperCase().replace(/-SM$/, "");
+  const bars = await fetchGrowwDailyBarsOne(sym, "NSE", Math.ceil(years * 365.25));
+  return bars.map((b) => ({ date: b.date, close: b.close }));
+}
+
 /** Primary symbol, then NSE / SME / BSE aliases; first with enough fresh history wins. */
 async function directCloses(ticker: string, market: string | null | undefined, years: number): Promise<Close[]> {
   let best: Close[] = [];
+  const mk = (market || "").trim().toUpperCase();
+  if (mk === "NSE SME" || mk === "SME" || mk === "EMERGE") {
+    best = await nseSmeCloses(ticker, years);
+    if (best.length >= 2 && isRecent(best)) return best;
+  }
   for (const sym of yfSymbolCandidates(ticker, market).slice(0, 4)) {
     try {
       const bars = await chartCloses(sym, years);
-      const lastT = Date.parse(`${bars.at(-1)?.date ?? "1970-01-01"}T12:00:00Z`);
-      if (bars.length >= 60 && Date.now() - lastT < 12 * 86_400_000) return bars;
+      if (bars.length >= 60 && isRecent(bars)) return bars;
       if (bars.length > best.length) best = bars;
     } catch {
       /* next alias */
@@ -196,7 +214,7 @@ async function fetchAndStore(key: string, ticker: string, market: string | null 
       bars = [];
     }
     // Yahoo hiccup: keep what we had, retry later.
-    if (!bars.length && prev?.bars.length) {
+    if (bars.length < 2 && prev && prev.bars.length > bars.length) {
       const keep = { at: Date.now() - INTRADAY_TTL_MS + 30 * 60_000, bars: prev.bars };
       mem.set(key, keep);
       return prev.bars;

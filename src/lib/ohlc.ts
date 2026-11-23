@@ -298,7 +298,7 @@ function parseGrowwCandles(body: {
   return bars.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-async function fetchGrowwDailyBarsOne(
+export async function fetchGrowwDailyBarsOne(
   ticker: string,
   exchange: "NSE" | "BSE",
   daysBack: number,
