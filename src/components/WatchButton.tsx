@@ -59,7 +59,7 @@ export function WatchButton({
         e.stopPropagation();
         if (on && openWatchlistOnSavedClick) {
           if (setTab) setTab("watchlist");
-          else router.push("/watchlist");
+          else router.push("/?tab=watchlist");
           return;
         }
         setOn(toggleWatch(sym));

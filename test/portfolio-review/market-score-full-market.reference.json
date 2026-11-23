@@ -1,0 +1,10 @@
+{
+  "note": "Reference UI for Market Score historical chart on Favour / Out of favour. MARKET / SCORE / SIGNAL header, Neutral at 1.0, UPCYCLE/DOWNCYCLE/REVERSAL signal, yellow historical line + blue current point.",
+  "as_of": "2026-11-21",
+  "source": "market-score-full-market-reference.png",
+  "expected_ui": {
+    "full_market_chart": true,
+    "neutral_at": 1.0,
+    "signals": ["UPCYCLE", "DOWNCYCLE", "REVERSAL", "NEUTRAL"]
+  }
+}

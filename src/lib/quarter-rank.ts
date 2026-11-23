@@ -25,6 +25,9 @@ export type QuarterRankMetric = {
 
 export type QuarterRankBand = "Strong" | "Growing" | "Mixed" | "Weak";
 
+/** Display grade for Earnings Trends (same score as Strong/Growing/Mixed/Weak). */
+export type EarningsTrendGrade = "Excellent" | "Good" | "Average" | "Bad";
+
 export type QuarterRankResult = {
   /** 0–10 growth score (5 = flat, 10 = ≥ +25% on everything, 0 = ≤ −25%). */
   score: number;
@@ -34,6 +37,13 @@ export type QuarterRankResult = {
   summary: string;
   metrics: QuarterRankMetric[];
 };
+
+export function earningsGradeFromBand(band: QuarterRankBand): EarningsTrendGrade {
+  if (band === "Strong") return "Excellent";
+  if (band === "Growing") return "Good";
+  if (band === "Mixed") return "Average";
+  return "Bad";
+}
 
 /** ±25% growth maps to the ends of the 0–10 scale. */
 const PCT_AT_EXTREME = 25;
@@ -102,7 +112,30 @@ export function quarterRankFromPanel(
     weight: WEIGHTS[r.id] / totalW,
     points: pctToPoints(r.v),
   }));
-  const score = metrics.reduce((s, m) => s + m.points * m.weight, 0);
+  let score = metrics.reduce((s, m) => s + m.points * m.weight, 0);
+
+  // Growth % alone can look fine while the company is still losing money
+  // (e.g. sales +20% YoY with a negative latest PAT). Cap the grade so
+  // unprofitable latest quarters never read as Good / Excellent.
+  const npVals = panel.rows.find((r) => r.label === "Net Profit")?.values ?? [];
+  let latestNp: number | null = null;
+  let prevNp: number | null = null;
+  for (let i = npVals.length - 1; i >= 0; i -= 1) {
+    const v = npVals[i];
+    if (!finite(v)) continue;
+    if (latestNp == null) latestNp = v;
+    else {
+      prevNp = v;
+      break;
+    }
+  }
+  const lossMaking = latestNp != null && latestNp < 0;
+  if (lossMaking) {
+    const improving = prevNp != null && latestNp! > prevNp; // less red than prior Q
+    // Improving loss → at most Mixed/Average; deepening or flat loss → Weak/Bad.
+    score = Math.min(score, improving ? 4.99 : 3.99);
+  }
+
   const band = bandFor(score);
 
   const sales =
@@ -118,11 +151,13 @@ export function quarterRankFromPanel(
     profit
       ? `${profitLabel === "NP" ? "Profit" : "Op. profit"} ${fmtYoYPct(profit.v)} ${profit.id.endsWith("yoy") ? "YoY" : "QoQ"}`
       : null,
+    lossMaking ? "latest Q loss" : null,
   ]
     .filter(Boolean)
     .join(" · ");
 
-  return { score, band, ratingLabel: band, summary, metrics };
+  const grade = earningsGradeFromBand(band);
+  return { score, band, ratingLabel: grade, summary, metrics };
 }
 
 export function quarterRankRatingClass(band: QuarterRankBand): string {

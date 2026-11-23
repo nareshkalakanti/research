@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { APP_TABS, hrefForTab, useAppTab } from "@/lib/app-tab";
+import { APP_TABS, hrefForTab, useAppTab, type AppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
 import { OllamaBar } from "@/components/OllamaBar";
@@ -12,8 +12,8 @@ export type { AppTab };
 export { APP_TABS };
 
 /**
- * Shared topbar + footer. Tab/page switches stay in the same client shell
- * (history API only) so panels are not remounted.
+ * Shared topbar + footer. Tab switches stay on `/` + `?tab=` (history push)
+ * so Back works and AppShell is not remounted.
  */
 export function AppChrome({
   children,

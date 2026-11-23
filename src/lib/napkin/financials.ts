@@ -146,6 +146,15 @@ type QuoteSummaryResult = {
   yahooMissing?: string;
 };
 
+/** Equity napkin only — skip Yahoo fund / ETF stubs that share a ticker stem. */
+function isYahooEquityQuote(qs: Awaited<ReturnType<typeof yf.quoteSummary>> | null): boolean {
+  const qt = String((qs?.price as { quoteType?: string } | undefined)?.quoteType ?? "")
+    .trim()
+    .toUpperCase();
+  if (!qt) return true; // older payloads omit type
+  return qt === "EQUITY";
+}
+
 /** Try NSE / NSE SME / BSE Yahoo symbols until quoteSummary succeeds. */
 async function quoteSummaryForTicker(ticker: string): Promise<QuoteSummaryResult> {
   const bare = resolveBareTicker(ticker);
@@ -160,6 +169,11 @@ async function quoteSummaryForTicker(ticker: string): Promise<QuoteSummaryResult
       const qs = await yf.quoteSummary(symbol, {
         modules: [...QUOTE_MODULES],
       });
+      // Bare `.NS` can resolve to a mutual-fund ghost with the same name (wrong LTP / mcap).
+      if (!isYahooEquityQuote(qs)) {
+        lastErr = new Error(`${symbol}: Yahoo quoteType is not EQUITY`);
+        continue;
+      }
       return { symbol, qs, bare, yahooLimited: false };
     } catch (e) {
       lastErr = e instanceof Error ? e : new Error(String(e));
@@ -452,12 +466,16 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
           (qs as { summaryProfile?: object }).summaryProfile)
       : null,
   );
-  const sector =
-    String(profile.sector || profile.industry || "").trim() || null;
 
   const listed = loadAllCompanies().find(
     (c) => c.ticker.toUpperCase() === bare,
   );
+  // Yahoo often blank for SME; company_about / StockScans industry is the fallback.
+  const sector =
+    String(profile.sector || profile.industry || "").trim() ||
+    listed?.sector?.trim() ||
+    listed?.sub_sector?.trim() ||
+    null;
   const name =
     String(priceMod.longName || priceMod.shortName || "").trim() ||
     listed?.name?.trim() ||

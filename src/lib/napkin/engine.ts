@@ -77,6 +77,10 @@ export type NapkinEngineResult = {
   adjusted_required_cagr: number | null;
   historical_eps_cagr_3y: number | null;
   historical_eps_cagr_5y: number | null;
+  /** CAGR used for screen / growth gap (lower of 3Y/5Y when both exist). */
+  historical_eps_cagr_screen: number | null;
+  /** True when 3Y and 5Y differ and the lower one was used. */
+  historical_cagr_cautious: boolean;
   expected_eps_cagr: number | null;
   growth_gap_3y: number | null;
   growth_gap_5y: number | null;
@@ -207,17 +211,40 @@ function gap(expected: number | null, required: number | null): number | null {
   return expected - required;
 }
 
-export function napkinScreenNote(verdict: NapkinScreenVerdict): string {
+export function napkinScreenNote(
+  verdict: NapkinScreenVerdict,
+  opts?: { cautious?: boolean },
+): string {
+  const caut = opts?.cautious
+    ? " (using the lower of 3Y/5Y EPS CAGR — long window can be inflated by a low base)"
+    : "";
   if (verdict === "PASS") {
-    return "Required CAGR is comfortably below historical EPS CAGR";
+    return `Required CAGR is comfortably below historical EPS CAGR${caut}`;
   }
   if (verdict === "HOLD") {
-    return "Required CAGR is close to historical EPS CAGR — valuation needs continued execution";
+    return `Required CAGR is close to historical EPS CAGR — valuation needs continued execution${caut}`;
   }
   if (verdict === "FAIL") {
-    return "Required CAGR is materially above historical EPS CAGR";
+    return `Required CAGR is materially above historical EPS CAGR${caut}`;
   }
   return "Important financial/valuation inputs are missing";
+}
+
+/**
+ * Prefer the lower of 3Y/5Y when both exist (same idea as PEG-safe): a short
+ * early EPS base can make 5Y look huge while recent 3Y is modest.
+ */
+export function napkinCautiousHistCagr(
+  hist3: number | null | undefined,
+  hist5: number | null | undefined,
+): { cagr: number | null; cautious: boolean } {
+  const a = finite(hist3);
+  const b = finite(hist5);
+  if (a != null && b != null) {
+    const cagr = Math.min(a, b);
+    return { cagr, cautious: a !== b };
+  }
+  return { cagr: b ?? a, cautious: false };
 }
 
 export function napkinScreenVerdict(
@@ -261,7 +288,8 @@ export function napkinAnalysis(
   const adjCagr = requiredCagr(adjusted, cfg.years);
   const gap3 = gap(hist3, basic);
   const gap5 = gap(hist5, basic);
-  const screenGap = hist5 != null ? gap5 : gap3;
+  const { cagr: screenHist, cautious } = napkinCautiousHistCagr(hist3, hist5);
+  const screenGap = gap(screenHist, basic);
   const screen_verdict = napkinScreenVerdict(screenGap, cfg);
 
   return {
@@ -272,6 +300,8 @@ export function napkinAnalysis(
     adjusted_required_cagr: adjCagr,
     historical_eps_cagr_3y: hist3,
     historical_eps_cagr_5y: hist5,
+    historical_eps_cagr_screen: screenHist,
+    historical_cagr_cautious: cautious,
     expected_eps_cagr: expected,
     growth_gap_3y: gap3,
     growth_gap_5y: gap5,
@@ -280,7 +310,7 @@ export function napkinAnalysis(
     growth_gap_expected_adjusted: gap(expected, adjCagr),
     screen_gap: screenGap,
     screen_verdict,
-    screen_note: napkinScreenNote(screen_verdict),
+    screen_note: napkinScreenNote(screen_verdict, { cautious }),
     config: cfg,
   };
 }

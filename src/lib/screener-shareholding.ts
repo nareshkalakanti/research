@@ -62,7 +62,10 @@ function ensureSchema(): void {
   }
 }
 
-function readCache(ticker: string): ScreenerShareholding | "blocked" | null {
+function readCache(
+  ticker: string,
+  opts?: { allowExpired?: boolean },
+): ScreenerShareholding | "blocked" | null {
   ensureSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
   try {
@@ -75,7 +78,10 @@ function readCache(ticker: string): ScreenerShareholding | "blocked" | null {
     if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
       return "blocked";
     }
-    if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
+    if (
+      opts?.allowExpired ||
+      Date.now() - Date.parse(row.fetched_at) < CACHE_MS
+    ) {
       return JSON.parse(row.sh_json) as ScreenerShareholding;
     }
     return null;
@@ -182,6 +188,44 @@ function usable(s: ScreenerShareholding): boolean {
   return s.promoters.some((v) => v != null) || s.shareholders.some((v) => v != null);
 }
 
+/** Parse + cache shareholding from an already-fetched company page (no HTTP). */
+export function ingestShareholdingHtml(ticker: string, html: string): boolean {
+  const key = ticker.trim().toUpperCase();
+  if (!key || !html) return false;
+  const series = parseScreenerShareholdingHtml(html);
+  if (usable(series)) {
+    writeCache(key, series);
+    return true;
+  }
+  return false;
+}
+
+/** True when a usable shareholding row is cached (age ignored). */
+export function hasUsableShareholdingCache(ticker: string): boolean {
+  const cached = readCache(ticker, { allowExpired: true });
+  return !!(cached && cached !== "blocked" && usable(cached));
+}
+
+/** True when shareholding was fetched within `ms` (default: normal cache TTL). */
+export function shareholdingFetchedWithin(
+  ticker: string,
+  ms = CACHE_MS,
+): boolean {
+  try {
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      const r = db
+        .prepare(`SELECT fetched_at FROM screener_shareholding_cache WHERE ticker = ?`)
+        .get(ticker.trim().toUpperCase()) as { fetched_at: string } | undefined;
+      return !!r && Date.now() - Date.parse(r.fetched_at) < ms;
+    } finally {
+      db.close();
+    }
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchScreenerShareholding(
   ticker: string,
   opts?: { force?: boolean },
@@ -204,8 +248,12 @@ export async function fetchScreenerShareholding(
     else writeCache(key, empty(), new Date(Date.now() + EMPTY_RETRY_MS).toISOString());
     return series;
   } catch (err) {
+    // Pause / rate-limit: keep any usable cache (even age-expired). Do not
+    // overwrite good shareholding with an empty blocked row.
+    const cached = readCache(key, { allowExpired: true });
+    if (cached && cached !== "blocked" && usable(cached)) return cached;
     const msg = err instanceof Error ? err.message : String(err);
-    if (/blocked|429|403|captcha/i.test(msg)) {
+    if (/blocked|429|403|captcha/i.test(msg) && !(err instanceof Error && err.name === "ScreenerPausedError")) {
       writeCache(key, empty(), stockBlockedUntil());
     }
     return empty();

@@ -1,13 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import { Loading } from "@/components/Loading";
-import { Suspense } from "react";
-import { WorkspaceApp } from "@/components/WorkspaceApp";
 
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<Loading variant="page" />}>
-      <WorkspaceApp />
-    </Suspense>
-  );
+/** Legacy path — workspace tabs live on `/?tab=dashboard` to avoid remount flicker. */
+export default function DashboardRedirectPage() {
+  useEffect(() => {
+    window.location.replace("/?tab=dashboard");
+  }, []);
+  return <Loading variant="page" label="Opening Dashboard" />;
 }

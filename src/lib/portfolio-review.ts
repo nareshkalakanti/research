@@ -1,15 +1,32 @@
 import { annualPoints, cagrCheck } from "./napkin/quality-flags";
 import { runConcurrent } from "./scrape-pool";
 import { buildScannerData } from "./scanner";
-import { fetchScreenerAnnual, fetchScreenerAnnualBs, fetchScreenerAnnualPl } from "./screener-annual";
+import {
+  annualCachesFresh,
+  fetchScreenerAnnual,
+  fetchScreenerAnnualBs,
+  fetchScreenerAnnualPl,
+  ingestCompanyPageHtml,
+  ingestRicherCompanyPageHtml,
+  seriesStale,
+} from "./screener-annual";
 import { loadCachedQuartersSeries } from "./screener-quarters";
-import { fetchScreenerShareholding } from "./screener-shareholding";
-import { fetchScreenerPeers } from "./screener-peers";
-import { screenerPausedUntil } from "./screener-fetch";
+import {
+  fetchScreenerShareholding,
+  ingestShareholdingHtml,
+  shareholdingFetchedWithin,
+} from "./screener-shareholding";
+import { fetchScreenerPeers, rememberWarehouseFromHtml } from "./screener-peers";
+import {
+  fetchScreenerCompanyHtml,
+  markScreenerInteractive,
+  screenerPausedUntil,
+} from "./screener-fetch";
 import { loadHtIvMap } from "./strategy/ht-store";
 import { fetchCashDebt } from "./yfinance";
 import { trailingYear } from "./ttm";
 import { openSqliteNamed } from "./sqlite-utils";
+import { roce3yFromAnnual, sales3yFromAnnual } from "./value-legs-math";
 
 /**
  * Portfolio review: your stocks, each with a Fundamental score out of 6
@@ -24,7 +41,16 @@ import { openSqliteNamed } from "./sqlite-utils";
  *   Quality turnover    other income ÷ total revenue (sales + other income) < 10%
  *
  * Stocks are stored in data/portfolio_review.db.
+ * Canonical bag is `portfolio` (dedicated Portfolio page). Legacy bags
+ * (value / rotation / dashboard) are migrated into it on open.
  */
+
+export {
+  PORTFOLIO_BAG,
+  parseReviewBag,
+  type ReviewBag,
+} from "./portfolio-review-types";
+import { PORTFOLIO_BAG, type ReviewBag } from "./portfolio-review-types";
 
 export const FUND = { cagr: 10, roce: 10, icr: 5, capexX: 2, otherIncomeMax: 10 } as const;
 
@@ -44,6 +70,10 @@ export type ReviewRow = {
   industry: string | null;
   mcap: number | null;
   added_at: string;
+  /** Value-page quality legs (when available). */
+  sales3y: number | null;
+  roce3y: number | null;
+  pb: number | null;
   fundamental: number;
   scored: number;
   checks: FundCheck[];
@@ -178,14 +208,51 @@ function fullYearBookValue(dates: string[] | undefined, values: Array<number | n
   return null;
 }
 
+function ensureReviewSchema(db: ReturnType<typeof openSqliteNamed>): void {
+  db.exec(`CREATE TABLE IF NOT EXISTS portfolio_review (
+    ticker TEXT PRIMARY KEY,
+    added_at TEXT NOT NULL
+  )`);
+  const cols = db.prepare(`PRAGMA table_info(portfolio_review)`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === "bag")) {
+    // One-time: old PK was ticker-only — split Value vs Rotation lists.
+    db.exec(`
+      ALTER TABLE portfolio_review RENAME TO portfolio_review_legacy;
+      CREATE TABLE portfolio_review (
+        ticker TEXT NOT NULL,
+        bag TEXT NOT NULL,
+        added_at TEXT NOT NULL,
+        PRIMARY KEY (ticker, bag)
+      );
+      INSERT INTO portfolio_review (ticker, bag, added_at)
+        SELECT ticker, 'value', added_at FROM portfolio_review_legacy;
+      DROP TABLE portfolio_review_legacy;
+    `);
+  }
+  // Fold legacy page bags into the dedicated Portfolio list (one ticker once).
+  db.exec(`
+    INSERT OR IGNORE INTO portfolio_review (ticker, bag, added_at)
+    SELECT ticker, 'portfolio', MIN(added_at)
+    FROM portfolio_review
+    WHERE bag IN ('value', 'rotation', 'dashboard')
+    GROUP BY ticker
+  `);
+  // Finished scores survive server restarts — do not re-hit Screener every load.
+  db.exec(`CREATE TABLE IF NOT EXISTS portfolio_scores (
+    ticker TEXT PRIMARY KEY,
+    scored_at INTEGER NOT NULL,
+    ttl_ms INTEGER NOT NULL,
+    checks_json TEXT NOT NULL,
+    m_json TEXT NOT NULL,
+    val_json TEXT NOT NULL
+  )`);
+}
+
 function withDb<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
   const db = openSqliteNamed("portfolio_review.db", { readonly: false, wal: true });
   try {
     db.pragma("busy_timeout = 5000");
-    db.exec(`CREATE TABLE IF NOT EXISTS portfolio_review (
-      ticker TEXT PRIMARY KEY,
-      added_at TEXT NOT NULL
-    )`);
+    ensureReviewSchema(db);
     return fn(db);
   } finally {
     db.close();
@@ -236,34 +303,110 @@ export function resolveTickers(inputs: string[], fresh = false): { found: string
   return { found: [...new Set(found)], missing };
 }
 
-export function addToReview(tickers: string[]): number {
+export function addToReview(
+  tickers: string[],
+  bag: ReviewBag = PORTFOLIO_BAG,
+): number {
   const now = new Date().toISOString();
   return withDb((db) => {
-    const ins = db.prepare(`INSERT OR IGNORE INTO portfolio_review (ticker, added_at) VALUES (?, ?)`);
+    const ins = db.prepare(
+      `INSERT OR IGNORE INTO portfolio_review (ticker, bag, added_at) VALUES (?, ?, ?)`,
+    );
     let n = 0;
     db.transaction(() => {
-      for (const t of tickers) n += ins.run(t.toUpperCase(), now).changes;
+      for (const t of tickers) {
+        const key = t.toUpperCase();
+        // Always land on the Portfolio page bag; drop legacy duplicates.
+        n += ins.run(key, PORTFOLIO_BAG, now).changes;
+        if (bag !== PORTFOLIO_BAG) {
+          db.prepare(
+            `DELETE FROM portfolio_review WHERE ticker = ? AND bag != ?`,
+          ).run(key, PORTFOLIO_BAG);
+        }
+      }
     })();
     return n;
   });
 }
 
-/** Tickers currently on the Portfolio review list (no scoring). */
-export function listReviewTickers(): string[] {
-  return withDb((db) =>
-    (
-      db.prepare(`SELECT ticker FROM portfolio_review ORDER BY ticker`).all() as Array<{
-        ticker: string;
-      }>
-    ).map((r) => r.ticker.toUpperCase()),
-  );
+/** Tickers on the Portfolio page (canonical bag). */
+export function listReviewTickers(bag: ReviewBag = PORTFOLIO_BAG): string[] {
+  return withDb((db) => {
+    const target = bag === PORTFOLIO_BAG ? PORTFOLIO_BAG : bag;
+    return (
+      db
+        .prepare(`SELECT ticker FROM portfolio_review WHERE bag = ? ORDER BY ticker`)
+        .all(target) as Array<{ ticker: string }>
+    ).map((r) => r.ticker.toUpperCase());
+  });
 }
 
-export function removeFromReview(ticker: string | null): void {
+/** Set of Portfolio tickers — Value / Trend hide these once added. */
+export function portfolioReviewTickerSet(): Set<string> {
+  return new Set(listReviewTickers(PORTFOLIO_BAG));
+}
+
+export function removeFromReview(
+  ticker: string | null,
+  bag: ReviewBag = PORTFOLIO_BAG,
+): void {
   withDb((db) => {
-    if (ticker) db.prepare(`DELETE FROM portfolio_review WHERE ticker = ?`).run(ticker.toUpperCase());
-    else db.prepare(`DELETE FROM portfolio_review`).run();
+    if (ticker) {
+      const key = ticker.toUpperCase();
+      // Removing from Portfolio clears every bag for that ticker.
+      if (bag === PORTFOLIO_BAG) {
+        db.prepare(`DELETE FROM portfolio_review WHERE ticker = ?`).run(key);
+      } else {
+        db.prepare(`DELETE FROM portfolio_review WHERE ticker = ? AND bag = ?`).run(
+          key,
+          bag,
+        );
+      }
+    } else if (bag === PORTFOLIO_BAG) {
+      db.prepare(`DELETE FROM portfolio_review`).run();
+    } else {
+      db.prepare(`DELETE FROM portfolio_review WHERE bag = ?`).run(bag);
+    }
   });
+}
+
+/**
+ * One company page fills annual + P&L + BS + shareholding + warehouse id.
+ * Old path fanned out 6–10 Screener hits per add and tripped the global pause.
+ * Skip when caches are fresh or Screener is paused (scorers use age-expired).
+ */
+async function warmScreenerForReview(ticker: string): Promise<void> {
+  const t = ticker.trim().toUpperCase();
+  if (!t) return;
+  if (screenerPausedUntil()) return;
+  const fresh = annualCachesFresh(t);
+  const shFresh = shareholdingFetchedWithin(t);
+  if (fresh.annual && fresh.pl && fresh.bs && shFresh) return;
+  // Hold the lane so Value/baskets bulk fills do not run on top of this.
+  markScreenerInteractive(90_000);
+  try {
+    const html = await fetchScreenerCompanyHtml(t, { consolidated: true });
+    const got = ingestCompanyPageHtml(t, html);
+    ingestShareholdingHtml(t, html);
+    rememberWarehouseFromHtml(t, html);
+    const cached = await fetchScreenerAnnual(t, { cacheOnly: true });
+    const salesN = got.annual
+      ? cached.sales.filter((s) => s != null && s > 0).length
+      : 0;
+    // Short or stale consolidated (demerger: cons stops years ago) → standalone.
+    if (salesN < 4 || seriesStale(cached.dates) || !got.pl || !got.bs) {
+      try {
+        const stand = await fetchScreenerCompanyHtml(t, { consolidated: false });
+        ingestRicherCompanyPageHtml(t, stand);
+        ingestShareholdingHtml(t, stand);
+        rememberWarehouseFromHtml(t, stand);
+      } catch {
+        /* keep consolidated */
+      }
+    }
+  } catch {
+    /* scorers fall back to age-expired cache */
+  }
 }
 
 async function scoreFundamental(t: string): Promise<FundCheck[]> {
@@ -274,12 +417,15 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
   ]);
   const checks: FundCheck[] = [];
   const fromCagr = (id: "bv" | "sales", label: string, dates: string[] | undefined, vals: Array<number | null> | undefined) => {
-    if (!dates?.length || !vals) return { id, label, rule: `> ${FUND.cagr}% CAGR · 10 yrs`, value: "—", points: null, note: "No data" } as FundCheck;
+    if (!dates?.length || !vals) return { id, label, rule: `> ${FUND.cagr}% CAGR · up to 10 yrs`, value: "—", points: null, note: "No data" } as FundCheck;
     const c = cagrCheck(id, label, dates, vals);
+    // Rule shows the span actually used (10 / 5 / 3), not a fixed "10 yrs".
+    const spanNote = c.note?.match(/^(\d+)\s*yrs/)?.[1];
+    const spanLabel = spanNote ? `${spanNote} yrs` : "up to 10 yrs";
     return {
       id,
       label,
-      rule: `> ${FUND.cagr}% CAGR · 10 yrs`,
+      rule: `> ${FUND.cagr}% CAGR · ${spanLabel}`,
       value: c.value,
       points: c.verdict === "na" ? null : c.verdict === "pass" ? 1 : 0,
       note: c.note,
@@ -314,8 +460,15 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
     const pts = all.slice(-(all.length >= 10 ? 10 : all.length >= 5 ? 5 : 3));
     if (pts.length >= 3) {
       const avg = pts.reduce((a, p) => a + p.v, 0) / pts.length;
-      checks.push({ id: "roce", label: "ROCE", rule: `> ${FUND.roce}% average · 10 yrs`, value: pct(avg), points: avg > FUND.roce ? 1 : 0, note: `${pts.length} yrs average` });
-    } else checks.push({ id: "roce", label: "ROCE", rule: `> ${FUND.roce}% average · 10 yrs`, value: "—", points: null, note: "Not enough years" });
+      checks.push({
+        id: "roce",
+        label: "ROCE",
+        rule: `> ${FUND.roce}% average · ${pts.length} yrs`,
+        value: pct(avg),
+        points: avg > FUND.roce ? 1 : 0,
+        note: `${pts.length} yrs average · FY${pts[0]!.date.slice(0, 4)} → FY${pts[pts.length - 1]!.date.slice(0, 4)}`,
+      });
+    } else checks.push({ id: "roce", label: "ROCE", rule: `> ${FUND.roce}% average · up to 10 yrs`, value: "—", points: null, note: "Not enough years" });
   }
   // Interest coverage, latest year
   {
@@ -622,13 +775,31 @@ async function scoreValuation(
       }
     } else out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: "—", points: null, note: "No EPS / price" });
   }
-  // Cash rich
+  // Cash rich — Yahoo cash first; else Screener BS cash & bank (same page as debt).
   {
     const cd = await fetchCashDebt(t, market).catch(() => ({ cash_cr: null, debt_cr: null, symbol: null }));
-    const debt = cd.debt_cr ?? last(bs?.borrowings) ?? null;
-    if (cd.cash_cr == null || mcap == null) out.push({ id: "cash", label: "Cash rich rating", rule: "cash − debt > market cap +2", value: "—", points: null, note: "No cash figure" });
-    else {
-      const net = cd.cash_cr - (debt ?? 0);
+    let bsForCash = bs;
+    // Only re-hit Screener when an older BS cache predates the cash field.
+    if (cd.cash_cr == null && bs && bs.cash === undefined) {
+      bsForCash = await fetchScreenerAnnualBs(t, { force: true }).catch(() => bs);
+    }
+    const bsCash = bsForCash?.cash?.length
+      ? fullYearBookValue(bsForCash.dates, bsForCash.cash)
+      : null;
+    const cashCr = cd.cash_cr ?? (bsCash != null && bsCash > 0 ? bsCash : null);
+    const debt = cd.debt_cr ?? last(bsForCash?.borrowings) ?? last(bs?.borrowings) ?? null;
+    const cashSrc = cd.cash_cr != null ? "Yahoo" : bsCash != null && bsCash > 0 ? "Screener BS" : null;
+    if (cashCr == null || mcap == null) {
+      out.push({
+        id: "cash",
+        label: "Cash rich rating",
+        rule: "cash − debt > market cap +2",
+        value: "—",
+        points: null,
+        note: "No cash figure (Yahoo / Screener BS)",
+      });
+    } else {
+      const net = cashCr - (debt ?? 0);
       const p = net > mcap ? 2 : 0;
       out.push({
         id: "cash",
@@ -636,94 +807,427 @@ async function scoreValuation(
         rule: "cash − debt > market cap +2",
         value: `${net >= 0 ? "+" : "−"}₹${Math.abs(Math.round(net)).toLocaleString("en-IN")} Cr`,
         points: p,
-        note: `cash ₹${Math.round(cd.cash_cr).toLocaleString("en-IN")} Cr − debt ₹${Math.round(debt ?? 0).toLocaleString("en-IN")} Cr vs market cap ₹${Math.round(mcap).toLocaleString("en-IN")} Cr`,
+        note: `cash ₹${Math.round(cashCr).toLocaleString("en-IN")} Cr − debt ₹${Math.round(debt ?? 0).toLocaleString("en-IN")} Cr vs market cap ₹${Math.round(mcap).toLocaleString("en-IN")} Cr · ${cashSrc}`,
       });
     }
   }
   return out;
 }
 
-/** Scores kept per stock for 6 h: reloads are instant and never re-hit Screener. */
+/** In-memory score TTL (same process). */
 const SCORE_TTL_MS = 6 * 3_600_000;
+/** Disk score TTL — already-scored stocks skip Screener across reloads/restarts. */
+const SCORE_DISK_TTL_MS = 7 * 24 * 3_600_000;
 /** A stock with nothing scored is retried after this. */
 const EMPTY_SCORE_TTL_MS = 5 * 60_000;
-const scoreMemo = new Map<string, { at: number; ttl: number; checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] }>();
+
+type ScoreBundle = { at: number; ttl: number; checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] };
+const scoreMemo = new Map<string, ScoreBundle>();
+
+function readDiskScore(ticker: string): ScoreBundle | null {
+  return withDb((db) => {
+    const row = db
+      .prepare(
+        `SELECT scored_at, ttl_ms, checks_json, m_json, val_json FROM portfolio_scores WHERE ticker = ?`,
+      )
+      .get(ticker.toUpperCase()) as
+      | { scored_at: number; ttl_ms: number; checks_json: string; m_json: string; val_json: string }
+      | undefined;
+    if (!row) return null;
+    if (Date.now() - row.scored_at >= row.ttl_ms) return null;
+    try {
+      return {
+        at: row.scored_at,
+        ttl: row.ttl_ms,
+        checks: JSON.parse(row.checks_json) as FundCheck[],
+        m: JSON.parse(row.m_json) as FundCheck[],
+        val: JSON.parse(row.val_json) as FundCheck[],
+      };
+    } catch {
+      return null;
+    }
+  });
+}
+
+function writeDiskScore(ticker: string, v: ScoreBundle): void {
+  withDb((db) => {
+    db.prepare(
+      `INSERT INTO portfolio_scores (ticker, scored_at, ttl_ms, checks_json, m_json, val_json)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(ticker) DO UPDATE SET
+         scored_at = excluded.scored_at,
+         ttl_ms = excluded.ttl_ms,
+         checks_json = excluded.checks_json,
+         m_json = excluded.m_json,
+         val_json = excluded.val_json`,
+    ).run(
+      ticker.toUpperCase(),
+      v.at,
+      v.ttl,
+      JSON.stringify(v.checks),
+      JSON.stringify(v.m),
+      JSON.stringify(v.val),
+    );
+  });
+}
+
+/** Memory first, then disk — only then hit Screener. */
+function lookupScore(ticker: string): ScoreBundle | null {
+  const key = ticker.toUpperCase();
+  const mem = scoreMemo.get(key);
+  if (mem && Date.now() - mem.at < mem.ttl) return mem;
+  const disk = readDiskScore(key);
+  if (disk) {
+    scoreMemo.set(key, disk);
+    return disk;
+  }
+  return null;
+}
+
 async function cachedScore(
   t: string,
   market: string,
   ctx: () => ReturnType<typeof loadPeers>,
 ): Promise<{ checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] }> {
-  const hit = scoreMemo.get(t);
-  if (hit && Date.now() - hit.at < hit.ttl) return hit;
-  // The three scores are independent — run them together.
-  const [checks, m, val] = await Promise.all([scoreFundamental(t), scoreManagement(t), scoreValuation(t, market, ctx())]);
+  const hit = lookupScore(t);
+  if (hit) return hit;
+  // One (maybe two) Screener company page(s) → all statement caches, then score.
+  await warmScreenerForReview(t);
+  const [checks, m, val] = await Promise.all([
+    scoreFundamental(t),
+    scoreManagement(t),
+    scoreValuation(t, market, ctx()),
+  ]);
   // Nothing scored usually means Screener was paused or slow: keep that only
   // briefly so the stock is retried, instead of showing "No data" for 6 h.
   const empty = !checks.some((c) => c.points != null) && !m.some((c) => c.points != null);
-  const v = { at: Date.now(), ttl: empty ? EMPTY_SCORE_TTL_MS : SCORE_TTL_MS, checks, m, val };
-  scoreMemo.set(t, v);
+  const v: ScoreBundle = {
+    at: Date.now(),
+    ttl: empty ? EMPTY_SCORE_TTL_MS : SCORE_DISK_TTL_MS,
+    checks,
+    m,
+    val,
+  };
+  scoreMemo.set(t.toUpperCase(), { ...v, ttl: empty ? EMPTY_SCORE_TTL_MS : SCORE_TTL_MS });
+  if (!empty) writeDiskScore(t, v);
   return v;
 }
 
 /** Forget every kept score (app Refresh button). */
 export function clearReviewScores(): void {
   scoreMemo.clear();
+  withDb((db) => {
+    db.prepare(`DELETE FROM portfolio_scores`).run();
+  });
 }
 
-export async function buildReview(opts?: { fresh?: boolean }): Promise<{ rows: ReviewRow[]; screener_paused_until: string | null }> {
-  if (opts?.fresh) scoreMemo.clear();
-  const list = withDb((db) => db.prepare(`SELECT ticker, added_at FROM portfolio_review ORDER BY added_at, ticker`).all() as Array<{ ticker: string; added_at: string }>);
-  const scan = new Map(buildScannerData().rows.map((r) => [r.t.toUpperCase(), r]));
-  let peerCtx: ReturnType<typeof loadPeers> | null = null;
-  const ctx = () => {
-    if (!peerCtx) {
-      peerCtx = loadPeers();
-    }
-    return peerCtx;
+type ScanRow = {
+  t: string;
+  name: string;
+  market: string;
+  industry: string | null;
+  mcap: number | null;
+};
+
+type ValueLegs = { sales3y: number | null; roce3y: number | null; pb: number | null };
+
+function rowFromScores(
+  ticker: string,
+  added_at: string,
+  s: ScanRow | undefined,
+  checks: FundCheck[],
+  m: FundCheck[],
+  val: FundCheck[],
+  legs?: ValueLegs | null,
+): ReviewRow {
+  const scored = checks.filter((c) => c.points != null).length;
+  const fundamental = checks.reduce((a, c) => a + (c.points ?? 0), 0);
+  const mScored = m.filter((c) => c.points != null).length;
+  const management = m.reduce((a, c) => a + (c.points ?? 0), 0);
+  const vScored = val.filter((c) => c.points != null).length;
+  const valuation = val.reduce((a, c) => a + (c.points ?? 0), 0);
+  const quality = fundamental + management;
+  const total = quality + valuation;
+  const rating: ReviewRow["rating"] =
+    !scored && !mScored
+      ? "No data"
+      : total >= RATING.excellent
+        ? "Excellent"
+        : total >= RATING.good
+          ? "Good"
+          : total >= RATING.average
+            ? "Average"
+            : "Poor";
+  return {
+    t: ticker,
+    name: s?.name ?? ticker,
+    market: s?.market ?? "NSE",
+    industry: s?.industry ?? null,
+    mcap: s?.mcap ?? null,
+    added_at,
+    sales3y: legs?.sales3y ?? null,
+    roce3y: legs?.roce3y ?? null,
+    pb: legs?.pb ?? null,
+    fundamental,
+    scored,
+    checks,
+    management,
+    m_scored: mScored,
+    m_checks: m,
+    quality,
+    valuation,
+    v_scored: vScored,
+    v_checks: val,
+    total,
+    total_max: 17,
+    rating,
   };
-  const rows = await runConcurrent(list, 6, async ({ ticker, added_at }) => {
-    const s = scan.get(ticker);
-    const { checks, m, val } = await cachedScore(ticker, s?.market ?? "NSE", ctx);
-    const scored = checks.filter((c) => c.points != null).length;
-    const fundamental = checks.reduce((a, c) => a + (c.points ?? 0), 0);
-    const mScored = m.filter((c) => c.points != null).length;
-    const management = m.reduce((a, c) => a + (c.points ?? 0), 0);
-    const vScored = val.filter((c) => c.points != null).length;
-    const valuation = val.reduce((a, c) => a + (c.points ?? 0), 0);
-    const quality = fundamental + management;
-    const total = quality + valuation;
-    const totalMax = 17;
-    const rating: ReviewRow["rating"] =
-      !scored && !mScored
-        ? "No data"
-        : total >= RATING.excellent
-          ? "Excellent"
-          : total >= RATING.good
-            ? "Good"
-            : total >= RATING.average
-              ? "Average"
-              : "Poor";
-    return {
-      t: ticker,
-      name: s?.name ?? ticker,
-      market: s?.market ?? "NSE",
-      industry: s?.industry ?? null,
-      mcap: s?.mcap ?? null,
-      added_at,
-      fundamental,
-      scored,
-      checks,
-      management,
-      m_scored: mScored,
-      m_checks: m,
-      quality,
-      valuation,
-      v_scored: vScored,
-      v_checks: val,
-      total,
-      total_max: totalMax,
-      rating,
-    } satisfies ReviewRow;
+}
+
+function pendingRow(
+  ticker: string,
+  added_at: string,
+  s: ScanRow | undefined,
+  legs?: ValueLegs | null,
+): ReviewRow {
+  return {
+    t: ticker,
+    name: s?.name ?? ticker,
+    market: s?.market ?? "NSE",
+    industry: s?.industry ?? null,
+    mcap: s?.mcap ?? null,
+    added_at,
+    sales3y: legs?.sales3y ?? null,
+    roce3y: legs?.roce3y ?? null,
+    pb: legs?.pb ?? null,
+    fundamental: 0,
+    scored: -1,
+    checks: [],
+    management: 0,
+    m_scored: 0,
+    m_checks: [],
+    quality: 0,
+    valuation: 0,
+    v_scored: 0,
+    v_checks: [],
+    total: 0,
+    total_max: 0,
+    rating: "No data",
+  };
+}
+
+/** In-flight Screener scoring per bag — list paints first, scores fill in. */
+const scoreJobs = new Map<ReviewBag, Promise<void>>();
+
+function kickScoreJob(
+  bag: ReviewBag,
+  need: Array<{ ticker: string; market: string }>,
+): void {
+  if (!need.length || scoreJobs.has(bag)) return;
+  const job = (async () => {
+    let peerCtx: ReturnType<typeof loadPeers> | null = null;
+    const ctx = () => {
+      if (!peerCtx) peerCtx = loadPeers();
+      return peerCtx;
+    };
+    await runConcurrent(need, 6, async ({ ticker, market }) => {
+      try {
+        await cachedScore(ticker, market, ctx);
+      } catch {
+        /* next poll retries via empty TTL */
+      }
+    });
+  })().finally(() => {
+    if (scoreJobs.get(bag) === job) scoreJobs.delete(bag);
   });
-  return { rows: rows.filter((r): r is ReviewRow => !!r), screener_paused_until: screenerPausedUntil() };
+  scoreJobs.set(bag, job);
+}
+
+/**
+ * Score one ticker with the Portfolio review model (fund / mgmt / valuation).
+ * Used by Napkin — does not require the ticker to be on a review bag.
+ */
+export async function scoreReviewTicker(
+  ticker: string,
+  opts?: { fresh?: boolean },
+): Promise<ReviewRow> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return pendingRow("", new Date().toISOString(), undefined);
+  if (opts?.fresh) {
+    scoreMemo.delete(key);
+    withDb((db) => {
+      try {
+        db.prepare(`DELETE FROM portfolio_scores WHERE ticker = ?`).run(key);
+      } catch {
+        /* no table yet */
+      }
+    });
+  }
+  const scan = buildScannerData().rows.find((r) => r.t.toUpperCase() === key);
+  const s: ScanRow | undefined = scan
+    ? {
+        t: scan.t,
+        name: scan.name,
+        market: scan.market,
+        industry: scan.industry ?? null,
+        mcap: scan.mcap ?? null,
+      }
+    : undefined;
+  const hit = lookupScore(key);
+  if (hit && !opts?.fresh) {
+    return rowFromScores(key, new Date().toISOString(), s, hit.checks, hit.m, hit.val);
+  }
+  let peerCtx: ReturnType<typeof loadPeers> | null = null;
+  const { checks, m, val } = await cachedScore(key, s?.market ?? "NSE", () => {
+    if (!peerCtx) peerCtx = loadPeers();
+    return peerCtx;
+  });
+  return rowFromScores(key, new Date().toISOString(), s, checks, m, val);
+}
+
+/**
+ * Build the review table. Cached scores return at once; uncached tickers show
+ * as "Scoring…" (`scored: -1`) while Screener work runs in the background.
+ * `fresh: true` clears the memo and waits for a full rescore (Refresh).
+ */
+export async function buildReview(opts?: {
+  fresh?: boolean;
+  bag?: ReviewBag;
+}): Promise<{ rows: ReviewRow[]; pending: number; screener_paused_until: string | null }> {
+  if (opts?.fresh) scoreMemo.clear();
+  const bag = opts?.bag ?? PORTFOLIO_BAG;
+  const list = withDb(
+    (db) =>
+      db
+        .prepare(
+          `SELECT ticker, added_at FROM portfolio_review WHERE bag = ? ORDER BY added_at, ticker`,
+        )
+        .all(bag) as Array<{ ticker: string; added_at: string }>,
+  );
+  const scan = new Map(
+    buildScannerData().rows.map((r) => [
+      r.t.toUpperCase(),
+      {
+        t: r.t,
+        name: r.name,
+        market: r.market,
+        industry: r.industry ?? null,
+        mcap: r.mcap ?? null,
+      } satisfies ScanRow,
+    ]),
+  );
+
+  // Value-page legs (Sales 3Y / ROCE 3Y / P/B) from the same caches Value uses.
+  const valueLegs = new Map<string, ValueLegs>();
+  try {
+    const db = openSqliteNamed("strategy.db", { readonly: true, wal: true });
+    try {
+      for (const r of db
+        .prepare(
+          `SELECT UPPER(ticker) AS t, sales_growth_3y AS sales3y, roce_3y AS roce3y, pb
+           FROM ht_iv_cache WHERE status IN ('ok', 'partial')`,
+        )
+        .all() as Array<{
+        t: string;
+        sales3y: number | null;
+        roce3y: number | null;
+        pb: number | null;
+      }>) {
+        valueLegs.set(r.t, {
+          sales3y: r.sales3y,
+          roce3y: r.roce3y,
+          pb: r.pb != null && r.pb > 0 ? r.pb : null,
+        });
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* optional */
+  }
+  try {
+    const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+    try {
+      for (const r of db
+        .prepare(`SELECT UPPER(ticker) AS t, annual_json FROM screener_annual_cache`)
+        .all() as Array<{ t: string; annual_json: string }>) {
+        try {
+          const a = JSON.parse(r.annual_json) as {
+            dates: string[];
+            sales: Array<number | null>;
+            roce: Array<number | null>;
+          };
+          const months = new Map<string, number>();
+          for (const d of a.dates) months.set(d.slice(5, 7), (months.get(d.slice(5, 7)) ?? 0) + 1);
+          const main = [...months].sort((x, y) => y[1] - x[1])[0]?.[0];
+          const idx = a.dates.map((d, i) => (d.slice(5, 7) === main ? i : -1)).filter((i) => i >= 0);
+          const sales = idx.map((i) => a.sales[i] ?? null);
+          const roce = idx.map((i) => a.roce[i] ?? null);
+          const sales3y = sales3yFromAnnual(sales);
+          const roce3y = roce3yFromAnnual(roce);
+          const prev = valueLegs.get(r.t) ?? { sales3y: null, roce3y: null, pb: null };
+          valueLegs.set(r.t, {
+            sales3y: sales3y ?? prev.sales3y,
+            roce3y: roce3y ?? prev.roce3y,
+            pb: prev.pb,
+          });
+        } catch {
+          /* skip */
+        }
+      }
+    } finally {
+      db.close();
+    }
+  } catch {
+    /* optional */
+  }
+
+  const need: Array<{ ticker: string; market: string }> = [];
+  const rows: ReviewRow[] = [];
+  for (const { ticker, added_at } of list) {
+    const key = ticker.toUpperCase();
+    const s = scan.get(key);
+    const legs = valueLegs.get(key) ?? null;
+    const hit = lookupScore(key);
+    if (hit) {
+      rows.push(rowFromScores(key, added_at, s, hit.checks, hit.m, hit.val, legs));
+    } else {
+      need.push({ ticker: key, market: s?.market ?? "NSE" });
+      rows.push(pendingRow(key, added_at, s, legs));
+    }
+  }
+
+  if (opts?.fresh && need.length) {
+    let peerCtx: ReturnType<typeof loadPeers> | null = null;
+    const ctx = () => {
+      if (!peerCtx) peerCtx = loadPeers();
+      return peerCtx;
+    };
+    const scored = await runConcurrent(need, 6, async ({ ticker, market }) => {
+      const { checks, m, val } = await cachedScore(ticker, market, ctx);
+      const item = list.find((x) => x.ticker.toUpperCase() === ticker);
+      return rowFromScores(
+        ticker,
+        item?.added_at ?? "",
+        scan.get(ticker),
+        checks,
+        m,
+        val,
+        valueLegs.get(ticker) ?? null,
+      );
+    });
+    const byT = new Map(scored.filter((r): r is ReviewRow => !!r).map((r) => [r.t, r]));
+    return {
+      rows: rows.map((r) => byT.get(r.t) ?? r),
+      pending: 0,
+      screener_paused_until: screenerPausedUntil(),
+    };
+  }
+
+  kickScoreJob(bag, need);
+  return {
+    rows,
+    pending: need.length,
+    screener_paused_until: screenerPausedUntil(),
+  };
 }

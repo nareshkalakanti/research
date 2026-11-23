@@ -49,14 +49,8 @@ export function napkinSimpleFromStock(row: NapkinStockJson): NapkinSimplePayload
     historical_eps_cagr_3y: row.cagr.eps_3y,
     historical_eps_cagr_5y: row.cagr.eps_5y,
   });
-  const hist =
-    math.historical_eps_cagr_5y != null
-      ? math.historical_eps_cagr_5y
-      : math.historical_eps_cagr_3y;
-  const gap =
-    math.historical_eps_cagr_5y != null
-      ? math.growth_gap_5y
-      : math.growth_gap_3y;
+  const hist = math.historical_eps_cagr_screen;
+  const gap = math.screen_gap;
   const dq = row.data_quality;
   const cagrSrc = dq?.cagr_5y_source ?? null;
   const sources = ["Yahoo Finance", "Screener"];

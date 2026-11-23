@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveQuarterPanelData } from "@/lib/quarter-metrics-compute";
+import { listedPriceFor } from "@/lib/listed-price";
 import { loadMetricsMap } from "@/lib/metrics";
 import { computeForwardPe, epsFromQuarterPanel } from "@/lib/valuation";
 
@@ -20,10 +21,11 @@ export async function GET(req: NextRequest) {
   try {
     const metrics = loadMetricsMap();
     const cached = metrics.get(ticker);
+    const freshest = listedPriceFor(ticker)?.price ?? null;
     const rowPrice =
       Number.isFinite(priceOverride) && priceOverride > 0
         ? priceOverride
-        : (cached?.price ?? null);
+        : (freshest ?? cached?.price ?? null);
 
     const result = await resolveQuarterPanelData(
       ticker,

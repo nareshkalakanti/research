@@ -2,6 +2,7 @@
 
 import { Loading } from "@/components/Loading";
 import { usePagedRows } from "@/components/MoreRows";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { useMemo, useState } from "react";
 import type { FamilyRow } from "@/components/FamilyMapCards";
 
@@ -255,14 +256,17 @@ export function OutsideCommonsTable({
                             {r.name}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="outside-commons-ticker"
-                          onClick={() => onTicker?.(r.ticker)}
-                          title="Open stock network"
-                        >
-                          {r.ticker}
-                        </button>
+                        <span className="outside-commons-ticker-row">
+                          <button
+                            type="button"
+                            className="outside-commons-ticker"
+                            onClick={() => onTicker?.(r.ticker)}
+                            title="Open stock network"
+                          >
+                            {r.ticker}
+                          </button>
+                          <ReviewPlusButton ticker={r.ticker} />
+                        </span>
                       </div>
                     </td>
                     <td className="num col-groups">

@@ -1,9 +1,11 @@
 /**
  * Named ticker lists (e.g. Alpha) — data/named_watchlists.db
+ * Industry/sector always from StockScans (stock master) on read and write.
  */
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { masterLabel, withStockscansLabels } from "./stock-master";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "named_watchlists.db");
@@ -138,12 +140,14 @@ export function allNamedWatchMembers(): NamedWatchRow[] {
   const db = openRead();
   if (!db) return [];
   try {
-    const rows = db
-      .prepare(
-        `SELECT list_key, ticker, name, market, sector, sub_sector
-         FROM named_watchlists ORDER BY ticker COLLATE NOCASE`,
-      )
-      .all() as NamedWatchRow[];
+    const rows = (
+      db
+        .prepare(
+          `SELECT list_key, ticker, name, market, sector, sub_sector
+           FROM named_watchlists ORDER BY ticker COLLATE NOCASE`,
+        )
+        .all() as NamedWatchRow[]
+    ).map((r) => withStockscansLabels(r));
     const byTicker = new Map<string, NamedWatchRow>();
     for (const row of rows) {
       const t = (row.ticker || "").trim().toUpperCase();
@@ -227,14 +231,16 @@ export function loadNamedWatchlist(listKey: string): NamedWatchRow[] {
   const db = openRead();
   if (!db) return [];
   try {
-    return db
-      .prepare(
-        `SELECT list_key, ticker, name, market, sector, sub_sector
-         FROM named_watchlists
-         WHERE list_key = ?
-         ORDER BY ticker COLLATE NOCASE`,
-      )
-      .all(key) as NamedWatchRow[];
+    return (
+      db
+        .prepare(
+          `SELECT list_key, ticker, name, market, sector, sub_sector
+           FROM named_watchlists
+           WHERE list_key = ?
+           ORDER BY ticker COLLATE NOCASE`,
+        )
+        .all(key) as NamedWatchRow[]
+    ).map((r) => withStockscansLabels(r));
   } finally {
     db.close();
   }
@@ -253,6 +259,9 @@ export function upsertNamedWatch(
   const key = normalizeListKey(listKey);
   const ticker = (row.ticker || "").trim().toUpperCase();
   if (!key || !ticker) return null;
+  const ss = masterLabel(ticker);
+  const sector = ss?.sector ?? null;
+  const sub_sector = ss?.industry ?? null;
   const db = openWrite();
   try {
     const now = new Date().toISOString();
@@ -263,16 +272,16 @@ export function upsertNamedWatch(
        ON CONFLICT(list_key, ticker) DO UPDATE SET
          market = excluded.market,
          name = COALESCE(excluded.name, named_watchlists.name),
-         sector = COALESCE(excluded.sector, named_watchlists.sector),
-         sub_sector = COALESCE(excluded.sub_sector, named_watchlists.sub_sector),
+         sector = excluded.sector,
+         sub_sector = excluded.sub_sector,
          updated_at = excluded.updated_at`,
     ).run(
       key,
       ticker,
       (row.market || "NSE").trim().toUpperCase() || "NSE",
       row.name?.trim() || null,
-      row.sector?.trim() || null,
-      row.sub_sector?.trim() || null,
+      sector,
+      sub_sector,
       now,
     );
     db.prepare(
@@ -285,8 +294,8 @@ export function upsertNamedWatch(
         ticker,
         name: row.name?.trim() || null,
         market: (row.market || "NSE").trim().toUpperCase() || "NSE",
-        sector: row.sector?.trim() || null,
-        sub_sector: row.sub_sector?.trim() || null,
+        sector,
+        sub_sector,
       }
     );
   } finally {
@@ -339,13 +348,14 @@ export function replaceNamedWatchlist(
         const ticker = (r.ticker || "").trim().toUpperCase();
         if (!ticker || seen.has(ticker)) continue;
         seen.add(ticker);
+        const ss = masterLabel(ticker);
         ins.run(
           key,
           ticker,
           (r.market || "NSE").trim().toUpperCase() || "NSE",
           r.name?.trim() || null,
-          r.sector?.trim() || null,
-          r.sub_sector?.trim() || null,
+          ss?.sector ?? null,
+          ss?.industry ?? null,
           now,
         );
         n += 1;

@@ -1,0 +1,6 @@
+{
+  "note": "Reference UI for Valuation Distribution on top of Value → Valuation. Collapsible Valuation & Trend Graphs; five buckets from P/E vs own 5Y median (15% soft / 30% extreme).",
+  "as_of": "2026-11-21",
+  "source": "valuation-distribution-reference.png",
+  "buckets": ["Extremely Undervalued", "Undervalued", "Fairly Valued", "Overvalued", "Extremely Overvalued"]
+}

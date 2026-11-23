@@ -54,8 +54,8 @@ function hasBseScrip(ticker: string): boolean {
   }
 }
 
-/** Yahoo suffix from metrics — `.BO` means Bombay is the live feed. */
-function yfSymbolSuffixMarket(ticker: string): "BSE" | "NSE" | null {
+/** Yahoo suffix from metrics — `.BO` means Bombay is the live feed; `-SM.NS` is NSE SME. */
+function yfSymbolSuffixMarket(ticker: string): "BSE" | "NSE" | "NSE SME" | null {
   const p = path.join(DATA_DIR, "metrics.db");
   if (!fs.existsSync(p)) return null;
   let db: Database.Database | null = null;
@@ -67,6 +67,8 @@ function yfSymbolSuffixMarket(ticker: string): "BSE" | "NSE" | null {
       )
       .get(ticker) as { yf?: string | null } | undefined;
     const yf = clean(row?.yf).toUpperCase();
+    // Bare `.NS` must not erase SME — `-SM.NS` is the Emerge / SME board quote.
+    if (/-SM\.NS$/i.test(yf) || yf.includes("-SM.")) return "NSE SME";
     if (yf.endsWith(".BO")) return "BSE";
     if (yf.endsWith(".NS")) return "NSE";
     return null;
@@ -81,19 +83,27 @@ function yfSymbolSuffixMarket(ticker: string): "BSE" | "NSE" | null {
   }
 }
 
+function isSmeMarket(m: string | null | undefined): boolean {
+  return /SME|EMERGE/i.test(clean(m));
+}
+
 /** NSE / BSE / SME string from Yahoo suffix, about, metrics, holdings, lists, or BSE scrip. */
 export function resolveListingMarket(ticker: string): string | null {
   const t = ticker.trim().toUpperCase();
   if (!t) return null;
-  // Prefer Yahoo venue: BSE-only names are often mis-tagged NSE in about/lists.
+  const fromAbout = readMarketColumn(
+    "company_about.db",
+    `SELECT market FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
+    t,
+  );
+  // Prefer Yahoo venue for main-board BSE vs NSE (about/lists often mis-tag BSE-only names).
+  // Never let a bare `.NS` suffix demote an SME / Emerge listing — that picks ghost fund stubs.
   const fromYf = yfSymbolSuffixMarket(t);
+  if (isSmeMarket(fromAbout)) return fromAbout;
+  if (fromYf === "NSE SME") return fromYf;
   if (fromYf) return fromYf;
   return (
-    readMarketColumn(
-      "company_about.db",
-      `SELECT market FROM company_about WHERE UPPER(ticker) = ? LIMIT 1`,
-      t,
-    ) ||
+    fromAbout ||
     readMarketColumn(
       "metrics.db",
       `SELECT market FROM stock_metrics WHERE UPPER(ticker) = ? LIMIT 1`,

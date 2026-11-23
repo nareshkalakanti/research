@@ -20,7 +20,8 @@ export async function GET(req: NextRequest) {
     resolveListingMarket(ticker);
   try {
     const weekly = req.nextUrl.searchParams.get("weekly") === "1";
-    const tape = await loadQuoteTape(ticker, market, { weekly });
+    const chart = req.nextUrl.searchParams.get("chart") === "1";
+    const tape = await loadQuoteTape(ticker, market, { weekly, chart });
     return NextResponse.json({ ok: true, ticker, tape });
   } catch (e) {
     return NextResponse.json(

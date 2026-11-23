@@ -300,12 +300,15 @@ export async function computeAndCacheQuarterMetrics(
 
     const metrics = loadMetricsMap();
     const priceRow = metrics.get(key);
+    const { listedPriceFor } = await import("./listed-price");
+    // Live Yahoo first, then freshest cached (Screener may beat stale stock_metrics).
+    const freshest = listedPriceFor(key)?.price ?? null;
     const price =
       priceOverride != null &&
       Number.isFinite(priceOverride) &&
       priceOverride > 0
         ? priceOverride
-        : (yahooPrice ?? priceRow?.price ?? null);
+        : (yahooPrice ?? freshest ?? priceRow?.price ?? null);
 
     const latestNp = quarters[quarters.length - 1]?.netIncome ?? null;
     const cfProfit = computeCfProfit(

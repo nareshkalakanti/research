@@ -104,11 +104,27 @@ export function cagrCheck(
   if (pts.length < QF_RULES.minYears + 1) {
     return { id, label, rule, value: "—", verdict: "na", note: `Only ${Math.max(0, pts.length - 1)} years of data` };
   }
-  // 10 years when available, else 5, else 3.
+  // 10 years when available, else 5, else 3 — shorten when the start year is a low base.
   const avail = pts.length - 1;
-  const span = avail >= QF_RULES.years ? QF_RULES.years : avail >= 5 ? 5 : 3;
+  let span = avail >= QF_RULES.years ? QF_RULES.years : avail >= 5 ? 5 : 3;
   const end = pts[pts.length - 1]!;
-  const start = pts[pts.length - 1 - span]!;
+  let start = pts[pts.length - 1 - span]!;
+  const typical = (() => {
+    const xs = pts.slice(-10).map((p) => p.v).filter((v) => v > 0).sort((a, b) => a - b);
+    return xs.length ? xs[xs.length >> 1]! : null;
+  })();
+  let lowBase = false;
+  if (
+    typical != null &&
+    start.v > 0 &&
+    start.v < typical * 0.5 &&
+    avail >= 3 &&
+    span > 3
+  ) {
+    span = 3;
+    start = pts[pts.length - 1 - span]!;
+    lowBase = true;
+  }
   if (start.v <= 0 || end.v <= 0) {
     return {
       id,
@@ -127,7 +143,9 @@ export function cagrCheck(
     rule,
     value: pct(g),
     verdict: g >= QF_RULES.cagr ? "pass" : "fail",
-    note: `${span} yrs · ${start.date.slice(0, 4)} → ${end.date.slice(0, 4)}`,
+    note: `${span} yrs · ${start.date.slice(0, 4)} → ${end.date.slice(0, 4)}${
+      lowBase ? " · shortened — early year was a low base" : ""
+    }`,
   };
 }
 
@@ -178,23 +196,28 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
       ? cagrCheck("eps", "EPS growth", epsDates, epsVals)
       : { id: "eps", label: "EPS growth", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No annual EPS" },
   );
-  // 3) ROCE average
+  // 3) ROCE — median of recent years (mean is skewed by one listing/base spike).
   {
     const pts = annual ? annualPoints(annual.dates, annual.roce) : [];
     const last = pts.slice(-(pts.length >= QF_RULES.years ? QF_RULES.years : pts.length >= 5 ? 5 : 3));
     if (last.length >= QF_RULES.minYears) {
-      const avg = last.reduce((a, p) => a + p.v, 0) / last.length;
+      const sorted = [...last.map((p) => p.v)].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      const med =
+        sorted.length % 2
+          ? sorted[mid]!
+          : (sorted[mid - 1]! + sorted[mid]!) / 2;
       const below = last.filter((p) => p.v < QF_RULES.roceAvg).length;
       quality.push({
         id: "roce",
         label: "ROCE",
-        rule: `≥ ${QF_RULES.roceAvg}% average`,
-        value: pct(avg),
-        verdict: avg >= QF_RULES.roceAvg ? "pass" : "fail",
-        note: `${last.length} yrs avg · ${below ? `${below} yr${below > 1 ? "s" : ""} below ${QF_RULES.roceAvg}%` : `never below ${QF_RULES.roceAvg}%`}`,
+        rule: `≥ ${QF_RULES.roceAvg}% median`,
+        value: pct(med),
+        verdict: med >= QF_RULES.roceAvg ? "pass" : "fail",
+        note: `${last.length} yrs median · ${below ? `${below} yr${below > 1 ? "s" : ""} below ${QF_RULES.roceAvg}%` : `never below ${QF_RULES.roceAvg}%`}`,
       });
     } else {
-      quality.push({ id: "roce", label: "ROCE", rule: `≥ ${QF_RULES.roceAvg}% average`, value: "—", verdict: "na", note: "Not enough years" });
+      quality.push({ id: "roce", label: "ROCE", rule: `≥ ${QF_RULES.roceAvg}% median`, value: "—", verdict: "na", note: "Not enough years" });
     }
   }
   // 4) Promoter holding steady / rising
@@ -466,20 +489,33 @@ async function buildSpecial(
   }
 
   // 2) Cash rich: cash − debt > market cap, promoter > 45%, pledge = 0.
+  // Yahoo cash first; else Screener BS cash & bank (same page as borrowings).
   {
     const cd = await cashP;
-    const debt = cd.debt_cr ?? (bs ? [...bs.borrowings].reverse().find((v) => v != null) ?? null : null);
-    if (cd.cash_cr == null || mcap == null) {
+    let bsForCash = bs;
+    // Only re-hit Screener when an older BS cache predates the cash field.
+    if (cd.cash_cr == null && bs && bs.cash === undefined) {
+      bsForCash = await fetchScreenerAnnualBs(t, { force: true }).catch(() => bs);
+    }
+    const bsCashPts = bsForCash?.cash?.length ? annualPoints(bsForCash.dates, bsForCash.cash) : [];
+    const bsCash = bsCashPts.at(-1)?.v ?? null;
+    const cashCr = cd.cash_cr ?? (bsCash != null && bsCash > 0 ? bsCash : null);
+    const cashSrc = cd.cash_cr != null ? "Yahoo" : bsCash != null && bsCash > 0 ? "Screener BS" : null;
+    const debt =
+      cd.debt_cr ??
+      (bsForCash ? [...bsForCash.borrowings].reverse().find((v) => v != null) ?? null : null) ??
+      (bs ? [...bs.borrowings].reverse().find((v) => v != null) ?? null : null);
+    if (cashCr == null || mcap == null) {
       out.push({
         id: "cash",
         label: "Cash rich",
         rule: `cash − debt > market cap · promoter > ${SPECIAL.cashPromoter}% · pledge 0%`,
         value: "—",
         verdict: "na",
-        note: "No cash figure for this stock (Yahoo)",
+        note: "No cash figure (Yahoo / Screener BS)",
       });
     } else {
-      const net = cd.cash_cr - (debt ?? 0);
+      const net = cashCr - (debt ?? 0);
       const ok = net > mcap && prom != null && prom > SPECIAL.cashPromoter && (pledge ?? 0) === 0;
       out.push({
         id: "cash",
@@ -488,11 +524,11 @@ async function buildSpecial(
         value: `${net >= 0 ? "" : "−"}${cr(Math.abs(net))} vs ${cr(mcap)}`,
         verdict: ok ? "pass" : "fail",
         conds: [
-          { label: "Cash − debt > market cap", value: `${cr(cd.cash_cr)} − ${cr(debt ?? 0)} = ${net >= 0 ? "" : "−"}${cr(Math.abs(net))} vs ${cr(mcap)}`, ok: net > mcap },
+          { label: "Cash − debt > market cap", value: `${cr(cashCr)} − ${cr(debt ?? 0)} = ${net >= 0 ? "" : "−"}${cr(Math.abs(net))} vs ${cr(mcap)}`, ok: net > mcap },
           { label: `Promoter > ${SPECIAL.cashPromoter}%`, value: prom == null ? "—" : `${prom.toFixed(1)}%`, ok: prom == null ? null : prom > SPECIAL.cashPromoter },
           { label: "Pledge = 0%", value: pledge == null ? "—" : `${pledge}%`, ok: pledge == null ? null : pledge === 0 },
         ],
-        note: `cash ${cr(cd.cash_cr)} − debt ${cr(debt ?? 0)} · ${((net / mcap) * 100).toFixed(0)}% of mcap · promoter ${prom == null ? "—" : `${prom.toFixed(1)}%`} · pledge ${pledge == null ? "—" : `${pledge}%`}`,
+        note: `cash ${cr(cashCr)} − debt ${cr(debt ?? 0)} · ${((net / mcap) * 100).toFixed(0)}% of mcap · promoter ${prom == null ? "—" : `${prom.toFixed(1)}%`} · pledge ${pledge == null ? "—" : `${pledge}%`} · ${cashSrc}`,
       });
     }
   }

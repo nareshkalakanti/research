@@ -13,6 +13,7 @@ import {
   fetchBseSmeMetrics,
   loadBseSmeCacheMap,
 } from "./bse-sme";
+import { invalidateListedPriceMap } from "./listed-price";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const METRICS_PATH = path.join(DATA_DIR, "metrics.db");
@@ -79,10 +80,12 @@ function metricsFileReplaced(): boolean {
 export function invalidateMetricsDb(): void {
   closeMetricsDb();
   metricsMapCache = null;
+  invalidateListedPriceMap();
 }
 
 export function invalidateMetricsCache(): void {
   metricsMapCache = null;
+  invalidateListedPriceMap();
 }
 
 /**

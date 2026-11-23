@@ -3,6 +3,8 @@
 import { useMemo } from "react";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
 import { NapkinScorecard } from "@/components/napkin/NapkinScorecard";
+import { NapkinPortfolioEval } from "@/components/napkin/NapkinPortfolioEval";
+import { NapkinPriceMaStrip } from "@/components/napkin/NapkinPriceMaStrip";
 import { useQualityFlags } from "@/components/napkin/NapkinQualityFlags";
 import { quarterRankFromPanel } from "@/lib/quarter-rank";
 import { sevenRuleFromPanel } from "@/lib/seven-rule-score";
@@ -43,13 +45,18 @@ export function NapkinCompanyContext({
 
   return (
     <>
-      <div className="napkin-sheet-section">
+      <div className="napkin-sheet-section napkin-about-row">
         <CompanyAboutCard
           className="napkin-about-card"
           ticker={ticker}
           market={market}
           companyName={companyName}
           active
+        />
+        <NapkinPriceMaStrip
+          ticker={ticker}
+          market={market}
+          priceFallback={price}
         />
       </div>
 
@@ -64,6 +71,7 @@ export function NapkinCompanyContext({
         market={market}
       />
 
+      <NapkinPortfolioEval ticker={ticker} />
     </>
   );
 }

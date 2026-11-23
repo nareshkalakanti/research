@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { FamilyGraph } from "@/components/FamilyGraph";
 import { BoxRefreshButton } from "@/components/RefreshButton";
 import { GOV_MAP_CHANGED } from "@/lib/gov-map-sync";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import {
   TickerSuggest,
   type TickerSuggestHit,
@@ -169,15 +170,17 @@ export function StockNetworkSearch({
             {row.companies.map((c) => {
               const focal = c.ticker.toUpperCase() === row.ticker.toUpperCase();
               return (
-                <button
-                  key={c.ticker}
-                  type="button"
-                  className={`gov-family-chip${focal ? " full" : " part"}`}
-                  title={`${c.ticker} · ${c.name} — show this stock and related boards`}
-                  onClick={() => openCompany(c.ticker)}
-                >
-                  <span className="mono">{c.ticker}</span>
-                </button>
+                <span key={c.ticker} className="gov-family-chip-wrap">
+                  <button
+                    type="button"
+                    className={`gov-family-chip${focal ? " full" : " part"}`}
+                    title={`${c.ticker} · ${c.name} — show this stock and related boards`}
+                    onClick={() => openCompany(c.ticker)}
+                  >
+                    <span className="mono">{c.ticker}</span>
+                  </button>
+                  <ReviewPlusButton ticker={c.ticker} />
+                </span>
               );
             })}
           </div>

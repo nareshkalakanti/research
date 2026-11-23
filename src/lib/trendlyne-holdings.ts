@@ -621,38 +621,19 @@ function sectorLookup(): Map<
   string,
   { sector: string | null; sub_sector: string | null; industry: string | null }
 > {
+  // StockScans only (stock master).
   const map = new Map<
     string,
     { sector: string | null; sub_sector: string | null; industry: string | null }
   >();
-  const classPath = path.join(DATA_DIR, "classifications.db");
-  if (!fs.existsSync(classPath)) return map;
-  const db = new Database(classPath, { readonly: true, fileMustExist: true });
-  try {
-    const rows = db
-      .prepare(`SELECT ticker, sector, sub_sector, industry FROM classifications`)
-      .all() as Array<{
-      ticker: string;
-      sector: string | null;
-      sub_sector: string | null;
-      industry: string | null;
-    }>;
-    for (const r of rows) {
-      map.set((r.ticker || "").toUpperCase(), {
-        sector: r.sector,
-        sub_sector: r.sub_sector,
-        industry: r.industry,
-      });
-    }
-  } finally {
-    db.close();
+  for (const [t, m] of masterLabels()) {
+    if (!m.sector && !m.industry) continue;
+    map.set(t, {
+      sector: m.sector,
+      sub_sector: m.industry,
+      industry: m.industry,
+    });
   }
-  // Stock master overrides.
-  for (const [t, m] of masterLabels())
-    if (m.sector || m.industry) {
-      const cur = map.get(t);
-      map.set(t, { sector: m.sector ?? cur?.sector ?? null, sub_sector: m.industry ?? cur?.sub_sector ?? null, industry: m.industry ?? cur?.industry ?? null });
-    }
   return map;
 }
 

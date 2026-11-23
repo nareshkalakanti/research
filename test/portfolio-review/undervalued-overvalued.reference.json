@@ -1,0 +1,10 @@
+{
+  "note": "Reference UI for Undervalued & Overvalued Sectors — match Turnaround Sectors card style: dark cards, orange bars, industry name + bar + count.",
+  "as_of": "2026-11-21",
+  "source": "turnaround-sectors-reference.png",
+  "expected_ui": {
+    "cards": ["Undervalued Sectors", "Overvalued Sectors"],
+    "row": ["industry", "orange_bar", "count"],
+    "rank_by": "company_count"
+  }
+}

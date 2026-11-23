@@ -45,7 +45,9 @@ export type SevenRuleResult = {
 };
 
 export type SevenRuleInput = {
+  /** ROCE as ratio (0.20) or percent points (20). */
   roce?: number | null;
+  /** ROE as ratio (0.20) or percent points (20). */
   roe?: number | null;
   sales?: Array<number | null> | null;
   profit?: Array<number | null> | null;
@@ -57,8 +59,9 @@ export type SevenRuleInput = {
   dates?: string[] | null;
 };
 
-const ROCE_MIN = 0.15;
-const ROE_MIN = 0.15;
+/** Thresholds in percent points (ROCE/ROE > 15%). */
+const ROCE_MIN_PCT = 15;
+const ROE_MIN_PCT = 15;
 const SALES_QOQ_MIN = 10;
 const PROFIT_QOQ_MIN = 10;
 const SALES_YOY_MIN = 10;
@@ -73,9 +76,14 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-function fmtRatio(v: number | null): string | null {
-  if (!finite(v)) return null;
-  return `${(v * 100).toFixed(1)}%`;
+/**
+ * Accept ratio (0.20) or percent points (20) → percent points.
+ * Screener / tests use ratios; Napkin simple / some callers use percent.
+ * |v| ≤ 1.5 → ratio (same heuristic as Screener annual ingest).
+ */
+export function normalizeRoceRoePct(v: number): number {
+  const pct = Math.abs(v) <= 1.5 ? v * 100 : v;
+  return Math.round(pct * 1000) / 1000;
 }
 
 function fmtPctPts(v: number | null): string | null {
@@ -204,8 +212,8 @@ export function sevenRuleScore(input: SevenRuleInput): SevenRuleResult {
     labels = [];
   }
 
-  const roceV = finite(input.roce) ? input.roce : null;
-  const roeV = finite(input.roe) ? input.roe : null;
+  const rocePct = finite(input.roce) ? normalizeRoceRoePct(input.roce) : null;
+  const roePct = finite(input.roe) ? normalizeRoceRoePct(input.roe) : null;
 
   const [sLatest, sPrev] = pairLatestPrev(sales);
   const salesQoq = yoyPct(sLatest, sPrev);
@@ -227,19 +235,16 @@ export function sevenRuleScore(input: SevenRuleInput): SevenRuleResult {
     {
       id: "roce",
       label: "ROCE > 15%",
-      verdict: finite(roceV)
-        ? roceV > ROCE_MIN
-          ? "pass"
-          : "fail"
-        : "unknown",
-      value: fmtRatio(roceV),
+      verdict:
+        rocePct != null ? (rocePct > ROCE_MIN_PCT ? "pass" : "fail") : "unknown",
+      value: fmtPctPts(rocePct),
       threshold: "> 15%",
     },
     {
       id: "roe",
       label: "ROE > 15%",
-      verdict: finite(roeV) ? (roeV > ROE_MIN ? "pass" : "fail") : "unknown",
-      value: fmtRatio(roeV),
+      verdict: roePct != null ? (roePct > ROE_MIN_PCT ? "pass" : "fail") : "unknown",
+      value: fmtPctPts(roePct),
       threshold: "> 15%",
     },
     {

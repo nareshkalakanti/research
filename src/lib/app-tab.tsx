@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -25,18 +26,20 @@ export type AppTab =
   | "rotation"
   | "scanner"
   | "value"
+  | "portfolio"
   | "signals";
 
 /** Top nav tabs only — other panels stay wired but are not listed here. */
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "napkin", label: "Napkin", short: "Napkin" },
   { id: "dashboard", label: "Dashboard", short: "Dash" },
+  { id: "value", label: "Value", short: "Value" },
+  { id: "rotation", label: "Trend", short: "Trend" },
+  { id: "portfolio", label: "Portfolio", short: "Port" },
   { id: "concall-drift", label: "Drift", short: "Drift" },
   { id: "scan", label: "Scan", short: "Scan" },
-  { id: "rotation", label: "Rotation", short: "Rotate" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "scanner", label: "Scanner", short: "Scanner" },
-  { id: "value", label: "Value", short: "Value" },
   { id: "research", label: "Research", short: "Research" },
 ];
 
@@ -56,10 +59,6 @@ const HIDDEN_TABS: AppTab[] = [
   ...IQ_TABS,
 ];
 
-function isPageTab(id: AppTab): boolean {
-  return id === "watchlist" || id === "dashboard";
-}
-
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
   // Removed tabs (Quality Growth, Shortlist, Smart Money, Special) open the Scanner.
@@ -73,6 +72,9 @@ export function tabFromParam(raw: string | null): AppTab {
   )
     return "scanner";
   if (raw === "pead") return "napkin";
+  if (raw === "review" || raw === "port" || raw === "portfolio-review") {
+    return "portfolio";
+  }
   if (
     raw === "strategy" ||
     raw === "concall" ||
@@ -123,6 +125,12 @@ function buildHomeSearch(
   if (next === "napkin") params.delete("tab");
   else params.set("tab", next);
   if (next !== "orderbookiq") params.delete("ordersView");
+  if (next !== "value") params.delete("v");
+  if (next !== "dashboard") params.delete("d");
+  if (next !== "concall-drift") params.delete("drift");
+  if (next !== "rotation") params.delete("rot");
+  if (next !== "scan") params.delete("scan");
+  if (next !== "watchlist") params.delete("wl");
   if (next !== "governance") {
     params.delete("personId");
     params.delete("din");
@@ -138,16 +146,14 @@ function buildHomeSearch(
   return params.toString();
 }
 
+/** All workspace tabs stay on `/` so AppShell does not remount (no flicker). */
 export function hrefForTab(next: AppTab): string {
-  if (next === "watchlist") return "/watchlist";
-  if (next === "dashboard") return "/dashboard";
   if (next === "napkin") return "/";
   return `/?tab=${encodeURIComponent(next)}`;
 }
 
 function urlForTab(next: AppTab, ticker?: string | null): string {
-  if (next === "watchlist") return "/watchlist";
-  if (next === "dashboard") return "/dashboard";
+  // Always home + ?tab= — never /watchlist or /dashboard path hops (those remounted the shell).
   const fromHome =
     pathOnly() === "/"
       ? new URLSearchParams(window.location.search)
@@ -160,6 +166,8 @@ function currentUrl(): string {
   return `${pathOnly()}${window.location.search}`;
 }
 
+const APP_TITLE = "Research · India equities";
+
 function syncTabUrl(
   next: AppTab,
   mode: "push" | "replace",
@@ -169,6 +177,8 @@ function syncTabUrl(
   if (currentUrl() === url) return;
   if (mode === "push") window.history.pushState(window.history.state, "", url);
   else window.history.replaceState(window.history.state, "", url);
+  // Re-assert after History updates so Chrome does not flash the raw URL as the tab title.
+  if (document.title !== APP_TITLE) document.title = APP_TITLE;
 }
 
 type AppTabContextValue = {
@@ -180,9 +190,16 @@ const TabStateContext = createContext<AppTab | null>(null);
 const TabSetContext = createContext<AppTabContextValue["setTab"] | null>(null);
 
 export function AppTabProvider({ children }: { children: ReactNode }) {
-  const [tab, setTabState] = useState<AppTab>(readTabFromLocation);
+  // Local state drives the UI. History push/replace keeps Back working.
+  // (useSearchParams often does not re-render after our pushState.)
+  const [tab, setTabState] = useState<AppTab>("napkin");
   const tabRef = useRef(tab);
   tabRef.current = tab;
+
+  useLayoutEffect(() => {
+    const fromUrl = readTabFromLocation();
+    if (fromUrl !== tabRef.current) setTabState(fromUrl);
+  }, []);
 
   useEffect(() => {
     const onPop = () => setTabState(readTabFromLocation());
@@ -192,13 +209,11 @@ export function AppTabProvider({ children }: { children: ReactNode }) {
 
   const setTab = useCallback((next: AppTab, opts?: { ticker?: string }) => {
     const prev = tabRef.current;
+    if (next === prev && !opts?.ticker) return;
     setTabState(next);
-    const pageHop = isPageTab(prev) || isPageTab(next);
-    syncTabUrl(
-      next,
-      pageHop && prev !== next ? "push" : "replace",
-      opts?.ticker,
-    );
+    // Push when changing tabs so browser Back works. Stay on `/?tab=` (no path hop)
+    // so AppShell does not remount. Same-tab updates (ticker) replace.
+    syncTabUrl(next, next !== prev ? "push" : "replace", opts?.ticker);
   }, []);
 
   return (

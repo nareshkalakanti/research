@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { announcementDedupeKey } from "@/lib/announcement-dedupe";
 import { ANNOUNCED_DAY_OPTIONS } from "@/lib/announced-lookback";
 import { IqHintPanel } from "@/components/IqHintPanel";
@@ -415,7 +415,6 @@ type LabResult = {
 };
 
 export function OrderBookIqPanel() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const topView = parseOrdersView(searchParams.get("ordersView"));
   const setTopView = useCallback(
@@ -425,9 +424,12 @@ export function OrderBookIqPanel() {
       if (next === "iq") params.delete("ordersView");
       else params.set("ordersView", next);
       const qs = params.toString();
-      router.replace(qs ? `/?${qs}` : "/", { scroll: false });
+      const href = qs ? `/?${qs}` : "/";
+      const now = `${window.location.pathname}${window.location.search}`;
+      if (now === href) return;
+      window.history.pushState(window.history.state, "", href);
     },
-    [router, searchParams],
+    [searchParams],
   );
 
   const [days, setDays] = useState(2);

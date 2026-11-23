@@ -112,6 +112,20 @@ const screenFail = napkinAnalysis(
 );
 assert.equal(screenFail.screen_verdict, "FAIL");
 
+// Inflated 5Y (low early base) + modest 3Y → screen uses the lower CAGR.
+const cautious = napkinAnalysis(
+  {
+    current_pe: 17.5,
+    historical_eps_cagr_3y: 0.06,
+    historical_eps_cagr_5y: 1.49,
+  },
+  { near_term_ratio: 0.3, years: 5, pass_gap_pp: 10, hold_min_gap_pp: -10 },
+);
+assert.equal(cautious.historical_eps_cagr_screen, 0.06);
+assert.equal(cautious.historical_cagr_cautious, true);
+assert.ok(cautious.screen_verdict !== "PASS");
+assert.match(cautious.screen_note, /lower of 3Y\/5Y/);
+
 close(napkinCompound(31.1, 0.25, 5), 31.1 * 1.25 ** 5, 1e-9);
 close(napkinImpliedPrice(31.1 * 1.25 ** 5, 34.8), 31.1 * 1.25 ** 5 * 34.8, 1e-9);
 const req348 = napkinRequiredEpsCagr(34.8);

@@ -1,7 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
-import { MultiPick } from "@/components/FilterBar";
+import { HoldingsIndustryCheck, MultiPick } from "@/components/FilterBar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import {
@@ -27,6 +27,19 @@ import {
   type FundFilterState,
 } from "@/lib/fund-watchlist-meta";
 import type { Company } from "@/lib/types";
+import { useUrlEnumParam } from "@/lib/url-enum-param";
+
+const SCAN_VIEWS = [
+  "all",
+  "bb",
+  "bbw",
+  "bbm",
+  "tq",
+  "ema",
+  "mrsi",
+  "mrsi85",
+  "mrsi_empty",
+] as const satisfies readonly ViewFilter[];
 
 const MCAP_DEFAULT_MAX = MCAP_RANGE_STEPS.length - 1;
 
@@ -67,7 +80,7 @@ export function ScanPanel() {
   const [filterNote, setFilterNote] = useState(false);
   const [ageMin, setAgeMin] = useState<number | null>(null);
   const [scanScope, setScanScope] = useState<ScanScope>("list");
-  const [view, setView] = useState<ViewFilter>("all");
+  const [view, setView] = useUrlEnumParam("scan", SCAN_VIEWS, "all");
   const [sort, setSort] = useState<SortKey>("name");
   const [dir, setDir] = useState<"asc" | "desc">("asc");
   const [data, setData] = useState<ApiResponse | null>(null);
@@ -434,6 +447,14 @@ export function ScanPanel() {
             }}
             options={(data?.industries ?? []).map((i) => ({ id: i.name, label: i.name, count: i.count }))}
             searchable
+          />
+          <HoldingsIndustryCheck
+            values={industries}
+            onChange={(v) => {
+              setIndustries(v);
+              setPage(1);
+            }}
+            available={(data?.industries ?? []).map((i) => i.name)}
           />
         </div>
         <div className="scan-filter-row scan-mcap-row">

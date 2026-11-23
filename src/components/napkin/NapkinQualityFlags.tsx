@@ -11,12 +11,12 @@ export function useQualityFlags(ticker: string): { q: QualityFlags | null; ready
 
   useEffect(() => {
     let live = true;
-    const ctl = new AbortController();
+    // Do not AbortController.abort() on cleanup — Next's overlay reports that as
+    // "signal is aborted without reason" (same pattern as ConcallDriftPanel).
     void (async () => {
       try {
         const res = await fetch(`/api/napkin/quality?ticker=${encodeURIComponent(ticker)}`, {
           cache: "no-store",
-          signal: ctl.signal,
         });
         const j = (await res.json()) as { ok?: boolean; error?: string } & Partial<QualityFlags>;
         if (!live) return;
@@ -25,15 +25,13 @@ export function useQualityFlags(ticker: string): { q: QualityFlags | null; ready
         setData(j as QualityFlags);
         setLoadedFor(ticker);
       } catch (e) {
-        if (live && !(e instanceof DOMException && e.name === "AbortError")) {
-          setErr(e instanceof Error ? e.message : String(e));
-          setLoadedFor(ticker);
-        }
+        if (!live) return;
+        setErr(e instanceof Error ? e.message : String(e));
+        setLoadedFor(ticker);
       }
     })();
     return () => {
       live = false;
-      ctl.abort();
     };
   }, [ticker]);
   const ready = loadedFor === ticker;

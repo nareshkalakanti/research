@@ -96,12 +96,11 @@ export async function POST(req: NextRequest) {
     );
   }
   const metrics = getMetrics(ticker);
+  // Sector / industry always resolved from StockScans inside upsertNamedWatch.
   const row = upsertNamedWatch(list, {
     ticker,
     name: body.name,
     market: body.market || metrics?.market || null,
-    sector: body.sector || metrics?.sector || null,
-    sub_sector: body.sub_sector || null,
   });
   if (!row) {
     return NextResponse.json({ ok: false, error: "Could not save" }, { status: 400 });

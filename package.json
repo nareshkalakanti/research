@@ -15,6 +15,7 @@
     "start": "next start",
     "lint": "eslint",
     "fill-metrics": "tsx scripts/fill-metrics.ts",
+    "fill:value-legs": "tsx scripts/run-value-fill.mts",
     "fill:mcap-web": "tsx scripts/fetch-market-cap.ts",
     "test:tv-urls": "tsx scripts/test-tradingview-urls.ts",
     "test:gov": "tsx scripts/test-gov-map.ts",
@@ -72,7 +73,7 @@
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "cheerio": "^1.2.0",
-    "next": "16.3.0",
+    "next": "16.4.6",
     "pdf-parse": "^1.1.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -85,7 +86,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.0",
+    "eslint-config-next": "16.4.6",
     "tsx": "^4.23.9",
     "typescript": "^5"
   }

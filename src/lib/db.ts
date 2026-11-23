@@ -52,7 +52,6 @@ export type CompanyRow = {
 
 let aboutDb: Database.Database | null = null;
 let govDb: Database.Database | null = null;
-let classDb: Database.Database | null = null;
 let cache: { at: number; rows: CompanyRow[] } | null = null;
 const CACHE_MS = 5 * 60_000;
 let scrapeSourceCache: Map<string, string> | null = null;
@@ -134,16 +133,6 @@ function getGov(): Database.Database | null {
   try {
     govDb = openReadonly("governance.db");
     return govDb;
-  } catch {
-    return null;
-  }
-}
-
-function getClass(): Database.Database | null {
-  if (classDb) return classDb;
-  try {
-    classDb = openReadonly("classifications.db");
-    return classDb;
   } catch {
     return null;
   }
@@ -410,86 +399,20 @@ function loadGovMap() {
   return govMap;
 }
 
-type ClassRow = {
-  sector: string | null;
-  industry: string | null;
-  sub_sector: string | null;
-};
-
-/** NSE listing taxonomy (sector / sub_sector) keyed by ticker+market, then ticker. */
-function loadClassMaps() {
-  const byKey = new Map<string, ClassRow>();
-  const byTicker = new Map<string, ClassRow>();
-  const db = getClass();
-  if (!db) return { byKey, byTicker };
-
-  const rows = db
-    .prepare(
-      `SELECT ticker, market, sector, industry, sub_sector FROM classifications`,
-    )
-    .all() as Array<{
-    ticker: string;
-    market: string;
-    sector: string | null;
-    industry: string | null;
-    sub_sector: string | null;
-  }>;
-
-  for (const r of rows) {
-    const row: ClassRow = {
-      sector: r.sector,
-      industry: r.industry,
-      sub_sector: r.sub_sector,
-    };
-    byKey.set(`${r.ticker.toUpperCase()}|${r.market}`, row);
-    if (!byTicker.has(r.ticker.toUpperCase())) {
-      byTicker.set(r.ticker.toUpperCase(), row);
-    }
-  }
-  return { byKey, byTicker };
-}
-
-function pickClass(
-  maps: ReturnType<typeof loadClassMaps>,
-  ticker: string,
-  market: string,
-): ClassRow | undefined {
-  return (
-    maps.byKey.get(`${ticker.toUpperCase()}|${market}`) ||
-    maps.byTicker.get(ticker.toUpperCase())
-  );
-}
-
 function enrichAll(rows: RawAbout[]): CompanyRow[] {
   const govMap = loadGovMap();
-  const classMaps = loadClassMaps();
   const metricsMap = loadMetricsMap();
   const scrapeSources = loadScrapeSourceMap();
   const master = masterLabels();
 
   return rows.map((row) => {
-    const cls = pickClass(classMaps, row.ticker, row.market);
     const ml = master.get(row.ticker.toUpperCase());
     const g = govMap.get(row.ticker);
     const m = metricsMap.get(row.ticker.toUpperCase());
 
-    // Stock master first (StockScans, then own labels), then listing taxonomy, Yahoo about, governance, YF quote.
-    const sector =
-      nonempty(ml?.sector) ||
-      nonempty(cls?.sector) ||
-      nonempty(row.company_sector) ||
-      nonempty(g?.sector) ||
-      nonempty(m?.sector) ||
-      null;
-
-    const sub_sector =
-      nonempty(ml?.industry) ||
-      nonempty(cls?.sub_sector) ||
-      nonempty(cls?.industry) ||
-      nonempty(row.company_industry) ||
-      nonempty(g?.sub_sector) ||
-      nonempty(g?.industry) ||
-      null;
+    // StockScans only (via stock master). No classifications / Yahoo / gov fallbacks.
+    const sector = nonempty(ml?.sector) || null;
+    const sub_sector = nonempty(ml?.industry) || null;
 
     const links = researchLinks(row.ticker, row.market, row.website);
     const about = pickAboutText(row);
@@ -710,12 +633,6 @@ export function invalidateCompanyCache(): void {
     /* ignore */
   }
   govDb = null;
-  try {
-    classDb?.close();
-  } catch {
-    /* ignore */
-  }
-  classDb = null;
 }
 
 /** Ticker / name / site only — skip enrichAll (theme corpus + metrics). */

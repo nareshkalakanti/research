@@ -1,0 +1,9 @@
+{
+  "note": "Reference UI for Favour / Out of favour breadth (was Headwind/Tailwind). Screenshot favour-full-market-reference.jpg shows Full Market pinned first plus industry rows with favour labels. Our Value Favour tab now emits is_market + FAVOUR|OUT|NEUTRAL.",
+  "as_of": "2026-11-21",
+  "source": "favour-full-market-reference.jpg",
+  "expected_ui": {
+    "full_market_first": true,
+    "labels": ["In favour", "Out of favour", "Neutral"]
+  }
+}

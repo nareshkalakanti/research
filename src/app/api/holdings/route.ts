@@ -12,10 +12,19 @@ export const dynamic = "force-dynamic";
 
 function payload() {
   const rows = loadHoldings();
+  // StockScans industry labels (sub_sector) — used by Value / Rotation industry pickers.
+  const industries = [
+    ...new Set(
+      rows
+        .map((r) => (r.sub_sector || "").trim())
+        .filter((s): s is string => !!s),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
   return {
     ok: true as const,
     tickers: rows.map((r) => r.ticker.toUpperCase()),
     count: rows.length,
+    industries,
   };
 }
 
@@ -42,12 +51,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "ticker required" }, { status: 400 });
   }
   const metrics = getMetrics(ticker);
+  // Sector / industry always resolved from StockScans inside upsertHolding.
   const row = upsertHolding({
     ticker,
     name: body.name,
     market: body.market || metrics?.market || null,
-    sector: body.sector || metrics?.sector || null,
-    sub_sector: body.sub_sector || null,
   });
   if (!row) {
     return NextResponse.json({ ok: false, error: "Could not save" }, { status: 400 });

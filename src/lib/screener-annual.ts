@@ -59,7 +59,10 @@ function ensureCacheSchema(): void {
   }
 }
 
-function readCache(ticker: string): ScreenerAnnualSeries | "blocked" | null {
+function readCache(
+  ticker: string,
+  opts?: { allowExpired?: boolean },
+): ScreenerAnnualSeries | "blocked" | null {
   ensureCacheSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
   try {
@@ -72,7 +75,10 @@ function readCache(ticker: string): ScreenerAnnualSeries | "blocked" | null {
     if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
       return "blocked";
     }
-    if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
+    if (
+      opts?.allowExpired ||
+      Date.now() - Date.parse(row.fetched_at) < CACHE_MS
+    ) {
       return JSON.parse(row.annual_json) as ScreenerAnnualSeries;
     }
     return null;
@@ -516,7 +522,8 @@ function newerByYear<T extends { dates: string[] }>(a: T, b: T): T | null {
 
 /** Older than this, a cached annual series is re-checked (company may have switched to standalone). */
 const STALE_SERIES_MS = 548 * 86_400_000;
-function seriesStale(dates: string[]): boolean {
+/** True when the newest annual column is more than ~18 months old (demerger / cons stopped). */
+export function seriesStale(dates: string[]): boolean {
   const n = newestDate(dates);
   return !!n && Date.now() - Date.parse(`${n}T00:00:00Z`) > STALE_SERIES_MS;
 }
@@ -550,7 +557,10 @@ function pickRicherScreenerAnnual(
   return newerByYear(a, b) ?? (seriesYearCount(b) > seriesYearCount(a) ? b : a);
 }
 
-function readPlCache(ticker: string): ScreenerAnnualPl | "blocked" | null {
+function readPlCache(
+  ticker: string,
+  opts?: { allowExpired?: boolean },
+): ScreenerAnnualPl | "blocked" | null {
   ensurePlCacheSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
   try {
@@ -565,7 +575,10 @@ function readPlCache(ticker: string): ScreenerAnnualPl | "blocked" | null {
     if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
       return "blocked";
     }
-    if (Date.now() - Date.parse(row.fetched_at) < PL_CACHE_MS) {
+    if (
+      opts?.allowExpired ||
+      Date.now() - Date.parse(row.fetched_at) < PL_CACHE_MS
+    ) {
       return JSON.parse(row.pl_json) as ScreenerAnnualPl;
     }
     return null;
@@ -625,7 +638,14 @@ export async function fetchScreenerAnnualPl(
     const cached = readPlCache(key);
     if (cached === "blocked") return empty;
     // Short cache is often consolidated-only; refetch so standalone years can win.
-    if (cached && plUsable(cached) && (plYearCount(cached) >= 6 || fetchedWithin("screener_annual_pl_cache", key, SHORT_OK_MS))) return cached;
+    if (
+      cached &&
+      plUsable(cached) &&
+      !seriesStale(cached.dates) &&
+      (plYearCount(cached) >= 6 || fetchedWithin("screener_annual_pl_cache", key, SHORT_OK_MS))
+    ) {
+      return cached;
+    }
   }
 
   try {
@@ -650,12 +670,11 @@ export async function fetchScreenerAnnualPl(
       writePlCache(key, series);
     }
     return series;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (/blocked|429|403|captcha/i.test(msg)) {
-      const until = stockBlockedUntil();
-      writePlCache(key, empty, until);
-    }
+  } catch {
+    // Pause / block: keep any usable cache (even age-expired). Never write empty —
+    // that used to mark the ticker blocked and wipe Portfolio scores.
+    const cached = readPlCache(key, { allowExpired: true });
+    if (cached && cached !== "blocked" && plUsable(cached)) return cached;
     return empty;
   }
 }
@@ -674,12 +693,13 @@ export async function fetchScreenerAnnual(
     if (cached === "blocked") {
       return { dates: [], sales: [], eps: [], roce: [] };
     }
-    // Ignore empty / short cache so standalone vs consolidated can still win.
+    // Ignore empty / short / stale-by-date cache so standalone can still win
+    // (e.g. ORIENTPPR cons ends FY2010 while standalone runs to current FY).
     if (
       cached &&
       cached.sales.some((s) => s != null && s > 0) &&
-      ((seriesYearCount(cached) >= 6 && !seriesStale(cached.dates)) ||
-        fetchedWithin("screener_annual_cache", key, SHORT_OK_MS))
+      !seriesStale(cached.dates) &&
+      (seriesYearCount(cached) >= 6 || fetchedWithin("screener_annual_cache", key, SHORT_OK_MS))
     ) {
       return cached;
     }
@@ -715,7 +735,12 @@ export async function fetchScreenerAnnual(
     }
     return series;
   } catch {
-    // Blocks pause every Screener fetch in screener-fetch; no per-ticker mark.
+    // Screener pause/block: serve age-expired but usable cache instead of blanking
+    // Portfolio review (tickers with only old annual rows showed No data while paused).
+    const cached = readCache(key, { allowExpired: true });
+    if (cached && cached !== "blocked" && cached.sales.some((s) => s != null && s > 0)) {
+      return cached;
+    }
     return { dates: [], sales: [], eps: [], roce: [] };
   }
 }
@@ -731,6 +756,8 @@ export type ScreenerAnnualBs = {
   borrowings: Array<number | null>;
   /** Capital work in progress (absent on caches written before it was parsed). */
   cwip?: Array<number | null>;
+  /** Cash & bank / cash equivalents (₹ Cr). Optional on older cache rows. */
+  cash?: Array<number | null>;
 };
 
 function emptyBs(): ScreenerAnnualBs {
@@ -741,6 +768,7 @@ function emptyBs(): ScreenerAnnualBs {
     book_value: [],
     fixed_assets: [],
     borrowings: [],
+    cash: [],
   };
 }
 
@@ -760,7 +788,10 @@ function ensureBsCacheSchema(): void {
   }
 }
 
-function readBsCache(ticker: string): ScreenerAnnualBs | "blocked" | null {
+function readBsCache(
+  ticker: string,
+  opts?: { allowExpired?: boolean },
+): ScreenerAnnualBs | "blocked" | null {
   ensureBsCacheSchema();
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
   try {
@@ -775,7 +806,10 @@ function readBsCache(ticker: string): ScreenerAnnualBs | "blocked" | null {
     if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) {
       return "blocked";
     }
-    if (Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
+    if (
+      opts?.allowExpired ||
+      Date.now() - Date.parse(row.fetched_at) < CACHE_MS
+    ) {
       return JSON.parse(row.bs_json) as ScreenerAnnualBs;
     }
     return null;
@@ -829,6 +863,13 @@ export function parseScreenerAnnualBsHtml(html: string): ScreenerAnnualBs {
   ]);
   const borrowings = pickScreenerRow(bs.rows, [/^Borrowings\b/i, /^Total Debt\b/i]);
   const cwip = pickScreenerRow(bs.rows, [/^CWIP\b/i, /^Capital Work in Progress\b/i]);
+  const cash = pickScreenerRow(bs.rows, [
+    /^Cash Equivalents\b/i,
+    /^Cash and Bank\b/i,
+    /^Cash & Bank\b/i,
+    /^Cash and Cash Equivalents\b/i,
+    /^Cash\b/i,
+  ]);
   const book = zipAdd(equity, reserves, n) ?? Array(n).fill(null);
   return {
     dates: bs.dates.slice(0, n),
@@ -838,6 +879,7 @@ export function parseScreenerAnnualBsHtml(html: string): ScreenerAnnualBs {
     fixed_assets: alignRow(n, fixed),
     borrowings: alignRow(n, borrowings),
     cwip: alignRow(n, cwip),
+    cash: alignRow(n, cash),
   };
 }
 
@@ -857,7 +899,9 @@ function pickRicherBs(a: ScreenerAnnualBs, b: ScreenerAnnualBs): ScreenerAnnualB
   const ub = bsUsable(b);
   if (ua && !ub) return a;
   if (ub && !ua) return b;
-  return bsYearCount(b) > bsYearCount(a) ? b : a;
+  if (!ua && !ub) return a;
+  // Prefer the series whose latest FY is newer (demerger: cons may stop years ago).
+  return newerByYear(a, b) ?? (bsYearCount(b) > bsYearCount(a) ? b : a);
 }
 
 export async function fetchScreenerAnnualBs(
@@ -870,7 +914,14 @@ export async function fetchScreenerAnnualBs(
   if (!opts?.force) {
     const cached = readBsCache(key);
     if (cached === "blocked") return emptyBs();
-    if (cached && bsUsable(cached) && (bsYearCount(cached) >= 3 || fetchedWithin("screener_annual_bs_cache", key, SHORT_OK_MS))) return cached;
+    if (
+      cached &&
+      bsUsable(cached) &&
+      !seriesStale(cached.dates) &&
+      (bsYearCount(cached) >= 3 || fetchedWithin("screener_annual_bs_cache", key, SHORT_OK_MS))
+    ) {
+      return cached;
+    }
   }
 
   try {
@@ -890,11 +941,9 @@ export async function fetchScreenerAnnualBs(
     }
     if (bsUsable(series)) writeBsCache(key, series);
     return series;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (/blocked|429|403|captcha/i.test(msg)) {
-      writeBsCache(key, emptyBs(), stockBlockedUntil());
-    }
+  } catch {
+    const cached = readBsCache(key, { allowExpired: true });
+    if (cached && cached !== "blocked" && bsUsable(cached)) return cached;
     return emptyBs();
   }
 }
@@ -912,7 +961,7 @@ export async function fetchScreenerPlAndBs(
   const html = await fetchScreenerCompanyHtml(key, { consolidated: true });
   let pl = parseScreenerAnnualPlHtml(html);
   let bs: ScreenerAnnualBs = parseScreenerAnnualBsHtml(html);
-  if (!plUsable(pl) || plYearCount(pl) < 5) {
+  if (!plUsable(pl) || plYearCount(pl) < 5 || seriesStale(pl.dates)) {
     try {
       const stand = await fetchScreenerCompanyHtml(key, { consolidated: false });
       pl = pickRicherScreenerAnnualPl(pl, parseScreenerAnnualPlHtml(stand));
@@ -928,36 +977,137 @@ export async function fetchScreenerPlAndBs(
   return { pl: okPl, bs: okBs };
 }
 
-/**
- * One Screener page → annual series (sales / EPS / ROCE), P&L and balance
- * sheet, all cached. Falls back to the standalone page only when the
- * consolidated one has under 4 years of sales. Throws on block / pause.
- */
-export async function fetchScreenerAllAnnual(ticker: string): Promise<{ annual: boolean; pl: boolean; bs: boolean }> {
+/** Write annual / P&L / BS / cash-flow caches from one company-page HTML (no HTTP). */
+export function ingestCompanyPageHtml(
+  ticker: string,
+  html: string,
+): { annual: boolean; pl: boolean; bs: boolean; cf: boolean } {
   const key = ticker.trim().toUpperCase();
-  if (!key) return { annual: false, pl: false, bs: false };
-  const html = await fetchScreenerCompanyHtml(key, { consolidated: true });
-  let series = parseScreenerAnnualHtml(html);
-  let pl = parseScreenerAnnualPlHtml(html);
-  let bs: ScreenerAnnualBs = parseScreenerAnnualBsHtml(html);
-  if (series.sales.filter((s) => s != null && s > 0).length < 4) {
-    try {
-      const stand = await fetchScreenerCompanyHtml(key, { consolidated: false });
-      series = pickRicherScreenerAnnual(series, parseScreenerAnnualHtml(stand));
-      pl = pickRicherScreenerAnnualPl(pl, parseScreenerAnnualPlHtml(stand));
-      bs = pickRicherBs(bs, parseScreenerAnnualBsHtml(stand));
-    } catch (e) {
-      if (/blocked|paused|429|403|captcha/i.test(String(e))) throw e;
-    }
-  }
+  if (!key || !html) return { annual: false, pl: false, bs: false, cf: false };
+  const series = parseScreenerAnnualHtml(html);
+  const pl = parseScreenerAnnualPlHtml(html);
+  const bs = parseScreenerAnnualBsHtml(html);
+  const cf = parseScreenerAnnualCfHtml(html);
   const okA = series.sales.some((s) => s != null && s > 0);
   if (okA) writeCache(key, series);
   const okPl = plUsable(pl);
   if (okPl) writePlCache(key, pl);
   const okBs = bsUsable(bs);
   if (okBs) writeBsCache(key, bs);
-  markPageTried(key, okA, okBs);
-  return { annual: okA, pl: okPl, bs: okBs };
+  const okCf = cfUsable(cf);
+  if (okCf) writeCfCache(key, cf);
+  return { annual: okA, pl: okPl, bs: okBs, cf: okCf };
+}
+
+/** Merge a second page (usually standalone) into richer annual / P&L / BS / CF caches. */
+export function ingestRicherCompanyPageHtml(
+  ticker: string,
+  html: string,
+): { annual: boolean; pl: boolean; bs: boolean; cf: boolean } {
+  const key = ticker.trim().toUpperCase();
+  if (!key || !html) return { annual: false, pl: false, bs: false, cf: false };
+  const prevA = readCache(key, { allowExpired: true });
+  const prevPl = readPlCache(key, { allowExpired: true });
+  const prevBs = readBsCache(key, { allowExpired: true });
+  const prevCf = readCfCache(key, { allowExpired: true });
+  const series = pickRicherScreenerAnnual(
+    prevA && prevA !== "blocked" ? prevA : { dates: [], sales: [], eps: [], roce: [] },
+    parseScreenerAnnualHtml(html),
+  );
+  const emptyPl: ScreenerAnnualPl = {
+    dates: [],
+    revenue: [],
+    expenses: [],
+    operating_profit: [],
+    other_income: [],
+    interest: [],
+    depreciation: [],
+    pbt: [],
+    tax: [],
+    pat: [],
+    shares_cr: [],
+    eps: [],
+  };
+  const pl = pickRicherScreenerAnnualPl(
+    prevPl && prevPl !== "blocked" ? prevPl : emptyPl,
+    parseScreenerAnnualPlHtml(html),
+  );
+  const bs = pickRicherBs(
+    prevBs && prevBs !== "blocked" ? prevBs : emptyBs(),
+    parseScreenerAnnualBsHtml(html),
+  );
+  const cf = pickRicherCf(
+    prevCf && prevCf !== "blocked" ? prevCf : emptyCf(),
+    parseScreenerAnnualCfHtml(html),
+  );
+  const okA = series.sales.some((s) => s != null && s > 0);
+  if (okA) writeCache(key, series);
+  const okPl = plUsable(pl);
+  if (okPl) writePlCache(key, pl);
+  const okBs = bsUsable(bs);
+  if (okBs) writeBsCache(key, bs);
+  const okCf = cfUsable(cf);
+  if (okCf) writeCfCache(key, cf);
+  return { annual: okA, pl: okPl, bs: okBs, cf: okCf };
+}
+
+/** Annual / P&L / BS caches still inside their normal TTL and not stale-by-FY. */
+export function annualCachesFresh(ticker: string): {
+  annual: boolean;
+  pl: boolean;
+  bs: boolean;
+} {
+  const key = ticker.trim().toUpperCase();
+  const a = readCache(key);
+  const p = readPlCache(key);
+  const b = readBsCache(key);
+  const annualOk =
+    fetchedWithin("screener_annual_cache", key, CACHE_MS) &&
+    !!a &&
+    a !== "blocked" &&
+    !seriesStale(a.dates);
+  const plOk =
+    fetchedWithin("screener_annual_pl_cache", key, PL_CACHE_MS) &&
+    !!p &&
+    p !== "blocked" &&
+    !seriesStale(p.dates);
+  const bsOk =
+    fetchedWithin("screener_annual_bs_cache", key, CACHE_MS) &&
+    !!b &&
+    b !== "blocked" &&
+    !seriesStale(b.dates);
+  return { annual: annualOk, pl: plOk, bs: bsOk };
+}
+
+/**
+ * One Screener page → annual series (sales / EPS / ROCE), P&L and balance
+ * sheet, all cached. Falls back to standalone when consolidated is short or
+ * stale-by-date (unless `standaloneIfShort: false` for bulk fills).
+ */
+export async function fetchScreenerAllAnnual(
+  ticker: string,
+  opts?: { standaloneIfShort?: boolean },
+): Promise<{ annual: boolean; pl: boolean; bs: boolean }> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return { annual: false, pl: false, bs: false };
+  const html = await fetchScreenerCompanyHtml(key, { consolidated: true });
+  let got = ingestCompanyPageHtml(key, html);
+  let series = readCache(key, { allowExpired: true });
+  const salesN =
+    series && series !== "blocked"
+      ? series.sales.filter((s) => s != null && s > 0).length
+      : 0;
+  const stale = series && series !== "blocked" ? seriesStale(series.dates) : false;
+  if (opts?.standaloneIfShort !== false && (salesN < 4 || stale)) {
+    try {
+      const stand = await fetchScreenerCompanyHtml(key, { consolidated: false });
+      got = ingestRicherCompanyPageHtml(key, stand);
+    } catch (e) {
+      if (/blocked|paused|429|403|captcha/i.test(String(e))) throw e;
+    }
+  }
+  markPageTried(key, got.annual, got.bs);
+  return got;
 }
 
 /** Remember every company-page pull (even empty ones) so bulk fills do not
@@ -1009,4 +1159,199 @@ export function screenerPagesTriedSince(sinceMs: number): Set<string> {
     /* no db */
   }
   return out;
+}
+
+/** Cash-flow WC lines (Screener cash-flow section) for earnings-quality / fraud checks. */
+export type ScreenerAnnualCf = {
+  dates: string[];
+  cfo: Array<number | null>;
+  receivables: Array<number | null>;
+  payables: Array<number | null>;
+  inventory: Array<number | null>;
+  /** Income tax paid (cash outflow; Screener often stores as negative). */
+  tax_paid: Array<number | null>;
+};
+
+function emptyCf(): ScreenerAnnualCf {
+  return { dates: [], cfo: [], receivables: [], payables: [], inventory: [], tax_paid: [] };
+}
+
+function ensureCfCacheSchema(): void {
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS screener_annual_cf_cache (
+        ticker TEXT PRIMARY KEY,
+        cf_json TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        blocked_until TEXT
+      );
+    `);
+  } finally {
+    db.close();
+  }
+}
+
+function readCfCache(
+  ticker: string,
+  opts?: { allowExpired?: boolean },
+): ScreenerAnnualCf | "blocked" | null {
+  ensureCfCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const row = db
+      .prepare(
+        `SELECT cf_json, fetched_at, blocked_until FROM screener_annual_cf_cache WHERE ticker = ?`,
+      )
+      .get(ticker.toUpperCase()) as
+      | { cf_json: string; fetched_at: string; blocked_until: string | null }
+      | undefined;
+    if (!row) return null;
+    if (row.blocked_until && Date.parse(row.blocked_until) > Date.now()) return "blocked";
+    if (opts?.allowExpired || Date.now() - Date.parse(row.fetched_at) < CACHE_MS) {
+      return normalizeCf(JSON.parse(row.cf_json) as ScreenerAnnualCf);
+    }
+    return null;
+  } finally {
+    db.close();
+  }
+}
+
+function writeCfCache(ticker: string, series: ScreenerAnnualCf, blockedUntil: string | null = null): void {
+  ensureCfCacheSchema();
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    db.prepare(
+      `INSERT INTO screener_annual_cf_cache (ticker, cf_json, fetched_at, blocked_until)
+       VALUES (@ticker, @cf_json, @fetched_at, @blocked_until)
+       ON CONFLICT(ticker) DO UPDATE SET
+         cf_json = excluded.cf_json,
+         fetched_at = excluded.fetched_at,
+         blocked_until = excluded.blocked_until`,
+    ).run({
+      ticker: ticker.toUpperCase(),
+      cf_json: JSON.stringify(series),
+      fetched_at: new Date().toISOString(),
+      blocked_until: blockedUntil,
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export function parseScreenerAnnualCfHtml(html: string): ScreenerAnnualCf {
+  const empty = emptyCf();
+  if (/captcha|access denied|rate limit/i.test(html)) return empty;
+  const $ = cheerio.load(html);
+  const cf = parseScreenerSectionTable($, "cash-flow");
+  if (!cf?.dates.length) return empty;
+  const n = cf.dates.length;
+  return {
+    dates: cf.dates.slice(0, n),
+    cfo: alignRow(
+      n,
+      pickScreenerRow(cf.rows, [
+        /^Cash from Operating Activity\b/i,
+        /^Cash from Operating Activities\b/i,
+        /^Cash Flow from Operating/i,
+      ]),
+    ),
+    receivables: alignRow(n, pickScreenerRow(cf.rows, [/^Receivables\b/i, /^Trade Receivables\b/i])),
+    payables: alignRow(n, pickScreenerRow(cf.rows, [/^Payables\b/i, /^Trade Payables\b/i])),
+    inventory: alignRow(n, pickScreenerRow(cf.rows, [/^Inventory\b/i, /^Inventories\b/i])),
+    tax_paid: alignRow(
+      n,
+      pickScreenerRow(cf.rows, [
+        /^Income Tax Paid\b/i,
+        /^Taxes Paid\b/i,
+        /^Tax Paid\b/i,
+        /^Direct Taxes Paid\b/i,
+      ]),
+    ),
+  };
+}
+
+function normalizeCf(cf: ScreenerAnnualCf): ScreenerAnnualCf {
+  const n = cf.dates.length;
+  return {
+    dates: cf.dates,
+    cfo: cf.cfo ?? Array(n).fill(null),
+    receivables: cf.receivables ?? Array(n).fill(null),
+    payables: cf.payables ?? Array(n).fill(null),
+    inventory: cf.inventory ?? Array(n).fill(null),
+    tax_paid: cf.tax_paid ?? Array(n).fill(null),
+  };
+}
+
+function cfUsable(cf: ScreenerAnnualCf): boolean {
+  const c = normalizeCf(cf);
+  return (
+    c.cfo.some((v) => v != null) ||
+    c.receivables.some((v) => v != null) ||
+    c.payables.some((v) => v != null) ||
+    c.tax_paid.some((v) => v != null)
+  );
+}
+
+function cfYearCount(cf: ScreenerAnnualCf): number {
+  const c = normalizeCf(cf);
+  return c.dates.filter(
+    (_, i) =>
+      c.cfo[i] != null ||
+      c.receivables[i] != null ||
+      c.payables[i] != null ||
+      c.tax_paid[i] != null,
+  ).length;
+}
+
+function pickRicherCf(a: ScreenerAnnualCf, b: ScreenerAnnualCf): ScreenerAnnualCf {
+  const ua = cfUsable(a);
+  const ub = cfUsable(b);
+  if (ua && !ub) return a;
+  if (ub && !ua) return b;
+  if (!ua && !ub) return a;
+  return newerByYear(a, b) ?? (cfYearCount(b) > cfYearCount(a) ? b : a);
+}
+
+export async function fetchScreenerAnnualCf(
+  ticker: string,
+  opts?: { force?: boolean; consolidated?: boolean },
+): Promise<ScreenerAnnualCf> {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return emptyCf();
+  if (!opts?.force) {
+    const cached = readCfCache(key);
+    if (cached === "blocked") return emptyCf();
+    if (
+      cached &&
+      cfUsable(cached) &&
+      !seriesStale(cached.dates) &&
+      (cfYearCount(cached) >= 3 || fetchedWithin("screener_annual_cf_cache", key, SHORT_OK_MS))
+    ) {
+      return cached;
+    }
+  }
+  try {
+    const html = await fetchScreenerCompanyHtml(key, {
+      consolidated: opts?.consolidated !== false,
+    });
+    let series = parseScreenerAnnualCfHtml(html);
+    // Also refresh PL/BS/annual from the same page so one pull feeds fraud checks.
+    ingestCompanyPageHtml(key, html);
+    if (opts?.consolidated !== false) {
+      try {
+        const standHtml = await fetchScreenerCompanyHtml(key, { consolidated: false });
+        series = pickRicherCf(series, parseScreenerAnnualCfHtml(standHtml));
+        ingestRicherCompanyPageHtml(key, standHtml);
+      } catch {
+        /* keep first */
+      }
+    }
+    if (cfUsable(series)) writeCfCache(key, series);
+    return series;
+  } catch {
+    const cached = readCfCache(key, { allowExpired: true });
+    if (cached && cached !== "blocked" && cfUsable(cached)) return cached;
+    return emptyCf();
+  }
 }

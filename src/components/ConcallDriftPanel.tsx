@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ExchangeSeg, exchangeMatch, MultiPick, type ExchangeId } from "@/components/FilterBar";
+import { ExchangeSeg, exchangeMatch, HoldingsIndustryCheck, MultiPick, type ExchangeId } from "@/components/FilterBar";
 import {
   StrategyConcallDriftRow,
   type StrategyConcallDriftRowData,
@@ -17,6 +17,7 @@ import {
 import { parseFetchJson } from "@/lib/fetch-json";
 import { loadTrackPins, saveTrackPins } from "@/lib/concall-track";
 import { driftPctDisplayReady } from "@/lib/strategy/concall-drift-math";
+import { useUrlEnumParam } from "@/lib/url-enum-param";
 
 function isStaleDriftRow(r: StrategyConcallDriftRowData): boolean {
   if (!r.has_baseline || r.drift_pct != null) return false;
@@ -56,7 +57,8 @@ type ScanApiResponse = {
   error?: string;
 };
 
-type DriftView = "latest" | "gainers" | "losers" | "track";
+const DRIFT_VIEWS = ["latest", "gainers", "losers", "track"] as const;
+type DriftView = (typeof DRIFT_VIEWS)[number];
 
 type ApiResponse = {
   kind: typeof KIND;
@@ -84,7 +86,7 @@ function parseTrackTickers(raw: string): string[] {
 }
 
 export function ConcallDriftPanel() {
-  const [view, setView] = useState<DriftView>("latest");
+  const [view, setView] = useUrlEnumParam("drift", DRIFT_VIEWS, "latest");
   const [pins, setPins] = useState<string[]>(() => loadTrackPins());
   const [addTicker, setAddTicker] = useState("");
   const [rows, setRows] = useState<StrategyConcallDriftRowData[]>([]);
@@ -826,6 +828,11 @@ export function ConcallDriftPanel() {
             onChange={setIndustries}
             options={industryOptions}
             searchable
+          />
+          <HoldingsIndustryCheck
+            values={industries}
+            onChange={setIndustries}
+            available={industryOptions.map((o) => o.id)}
           />
           <ExchangeSeg value={exch} onChange={setExch} markets={rows.map((r) => r.market)} />
 

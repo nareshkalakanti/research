@@ -491,6 +491,10 @@ export type RotationSectorCard = {
   bench_pct: number | null;
   today_pct: number | null;
   search: string;
+  /** Member market caps (₹ Cr) — client min/max mcap filter. */
+  mcaps: Array<number | null>;
+  /** Member tickers (upper) — parallel to mcaps; client Nifty 500 filter. */
+  tickers: string[];
   sector: SeriesPoint[];
   bench: SeriesPoint[];
   /** Max-lookback series so shorter range chips window without refetch. */
@@ -615,24 +619,34 @@ function sectorIndex(
   );
 }
 
+function memberMcaps(
+  members: SectorMember[],
+  metrics: ReturnType<typeof loadMetricsMap>,
+): Array<number | null> {
+  return members.map((m) => metrics.get(m.ticker.toUpperCase())?.market_cap_cr ?? null);
+}
+
 function liteCard(
   s: RotationSector,
   metrics: ReturnType<typeof loadMetricsMap>,
 ): RotationSectorCard {
-  const day = dayStats(s.members, metrics);
+  const members = s.members;
+  const day = dayStats(members, metrics);
   return {
     id: s.id,
     label: s.label,
-    n: s.members.length,
+    n: members.length,
     up: day.up,
     down: day.down,
     starred: s.starred,
     sector_pct: null,
     bench_pct: null,
     today_pct: day.today_pct,
-    search: [s.label, ...s.members.map((m) => `${m.ticker} ${m.name}`)]
+    search: [s.label, ...members.map((m) => `${m.ticker} ${m.name}`)]
       .join(" ")
       .toLowerCase(),
+    mcaps: memberMcaps(members, metrics),
+    tickers: members.map((m) => m.ticker.toUpperCase()),
     sector: [],
     bench: [],
   };
@@ -648,24 +662,27 @@ async function cardWithSeries(
   benchLong: SeriesPoint[],
   spark = true,
 ): Promise<RotationSectorCard> {
-  const packed = await memberBars(s.members, years);
+  const members = s.members;
+  const packed = await memberBars(members, years);
   const seriesLong = sectorIndex(packed, lookback, weight, metrics);
   const windowed = windowRebaseSeries(seriesLong, start);
   const benchWin = windowRebaseSeries(benchLong, start);
-  const day = dayStats(s.members, metrics, packed);
+  const day = dayStats(members, metrics, packed);
   return {
     id: s.id,
     label: s.label,
-    n: s.members.length,
+    n: members.length,
     up: day.up,
     down: day.down,
     starred: s.starred,
     sector_pct: seriesReturnPct(windowed),
     bench_pct: seriesReturnPct(benchWin),
     today_pct: day.today_pct,
-    search: [s.label, ...s.members.map((m) => `${m.ticker} ${m.name}`)]
+    search: [s.label, ...members.map((m) => `${m.ticker} ${m.name}`)]
       .join(" ")
       .toLowerCase(),
+    mcaps: memberMcaps(members, metrics),
+    tickers: members.map((m) => m.ticker.toUpperCase()),
     sector: spark ? downsampleSeries(windowed) : seriesLong,
     bench: spark ? downsampleSeries(benchWin) : benchWin,
     sector_full: seriesLong,
@@ -995,6 +1012,8 @@ export async function buildRotationDetail(
       bench_pct: seriesReturnPct(bench),
       today_pct: day.today_pct,
       search: "",
+      mcaps: memberMcaps(sector.members, metrics),
+      tickers: sector.members.map((m) => m.ticker.toUpperCase()),
       // Long sector path for MA warm-up; bench is windowed for DualSpark plotFrom.
       sector: seriesLong,
       bench,

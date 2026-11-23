@@ -1,94 +1,137 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { PORTFOLIO_BAG, type ReviewBag } from "@/lib/portfolio-review-types";
 
 type Listener = () => void;
-const listeners = new Set<Listener>();
-let cached: Set<string> | null = null;
-let inflight: Promise<Set<string>> | null = null;
 
-function notify() {
-  for (const fn of listeners) fn();
+type BagCache = {
+  listeners: Set<Listener>;
+  cached: Set<string> | null;
+  inflight: Promise<Set<string>> | null;
+};
+
+const bags = new Map<ReviewBag, BagCache>();
+
+function cacheFor(bag: ReviewBag): BagCache {
+  let hit = bags.get(bag);
+  if (!hit) {
+    hit = { listeners: new Set(), cached: null, inflight: null };
+    bags.set(bag, hit);
+  }
+  return hit;
 }
 
-async function loadReviewSet(force = false): Promise<Set<string>> {
-  if (!force && cached) return cached;
-  if (!force && inflight) return inflight;
+function notify(bag: ReviewBag) {
+  for (const fn of cacheFor(bag).listeners) fn();
+}
+
+async function loadReviewSet(bag: ReviewBag, force = false): Promise<Set<string>> {
+  const state = cacheFor(bag);
+  if (!force && state.cached) return state.cached;
+  if (!force && state.inflight) return state.inflight;
   const req = (async () => {
-    const res = await fetch("/api/portfolio-review?tickers=1", { cache: "no-store" });
+    const res = await fetch(
+      `/api/portfolio-review?tickers=1&bag=${encodeURIComponent(bag)}`,
+      { cache: "no-store" },
+    );
     const j = (await res.json()) as { ok?: boolean; tickers?: string[] };
     if (!res.ok || j.ok === false) throw new Error("review tickers failed");
-    cached = new Set((j.tickers ?? []).map((t) => t.toUpperCase()));
-    return cached;
+    state.cached = new Set((j.tickers ?? []).map((t) => t.toUpperCase()));
+    return state.cached;
   })();
-  if (!force) inflight = req;
+  if (!force) state.inflight = req;
   try {
     return await req;
   } finally {
-    if (inflight === req) inflight = null;
+    if (state.inflight === req) state.inflight = null;
   }
 }
 
-function subscribeReview(fn: Listener): () => void {
-  listeners.add(fn);
-  return () => listeners.delete(fn);
+function subscribeReview(bag: ReviewBag, fn: Listener): () => void {
+  const state = cacheFor(bag);
+  state.listeners.add(fn);
+  return () => state.listeners.delete(fn);
 }
 
-function markInReview(tickers: string[]) {
-  const next = new Set(cached ?? []);
+function markInReview(bag: ReviewBag, tickers: string[]) {
+  const state = cacheFor(bag);
+  const next = new Set(state.cached ?? []);
   for (const t of tickers) next.add(t.toUpperCase());
-  cached = next;
-  notify();
+  state.cached = next;
+  notify(bag);
 }
 
-function markOutOfReview(ticker: string) {
-  const next = new Set(cached ?? []);
+function markOutOfReview(bag: ReviewBag, ticker: string) {
+  const state = cacheFor(bag);
+  const next = new Set(state.cached ?? []);
   next.delete(ticker.toUpperCase());
-  cached = next;
-  notify();
+  state.cached = next;
+  notify(bag);
 }
 
-/** Call after Portfolio review add/remove/clear so + chips stay in sync. */
-export function invalidateReviewMembership(): void {
-  cached = null;
-  notify();
-  void loadReviewSet(true).then(notify).catch(() => {});
+/** Subscribe to Portfolio membership changes. */
+export function subscribeReviewMembership(
+  fn: Listener,
+  bag: ReviewBag = PORTFOLIO_BAG,
+): () => void {
+  return subscribeReview(bag, fn);
 }
 
-/** Icon-only + / ✓ — toggles Value → Portfolio review. No tab switch. */
-export function ReviewPlusButton({ ticker }: { ticker: string }) {
+/** Call after Portfolio add/remove/clear so + chips stay in sync. */
+export function invalidateReviewMembership(bag: ReviewBag = PORTFOLIO_BAG): void {
+  const state = cacheFor(bag);
+  state.cached = null;
+  notify(bag);
+  void loadReviewSet(bag, true).then(() => notify(bag)).catch(() => {});
+}
+
+/** Icon-only + / ✓ — toggles Portfolio. No tab switch. */
+export function ReviewPlusButton({
+  ticker,
+  bag = PORTFOLIO_BAG,
+}: {
+  ticker: string;
+  bag?: ReviewBag;
+}) {
   const t = ticker.trim().toUpperCase();
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Always write to the Portfolio page bag.
+  const targetBag = PORTFOLIO_BAG;
+  void bag;
 
   const refresh = useCallback(() => {
     if (!t) {
       setOn(false);
       return;
     }
-    if (cached) {
-      setOn(cached.has(t));
+    const state = cacheFor(targetBag);
+    if (state.cached) {
+      setOn(state.cached.has(t));
       return;
     }
-    void loadReviewSet()
+    void loadReviewSet(targetBag)
       .then((s) => setOn(s.has(t)))
       .catch(() => {});
-  }, [t]);
+  }, [t, targetBag]);
 
   useEffect(() => {
     refresh();
-    return subscribeReview(refresh);
-  }, [refresh]);
+    return subscribeReview(targetBag, refresh);
+  }, [refresh, targetBag]);
 
   if (!t || /^BSE\d{5,6}$/i.test(t) || /^\d{5,6}$/.test(t)) return null;
+
+  const label = "Portfolio";
 
   return (
     <button
       type="button"
       className={`vx-plus${on ? " is-on" : ""}${busy ? " is-busy" : ""}`}
-      title={on ? "On Portfolio review — click to remove" : "Add to Portfolio review"}
+      title={on ? `On ${label} — click to remove` : `Add to ${label}`}
       aria-pressed={on}
-      aria-label={on ? `Remove ${t} from Portfolio review` : `Add ${t} to Portfolio review`}
+      aria-label={on ? `Remove ${t} from ${label}` : `Add ${t} to ${label}`}
       disabled={busy}
       onClick={(e) => {
         e.preventDefault();
@@ -96,12 +139,11 @@ export function ReviewPlusButton({ ticker }: { ticker: string }) {
         if (busy) return;
         setBusy(true);
         const removing = on;
-        // Optimistic UI — roll back if the request fails.
         if (removing) {
-          markOutOfReview(t);
+          markOutOfReview(targetBag, t);
           setOn(false);
         } else {
-          markInReview([t]);
+          markInReview(targetBag, [t]);
           setOn(true);
         }
         void (async () => {
@@ -109,7 +151,11 @@ export function ReviewPlusButton({ ticker }: { ticker: string }) {
             const res = await fetch("/api/portfolio-review", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(removing ? { remove: t } : { add: [t] }),
+              body: JSON.stringify(
+                removing
+                  ? { remove: t, bag: targetBag }
+                  : { add: [t], bag: targetBag },
+              ),
             });
             const j = (await res.json()) as {
               ok?: boolean;
@@ -117,13 +163,15 @@ export function ReviewPlusButton({ ticker }: { ticker: string }) {
               found?: string[];
             };
             if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
-            if (!removing && j.found?.length) markInReview(j.found);
+            if (!removing && j.found?.length) markInReview(targetBag, j.found);
+            // Value / Trend hide Portfolio names — nudge them to refetch.
+            window.dispatchEvent(new CustomEvent("portfolio-review-changed"));
           } catch {
             if (removing) {
-              markInReview([t]);
+              markInReview(targetBag, [t]);
               setOn(true);
             } else {
-              markOutOfReview(t);
+              markOutOfReview(targetBag, t);
               setOn(false);
             }
           } finally {
@@ -136,3 +184,5 @@ export function ReviewPlusButton({ ticker }: { ticker: string }) {
     </button>
   );
 }
+
+export type { ReviewBag };

@@ -2,6 +2,7 @@
 
 import { LazyFamilyGraph } from "@/components/FamilyGraph";
 import { BoxRefreshButton } from "@/components/RefreshButton";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 
 export type PersonBoardRow = {
   person_id: string;
@@ -133,15 +134,17 @@ export function PeopleBoardCards({
                 {companies.map((c) => {
                   const title = `${c.ticker} · ${c.name}${c.designation ? ` · ${c.designation}` : ""} — show related boards`;
                   return (
-                    <button
-                      key={c.ticker}
-                      type="button"
-                      className="gov-family-chip part"
-                      title={title}
-                      onClick={() => onTicker(c.ticker)}
-                    >
-                      <span className="mono">{c.ticker}</span>
-                    </button>
+                    <span key={c.ticker} className="gov-family-chip-wrap">
+                      <button
+                        type="button"
+                        className="gov-family-chip part"
+                        title={title}
+                        onClick={() => onTicker(c.ticker)}
+                      >
+                        <span className="mono">{c.ticker}</span>
+                      </button>
+                      <ReviewPlusButton ticker={c.ticker} />
+                    </span>
                   );
                 })}
               </div>

@@ -2,6 +2,7 @@
 
 import { Loading } from "@/components/Loading";
 import { usePagedRows } from "@/components/MoreRows";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 export type ConnectedStockHubRow = {
@@ -236,14 +237,17 @@ export function ConnectedStocksTable({
                             {name}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="outside-commons-ticker"
-                          onClick={() => onTicker?.(r.ticker)}
-                          title="Open hub + connected boards map"
-                        >
-                          {r.ticker}
-                        </button>
+                        <span className="outside-commons-ticker-row">
+                          <button
+                            type="button"
+                            className="outside-commons-ticker"
+                            onClick={() => onTicker?.(r.ticker)}
+                            title="Open hub + connected boards map"
+                          >
+                            {r.ticker}
+                          </button>
+                          <ReviewPlusButton ticker={r.ticker} />
+                        </span>
                       </div>
                     </td>
                     <td className="num col-groups">

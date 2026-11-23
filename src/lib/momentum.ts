@@ -584,47 +584,65 @@ export function stopMomRatios(): void {
 }
 
 /**
- * Fetch ROCE / ROE (Screener top ratios) for stocks with recent results but
- * none stored, fastest growers first. Normal runs stay inside the shared
- * hourly budget; `fast` runs the whole queue at a steady ~450 an hour and
- * stops at the first sign of a block. With `quiet`, an exhausted budget just
- * returns (background refresh).
+ * Fetch ROCE / ROE for stocks with recent results but none stored.
+ * Prefer Tickertape (and skip Screener when `preferTape` / quiet background).
+ * Manual / fast runs may still fall back to Screener top ratios.
  */
 export async function fillMomRatios(
   limit: number,
   onProgress?: Progress,
   quiet = false,
-  opts?: { fast?: boolean },
+  opts?: { fast?: boolean; preferTape?: boolean },
 ): Promise<FillResult> {
   const empty: FillResult = { tried: 0, filled: 0, left: 0, not_found: 0 };
   const fast = !!opts?.fast;
+  const preferTape = !!opts?.preferTape || quiet;
   const until = screenerPausedUntil();
-  if (until) {
+  if (until && !preferTape) {
     if (quiet) return empty;
     throw new Error(`Screener paused until ${until}`);
   }
-  const budget = fast ? limit : screenerBudgetLeft();
+  const budget = preferTape ? limit : fast ? limit : screenerBudgetLeft();
   if (budget <= 0) {
     if (quiet) return empty;
-    throw new Error(`Hourly Screener limit reached (${MOM_RULES.fetchesPerHour} pages) — try again in an hour.`);
+    throw new Error(
+      `Hourly Screener limit reached (${MOM_RULES.fetchesPerHour} pages) — try again in an hour.`,
+    );
   }
   const holder = globalThis as StopHolder;
   holder[STOP_KEY] = false;
   const { ratioQueue } = scoreUniverse();
   let n = 0;
+  const { tickertapeStockRatios } = await import("./web-mcap");
+  const { writeTickertapeRatiosCache } = await import("./tickertape-ratios-cache");
   try {
     return await runFill(
       "momratio",
       ratioQueue,
       Math.min(limit, budget),
       async (t) => {
-        // The ratio fetch swallows errors — check the pause first so a block stops the run.
+        if (fast && n > 0) {
+          await new Promise((r) =>
+            setTimeout(r, FAST_EXTRA_MS * (0.6 + Math.random() * 0.8)),
+          );
+        }
+        n += 1;
+        if (n % 50 === 0) pageCache = null;
+
+        try {
+          const tape = await tickertapeStockRatios(t, t);
+          if (tape && (tape.roe != null || tape.roce != null)) {
+            writeTickertapeRatiosCache(t, tape);
+            if (tape.roe != null && tape.roce != null) return true;
+          }
+        } catch {
+          /* try Screener below when allowed */
+        }
+
+        if (preferTape) return false;
+
         const paused = screenerPausedUntil();
         if (paused) throw new Error(`Screener paused until ${paused}`);
-        if (fast && n > 0) await new Promise((r) => setTimeout(r, FAST_EXTRA_MS * (0.6 + Math.random() * 0.8)));
-        n += 1;
-        // Let the list pick up new scores now and then during a long run.
-        if (n % 50 === 0) pageCache = null;
         const r = await fetchScreenerTopRatios(t, { force: true });
         return r.roe != null && r.roce != null;
       },

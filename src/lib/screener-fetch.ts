@@ -26,6 +26,35 @@ const BACKOFF_MAX_MS = 6 * 60 * 60 * 1000;
 
 let lastScreenerAt = 0;
 
+/**
+ * Interactive work (Portfolio review warm) holds this so background Value /
+ * baskets fills do not stack pages on the same IP and trip a global pause.
+ */
+let interactiveUntil = 0;
+
+/** Call while scoring / warming a stock the user just added. */
+export function markScreenerInteractive(ms = 90_000): void {
+  interactiveUntil = Math.max(interactiveUntil, Date.now() + ms);
+}
+
+/** Background bulk fills should stop when interactive work is in flight. */
+export function screenerBulkDeferred(): boolean {
+  return Date.now() < interactiveUntil;
+}
+
+/** Clear a persisted pause after a polite-path fix (resets strikes too). */
+export function clearScreenerPause(): void {
+  const db = openBackoff();
+  try {
+    db.prepare(
+      `UPDATE fetch_backoff SET strikes = 0, blocked_until = NULL, updated_at = ?
+       WHERE host = ?`,
+    ).run(new Date().toISOString(), BACKOFF_HOST);
+  } finally {
+    db.close();
+  }
+}
+
 export class ScreenerPausedError extends Error {
   constructor(public until: string) {
     super(`Screener paused until ${until}`);

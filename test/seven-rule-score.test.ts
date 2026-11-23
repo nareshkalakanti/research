@@ -3,11 +3,17 @@
  */
 import assert from "node:assert/strict";
 import {
+  normalizeRoceRoePct,
   sevenRuleFromPanel,
   sevenRuleRatingFromPassed,
   sevenRuleScore,
 } from "../src/lib/seven-rule-score";
 import { buildQuarterPanel, type QuarterPoint } from "../src/lib/quarter-panel";
+
+assert.equal(normalizeRoceRoePct(0.215), 21.5);
+assert.equal(normalizeRoceRoePct(21.5), 21.5);
+assert.equal(normalizeRoceRoePct(0.14), 14);
+assert.equal(normalizeRoceRoePct(14), 14);
 
 assert.equal(sevenRuleRatingFromPassed(7).ratingLabel, "Strong Buy");
 assert.equal(sevenRuleRatingFromPassed(6).ratingLabel, "Buy");
@@ -140,5 +146,42 @@ assert.ok(panel);
 const fromPanel = sevenRuleFromPanel(panel, { roce: 0.2, roe: 0.2 });
 assert.ok(fromPanel);
 assert.ok(fromPanel!.passed >= 1);
+
+// Percent-point inputs (Napkin simple) must match ratio inputs — no 2150% display.
+const asRatio = sevenRuleScore({
+  roce: 0.215,
+  roe: 0.191,
+  sales: [100, 110, 125],
+  profit: [10, 11, 13],
+  opm: [13, 14, 15],
+  labels: ["Mar 2023", "Jun 2023", "Mar 2024"],
+  order: "newest-last",
+});
+const asPct = sevenRuleScore({
+  roce: 21.5,
+  roe: 19.1,
+  sales: [100, 110, 125],
+  profit: [10, 11, 13],
+  opm: [13, 14, 15],
+  labels: ["Mar 2023", "Jun 2023", "Mar 2024"],
+  order: "newest-last",
+});
+assert.equal(asPct.passed, asRatio.passed);
+assert.equal(asPct.rules.find((r) => r.id === "roce")?.value, "21.5%");
+assert.equal(asRatio.rules.find((r) => r.id === "roce")?.value, "21.5%");
+assert.equal(asPct.rules.find((r) => r.id === "roe")?.value, "19.1%");
+// 14% fails whether passed as ratio or percent.
+const failPct = sevenRuleScore({
+  roce: 14,
+  roe: 14,
+  sales: [100, 120, 140],
+  profit: [10, 12, 15],
+  opm: [10, 11, 12],
+  labels: ["Mar 2023", "Jun 2023", "Mar 2024"],
+  order: "newest-last",
+});
+assert.equal(failPct.rules.find((r) => r.id === "roce")?.verdict, "fail");
+assert.equal(failPct.rules.find((r) => r.id === "roe")?.verdict, "fail");
+assert.equal(failPct.passed, 5);
 
 console.log("seven-rule-score.test.ts: ok");

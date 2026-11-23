@@ -11,10 +11,10 @@ import type { SevenRuleResult } from "@/lib/seven-rule-score";
 import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 
 /**
- * Napkin scorecard: one row, five scores, a total out of 20 and a final rating.
+ * Score (first Napkin row; Evaluation /17 sits below): five scores, total /20.
  *
  *   Quality       /6   10/5/3-yr book value, EPS, sales CAGR, ROCE avg, promoter
- *   Momentum      /5   7 rules scaled to 5 (ROCE, ROE, QoQ / YoY sales & profit, margin)
+ *   Momentum      /5   7 rules scaled to 5 — earnings/returns (not price)
  *   Quarters      /3   0–10 growth score scaled to 3 (overlaps Momentum → lighter)
  *   Red flags     /4   4 − penalties: pledge −2, interest cover −1, other income −1
  *   Special       +2   capex story / cash rich (bonus)
@@ -172,10 +172,9 @@ export function NapkinScorecard({
     if (r !== rating) caps.push("promoter pledge");
     rating = r;
   }
-  // Weak long-run quality can't be rescued by short-term momentum. "Poor"
-  // only when returns are weak too (no growth AND low ROCE); a high-ROCE
-  // business that is merely growing slowly (TCS: ROCE 53%, EPS 8%) is capped
-  // at Average, not Poor.
+  // Weak long-run quality can't be rescued by short-term 7-rule momentum.
+  // "Poor" only when returns are weak too (no growth AND low ROCE); a high-ROCE
+  // business that is merely growing slowly is capped at Average, not Poor.
   if (qPts != null && qPts <= 3) {
     const roceOk = quality?.quality.find((c) => c.id === "roce")?.verdict === "pass";
     const floor: Rating = qPts <= 2 && !roceOk ? "Poor" : "Average";
@@ -242,7 +241,7 @@ export function NapkinScorecard({
   const rCls = rating === "Excellent" ? "top" : rating === "Good" ? "good" : rating === "Average" ? "mid" : "bad";
   return (
     <div className="napkin-sheet-section">
-      <h2 className="napkin-block-title">Scorecard</h2>
+      <h2 className="napkin-block-title">Score</h2>
       <div className="nsc">
         <Cell onOpen={setOpen} kind="quality" label="Quality" value={qPts} of="/ 6" cls={qPts == null ? "na" : tone(qPts, 6)} sub={quality ? `${quality.quality_passed}/${qScored} checks` : qualityReady ? "no data" : "loading…"} />
         <Cell onOpen={setOpen} kind="momentum" label="Momentum" value={mPts} of="/ 5" cls={mPts == null ? "na" : tone(mPts, 5)} sub={!sevenRule ? "—" : `${sevenRule.passed}/${sevenRule.rules.length} rules${sevenRule.ratingLabel && sevenRule.ratingLabel !== "No" ? ` · ${sevenRule.ratingLabel}` : ""}`} />

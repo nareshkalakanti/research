@@ -1,18 +1,19 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { MultiPick } from "@/components/FilterBar";
-import {
-  ReviewPlusButton,
-  invalidateReviewMembership,
-} from "@/components/ReviewPlusButton";
+import { HoldingsIndustryCheck, MultiPick } from "@/components/FilterBar";
+import { MarketScoreChart } from "@/components/MarketScoreChart";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
+import { RevenueEarningsChart } from "@/components/RevenueEarningsChart";
+import type { QuarterPanel } from "@/lib/quarter-panel";
+import { useUrlEnumParam } from "@/lib/url-enum-param";
 
 /**
  * Value page (dark): an Intrinsic Value style ranking tool — Sales growth 3Y,
  * ROCE 3Y and P/B ranked inside whatever set you filter to, ranks summed into a
- * total score (lower = better) — and an industry Headwind / Tailwind breadth
- * indicator. Industries are StockScans'.
+ * total score (lower = better) — and industry Favour / Out of favour breadth
+ * (Full Market + industries). Industries are StockScans'.
  */
 
 type Stock = {
@@ -26,7 +27,7 @@ type Stock = {
   sales3y: number | null;
   roce3y: number | null;
   pb: number | null;
-  src?: "screener" | "yahoo" | null;
+  src?: "screener" | "upstox" | "yahoo" | null;
 };
 type Industry = { name: string; n: number; ranked: number };
 type Wind = {
@@ -37,7 +38,8 @@ type Wind = {
   below: number;
   score: number;
   ret3m: number | null;
-  indicator: "TAILWIND" | "HEADWIND" | "NEUTRAL";
+  indicator: "FAVOUR" | "OUT" | "NEUTRAL";
+  is_market?: boolean;
 };
 type Ranked = Stock & { gR: number; rR: number; pR: number; total: number; rank: number };
 /** Unranked: no Sales growth / ROCE / P/B yet — listed after the ranked ones. */
@@ -137,7 +139,7 @@ function FillBar({ missing, fetchable, onDone }: { missing: number; fetchable: n
     const id = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(id);
   }, [load]);
-  const mine = !!job?.running && job.kind === "rotqy";
+  const mine = !!job?.running && (job.kind === "rotqy" || job.kind === "valq");
   useEffect(() => {
     if (!mine) return;
     const id = window.setInterval(async () => {
@@ -191,11 +193,11 @@ function FillBar({ missing, fetchable, onDone }: { missing: number; fetchable: n
               title={
                 job?.running
                   ? "Another background job is running — try again shortly"
-                  : "Biggest first · Yahoo, then Screener: one page every 5–7 s, at most 150 per click, stops if Screener pushes back"
+                  : "Sales/ROCE first (never-fetched → gaps → failed), then P/B · Screener → Upstox → Yahoo · paced; stops if Screener pushes back"
               }
               onClick={() => void post({})}
             >
-              Fetch next {Math.min(150, fetchable)}
+              Fetch next {Math.min(40, fetchable)}
             </button>
           ) : null}
         </>
@@ -206,8 +208,17 @@ function FillBar({ missing, fetchable, onDone }: { missing: number; fetchable: n
   );
 }
 
+const VALUE_SUBTABS = [
+  "rank",
+  "cycle",
+  "valuation",
+  "winds",
+  "earnings",
+] as const;
+type ValueSubTab = (typeof VALUE_SUBTABS)[number];
+
 export function ValuePanel() {
-  const [tab, setTab] = useState<"rank" | "cycle" | "valuation" | "review" | "winds">("rank");
+  const [tab, setTab] = useUrlEnumParam("v", VALUE_SUBTABS, "rank");
   const [rows, setRows] = useState<Stock[] | null>(null);
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [asOf, setAsOf] = useState<string | null>(null);
@@ -249,7 +260,11 @@ export function ValuePanel() {
     };
   }, [reloadKey]);
 
-  const missingAll = useMemo(() => (rows ?? []).filter((r) => r.sales3y == null).length, [rows]);
+  /** Can't rank until Sales growth 3Y, ROCE 3Y and P/B are all present. */
+  const missingAll = useMemo(
+    () => (rows ?? []).filter((r) => r.sales3y == null || r.roce3y == null || r.pb == null || r.pb <= 0).length,
+    [rows],
+  );
 
   const apply = useCallback((f: Filters) => {
     setApplied(f);
@@ -274,7 +289,7 @@ export function ValuePanel() {
       setTab("rank");
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [apply],
+    [apply, setTab],
   );
 
   const ranked = useMemo(() => {
@@ -320,9 +335,9 @@ export function ValuePanel() {
                 ? "Industry cycle map"
                 : tab === "valuation"
                   ? "Sector valuation"
-                  : tab === "review"
-                    ? "Portfolio tool"
-                  : "Headwind / Tailwind indicator"}
+                  : tab === "earnings"
+                    ? "Wealth & analytics"
+                  : "Favour / out of favour breadth"}
           </span>
           <h2 className="vx-title">
             {tab === "rank" ? (
@@ -337,13 +352,13 @@ export function ValuePanel() {
               <>
                 Undervalued &amp; <span>Overvalued Sectors</span>
               </>
-            ) : tab === "review" ? (
+            ) : tab === "earnings" ? (
               <>
-                Portfolio <span>Review</span>
+                Earnings <span>Trends</span>
               </>
             ) : (
               <>
-                Industry <span>Headwind &amp; Tailwind</span>
+                Favour / <span>Out of favour</span>
               </>
             )}
           </h2>
@@ -358,11 +373,11 @@ export function ValuePanel() {
           <button type="button" role="tab" aria-selected={tab === "valuation"} className={tab === "valuation" ? "on" : ""} onClick={() => setTab("valuation")}>
             Valuation
           </button>
-          <button type="button" role="tab" aria-selected={tab === "review"} className={tab === "review" ? "on" : ""} onClick={() => setTab("review")}>
-            Portfolio review
+          <button type="button" role="tab" aria-selected={tab === "earnings"} className={tab === "earnings" ? "on" : ""} onClick={() => setTab("earnings")}>
+            Earnings Trends
           </button>
           <button type="button" role="tab" aria-selected={tab === "winds"} className={tab === "winds" ? "on" : ""} onClick={() => setTab("winds")}>
-            Headwind / Tailwind
+            Favour / Out of favour
           </button>
         </div>
       </header>
@@ -390,14 +405,21 @@ export function ValuePanel() {
               </label>
               <div className="vx-field vx-field--wide vx-field--pick">
                 <span className="vx-label">&nbsp;</span>
-                <MultiPick
-                  label="Industry"
-                  allLabel="All industries"
-                  values={draft.industries}
-                  onChange={(v) => setDraft({ ...draft, industries: v })}
-                  options={industries.map((i) => ({ id: i.name, label: i.name, count: i.n, title: `${i.ranked} of ${i.n} ranked` }))}
-                  searchable
-                />
+                <div className="vx-pick-row">
+                  <MultiPick
+                    label="Industry"
+                    allLabel="All industries"
+                    values={draft.industries}
+                    onChange={(v) => setDraft({ ...draft, industries: v })}
+                    options={industries.map((i) => ({ id: i.name, label: i.name, count: i.n, title: `${i.ranked} of ${i.n} ranked` }))}
+                    searchable
+                  />
+                  <HoldingsIndustryCheck
+                    values={draft.industries}
+                    onChange={(v) => setDraft({ ...draft, industries: v })}
+                    available={industries.map((i) => i.name)}
+                  />
+                </div>
               </div>
               <label className="vx-field">
                 <span className="vx-label">Stock count</span>
@@ -532,9 +554,20 @@ export function ValuePanel() {
                           </td>
                           <td className="num">{cr(r.mcap)}</td>
                           <td className="num">
-                            <span title={r.src === "yahoo" ? "From Yahoo (no Screener annual data cached yet)" : r.src === "screener" ? "Screener: 3-year sales CAGR" : undefined}>
+                            <span
+                              title={
+                                r.src === "yahoo"
+                                  ? "From Yahoo (no Screener annual data cached yet)"
+                                  : r.src === "upstox"
+                                    ? "From Upstox Fundamentals (free Analytics Token)"
+                                    : r.src === "screener"
+                                      ? "Screener: 3-year sales CAGR"
+                                      : undefined
+                              }
+                            >
                               {pct(r.sales3y)}
                               {r.src === "yahoo" ? <sup className="vx-src">Y</sup> : null}
+                              {r.src === "upstox" ? <sup className="vx-src">U</sup> : null}
                             </span>{" "}
                             {r.gR != null ? <span className="vx-r">({r.gR})</span> : null}
                           </td>
@@ -569,11 +602,8 @@ export function ValuePanel() {
         <CycleView rows={rows} onOpen={openIndustry} />
       ) : tab === "valuation" ? (
         <ValuationView onOpen={openIndustry} />
-      ) : tab === "review" ? (
-        <ReviewView
-          universe={rows}
-          onMembershipChange={invalidateReviewMembership}
-        />
+      ) : tab === "earnings" ? (
+        <EarningsTrendsView universe={rows} />
       ) : (
         <WindsView onOpen={openIndustry} />
       )}
@@ -581,14 +611,22 @@ export function ValuePanel() {
   );
 }
 
+const WIND_LABEL: Record<Wind["indicator"], string> = {
+  FAVOUR: "In favour",
+  OUT: "Out of favour",
+  NEUTRAL: "Neutral",
+};
+
 function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
   const [rows, setRows] = useState<Wind[] | null>(null);
   const [asOf, setAsOf] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [show, setShow] = useState<"all" | "TAILWIND" | "HEADWIND" | "NEUTRAL">("all");
+  const [show, setShow] = useState<"all" | Wind["indicator"]>("all");
   const [q] = useState("");
   const [picked, setPicked] = useState<string[]>([]);
   const [minN, setMinN] = useState(1);
+  /** Market Score history — Full Market only; expands under that row. */
+  const [marketScoreOpen, setMarketScoreOpen] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -610,19 +648,26 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
   }, []);
 
   const counts = useMemo(() => {
-    const c = { TAILWIND: 0, HEADWIND: 0, NEUTRAL: 0 };
-    for (const r of rows ?? []) if (r.n >= minN) c[r.indicator]++;
+    const c = { FAVOUR: 0, OUT: 0, NEUTRAL: 0 };
+    for (const r of rows ?? []) {
+      if (r.is_market) continue;
+      if (r.n >= minN) c[r.indicator]++;
+    }
     return c;
   }, [rows, minN]);
   const list = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    return (rows ?? []).filter(
+    const industries = (rows ?? []).filter(
       (r) =>
+        !r.is_market &&
         r.n >= minN &&
         (show === "all" || r.indicator === show) &&
         (!needle || r.industry.toLowerCase().includes(needle)) &&
         (!picked.length || picked.includes(r.industry)),
     );
+    const market = (rows ?? []).find((r) => r.is_market);
+    // Full Market stays pinned on top whenever the list is showing.
+    return market && (show === "all" || market.indicator === show) ? [market, ...industries] : industries;
   }, [rows, show, q, minN, picked]);
 
   return (
@@ -631,10 +676,10 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
         <div className="vx-seg" role="group" aria-label="Show">
           {(
             [
-              ["all", "All", (rows ?? []).filter((r) => r.n >= minN).length],
-              ["TAILWIND", "Tailwind", counts.TAILWIND],
+              ["all", "All", (rows ?? []).filter((r) => !r.is_market && r.n >= minN).length],
+              ["FAVOUR", "In favour", counts.FAVOUR],
               ["NEUTRAL", "Neutral", counts.NEUTRAL],
-              ["HEADWIND", "Headwind", counts.HEADWIND],
+              ["OUT", "Out of favour", counts.OUT],
             ] as const
           ).map(([id, label, n]) => (
             <button key={id} type="button" className={show === id ? "on" : ""} aria-pressed={show === id} onClick={() => setShow(id)}>
@@ -658,11 +703,20 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
           allLabel="All industries"
           values={picked}
           onChange={setPicked}
-          options={(rows ?? []).filter((r) => r.n >= minN).map((r) => ({ id: r.industry, label: r.industry, count: r.n })).sort((a, b) => a.label.localeCompare(b.label))}
+          options={(rows ?? [])
+            .filter((r) => !r.is_market && r.n >= minN)
+            .map((r) => ({ id: r.industry, label: r.industry, count: r.n }))
+            .sort((a, b) => a.label.localeCompare(b.label))}
           searchable
         />
+        <HoldingsIndustryCheck
+          values={picked}
+          onChange={setPicked}
+          available={(rows ?? []).filter((r) => !r.is_market && r.n >= minN).map((r) => r.industry)}
+        />
         <span className="vx-hint vx-push">
-          Score = share of stocks above their 50-day average − share below{asOf ? ` · prices to ${asOf}` : ""}
+          Favour / out of favour from breadth vs 50-day average{asOf ? ` · prices to ${asOf}` : ""}
+          {" · click Full Market to open score history below"}
         </span>
       </div>
 
@@ -676,32 +730,59 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
         ) : (
           list.map((r) => {
             const w = Math.min(1, Math.abs(r.score)) * 50;
+            const tone = r.indicator === "FAVOUR" ? "favour" : r.indicator === "OUT" ? "out" : "neutral";
             return (
-              <div key={r.industry} className={`vx-wind vx-wind--${r.indicator.toLowerCase()}`}>
-                <button type="button" className="vx-wind-name" onClick={() => onOpen(r.industry)} title="Open in the ranking tool">
-                  {r.industry}
-                  <span aria-hidden>↗</span>
-                </button>
-                <span className="vx-wind-meta">
-                  {r.n} stocks · {r.above} up / {r.below} down
-                  {r.ret3m != null ? ` · 3M ${r.ret3m >= 0 ? "+" : ""}${r.ret3m.toFixed(1)}%` : ""}
-                </span>
-                <span className="vx-meter" aria-hidden>
-                  <span className="vx-meter-mid" />
-                  <span
-                    className="vx-meter-fill"
-                    style={r.score >= 0 ? { left: "50%", width: `${w}%` } : { left: `${50 - w}%`, width: `${w}%` }}
-                  />
-                </span>
-                <span className="vx-wind-score">
-                  {r.score > 0 ? "+" : ""}
-                  {Number(r.score.toFixed(4))}
-                </span>
-                <span className="vx-badge">
-                  {r.indicator === "TAILWIND" ? "▲ " : r.indicator === "HEADWIND" ? "▼ " : "• "}
-                  {r.indicator}
-                </span>
-              </div>
+              <Fragment key={r.industry}>
+                <div
+                  className={`vx-wind vx-wind--${tone}${r.is_market ? " vx-wind--market" : ""}${r.is_market && marketScoreOpen ? " vx-wind--selected" : ""}`}
+                >
+                  {r.is_market ? (
+                    <button
+                      type="button"
+                      className="vx-wind-name vx-wind-name--market"
+                      title={marketScoreOpen ? "Hide Full Market score history" : "Show Full Market score history"}
+                      aria-expanded={marketScoreOpen}
+                      onClick={() => setMarketScoreOpen((o) => !o)}
+                    >
+                      {r.industry}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="vx-wind-name"
+                      onClick={() => onOpen(r.industry)}
+                      title="Open in the ranking tool"
+                    >
+                      {r.industry}
+                      <span aria-hidden>↗</span>
+                    </button>
+                  )}
+                  <span className="vx-wind-meta">
+                    {r.n.toLocaleString("en-IN")} stocks · {r.above} up / {r.below} down
+                    {r.ret3m != null ? ` · 3M ${r.ret3m >= 0 ? "+" : ""}${r.ret3m.toFixed(1)}%` : ""}
+                  </span>
+                  <span className="vx-meter" aria-hidden>
+                    <span className="vx-meter-mid" />
+                    <span
+                      className="vx-meter-fill"
+                      style={r.score >= 0 ? { left: "50%", width: `${w}%` } : { left: `${50 - w}%`, width: `${w}%` }}
+                    />
+                  </span>
+                  <span className="vx-wind-score">
+                    {r.score > 0 ? "+" : ""}
+                    {Number(r.score.toFixed(4))}
+                  </span>
+                  <span className="vx-badge">
+                    {r.indicator === "FAVOUR" ? "▲ " : r.indicator === "OUT" ? "▼ " : "• "}
+                    {WIND_LABEL[r.indicator]}
+                  </span>
+                </div>
+                {r.is_market && marketScoreOpen ? (
+                  <div className="vx-wind-score-panel">
+                    <MarketScoreChart industry="Full Market" />
+                  </div>
+                ) : null}
+              </Fragment>
             );
           })
         )}
@@ -864,6 +945,7 @@ function CycleView({
           options={eligible.map((r) => ({ id: r.industry, label: r.industry, count: r.n })).sort((a, b) => a.label.localeCompare(b.label))}
           searchable
         />
+        <HoldingsIndustryCheck values={picked} onChange={setPicked} available={eligible.map((r) => r.industry)} />
       </div>
       <p className="vx-hint vx-cycle-rule">
         Average company return per year · Deep out of favour: 5Y &lt; 2% · Out of favour: 3Y &lt; 0% · Extremely hot: 5Y &gt; 35% · Hot: 3Y
@@ -1012,55 +1094,174 @@ type ValSector = {
   over_pct: number;
   stocks: ValStock[];
 };
+type ValDistBucket = { key: string; label: string; n: number };
+type ValDistribution = { analyzed: number; buckets: ValDistBucket[] };
+type ValMcapSegment = { key: string; label: string; n: number; under_pct: number; over_pct: number };
 
 type ValOpen = { industry: string; side: "under" | "over" } | null;
 
-function Bars({
-title,
-rows,
-side,
-open,
-setOpen,
+function fmtPct1(n: number): string {
+  return `${n % 1 ? n.toFixed(1) : n}%`;
+}
+
+function ValuationGraphs({
+  dist,
+  segments,
 }: {
-title: string;
-rows: ValSector[];
-side: "under" | "over";
-open: ValOpen;
-setOpen: (v: ValOpen) => void;
+  dist: ValDistribution | null;
+  segments: ValMcapSegment[] | null;
 }) {
-return (
-  <div className={`vx-card vx-bars vx-bars--${side}`}>
-    <span className="vx-label vx-label--title">{title}</span>
-    {!rows.length ? <p className="vx-empty">No sectors.</p> : null}
-    {rows.map((r) => {
-      const pctv = side === "under" ? r.under_pct : r.over_pct;
-      const k = side === "under" ? r.under : r.over;
-      const on = open?.industry === r.industry && open.side === side;
-      return (
-        <button
-          key={r.industry}
-          type="button"
-          className={`vx-bar-row${on ? " on" : ""}`}
-          onClick={() => setOpen(on ? null : { industry: r.industry, side })}
-          title={`${k} of ${r.scored} companies ${side === "under" ? "below" : "above"} their own 5-year median P/E — click for the list`}
-        >
-          <span className="vx-bar-name">{r.industry}</span>
-          <span className="vx-bar-track">
-            <span className="vx-bar-fill" style={{ width: `${pctv}%` }} />
+  const [open, setOpen] = useState(false);
+  const maxN = Math.max(1, ...(dist?.buckets.map((b) => b.n) ?? [1]));
+  const maxUnder = Math.max(1, ...(segments?.map((s) => s.under_pct) ?? [1]));
+  const maxOver = Math.max(1, ...(segments?.map((s) => s.over_pct) ?? [1]));
+  return (
+    <div className={`vx-card vx-vgraph${open ? " vx-vgraph--open" : ""}`}>
+      <button
+        type="button"
+        className="vx-vgraph-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="vx-vgraph-toggle-title">
+          Valuation &amp; Trend Graphs
+          <span className="vx-vgraph-chevron" aria-hidden>
+            {open ? "▾" : "▸"}
           </span>
-          <span className="vx-bar-pct">{pctv % 1 ? pctv.toFixed(1) : pctv}%</span>
-          <span className="vx-bar-k">
-            {k}/{r.scored}
-          </span>
-        </button>
-      );
-    })}
-  </div>
-);
+        </span>
+        <span className="vx-vgraph-toggle-hint">{open ? "Hide graphs" : "Show graphs"}</span>
+      </button>
+      {open ? (
+        <div className="vx-vgraph-body">
+          <div className="vx-vdist">
+            <div className="vx-vdist-head">
+              <h3 className="vx-vdist-title">Valuation Distribution</h3>
+              <span
+                className="vx-vdist-badge"
+                title="Only companies with ≥3 years of own year-end P/E (price ÷ EPS) in cache — not the full market list"
+              >
+                Scored: {(dist?.analyzed ?? 0).toLocaleString("en-IN")}
+                <span className="vx-vdist-badge-note"> · ≥3Y own P/E</span>
+              </span>
+            </div>
+            {!dist ? (
+              <p className="vx-empty">Loading distribution…</p>
+            ) : (
+              <div className="vx-vdist-list">
+                {dist.buckets.map((b) => (
+                  <div key={b.key} className="vx-vdist-row">
+                    <span className="vx-vdist-label">{b.label}</span>
+                    <span className="vx-vdist-track" aria-hidden>
+                      <span
+                        className="vx-vdist-fill"
+                        style={{ width: `${Math.max(b.n ? 4 : 0, (b.n / maxN) * 100)}%` }}
+                      />
+                    </span>
+                    <span className="vx-vdist-n">{b.n.toLocaleString("en-IN")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="vx-vseg-grid">
+            <div className="vx-vseg">
+              <h3 className="vx-vdist-title">Segment Undervaluation %</h3>
+              {!segments ? (
+                <p className="vx-empty">Loading…</p>
+              ) : (
+                <div className="vx-vdist-list">
+                  {segments.map((s) => (
+                    <div key={`u-${s.key}`} className="vx-vdist-row vx-vdist-row--seg">
+                      <span className="vx-vdist-label">{s.label}</span>
+                      <span className="vx-vdist-track" aria-hidden>
+                        <span
+                          className="vx-vdist-fill"
+                          style={{ width: `${Math.max(s.under_pct ? 3 : 0, (s.under_pct / maxUnder) * 100)}%` }}
+                        />
+                      </span>
+                      <span className="vx-vdist-n">{fmtPct1(s.under_pct)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="vx-vseg">
+              <h3 className="vx-vdist-title">Segment Overvaluation %</h3>
+              {!segments ? (
+                <p className="vx-empty">Loading…</p>
+              ) : (
+                <div className="vx-vdist-list">
+                  {segments.map((s) => (
+                    <div key={`o-${s.key}`} className="vx-vdist-row vx-vdist-row--seg">
+                      <span className="vx-vdist-label">{s.label}</span>
+                      <span className="vx-vdist-track" aria-hidden>
+                        <span
+                          className="vx-vdist-fill"
+                          style={{ width: `${Math.max(s.over_pct ? 3 : 0, (s.over_pct / maxOver) * 100)}%` }}
+                        />
+                      </span>
+                      <span className="vx-vdist-n">{fmtPct1(s.over_pct)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Bars({
+  title,
+  rows,
+  side,
+  open,
+  setOpen,
+}: {
+  title: string;
+  rows: ValSector[];
+  side: "under" | "over";
+  open: ValOpen;
+  setOpen: (v: ValOpen) => void;
+}) {
+  return (
+    <div className={`vx-card vx-bars vx-bars--${side}`}>
+      <span className="vx-label vx-label--title">{title}</span>
+      {!rows.length ? <p className="vx-empty">No sectors.</p> : null}
+      {rows.map((r) => {
+        const pctv = side === "under" ? r.under_pct : r.over_pct;
+        const k = side === "under" ? r.under : r.over;
+        const on = open?.industry === r.industry && open.side === side;
+        return (
+          <button
+            key={r.industry}
+            type="button"
+            className={`vx-bar-row${on ? " on" : ""}`}
+            onClick={() => setOpen(on ? null : { industry: r.industry, side })}
+            title={`${k} of ${r.scored} companies ${side === "under" ? "below" : "above"} their own 5-year median P/E — click for the list`}
+          >
+            <span className="vx-bar-name">{r.industry}</span>
+            <span className="vx-bar-track">
+              <span className="vx-bar-fill" style={{ width: `${pctv}%` }} />
+            </span>
+            <span className="vx-bar-pct">{pctv % 1 ? pctv.toFixed(1) : pctv}%</span>
+            <span className="vx-bar-k">
+              {k}/{r.scored}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
   const [data, setData] = useState<ValSector[] | null>(null);
+  const [dist, setDist] = useState<ValDistribution | null>(null);
+  const [segments, setSegments] = useState<ValMcapSegment[] | null>(null);
   const [asOf, setAsOf] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [minN, setMinN] = useState(1);
@@ -1071,10 +1272,19 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
     void (async () => {
       try {
         const res = await fetch("/api/value-tools?kind=valuation", { cache: "no-store" });
-        const j = (await res.json()) as { ok?: boolean; error?: string; rows?: ValSector[]; as_of?: string | null };
+        const j = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          rows?: ValSector[];
+          as_of?: string | null;
+          distribution?: ValDistribution;
+          mcap_segments?: ValMcapSegment[];
+        };
         if (!live) return;
         if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
         setData(j.rows ?? []);
+        setDist(j.distribution ?? null);
+        setSegments(j.mcap_segments ?? null);
         setAsOf(j.as_of ?? null);
       } catch (e) {
         if (live) setErr(e instanceof Error ? e.message : String(e));
@@ -1090,15 +1300,19 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
     () => (data ?? []).filter((r) => r.scored >= minN && (!picked.length || picked.includes(r.industry))),
     [data, minN, picked],
   );
-  const under = useMemo(
-    () => [...eligible].filter((r) => r.under > 0).sort((a, b) => b.under_pct - a.under_pct || b.scored - a.scored).slice(0, 15),
-    [eligible],
-  );
-  const over = useMemo(
-    () => [...eligible].filter((r) => r.over > 0).sort((a, b) => b.over_pct - a.over_pct || b.scored - a.scored).slice(0, 15),
-    [eligible],
-  );
-  const sel = open ? eligible.find((r) => r.industry === open.industry) : null;
+  const under = useMemo(() => {
+    const rows = [...eligible]
+      .filter((r) => r.under > 0)
+      .sort((a, b) => b.under_pct - a.under_pct || b.scored - a.scored);
+    return picked.length ? rows : rows.slice(0, 15);
+  }, [eligible, picked.length]);
+  const over = useMemo(() => {
+    const rows = [...eligible]
+      .filter((r) => r.over > 0)
+      .sort((a, b) => b.over_pct - a.over_pct || b.scored - a.scored);
+    return picked.length ? rows : rows.slice(0, 15);
+  }, [eligible, picked.length]);
+  const sel = open ? (data ?? []).find((r) => r.industry === open.industry) ?? null : null;
 
   return (
     <>
@@ -1121,11 +1335,19 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
           options={(data ?? []).filter((r) => r.scored >= minN).map((r) => ({ id: r.industry, label: r.industry, count: r.scored })).sort((a, b) => a.label.localeCompare(b.label))}
           searchable
         />
+        <HoldingsIndustryCheck
+          values={picked}
+          onChange={setPicked}
+          available={(data ?? []).filter((r) => r.scored >= minN).map((r) => r.industry)}
+        />
         <span className="vx-hint vx-push">
-          Undervalued = today&apos;s P/E more than 15% below the company&apos;s own 5-year median P/E · overvalued = more than 15% above
+          Undervalued = today&apos;s P/E more than 15% below the company&apos;s own 5-year median P/E · overvalued = more than 15% above · extreme = 30%+
           {asOf ? ` · prices to ${asOf}` : ""}
         </span>
       </div>
+
+      <ValuationGraphs dist={data ? dist : null} segments={data ? segments : null} />
+
       {err ? (
         <p className="vx-msg vx-msg--err">Could not load: {err}</p>
       ) : !data ? (
@@ -1133,8 +1355,20 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
       ) : (
         <>
           <div className="vx-bars-grid">
-            <Bars title="Top 15 undervalued sectors by %" rows={under} side="under" open={open} setOpen={setOpen} />
-            <Bars title="Top 15 overvalued sectors by %" rows={over} side="over" open={open} setOpen={setOpen} />
+            <Bars
+              title={picked.length ? "Undervalued sectors" : "Top 15 undervalued sectors by %"}
+              rows={under}
+              side="under"
+              open={open}
+              setOpen={setOpen}
+            />
+            <Bars
+              title={picked.length ? "Overvalued sectors" : "Top 15 overvalued sectors by %"}
+              rows={over}
+              side="over"
+              open={open}
+              setOpen={setOpen}
+            />
           </div>
           {sel ? (
             <div className="vx-card vx-table-card">
@@ -1198,463 +1432,116 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
   );
 }
 
-// ---- Portfolio review ---------------------------------------------------------------
+// ---- Earnings Trends (quarterly Revenue vs Earnings) ------------------------------------
 
-type FundCheck = { id: string; label: string; rule: string; value: string; points: number | null; note?: string };
-type ReviewRow = {
-  t: string;
-  name: string;
-  market: string;
-  industry: string | null;
-  mcap: number | null;
-  fundamental: number;
-  scored: number;
-  checks: FundCheck[];
-  management: number;
-  m_scored: number;
-  m_checks: FundCheck[];
-  quality: number;
-  valuation: number;
-  v_scored: number;
-  v_checks: FundCheck[];
-  total: number;
-  total_max: number;
-  rating: "Excellent" | "Good" | "Average" | "Poor" | "No data";
-};
-type DrawerKind = "fundamental" | "management" | "valuation";
-const DRAWER: Record<DrawerKind, { title: string; label: string; max: number; src: string }> = {
-  fundamental: { title: "Fundamental parameters", label: "Fundamental score", max: 6, src: "Screener annual results (consolidated)" },
-  management: { title: "Management parameters", label: "Management score", max: 5, src: "Screener shareholding pattern (last 12 quarters)" },
-  valuation: { title: "Valuation parameters", label: "Valuation score", max: 6, src: "Peers = same industry (3+ with data) · cash: Yahoo" },
-};
-
-function ReviewView({
-  universe,
-  onMembershipChange,
-}: {
-  universe: Stock[] | null;
-  onMembershipChange?: () => void;
-}) {
-  const [rows, setRows] = useState<ReviewRow[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
+function EarningsTrendsView({ universe }: { universe: Stock[] | null }) {
   const [q, setQ] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Stock | null>(null);
+  const [panel, setPanel] = useState<QuarterPanel | null>(null);
+  const [yoy, setYoy] = useState<{ sales_yoy: number | null; np_yoy: number | null; ebidt_yoy: number | null } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [drawer, setDrawer] = useState<{ row: ReviewRow; kind: DrawerKind } | null>(null);
-  /** Screener rate-limit: stocks without data cannot be scored until then. */
-  const [pausedUntil, setPausedUntil] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const res = await fetch("/api/portfolio-review", { cache: "no-store" });
-      const j = (await res.json()) as { ok?: boolean; error?: string; rows?: ReviewRow[]; screener_paused_until?: string | null };
-      if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
-      setErr(null);
-      setRows(j.rows ?? []);
-      setPausedUntil(j.screener_paused_until ?? null);
-    } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
-    }
-  }, []);
-  useEffect(() => {
-    const id = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(id);
-  }, [load]);
-  useEffect(() => {
-    if (!drawer) return;
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setDrawer(null);
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
-  }, [drawer]);
-
-  const post = async (body: object) => {
-    const res = await fetch("/api/portfolio-review", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    return (await res.json()) as { ok?: boolean; error?: string; added?: number; missing?: string[] };
-  };
-  const add = async (codes: string[]) => {
-    if (!codes.length) return;
-    setBusy(true);
-    setMsg("Adding and scoring…");
-    try {
-      const j = (await post({ add: codes })) as { ok?: boolean; error?: string; added?: number; found?: string[]; missing?: string[] };
-      if (j.ok === false) throw new Error(j.error);
-      const miss = j.missing?.length
-        ? ` · not found: ${j.missing.slice(0, 8).join(", ")}${j.missing.length > 8 ? ` +${j.missing.length - 8}` : ""}`
-        : "";
-      // Show new stocks at once ("Scoring…"); scores fill in when ready.
-      const have = new Set((rows ?? []).map((r) => r.t));
-      const fresh = (j.found ?? []).filter((t) => !have.has(t));
-      if (fresh.length) {
-        const byT = new Map((universe ?? []).map((u) => [u.t, u]));
-        setRows((cur) => [
-          ...(cur ?? []),
-          ...fresh.map((t) => ({
-            t,
-            name: byT.get(t)?.name ?? t,
-            market: byT.get(t)?.market ?? "NSE",
-            industry: byT.get(t)?.industry ?? null,
-            mcap: byT.get(t)?.mcap ?? null,
-            fundamental: 0,
-            scored: -1,
-            checks: [],
-            management: 0,
-            m_scored: 0,
-            m_checks: [],
-            quality: 0,
-            valuation: 0,
-            v_scored: 0,
-            v_checks: [],
-            total: 0,
-            total_max: 0,
-            rating: "No data" as const,
-          })),
-        ]);
-      }
-      setMsg(
-        j.added
-          ? `Added ${j.added} — scoring…${miss}`
-          : (j.found?.length ? "Already in your list" : "Nothing added") + miss,
-      );
-      setQ("");
-      await load();
-      onMembershipChange?.();
-      if (j.added) setMsg(`Added ${j.added}${miss}`);
-    } catch (e) {
-      setMsg(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  const local = useMemo(() => {
+  const hits = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    if (!universe || needle.length < 2) return [];
+    if (!needle || !universe) return [];
     return universe
-      .filter((r) => r.t.toLowerCase().startsWith(needle) || r.name.toLowerCase().includes(needle))
-      .sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0))
+      .filter((r) => r.t.toLowerCase().includes(needle) || r.name.toLowerCase().includes(needle))
       .slice(0, 8);
-  }, [universe, q]);
+  }, [q, universe]);
 
-  // The ranking list is cached and misses brand-new listings (e.g. a recent
-  // IPO): also ask the app-wide ticker search, then Groww/BSE if that is empty.
-  type Hit = { t: string; name: string; market: string; mcap: number | null; remote: boolean };
-  const [extra, setExtra] = useState<Hit[]>([]);
   useEffect(() => {
-    const needle = q.trim();
-    if (needle.length < 2) {
-      setExtra([]);
+    if (!picked) {
+      setPanel(null);
+      setYoy(null);
+      setErr(null);
       return;
     }
-    const ctl = new AbortController();
-    const id = window.setTimeout(async () => {
-      type Api = { hits?: Array<{ ticker: string; name: string; market: string; mcap_cr?: number | null; source?: string }> };
-      const ask = async (remote: 0 | 1) =>
-        ((await (await fetch(`/api/tickers?q=${encodeURIComponent(needle)}&limit=8&remote=${remote}`, { signal: ctl.signal })).json()) as Api).hits ?? [];
+    let live = true;
+    setBusy(true);
+    setErr(null);
+    void (async () => {
       try {
-        let hits = await ask(0);
-        if (!hits.length) hits = await ask(1);
-        setExtra(
-          hits.map((h) => ({
-            t: h.ticker.toUpperCase(),
-            name: h.name,
-            market: h.market || "NSE",
-            mcap: h.mcap_cr ?? null,
-            remote: h.source === "groww" || h.source === "bse",
-          })),
-        );
-      } catch {
-        /* typing moved on, or search failed — keep the local list */
-      }
-    }, 300);
-    return () => {
-      window.clearTimeout(id);
-      ctl.abort();
-    };
-  }, [q]);
-
-  const suggestions = useMemo(() => {
-    const seen = new Set(local.map((r) => r.t));
-    const more = extra.filter((h) => !seen.has(h.t));
-    return [...local.map((r) => ({ t: r.t, name: r.name, market: r.market, mcap: r.mcap, remote: false })), ...more].slice(0, 8);
-  }, [local, extra]);
-
-  /** A listing the app has never seen: save it first (as the Dashboard does), then add. */
-  const pick = async (h: { t: string; name: string; market: string; remote: boolean }) => {
-    if (h.remote) {
-      setBusy(true);
-      setMsg(`Adding ${h.t} as a new listing…`);
-      try {
-        await fetch("/api/tickers", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker: h.t, name: h.name, market: h.market }),
-        });
-      } catch {
-        /* add() reports "not found" if this failed */
+        const sp = new URLSearchParams({ ticker: picked.t });
+        if (picked.market) sp.set("market", picked.market);
+        const res = await fetch(`/api/quarters?${sp}`, { cache: "no-store" });
+        const j = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
+          quarters?: QuarterPanel | null;
+          yoy?: { sales_yoy: number | null; np_yoy: number | null; ebidt_yoy: number | null };
+        };
+        if (!live) return;
+        if (!res.ok || j.ok === false || !j.quarters) throw new Error(j.error || "No quarterly data");
+        setPanel(j.quarters);
+        setYoy(j.yoy ?? null);
+      } catch (e) {
+        if (live) {
+          setPanel(null);
+          setYoy(null);
+          setErr(e instanceof Error ? e.message : String(e));
+        }
       } finally {
-        setBusy(false);
+        if (live) setBusy(false);
       }
-    }
-    await add([h.t]);
-  };
-
-  /** Colour by share of checks passed: ≥ 65% green · ≥ 40% amber · else red. */
-  const cls = (got: number, of: number) => (!of ? "na" : got / of >= 0.65 ? "good" : got / of >= 0.4 ? "mid" : "bad");
-  const ratingCls = (r: ReviewRow) =>
-    r.rating === "Excellent" ? "top" : r.rating === "Good" ? "good" : r.rating === "Average" ? "mid" : r.rating === "Poor" ? "bad" : "na";
-  const valCls = (v: number, n: number) => (!n ? "na" : v >= 3 ? "good" : v >= 1 ? "mid" : "bad");
+    })();
+    return () => {
+      live = false;
+    };
+  }, [picked]);
 
   return (
     <>
-      <div className="vx-card vx-filters">
-        <span className="vx-label vx-label--title">Search and add stocks</span>
-        <form
-          className="vx-add"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void add([q]);
-          }}
-        >
-          <label className="vx-field vx-field--grow">
-            <span className="vx-label">Stock name, NSE code or BSE code</span>
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type a stock name or code, e.g. Reliance, TCS, 500325…" />
-            {suggestions.length ? (
-              <ul className="vx-suggest" role="listbox">
-                {suggestions.map((r) => (
-                  <li key={r.t}>
-                    <button type="button" onClick={() => void pick(r)}>
-                      <strong>{r.name}</strong>
-                      <span>
-                        {r.t} · {r.market}
-                        {r.mcap ? ` · ₹${Math.round(r.mcap).toLocaleString("en-IN")} Cr` : ""}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </label>
-          <button type="submit" className="vx-btn vx-btn--gold" disabled={busy || !q.trim()}>
-            Add stock
-          </button>
-        </form>
-        {msg ? <p className="vx-hint vx-add-msg">{msg}</p> : null}
-        {pausedUntil && rows?.some((r) => r.rating === "No data") ? (
-          <p className="vx-hint vx-add-msg">
-            Screener is rate-limiting until{" "}
-            {new Date(pausedUntil).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} — stocks showing
-            “No data” are scored after that (use Refresh at the top).
-          </p>
-        ) : null}
-      </div>
+      <p className="vx-hint" style={{ marginBottom: 12 }}>
+        Search any Indian stock to pull its historical Revenue vs. Earnings chart · quarterly
+      </p>
+      <div className="vx-earn">
+        <aside className="vx-card vx-earn-side">
+          <span className="vx-label vx-label--title">Search Stock</span>
+          <input
+            className="vx-earn-input"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Ticker or name"
+            aria-label="Search stock"
+          />
+          {!universe ? <p className="vx-empty">Loading universe…</p> : null}
+          {q.trim() && !hits.length ? <p className="vx-empty">No matches.</p> : null}
+          <ul className="vx-earn-hits">
+            {hits.map((h) => (
+              <li key={h.t}>
+                <button
+                  type="button"
+                  className={`vx-earn-hit${picked?.t === h.t ? " on" : ""}`}
+                  onClick={() => {
+                    setPicked(h);
+                    setQ(h.t);
+                  }}
+                >
+                  <strong>{h.t}</strong>
+                  <span>{h.name}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </aside>
 
-      <div className="vx-card vx-table-card">
-        <div className="vx-table-head">
-          <span className="vx-label vx-label--title">Stock evaluation table</span>
-          {rows?.length ? (
-            <button
-              type="button"
-              className="vx-btn"
-              onClick={async () => {
-                if (!window.confirm("Remove every stock from the review?")) return;
-                await post({ clear: true });
-                await load();
-                onMembershipChange?.();
-              }}
-            >
-              Clear portfolio
-            </button>
-          ) : null}
-        </div>
-        <div className="vx-scroll">
-          <table className="vx-table">
-            <thead>
-              <tr>
-                <th>Company</th>
-                <th>Industry</th>
-                <th className="num">Market cap</th>
-                <th className="num" title="Click a score for the checklist">
-                  Fundamental score
-                </th>
-                <th className="num" title="Click a score for the checklist">
-                  Management score
-                </th>
-                <th className="num" title="Fundamental + management">
-                  Quality score
-                </th>
-                <th className="num" title="Click a score for the checklist">
-                  Valuation score
-                </th>
-                <th className="num" title="Quality + valuation">
-                  Total score
-                </th>
-                <th>Final rating</th>
-                <th className="num">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {err ? (
-                <tr>
-                  <td colSpan={10} className="vx-empty vx-msg--err">
-                    Could not load: {err}
-                  </td>
-                </tr>
-              ) : !rows ? (
-                <tr>
-                  <td colSpan={10} className="vx-empty">
-                    Scoring your stocks…
-                  </td>
-                </tr>
-              ) : !rows.length ? (
-                <tr>
-                  <td colSpan={10} className="vx-empty">
-                    Add stocks above by name, NSE code or BSE code.
-                  </td>
-                </tr>
-              ) : (
-                rows.map((r) => (
-                  <tr key={r.t}>
-                    <td>
-                      <a className="vx-co" href={tradingviewUrl(r.t, r.market)} target="_blank" rel="noopener noreferrer">
-                        {r.name}
-                      </a>
-                      <span className="vx-sub">
-                        {r.t}
-                        {r.market !== "NSE" ? <em>{r.market}</em> : null}
-                        <a className="np-chip" href={napkinUrl(r.t)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
-                          NP
-                        </a>
-                      </span>
-                    </td>
-                    <td>{r.industry ?? "—"}</td>
-                    <td className="num">{cr(r.mcap)}</td>
-                    <td className="num">
-                      {r.scored < 0 ? (
-                        <span className="vx-hint">Scoring…</span>
-                      ) : (
-                        <button
-                          type="button"
-                          className={`vx-score vx-score--${cls(r.fundamental, r.scored)}`}
-                          onClick={() => setDrawer({ row: r, kind: "fundamental" })}
-                          title="Show the fundamental checklist"
-                        >
-                          {r.scored ? r.fundamental : "—"}
-                          <small>/ 6</small>
-                        </button>
-                      )}
-                    </td>
-                    <td className="num">
-                      {r.scored < 0 ? null : (
-                        <button
-                          type="button"
-                          className={`vx-score vx-score--${cls(r.management, r.m_scored)}`}
-                          onClick={() => setDrawer({ row: r, kind: "management" })}
-                          title="Show the management checklist"
-                        >
-                          {r.m_scored ? r.management : "—"}
-                          <small>/ 5</small>
-                        </button>
-                      )}
-                    </td>
-                    <td className="num vx-total-cell">
-                      {r.scored < 0 ? null : (
-                        <>
-                          {r.quality} <small>/ 11</small>
-                        </>
-                      )}
-                    </td>
-                    <td className="num">
-                      {r.scored < 0 ? null : (
-                        <button
-                          type="button"
-                          className={`vx-score vx-score--${valCls(r.valuation, r.v_scored)}`}
-                          onClick={() => setDrawer({ row: r, kind: "valuation" })}
-                          title="Show the valuation checklist"
-                        >
-                          {r.v_scored ? r.valuation : "—"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="num vx-total-cell">
-                      {r.scored < 0 ? null : (
-                        <>
-                          {r.total} <small>/ 17</small>
-                        </>
-                      )}
-                    </td>
-                    <td>
-                      {r.scored < 0 ? null : <span className={`vx-rating vx-rating--${ratingCls(r)}`}>{r.rating}</span>}
-                    </td>
-                    <td className="num">
-                      <button
-                        type="button"
-                        className="vx-del"
-                        aria-label={`Remove ${r.name}`}
-                        title="Remove"
-                        onClick={async () => {
-                          await post({ remove: r.t });
-                          await load();
-                          onMembershipChange?.();
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+        <div className="vx-card vx-earn-main">
+          {!picked ? (
+            <p className="vx-empty">Pick a stock to see quarterly Revenue vs Earnings.</p>
+          ) : (
+            <RevenueEarningsChart
+              panel={panel}
+              yoy={yoy}
+              name={picked.name}
+              ticker={picked.t}
+              market={picked.market}
+              loading={busy}
+              error={err}
+            />
+          )}
         </div>
       </div>
-
-      {drawer ? (
-        <div className="vx-drawer-wrap" onClick={() => setDrawer(null)}>
-          <aside className="vx-drawer" role="dialog" aria-label={`${drawer.row.name} ${drawer.kind} checks`} onClick={(e) => e.stopPropagation()}>
-            <header className="vx-drawer-head">
-              <span className="vx-eyebrow">{DRAWER[drawer.kind].title}</span>
-              <button type="button" className="vx-drawer-x" aria-label="Close" onClick={() => setDrawer(null)}>
-                ✕
-              </button>
-            </header>
-            <h3 className="vx-drawer-title">{drawer.row.name}</h3>
-            <p className="vx-hint">
-              {drawer.row.market}: {drawer.row.t}
-              {drawer.row.industry ? ` · ${drawer.row.industry}` : ""}
-            </p>
-            <div className="vx-drawer-score">
-              <span>{DRAWER[drawer.kind].label}</span>
-              <strong>
-                {drawer.kind === "fundamental" ? drawer.row.fundamental : drawer.kind === "management" ? drawer.row.management : drawer.row.valuation}
-                <small> / {DRAWER[drawer.kind].max}</small>
-              </strong>
-            </div>
-            <span className="vx-label vx-drawer-k">Detailed checks checklist</span>
-            <ul className="vx-checks">
-              {(drawer.kind === "fundamental" ? drawer.row.checks : drawer.kind === "management" ? drawer.row.m_checks : drawer.row.v_checks).map((c) => (
-                <li key={c.id}>
-                  <div>
-                    <strong>{c.label}</strong>
-                    <span className="vx-hint">
-                      {c.rule} · <b>{c.value}</b>
-                    </span>
-                    {c.note ? <span className="vx-hint">{c.note}</span> : null}
-                  </div>
-                  <span className={`vx-pt vx-pt--${c.points == null ? "na" : c.points > 0 ? "yes" : c.points < 0 ? "neg" : "no"}`}>
-                    {c.points == null ? "n/a" : c.points > 0 ? `+${c.points}` : String(c.points)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="vx-hint">
-              {DRAWER[drawer.kind].src} · points as shown per check
-            </p>
-          </aside>
-        </div>
-      ) : null}
     </>
   );
 }

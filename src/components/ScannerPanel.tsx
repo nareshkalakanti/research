@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FilterBar, MultiPick, Pick, ExchangeSeg, exchangeMatch, type ExchangeId } from "@/components/FilterBar";
+import {
+  FilterBar,
+  HoldingsIndustryCheck,
+  MultiPick,
+  Pick,
+  ExchangeSeg,
+  exchangeMatch,
+  type ExchangeId,
+} from "@/components/FilterBar";
 import { Loading } from "@/components/Loading";
 import { StockscansBar } from "@/components/StockscansBar";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
@@ -364,6 +372,11 @@ export function ScannerPanel() {
           onChange={(v) => update({ industries: v })}
           options={industries}
           searchable
+        />
+        <HoldingsIndustryCheck
+          values={cfg.industries}
+          onChange={(v) => update({ industries: v })}
+          available={industries.map((i) => i.id)}
         />
         <Pick
           label="Index"

@@ -121,6 +121,24 @@ export function parsePeersTable(html: string, ticker: string): Omit<ScreenerPeer
   };
 }
 
+/** Save warehouse id / industry from a company page so peers can skip that fetch. */
+export function rememberWarehouseFromHtml(ticker: string, html: string): string | null {
+  const t = ticker.trim().toUpperCase();
+  if (!t || !html) return null;
+  const meta = parseCompanyMeta(html);
+  if (!meta.warehouseId && !meta.industry) return null;
+  const prev = readRow(t);
+  writeRow({
+    ticker: t,
+    warehouse_id: meta.warehouseId ?? prev?.warehouse_id ?? null,
+    industry: meta.industry ?? prev?.industry ?? null,
+    peers_json: prev?.peers_json ?? null,
+    fetched_at: prev?.fetched_at ?? new Date(0).toISOString(),
+    blocked_until: prev?.blocked_until ?? null,
+  });
+  return meta.warehouseId;
+}
+
 /**
  * Screener peer medians for one stock (cache first). null when there is no
  * login, Screener is paused/blocked, or the table lacks the P/B / P/S columns.
@@ -138,11 +156,13 @@ export async function fetchScreenerPeers(ticker: string): Promise<ScreenerPeers 
   try {
     let warehouseId = prev?.warehouse_id ?? null;
     let industry = prev?.industry ?? null;
+    // Prefer a warehouse id already saved from a Portfolio warm / earlier page.
+    // Only hit the company page when that is missing — never both cons + stand
+    // unless the consolidated page had no id.
     if (!warehouseId) {
       const meta = parseCompanyMeta(await fetchScreenerCompanyHtml(t, { consolidated: true }));
       warehouseId = meta.warehouseId;
       industry = meta.industry;
-      // Standalone-only filers (no consolidated accounts) carry the id on the standalone page.
       if (!warehouseId) {
         const solo = parseCompanyMeta(await fetchScreenerCompanyHtml(t, { consolidated: false }));
         warehouseId = solo.warehouseId;

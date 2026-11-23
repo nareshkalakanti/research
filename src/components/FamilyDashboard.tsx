@@ -17,6 +17,7 @@ import {
   TickerSuggest,
   type TickerSuggestHit,
 } from "@/components/TickerSuggest";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import {
   tradingviewUrl,
@@ -24,16 +25,19 @@ import {
   governanceCompanyUrl,
 } from "@/lib/links";
 import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
+import { useUrlEnumParam } from "@/lib/url-enum-param";
 
-type DashView =
-  | "groups"
-  | "group-rank"
-  | "group-signals"
-  | "holdings"
-  | "people"
-  | "stock"
-  | "connected"
-  | "outside";
+const DASH_VIEWS = [
+  "groups",
+  "group-rank",
+  "group-signals",
+  "holdings",
+  "people",
+  "stock",
+  "connected",
+  "outside",
+] as const;
+type DashView = (typeof DASH_VIEWS)[number];
 
 function stubCompany(
   ticker: string,
@@ -73,27 +77,11 @@ export function FamilyDashboard() {
   const [newQ, setNewQ] = useState("");
   const [creating, setCreating] = useState(false);
   const [addWork, setAddWork] = useState<FamilyAddWork | null>(null);
-  const [dashView, setDashView] = useState<DashView>("groups");
+  const [dashView, setDashView] = useUrlEnumParam("d", DASH_VIEWS, "groups");
   const [groupFilter, setGroupFilter] = useState("");
   const [holdingFilter, setHoldingFilter] = useState("");
   const [onlyMissingDin, setOnlyMissingDin] = useState(false);
   const [onlyUnconnected, setOnlyUnconnected] = useState(false);
-
-  // Drop removed views (e.g. former "small") left in Fast Refresh state.
-  useEffect(() => {
-    const ok: DashView[] = [
-      "groups",
-      "group-rank",
-      "holdings",
-      "people",
-      "stock",
-      "connected",
-      "outside",
-      // Missing before: clicking Group signals bounced straight back to Groups.
-      "group-signals",
-    ];
-    if (!ok.includes(dashView)) setDashView("groups");
-  }, [dashView]);
   const [stockFocus, setStockFocus] = useState<string | null>(null);
   const [people, setPeople] = useState<PersonBoardRow[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);

@@ -36,6 +36,7 @@ import { WatchlistDashboard } from "@/components/WatchlistDashboard";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
 import type { FundamentalsScanRow } from "@/lib/pead-bands";
+import { useUrlStringParam } from "@/lib/url-enum-param";
 
 type ChipList =
   | "watch"
@@ -43,6 +44,18 @@ type ChipList =
   | "named"
   | "common"
   | "dashboard";
+
+function normalizeWlParam(raw: string): string | null {
+  if (raw === "holdings" || raw === "common" || raw === "dashboard") return raw;
+  if (raw.startsWith("n:") && raw.length > 2) return raw;
+  return null; // → fallback "watch"
+}
+
+function listFromWl(wl: string): ChipList {
+  if (wl.startsWith("n:")) return "named";
+  if (wl === "holdings" || wl === "common" || wl === "dashboard") return wl;
+  return "watch";
+}
 
 /** Distinct hues for named-list chips (not tied to any list label). */
 const NAMED_LIST_HUES = [
@@ -739,8 +752,15 @@ function WatchlistRow({
 }
 
 export function WatchlistPanel() {
-  const [list, setList] = useState<ChipList>("watch");
-  const [namedKey, setNamedKey] = useState("alpha");
+  const [wl, setWl] = useUrlStringParam("wl", "watch", normalizeWlParam);
+  const list = listFromWl(wl);
+  const [namedKey, setNamedKey] = useState(() =>
+    wl.startsWith("n:") ? wl.slice(2) : "alpha",
+  );
+  // Keep namedKey aligned when browser Back/Forward changes ?wl=n:…
+  useEffect(() => {
+    if (wl.startsWith("n:")) setNamedKey(wl.slice(2));
+  }, [wl]);
   const [tickers, setTickers] = useState<string[]>([]);
   const [holdTickers, setHoldTickers] = useState<string[]>([]);
   const [namedLists, setNamedLists] = useState<
@@ -765,6 +785,17 @@ export function WatchlistPanel() {
   const [addQ, setAddQ] = useState("");
   const [listEpoch, setListEpoch] = useState(0);
   const loadSeqRef = useRef(0);
+  const prevWlRef = useRef(wl);
+  // Soft-reset rows when the URL list chip changes (incl. Back/Forward).
+  useEffect(() => {
+    if (prevWlRef.current === wl) return;
+    prevWlRef.current = wl;
+    loadSeqRef.current += 1;
+    setRows([]);
+    setBusy(false);
+    setListEpoch((n) => n + 1);
+    setRenameOpen(false);
+  }, [wl]);
 
   const namedTickers =
     namedLists.find((l) => l.key === namedKey)?.tickers ?? [];
@@ -834,54 +865,32 @@ export function WatchlistPanel() {
   }, [applyNamedLists]);
 
   const selectWatch = () => {
-    loadSeqRef.current += 1;
-    setRows([]);
-    setBusy(false);
-    setListEpoch((n) => n + 1);
     setRenameOpen(false);
-    setList("watch");
+    setWl("watch");
   };
 
   const selectHoldings = () => {
-    loadSeqRef.current += 1;
-    if (list !== "holdings") {
-      setRows([]);
-      setBusy(false);
-    }
-    setListEpoch((n) => n + 1);
     setRenameOpen(false);
-    setList("holdings");
+    setWl("holdings");
   };
 
   const selectNamed = (key: string) => {
-    loadSeqRef.current += 1;
-    setRows([]);
-    setBusy(false);
-    setListEpoch((n) => n + 1);
     setNamedKey(key);
     setRenameOpen(false);
     setRenameName(
       namedLists.find((l) => l.key === key)?.label ?? "",
     );
-    setList("named");
+    setWl(`n:${key}`);
   };
 
   const selectCommon = () => {
-    loadSeqRef.current += 1;
-    setRows([]);
-    setBusy(false);
-    setListEpoch((n) => n + 1);
     setRenameOpen(false);
-    setList("common");
+    setWl("common");
   };
 
   const selectDashboard = () => {
-    loadSeqRef.current += 1;
-    setRows([]);
-    setBusy(false);
-    setListEpoch((n) => n + 1);
     setRenameOpen(false);
-    setList("dashboard");
+    setWl("dashboard");
   };
 
   const addNamedTicker = useCallback(

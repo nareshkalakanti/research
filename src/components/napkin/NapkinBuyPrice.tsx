@@ -94,14 +94,14 @@ export function NapkinBuyPrice({
         <h2 className="napkin-block-title">Entry price</h2>
         <div className="napkin-entry-box">
           <div className="napkin-entry-left">
-            <div>
+            <div className="napkin-entry-metric">
               <div className="napkin-buy-kicker">Future Value</div>
               <div className="napkin-buy-value">{formatNapkinRupee(quote.future_price)}</div>
             </div>
-            <div>
+            <div className="napkin-entry-metric">
               <div className="napkin-buy-kicker">Max entry price</div>
               <div className="napkin-buy-value napkin-buy-value--with-status">
-                {formatNapkinRupee(quote.buy_price)}
+                <span>{formatNapkinRupee(quote.buy_price)}</span>
                 {status ? (
                   <span className={`napkin-entry-status napkin-entry-status--${status.tone}`}>
                     {status.label}
@@ -115,7 +115,7 @@ export function NapkinBuyPrice({
             CAGR, exit P/E and holding period hold. Not a recommendation.
           </p>
         </div>
-        <dl className="napkin-dl napkin-val">
+        <dl className="napkin-dl napkin-val napkin-entry-meta">
           <div className="napkin-dl-row">
             <dt>Spot</dt>
             <dd>{formatNapkinRupee(price)}</dd>
@@ -125,10 +125,13 @@ export function NapkinBuyPrice({
             <dd>{formatNapkinPctWhole(target)}</dd>
           </div>
           <div className="napkin-dl-row">
-            <dt>Max pay vs spot</dt>
+            <dt>MOS / Premium</dt>
             <dd>{formatNapkinPct(path.max_pay_vs_spot, true)}</dd>
           </div>
         </dl>
+        <p className="napkin-debug">
+          Positive MOS = discount to Max Entry. Negative = premium above it.
+        </p>
       </div>
 
       <div className="napkin-sheet-section">
@@ -141,28 +144,6 @@ export function NapkinBuyPrice({
         ) : (
           <p className="napkin-debug">N/A — missing inputs for a composite verdict.</p>
         )}
-      </div>
-
-      <div className="napkin-sheet-section">
-        <h2 className="napkin-block-title">Margin of safety / premium</h2>
-        <dl className="napkin-dl napkin-val">
-          <div className="napkin-dl-row">
-            <dt>Max entry price</dt>
-            <dd>{formatNapkinRupee(quote.buy_price)}</dd>
-          </div>
-          <div className="napkin-dl-row">
-            <dt>Spot</dt>
-            <dd>{formatNapkinRupee(price)}</dd>
-          </div>
-          <div className="napkin-dl-row">
-            <dt>MOS / Premium</dt>
-            <dd>{formatNapkinPct(path.max_pay_vs_spot, true)}</dd>
-          </div>
-        </dl>
-        <p className="napkin-debug">
-          Positive = discount to calculated Max Entry. Negative = premium above
-          it. Not a guaranteed margin of safety.
-        </p>
       </div>
 
       <div className="napkin-sheet-section">

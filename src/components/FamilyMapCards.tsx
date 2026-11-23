@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { LazyFamilyGraph } from "@/components/FamilyGraph";
 import { BoxRefreshButton } from "@/components/RefreshButton";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import {
   TickerSuggest,
   type TickerSuggestHit,
@@ -720,6 +721,7 @@ function FamilyGroupCard({
                   ×
                 </button>
               ) : null}
+              <ReviewPlusButton ticker={c.ticker} />
             </span>
           );
         })}

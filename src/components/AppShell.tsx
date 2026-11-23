@@ -13,8 +13,8 @@ import {
 import { useAuth } from "@/lib/auth";
 
 function PanelFallback() {
-  // Quiet placeholder inside an already-mounted chrome — avoid full-page flash.
-  return <Loading variant="page" />;
+  // Quiet placeholder — never full-page Loading (that flickered the chrome on tab switch).
+  return <Loading variant="block" label="Loading" rows={2} />;
 }
 
 const ThemeScanner = dynamic(
@@ -59,6 +59,11 @@ const WatchlistPanel = dynamic(
 
 const ValuePanel = dynamic(
   () => import("@/components/ValuePanel").then((m) => m.ValuePanel),
+  { loading: PanelFallback, ssr: false },
+);
+
+const PortfolioPanel = dynamic(
+  () => import("@/components/PortfolioPanel").then((m) => m.PortfolioPanel),
   { loading: PanelFallback, ssr: false },
 );
 
@@ -115,6 +120,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   watchlist: WatchlistPanel,
   scanner: ScannerPanel,
   value: ValuePanel,
+  portfolio: PortfolioPanel,
 };
 
 const KeptPanel = memo(function KeptPanel({
@@ -137,6 +143,10 @@ function AppShellPanels() {
   const [visited, setVisited] = useState<Set<AppTab>>(
     () => new Set<AppTab>([tab]),
   );
+
+  // Keep the open tab in `visited` during render (not only in useEffect) so a
+  // refresh on /?tab=value does not paint a blank panel before effects run.
+  const panels = visited.has(tab) ? visited : new Set([...visited, tab]);
 
   useEffect(() => {
     setVisited((prev) => {
@@ -185,7 +195,7 @@ function AppShellPanels() {
 
   return (
     <div className="tab-panels">
-      {[...visited].map((id) => {
+      {[...panels].map((id) => {
         const Panel = PANELS[id];
         if (!Panel) return null;
         const active = id === tab;
@@ -217,7 +227,7 @@ export function AppShell() {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("tab");
     if (t === "corporate" || t === "buyback") {
-      window.history.replaceState(window.history.state, "", "/watchlist");
+      window.history.replaceState(window.history.state, "", "/?tab=watchlist");
       return;
     }
     if (t === "pead") {

@@ -80,8 +80,9 @@ export function governanceCompanyUrl(ticker: string): string {
 
 export function napkinUrl(ticker: string): string {
   const t = (ticker || "").trim().toUpperCase();
-  if (!t) return "/?tab=napkin";
-  return `/?tab=napkin&ticker=${encodeURIComponent(t)}`;
+  // Napkin is the default home tab — no `?tab=napkin` (avoids title/URL flicker).
+  if (!t) return "/";
+  return `/?ticker=${encodeURIComponent(t)}`;
 }
 
 /** `NSE:CERA` / `BSE:500325` style symbol, or null for placeholders. */
@@ -94,6 +95,27 @@ export function tradingviewSymbol(
   if (bseScripCodeFromTicker(sym)) return null;
   const exchange = tradingviewExchange(sym, market);
   return `${exchange}:${sym}`;
+}
+
+/**
+ * UI label for the listing venue (keeps NSE SME / BSE SME).
+ * TradingView charts still use {@link tradingviewSymbol} (NSE/BSE only).
+ */
+export function listingDisplaySymbol(
+  ticker: string,
+  market?: string | null,
+): string | null {
+  const sym = canonicalTicker(ticker);
+  if (!sym) return null;
+  if (bseScripCodeFromTicker(sym)) return null;
+  const hint = clean(market);
+  if (/SME|EMERGE/i.test(hint)) {
+    if (marketLooksBse(hint) || /^BSE\b/i.test(hint)) return `BSE SME:${sym}`;
+    return `NSE SME:${sym}`;
+  }
+  if (marketLooksBse(hint)) return `BSE:${sym}`;
+  if (marketLooksNse(hint)) return `NSE:${sym}`;
+  return tradingviewSymbol(sym, market);
 }
 
 export function tradingviewUrl(

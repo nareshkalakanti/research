@@ -1,0 +1,156 @@
+{
+  "note": "Stock Evaluation Table (Portfolio review) screenshots captured 2026-11-21 for later scoring validation. Quality = fundamental + management (max 11). Total = quality + valuation (max 17). Screenshots: eval-table-2026-11-21-a.png, eval-table-2026-11-21-b.png, eval-table-2026-11-21-c.png.",
+  "as_of": "2026-11-21",
+  "snapshots": [
+    {
+      "id": "2026-11-21-a",
+      "source": "eval-table-2026-11-21-a.png",
+      "rows": [
+        {
+          "t": "PVRINOX",
+          "name": "PVR Inox",
+          "fundamental": 2,
+          "management": 1,
+          "quality": 3,
+          "quality_max": 11,
+          "valuation": 1,
+          "total": 4,
+          "total_max": 17,
+          "rating": "Poor"
+        },
+        {
+          "t": "ARE&M",
+          "name": "Amara Raja Ener.",
+          "fundamental": 5,
+          "management": 4,
+          "quality": 9,
+          "quality_max": 11,
+          "valuation": 3,
+          "total": 12,
+          "total_max": 17,
+          "rating": "Good"
+        },
+        {
+          "t": "ROUTE",
+          "name": "Route Mobile",
+          "fundamental": 5,
+          "management": 4,
+          "quality": 9,
+          "quality_max": 11,
+          "valuation": 4,
+          "total": 13,
+          "total_max": 17,
+          "rating": "Excellent"
+        }
+      ]
+    },
+    {
+      "id": "2026-11-21-b",
+      "source": "eval-table-2026-11-21-b.png",
+      "rows": [
+        {
+          "t": "ARE&M",
+          "name": "Amara Raja Ener.",
+          "fundamental": 5,
+          "management": 4,
+          "quality": 9,
+          "quality_max": 11,
+          "valuation": 4,
+          "total": 13,
+          "total_max": 17,
+          "rating": "Excellent"
+        },
+        {
+          "t": "HEGAM",
+          "name": "HEG Advanced Materials",
+          "fundamental": 3,
+          "management": 5,
+          "quality": 8,
+          "quality_max": 11,
+          "valuation": 4,
+          "total": 12,
+          "total_max": 17,
+          "rating": "Good"
+        },
+        {
+          "t": "ROUTE",
+          "name": "Route Mobile",
+          "fundamental": 4,
+          "management": 4,
+          "quality": 8,
+          "quality_max": 11,
+          "valuation": 4,
+          "total": 12,
+          "total_max": 17,
+          "rating": "Good"
+        }
+      ]
+    },
+    {
+      "id": "2026-11-21-c",
+      "source": "eval-table-2026-11-21-c.png",
+      "rows": [
+        {
+          "t": "MVKAGRO",
+          "name": "M.V.K. Agro",
+          "fundamental": 5,
+          "management": 1,
+          "quality": 6,
+          "quality_max": 11,
+          "valuation": 1,
+          "total": 7,
+          "total_max": 17,
+          "rating": "Average"
+        },
+        {
+          "t": "CKKRETAIL",
+          "name": "C K K Retail",
+          "fundamental": 4,
+          "management": 2,
+          "quality": 6,
+          "quality_max": 11,
+          "valuation": 0,
+          "total": 6,
+          "total_max": 17,
+          "rating": "Average"
+        },
+        {
+          "t": "MAGADSUGAR",
+          "name": "Magadh Sugar",
+          "fundamental": 2,
+          "management": 3,
+          "quality": 5,
+          "quality_max": 11,
+          "valuation": 2,
+          "total": 7,
+          "total_max": 17,
+          "rating": "Average"
+        },
+        {
+          "t": "ARE&M",
+          "name": "Amara Raja Ener.",
+          "fundamental": 5,
+          "management": 4,
+          "quality": 9,
+          "quality_max": 11,
+          "valuation": 4,
+          "total": 13,
+          "total_max": 17,
+          "rating": "Excellent"
+        },
+        {
+          "t": "HEGAM",
+          "name": "HEG Advanced Materials",
+          "fundamental": 3,
+          "management": 5,
+          "quality": 8,
+          "quality_max": 11,
+          "valuation": 4,
+          "total": 12,
+          "total_max": 17,
+          "rating": "Good"
+        }
+      ]
+    }
+  ]
+}

@@ -39,9 +39,28 @@ describe("quarterRankFromPanel", () => {
     );
     assert.ok(r);
     assert.equal(r!.band, "Strong");
-    assert.equal(r!.ratingLabel, "Strong");
+    assert.equal(r!.ratingLabel, "Excellent");
     assert.ok(r!.score >= 7 && r!.score <= 10);
     assert.ok(r!.metrics.some((m) => m.id === "sales_yoy"));
+  });
+
+  it("does not call a sales-up / still-losing quarter Good", () => {
+    // Like BPL: sales rising, but latest PAT negative and worsening QoQ.
+    const r = quarterRankFromPanel(
+      panel({
+        labels: ["Sep 2025", "Dec 2025", "Mar 2026", "Jun 2026", "Sep 2026"],
+        sales: [20, 19, 20, 21, 24],
+        np: [0, 0, -11, -4, -5],
+      }),
+      { sales_yoy: 20, np_yoy: null, eps_yoy: null, ebidt_yoy: null },
+    );
+    assert.ok(r);
+    assert.ok(r!.score < 5.5, `score ${r!.score}`);
+    assert.notEqual(r!.band, "Growing");
+    assert.notEqual(r!.band, "Strong");
+    assert.notEqual(r!.ratingLabel, "Good");
+    assert.notEqual(r!.ratingLabel, "Excellent");
+    assert.match(r!.summary, /latest Q loss/i);
   });
 
   it("penalises a profit drop even when sales grow (not 'Growing')", () => {

@@ -5,8 +5,10 @@ import { openSqliteNamed } from "./sqlite-utils";
  * Stock master (data/stock_master.db): one row per stock with name, exchange,
  * sector and industry. The primary source of sector › industry for the app.
  *
- * Sources, best first: StockScans (scraped), then the app's own classification,
- * then the company record. New data only adds on top:
+ * App-facing sector › industry is StockScans only (`masterLabels`).
+ * Weaker sources (own / company) may still fill the master row for name /
+ * exchange / coverage, but they are not exposed as the industry taxonomy.
+ * New data only adds on top:
  *  - a new stock is added; a stock is never deleted (delisted ones get active = 0);
  *  - an empty value never wipes a stored one;
  *  - a StockScans value is never replaced by a weaker source;
@@ -423,13 +425,18 @@ export function stockMasterStatus(): {
 let labelCache: { at: number; map: Map<string, { sector: string | null; industry: string | null }> } | null = null;
 
 /**
- * Ticker → primary sector › industry (cached 30 s). Every page reads labels
- * through this first and only falls back to older sources when it has none.
+ * Ticker → StockScans sector › industry (cached 30 s).
+ * App-wide taxonomy is StockScans only — own / company / classifications labels
+ * are not exposed here (they may still live on the master row for sync history).
  */
 export function masterLabels(): Map<string, { sector: string | null; industry: string | null }> {
   if (labelCache && Date.now() - labelCache.at < 30_000) return labelCache.map;
   const map = new Map<string, { sector: string | null; industry: string | null }>();
-  for (const [t, m] of loadStockMaster()) if (m.sector || m.industry) map.set(t, { sector: m.sector, industry: m.industry });
+  for (const [t, m] of loadStockMaster()) {
+    if (m.source !== "stockscans") continue;
+    if (!m.sector && !m.industry) continue;
+    map.set(t, { sector: m.sector, industry: m.industry });
+  }
   labelCache = { at: Date.now(), map };
   return map;
 }
@@ -437,6 +444,19 @@ export function masterLabels(): Map<string, { sector: string | null; industry: s
 export function masterLabel(ticker: string | null | undefined): { sector: string | null; industry: string | null } | null {
   if (!ticker) return null;
   return masterLabels().get(ticker.trim().toUpperCase()) ?? null;
+}
+
+/** Apply StockScans labels onto a row; leave blanks when StockScans has none. */
+export function withStockscansLabels<T extends { ticker: string; sector?: string | null; sub_sector?: string | null }>(
+  row: T,
+): T {
+  const ml = masterLabel(row.ticker);
+  if (!ml) return { ...row, sector: null, sub_sector: null };
+  return {
+    ...row,
+    sector: ml.sector,
+    sub_sector: ml.industry,
+  };
 }
 
 // ---- Sector Rotation baskets ----------------------------------------------------------

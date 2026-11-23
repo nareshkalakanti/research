@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ ok: true, id: sector.id, ...(await buildRotationList(sector, range)) });
       }
       if (sp.get("members") === "1") {
-        return NextResponse.json({ ok: true, sector });
+        return NextResponse.json({
+          ok: true,
+          sector: { ...sector, members: sector.members, n: sector.members.length },
+        });
       }
       const detail = await buildRotationDetail(sector, range, weight);
       return NextResponse.json({ ok: true, ...detail });

@@ -1,6 +1,7 @@
 import { listFundCatalog, loadFundHoldings } from "./fund-watchlists";
 import { holdingsTickerSet } from "./holdings";
 import { inactiveListingTickers } from "./listing-sync";
+import { loadListedPriceMap } from "./listed-price";
 import { buildStock, loadCtx } from "./nanocap-champs";
 import { openSqliteNamed } from "./sqlite-utils";
 import { loadStockMaster } from "./stock-master";
@@ -157,6 +158,7 @@ export function buildScannerData(opts?: { fresh?: boolean }): ScannerData {
   const ctx = loadCtx();
   const inactive = inactiveListingTickers();
   const { px, asOf } = loadPrices();
+  const listed = loadListedPriceMap();
   const ind = loadIndustry();
   const idx = loadIndices();
   const { byTicker, meta } = loadLists();
@@ -182,7 +184,9 @@ export function buildScannerData(opts?: { fresh?: boolean }): ScannerData {
       industry,
       ind_src: sc?.source === "stockscans" ? "stockscans" : industry ? "own" : null,
       mcap: s.mcap_cr,
-      price: p?.price ?? r?.current_price ?? null,
+      // Freshest among stock_metrics + Screener top-ratios (stale Yahoo metrics
+      // must not beat a newer Screener print for Graham / Quarters / Scan).
+      price: listed.get(t)?.price ?? p?.price ?? r?.current_price ?? null,
       chg: p?.chg ?? null,
       pe: s.pe,
       roce: s.roce != null ? Math.round(s.roce * 1000) / 10 : null,

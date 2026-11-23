@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { napkinUrl, tradingviewUrl } from "@/lib/links";
 import {
   loadCrossed200Dma,
@@ -329,6 +330,7 @@ export function WatchlistDashboard({
                           </a>
                           <span className="company-meta">
                             <span className="ticker">{r.ticker}</span>
+                            <ReviewPlusButton ticker={r.ticker} />
                             <a
                               className="np-chip"
                               href={napkinUrl(r.ticker)}

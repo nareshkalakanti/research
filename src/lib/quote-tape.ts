@@ -42,6 +42,15 @@ export type QuoteTape = {
   mas: QuoteTapeMa[];
   returns_pct: number | null;
   result_date: string | null;
+  /**
+   * Last ~1Y daily closes + SMA 50/200 for Napkin mini-chart.
+   * Only when loadQuoteTape(..., { chart: true }).
+   */
+  chart?: {
+    close: number[];
+    ma50: Array<number | null>;
+    ma200: Array<number | null>;
+  };
 };
 
 function lastMean(closes: number[], period: number): number | null {
@@ -105,7 +114,7 @@ async function quoteLiveBits(
 export async function loadQuoteTape(
   ticker: string,
   market?: string | null,
-  opts?: { weekly?: boolean },
+  opts?: { weekly?: boolean; chart?: boolean },
 ): Promise<QuoteTape> {
   const empty: QuoteTape = {
     price: null,
@@ -224,6 +233,22 @@ export async function loadQuoteTape(
     price,
   );
 
+  // ~252 trading days for the Napkin About chart. New listings may have <40
+  // sessions — still draw the close line; SMA 50/200 stay null until enough bars.
+  let chart: QuoteTape["chart"];
+  if (opts?.chart && closes.length >= 2) {
+    const window = Math.min(closes.length, 252 + 200);
+    const slice = closes.slice(-window);
+    const ma50Full = rollingMean(slice, 50);
+    const ma200Full = rollingMean(slice, 200);
+    const show = Math.min(slice.length, 252);
+    const start = slice.length - show;
+    const close = slice.slice(start).map((c) => round2(c)!);
+    const ma50 = ma50Full.slice(start).map((v) => (v != null ? round2(v) : null));
+    const ma200 = ma200Full.slice(start).map((v) => (v != null ? round2(v) : null));
+    chart = { close, ma50, ma200 };
+  }
+
   return {
     price,
     prev_close,
@@ -245,5 +270,6 @@ export async function loadQuoteTape(
     mas,
     returns_pct,
     result_date,
+    ...(chart ? { chart } : {}),
   };
 }

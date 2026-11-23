@@ -12,14 +12,16 @@ import {
   napkinPeDisplay,
   parseDisplayedPct,
 } from "@/lib/napkin/format";
-import { tradingviewSymbol, tradingviewUrl, websiteUrl } from "@/lib/links";
+import { listingDisplaySymbol, tradingviewUrl, websiteUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
 import { NapkinPeadStrip } from "@/components/napkin/NapkinPeadStrip";
+import { RevenueEarningsChart } from "@/components/RevenueEarningsChart";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
 import { parseDisplayedMoney } from "@/lib/napkin/format";
 import { WatchButton } from "@/components/WatchButton";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { governancePersonUrl } from "@/lib/links";
 
@@ -99,12 +101,15 @@ export function NapkinPanel() {
     tickRef.current = window.setInterval(() => {
       setElapsed(Math.round((Date.now() - t0) / 100) / 10);
     }, 200);
+    // Keep shareable `/?ticker=` deep link; only drop legacy `?tab=napkin`.
     const url = new URL(window.location.href);
-    url.searchParams.delete("ticker");
-    if ((url.searchParams.get("tab") || "") !== "napkin") {
-      url.searchParams.set("tab", "napkin");
+    if (url.searchParams.has("tab")) {
+      url.searchParams.delete("tab");
+      window.history.replaceState(window.history.state, "", url);
+    } else if (url.searchParams.get("ticker")?.toUpperCase() !== ticker) {
+      url.searchParams.set("ticker", ticker);
+      window.history.replaceState(window.history.state, "", url);
     }
-    window.history.replaceState(window.history.state, "", url);
     try {
       const { research, debug: yahooDebug } = await loadNapkinResearch(ticker);
       setData(research);
@@ -123,8 +128,9 @@ export function NapkinPanel() {
   useEffect(() => {
     const url = new URL(window.location.href);
     const initial = (url.searchParams.get("ticker") || "").trim();
-    if (url.searchParams.has("ticker")) {
-      url.searchParams.delete("ticker");
+    // Legacy napkin links used `?tab=napkin&ticker=` — strip the redundant tab.
+    if (url.searchParams.get("tab") === "napkin") {
+      url.searchParams.delete("tab");
       window.history.replaceState(window.history.state, "", url);
     }
     if (initial) void run(initial);
@@ -219,15 +225,22 @@ export function NapkinPanel() {
                 <div>
                   <div className="napkin-company">{data.name}</div>
                   <div className="napkin-ticker-lg">
+                    <ReviewPlusButton ticker={data.ticker} />
                     <WatchButton ticker={data.ticker} />
                     {(() => {
                       const yf = (data.yf_symbol || "").toUpperCase();
-                      // `.BO` beats a stale NSE exchange tag (BSE-only listings).
+                      // Prefer listing market (NSE SME / BSE SME). `.BO` only
+                      // upgrades a stale plain NSE tag to BSE — never wipe SME.
+                      const listing = (data.exchange || "").trim();
                       const tvMarket = yf.endsWith(".BO")
-                        ? "BSE"
-                        : data.exchange || "NSE";
-                      const tvLabel =
-                        tradingviewSymbol(data.ticker, tvMarket) ||
+                        ? /^BSE\b/i.test(listing)
+                          ? listing
+                          : listing && /SME|EMERGE/i.test(listing)
+                            ? listing
+                            : "BSE"
+                        : listing || "NSE";
+                      const label =
+                        listingDisplaySymbol(data.ticker, tvMarket) ||
                         data.ticker;
                       return (
                         <a
@@ -235,9 +248,9 @@ export function NapkinPanel() {
                           href={tradingviewUrl(data.ticker, tvMarket)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          title={`TradingView ${tvLabel}`}
+                          title={`TradingView ${label}`}
                         >
-                          {tvLabel}
+                          {label}
                           <span className="napkin-tv-chip">TV</span>
                         </a>
                       );
@@ -274,6 +287,19 @@ export function NapkinPanel() {
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
 
+            <div className="napkin-sheet-section napkin-earn-block">
+              <div className="napkin-earn-card">
+                <RevenueEarningsChart
+                  panel={qtr.panel}
+                  yoy={qtr.yoy}
+                  name={data.name}
+                  ticker={data.ticker}
+                  market={data.exchange}
+                  loading={qtr.loading && !qtr.panel}
+                  error={qtr.error}
+                />
+              </div>
+            </div>
 
             <NapkinValuation key={data.ticker} data={data} />
 

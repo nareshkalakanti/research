@@ -1,7 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
-import { MultiPick } from "@/components/FilterBar";
+import { HoldingsIndustryCheck, MultiPick } from "@/components/FilterBar";
 import {
   Fragment,
   useCallback,
@@ -13,6 +13,7 @@ import {
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { isRightsOrPartlyPaid } from "@/lib/listing-name-match";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
+import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { StockLinks } from "@/components/StockLinks";
 import {
   downsampleSeries,
@@ -23,6 +24,9 @@ import {
   seriesReturnPct,
   windowRebaseSeries,
 } from "@/lib/sector-rotation-series";
+import { useUrlEnumParam } from "@/lib/url-enum-param";
+
+const ROTATION_VIEWS = ["grid", "table"] as const;
 
 type Point = { date: string; value: number };
 
@@ -37,11 +41,23 @@ type Card = {
   bench_pct: number | null;
   today_pct?: number | null;
   search?: string;
+  /** Member market caps (₹ Cr) for min/max filter. */
+  mcaps?: Array<number | null>;
+  /** Member tickers (upper) — parallel to mcaps; Nifty 500 filter. */
+  tickers?: string[];
   sector: Point[];
   bench: Point[];
   sector_full?: Point[];
   bench_full?: Point[];
 };
+
+/** Same rule as Value ranking: blank min/max = no bound; missing mcap counts as 0. */
+function mcapInBand(mcap: number | null | undefined, min: number, max: number): boolean {
+  const v = mcap ?? 0;
+  if (min && v < min) return false;
+  if (max && v > max) return false;
+  return true;
+}
 
 type Member = {
   ticker: string;
@@ -65,11 +81,6 @@ type Member = {
 };
 
 type Hit = { ticker: string; name: string; market?: string; source?: string };
-
-/** "Best ranked" stock in a sector must be bigger than this (₹ Cr). */
-const BEST_MIN_MCAP_CR = 200;
-/** "Best ranked" sector needs at least this many stocks. */
-const BEST_MIN_STOCKS = 5;
 
 function fmtPct(n: number | null): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -96,11 +107,23 @@ function SectorStocksRow({
   range,
   colSpan,
   onOpen,
+  minCap,
+  maxCap,
+  n500Only,
+  n500Set,
+  vsNifty,
+  benchPct,
 }: {
   id: string;
   range: string;
   colSpan: number;
   onOpen: () => void;
+  minCap: number;
+  maxCap: number;
+  n500Only: boolean;
+  n500Set: Set<string> | null;
+  vsNifty: "all" | "out" | "under";
+  benchPct: number | null;
 }) {
   const [rows, setRows] = useState<ListRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -129,20 +152,42 @@ function SectorStocksRow({
     };
   }, [id, range]);
 
+  const shown = useMemo(() => {
+    if (!rows) return null;
+    return rows.filter((r) => {
+      if (minCap || maxCap) {
+        if (!mcapInBand(r.mcap_cr, minCap, maxCap)) return false;
+      }
+      if (n500Only && n500Set && !n500Set.has(r.ticker.toUpperCase())) return false;
+      if (vsNifty !== "all" && benchPct != null) {
+        if (r.window_pct == null) return false;
+        if (vsNifty === "out" && !(r.window_pct >= benchPct)) return false;
+        if (vsNifty === "under" && !(r.window_pct < benchPct)) return false;
+      }
+      return true;
+    });
+  }, [rows, minCap, maxCap, n500Only, n500Set, vsNifty, benchPct]);
+
   return (
     <tr className="rot-xrow">
       <td colSpan={colSpan}>
         {err ? (
           <p className="rot-sub-msg">Could not load stocks: {err}</p>
-        ) : !rows ? (
+        ) : !shown ? (
           <Loading label="Loading stocks" />
-        ) : !rows.length ? (
-          <p className="rot-sub-msg">No stocks in this sector.</p>
+        ) : !shown.length ? (
+          <p className="rot-sub-msg">
+            No stocks in this sector
+            {minCap || maxCap || n500Only || vsNifty !== "all"
+              ? " for this filter"
+              : ""}
+            .
+          </p>
         ) : (
           <div className="rot-sub-wrap">
             <div className="rot-sub-head">
               <span>
-                {rows.length} stock{rows.length === 1 ? "" : "s"} · best {range} first
+                {shown.length} stock{shown.length === 1 ? "" : "s"} · best {range} first
               </span>
               <button type="button" className="rot-sub-open" onClick={onOpen}>
                 Open chart &amp; ranking →
@@ -157,10 +202,11 @@ function SectorStocksRow({
                   <th className="num">Price</th>
                   <th className="num">Today</th>
                   <th className="num">{range}</th>
+                  <th>Vs Nifty</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r, i) => {
+                {shown.map((r, i) => {
                   const web = websiteUrl(r.website);
                   return (
                     <tr key={r.ticker}>
@@ -172,6 +218,7 @@ function SectorStocksRow({
                           </a>
                           <span className="rot-sub-tk">{r.ticker}</span>
                           {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
+                          <ReviewPlusButton ticker={r.ticker} />
                           <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
                             NP
                           </a>
@@ -195,6 +242,23 @@ function SectorStocksRow({
                           {fmtPct(r.window_pct)}
                         </span>
                       </td>
+                      <td>
+                        {r.window_pct == null || benchPct == null ? (
+                          "—"
+                        ) : (
+                          <span
+                            className={
+                              r.window_pct >= benchPct
+                                ? "rot-pill pos"
+                                : "rot-pill neg"
+                            }
+                          >
+                            {r.window_pct >= benchPct
+                              ? "Outperform"
+                              : "Underperform"}
+                          </span>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -207,359 +271,6 @@ function SectorStocksRow({
   );
 }
 
-type TopRow = ListRow & {
-  bench_pct?: number | null;
-  sector_id: string;
-  sector_label: string;
-  sector_pct: number | null;
-  sector_n: number;
-  q_rank: number | null;
-  q_of: number;
-  total_score: number | null;
-  is_best: boolean;
-};
-
-const TOP_CAPS = [
-  [0, "Any size"],
-  [200, "₹200 Cr+"],
-  [500, "₹500 Cr+"],
-  [1000, "₹1,000 Cr+"],
-  [5000, "₹5,000 Cr+"],
-] as const;
-/** Top sectors must have at least this many stocks (tiny baskets win on luck). */
-const TOP_MIN_SECTOR_STOCKS = 5;
-/** Benchmark period return, sent with every row by the server. */
-function rotBench(rows: Array<{ bench_pct?: number | null }>): number | null {
-  return rows[0]?.bench_pct ?? null;
-}
-const TOP_EXCH = [
-  ["all", "All"],
-  ["NSE", "NSE"],
-  ["NSE SME", "NSE SME"],
-  ["BSE", "BSE"],
-  ["BSE SME", "BSE SME"],
-] as const;
-
-/**
- * Top sectors and the best stocks in them: the strongest sectors by period
- * return (5+ stocks), each with its best-performing stocks (₹200 Cr+ by
- * default), all measured against the Nifty 500. Or every stock by return.
- * Follows the board's sector filters (search, Top/Bottom 20, Starred, Beating Nifty).
- */
-function TopStocksView({
-  range,
-  weight,
-  sectorOrder,
-  stockQ,
-  benchLabel,
-  onOpenSector,
-}: {
-  range: string;
-  weight: string;
-  /** Sector ids passing the board filters. */
-  sectorOrder: string[];
-  stockQ: string;
-  benchLabel: string;
-  onOpenSector: (id: string) => void;
-}) {
-  const [rows, setRows] = useState<TopRow[] | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [mode, setMode] = useState<"sectors" | "return">("sectors");
-  const [nSectors, setNSectors] = useState(20);
-  const [perSector, setPerSector] = useState(3);
-  const [minCap, setMinCap] = useState<number>(200);
-  const [exch, setExch] = useState<(typeof TOP_EXCH)[number][0]>("all");
-  const [limit, setLimit] = useState(50);
-  useEffect(() => {
-    let live = true;
-    const ctl = new AbortController();
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/sector-rotation?top=1&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
-          { cache: "no-store", signal: ctl.signal },
-        );
-        const json = (await res.json()) as { ok?: boolean; error?: string; rows?: TopRow[] };
-        if (!live) return;
-        if (!res.ok || json.ok === false) throw new Error(json.error || `HTTP ${res.status}`);
-        setErr(null);
-        setRows(json.rows ?? []);
-      } catch (e) {
-        if (live && !(e instanceof DOMException && e.name === "AbortError"))
-          setErr(e instanceof Error ? e.message : String(e));
-      }
-    })();
-    return () => {
-      live = false;
-      ctl.abort();
-    };
-  }, [range, weight]);
-
-  const allowed = useMemo(() => new Set(sectorOrder), [sectorOrder]);
-  const filtered = useMemo(() => {
-    if (!rows) return [];
-    const q = stockQ.trim().toLowerCase();
-    const okExch = (m: string) => {
-      // Exact board: NSE · NSE SME · BSE · BSE SME.
-      return exch === "all" || (m || "NSE").toUpperCase() === exch;
-    };
-    return rows.filter(
-      (r) =>
-        allowed.has(r.sector_id) &&
-        okExch(r.market) &&
-        (minCap === 0 || (r.mcap_cr ?? 0) >= minCap) &&
-        (!q || r.name.toLowerCase().includes(q) || r.ticker.toLowerCase().includes(q)),
-    );
-  }, [rows, allowed, stockQ, exch, minCap]);
-
-  /** Top sectors (5+ stocks, by return) with their best-quality stocks. */
-  const groups = useMemo(() => {
-    if (mode !== "sectors") return [];
-    const by = new Map<string, TopRow[]>();
-    for (const r of filtered) {
-      if (!by.has(r.sector_id)) by.set(r.sector_id, []);
-      by.get(r.sector_id)!.push(r);
-    }
-    const heads = [...by.values()]
-      .map((list) => list[0]!)
-      .filter((h) => h.sector_n >= TOP_MIN_SECTOR_STOCKS && h.sector_pct != null)
-      .sort((a, b) => (b.sector_pct ?? 0) - (a.sector_pct ?? 0))
-      .slice(0, nSectors);
-    return heads.map((h) => {
-      const list = by.get(h.sector_id)!;
-      return {
-        head: h,
-        stocks: list
-          .filter((r) => r.window_pct != null)
-          .sort((a, b) => (b.window_pct ?? 0) - (a.window_pct ?? 0))
-          .slice(0, perSector),
-      };
-    });
-  }, [filtered, mode, nSectors, perSector]);
-
-  const byReturn = useMemo(
-    () =>
-      mode === "return"
-        ? filtered.filter((r) => r.window_pct != null).sort((a, b) => (b.window_pct ?? 0) - (a.window_pct ?? 0))
-        : [],
-    [filtered, mode],
-  );
-  const page = byReturn.slice(0, limit);
-
-  const stockCells = (r: TopRow, n: number | string) => {
-    const web = websiteUrl(r.website);
-    return (
-      <>
-        <td className="num rot-sub-rank">{n}</td>
-        <td>
-          <div className="rot-sub-line">
-            <a className="rot-sub-name" href={tradingviewUrl(r.ticker, r.market)} target="_blank" rel="noopener noreferrer">
-              {r.name}
-            </a>
-            <span className="rot-sub-tk">{r.ticker}</span>
-            {r.market && r.market !== "NSE" ? <span className="rot-sub-ex">{r.market}</span> : null}
-            <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
-              NP
-            </a>
-            {web ? (
-              <a className="np-chip" href={web} target="_blank" rel="noopener noreferrer" title={r.website ?? ""}>
-                Web
-              </a>
-            ) : null}
-          </div>
-          {r.sector || r.industry ? (
-            <span className="rot-sub-sector">
-              {r.sector ?? r.industry}
-              {r.industry && r.industry !== r.sector ? ` › ${r.industry}` : ""}
-            </span>
-          ) : null}
-        </td>
-        <td className="num">{r.mcap_cr == null ? "—" : `₹${Math.round(r.mcap_cr).toLocaleString("en-IN")} Cr`}</td>
-        <td className={`num ${(r.change_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{fmtPct(r.change_pct)}</td>
-        <td className="num">
-          <span className={r.window_pct == null ? "rot-pill" : r.window_pct >= 0 ? "rot-pill pos" : "rot-pill neg"}>
-            {fmtPct(r.window_pct)}
-          </span>
-        </td>
-        <td className={`num ${r.window_pct == null || r.bench_pct == null ? "" : r.window_pct - r.bench_pct >= 0 ? "pos" : "neg"}`}>
-          {r.window_pct == null || r.bench_pct == null
-            ? "—"
-            : `${r.window_pct - r.bench_pct >= 0 ? "+" : ""}${(r.window_pct - r.bench_pct).toFixed(1)} pts`}
-        </td>
-      </>
-    );
-  };
-
-  return (
-    <div className="rot-top">
-      <div className="rot-top-bar">
-        <div className="rot-seg" role="group" aria-label="List">
-          <button
-            type="button"
-            className={mode === "sectors" ? "on" : ""}
-            aria-pressed={mode === "sectors"}
-            onClick={() => setMode("sectors")}
-            title={`Strongest sectors by ${range} return (${TOP_MIN_SECTOR_STOCKS}+ stocks), each with its best performers`}
-          >
-            Top sectors · best stocks
-          </button>
-          <button
-            type="button"
-            className={mode === "return" ? "on" : ""}
-            aria-pressed={mode === "return"}
-            onClick={() => setMode("return")}
-            title={`Every stock ranked by its ${range} return`}
-          >
-            All stocks by {range} return
-          </button>
-        </div>
-        {mode === "sectors" ? (
-          <>
-            <label className="rot-sort">
-              <span>Sectors</span>
-              <select value={nSectors} onChange={(e) => setNSectors(Number(e.target.value))} aria-label="How many sectors">
-                {[10, 20, 30, 50].map((n) => (
-                  <option key={n} value={n}>
-                    Top {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="rot-sort">
-              <span>Stocks each</span>
-              <select value={perSector} onChange={(e) => setPerSector(Number(e.target.value))} aria-label="Stocks per sector">
-                {[1, 3, 5, 10].map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </>
-        ) : null}
-        <label className="rot-sort">
-          <span>Size</span>
-          <select value={minCap} onChange={(e) => setMinCap(Number(e.target.value))} aria-label="Minimum market cap">
-            {TOP_CAPS.map(([v, l]) => (
-              <option key={v} value={v}>
-                {l}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="rot-seg" role="group" aria-label="Exchange">
-          {TOP_EXCH.map(([id, label]) => (
-            <button key={id} type="button" className={exch === id ? "on" : ""} aria-pressed={exch === id} onClick={() => setExch(id)}>
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-      {err ? (
-        <p className="rot-sub-msg">Could not load: {err}</p>
-      ) : !rows ? (
-        <Loading label="Ranking stocks" variant="block" />
-      ) : mode === "sectors" ? (
-        !groups.length ? (
-          <p className="rot-sub-msg">No sectors match these filters.</p>
-        ) : (
-          <div className="rot-tcard">
-            <table className="rot-table rot-table--modern rot-top-table">
-              <thead>
-                <tr>
-                  <th className="num">#</th>
-                  <th>Stock</th>
-                  <th className="num">Market cap</th>
-                  <th className="num">Today</th>
-                  <th className="num">{range} return</th>
-                  <th className="num">vs {benchLabel}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((g, gi) => {
-                  const h = g.head;
-                  const rel = h.sector_pct != null && rotBench(rows) != null ? h.sector_pct - rotBench(rows)! : null;
-                  return (
-                    <Fragment key={h.sector_id}>
-                      <tr className="rot-grp">
-                        <td className="num rot-grp-n">
-                          <span className="rot-grp-badge">{gi + 1}</span>
-                        </td>
-                        <td colSpan={3}>
-                          <button type="button" className="rot-top-sec" onClick={() => onOpenSector(h.sector_id)} title="Open this sector">
-                            {h.sector_label}
-                          </button>
-                          <span className="rot-grp-meta">
-                            <span className="rot-grp-chip">{h.sector_n} stocks</span>
-                          </span>
-                        </td>
-                        <td className="num">
-                          <span className={(h.sector_pct ?? 0) >= 0 ? "rot-pill pos" : "rot-pill neg"} title={`Sector ${range} return`}>
-                            {fmtPct(h.sector_pct)}
-                          </span>
-                        </td>
-                        <td className={`num ${rel == null ? "" : rel >= 0 ? "pos" : "neg"}`}>
-                          {rel == null ? "—" : `${rel >= 0 ? "+" : ""}${rel.toFixed(1)} pts`}
-                        </td>
-                      </tr>
-                      {g.stocks.length ? (
-                        g.stocks.map((r, i) => (
-                          <tr key={r.ticker} className="rot-row rot-grp-stock">
-                            {stockCells(r, i === 0 ? "★" : i + 1)}
-                          </tr>
-                        ))
-                      ) : (
-                        <tr className="rot-grp-stock">
-                          <td />
-                          <td colSpan={5} className="rot-sub-msg">
-                            No stock over this size.
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )
-      ) : !byReturn.length ? (
-        <p className="rot-sub-msg">No stocks match these filters.</p>
-      ) : (
-        <>
-          <div className="rot-tcard">
-            <table className="rot-table rot-table--modern rot-top-table">
-              <thead>
-                <tr>
-                  <th className="num">#</th>
-                  <th>Stock</th>
-                  <th className="num">Market cap</th>
-                  <th className="num">Today</th>
-                  <th className="num">{range} return</th>
-                  <th className="num">vs {benchLabel}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {page.map((r, i) => (
-                  <tr key={`${r.sector_id}-${r.ticker}`} className="rot-row">
-                    {stockCells(r, i + 1)}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {byReturn.length > page.length ? (
-            <div className="rot-top-more">
-              <button type="button" className="rot-act" onClick={() => setLimit((n) => n + 50)}>
-                Show 50 more · {(byReturn.length - page.length).toLocaleString("en-IN")} left
-              </button>
-            </div>
-          ) : null}
-        </>
-      )}
-    </div>
-  );
-}
 
 function fmtCr(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
@@ -858,6 +569,11 @@ export function SectorRotationPanel() {
   const [creating, setCreating] = useState(false);
   const [filter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
+  /** Hide thin sectors (same idea as Value's Min companies). */
+  const [minN, setMinN] = useState(1);
+  /** Market cap band (₹ Cr) — same defaults as Value ranking. */
+  const [minCap, setMinCap] = useState("200");
+  const [maxCap, setMaxCap] = useState("");
   /** Industry picker: rotation baskets are StockScans industries. */
   const [pickedSec, setPickedSec] = useState<string[]>([]);
   const [boardFilter, setBoardFilter] = useState<
@@ -869,7 +585,13 @@ export function SectorRotationPanel() {
     order: Map<string, number>;
     info: Map<string, { r1m: number; r3m: number; r1y: number; rel3m: number }>;
   } | null>(null);
-  const [aboveOn, setAboveOn] = useState(false);
+  const [upcycleBusy, setUpcycleBusy] = useState(false);
+  const [upcycleErr, setUpcycleErr] = useState<string | null>(null);
+  /** vs Nifty over the selected range: Outperform (≥) / Underperform (<). */
+  const [vsNifty, setVsNifty] = useState<"all" | "out" | "under">("all");
+  /** Restrict board / member lists to Nifty 500 constituents. */
+  const [n500Only, setN500Only] = useState(false);
+  const [n500Set, setN500Set] = useState<Set<string> | null>(null);
   const [sortKey, setSortKey] = useState<"return" | "today" | "name" | "n">(
     "return",
   );
@@ -877,7 +599,7 @@ export function SectorRotationPanel() {
   const [maOn, setMaOn] = useState<number[]>([]);
   const [weight, setWeight] = useState<"equal" | "cap">("equal");
   const [memberQ, setMemberQ] = useState("");
-  const [view, setView] = useState<"grid" | "table" | "list">("grid");
+  const [view, setView] = useUrlEnumParam("rot", ROTATION_VIEWS, "grid");
   /** Table view: sectors expanded to show their stocks inline. */
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const toggleExpanded = useCallback((id: string) => {
@@ -998,6 +720,8 @@ export function SectorRotationPanel() {
       // Reload detail after metrics upsert so price / today % / OHLC paint.
       if (openId) await loadDetail(openId);
       await loadBoard({ silent: true });
+      // Rank cache was invalidated server-side — force upcycle to recompute.
+      setUpcycle(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1542,13 +1266,62 @@ export function SectorRotationPanel() {
   };
 
   const openCard = detail?.card;
+  const minCapN = Number(minCap) || 0;
+  const maxCapN = Number(maxCap) || 0;
+  // Load Nifty 500 membership when the filter is on (cached in memory after first fetch).
+  useEffect(() => {
+    if (!n500Only || n500Set) return;
+    let live = true;
+    void (async () => {
+      try {
+        const res = await fetch("/api/index-constituents?index=NIFTY_500", {
+          cache: "no-store",
+        });
+        const json = (await res.json()) as {
+          ok?: boolean;
+          tickers?: string[];
+          error?: string;
+        };
+        if (!live) return;
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || `HTTP ${res.status}`);
+        }
+        setN500Set(new Set((json.tickers || []).map((t) => t.toUpperCase())));
+      } catch (e) {
+        if (!live) return;
+        setError(e instanceof Error ? e.message : String(e));
+        setN500Only(false);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [n500Only, n500Set]);
+
   const sortedCards = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     const stock = stockFilter.trim().toLowerCase();
-    let rows = [...cards].filter((c) => {
+    const capOn = !!(minCapN || maxCapN);
+    const idxOn = n500Only && !!n500Set;
+    let rows = [...cards]
+      .map((c) => {
+        if (!capOn && !idxOn) return c;
+        const mcaps = c.mcaps || [];
+        const tickers = c.tickers || [];
+        let n = 0;
+        const len = Math.max(mcaps.length, tickers.length, c.n || 0);
+        for (let i = 0; i < len; i++) {
+          if (capOn && !mcapInBand(mcaps[i] ?? null, minCapN, maxCapN)) continue;
+          if (idxOn && !n500Set!.has((tickers[i] || "").toUpperCase())) continue;
+          n += 1;
+        }
+        return n === c.n ? c : { ...c, n };
+      })
+      .filter((c) => {
+      if ((c.n ?? 0) < minN) return false;
       if (needle && !c.label.toLowerCase().includes(needle)) return false;
       if (pickedSec.length && !pickedSec.includes(c.label)) return false;
-      if (stock && !(c.search || "").includes(stock) && !c.label.toLowerCase().includes(stock)) {
+      if (stock && !c.label.toLowerCase().includes(stock) && !(c.search || "").includes(stock)) {
         return false;
       }
       return true;
@@ -1572,21 +1345,34 @@ export function SectorRotationPanel() {
     if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
     if (boardFilter === "upcycle") {
       if (!upcycle || upcycle.weight !== weight) return [];
+      // Ignore "Beating Nifty" / return sort — order is strongest 3M turn first.
       rows = rows
         .filter((c) => upcycle.order.has(c.id))
         .sort((a, b) => upcycle.order.get(a.id)! - upcycle.order.get(b.id)!);
       return rows;
     }
-    // Top/Bottom/Above need board-wide returns (see rankingWait).
-    if ((boardFilter === "top" || boardFilter === "bottom" || aboveOn) && !rankedReady) {
+    // Top/Bottom/Outperform/Underperform need board-wide returns (see rankingWait).
+    if (
+      (boardFilter === "top" ||
+        boardFilter === "bottom" ||
+        vsNifty !== "all") &&
+      !rankedReady
+    ) {
       return [];
     }
-    if (aboveOn) {
+    if (vsNifty === "out") {
       rows = rows.filter(
         (c) =>
           c.sector_pct != null &&
           c.bench_pct != null &&
-          c.sector_pct > c.bench_pct,
+          c.sector_pct >= c.bench_pct,
+      );
+    } else if (vsNifty === "under") {
+      rows = rows.filter(
+        (c) =>
+          c.sector_pct != null &&
+          c.bench_pct != null &&
+          c.sector_pct < c.bench_pct,
       );
     }
     // Top/Bottom always by period return, whatever the display sort.
@@ -1596,26 +1382,46 @@ export function SectorRotationPanel() {
         boardFilter === "top" ? ranked.slice(0, 20) : ranked.slice(-20).reverse();
     }
     return rows;
-  }, [cards, filter, stockFilter, boardFilter, aboveOn, sortKey, rankedReady, upcycle, weight, pickedSec]);
+  }, [cards, filter, stockFilter, minN, minCapN, maxCapN, boardFilter, vsNifty, sortKey, rankedReady, upcycle, weight, pickedSec, n500Only, n500Set]);
 
   useEffect(() => {
-    if (boardFilter !== "upcycle" || upcycle?.weight === weight) return;
+    if (boardFilter !== "upcycle") {
+      setUpcycleBusy(false);
+      setUpcycleErr(null);
+      return;
+    }
+    if (upcycle?.weight === weight) return;
     let live = true;
+    setUpcycleBusy(true);
+    setUpcycleErr(null);
+    // Drop stale equal/cap result so the list does not flash the wrong set.
+    setUpcycle(null);
     void (async () => {
       try {
-        const res = await fetch(`/api/sector-rotation?upcycle=1&weight=${encodeURIComponent(weight)}`, { cache: "no-store" });
+        const res = await fetch(
+          `/api/sector-rotation?upcycle=1&weight=${encodeURIComponent(weight)}`,
+          { cache: "no-store" },
+        );
         const j = (await res.json()) as {
+          ok?: boolean;
+          error?: string;
           sectors?: Array<{ id: string; r1m: number; r3m: number; r1y: number; rel3m: number }>;
         };
         if (!live) return;
+        if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
         const list = j.sectors ?? [];
         setUpcycle({
           weight,
           order: new Map(list.map((x, i) => [x.id, i])),
           info: new Map(list.map((x) => [x.id, x])),
         });
-      } catch {
-        /* leave empty; the line below says so */
+        setUpcycleErr(null);
+      } catch (e) {
+        if (!live) return;
+        setUpcycle(null);
+        setUpcycleErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (live) setUpcycleBusy(false);
       }
     })();
     return () => {
@@ -1623,13 +1429,34 @@ export function SectorRotationPanel() {
     };
   }, [boardFilter, weight, upcycle?.weight]);
 
+  // Upcycle rule is 1Y weak / 3M beat / 1M up — pin the board to 3M so the
+  // return column matches the "turning" leg instead of a random range chip.
+  useEffect(() => {
+    if (boardFilter === "upcycle" && range !== "3M") setRange("3M");
+  }, [boardFilter, range]);
+
   /** Filter needs ranks that are still computing — say so, not "No sectors". */
   const rankingWait =
-    (boardFilter === "top" || boardFilter === "bottom" || aboveOn) && !rankedReady;
+    (boardFilter === "top" || boardFilter === "bottom" || vsNifty !== "all") &&
+    !rankedReady;
+  const upcycleWait = boardFilter === "upcycle" && (upcycleBusy || !upcycle || upcycle.weight !== weight);
 
+  // Single key so adding a filter later does not change useEffect dep length (HMR).
+  const pageResetKey = [
+    filter,
+    stockFilter,
+    minN,
+    minCap,
+    maxCap,
+    boardFilter,
+    vsNifty,
+    n500Only,
+    sortKey,
+    pickedSec.join("\0"),
+  ].join("|");
   useEffect(() => {
     setPage(0);
-  }, [filter, stockFilter, boardFilter, aboveOn, sortKey, pickedSec]);
+  }, [pageResetKey]);
 
   // "page" = how many extra batches are revealed (0 → first PAGE_SIZE).
   // Top / Bottom 20 always fit in one batch.
@@ -1705,22 +1532,11 @@ export function SectorRotationPanel() {
     })();
   }, [pageIds, range, weight, boardTick]);
 
-  // Best = highest period return across the ranked board, never a partial page.
-  const bestSector = useMemo(() => {
-    if (!rankedReady) return null;
-    let best: Card | null = null;
-    for (const c of sortedCards) {
-      // Tiny baskets win on one stock's luck — Best needs a real sector.
-      if (c.sector_pct == null || (c.n ?? 0) < BEST_MIN_STOCKS) continue;
-      if (!best || c.sector_pct > (best.sector_pct ?? -Infinity)) best = c;
-    }
-    return best;
-  }, [sortedCards, rankedReady]);
   const stocksShown = useMemo(
     () => sortedCards.reduce((sum, c) => sum + (c.n || 0), 0),
     [sortedCards],
   );
-  /** Members ranked by their return over the selected period (best first). */
+  /** Members ranked by their return over the selected period (highest first). */
   const byReturnMembers = useMemo(
     () =>
       [...(detail?.members ?? [])].sort(
@@ -1728,25 +1544,41 @@ export function SectorRotationPanel() {
       ),
     [detail?.members],
   );
-  /** Best = top return over the period, over ₹200 Cr market cap. */
-  const bestMemberTicker = useMemo(
-    () =>
-      byReturnMembers.find(
-        (m) => m.window_pct != null && m.mcap_cr != null && m.mcap_cr > BEST_MIN_MCAP_CR,
-      )?.ticker ?? null,
-    [byReturnMembers],
-  );
 
   const shownMembers = useMemo(() => {
     const needle = memberQ.trim().toLowerCase();
-    const rows = byReturnMembers;
+    const bench = openCard?.bench_pct ?? null;
+    let rows = byReturnMembers;
+    if (minCapN || maxCapN) {
+      rows = rows.filter((m) => mcapInBand(m.mcap_cr, minCapN, maxCapN));
+    }
+    if (n500Only && n500Set) {
+      rows = rows.filter((m) => n500Set.has(m.ticker.toUpperCase()));
+    }
+    if (vsNifty !== "all" && bench != null) {
+      rows = rows.filter((m) => {
+        if (m.window_pct == null) return false;
+        return vsNifty === "out"
+          ? m.window_pct >= bench
+          : m.window_pct < bench;
+      });
+    }
     if (!needle) return rows;
     return rows.filter(
       (m) =>
         m.ticker.toLowerCase().includes(needle) ||
         m.name.toLowerCase().includes(needle),
     );
-  }, [byReturnMembers, memberQ]);
+  }, [
+    byReturnMembers,
+    memberQ,
+    minCapN,
+    maxCapN,
+    n500Only,
+    n500Set,
+    vsNifty,
+    openCard?.bench_pct,
+  ]);
 
 
   const closeSector = useCallback(() => {
@@ -1838,7 +1670,7 @@ export function SectorRotationPanel() {
     <section className="rot-dash">
       <header className="rot-head">
         <div>
-          <h2 className="rot-title">Sector Rotation</h2>
+          <h2 className="rot-title">Sector Trend</h2>
           <p className="rot-sub">
             {weight === "cap" ? "Free-float cap" : "Equal-weight"} vs {benchLabel}
             {asOf ? ` · as of ${asOf}` : ""}
@@ -1900,7 +1732,6 @@ export function SectorRotationPanel() {
               [
                 ["grid", "Grid"],
                 ["table", "Table"],
-                ["list", "Top stocks"],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -1921,6 +1752,12 @@ export function SectorRotationPanel() {
                 type="button"
                 className={range === r ? "on" : ""}
                 aria-pressed={range === r}
+                disabled={boardFilter === "upcycle" && r !== "3M"}
+                title={
+                  boardFilter === "upcycle" && r !== "3M"
+                    ? "Entering upcycle uses the 3M turn vs Nifty"
+                    : undefined
+                }
                 onClick={() => setRange(r)}
               >
                 {r}
@@ -2006,11 +1843,50 @@ export function SectorRotationPanel() {
               values={pickedSec}
               onChange={setPickedSec}
               options={cards
-                .filter((c) => c.n > 0)
+                .filter((c) => (c.n ?? 0) >= minN)
                 .map((c) => ({ id: c.label, label: c.label, count: c.n }))
                 .sort((a, b) => a.label.localeCompare(b.label))}
               searchable
             />
+            <HoldingsIndustryCheck
+              values={pickedSec}
+              onChange={setPickedSec}
+              available={cards.filter((c) => (c.n ?? 0) >= minN).map((c) => c.label)}
+            />
+            <label className="rot-sort">
+              <span>Min companies</span>
+              <select
+                value={minN}
+                onChange={(e) => setMinN(Number(e.target.value))}
+                aria-label="Minimum companies in sector"
+              >
+                {[1, 2, 3, 5, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n}+
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="rot-cap">
+              <span>Min market cap</span>
+              <input
+                inputMode="numeric"
+                value={minCap}
+                onChange={(e) => setMinCap(e.target.value.replace(/[^\d.]/g, ""))}
+                placeholder="₹ Cr"
+                aria-label="Minimum market cap in ₹ crore"
+              />
+            </label>
+            <label className="rot-cap">
+              <span>Max market cap</span>
+              <input
+                inputMode="numeric"
+                value={maxCap}
+                onChange={(e) => setMaxCap(e.target.value.replace(/[^\d.]/g, ""))}
+                placeholder="₹ Cr"
+                aria-label="Maximum market cap in ₹ crore"
+              />
+            </label>
             <label className="rot-search">
               <span aria-hidden>⌕</span>
               <input
@@ -2035,8 +1911,48 @@ export function SectorRotationPanel() {
                   type="button"
                   className={boardFilter === id ? "on" : ""}
                   aria-pressed={boardFilter === id}
-                  onClick={() =>
+                  title={
+                    id === "upcycle"
+                      ? "1Y below Nifty 500, 3M above it, 1M up — strongest 3M turn first"
+                      : undefined
+                  }
+                  onClick={() => {
                     setBoardFilter((prev) =>
+                      id === "all" ? "all" : prev === id ? "all" : id,
+                    );
+                    // Upcycle already encodes the vs-Nifty turn — clear Out/Under.
+                    if (id === "upcycle") setVsNifty("all");
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="rot-seg" role="group" aria-label="Vs Nifty">
+              {(
+                [
+                  ["all", "All"],
+                  ["out", "Outperform"],
+                  ["under", "Underperform"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={vsNifty === id ? "on" : ""}
+                  aria-pressed={vsNifty === id}
+                  disabled={boardFilter === "upcycle" && id !== "all"}
+                  title={
+                    boardFilter === "upcycle"
+                      ? "Entering upcycle already requires beating Nifty over 3M"
+                      : id === "out"
+                        ? `Sector ≥ ${benchLabel} over the selected range`
+                        : id === "under"
+                          ? `Sector below ${benchLabel} over the selected range`
+                          : "Show all vs Nifty"
+                  }
+                  onClick={() =>
+                    setVsNifty((prev) =>
                       id === "all" ? "all" : prev === id ? "all" : id,
                     )
                   }
@@ -2047,13 +1963,13 @@ export function SectorRotationPanel() {
             </div>
             <button
               type="button"
-              className={aboveOn ? "rot-toggle on" : "rot-toggle"}
-              aria-pressed={aboveOn}
-              onClick={() => setAboveOn((v) => !v)}
-              title="Only sectors beating the Nifty 500"
+              className={n500Only ? "rot-toggle on" : "rot-toggle"}
+              aria-pressed={n500Only}
+              onClick={() => setN500Only((v) => !v)}
+              title="Only stocks in the Nifty 500 (NSE list)"
             >
               <span className="rot-toggle-dot" aria-hidden />
-              Beating Nifty
+              Nifty 500
             </button>
             <span className="rot-bar-spacer" />
             <label className="rot-sort">
@@ -2230,7 +2146,7 @@ export function SectorRotationPanel() {
       ) : null}
 
       {!openId ? (
-        <div className="rot-stats" aria-label="Rotation summary">
+        <div className="rot-stats" aria-label="Trend summary">
           <div className="rot-stat">
             <span className="rot-stat-k">Sectors shown</span>
             <span className="rot-stat-v">{sortedCards.length}</span>
@@ -2238,22 +2154,6 @@ export function SectorRotationPanel() {
           <div className="rot-stat">
             <span className="rot-stat-k">Stocks</span>
             <span className="rot-stat-v">{stocksShown}</span>
-          </div>
-          <div className="rot-stat rot-stat--best">
-            <span className="rot-stat-k">Best ranked</span>
-            <button
-              type="button"
-              className="rot-stat-v rot-stat-best-name"
-              disabled={!bestSector}
-              title={
-                bestSector
-                  ? `Open ${bestSector.label} · ${fmtPct(bestSector.sector_pct ?? bestSector.today_pct ?? null)}`
-                  : undefined
-              }
-              onClick={() => bestSector && setOpenId(bestSector.id)}
-            >
-              {bestSector?.label ?? (ranking || !rankedReady ? "Ranking…" : "—")}
-            </button>
           </div>
         </div>
       ) : null}
@@ -2288,7 +2188,11 @@ export function SectorRotationPanel() {
               {benchLabel} {fmtPct(openCard?.bench_pct ?? null)}
             </span>
             <span className="rot-muted">
-              {openCard ? `${openCard.n} stocks` : ""}
+              {openCard
+                ? minCapN || maxCapN || memberQ.trim()
+                  ? `${shownMembers.length} of ${openCard.n} stocks`
+                  : `${openCard.n} stocks`
+                : ""}
             </span>
 
             <button
@@ -2299,19 +2203,10 @@ export function SectorRotationPanel() {
               Delete sector
             </button>
           </div>
-          <div className="rot-stats rot-stats--detail" aria-label="Sector leaders">
+          <div className="rot-stats rot-stats--detail" aria-label="Sector detail">
             <div className="rot-stat">
               <span className="rot-stat-k">Companies shown</span>
               <span className="rot-stat-v">{shownMembers.length}</span>
-            </div>
-            <div className="rot-stat rot-stat--best">
-              <span className="rot-stat-k">Best ranked</span>
-              <span className="rot-stat-v rot-stat-best-name">
-                {bestMemberTicker
-                  ? (detail?.members.find((m) => m.ticker === bestMemberTicker)
-                      ?.name ?? bestMemberTicker)
-                  : "—"}
-              </span>
             </div>
           </div>
           {openCard && openCard.sector.length > 1 ? (
@@ -2348,6 +2243,26 @@ export function SectorRotationPanel() {
               className="fam-dash-search"
               submitLabel="add"
             />
+            <label className="rot-cap">
+              <span>Min market cap</span>
+              <input
+                inputMode="numeric"
+                value={minCap}
+                onChange={(e) => setMinCap(e.target.value.replace(/[^\d.]/g, ""))}
+                placeholder="₹ Cr"
+                aria-label="Minimum market cap in ₹ crore"
+              />
+            </label>
+            <label className="rot-cap">
+              <span>Max market cap</span>
+              <input
+                inputMode="numeric"
+                value={maxCap}
+                onChange={(e) => setMaxCap(e.target.value.replace(/[^\d.]/g, ""))}
+                placeholder="₹ Cr"
+                aria-label="Maximum market cap in ₹ crore"
+              />
+            </label>
             <input
               className="fam-dash-search rot-member-filter"
               placeholder="Search by name or code…"
@@ -2368,25 +2283,16 @@ export function SectorRotationPanel() {
                 <th className="rot-col-num" title={`Stock return minus ${benchLabel} return over ${range}`}>
                   vs {benchLabel}
                 </th>
+                <th className="rot-col-vs">Vs Nifty</th>
                 <th className="rot-col-trend">Trend</th>
                 <th className="rot-col-act" />
               </tr>
             </thead>
             <tbody>
               {shownMembers.map((m, mi) => (
-                <tr
-                  key={m.ticker}
-                  className={
-                    m.ticker === bestMemberTicker ? "rot-row--best" : undefined
-                  }
-                >
+                <tr key={m.ticker}>
                   <td className="rot-num">{m.window_pct == null ? "—" : byReturnMembers.indexOf(m) + 1 || mi + 1}</td>
                   <td className="rot-stock">
-                    {m.ticker === bestMemberTicker ? (
-                      <span className="rot-best-pill" title={`Best ${range} return in sector (over ₹200 Cr market cap)`}>
-                        Best
-                      </span>
-                    ) : null}
                     {m.tv_url ? (
                       <a
                         href={m.tv_url}
@@ -2403,6 +2309,7 @@ export function SectorRotationPanel() {
                   <td className="mono rot-sym">
                     <span className="rot-sym-line">
                       {m.ticker}
+                      <ReviewPlusButton ticker={m.ticker} />
                       <StockLinks ticker={m.ticker} market={m.market} />
                     </span>
                   </td>
@@ -2438,6 +2345,30 @@ export function SectorRotationPanel() {
                       </td>
                     );
                   })()}
+                  {(() => {
+                    const b = openCard?.bench_pct;
+                    const tag =
+                      m.window_pct == null || b == null
+                        ? null
+                        : m.window_pct >= b
+                          ? "Outperform"
+                          : "Underperform";
+                    return (
+                      <td>
+                        {tag ? (
+                          <span
+                            className={
+                              tag === "Outperform" ? "rot-pill pos" : "rot-pill neg"
+                            }
+                          >
+                            {tag}
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    );
+                  })()}
                   <td className="rot-trend">
                     <MiniSpark pts={m.spark} />
                   </td>
@@ -2460,31 +2391,22 @@ export function SectorRotationPanel() {
         <div className="rot-page">
           <span>
             {boardFilter === "upcycle"
-              ? upcycle && upcycle.weight === weight
-                ? `${sortedCards.length} sectors entering an upcycle · 1Y below ${benchLabel}, 3M beating it, 1M up · strongest turn first`
-                : "Finding sectors that are turning up…"
-              : view === "list"
-              ? ""
+              ? upcycleErr
+                ? `Could not load upcycle: ${upcycleErr}`
+                : upcycleWait
+                  ? "Finding sectors that are turning up…"
+                  : `${sortedCards.length} sectors entering an upcycle · 1Y below ${benchLabel}, 3M beating it, 1M up · strongest turn first`
               : sortedCards.length
               ? `Showing ${shownCount} of ${sortedCards.length} sectors`
               : rankingWait
                 ? "Ranking…"
                 : "No sectors"}
-            {sortedCards.length > 0 && !rankedReady && sortKey === "return"
+            {sortedCards.length > 0 && !rankedReady && sortKey === "return" && boardFilter !== "upcycle"
               ? " · ranking by return…"
               : ""}
           </span>
         </div>
-        {view === "list" ? (
-          <TopStocksView
-            range={range}
-            weight={weight}
-            sectorOrder={sortedCards.map((c) => c.id)}
-            stockQ={stockFilter}
-            benchLabel={benchLabel}
-            onOpenSector={(id) => setOpenId(id)}
-          />
-        ) : view === "table" ? (
+        {view === "table" ? (
         <div className="rot-tcard">
         <table className="rot-table rot-table--modern">
           <thead>
@@ -2495,6 +2417,7 @@ export function SectorRotationPanel() {
               <th className="num">Today</th>
               <th className="num">{range} return</th>
               <th className="num">vs {benchLabel}</th>
+              <th>Vs Nifty</th>
               <th className="rot-tc-star" aria-label="Starred"></th>
             </tr>
           </thead>
@@ -2503,14 +2426,16 @@ export function SectorRotationPanel() {
               const open = expanded.has(c.id);
               const rel =
                 c.sector_pct != null && c.bench_pct != null ? c.sector_pct - c.bench_pct : null;
+              const vsTag =
+                c.sector_pct == null || c.bench_pct == null
+                  ? null
+                  : c.sector_pct >= c.bench_pct
+                    ? "Outperform"
+                    : "Underperform";
               return (
               <Fragment key={c.id}>
               <tr
-                className={[
-                  "rot-row",
-                  c.id === bestSector?.id ? "rot-row--best" : "",
-                  open ? "is-open" : "",
-                ].join(" ")}
+                className={["rot-row", open ? "is-open" : ""].join(" ")}
                 onClick={() => toggleExpanded(c.id)}
                 aria-expanded={open}
               >
@@ -2536,9 +2461,6 @@ export function SectorRotationPanel() {
                       <span className="rot-turn" title="1-year return → 3-month return">
                         1Y {fmtPct(upcycle.info.get(c.id)!.r1y)} → 3M {fmtPct(upcycle.info.get(c.id)!.r3m)}
                       </span>
-                    ) : null}
-                    {c.id === bestSector?.id ? (
-                      <span className="rot-best-pill">Best</span>
                     ) : null}
                   </span>
                 </td>
@@ -2566,6 +2488,19 @@ export function SectorRotationPanel() {
                 <td className={`num ${rel == null ? "" : rel >= 0 ? "pos" : "neg"}`}>
                   {rel == null ? "—" : `${rel >= 0 ? "+" : ""}${rel.toFixed(1)} pts`}
                 </td>
+                <td>
+                  {vsTag ? (
+                    <span
+                      className={
+                        vsTag === "Outperform" ? "rot-pill pos" : "rot-pill neg"
+                      }
+                    >
+                      {vsTag}
+                    </span>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="rot-tc-star">
                   <button
                     type="button"
@@ -2581,7 +2516,18 @@ export function SectorRotationPanel() {
                 </td>
               </tr>
               {open ? (
-                <SectorStocksRow id={c.id} range={range} colSpan={7} onOpen={() => setOpenId(c.id)} />
+                <SectorStocksRow
+                  id={c.id}
+                  range={range}
+                  colSpan={9}
+                  onOpen={() => setOpenId(c.id)}
+                  minCap={minCapN}
+                  maxCap={maxCapN}
+                  n500Only={n500Only}
+                  n500Set={n500Set}
+                  vsNifty={vsNifty}
+                  benchPct={c.bench_pct}
+                />
               ) : null}
               </Fragment>
               );
@@ -2597,9 +2543,7 @@ export function SectorRotationPanel() {
           {pageCards.map((c) => (
             <article
               key={c.id}
-              className={
-                c.id === bestSector?.id ? "rot-card rot-card--best" : "rot-card"
-              }
+              className="rot-card"
               tabIndex={0}
               role="button"
               onClick={() => setOpenId(c.id)}
@@ -2612,9 +2556,6 @@ export function SectorRotationPanel() {
             >
               <div className="rot-card-top">
                 <strong>
-                  {c.id === bestSector?.id ? (
-                    <span className="rot-best-pill">Best</span>
-                  ) : null}
                   {c.label}
                   {boardFilter === "upcycle" && upcycle?.info.get(c.id) ? (
                     <span className="rot-turn" title="1-year return → 3-month return">
@@ -2635,6 +2576,24 @@ export function SectorRotationPanel() {
                   >
                     {fmtPct(c.sector_pct)}
                   </span>
+                  {c.sector_pct != null && c.bench_pct != null ? (
+                    <span
+                      className={
+                        c.sector_pct >= c.bench_pct
+                          ? "rot-pill pos"
+                          : "rot-pill neg"
+                      }
+                      title={
+                        c.sector_pct >= c.bench_pct
+                          ? `≥ ${benchLabel} over ${range}`
+                          : `Below ${benchLabel} over ${range}`
+                      }
+                    >
+                      {c.sector_pct >= c.bench_pct
+                        ? "Outperform"
+                        : "Underperform"}
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     className={c.starred ? "rot-star on" : "rot-star"}
@@ -2704,7 +2663,7 @@ export function SectorRotationPanel() {
           ))}
         </div>
         )}
-        {view !== "list" && shownCount < sortedCards.length ? (
+        {shownCount < sortedCards.length ? (
           <div className="rot-more">
             <span>
               {shownCount} of {sortedCards.length} shown

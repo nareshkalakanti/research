@@ -1,4 +1,4 @@
-import { buildMomPage, fillMomRatios, screenerBudgetLeft } from "./momentum";
+import { buildMomPage, fillMomRatios } from "./momentum";
 import {
   expectedQuarter,
   markTried,
@@ -8,48 +8,44 @@ import {
   type FillResult,
   type Progress,
 } from "./nanocap-champs";
-import { fetchScreenerQuarterlyFundamentals } from "./screener-quarters";
+import { upsertQuartersCache } from "./screener-quarters";
 import { fetchScreenerAllAnnual, screenerPagesTriedSince } from "./screener-annual";
-import { screenerPausedUntil } from "./screener-fetch";
+import { screenerBulkDeferred, screenerPausedUntil } from "./screener-fetch";
 import { buildValueUniverse } from "./value-tools";
-import { fillHtIvForMember, fillHtIvFromYahoo, invalidateRotationRank, missingHtIvQueue } from "./sector-rotation-board";
+import {
+  fillHtIvFromYahoo,
+  invalidateRotationRank,
+  missingHtIvQueue,
+} from "./sector-rotation-board";
 import { hasScreenerLogin, pullAllPeople } from "./screener-people";
 import { openSqliteNamed } from "./sqlite-utils";
+import { fetchQuarterlyFundamentals } from "./yahoo-quarters";
 
 /**
- * Background refresh for the Nano tab (Momentum) while the app is open (pinged
- * from the browser on load and every 30 min). Only does what is due:
- *  - quarterly results for Momentum names whose latest quarter is out of
- *    date (Screener cache refetches once > 7 days old)
- *  - ROCE / ROE for stocks with results but no ratios (Momentum scoring)
- * Screener work shares one hourly budget (see momentum.ts) on top of the
- * global 2.5–5 s gap and automatic pause.
+ * Background refresh while the app is open (pinged on load + every ~30 min).
+ *
+ * Momentum quarters / ROCE·ROE: Yahoo + Groww + Tickertape — not Screener.
+ * Rotation quality gaps: Yahoo only (Screener path removed).
+ * Value ranking gaps: tiny Screener leftover budget only.
  */
 
 const RESULTS_PER_RUN = 40;
-/** ROCE / ROE pages per run for stocks that can't be scored yet (2 runs an hour). */
-const RATIOS_PER_RUN = 25;
-/**
- * Rotation quality (Sales growth / ROCE / P/B) stocks per run, from whatever
- * hourly budget is left (3 pages each). 2 runs an hour → ≤ 16 stocks/hour.
- */
-const ROTATION_QUALITY_PER_RUN = 8;
-/** Yahoo tries per run (~0.5 s each + gap) — Yahoo goes first; Screener only gets what Yahoo missed. */
+/** Tickertape ROCE / ROE fills per run (no Screener). */
+const RATIOS_PER_RUN = 40;
+/** Yahoo tries per run for Rotation quality legs. */
 const ROTATION_YAHOO_PER_RUN = 60;
 const YAHOO_GAP_MS = 800;
-/**
- * Value-tab ranking gaps (no Sales growth 3Y / ROCE 3Y / P/B): Screener pages
- * per run from the leftover hourly budget (2 pages each). Stocks tried in the
- * last 30 days are skipped, so young listings / banks are not retried.
- */
-const VALUE_PER_RUN = 10;
+/** Keep tiny — Value fill used to eat Screener budget and trip the pause. */
+const VALUE_PER_RUN = 4;
 const META_KEY = "baskets_refresh_last";
 
 function withMeta<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
   const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
   try {
     db.pragma("busy_timeout = 5000");
-    db.exec(`CREATE TABLE IF NOT EXISTS baskets_refresh_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`);
+    db.exec(
+      `CREATE TABLE IF NOT EXISTS baskets_refresh_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+    );
     return fn(db);
   } finally {
     db.close();
@@ -59,8 +55,11 @@ function withMeta<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
 export function lastBasketsRefresh(): string | null {
   return withMeta(
     (db) =>
-      (db.prepare(`SELECT value FROM baskets_refresh_meta WHERE key = ?`).get(META_KEY) as { value: string } | undefined)
-        ?.value ?? null,
+      (
+        db
+          .prepare(`SELECT value FROM baskets_refresh_meta WHERE key = ?`)
+          .get(META_KEY) as { value: string } | undefined
+      )?.value ?? null,
   );
 }
 
@@ -69,57 +68,69 @@ function staleResultTickers(): string[] {
   const want = expectedQuarter();
   const mom = buildMomPage();
   const out = new Set<string>();
-  for (const r of [...mom.strong, ...mom.near]) if (!r.latest_quarter || r.latest_quarter < want) out.add(r.ticker);
+  for (const r of [...mom.strong, ...mom.near]) {
+    if (!r.latest_quarter || r.latest_quarter < want) out.add(r.ticker);
+  }
   return [...out];
 }
 
 async function runRefresh(onProgress?: Progress): Promise<FillResult> {
   let done = 0;
   let filled = 0;
-  const stale = staleResultTickers().slice(0, Math.min(RESULTS_PER_RUN, screenerBudgetLeft()));
-  const ratioSlots = Math.max(0, Math.min(RATIOS_PER_RUN, screenerBudgetLeft() - stale.length));
+  const stale = staleResultTickers().slice(0, RESULTS_PER_RUN);
+  const ratioSlots = RATIOS_PER_RUN;
   let total = stale.length + ratioSlots;
   onProgress?.(0, total, 0);
-  // 1) New quarterly results (Screener; cached copies refetch once > 7 days old).
+
+  // 1) Stale Momentum quarters — Yahoo / NSE / BSE / Groww (no Screener).
   let paused = false;
   for (const t of stale) {
     try {
-      const qs = await fetchScreenerQuarterlyFundamentals(t);
-      if (qs.length) filled += 1;
-    } catch (e) {
-      if (String(e).toLowerCase().includes("paused")) {
-        paused = true;
-        break;
+      const live = await fetchQuarterlyFundamentals(t, null, {
+        skipChart: true,
+        skipScreener: true,
+        yahooFirst: true,
+      });
+      if (live.quarters.length >= 2) {
+        upsertQuartersCache(t, live.quarters);
+        filled += 1;
       }
+    } catch {
+      /* next ticker */
     }
     markTried("auto", t);
     done += 1;
     onProgress?.(done, total, filled);
+    await new Promise((r) => setTimeout(r, YAHOO_GAP_MS));
   }
-  // 2) ROCE / ROE so more stocks can be scored on the 7 rules (whatever budget is left).
-  if (!paused && ratioSlots > 0) {
+
+  // 2) ROCE / ROE via Tickertape (quiet = no Screener fallback).
+  {
     const base = done;
     try {
       const r = await fillMomRatios(
         ratioSlots,
-        (d, t, f) => {
-          total = base + t;
+        (d, tot, f) => {
+          total = base + tot;
           onProgress?.(base + d, total, filled + f);
         },
         true,
+        { preferTape: true },
       );
       done = base + r.tried;
       filled += r.filled;
     } catch {
-      /* paused mid-run — next run continues */
+      /* next section */
     }
   }
-  // 3) Rotation quality legs (Sales growth / ROCE / P/B) for stocks Top stocks
-  //    can't rank yet: Yahoo first (fast, own limits), then Screener — leftover
-  //    hourly budget only — for the ones Yahoo had nothing for.
+
+  // 3) Rotation quality — Yahoo only (Screener fill removed).
   {
     let got = 0;
-    const yQueue = missingHtIvQueue(recentlyTried("rotqy")).slice(0, ROTATION_YAHOO_PER_RUN);
+    const yQueue = missingHtIvQueue(recentlyTried("rotqy")).slice(
+      0,
+      ROTATION_YAHOO_PER_RUN,
+    );
     total += yQueue.length;
     for (const m of yQueue) {
       try {
@@ -128,76 +139,54 @@ async function runRefresh(onProgress?: Progress): Promise<FillResult> {
           got += 1;
         }
       } catch {
-        break; // Yahoo throttling — next run continues
+        break; // Yahoo throttling
       }
       markTried("rotqy", m.ticker.toUpperCase());
       done += 1;
       onProgress?.(done, total, filled);
       await new Promise((r) => setTimeout(r, YAHOO_GAP_MS));
     }
-    if (!paused) {
-      const yTried = recentlyTried("rotqy");
-      const slots = Math.min(ROTATION_QUALITY_PER_RUN, Math.floor(screenerBudgetLeft() / 3));
-      const queue =
-        slots > 0
-          ? missingHtIvQueue(recentlyTried("rotq"))
-              .filter((m) => yTried.has(m.ticker.toUpperCase()))
-              .slice(0, slots)
-          : [];
-      total += queue.length;
-      for (const m of queue) {
-        try {
-          if (await fillHtIvForMember(m)) {
-            filled += 1;
-            got += 1;
-          }
-        } catch {
-          paused = true;
-          break;
-        }
-        markTried("rotq", m.ticker.toUpperCase());
-        done += 1;
-        onProgress?.(done, total, filled);
-      }
-    }
     if (got) invalidateRotationRank();
   }
-  // 3b) Value-tab ranking gaps, biggest first, same slow Screener path.
-  if (!paused) {
-    const slots = Math.min(VALUE_PER_RUN, Math.floor(screenerBudgetLeft() / 2));
-    if (slots > 0) {
-      const tried = screenerPagesTriedSince(30 * 86_400_000);
-      const queue = buildValueUniverse()
-        .rows.filter((r) => r.sales3y == null && !tried.has(r.t.toUpperCase()))
-        .sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0))
-        .slice(0, slots);
-      total += queue.length;
-      for (const r of queue) {
-        if (screenerPausedUntil()) {
-          paused = true;
-          break;
-        }
-        try {
-          const res = await fetchScreenerAllAnnual(r.t);
-          if (res.annual && res.bs) filled += 1;
-        } catch {
-          paused = true;
-          break;
-        }
-        markTried("valq", r.t.toUpperCase());
-        done += 1;
-        onProgress?.(done, total, filled);
+
+  // 4) Value-tab ranking gaps — one consolidated Screener page each; yield to Portfolio.
+  if (!paused && !screenerBulkDeferred() && !screenerPausedUntil()) {
+    const slots = VALUE_PER_RUN;
+    const tried = screenerPagesTriedSince(30 * 86_400_000);
+    const gaps = buildValueUniverse()
+      .rows.filter((r) => (r.sales3y == null || r.roce3y == null) && !tried.has(r.t.toUpperCase()))
+      .sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0))
+      .slice(0, slots);
+    total += gaps.length;
+    for (const r of gaps) {
+      if (screenerPausedUntil() || screenerBulkDeferred()) {
+        paused = true;
+        break;
       }
+      try {
+        const res = await fetchScreenerAllAnnual(r.t, {
+          standaloneIfShort: false,
+        });
+        if (res.annual && res.bs) filled += 1;
+      } catch {
+        paused = true;
+        break;
+      }
+      markTried("valq", r.t.toUpperCase());
+      done += 1;
+      onProgress?.(done, total, filled);
     }
   }
-  // 4) Fund watchlists from Screener people pages — once a day, only with a login.
-  if (!paused && hasScreenerLogin()) {
+
+  // 5) Fund watchlists from Screener people pages — once a day, only with a login.
+  if (!paused && !screenerPausedUntil() && hasScreenerLogin()) {
     try {
       await pullAllPeople({ onlyStale: true });
     } catch {
       /* next run retries */
     }
   }
+
   withMeta((db) =>
     db
       .prepare(

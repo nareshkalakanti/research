@@ -1,9 +1,11 @@
 /**
  * Personal holdings — data/holdings.db
+ * Industry/sector always from StockScans (stock master) on read and write.
  */
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { masterLabel, withStockscansLabels } from "./stock-master";
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const DB_PATH = path.join(DATA_DIR, "holdings.db");
@@ -60,12 +62,14 @@ export function loadHoldings(): HoldingRow[] {
     return [];
   }
   try {
-    const rows = db
-      .prepare(
-        `SELECT ticker, name, market, sector, sub_sector
-         FROM holdings ORDER BY ticker COLLATE NOCASE`,
-      )
-      .all() as HoldingRow[];
+    const rows = (
+      db
+        .prepare(
+          `SELECT ticker, name, market, sector, sub_sector
+           FROM holdings ORDER BY ticker COLLATE NOCASE`,
+        )
+        .all() as HoldingRow[]
+    ).map((r) => withStockscansLabels(r));
     const set = new Set(rows.map((r) => r.ticker.toUpperCase()));
     cache = { at: now, set, rows };
     return rows;
@@ -92,6 +96,9 @@ export function upsertHolding(row: {
 }): HoldingRow | null {
   const ticker = (row.ticker || "").trim().toUpperCase();
   if (!ticker) return null;
+  const ss = masterLabel(ticker);
+  const sector = ss?.sector ?? null;
+  const sub_sector = ss?.industry ?? null;
   const db = openWrite();
   try {
     const now = new Date().toISOString();
@@ -101,15 +108,15 @@ export function upsertHolding(row: {
        ON CONFLICT(ticker) DO UPDATE SET
          market = excluded.market,
          name = COALESCE(excluded.name, holdings.name),
-         sector = COALESCE(excluded.sector, holdings.sector),
-         sub_sector = COALESCE(excluded.sub_sector, holdings.sub_sector),
+         sector = excluded.sector,
+         sub_sector = excluded.sub_sector,
          updated_at = excluded.updated_at`,
     ).run(
       ticker,
       (row.market || "NSE").trim().toUpperCase() || "NSE",
       row.name?.trim() || null,
-      row.sector?.trim() || null,
-      row.sub_sector?.trim() || null,
+      sector,
+      sub_sector,
       now,
     );
     invalidateHoldingsCache();
@@ -118,8 +125,8 @@ export function upsertHolding(row: {
         ticker,
         name: row.name?.trim() || null,
         market: (row.market || "NSE").trim().toUpperCase() || "NSE",
-        sector: row.sector?.trim() || null,
-        sub_sector: row.sub_sector?.trim() || null,
+        sector,
+        sub_sector,
       }
     );
   } finally {
@@ -166,12 +173,13 @@ export function replaceHoldings(
       for (const r of rows) {
         const ticker = (r.ticker || "").trim().toUpperCase();
         if (!ticker) continue;
+        const ss = masterLabel(ticker);
         ins.run(
           ticker,
           (r.market || "NSE").toUpperCase(),
           r.name?.trim() || null,
-          r.sector?.trim() || null,
-          r.sub_sector?.trim() || null,
+          ss?.sector ?? null,
+          ss?.industry ?? null,
           now,
         );
         n += 1;

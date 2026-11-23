@@ -16,7 +16,7 @@ export default function IqMasterRedirectPage() {
 function Redirect() {
   const router = useRouter();
   useEffect(() => {
-    router.replace("/watchlist");
+    router.replace("/?tab=watchlist");
   }, [router]);
   return <div className="boot">Redirecting to Watchlist…</div>;
 }
