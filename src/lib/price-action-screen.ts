@@ -118,8 +118,13 @@ export async function buildPriceAction(opts: { to?: string; from?: string; days?
     }
     const trending = dayBits.filter((b) => b > 0).length;
     if (!trending) return;
+    // Consecutive green days up to the latest; a day with no trade (or no bar yet) is skipped, not a break.
     let streak = 0;
-    for (let k = dayBits.length - 1; k >= 0 && dayBits[k]! > 0; k--) streak++;
+    for (let k = dayBits.length - 1; k >= 0; k--) {
+      if (dayBits[k]! < 0) continue;
+      if (dayBits[k] === 0) break;
+      streak++;
+    }
     const t = m.ticker.toUpperCase();
     const lab = labels.get(t);
     const rank = capRank.get(t);

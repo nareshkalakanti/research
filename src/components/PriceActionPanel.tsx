@@ -129,19 +129,13 @@ function Rockets({ r }: { r: Row }) {
   );
 }
 
+/** Industry only (StockScans), like the rest of the app; the broad sector is in the tooltip. */
 function Sector({ r }: { r: Row }) {
-  const s = r.sector;
-  const sub = r.industry && r.industry !== s ? r.industry : null;
+  const label = r.industry || r.sector;
+  const title = [r.sector, r.industry].filter(Boolean).join(" › ") || undefined;
   return (
-    <td className="pa-sector">
-      {s || sub ? (
-        <>
-          {s ?? sub}
-          {s && sub ? <span className="pa-sub"> › {sub}</span> : null}
-        </>
-      ) : (
-        "—"
-      )}
+    <td className="pa-sector" title={title}>
+      {label ?? "—"}
     </td>
   );
 }
@@ -216,7 +210,7 @@ export function PriceActionPanel() {
       if (needle && !`${r.name} ${r.ticker} ${r.sector ?? ""} ${r.industry ?? ""}`.toLowerCase().includes(needle)) return false;
       if (cap !== "all" && r.cap_class !== cap) return false;
       if (exch !== "all" && (r.market || "NSE") !== exch) return false;
-      if (minDays && r.trending < minDays) return false;
+      if (view !== "latest" && minDays && r.trending < minDays) return false;
       if (rocket === "any" && !r.rocket_price && !r.rocket_rpi) return false;
       if (rocket === "price" && !r.rocket_price) return false;
       if (rocket === "rpi" && !r.rocket_rpi) return false;
@@ -230,7 +224,7 @@ export function PriceActionPanel() {
       name: (a, b) => a.name.localeCompare(b.name),
     };
     return out.sort((a, b) => by[sort](a, b) || a.name.localeCompare(b.name));
-  }, [data, q, cap, exch, minDays, rocket, sort]);
+  }, [data, q, cap, exch, minDays, rocket, sort, view]);
 
   const counts = useMemo(() => {
     const c = { s1: 0, s2: 0, s3: 0, s4: 0 };
@@ -445,7 +439,7 @@ export function PriceActionPanel() {
                         <Dots days={row.days} dates={dates} />
                       </td>
                       <td className="num pa-big">{row.trending}</td>
-                      <td className="num">{row.streak || "—"}</td>
+                      <td className={row.streak ? "num pa-big" : "num pa-zero"}>{row.streak}</td>
                       <Sector r={row} />
                       <Cap r={row} />
                       <td className={`num ${(row.last.day_pct ?? 0) >= 0 ? "pos" : "neg"}`}>{pct(row.last.day_pct)}</td>

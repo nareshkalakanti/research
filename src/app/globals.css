@@ -24318,7 +24318,6 @@ html[data-theme="light"] .nsc-drawer-wrap {
 .pa-dot.none { background: transparent; outline: 1px dashed #c9ced6; outline-offset: -1px; }
 .pa-big { font-weight: 650; font-size: 15px; }
 .pa-sector { white-space: nowrap; }
-.pa-sub { opacity: 0.65; }
 .pa-cap { display: block; font-size: 12px; opacity: 0.75; }
 .pa-cap-cr { white-space: nowrap; }
 .pa-tag {
@@ -24344,3 +24343,4 @@ html[data-theme="light"] .nsc-drawer-wrap {
   color: #b26b00;
 }
 .pa-rocket--rpi { background: color-mix(in srgb, #6ea0ff 18%, transparent); color: #2f5fbf; }
+.pa-zero { opacity: 0.45; }
