@@ -1,4 +1,4 @@
-import { annualPoints, bookValuePerShare, cagrCheck, ROCE_MIN, roceAverage } from "./napkin/quality-flags";
+import { annualPoints, bookValuePerShare, businessBreak, cagrCheck, ROCE_MIN, roceAverage } from "./napkin/quality-flags";
 import { runConcurrent } from "./scrape-pool";
 import { buildScannerData } from "./scanner";
 import {
@@ -22,7 +22,7 @@ import {
   ingestShareholdingHtml,
   shareholdingFetchedWithin,
 } from "./screener-shareholding";
-import { fetchScreenerPeers, rememberWarehouseFromHtml } from "./screener-peers";
+import { fetchScreenerPeers, rememberWarehouseFromHtml, screenerPeerColumnsMissingSince } from "./screener-peers";
 import {
   fetchScreenerCompanyHtml,
   markScreenerInteractive,
@@ -105,7 +105,21 @@ export const VALN = { peerMin: 3, expensive: 2, growthCap: 20 } as const;
 /** Final rating on the total (out of 17): Excellent 13+ · Good 9–12 · Average 5–8 · Poor ≤ 4. */
 export const RATING = { excellent: 13, good: 9, average: 5 } as const;
 
-type Peers = { pb: Map<string, number>; ps: Map<string, number> };
+/** Per industry: each company's P/B and P/S (the median is taken without the stock itself). */
+type PeerVals = Array<{ t: string; v: number }>;
+type Peers = { pb: Map<string, PeerVals>; ps: Map<string, PeerVals> };
+
+/**
+ * Median of the other companies in the industry — never the stock itself
+ * (in a 3-company industry the middle one would always "match" its own
+ * median). Needs VALN.peerMin others, else null.
+ */
+export function peerMedian(vals: PeerVals | undefined, t: string): { m: number; n: number } | null {
+  const xs = (vals ?? []).filter((x) => x.t !== t.toUpperCase()).map((x) => x.v).sort((a, b) => a - b);
+  if (xs.length < VALN.peerMin) return null;
+  const m = xs.length % 2 ? xs[xs.length >> 1]! : (xs[xs.length / 2 - 1]! + xs[xs.length / 2]!) / 2;
+  return { m, n: xs.length };
+}
 
 /** Last 4 quarters, only when the newest is recent (some caches stop years ago). */
 function recentQuarters(t: string) {
@@ -172,7 +186,7 @@ function loadPeers(): {
     const q = recentQuarters(t);
     return q && q.every((x) => x.revenue != null) ? q.reduce((a, x) => a + (x.revenue as number), 0) : null;
   };
-  const by = new Map<string, { pb: number[]; ps: number[] }>();
+  const by = new Map<string, { pb: PeerVals; ps: PeerVals }>();
   const industryOf = new Map<string, string | null>();
   const price = new Map<string, number | null>();
   const mcap = new Map<string, number | null>();
@@ -184,19 +198,16 @@ function loadPeers(): {
     const l = legs.get(r.t);
     const e = by.get(r.industry) ?? { pb: [], ps: [] };
     const pb = l?.bv ? r.mcap / l.bv : htPb.get(r.t) ?? null;
-    if (pb != null && pb > 0) e.pb.push(pb);
+    const key = r.t.toUpperCase();
+    if (pb != null && pb > 0) e.pb.push({ t: key, v: pb });
     const sales = l?.sales ?? ttmSales(r.t);
-    if (sales && sales > 0) e.ps.push(r.mcap / sales);
+    if (sales && sales > 0) e.ps.push({ t: key, v: r.mcap / sales });
     by.set(r.industry, e);
   }
-  const med = (xs: number[]) => {
-    const s = [...xs].sort((a, b) => a - b);
-    return s.length % 2 ? s[s.length >> 1]! : (s[s.length / 2 - 1]! + s[s.length / 2]!) / 2;
-  };
   const peers: Peers = { pb: new Map(), ps: new Map() };
   for (const [ind, e] of by) {
-    if (e.pb.length >= VALN.peerMin) peers.pb.set(ind, med(e.pb));
-    if (e.ps.length >= VALN.peerMin) peers.ps.set(ind, med(e.ps));
+    peers.pb.set(ind, e.pb);
+    peers.ps.set(ind, e.ps);
   }
   return { industryOf, peers, price, mcap, htPb };
 }
@@ -445,6 +456,8 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
     fetchScreenerAnnualBs(t).catch(() => null),
   ]);
   const checks: FundCheck[] = [];
+  // Business changed in the history (shell took in a new business): growth across it not comparable.
+  const brk = businessBreak(pl?.dates.length ? pl.dates : annual?.dates, pl?.dates.length ? pl.revenue : annual?.sales);
   const fromCagr = (
     id: "bv" | "sales",
     label: string,
@@ -453,7 +466,7 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
     shareCapital?: { dates: string[]; values: Array<number | null> },
   ) => {
     if (!dates?.length || !vals) return { id, label, rule: `> ${FUND.cagr}% CAGR · up to 10 yrs`, value: "—", points: null, note: "No data" } as FundCheck;
-    const c = cagrCheck(id, label, dates, vals, shareCapital ? { shareCapital } : undefined);
+    const c = cagrCheck(id, label, dates, vals, { ...(shareCapital ? { shareCapital } : {}), businessBreak: brk });
     // Rule shows the span actually used (10 / 5 / 3), not a fixed "10 yrs".
     const spanNote = c.note?.match(/^(\d+)\s*yrs/)?.[1];
     const spanLabel = spanNote ? `${spanNote} yrs` : "up to 10 yrs";
@@ -485,7 +498,7 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
   );
   // ROCE 10-year average (shared rule, see roceAverage).
   {
-    const r = roceAverage(annual);
+    const r = roceAverage(annual, brk);
     if (r) {
       checks.push({
         id: "roce",
@@ -755,12 +768,12 @@ async function scoreValuation(
   } else if (pbUse != null && pbUse > 0 && spOk && sp?.pb_median != null && sp.pb_median > 0) {
     out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${pbUse.toFixed(2)} vs ${sp.pb_median.toFixed(2)}`, points: pts(band(pbUse / sp.pb_median)), note: spNote("P/B") });
   } else {
-    const m = ind ? ctx.peers.pb.get(ind) : undefined;
+    const pm = ind ? peerMedian(ctx.peers.pb.get(ind), t) : null;
     const pbOwn = mcap && bv && bv > 0 ? mcap / bv : ctx.htPb.get(t) ?? null;
-    if (pbOwn != null && pbOwn > 0 && m) {
+    if (pbOwn != null && pbOwn > 0 && pm) {
       const pb = pbOwn;
-      out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${pb.toFixed(2)} vs ${m.toFixed(2)}`, points: pts(band(pb / m)), note: `industry median P/B · ${ind}` });
-    } else out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: "—", points: null, note: m ? "No book value" : "Fewer than 3 peers with data" });
+      out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${pb.toFixed(2)} vs ${pm.m.toFixed(2)}`, points: pts(band(pb / pm.m)), note: `median P/B of ${pm.n} other companies · ${ind}` });
+    } else out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: "—", points: null, note: pm ? "No book value" : `Fewer than ${VALN.peerMin} other companies with data${ind ? ` · ${ind}` : ""}` });
   }
   // P/S peers: Screener first, as for P/B.
   const psMine = mcap && sales && sales > 0 ? mcap / sales : null;
@@ -768,13 +781,13 @@ async function scoreValuation(
   if (psUse != null && psUse > 0 && spOk && sp?.ps_median != null && sp.ps_median > 0) {
     out.push({ id: "ps", label: "P/S peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${psUse.toFixed(2)} vs ${sp.ps_median.toFixed(2)}`, points: pts(band(psUse / sp.ps_median)), note: spNote("P/S") });
   } else {
-    const m = ind ? ctx.peers.ps.get(ind) : undefined;
+    const pm = ind ? peerMedian(ctx.peers.ps.get(ind), t) : null;
     const q4 = recentQuarters(t);
     const salesUse = sales ?? (q4 && q4.every((x) => x.revenue != null) ? q4.reduce((a, x) => a + (x.revenue as number), 0) : null);
-    if (mcap && salesUse && salesUse > 0 && m) {
+    if (mcap && salesUse && salesUse > 0 && pm) {
       const ps = mcap / salesUse;
-      out.push({ id: "ps", label: "P/S peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${ps.toFixed(2)} vs ${m.toFixed(2)}`, points: pts(band(ps / m)), note: `industry median P/S · ${ind}` });
-    } else out.push({ id: "ps", label: "P/S peer valuation", rule: "≤ industry median +1 · > 2× −1", value: "—", points: null, note: m ? "No sales" : "Fewer than 3 peers with data" });
+      out.push({ id: "ps", label: "P/S peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${ps.toFixed(2)} vs ${pm.m.toFixed(2)}`, points: pts(band(ps / pm.m)), note: `median P/S of ${pm.n} other companies · ${ind}` });
+    } else out.push({ id: "ps", label: "P/S peer valuation", rule: "≤ industry median +1 · > 2× −1", value: "—", points: null, note: pm ? "No sales" : `Fewer than ${VALN.peerMin} other companies with data${ind ? ` · ${ind}` : ""}` });
   }
   // EPS (TTM from quarters, else latest annual) and book value per share
   const shares = mcap && price ? mcap / price : null; // crore shares
@@ -808,12 +821,14 @@ async function scoreValuation(
         const iv = eps * (8.5 + 2 * g);
         // Under 6 years of EPS there is no 5-year growth: not scored, rather than
         // assuming 0% growth and marking a young company expensive.
-        const short = e5 == null || eN == null;
+        // A loss in the start or latest year gives no 5-year growth either
+        // (Safari: FY2021 COVID loss): not scored, rather than g = 0% and −1.
+        const short = e5 == null || eN == null || e5 <= 0 || eN <= 0;
         out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: `₹${price.toFixed(0)} vs ₹${iv.toFixed(0)}`, points: short ? null : pts(band(price / iv)), note:
-            short
+            e5 == null || eN == null
               ? "Not scored: needs 6 years of EPS history (value shown at g = 0%)"
               : e5 <= 0 || eN <= 0
-                ? "g = 0% (loss in the start or latest year)"
+                ? `Not scored: loss in the ${e5 <= 0 ? `start year (FY${ap[ap.length - 6]!.date.slice(0, 4)})` : "latest year"}, no 5-year growth (value shown at g = 0%)`
                 : `g = ${g.toFixed(1)}% (5-yr EPS growth, capped ${VALN.growthCap}%)`,
         });
       }
@@ -872,9 +887,11 @@ const scoreMemo = new Map<string, ScoreBundle>();
  * Scores saved before the last rule change are recalculated on next use.
  * Bump when a check's rule changes (2026-11-24: intrinsic value not scored
  * without 6 years of EPS; negative equity scores P/B −1; growth from a trough
- * or across heavy share issuance is not scored).
+ * or across heavy share issuance is not scored. 21:45: peer median without
+ * the stock itself; growth across a business change not scored; book value
+ * per share keeps loss years; intrinsic value not scored after a loss year).
  */
-const RULES_CHANGED_AT = Date.parse("2026-11-24T14:30:00Z");
+const RULES_CHANGED_AT = Date.parse("2026-11-24T21:46:00Z");
 
 function readDiskScore(ticker: string): ScoreBundle | null {
   return withDb((db) => {
@@ -1160,7 +1177,13 @@ export async function scoreReviewTicker(
 export async function buildReview(opts?: {
   fresh?: boolean;
   bag?: ReviewBag;
-}): Promise<{ rows: ReviewRow[]; pending: number; screener_paused_until: string | null }> {
+}): Promise<{
+  rows: ReviewRow[];
+  pending: number;
+  screener_paused_until: string | null;
+  /** Screener's peer table lacks P/B / P/S columns: peer valuation uses our industry medians. */
+  peer_columns_missing: boolean;
+}> {
   if (opts?.fresh) scoreMemo.clear();
   const bag = opts?.bag ?? PORTFOLIO_BAG;
   const list = withDb(
@@ -1288,6 +1311,7 @@ export async function buildReview(opts?: {
       rows: rows.map((r) => byT.get(r.t) ?? r),
       pending: 0,
       screener_paused_until: screenerPausedUntil(),
+      peer_columns_missing: !!screenerPeerColumnsMissingSince(),
     };
   }
 
@@ -1296,5 +1320,6 @@ export async function buildReview(opts?: {
     rows,
     pending: need.length,
     screener_paused_until: screenerPausedUntil(),
+    peer_columns_missing: !!screenerPeerColumnsMissingSince(),
   };
 }

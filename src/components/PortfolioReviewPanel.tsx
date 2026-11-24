@@ -63,6 +63,7 @@ export function PortfolioReviewPanel({
   const [drawer, setDrawer] = useState<{ row: ReviewRow; kind: DrawerKind } | null>(null);
   /** Screener rate-limit: stocks without data cannot be scored until then. */
   const [pausedUntil, setPausedUntil] = useState<string | null>(null);
+  const [peerColsMissing, setPeerColsMissing] = useState(false);
 
   const load = useCallback(async (opts?: { fresh?: boolean }) => {
     try {
@@ -75,11 +76,13 @@ export function PortfolioReviewPanel({
         rows?: ReviewRow[];
         pending?: number;
         screener_paused_until?: string | null;
+        peer_columns_missing?: boolean;
       };
       if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
       setErr(null);
       setRows(j.rows ?? []);
       setPausedUntil(j.screener_paused_until ?? null);
+      setPeerColsMissing(!!j.peer_columns_missing);
       return j.pending ?? (j.rows ?? []).filter((r) => r.scored < 0).length;
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -289,6 +292,12 @@ export function PortfolioReviewPanel({
           </button>
         </form>
         {msg ? <p className="vx-hint vx-add-msg">{msg}</p> : null}
+        {peerColsMissing ? (
+          <p className="vx-hint vx-add-msg">
+            Screener&apos;s peer table has no “Price to book value” / “Price to Sales” columns, so P/B and P/S use our
+            industry medians. Add both columns on Screener (any company → Peer comparison → edit columns).
+          </p>
+        ) : null}
         {pausedUntil && rows?.some((r) => r.rating === "No data") ? (
           <p className="vx-hint vx-add-msg">
             Screener is rate-limiting until{" "}

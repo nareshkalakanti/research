@@ -70,6 +70,27 @@ function writeRow(r: Row): void {
   );
 }
 
+/**
+ * The peer table's columns come from the Screener account's settings. When
+ * P/B and P/S are missing there, every stock's table lacks them: note it once
+ * (this row) and skip peer requests for a day instead of re-asking per stock.
+ */
+const COLUMNS_MARK = "__NO_PB_PS_COLUMNS__";
+const COLUMNS_RECHECK_MS = 86_400_000;
+
+/** When set: Screener's peer table has no P/B / P/S columns (since this time). */
+export function screenerPeerColumnsMissingSince(): string | null {
+  const r = readRow(COLUMNS_MARK);
+  return r && Date.now() - Date.parse(r.fetched_at) < COLUMNS_RECHECK_MS ? r.fetched_at : null;
+}
+
+/** Peer table HTML that has company rows but neither P/B nor P/S column. */
+export function peersTableLacksColumns(html: string): boolean {
+  if (!/data-row-company-id|\/company\//i.test(html)) return false;
+  const heads = [...html.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)].map((m) => text(m[1]!).toLowerCase());
+  return !heads.some((h) => h.startsWith("cmp / bv") || h.startsWith("price to book") || h.startsWith("cmp / sales") || h.startsWith("price to sales"));
+}
+
 const text = (s: string) =>
   s
     .replace(/<[^>]+>/g, " ")
@@ -153,6 +174,8 @@ export async function fetchScreenerPeers(ticker: string): Promise<ScreenerPeers 
     if (prev.peers_json) return JSON.parse(prev.peers_json) as ScreenerPeers;
     if (now - Date.parse(prev.fetched_at) < EMPTY_RETRY_MS) return null;
   }
+  // Account's peer columns lack P/B / P/S: no point asking for each stock.
+  if (screenerPeerColumnsMissingSince()) return prev?.peers_json ? (JSON.parse(prev.peers_json) as ScreenerPeers) : null;
   try {
     let warehouseId = prev?.warehouse_id ?? null;
     let industry = prev?.industry ?? null;
@@ -174,7 +197,14 @@ export async function fetchScreenerPeers(ticker: string): Promise<ScreenerPeers 
       return null;
     }
     const html = await fetchScreenerPeersHtml(warehouseId);
+    if (html && peersTableLacksColumns(html)) {
+      writeRow({ ticker: COLUMNS_MARK, warehouse_id: null, industry: null, peers_json: null, fetched_at: new Date().toISOString(), blocked_until: null });
+      // Keep the warehouse id; an older table stays in use.
+      writeRow({ ticker: t, warehouse_id: warehouseId, industry, peers_json: prev?.peers_json ?? null, fetched_at: prev?.fetched_at ?? new Date(0).toISOString(), blocked_until: null });
+      return prev?.peers_json ? (JSON.parse(prev.peers_json) as ScreenerPeers) : null;
+    }
     const parsed = html ? parsePeersTable(html, t) : null;
+    if (parsed) withDb((db) => db.prepare(`DELETE FROM screener_peers_cache WHERE ticker = ?`).run(COLUMNS_MARK));
     const peers: ScreenerPeers | null = parsed ? { industry, ...parsed } : null;
     writeRow({
       ticker: t,

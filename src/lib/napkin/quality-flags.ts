@@ -102,7 +102,7 @@ export function annualPoints(dates: string[], vals: Array<number | null>): Array
  */
 export function bookValuePerShare(
   pl: { dates: string[]; pat: Array<number | null>; eps: Array<number | null> } | null | undefined,
-  bs: { dates: string[]; book_value: Array<number | null> } | null | undefined,
+  bs: { dates: string[]; book_value: Array<number | null>; equity_capital?: Array<number | null> } | null | undefined,
 ): Array<number | null> | undefined {
   if (!bs) return undefined;
   const shares = new Map<string, number>();
@@ -110,20 +110,57 @@ export function bookValuePerShare(
     pl.dates.forEach((d, i) => {
       const pat = pl.pat[i];
       const eps = pl.eps[i];
-      if (pat != null && eps != null && pat > 0 && eps > 0) shares.set(d.slice(0, 7), pat / eps);
+      // Loss years count too: profit ÷ EPS works when both are negative.
+      if (pat != null && eps != null && Math.abs(eps) >= 0.01 && Math.abs(pat) >= 0.5 && Math.sign(pat) === Math.sign(eps))
+        shares.set(d.slice(0, 7), pat / eps);
     });
+  const cap = bs.equity_capital;
   return bs.book_value.map((v, i) => {
-    const sh = shares.get(bs.dates[i]!.slice(0, 7));
-    return v != null && sh ? v / sh : null;
+    if (v == null) return null;
+    const key = bs.dates[i]!.slice(0, 7);
+    let sh = shares.get(key);
+    // Profit near zero: carry the nearest known year's shares by equity capital (same face value).
+    if (!sh && cap?.[i] != null && cap[i]! > 0) {
+      let best: { gap: number; sh: number } | null = null;
+      bs.dates.forEach((d, k) => {
+        const s0 = shares.get(d.slice(0, 7));
+        const c0 = cap[k];
+        if (!s0 || c0 == null || c0 <= 0) return;
+        const gap = Math.abs(k - i);
+        if (!best || gap < best.gap) best = { gap, sh: (s0 * cap[i]!) / c0 };
+      });
+      if (best) sh = (best as { gap: number; sh: number }).sh;
+    }
+    return sh ? v / sh : null;
   });
+}
+
+/**
+ * Business changed: one year's sales more than 10× the year before (₹10 Cr+),
+ * e.g. a shell that took in a demerged business (NIIT MTS: ₹13 Cr → ₹1,132 Cr in
+ * FY2022). Growth across that year is not comparable; ROCE counts only after it.
+ */
+export type BusinessBreak = { date: string; from: number; to: number };
+export function businessBreak(dates: string[] | undefined, sales: Array<number | null> | undefined): BusinessBreak | null {
+  if (!dates?.length || !sales?.length) return null;
+  const pts = annualPoints(dates, sales);
+  let out: BusinessBreak | null = null;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1]!.v;
+    const b = pts[i]!.v;
+    if (a > 0 && b >= 10 && b / a > 10) out = { date: pts[i]!.date, from: a, to: b };
+  }
+  return out;
 }
 
 /** ROCE rule (score and Napkin): average of the last 10 years (else 5, else 3); passes above 10%. */
 export const ROCE_MIN = 10;
 export function roceAverage(
   annual: { dates: string[]; roce: Array<number | null> } | null | undefined,
+  brk?: BusinessBreak | null,
 ): { avg: number; years: number; from: string; to: string; below: number } | null {
-  const all = annual ? annualPoints(annual.dates, annual.roce) : [];
+  // After a business change only the new business's years count.
+  const all = (annual ? annualPoints(annual.dates, annual.roce) : []).filter((p) => !brk || p.date >= brk.date);
   const pts = all.slice(-(all.length >= 10 ? 10 : all.length >= 5 ? 5 : 3));
   if (pts.length < 3) return null;
   return {
@@ -148,7 +185,7 @@ export function cagrCheck(
   label: string,
   dates: string[],
   vals: Array<number | null>,
-  opts?: { shareCapital?: { dates: string[]; values: Array<number | null> } },
+  opts?: { shareCapital?: { dates: string[]; values: Array<number | null> }; businessBreak?: BusinessBreak | null },
 ): QfCheck {
   const rule = `≥ ${QF_RULES.cagr}% CAGR`;
   const pts = annualPoints(dates, vals);
@@ -175,6 +212,18 @@ export function cagrCheck(
   }
   const start = pts[startIdx]!;
   const years = `${span} yrs · ${start.date.slice(0, 4)} → ${end.date.slice(0, 4)}`;
+  const brk = opts?.businessBreak;
+  if (brk && start.date < brk.date) {
+    const cr = (v: number) => `₹${Math.round(v).toLocaleString("en-IN")} Cr`;
+    return {
+      id,
+      label,
+      rule,
+      value: start.v > 0 && end.v > 0 ? pct((Math.pow(end.v / start.v, 1 / span) - 1) * 100) : `${start.v.toFixed(2)} → ${end.v.toFixed(2)}`,
+      verdict: "na",
+      note: `${years} · Not comparable: business changed FY${brk.date.slice(0, 4)} (sales ${cr(brk.from)} → ${cr(brk.to)})`,
+    };
+  }
   if (start.v <= 0 || end.v <= 0) {
     return {
       id,
@@ -265,6 +314,8 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
   if (sh && sh.yearly_dates === undefined) sh = await fetchScreenerShareholding(t, { force: true }).catch(() => sh);
 
   const quality: QfCheck[] = [];
+  // Business changed in the history (shell took in a new business): growth across it not comparable.
+  const brk = businessBreak(pl?.dates.length ? pl.dates : annual?.dates, pl?.dates.length ? pl.revenue : annual?.sales);
   // 1) Book value per share (same rule as the portfolio score)
   {
     const bvps = bookValuePerShare(pl, bs);
@@ -272,6 +323,7 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
       bs?.dates.length && bvps
         ? cagrCheck("bv", "Book value growth (per share)", bs.dates, bvps, {
             shareCapital: { dates: bs.dates, values: bs.equity_capital },
+            businessBreak: brk,
           })
         : { id: "bv", label: "Book value growth (per share)", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No balance sheet" },
     );
@@ -281,12 +333,12 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
   const epsVals = pl?.dates.length ? pl.eps : annual?.eps ?? [];
   quality.push(
     epsDates.length
-      ? cagrCheck("eps", "EPS growth", epsDates, epsVals)
+      ? cagrCheck("eps", "EPS growth", epsDates, epsVals, { businessBreak: brk })
       : { id: "eps", label: "EPS growth", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No annual EPS" },
   );
   // 3) ROCE — 10-year average, same rule as the portfolio score.
   {
-    const r = roceAverage(annual);
+    const r = roceAverage(annual, brk);
     const rule = `> ${ROCE_MIN}% average`;
     quality.push(
       r
@@ -332,7 +384,7 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
     const v = pl?.dates.length ? pl.revenue : annual?.sales ?? [];
     quality.push(
       d.length
-        ? cagrCheck("sales", "Sales growth", d, v)
+        ? cagrCheck("sales", "Sales growth", d, v, { businessBreak: brk })
         : { id: "sales", label: "Sales growth", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No annual sales" },
     );
   }
