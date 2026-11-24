@@ -7,6 +7,7 @@ import {
   cacheBseScripCode,
   getCachedBseScripCode,
 } from "./bse-investor-discover";
+import { trustedBseCode } from "./bse-codes";
 import { screenerCompanyPageUrl } from "./links";
 import { withWebsiteFetch } from "./scrape-pool";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -152,7 +153,7 @@ async function waitScreenerGap(): Promise<void> {
 
 let bseOnlyCache: { at: number; set: Set<string> } | null = null;
 
-/** Tickers tagged BSE main board (not on NSE) — Screener files them under the BSE scrip code. */
+/** BSE-only tickers (main board and SME) — Screener files them under the BSE scrip code. */
 function bseOnlyTickers(): Set<string> {
   if (bseOnlyCache && Date.now() - bseOnlyCache.at < 5 * 60_000) return bseOnlyCache.set;
   let set = new Set<string>();
@@ -160,7 +161,7 @@ function bseOnlyTickers(): Set<string> {
     const db = openSqliteNamed("company_about.db", { readonly: true, wal: true });
     try {
       set = new Set(
-        (db.prepare(`SELECT UPPER(ticker) AS t FROM company_about WHERE UPPER(TRIM(market)) = 'BSE'`).all() as Array<{
+        (db.prepare(`SELECT UPPER(ticker) AS t FROM company_about WHERE UPPER(TRIM(market)) IN ('BSE', 'BSE SME')`).all() as Array<{
           t: string;
         }>).map((r) => r.t),
       );
@@ -179,17 +180,19 @@ async function resolveScreenerPageKeys(ticker: string): Promise<string[]> {
   if (!key) return [];
   // BSE-only names: the scrip-code page is the real one — try it first and
   // skip the extra lookup, so each stock costs one Screener request, not two.
-  const cachedCode = getCachedBseScripCode(key);
+  const cachedCode = expectedBseScrip(key);
   if (cachedCode && /^\d{5,7}$/.test(cachedCode) && bseOnlyTickers().has(key)) return [cachedCode, key];
   const keys = [key];
+  const trusted = trustedBseScrip(key);
   const pushBse = (raw: string | null | undefined) => {
     const bse = String(raw || "").trim();
-    if (/^\d{5,7}$/.test(bse) && !keys.includes(bse)) {
-      keys.push(bse);
-      cacheBseScripCode(key, bse);
-    }
+    if (!/^\d{5,7}$/.test(bse) || keys.includes(bse)) return;
+    // A name lookup can return a sister company's code: never let it replace the listed one.
+    if (trusted && bse !== trusted) return;
+    keys.push(bse);
+    cacheBseScripCode(key, bse);
   };
-  pushBse(getCachedBseScripCode(key));
+  pushBse(cachedCode);
   try {
     const data = await growwCompanyData(key, key);
     const hit = (data?.hit || {}) as Record<string, unknown>;
@@ -267,6 +270,42 @@ export async function fetchScreenerPeersHtml(warehouseId: string): Promise<strin
   });
 }
 
+/**
+ * The stock's own BSE scrip code from authoritative lists (see bse-codes).
+ * The scrip cache can hold a sister company's code from a name lookup
+ * (WAAREE had Waaree Energies' 544277 instead of its own 539337).
+ */
+function trustedBseScrip(ticker: string): string | null {
+  return trustedBseCode(ticker);
+}
+
+/** Expected scrip code: trusted listing first, else the cache. Repairs a wrong cache entry. */
+function expectedBseScrip(ticker: string): string | null {
+  const key = ticker.toUpperCase();
+  const trusted = trustedBseScrip(key);
+  const cached = getCachedBseScripCode(key);
+  if (trusted && cached !== trusted) cacheBseScripCode(key, trusted);
+  return trusted ?? cached;
+}
+
+/** BSE scrip codes a Screener company page links to (its own listing). */
+function pageBseCodes(html: string): Set<string> {
+  const out = new Set<string>();
+  for (const m of html.matchAll(/bseindia\.com\/stock-share-price\/[^"'\s]*?\/(\d{6})\/?["']/g)) out.add(m[1]!);
+  return out;
+}
+
+/**
+ * A ticker-slug page can belong to a different company (Screener's /WAAREE/ is
+ * Waaree Energies, not BSE SME Waaree Technologies). When the stock's own BSE
+ * code is known and the page lists other BSE codes only, it is the wrong page.
+ */
+function pageIsOtherCompany(html: string, expectedScrip: string | null): boolean {
+  if (!expectedScrip || !/^\d{6}$/.test(expectedScrip)) return false;
+  const codes = pageBseCodes(html);
+  return codes.size > 0 && !codes.has(expectedScrip);
+}
+
 /** Fetch one company page — serialized gap + per-host pool from scrape-pool. */
 export async function fetchScreenerCompanyHtml(
   ticker: string,
@@ -275,6 +314,7 @@ export async function fetchScreenerCompanyHtml(
   const paused = screenerPausedUntil();
   if (paused) throw new ScreenerPausedError(paused);
   const keys = await resolveScreenerPageKeys(ticker);
+  const expectedScrip = expectedBseScrip(ticker.trim().toUpperCase());
   let lastStatus = 0;
   for (const key of keys) {
     const url = screenerCompanyPageUrl(key, {
@@ -282,7 +322,14 @@ export async function fetchScreenerCompanyHtml(
     });
     if (url.endsWith("screener.in/")) continue;
     const hit = await fetchScreenerHtmlAt(url);
-    if (hit.ok) return hit.html;
+    if (hit.ok) {
+      // Wrong company behind the ticker slug: try the next key (scrip-code page).
+      if (key !== expectedScrip && pageIsOtherCompany(hit.html, expectedScrip)) {
+        lastStatus = 404;
+        continue;
+      }
+      return hit.html;
+    }
     lastStatus = hit.status;
     if (hit.status !== 404) {
       throw new Error(`Screener fetch failed (${hit.status}) for ${ticker}`);

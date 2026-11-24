@@ -978,6 +978,38 @@ export async function fetchScreenerPlAndBs(
 }
 
 /** Write annual / P&L / BS / cash-flow caches from one company-page HTML (no HTTP). */
+/**
+ * Drop one ticker's saved Screener statements (annual, P&L, balance sheet,
+ * cash flow, shareholding, ratios, peers, quarters and the quarter summary). Only after a fresh page is in hand:
+ * used when the saved data belonged to a different company.
+ */
+export function clearScreenerStatementCaches(ticker: string): void {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return;
+  const db = openSqliteNamed("metrics.db", { readonly: false, wal: true });
+  try {
+    for (const table of [
+      "screener_annual_cache",
+      "screener_annual_pl_cache",
+      "screener_annual_bs_cache",
+      "screener_annual_cf_cache",
+      "screener_shareholding_cache",
+      "screener_ratios_cache",
+      "screener_peers_cache",
+      "screener_quarters_cache",
+      "quarter_metrics",
+    ]) {
+      try {
+        db.prepare(`DELETE FROM ${table} WHERE UPPER(ticker) = ?`).run(key);
+      } catch {
+        /* table not created yet */
+      }
+    }
+  } finally {
+    db.close();
+  }
+}
+
 export function ingestCompanyPageHtml(
   ticker: string,
   html: string,

@@ -6,11 +6,17 @@ import {
   fetchScreenerAnnual,
   fetchScreenerAnnualBs,
   fetchScreenerAnnualPl,
+  clearScreenerStatementCaches,
   ingestCompanyPageHtml,
   ingestRicherCompanyPageHtml,
   seriesStale,
 } from "./screener-annual";
-import { loadCachedQuartersSeries } from "./screener-quarters";
+import {
+  loadCachedQuartersSeries,
+  parseScreenerQuarterlyHtml,
+  upsertQuartersCache,
+} from "./screener-quarters";
+import { invalidateQuarterMetricsCache } from "./quarter-metrics-cache";
 import {
   fetchScreenerShareholding,
   ingestShareholdingHtml,
@@ -208,6 +214,19 @@ function fullYearBookValue(dates: string[] | undefined, values: Array<number | n
   return null;
 }
 
+/** Latest full-year book value, sign included (zero / negative = negative equity). */
+function latestFullYearBookValue(dates: string[] | undefined, values: Array<number | null> | undefined): number | null {
+  if (!dates?.length || !values?.length) return null;
+  const months = new Map<string, number>();
+  for (const d of dates) months.set(d.slice(5, 7), (months.get(d.slice(5, 7)) ?? 0) + 1);
+  const main = [...months].sort((x, y) => y[1] - x[1])[0]?.[0];
+  for (let i = dates.length - 1; i >= 0; i--) {
+    const v = values[i];
+    if (dates[i]!.slice(5, 7) === main && v != null) return v;
+  }
+  return null;
+}
+
 function ensureReviewSchema(db: ReturnType<typeof openSqliteNamed>): void {
   db.exec(`CREATE TABLE IF NOT EXISTS portfolio_review (
     ticker TEXT PRIMARY KEY,
@@ -375,17 +394,26 @@ export function removeFromReview(
  * Old path fanned out 6–10 Screener hits per add and tripped the global pause.
  * Skip when caches are fresh or Screener is paused (scorers use age-expired).
  */
-async function warmScreenerForReview(ticker: string): Promise<void> {
+async function warmScreenerForReview(ticker: string, opts?: { force?: boolean }): Promise<void> {
   const t = ticker.trim().toUpperCase();
   if (!t) return;
   if (screenerPausedUntil()) return;
   const fresh = annualCachesFresh(t);
   const shFresh = shareholdingFetchedWithin(t);
-  if (fresh.annual && fresh.pl && fresh.bs && shFresh) return;
+  if (!opts?.force && fresh.annual && fresh.pl && fresh.bs && shFresh) return;
   // Hold the lane so Value/baskets bulk fills do not run on top of this.
   markScreenerInteractive(90_000);
   try {
     const html = await fetchScreenerCompanyHtml(t, { consolidated: true });
+    // Forced refresh: the page is in hand, so old statements (possibly another
+    // company's) can go before the new ones are saved.
+    if (opts?.force) {
+      clearScreenerStatementCaches(t);
+      // Quarters come from the same page: save them now (no second request).
+      const quarters = parseScreenerQuarterlyHtml(html);
+      if (quarters.length) upsertQuartersCache(t, quarters);
+      invalidateQuarterMetricsCache();
+    }
     const got = ingestCompanyPageHtml(t, html);
     ingestShareholdingHtml(t, html);
     rememberWarehouseFromHtml(t, html);
@@ -716,7 +744,11 @@ async function scoreValuation(
   // P/B peers: Screener's own P/B vs its peer median; else our industry median.
   const pbMine = mcap && bv && bv > 0 ? mcap / bv : ctx.htPb.get(t) ?? null;
   const pbUse = sp?.pb_own ?? pbMine;
-  if (pbUse != null && pbUse > 0 && spOk && sp?.pb_median != null && sp.pb_median > 0) {
+  const bvNow = bs ? latestFullYearBookValue(bs.dates, bs.book_value) : null;
+  if (bvNow != null && bvNow <= 0) {
+    // Negative equity: any P/B from Yahoo / Screener is meaningless. Score as expensive.
+    out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: "Negative equity", points: -1, note: `book value ₹${Math.round(bvNow).toLocaleString("en-IN")} Cr (last full year): no P/B` });
+  } else if (pbUse != null && pbUse > 0 && spOk && sp?.pb_median != null && sp.pb_median > 0) {
     out.push({ id: "pb", label: "P/B peer valuation", rule: "≤ industry median +1 · > 2× −1", value: `${pbUse.toFixed(2)} vs ${sp.pb_median.toFixed(2)}`, points: pts(band(pbUse / sp.pb_median)), note: spNote("P/B") });
   } else {
     const m = ind ? ctx.peers.pb.get(ind) : undefined;
@@ -830,9 +862,9 @@ const scoreMemo = new Map<string, ScoreBundle>();
 /**
  * Scores saved before the last rule change are recalculated on next use.
  * Bump when a check's rule changes (2026-11-24: intrinsic value not scored
- * without 6 years of EPS).
+ * without 6 years of EPS; negative equity scores P/B −1).
  */
-const RULES_CHANGED_AT = Date.parse("2026-11-24T09:42:00Z");
+const RULES_CHANGED_AT = Date.parse("2026-11-24T11:17:00Z");
 
 function readDiskScore(ticker: string): ScoreBundle | null {
   return withDb((db) => {
@@ -899,11 +931,12 @@ async function cachedScore(
   t: string,
   market: string,
   ctx: () => ReturnType<typeof loadPeers>,
+  opts?: { force?: boolean },
 ): Promise<{ checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] }> {
-  const hit = lookupScore(t);
+  const hit = opts?.force ? null : lookupScore(t);
   if (hit) return hit;
   // One (maybe two) Screener company page(s) → all statement caches, then score.
-  await warmScreenerForReview(t);
+  await warmScreenerForReview(t, { force: opts?.force });
   const [checks, m, val] = await Promise.all([
     scoreFundamental(t),
     scoreManagement(t),
@@ -1089,10 +1122,16 @@ export async function scoreReviewTicker(
     return rowFromScores(key, new Date().toISOString(), s, hit.checks, hit.m, hit.val);
   }
   let peerCtx: ReturnType<typeof loadPeers> | null = null;
-  const { checks, m, val } = await cachedScore(key, s?.market ?? "NSE", () => {
-    if (!peerCtx) peerCtx = loadPeers();
-    return peerCtx;
-  });
+  const { checks, m, val } = await cachedScore(
+    key,
+    s?.market ?? "NSE",
+    () => {
+      if (!peerCtx) peerCtx = loadPeers();
+      return peerCtx;
+    },
+    // Napkin "fresh": re-read Screener even when the saved statements look current.
+    { force: opts?.fresh },
+  );
   return rowFromScores(key, new Date().toISOString(), s, checks, m, val);
 }
 

@@ -9,6 +9,7 @@ import { loadCachedQuartersSeries } from "./screener-quarters";
 import { rotationFetchYears } from "./sector-rotation-series";
 import { loadStockMaster } from "./stock-master";
 import { loadHtIvMap } from "./strategy/ht-store";
+import { isRightsOrPartlyPaid } from "./listing-name-match";
 import { runConcurrent } from "./scrape-pool";
 import {
   fillHtIvFromUpstox,
@@ -188,6 +189,8 @@ export function buildValueUniverse(_opts?: {
   let asOf: string | null = null;
   const legs = loadScreenerLegs();
   for (const r of scan.rows) {
+    // Rights entitlements / partly-paid lines are not separate companies.
+    if (isRightsOrPartlyPaid(r.t, r.name)) continue;
     const h = ht.get(r.t);
     const sc = legs.get(r.t);
     const mcapNow = r.mcap ?? h?.market_cap_cr ?? null;
@@ -197,9 +200,10 @@ export function buildValueUniverse(_opts?: {
     const yahooPb = h && ok(h.pb) && h.pb > 0 ? h.pb : null;
     const sales3y = sc?.sales3y ?? (h && ok(h.sales_growth_3y) ? h.sales_growth_3y : null);
     const roce3y = sc?.roce3y ?? (h && ok(h.roce_3y) ? h.roce_3y : null);
-    const pb = scPb ?? yahooPb;
-    // Latest book value ≤ 0 is negative equity: no P/B, ranked last on P/B instead.
-    const negEquity = pb == null && sc?.bvLatest != null && sc.bvLatest <= 0;
+    // Latest full-year book value ≤ 0 (Screener balance sheet) is negative equity:
+    // no P/B even if Yahoo reports one, ranked last on P/B instead.
+    const negEquity = sc?.bvLatest != null && sc.bvLatest <= 0;
+    const pb = negEquity ? null : scPb ?? yahooPb;
     const na: ValueNa | null =
       sales3y == null && sc?.salesNa ? sc.salesNa : negEquity ? "negative_equity" : null;
     if (h?.fetched_at && (ok(h.sales_growth_3y) || ok(h.roce_3y) || yahooPb) && (!asOf || h.fetched_at > asOf)) {

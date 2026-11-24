@@ -1,6 +1,7 @@
 /**
  * Tickertape + Groww company profile (mcap, sector, about, key people).
  */
+import { trustedBseCode } from "./bse-codes";
 import { runConcurrent } from "@/lib/scrape-pool";
 import type { YfQuote } from "@/lib/yfinance";
 
@@ -413,6 +414,9 @@ export async function growwCompanyData(
   const exact: Record<string, unknown>[] = [];
   const fuzzy: Record<string, unknown>[] = [];
   const sym = symbol.toUpperCase();
+  // The stock's own scrip code from the BSE lists: a name match with a
+  // different code is a sister company (WAAREE ≠ Waaree Energies).
+  const trustedScrip = trustedBseCode(sym);
 
   for (const query of queries) {
     const payload = asRecord(
@@ -424,6 +428,10 @@ export async function growwCompanyData(
       const bse = str(rec.bse_scrip_code).toUpperCase();
       const title = str(rec.title) || str(rec.company_short_name);
       const searchId = str(rec.search_id) || str(rec.id);
+      if (trustedScrip && /^\d+$/.test(bse)) {
+        if (bse === trustedScrip) exact.push(rec);
+        continue;
+      }
       if (nse === sym || bse === sym || listedSym(searchId) === sym) {
         exact.push(rec);
       } else if (
