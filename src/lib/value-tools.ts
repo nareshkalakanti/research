@@ -1109,6 +1109,22 @@ export const VAL = {
   extremeBand: 0.3,
   years: 5,
   minYears: 3,
+  /** Last-12-months sales must be within this range of the latest annual sales, or the quarters are another currency / basis. */
+  ttmSalesMin: 0.7,
+  ttmSalesMax: 1.6,
+  /** Latest annual EPS stands in for today only within this many days of its year end. */
+  annualEpsMaxAgeDays: 460,
+  /** Latest price no older than this. */
+  priceMaxAgeDays: 21,
+  /** A year-end P/E needs a close within this many days before the year end. */
+  yearEndSlackDays: 10,
+  /**
+   * P/E outside this range is not meaningful: below 2 means old prices not
+   * adjusted for a consolidation (ISERA's "median 0.4"), above 300 means
+   * profit near zero. Such years are dropped; such a stock today is not scored.
+   */
+  peMin: 2,
+  peMax: 300,
 } as const;
 export type ValVerdict = "under" | "fair" | "over";
 export type ValDistKey = "extreme_under" | "under" | "fair" | "over" | "extreme_over";
@@ -1184,8 +1200,15 @@ let valCache: {
 
 /**
  * For every company with Screener annual EPS: P/E at each year end (price on
- * that date ÷ that year's EPS) over the last 5 years → median, vs today's P/E
- * (price ÷ last-4-quarter EPS, else latest annual EPS). Loss years are skipped.
+ * that date ÷ that year's EPS) over the last 5 years → median, vs today's P/E.
+ * Loss years are skipped. Strict data checks (a stock is left out rather than
+ * scored on bad numbers):
+ *   - today's EPS = last-12-months profit ÷ today's share count (split-safe),
+ *     only when last-12-months sales match the annual sales (0.7–1.6×) —
+ *     Infosys's Yahoo quarters were in US dollars;
+ *   - else the latest annual EPS, only if its year ended within ~15 months;
+ *   - latest price within 21 days; each year-end price within 10 days;
+ *   - rights / partly-paid lines left out.
  * A sector's undervalued % = share of its scored companies more than 15% below
  * their own median P/E (overvalued: more than 15% above).
  */
@@ -1222,22 +1245,27 @@ export async function buildSectorValuation(opts?: {
   }
   const years = rotationFetchYears();
   let asOf: string | null = null;
+  const dayMs = 86_400_000;
   const per = await runConcurrent(scan.rows, 8, async (r) => {
-    const a = annual.get(r.t);
-    if (!a || !r.industry) return null;
+    const a = annual.get(r.t) as { dates: string[]; eps: Array<number | null>; sales?: Array<number | null> } | undefined;
+    if (!a || !r.industry || isRightsOrPartlyPaid(r.t, r.name)) return null;
     try {
       const bars = await rotationCloses(r.t, r.market || "NSE", years);
       if (bars.length < 200) return null;
       const last = bars[bars.length - 1]!;
+      if (Date.now() - Date.parse(`${last.date}T12:00:00Z`) > VAL.priceMaxAgeDays * dayMs) return null;
       if (!asOf || last.date > asOf) asOf = last.date;
+      // Last close on/before the date, and not from before a hole in the history.
       const priceOn = (date: string) => {
         if (bars[0]!.date > date) return null;
-        let hit: number | null = null;
+        let hit: { date: string; close: number } | null = null;
         for (const b of bars) {
           if (b.date > date) break;
-          hit = b.close;
+          hit = b;
         }
-        return hit;
+        if (!hit) return null;
+        const lag = (Date.parse(`${date}T00:00:00Z`) - Date.parse(`${hit.date}T00:00:00Z`)) / dayMs;
+        return lag <= VAL.yearEndSlackDays ? hit.close : null;
       };
       // Year-end P/Es over the last 5 years (annual columns only, positive EPS).
       const months = new Map<string, number>();
@@ -1249,19 +1277,56 @@ export async function buildSectorValuation(opts?: {
         const e = a.eps[i];
         if (e == null || e <= 0) return;
         const p = priceOn(d);
-        if (p != null) pes.push(p / e);
+        if (p == null) return;
+        const pe = p / e;
+        if (pe >= VAL.peMin && pe <= VAL.peMax) pes.push(pe);
       });
       const hist = pes.slice(-VAL.years);
       if (hist.length < VAL.minYears) return null;
       const sorted = [...hist].sort((x, y) => x - y);
       const med = sorted.length % 2 ? sorted[sorted.length >> 1]! : (sorted[sorted.length / 2 - 1]! + sorted[sorted.length / 2]!) / 2;
-      // Today's EPS: last 4 quarters, else latest annual.
-      const qs = trailingYear(loadCachedQuartersSeries(r.t) ?? [], Date.now(), (q) => q.eps != null);
-      const ttm = qs ? qs.reduce((s, q) => s + (q.eps as number), 0) : null;
-      const lastAnnual = [...a.eps].reverse().find((e) => e != null) ?? null;
-      const epsNow = ttm ?? lastAnnual;
+      // Today's EPS — split-safe and checked against the annual sales.
+      const annualIdx = a.dates.map((d, i) => (d.slice(5, 7) === main ? i : -1)).filter((i) => i >= 0);
+      const lastAnnSales = (() => {
+        for (let k = annualIdx.length - 1; k >= 0; k--) {
+          const v = a.sales?.[annualIdx[k]!];
+          if (v != null && v > 0) return v;
+        }
+        return null;
+      })();
+      // Yahoo-sourced quarters can be in rupees, not crores (no Indian company has ₹10 lakh Cr a quarter).
+      const quarters = (loadCachedQuartersSeries(r.t) ?? []).map((q) =>
+        Math.abs(q.revenue ?? 0) > 1e6
+          ? { ...q, revenue: q.revenue == null ? null : q.revenue / 1e7, netIncome: q.netIncome == null ? null : q.netIncome / 1e7 }
+          : q,
+      );
+      const qs = trailingYear(quarters, Date.now(), (q) => q.revenue != null && q.netIncome != null);
+      let epsNow: number | null = null;
+      if (qs && lastAnnSales) {
+        const ttmSales = qs.reduce((t, q) => t + (q.revenue as number), 0);
+        const ttmProfit = qs.reduce((t, q) => t + (q.netIncome as number), 0);
+        const latest = qs[qs.length - 1]!;
+        // Today's share count from the latest result: EPS from before a split can't mix in.
+        const shares =
+          latest.eps != null && latest.eps !== 0 && latest.netIncome != null && latest.netIncome / latest.eps > 0
+            ? latest.netIncome / latest.eps
+            : null;
+        const fit = ttmSales / lastAnnSales;
+        if (shares && fit >= VAL.ttmSalesMin && fit <= VAL.ttmSalesMax) epsNow = ttmProfit / shares;
+      }
+      if (epsNow == null) {
+        // Latest annual EPS, only when its year ended recently.
+        for (let k = annualIdx.length - 1; k >= 0; k--) {
+          const i = annualIdx[k]!;
+          const e = a.eps[i];
+          if (e == null) continue;
+          if (Date.now() - Date.parse(`${a.dates[i]!.slice(0, 10)}T00:00:00Z`) <= VAL.annualEpsMaxAgeDays * dayMs) epsNow = e;
+          break;
+        }
+      }
       if (epsNow == null || epsNow <= 0 || med <= 0) return null;
       const pe = last.close / epsNow;
+      if (pe < VAL.peMin || pe > VAL.peMax) return null;
       const ratio = pe / med;
       const verdict: ValVerdict = ratio < 1 - VAL.band ? "under" : ratio > 1 + VAL.band ? "over" : "fair";
       return {
@@ -1282,7 +1347,7 @@ export async function buildSectorValuation(opts?: {
   });
   const by = new Map<string, ValSector>();
   for (const r of scan.rows) {
-    if (!r.industry) continue;
+    if (!r.industry || isRightsOrPartlyPaid(r.t, r.name)) continue;
     const e = by.get(r.industry) ?? { industry: r.industry, n: 0, scored: 0, under: 0, over: 0, under_pct: 0, over_pct: 0, stocks: [] };
     e.n++;
     by.set(r.industry, e);
