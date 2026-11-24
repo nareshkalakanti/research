@@ -19,7 +19,6 @@ import { NapkinPeStrip } from "@/components/napkin/NapkinPeStrip";
 import { RevenueEarningsChart } from "@/components/RevenueEarningsChart";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
-import { NapkinNews } from "@/components/napkin/NapkinNews";
 import { parseDisplayedMoney } from "@/lib/napkin/format";
 import { WatchButton } from "@/components/WatchButton";
 import { ReviewPlusButton } from "@/components/ReviewPlusButton";
@@ -299,11 +298,10 @@ export function NapkinPanel() {
                   loading={qtr.loading && !qtr.panel}
                   error={qtr.error}
                   warning={qtr.warning}
+                  compact
                 />
               </div>
             </div>
-
-            <NapkinNews ticker={data.ticker} name={data.name} />
 
             <NapkinValuation key={data.ticker} data={data} />
 

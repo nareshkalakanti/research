@@ -71,7 +71,10 @@ export function RevenueEarningsChart({
   loading,
   error,
   warning,
+  compact,
 }: {
+  /** Smaller chart (Napkin): shorter drawing area, text stays readable. */
+  compact?: boolean;
   /** Data check warning (doesn't match annual report, jumps, stale): shown above the chart. */
   warning?: string | null;
   panel: QuarterPanel | null;
@@ -99,12 +102,12 @@ export function RevenueEarningsChart({
     const lo = Math.min(0, ...vals);
     const hi = Math.max(...vals);
     const span = hi - lo || 1;
-    const w = 640;
-    const h = 280;
+    const w = compact ? 520 : 640;
+    const h = compact ? 170 : 280;
     const padL = 52;
     const padR = 16;
     const padT = 16;
-    const padB = 36;
+    const padB = compact ? 30 : 36;
     const innerW = w - padL - padR;
     const innerH = h - padT - padB;
     const groupW = innerW / n;
@@ -144,7 +147,7 @@ export function RevenueEarningsChart({
       ebit,
       lastI: n - 1,
     };
-  }, [panel]);
+  }, [panel, compact]);
 
   if (loading) {
     return <p className="vx-empty">Loading quarters for {ticker}…</p>;
