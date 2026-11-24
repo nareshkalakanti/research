@@ -20,7 +20,8 @@ export const PA_RULES = {
 
 /** 2WK view: 11 trading days, both end dates included (their 13–27 Jul view). */
 export const PA_2WK_DAYS = 11;
-export const PA_MAX_DAYS = 45;
+/** Custom dates cap: about 3 months of trading days. */
+export const PA_MAX_DAYS = 66;
 
 /** Bits per day: S1 = 1, S2 = 2, S3 = 4, S4 = 8. 0 = traded, passed nothing. -1 = no trade that day. */
 export type PaDay = number;

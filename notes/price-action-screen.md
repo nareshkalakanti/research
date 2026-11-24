@@ -154,7 +154,7 @@ pages give the method, not the thresholds.
 ## Built in our app (2026-11-24)
 
 - **Price Action** tab, next to Trend: Latest, 2WK (11 trading days) and Custom
-  dates (up to 45 trading days).
+  dates (up to 66 trading days, quick ranges 1W–3M).
 - Rules are in `PA_RULES` in `src/lib/price-action-rules.ts`. Values: S4 day ≥ 8%;
   S3 day ≥ 4.7%, volume ≥ 1.95x the previous 5-day average (NRB passed at
   1.998x), 3M ≥ 19%; S2 1M ≥ 10% only; S1 = S3 and S4.

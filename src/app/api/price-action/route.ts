@@ -8,7 +8,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * GET /api/price-action            → last 11 trading days (2WK)
  * GET /api/price-action?days=1     → latest day only
- * GET /api/price-action?from=&to=  → custom dates (YYYY-MM-DD, up to 45 trading days)
+ * GET /api/price-action?from=&to=  → custom dates (YYYY-MM-DD, up to 66 trading days)
  */
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;

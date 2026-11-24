@@ -72,9 +72,25 @@ function isoDaysAgo(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Quick ranges for Custom dates, in calendar days back from today. */
+const PRESETS = [
+  { id: "1W", days: 7 },
+  { id: "2W", days: 14 },
+  { id: "1M", days: 30 },
+  { id: "2M", days: 61 },
+  { id: "3M", days: 91 },
+] as const;
+
+/** Trending-days thresholds that fit the window: 3/5/7/9/11 for 2WK, quarters of the range otherwise. */
+function trendingSteps(n: number): number[] {
+  if (n <= 0) return [];
+  if (n === 11) return [3, 5, 7, 9, 11];
+  return [...new Set([0.25, 0.5, 0.75, 1].map((f) => Math.max(1, Math.round(n * f))))];
+}
+
 function Dots({ days, dates }: { days: number[]; dates: string[] }) {
   return (
-    <span className="pa-dots">
+    <span className={days.length > 22 ? "pa-dots pa-dots--dense" : "pa-dots"}>
       {days.map((b, i) => {
         const d = dates[i] ?? "";
         const title =
@@ -153,11 +169,20 @@ export function PriceActionPanel() {
   const [view, setView] = useState<View>("2wk");
   const [from, setFrom] = useState(isoDaysAgo(30));
   const [to, setTo] = useState(isoDaysAgo(0));
+  /** Quick range in use; null once the dates are edited by hand. */
+  const [preset, setPreset] = useState<string | null>("1M");
+  const pickPreset = (id: string, days: number) => {
+    setPreset(id);
+    setFrom(isoDaysAgo(days));
+    setTo(isoDaysAgo(0));
+    setMinDays(0);
+  };
   const [data, setData] = useState<Data | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
-  const [cap, setCap] = useState("all");
+  const [minCap, setMinCap] = useState("");
+  const [maxCap, setMaxCap] = useState("");
   const [exch, setExch] = useState("all");
   const [minDays, setMinDays] = useState(0);
   const [rocket, setRocket] = useState("all");
@@ -218,7 +243,10 @@ export function PriceActionPanel() {
     const needle = q.trim().toLowerCase();
     const out = data.rows.filter((r) => {
       if (needle && !`${r.name} ${r.ticker} ${r.sector ?? ""} ${r.industry ?? ""}`.toLowerCase().includes(needle)) return false;
-      if (cap !== "all" && r.cap_class !== cap) return false;
+      // Same rule as Value / Trend: blank = no bound, missing market cap counts as 0.
+      const mc = r.mcap_cr ?? 0;
+      if (Number(minCap) && mc < Number(minCap)) return false;
+      if (Number(maxCap) && mc > Number(maxCap)) return false;
       if (exch !== "all" && (r.market || "NSE") !== exch) return false;
       if (view !== "latest" && minDays && r.trending < minDays) return false;
       if (rocket === "any" && !r.rocket_price && !r.rocket_rpi) return false;
@@ -234,7 +262,7 @@ export function PriceActionPanel() {
       name: (a, b) => a.name.localeCompare(b.name),
     };
     return out.sort((a, b) => by[sort](a, b) || a.name.localeCompare(b.name));
-  }, [data, q, cap, exch, minDays, rocket, sort, view]);
+  }, [data, q, minCap, maxCap, exch, minDays, rocket, sort, view]);
 
   const counts = useMemo(() => {
     const c = { s1: 0, s2: 0, s3: 0, s4: 0 };
@@ -276,7 +304,10 @@ export function PriceActionPanel() {
               ["custom", "Custom dates"],
             ] as const
           ).map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? "on" : ""} onClick={() => setView(id)}>
+            <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? "on" : ""} onClick={() => {
+                setView(id);
+                setMinDays(0);
+              }}>
               {label}
             </button>
           ))}
@@ -284,19 +315,18 @@ export function PriceActionPanel() {
       </header>
 
       <div className="vx-card vx-filters">
-        <div className="vx-grid">
-          <label className="vx-field vx-field--wide">
+        <div className="pa-grid">
+          <label className="vx-field">
             <span className="vx-label">Search</span>
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Company, symbol or sector" />
           </label>
           <label className="vx-field">
-            <span className="vx-label">Market cap</span>
-            <select value={cap} onChange={(e) => setCap(e.target.value)}>
-              <option value="all">All</option>
-              <option value="Large">Large Cap</option>
-              <option value="Mid">Mid Cap</option>
-              <option value="Small">Small Cap</option>
-            </select>
+            <span className="vx-label">Min market cap</span>
+            <input inputMode="numeric" value={minCap} onChange={(e) => setMinCap(e.target.value.replace(/[^\d.]/g, ""))} placeholder="₹ Cr" />
+          </label>
+          <label className="vx-field">
+            <span className="vx-label">Max market cap</span>
+            <input inputMode="numeric" value={maxCap} onChange={(e) => setMaxCap(e.target.value.replace(/[^\d.]/g, ""))} placeholder="₹ Cr" />
           </label>
           <label className="vx-field">
             <span className="vx-label">Exchange</span>
@@ -322,7 +352,7 @@ export function PriceActionPanel() {
               <span className="vx-label">Trending days</span>
               <select value={minDays} onChange={(e) => setMinDays(Number(e.target.value))}>
                 <option value={0}>Any</option>
-                {[3, 5, 7, 9, 11].map((n) => (
+                {trendingSteps(data?.dates.length ?? 11).map((n) => (
                   <option key={n} value={n}>
                     {n}+ days
                   </option>
@@ -330,19 +360,53 @@ export function PriceActionPanel() {
               </select>
             </label>
           ) : null}
-          {view === "custom" ? (
-            <>
+        </div>
+        {view === "custom" ? (
+          <div className="pa-range">
+              <div className="vx-field">
+                <span className="vx-label">Quick range</span>
+                <div className="pa-presets" role="group" aria-label="Quick range">
+                  {PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={preset === p.id ? "on" : ""}
+                      aria-pressed={preset === p.id}
+                      onClick={() => pickPreset(p.id, p.days)}
+                    >
+                      {p.id}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <label className="vx-field">
                 <span className="vx-label">From</span>
-                <input type="date" value={from} max={to} onChange={(e) => e.target.value && setFrom(e.target.value)} />
+                <input
+                  type="date"
+                  value={from}
+                  max={to}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setFrom(e.target.value);
+                    setPreset(null);
+                  }}
+                />
               </label>
               <label className="vx-field">
                 <span className="vx-label">To</span>
-                <input type="date" value={to} min={from} onChange={(e) => e.target.value && setTo(e.target.value)} />
+                <input
+                  type="date"
+                  value={to}
+                  min={from}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    setTo(e.target.value);
+                    setPreset(null);
+                  }}
+                />
               </label>
-            </>
-          ) : null}
-        </div>
+            </div>
+        ) : null}
         {r ? (
           <p className="vx-hint pa-rules">
             Green day = any screen passes. <b>S4</b> day up ≥ {r.s4DayPct}% · <b>S3</b> day up ≥ {r.s3DayPct}%, volume ≥ {r.s3VolX}× the
