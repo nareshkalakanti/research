@@ -28,7 +28,7 @@ export type AppTab =
 /** Top nav tabs only — other panels stay wired but are not listed here. */
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "napkin", label: "Napkin", short: "Napkin" },
-  { id: "dashboard", label: "Dashboard", short: "Dash" },
+  { id: "dashboard", label: "Governance", short: "Gov" },
   { id: "value", label: "Value", short: "Value" },
   { id: "rotation", label: "Trend", short: "Trend" },
   { id: "price-action", label: "Price Action", short: "PA" },

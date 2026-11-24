@@ -5,39 +5,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FamilyMapCards, type FamilyRow, FamilyAddProgress, type FamilyAddWork } from "@/components/FamilyMapCards";
 import { FamilyDashSearch, type DashSuggestHit } from "@/components/FamilyDashSearch";
 import {
-  PeopleBoardCards,
-  type PersonBoardRow,
-} from "@/components/PeopleBoardCards";
-import { StockNetworkSearch } from "@/components/StockNetworkSearch";
-import { OutsideCommonsTable } from "@/components/OutsideCommonsTable";
-import { ConnectedStocksTable } from "@/components/ConnectedStocksTable";
-import { GroupRankTable } from "@/components/GroupRankTable";
-import { GroupSignalsTable } from "@/components/GroupSignalsTable";
-import {
   TickerSuggest,
   type TickerSuggestHit,
 } from "@/components/TickerSuggest";
-import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { useOptionalAppTab } from "@/lib/app-tab";
 import {
   tradingviewUrl,
   governancePersonUrl,
-  governanceCompanyUrl,
 } from "@/lib/links";
 import { GOV_MAP_CHANGED, notifyGovMapChanged } from "@/lib/gov-map-sync";
-import { useUrlEnumParam } from "@/lib/url-enum-param";
 
-const DASH_VIEWS = [
-  "groups",
-  "group-rank",
-  "group-signals",
-  "holdings",
-  "people",
-  "stock",
-  "connected",
-  "outside",
-] as const;
-type DashView = (typeof DASH_VIEWS)[number];
 
 function stubCompany(
   ticker: string,
@@ -64,9 +41,7 @@ function stubCompany(
 export function FamilyDashboard() {
   const tabState = useOptionalAppTab();
   const [rows, setRows] = useState<FamilyRow[]>([]);
-  const [holdings, setHoldings] = useState<FamilyRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [holdingsLoading, setHoldingsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [dashHits, setDashHits] = useState<DashSuggestHit[]>([]);
@@ -77,34 +52,22 @@ export function FamilyDashboard() {
   const [newQ, setNewQ] = useState("");
   const [creating, setCreating] = useState(false);
   const [addWork, setAddWork] = useState<FamilyAddWork | null>(null);
-  const [dashView, setDashView] = useUrlEnumParam("d", DASH_VIEWS, "groups");
   const [groupFilter, setGroupFilter] = useState("");
-  const [holdingFilter, setHoldingFilter] = useState("");
   const [onlyMissingDin, setOnlyMissingDin] = useState(false);
   const [onlyUnconnected, setOnlyUnconnected] = useState(false);
-  const [stockFocus, setStockFocus] = useState<string | null>(null);
-  const [people, setPeople] = useState<PersonBoardRow[]>([]);
-  const [peopleLoading, setPeopleLoading] = useState(false);
   const [refreshingBox, setRefreshingBox] = useState<string | null>(null);
   const [holdPattern, setHoldPattern] = useState<{
     tickers: string[];
     lines: string[];
   } | null>(null);
   const hasGroups = useRef(false);
-  const hasHoldings = useRef(false);
   /**
    * After DIN/group writes: mark stale so the next relevant view reloads.
    * Start false — cold load uses cache miss, not refresh=1 (closes the DB reader).
    */
   const groupsStale = useRef(false);
-  const peopleStale = useRef(false);
-  const holdingsStale = useRef(false);
   const loadGen = useRef(0);
-  const peopleGen = useRef(0);
   const mapChangeTimer = useRef<number | null>(null);
-  // Latest view / search for the GOV_MAP_CHANGED listener (registered once).
-  const dashViewRef = useRef<DashView>("groups");
-  const qRef = useRef("");
 
   const load = useCallback(
     async (opts?: { refresh?: boolean; soft?: boolean }) => {
@@ -152,114 +115,18 @@ export function FamilyDashboard() {
   );
 
 
-  const loadHoldingMaps = useCallback(async (opts?: { refresh?: boolean }) => {
-    const hard = opts?.refresh === true;
-    if (!hasHoldings.current) setHoldingsLoading(true);
-    if (hard) setRefreshingBox((cur) => cur || "*");
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        view: "holdings",
-        page: "1",
-        pageSize: "5000",
-      });
-      if (hard) params.set("refresh", "1");
-      const res = await fetch(`/api/governance-map?${params}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as { rows?: FamilyRow[] };
-      const next = json.rows ?? [];
-      hasHoldings.current = next.length > 0;
-      setHoldings(next);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setHoldingsLoading(false);
-      setRefreshingBox(null);
-    }
-  }, []);
-
-  const loadPeople = useCallback(async (opts?: { refresh?: boolean; q?: string }) => {
-    // Typing fires overlapping searches; only the newest may write results.
-    const gen = ++peopleGen.current;
-    setPeopleLoading(true);
-    if (opts?.refresh) setRefreshingBox((cur) => cur || "*");
-    setError(null);
-    try {
-      const collected: PersonBoardRow[] = [];
-      const needle = (opts?.q || "").trim();
-      const searching = needle.length >= 2;
-      let page = 1;
-      let pages = 1;
-      const maxPages = searching ? 3 : 1;
-      while (page <= pages && page <= maxPages) {
-        const params = new URLSearchParams({
-          view: "director",
-          sort: searching ? "name" : "boards",
-          minBoards: searching ? "1" : "2",
-          page: String(page),
-          pageSize: searching ? "40" : "40",
-        });
-        if (searching) {
-          params.set("q", needle);
-          params.set("hideCollision", "0");
-        }
-        if (opts?.refresh) params.set("refresh", "1");
-        const res = await fetch(`/api/governance-map?${params}`, {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as {
-          rows?: PersonBoardRow[];
-          pages?: number;
-        };
-        if (gen !== peopleGen.current) return;
-        collected.push(...(json.rows ?? []));
-        pages = Math.max(1, json.pages ?? 1);
-        page += 1;
-      }
-      if (gen !== peopleGen.current) return;
-      const seen = new Set<string>();
-      setPeople(
-        collected.filter((r) => {
-          if (seen.has(r.person_id)) return false;
-          seen.add(r.person_id);
-          return true;
-        }),
-      );
-    } catch (e) {
-      if (gen !== peopleGen.current) return;
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      if (gen === peopleGen.current) {
-        setPeopleLoading(false);
-        setRefreshingBox(null);
-      }
-    }
-  }, []);
-
-  // One family-map fetch for Groups / Outside / Outside DIN / Group — no double mount.
+  // One family-map fetch when the tab opens (or after a write marked it stale).
   useEffect(() => {
     if (tabState?.tab && tabState.tab !== "dashboard") return;
-    if (
-      dashView !== "groups" &&
-      dashView !== "outside" &&
-      dashView !== "group-rank"
-    ) {
-      return;
-    }
     if (!groupsStale.current && hasGroups.current) return;
     // Hard refresh only when updating already-loaded stale data (writers invalidate).
     const hard = groupsStale.current && hasGroups.current;
     void load({ refresh: hard });
-  }, [tabState?.tab, dashView, load]);
+  }, [tabState?.tab, load]);
 
   useEffect(() => {
     const onChange = () => {
       groupsStale.current = true;
-      peopleStale.current = true;
-      holdingsStale.current = true;
       if (mapChangeTimer.current != null) {
         window.clearTimeout(mapChangeTimer.current);
       }
@@ -268,17 +135,6 @@ export function FamilyDashboard() {
         mapChangeTimer.current = null;
         // Soft fetch: cache already cleared by writer; avoid refresh=1 race.
         void load({ soft: true });
-        const view = dashViewRef.current;
-        if (view === "people") {
-          peopleStale.current = false;
-          const needle = qRef.current.trim();
-          void loadPeople({
-            q: needle.length >= 2 ? needle : undefined,
-          });
-        } else if (view === "holdings") {
-          holdingsStale.current = false;
-          void loadHoldingMaps();
-        }
       }, 350);
     };
     window.addEventListener(GOV_MAP_CHANGED, onChange);
@@ -289,18 +145,8 @@ export function FamilyDashboard() {
         mapChangeTimer.current = null;
       }
     };
-    // Not keyed on view / search: re-registering cleared the pending reload.
-  }, [load, loadPeople, loadHoldingMaps]);
-
-  useEffect(() => {
-    dashViewRef.current = dashView;
-    qRef.current = q;
-  }, [dashView, q]);
-
-  // Errors belong to the view that raised them.
-  useEffect(() => {
-    setError(null);
-  }, [dashView]);
+    // Registered once: re-registering cleared the pending reload.
+  }, [load]);
 
   const addInFlight = Boolean(addWork && !addWork.done && !addWork.error);
 
@@ -322,30 +168,6 @@ export function FamilyDashboard() {
   }, [addWork?.done, addWork?.error]);
 
   useEffect(() => {
-    if (dashView !== "people") return;
-    const needle = q.trim();
-    const hard = peopleStale.current;
-    if (needle.length < 2) {
-      peopleStale.current = false;
-      void loadPeople(hard ? { refresh: true } : undefined);
-      return;
-    }
-    const t = window.setTimeout(() => {
-      peopleStale.current = false;
-      void loadPeople(hard ? { refresh: true, q: needle } : { q: needle });
-    }, 220);
-    return () => window.clearTimeout(t);
-  }, [dashView, q, loadPeople]);
-
-  useEffect(() => {
-    if (dashView !== "holdings") return;
-    if (hasHoldings.current && !holdingsStale.current) return;
-    const hard = holdingsStale.current && hasHoldings.current;
-    holdingsStale.current = false;
-    void loadHoldingMaps(hard ? { refresh: true } : undefined);
-  }, [dashView, loadHoldingMaps]);
-
-  useEffect(() => {
     void fetch("/api/holdings-pattern", { cache: "no-store" })
       .then((res) => res.json())
       .then((json: { tickers?: string[]; lines?: string[] }) => {
@@ -362,10 +184,8 @@ export function FamilyDashboard() {
   const marketByTicker = useMemo(() => {
     const map = new Map<string, string>();
     for (const f of rows) for (const c of f.companies) map.set(c.ticker, c.market);
-    for (const f of holdings) for (const c of f.companies) map.set(c.ticker, c.market);
-    for (const p of people) for (const c of p.companies) map.set(c.ticker, c.market);
     return map;
-  }, [rows, holdings, people]);
+  }, [rows]);
 
   const groupOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -478,78 +298,6 @@ export function FamilyDashboard() {
 
 
 
-  const holdingOptions = useMemo(() => {
-    const seen = new Set<string>();
-    const out: Array<{ key: string; label: string; n: number }> = [];
-    for (const f of holdings) {
-      const key = f.group_id || f.family_name;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      out.push({
-        key,
-        label: f.companies[0]?.ticker || f.family_name,
-        n: f.outside?.length ?? 0,
-      });
-    }
-    out.sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
-    );
-    return out;
-  }, [holdings]);
-
-  const filteredHoldings = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    const list = holdings.filter((f) => {
-      if (holdingFilter && (f.group_id || f.family_name) !== holdingFilter) {
-        return false;
-      }
-      if (!needle) return true;
-      return (
-        f.family_name.toLowerCase().includes(needle) ||
-        f.companies.some(
-          (c) =>
-            c.ticker.toLowerCase().startsWith(needle) ||
-            c.name.toLowerCase().includes(needle),
-        ) ||
-        (f.people ?? []).some((p) => p.name.toLowerCase().includes(needle)) ||
-        (f.outside ?? []).some(
-          (o) =>
-            o.ticker.toLowerCase().startsWith(needle) ||
-            o.name.toLowerCase().includes(needle),
-        )
-      );
-    });
-    return withSizeFirst(list);
-  }, [holdings, q, holdingFilter]);
-
-  const filteredPeople = useMemo(() => {
-    const needle = q.trim().toLowerCase().replace(/[.,]+/g, " ").replace(/\s+/g, " ").trim();
-    const dinQ = needle.replace(/\D/g, "");
-    const list = !needle
-      ? people
-      : people.filter((p) => {
-          const name = p.name
-            .toLowerCase()
-            .replace(/[.,]+/g, " ")
-            .replace(/\s+/g, " ");
-          return (
-            name.includes(needle) ||
-            (dinQ && (p.din || "").includes(dinQ)) ||
-            p.companies.some(
-              (c) =>
-                c.ticker.toLowerCase().startsWith(needle) ||
-                c.name.toLowerCase().includes(needle),
-            )
-          );
-        });
-    return [...list].sort((a, b) => {
-      if (Boolean(b.recent_join) !== Boolean(a.recent_join)) {
-        return a.recent_join ? -1 : 1;
-      }
-      return (b.board_count || 0) - (a.board_count || 0);
-    });
-  }, [people, q]);
-
   useEffect(() => {
     const needle = q.trim();
     if (needle.length < 1) {
@@ -592,11 +340,6 @@ export function FamilyDashboard() {
     const dinNeedle = /^\d+$/.test(needle) ? needle : "";
     const seenP = new Set<string>();
     const personPool: Array<{ person_id: string; name: string; din: string | null }> = [
-      ...people.map((p) => ({
-        person_id: p.person_id,
-        name: p.name,
-        din: p.din ?? null,
-      })),
       ...rows.flatMap((f) =>
         (f.people ?? []).map((p) => ({
           person_id: p.person_id,
@@ -690,7 +433,7 @@ export function FamilyDashboard() {
       cancelled = true;
       window.clearTimeout(t);
     };
-  }, [q, rows.length, people.length]);
+  }, [q, rows]);
 
   const onDashPick = useCallback((hit: DashSuggestHit) => {
     const scrollKey = (key: string) => {
@@ -701,48 +444,29 @@ export function FamilyDashboard() {
       }, 50);
     };
     if (hit.kind === "group") {
-      setDashView("groups");
       setGroupFilter(hit.key);
       setQ("");
       scrollKey(hit.key);
       return;
     }
     if (hit.kind === "person") {
-      setDashView("people");
-      setQ(hit.label);
+      // A person's boards live on the Governance map.
+      window.open(governancePersonUrl(hit.person_id), "_blank", "noopener,noreferrer");
       return;
     }
     const ticker = hit.ticker.toUpperCase();
-    if (dashView === "groups") {
-      const group = rows.find((f) =>
-        f.companies.some((c) => c.ticker.toUpperCase() === ticker),
-      );
-      if (group) {
-        const key = group.group_id || group.family_name;
-        setGroupFilter(key);
-        setQ("");
-        scrollKey(key);
-        return;
-      }
-      setQ(ticker);
+    const group = rows.find((f) =>
+      f.companies.some((c) => c.ticker.toUpperCase() === ticker),
+    );
+    if (group) {
+      const key = group.group_id || group.family_name;
+      setGroupFilter(key);
+      setQ("");
+      scrollKey(key);
       return;
     }
-    if (dashView === "holdings") {
-      const hold = holdings.find((f) =>
-        f.companies.some((c) => c.ticker.toUpperCase() === ticker),
-      );
-      if (hold) {
-        setHoldingFilter(hold.group_id || hold.family_name);
-        setQ("");
-        return;
-      }
-      setQ(ticker);
-      return;
-    }
-    setDashView("stock");
-    setStockFocus(ticker);
-    setQ("");
-  }, [dashView, rows, holdings]);
+    setQ(ticker);
+  }, [rows]);
 
   const addCreateTicker = (
     hit: TickerSuggestHit | { ticker: string; name: string },
@@ -756,28 +480,6 @@ export function FamilyDashboard() {
     );
     setNewQ("");
   };
-
-  const ensureUserGroup = useCallback(async (g: FamilyRow) => {
-    if (g.group_id?.startsWith("user-")) return g.group_id;
-    const res = await fetch("/api/family-groups", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        create: true,
-        label: g.family_name,
-        tickers: g.companies.map((c) => c.ticker),
-      }),
-    });
-    const json = (await res.json()) as {
-      ok?: boolean;
-      group_id?: string;
-      error?: string;
-    };
-    if (!res.ok || !json.group_id) {
-      throw new Error(json.error || `Save group failed (${res.status})`);
-    }
-    return json.group_id;
-  }, []);
 
   const createGroup = async () => {
     const label = newName.replace(/\s+/g, " ").trim();
@@ -827,10 +529,7 @@ export function FamilyDashboard() {
         done: true,
       });
       notifyGovMapChanged();
-      if (newTickers.length >= 2 && gid) {
-        setGroupFilter(gid);
-        setDashView("groups");
-      }
+      if (newTickers.length >= 2 && gid) setGroupFilter(gid);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -849,230 +548,71 @@ export function FamilyDashboard() {
     window.open(governancePersonUrl(personId), "_blank", "noopener,noreferrer");
   };
 
-  const openCompany = (ticker: string) => {
-    window.open(governanceCompanyUrl(ticker), "_blank", "noopener,noreferrer");
-  };
-
   return (
     <section className="fam-dash">
       <div className="fam-dash-head">
         <div>
-          <div className="fam-dash-tabs" role="tablist" aria-label="Dashboard">
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "groups" ? "tab on" : "tab"}
-              aria-selected={dashView === "groups"}
-              onClick={() => setDashView("groups")}
-            >
-              Groups
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "holdings" ? "tab on" : "tab"}
-              aria-selected={dashView === "holdings"}
-              onClick={() => setDashView("holdings")}
-            >
-              Holdings
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "people" ? "tab on" : "tab"}
-              aria-selected={dashView === "people"}
-              onClick={() => setDashView("people")}
-            >
-              Directors
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "connected" ? "tab on" : "tab"}
-              aria-selected={dashView === "connected"}
-              onClick={() => setDashView("connected")}
-            >
-              Connected
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "stock" ? "tab on" : "tab"}
-              aria-selected={dashView === "stock"}
-              onClick={() => setDashView("stock")}
-            >
-              Stock map
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "outside" ? "tab on" : "tab"}
-              aria-selected={dashView === "outside"}
-              onClick={() => setDashView("outside")}
-            >
-              Outside
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "group-rank" ? "tab on" : "tab"}
-              aria-selected={dashView === "group-rank"}
-              onClick={() => setDashView("group-rank")}
-            >
-              Group rank
-            </button>
-            <button
-              type="button"
-              role="tab"
-              className={dashView === "group-signals" ? "tab on" : "tab"}
-              aria-selected={dashView === "group-signals"}
-              onClick={() => setDashView("group-signals")}
-            >
-              Group signals
-            </button>
-          </div>
+          <h2 className="fam-dash-title">Governance</h2>
           <p className="fam-dash-sub">
-            {dashView === "groups"
-              ? "Largest groups first. Teal nodes mark recent board joins. Click a ticker for related boards; Outside filters to external seats."
-              : dashView === "group-rank"
-                ? "Group companies only (member listings). Same layout as Outside, with market-cap chips. Default house size Cos 3+."
-              : dashView === "group-signals"
-                ? "Scan signals checks every group stock for 200 DMA ↑ (daily), BB W and TQ W. Group chips filter the list; a Group tag opens that map. Name opens TradingView, NP opens Napkin."
-              : dashView === "holdings"
-                ? "Each card is a stock in your holdings. The graph is that listing plus directors and other listed boards they sit on."
-              : dashView === "people"
-                ? "Recent joins sort first (new badge / teal node). Name opens Governance; ticker shows that stock’s related boards."
-                : dashView === "connected"
-                  ? "Stocks ranked by shared-director links to other listed boards. Click a ticker → hub graph + dashed connected boards + bottom chips."
-                  : dashView === "outside"
-                    ? "Commons: tickers as Outside boards on other houses. “As outside in” = those houses (not own group). Click a ticker → Stock map (graph + bottom chips)."
-                  : "Stock map: search a stock → hub + connected boards (dashed = outside this listing). Bottom chips jump ticker-to-ticker. Not the house Outside filter."}
+            Business groups, largest first. Teal nodes mark recent board joins. Click a
+            ticker for related boards, or a director for their governance map.
           </p>
         </div>
         <div className="fam-dash-actions">
-          {dashView !== "stock" &&
-          dashView !== "connected" &&
-          dashView !== "outside" &&
-          dashView !== "group-rank" &&
-          dashView !== "group-signals" ? (
-            <>
-          {dashView === "groups" ? (
-            <>
-            <label className="fam-dash-group-filter">
-              <select
-                className="fam-dash-search fam-dash-group-select"
-                value={groupFilter}
-                onChange={(e) => setGroupFilter(e.target.value)}
-                aria-label="Filter by business group"
-              >
-                <option value="">All groups ({groupOptions.length})</option>
-                {groupOptions.map((g) => (
-                  <option key={g.key} value={g.key}>
-                    {g.label} ({g.n})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="fam-dash-check">
-              <input
-                type="checkbox"
-                checked={onlyMissingDin}
-                onChange={(e) => setOnlyMissingDin(e.target.checked)}
-              />
-              Missing DIN
-            </label>
-            <label className="fam-dash-check">
-              <input
-                type="checkbox"
-                checked={onlyUnconnected}
-                onChange={(e) => setOnlyUnconnected(e.target.checked)}
-              />
-              Unconnected
-            </label>
-            </>
-          ) : null}
-          {dashView === "holdings" ? (
-            <label className="fam-dash-group-filter">
-              <select
-                className="fam-dash-search fam-dash-group-select"
-                value={holdingFilter}
-                onChange={(e) => setHoldingFilter(e.target.value)}
-                aria-label="Filter by holding"
-              >
-                <option value="">All holdings ({holdingOptions.length})</option>
-                {holdingOptions.map((g) => (
-                  <option key={g.key} value={g.key}>
-                    {g.label}
-                    {g.n ? ` · ${g.n} outside board${g.n === 1 ? "" : "s"}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+          <label className="fam-dash-group-filter">
+            <select
+              className="fam-dash-search fam-dash-group-select"
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              aria-label="Filter by business group"
+            >
+              <option value="">All groups ({groupOptions.length})</option>
+              {groupOptions.map((g) => (
+                <option key={g.key} value={g.key}>
+                  {g.label} ({g.n})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="fam-dash-check">
+            <input
+              type="checkbox"
+              checked={onlyMissingDin}
+              onChange={(e) => setOnlyMissingDin(e.target.checked)}
+            />
+            Missing DIN
+          </label>
+          <label className="fam-dash-check">
+            <input
+              type="checkbox"
+              checked={onlyUnconnected}
+              onChange={(e) => setOnlyUnconnected(e.target.checked)}
+            />
+            Unconnected
+          </label>
           <FamilyDashSearch
             value={q}
             onChange={setQ}
-            placeholder={
-              dashView === "people"
-                ? "Person, DIN, ticker or company…"
-                : dashView === "holdings"
-                  ? "Ticker, company, director or outside board…"
-                  : "Group, ticker, company or director…"
-            }
+            placeholder="Group, ticker, company or director…"
             hits={dashHits}
             loading={dashHitLoading}
             onPick={onDashPick}
           />
-          {dashView === "groups" ? (
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => setAdding((v) => !v)}
-          >
+          <button type="button" className="btn-ghost" onClick={() => setAdding((v) => !v)}>
             {adding ? "Cancel" : "Add group"}
           </button>
-          ) : null}
-            </>
-          ) : null}
-          {dashView !== "stock" && dashView !== "connected" ? (
           <button
             type="button"
             className="btn-ghost"
-            onClick={() =>
-              void (dashView === "people"
-                  ? loadPeople({
-                      refresh: true,
-                      q: q.trim().length >= 2 ? q.trim() : undefined,
-                    })
-                  : dashView === "holdings"
-                    ? loadHoldingMaps({ refresh: true })
-                    : load({ refresh: true }))
-            }
-            disabled={
-              dashView === "people"
-                  ? peopleLoading
-                  : dashView === "holdings"
-                    ? holdingsLoading
-                    : loading
-            }
+            onClick={() => void load({ refresh: true })}
+            disabled={loading}
           >
-            {(dashView === "people"
-                ? peopleLoading
-                : dashView === "holdings"
-                  ? holdingsLoading
-                  : loading)
-              ? "Loading…"
-              : "Refresh"}
+            {loading ? "Loading…" : "Refresh"}
           </button>
-          ) : null}
         </div>
       </div>
-      {dashView === "groups" ? (
-        addWork ? (
-          <FamilyAddProgress work={addWork} />
-        ) : null
-      ) : null}
-      {dashView === "groups" && adding ? (
+      {addWork ? <FamilyAddProgress work={addWork} /> : null}
+      {adding ? (
         <form
           className="fam-dash-create"
           onSubmit={(e) => {
@@ -1137,97 +677,8 @@ export function FamilyDashboard() {
           ) : null}
         </form>
       ) : null}
-      {error &&
-      dashView !== "stock" &&
-      dashView !== "connected" &&
-      dashView !== "outside" &&
-      dashView !== "group-rank" &&
-      dashView !== "group-signals" ? (
-        <div className="table-meta">Could not load: {error}</div>
-      ) : null}
-      {dashView === "group-signals" ? (
-        <GroupSignalsTable
-          rows={rows}
-          loading={loading}
-          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-          onOpenGroup={(key) => {
-            setGroupFilter(key);
-            setDashView("groups");
-          }}
-        />
-      ) : dashView === "group-rank" ? (
-        <GroupRankTable
-          rows={rows}
-          loading={loading}
-          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-          onTicker={(t) => {
-            setStockFocus(t);
-            setDashView("stock");
-          }}
-          onOpenGroup={(key) => {
-            setGroupFilter(key);
-            setDashView("groups");
-          }}
-        />
-      ) : dashView === "connected" ? (
-        <ConnectedStocksTable
-          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-          onTicker={(t) => {
-            setStockFocus(t);
-            setDashView("stock");
-          }}
-        />
-      ) : dashView === "outside" ? (
-        <OutsideCommonsTable
-          rows={rows}
-          loading={loading}
-          chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-          onTicker={(t) => {
-            setStockFocus(t);
-            setDashView("stock");
-          }}
-        />
-      ) : dashView === "stock" ? (
-        <StockNetworkSearch
-          initialTicker={stockFocus}
-          onPerson={(id, name) => openPerson(id, name)}
-        />
-      ) : dashView === "holdings" ? (
-        holdingsLoading && !holdings.length ? (
-          <Loading label="Loading holdings graphs" variant="block" />
-        ) : (
-          <FamilyMapCards
-            unit="holdings"
-            rows={filteredHoldings}
-            onPerson={(id, name) => openPerson(id, name)}
-            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-            onRefresh={(g) => {
-              setRefreshingBox(g.group_id || g.family_name);
-              void loadHoldingMaps({ refresh: true });
-            }}
-            refreshing={refreshingBox}
-          />
-        )
-      ) : dashView === "people" ? (
-        peopleLoading && !people.length ? (
-          <Loading label="Loading people and boards" variant="block" />
-        ) : (
-          <PeopleBoardCards
-            rows={filteredPeople}
-            onTicker={(t) => openCompany(t)}
-            onPerson={(id, name) => openPerson(id, name)}
-            chartUrl={(t) => tradingviewUrl(t, marketByTicker.get(t))}
-            onRefresh={() => {
-              const needle = q.trim();
-              void loadPeople({
-                refresh: true,
-                q: needle.length >= 2 ? needle : undefined,
-              });
-            }}
-            refreshingId={refreshingBox}
-          />
-        )
-      ) : loading && !rows.length ? (
+      {error ? <div className="table-meta">Could not load: {error}</div> : null}
+      {loading && !rows.length ? (
         <Loading label="Loading business groups" variant="block" />
       ) : rows.length > 0 && filteredWithPattern.length === 0 ? (
         <div className="table-meta">
@@ -1246,7 +697,6 @@ export function FamilyDashboard() {
           </button>
         </div>
       ) : (
-        // Groups = graph cards only; signals live on the Group signals tab.
           <FamilyMapCards
             rows={filteredWithPattern}
             editable
