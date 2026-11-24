@@ -82,6 +82,15 @@ export function trustedBseCode(ticker: string): string | null {
   return null;
 }
 
+/** Ticker an official BSE list assigns this scrip code to (SME list, then main board). */
+export function bseCodeOwner(code: string): string | null {
+  const c = code.trim();
+  if (!c) return null;
+  for (const [t, r] of loadBseSmeCacheMap()) if (r.scrip_code?.trim() === c) return t;
+  for (const r of loadMain().byTicker.values()) if (r.scrip_code === c) return r.ticker.toUpperCase();
+  return null;
+}
+
 export function bseMainListLoaded(): boolean {
   return loadMain().byTicker.size > 0;
 }

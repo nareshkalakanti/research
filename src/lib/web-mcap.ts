@@ -1,7 +1,7 @@
 /**
  * Tickertape + Groww company profile (mcap, sector, about, key people).
  */
-import { trustedBseCode } from "./bse-codes";
+import { bseCodeOwner, trustedBseCode } from "./bse-codes";
 import { runConcurrent } from "@/lib/scrape-pool";
 import type { YfQuote } from "@/lib/yfinance";
 
@@ -431,6 +431,11 @@ export async function growwCompanyData(
       if (trustedScrip && /^\d+$/.test(bse)) {
         if (bse === trustedScrip) exact.push(rec);
         continue;
+      }
+      // A listing the official BSE lists give to another ticker is another company.
+      if (/^\d+$/.test(bse) && nse !== sym) {
+        const owner = bseCodeOwner(bse);
+        if (owner && owner !== sym) continue;
       }
       if (nse === sym || bse === sym || listedSym(searchId) === sym) {
         exact.push(rec);

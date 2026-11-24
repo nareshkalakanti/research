@@ -7,7 +7,7 @@ import {
   cacheBseScripCode,
   getCachedBseScripCode,
 } from "./bse-investor-discover";
-import { trustedBseCode } from "./bse-codes";
+import { bseCodeOwner, trustedBseCode } from "./bse-codes";
 import { screenerCompanyPageUrl } from "./links";
 import { withWebsiteFetch } from "./scrape-pool";
 import { openSqliteNamed } from "./sqlite-utils";
@@ -187,8 +187,11 @@ async function resolveScreenerPageKeys(ticker: string): Promise<string[]> {
   const pushBse = (raw: string | null | undefined) => {
     const bse = String(raw || "").trim();
     if (!/^\d{5,7}$/.test(bse) || keys.includes(bse)) return;
-    // A name lookup can return a sister company's code: never let it replace the listed one.
+    // A name lookup can return a sister company's code: never let it replace the listed one,
+    // and never take a code the official lists give to another ticker.
     if (trusted && bse !== trusted) return;
+    const owner = bseCodeOwner(bse);
+    if (owner && owner !== key) return;
     keys.push(bse);
     cacheBseScripCode(key, bse);
   };

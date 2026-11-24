@@ -1,7 +1,8 @@
-import { cacheBseScripCode } from "./bse-investor-discover";
+import { cacheBseScripCode, deleteBseScripCode } from "./bse-investor-discover";
 import { fetchBseMainListings } from "./bse-main";
 import { bseMainListLoaded, saveBseMainListings, trustedBseCode } from "./bse-codes";
 import { scoreReviewTicker } from "./portfolio-review";
+import { clearScreenerStatementCaches } from "./screener-annual";
 import { screenerPausedUntil } from "./screener-fetch";
 import { openSqliteNamed } from "./sqlite-utils";
 
@@ -15,13 +16,28 @@ import { openSqliteNamed } from "./sqlite-utils";
  *   same_data   — Screener annual figures identical to another ticker's
  */
 
-export type Suspect = { ticker: string; reasons: string[]; saved_code: string | null; trusted_code: string | null };
+/**
+ * retire  — not an active stock (old alias / replaced ticker): drop its saved data, no fetch
+ * clear   — holds another company's data: drop it first, then re-fetch (blank beats wrong)
+ * refresh — re-fetch with the identity check
+ */
+export type RepairAction = "retire" | "clear" | "refresh";
+
+export type Suspect = {
+  ticker: string;
+  reasons: string[];
+  saved_code: string | null;
+  trusted_code: string | null;
+  action: RepairAction;
+};
 
 export type RepairJob = {
   running: boolean;
   total: number;
   done: number;
   fixed_codes: number;
+  /** Saved data dropped (old alias, or another company's figures). */
+  cleared: number;
   refreshed: number;
   failed: number;
   stopped_reason: string | null;
@@ -52,6 +68,32 @@ function savedCodes(): Map<string, string> {
   return out;
 }
 
+/** Active tickers in the stock master, with market cap (owner of shared data = largest). */
+function activeTickers(): Map<string, number> {
+  const active = new Set<string>();
+  const sm = openSqliteNamed("stock_master.db", { readonly: true, wal: true });
+  try {
+    for (const r of sm.prepare(`SELECT UPPER(ticker) AS t FROM stocks WHERE active = 1`).all() as Array<{ t: string }>) {
+      active.add(r.t);
+    }
+  } finally {
+    sm.close();
+  }
+  const out = new Map<string, number>();
+  const m = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const caps = new Map(
+      (m.prepare(`SELECT UPPER(ticker) AS t, market_cap_cr AS c FROM stock_metrics`).all() as Array<{ t: string; c: number | null }>).map(
+        (r) => [r.t, r.c ?? 0],
+      ),
+    );
+    for (const t of active) out.set(t, caps.get(t) ?? 0);
+  } finally {
+    m.close();
+  }
+  return out;
+}
+
 /** Tickers whose saved annual sales series is identical to another ticker's (real revenue only). */
 function sameDataGroups(): string[][] {
   const groups = new Map<string, string[]>();
@@ -66,6 +108,8 @@ function sameDataGroups(): string[][] {
         const a = JSON.parse(r.j) as { dates: string[]; sales: Array<number | null> };
         const sales = a.sales.slice(-4);
         if (sales.filter((v) => v != null && v > 0).length < 3) continue; // shells read 0: not a mix-up
+        // Screener rounds to ₹1 Cr: tiny sales (1, 1, 1) match by coincidence.
+        if (Math.max(...sales.map((v) => v ?? 0)) < 10) continue;
         const key = `${a.dates.slice(-4).join(",")}|${sales.join(",")}`;
         groups.set(key, [...(groups.get(key) ?? []), r.t]);
       } catch {
@@ -80,10 +124,16 @@ function sameDataGroups(): string[][] {
 
 export function findIdentitySuspects(): Suspect[] {
   const saved = savedCodes();
+  const active = activeTickers();
   const out = new Map<string, Suspect>();
-  const add = (t: string, reason: string) => {
-    const s = out.get(t) ?? { ticker: t, reasons: [], saved_code: saved.get(t) ?? null, trusted_code: trustedBseCode(t) };
+  const add = (t: string, reason: string, action: RepairAction = "refresh") => {
+    const s =
+      out.get(t) ??
+      ({ ticker: t, reasons: [], saved_code: saved.get(t) ?? null, trusted_code: trustedBseCode(t), action } as Suspect);
     if (!s.reasons.includes(reason)) s.reasons.push(reason);
+    // Strongest action wins: retire > clear > refresh.
+    const rank: Record<RepairAction, number> = { refresh: 0, clear: 1, retire: 2 };
+    if (rank[action] > rank[s.action]) s.action = action;
     out.set(t, s);
   };
   const byCode = new Map<string, string[]>();
@@ -94,14 +144,22 @@ export function findIdentitySuspects(): Suspect[] {
   }
   for (const tickers of byCode.values()) {
     if (tickers.length < 2) continue;
-    // The ticker the code truly belongs to is fine; the others are not.
-    for (const t of tickers) if (trustedBseCode(t) !== saved.get(t)) add(t, "shared_code");
+    // The ticker the code truly belongs to is fine; the others are not — and
+    // with no trusted code of their own, the saved one is someone else's.
+    for (const t of tickers) if (trustedBseCode(t) !== saved.get(t)) add(t, "shared_code", trustedBseCode(t) ? "refresh" : "clear");
   }
   for (const group of sameDataGroups()) {
     // Same company under two names (code alias) is fine: only flag when trusted codes differ.
     const codes = new Set(group.map((t) => trustedBseCode(t) ?? `?${t}`));
-    if (codes.size > 1) for (const t of group) add(t, "same_data");
+    if (codes.size < 2) continue;
+    // The data most likely belongs to the largest active member; the rest hold a copy.
+    const owner = group
+      .filter((t) => active.has(t))
+      .sort((a, b) => (active.get(b) ?? 0) - (active.get(a) ?? 0))[0];
+    for (const t of group) add(t, "same_data", t === owner ? "refresh" : "clear");
   }
+  // Old aliases / replaced tickers: nothing to fetch, just drop what they hold.
+  for (const s of out.values()) if (!active.has(s.ticker)) s.action = "retire";
   return [...out.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));
 }
 
@@ -115,6 +173,7 @@ export function startIdentityRepair(opts?: { refreshList?: boolean }): RepairJob
     total: 0,
     done: 0,
     fixed_codes: 0,
+    cleared: 0,
     refreshed: 0,
     failed: 0,
     stopped_reason: null,
@@ -135,9 +194,18 @@ export function startIdentityRepair(opts?: { refreshList?: boolean }): RepairJob
           job.stopped_reason = `Screener paused until ${paused}`;
           break;
         }
+        if (s.action === "retire" || s.action === "clear") {
+          clearScreenerStatementCaches(s.ticker);
+          if (!s.trusted_code && s.saved_code) deleteBseScripCode(s.ticker);
+          job.cleared++;
+        }
         if (s.trusted_code && s.trusted_code !== s.saved_code) {
           cacheBseScripCode(s.ticker, s.trusted_code);
           job.fixed_codes++;
+        }
+        if (s.action === "retire") {
+          job.done++;
+          continue;
         }
         try {
           await scoreReviewTicker(s.ticker, { fresh: true });

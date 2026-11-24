@@ -225,6 +225,17 @@ export function getCachedBseScripCode(ticker: string): string | null {
   }
 }
 
+/** Forget a saved scrip code (it belonged to another company). */
+export function deleteBseScripCode(ticker: string): void {
+  ensureBseScripCacheSchema();
+  const conn = openSqliteNamed("company_about.db", { readonly: false, wal: true });
+  try {
+    conn.prepare(`DELETE FROM company_bse_scrip WHERE ticker = ?`).run(ticker.toUpperCase());
+  } finally {
+    conn.close();
+  }
+}
+
 export function cacheBseScripCode(ticker: string, scripCode: string): void {
   const code = scripCode.trim();
   if (!code) return;
