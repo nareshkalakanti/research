@@ -170,37 +170,47 @@ export function PriceActionPanel() {
     return "/api/price-action";
   }, [view, from, to]);
 
+  // No AbortController on cleanup: Next's dev overlay reports the abort as a
+  // runtime error ("signal is aborted without reason"). A stale response is
+  // dropped via `isLive` instead (same pattern as NapkinQualityFlags).
   const load = useCallback(
-    async (signal?: AbortSignal) => {
+    async (isLive: () => boolean = () => true) => {
       setLoading(true);
       try {
-        const res = await fetch(url, { cache: "no-store", signal });
+        const res = await fetch(url, { cache: "no-store" });
         const j = (await res.json()) as Data & { ok?: boolean; error?: string };
+        if (!isLive()) return;
         if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
         setErr(null);
         setData(j);
       } catch (e) {
-        if (!(e instanceof DOMException && e.name === "AbortError")) setErr(e instanceof Error ? e.message : String(e));
+        if (isLive()) setErr(e instanceof Error ? e.message : String(e));
       } finally {
-        if (!signal?.aborted) setLoading(false);
+        if (isLive()) setLoading(false);
       }
     },
     [url],
   );
 
   useEffect(() => {
-    const ctl = new AbortController();
+    let live = true;
     setData(null);
     setShown(PAGE);
-    void load(ctl.signal);
-    return () => ctl.abort();
+    void load(() => live);
+    return () => {
+      live = false;
+    };
   }, [load]);
 
   // While older prices are refetched for volume, reload every minute.
   useEffect(() => {
     if (!data || (!data.no_volume && !data.refreshing)) return;
-    const id = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(id);
+    let live = true;
+    const id = window.setInterval(() => void load(() => live), 60_000);
+    return () => {
+      live = false;
+      window.clearInterval(id);
+    };
   }, [data, load]);
 
   const rows = useMemo(() => {

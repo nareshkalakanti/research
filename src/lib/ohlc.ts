@@ -284,10 +284,11 @@ function parseGrowwCandles(body: {
     ) {
       continue;
     }
-    // Groww may send seconds or millis.
+    // Groww may send seconds or millis. Candles are stamped at midnight IST,
+    // which is the previous evening in UTC: shift to IST before taking the date.
     const ms = epoch > 1e12 ? epoch : epoch * 1000;
     bars.push({
-      date: toDateStr(new Date(ms)),
+      date: toDateStr(new Date(ms + 5.5 * 3_600_000)),
       open,
       high,
       low,
