@@ -11,6 +11,17 @@ export const NAPKIN_PERF = {
   debtEquityMax: 0.5,
 } as const;
 
+/**
+ * Banks and lenders: deposits and borrowings are their raw material, so
+ * debt/equity, ROCE and EBITDA margin say nothing about them.
+ * Stock-master industry first (Private Banks, NBFC Others, Finance Housing…),
+ * else Yahoo's (Banks - Regional, Credit Services, Mortgage Finance).
+ */
+export function isLender(industry: string | null | undefined, yahooIndustry?: string | null): boolean {
+  if (industry) return /\bbanks?\b|nbfc|^finance\b(?!.*(amc|insurance|brokers?|capital markets|investment bankers))|lending|microfinance/i.test(industry);
+  return !!yahooIndustry && /^banks\b|credit services|mortgage finance/i.test(yahooIndustry);
+}
+
 export type NapkinPerfVerdict = "pass" | "fail" | "na";
 
 export type NapkinPerfCheck = {
@@ -149,6 +160,8 @@ export function napkinPerformance(input: {
   ebitda_margin?: number | null;
   roce?: number | null;
   debt_equity?: number | null;
+  /** Bank / NBFC: EBITDA margin, ROCE and debt/equity not scored. */
+  lender?: boolean;
 }): NapkinPerformance {
   const rev = scoreRevenueCagr(
     input.revenue_cagr_5y,
@@ -189,6 +202,13 @@ export function napkinPerformance(input: {
       verdict: maxCheck(input.debt_equity ?? null, NAPKIN_PERF.debtEquityMax),
     },
   ];
+  if (input.lender) {
+    for (const c of checks) {
+      if (c.id === "revenue_cagr") continue;
+      c.verdict = "na";
+      c.display = "Not used for lenders";
+    }
+  }
   const scored = checks.filter((c) => c.verdict !== "na").length;
   const passed = checks.filter((c) => c.verdict === "pass").length;
   return { checks, passed, scored };

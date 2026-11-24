@@ -31,7 +31,7 @@ type EvalRow = {
   v_checks: FundCheck[];
   total: number;
   total_max: number;
-  rating: "Excellent" | "Good" | "Average" | "Poor" | "No data";
+  rating: "Excellent" | "Good" | "Average" | "Poor" | "Incomplete" | "No data";
 };
 
 type DrawerKind = "fundamental" | "management" | "quality" | "valuation";
@@ -85,7 +85,9 @@ function ratingCls(r: EvalRow["rating"]): string {
       ? "good"
       : r === "Average"
         ? "mid"
-        : "bad";
+        : r === "Poor"
+          ? "bad"
+          : "na";
 }
 
 export function NapkinPortfolioEval({ ticker }: { ticker: string }) {
@@ -231,7 +233,7 @@ export function NapkinPortfolioEval({ ticker }: { ticker: string }) {
                       {row.total} <small>/ 17</small>
                     </td>
                     <td>
-                      <span className={`vx-rating vx-rating--${ratingCls(row.rating)}`} title="Excellent 13+ · Good 9+ · Average 5+">
+                      <span className={`vx-rating vx-rating--${ratingCls(row.rating)}`} title={row.rating === "Incomplete" ? "A section has no data yet (Fundamental, Management or Valuation): not rated" : "Excellent 13+ · Good 9+ · Average 5+"}>
                         {row.rating}
                       </span>
                     </td>

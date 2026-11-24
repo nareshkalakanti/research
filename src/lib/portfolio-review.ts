@@ -1,4 +1,4 @@
-import { annualPoints, cagrCheck } from "./napkin/quality-flags";
+import { annualPoints, bookValuePerShare, cagrCheck, ROCE_MIN, roceAverage } from "./napkin/quality-flags";
 import { runConcurrent } from "./scrape-pool";
 import { buildScannerData } from "./scanner";
 import {
@@ -31,6 +31,7 @@ import {
 import { loadHtIvMap } from "./strategy/ht-store";
 import { fetchCashDebt } from "./yfinance";
 import { trailingYear } from "./ttm";
+import { latestAnnualEpsPat, pickCurrentEps } from "./napkin/current-eps";
 import { openSqliteNamed } from "./sqlite-utils";
 import { roce3yFromAnnual, sales3yFromAnnual } from "./value-legs-math";
 
@@ -96,7 +97,7 @@ export type ReviewRow = {
   /** Quality + valuation, out of 17. */
   total: number;
   total_max: number;
-  rating: "Excellent" | "Good" | "Average" | "Poor" | "No data";
+  rating: "Excellent" | "Good" | "Average" | "Poor" | "Incomplete" | "No data";
 };
 
 export const MGMT = { pledgeMax: 0, institutionalMin: 1 } as const;
@@ -465,22 +466,8 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
       note: c.note,
     } as FundCheck;
   };
-  // Per share: book value ÷ shares, with shares = net profit ÷ EPS for the
-  // same year. Screener's EPS is bonus/split-adjusted, so a bonus issue does
-  // not look like a fall in book value per share (equity capital doubles on a
-  // 1:1 bonus — TCS 2018). Fresh issues still dilute, as they should.
-  const plShares = new Map<string, number>();
-  if (pl) pl.dates.forEach((d, i) => {
-    const pat = pl.pat[i];
-    const eps = pl.eps[i];
-    if (pat != null && eps != null && pat > 0 && eps > 0) plShares.set(d.slice(0, 7), pat / eps);
-  });
-  const bvps = bs
-    ? bs.book_value.map((v, i) => {
-        const sh = plShares.get(bs.dates[i]!.slice(0, 7));
-        return v != null && sh ? v / sh : null;
-      })
-    : undefined;
+  // Per share (shared rule, see bookValuePerShare).
+  const bvps = bookValuePerShare(pl, bs);
   {
     // Shares issued in the window (debt converted to equity, placements) make
     // per-share history not comparable: the shared check marks it "not scored".
@@ -496,21 +483,19 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
   checks.push(
     fromCagr("sales", "Sales growth", pl?.dates.length ? pl.dates : annual?.dates, pl?.dates.length ? pl.revenue : annual?.sales),
   );
-  // ROCE 10-year average
+  // ROCE 10-year average (shared rule, see roceAverage).
   {
-    const all = annual ? annualPoints(annual.dates, annual.roce) : [];
-    const pts = all.slice(-(all.length >= 10 ? 10 : all.length >= 5 ? 5 : 3));
-    if (pts.length >= 3) {
-      const avg = pts.reduce((a, p) => a + p.v, 0) / pts.length;
+    const r = roceAverage(annual);
+    if (r) {
       checks.push({
         id: "roce",
         label: "ROCE",
-        rule: `> ${FUND.roce}% average · ${pts.length} yrs`,
-        value: pct(avg),
-        points: avg > FUND.roce ? 1 : 0,
-        note: `${pts.length} yrs average · FY${pts[0]!.date.slice(0, 4)} → FY${pts[pts.length - 1]!.date.slice(0, 4)}`,
+        rule: `> ${ROCE_MIN}% average · ${r.years} yrs`,
+        value: pct(r.avg),
+        points: r.avg > ROCE_MIN ? 1 : 0,
+        note: `${r.years} yrs average · FY${r.from} → FY${r.to}`,
       });
-    } else checks.push({ id: "roce", label: "ROCE", rule: `> ${FUND.roce}% average · up to 10 yrs`, value: "—", points: null, note: "Not enough years" });
+    } else checks.push({ id: "roce", label: "ROCE", rule: `> ${ROCE_MIN}% average · up to 10 yrs`, value: "—", points: null, note: "Not enough years" });
   }
   // Interest coverage, latest year
   {
@@ -793,10 +778,15 @@ async function scoreValuation(
   }
   // EPS (TTM from quarters, else latest annual) and book value per share
   const shares = mcap && price ? mcap / price : null; // crore shares
-  // EPS: last 4 quarters' net profit ÷ shares (quarterly EPS rows are unreliable), else latest annual EPS.
-  const qs = recentQuarters(t);
-  const ttmNi = qs && qs.every((q) => q.netIncome != null) ? qs.reduce((a, q) => a + (q.netIncome as number), 0) : null;
-  const eps = ttmNi != null && shares ? ttmNi / shares : last(pl?.eps ?? annual?.eps);
+  // EPS: one rule with Napkin's headline P/E (pickCurrentEps) — quarter EPS,
+  // else last 12 months' profit ÷ shares implied by the annual report (so
+  // minority interest cancels: Reliance ₹60.7, not ₹70.7), else annual EPS.
+  const yearNow = latestAnnualEpsPat(pl);
+  const eps = pickCurrentEps({
+    quarters: loadCachedQuartersSeries(t) ?? [],
+    annualEps: yearNow.eps ?? last(annual?.eps),
+    annualPat: yearNow.pat,
+  }).eps;
   const bvps = bv && shares ? bv / shares : null;
   // Graham number
   if (price && eps != null && bvps != null) {
@@ -964,7 +954,10 @@ async function cachedScore(
   ]);
   // Nothing scored usually means Screener was paused or slow: keep that only
   // briefly so the stock is retried, instead of showing "No data" for 6 h.
-  const empty = !checks.some((c) => c.points != null) && !m.some((c) => c.points != null);
+  // A section with nothing scored (Screener paused, shareholding missing) is
+  // kept only as briefly too, and never saved: the next open retries it.
+  const empty =
+    !checks.some((c) => c.points != null) || !m.some((c) => c.points != null) || !val.some((c) => c.points != null);
   const v: ScoreBundle = {
     at: Date.now(),
     ttl: empty ? EMPTY_SCORE_TTL_MS : SCORE_DISK_TTL_MS,
@@ -1012,10 +1005,14 @@ function rowFromScores(
   const valuation = val.reduce((a, c) => a + (c.points ?? 0), 0);
   const quality = fundamental + management;
   const total = quality + valuation;
+  // A whole section with nothing scored (shareholding or statements not
+  // loaded) would rate the stock on part of the 17 points: say so instead.
   const rating: ReviewRow["rating"] =
     !scored && !mScored
       ? "No data"
-      : total >= RATING.excellent
+      : !scored || !mScored || !vScored
+        ? "Incomplete"
+        : total >= RATING.excellent
         ? "Excellent"
         : total >= RATING.good
           ? "Good"

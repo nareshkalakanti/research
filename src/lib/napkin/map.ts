@@ -177,6 +177,7 @@ export function researchFromYahoo(
       ebitda_margin: row.ebitda_margin,
       roce: row.roce,
       debt_equity: row.debt_equity,
+      lender: row.is_lender,
     }),
     growth: napkinGrowth({
       revenue_yoy: annualYoyGrowth(row.annuals?.map((a) => a.revenue) ?? null),

@@ -8,7 +8,7 @@ import { loadMetricsMap } from "../metrics";
 import { fetchCashDebt } from "../yfinance";
 import { fetchScreenerQuarterlyFundamentals } from "../screener-quarters";
 import { fetchScreenerShareholding } from "../screener-shareholding";
-import { trailingYear } from "../ttm";
+import { EPS_PICK_LABEL, latestAnnualEpsPat, pickCurrentEps } from "./current-eps";
 
 /**
  * Napkin "Quality checks & red flags" (10-year view), from Screener's company
@@ -91,6 +91,48 @@ export function annualPoints(dates: string[], vals: Array<number | null>): Array
   for (const p of pts) months.set(p.date.slice(5, 7), (months.get(p.date.slice(5, 7)) ?? 0) + 1);
   const main = [...months].sort((a, b) => b[1] - a[1])[0]?.[0];
   return pts.filter((p) => p.date.slice(5, 7) === main);
+}
+
+/**
+ * Book value per share by year: book value ÷ shares, with shares = net profit ÷
+ * EPS for the same year. Screener's EPS is bonus/split-adjusted, so a bonus
+ * issue does not look like a fall in book value per share (equity capital
+ * doubles on a 1:1 bonus — TCS 2018). Fresh issues still dilute, as they should.
+ * Shared by Napkin quality checks and the portfolio score: one rule, one number.
+ */
+export function bookValuePerShare(
+  pl: { dates: string[]; pat: Array<number | null>; eps: Array<number | null> } | null | undefined,
+  bs: { dates: string[]; book_value: Array<number | null> } | null | undefined,
+): Array<number | null> | undefined {
+  if (!bs) return undefined;
+  const shares = new Map<string, number>();
+  if (pl)
+    pl.dates.forEach((d, i) => {
+      const pat = pl.pat[i];
+      const eps = pl.eps[i];
+      if (pat != null && eps != null && pat > 0 && eps > 0) shares.set(d.slice(0, 7), pat / eps);
+    });
+  return bs.book_value.map((v, i) => {
+    const sh = shares.get(bs.dates[i]!.slice(0, 7));
+    return v != null && sh ? v / sh : null;
+  });
+}
+
+/** ROCE rule (score and Napkin): average of the last 10 years (else 5, else 3); passes above 10%. */
+export const ROCE_MIN = 10;
+export function roceAverage(
+  annual: { dates: string[]; roce: Array<number | null> } | null | undefined,
+): { avg: number; years: number; from: string; to: string; below: number } | null {
+  const all = annual ? annualPoints(annual.dates, annual.roce) : [];
+  const pts = all.slice(-(all.length >= 10 ? 10 : all.length >= 5 ? 5 : 3));
+  if (pts.length < 3) return null;
+  return {
+    avg: pts.reduce((a, p) => a + p.v, 0) / pts.length,
+    years: pts.length,
+    from: pts[0]!.date.slice(0, 4),
+    to: pts[pts.length - 1]!.date.slice(0, 4),
+    below: pts.filter((p) => p.v <= ROCE_MIN).length,
+  };
 }
 
 /**
@@ -212,14 +254,17 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
   if (sh && sh.yearly_dates === undefined) sh = await fetchScreenerShareholding(t, { force: true }).catch(() => sh);
 
   const quality: QfCheck[] = [];
-  // 1) Book value
-  quality.push(
-    bs?.dates.length
-      ? cagrCheck("bv", "Book value growth", bs.dates, bs.book_value, {
-          shareCapital: { dates: bs.dates, values: bs.equity_capital },
-        })
-      : { id: "bv", label: "Book value growth", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No balance sheet" },
-  );
+  // 1) Book value per share (same rule as the portfolio score)
+  {
+    const bvps = bookValuePerShare(pl, bs);
+    quality.push(
+      bs?.dates.length && bvps
+        ? cagrCheck("bv", "Book value growth (per share)", bs.dates, bvps, {
+            shareCapital: { dates: bs.dates, values: bs.equity_capital },
+          })
+        : { id: "bv", label: "Book value growth (per share)", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No balance sheet" },
+    );
+  }
   // 2) EPS
   const epsDates = pl?.dates.length ? pl.dates : annual?.dates ?? [];
   const epsVals = pl?.dates.length ? pl.eps : annual?.eps ?? [];
@@ -228,29 +273,22 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
       ? cagrCheck("eps", "EPS growth", epsDates, epsVals)
       : { id: "eps", label: "EPS growth", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No annual EPS" },
   );
-  // 3) ROCE — median of recent years (mean is skewed by one listing/base spike).
+  // 3) ROCE — 10-year average, same rule as the portfolio score.
   {
-    const pts = annual ? annualPoints(annual.dates, annual.roce) : [];
-    const last = pts.slice(-(pts.length >= QF_RULES.years ? QF_RULES.years : pts.length >= 5 ? 5 : 3));
-    if (last.length >= QF_RULES.minYears) {
-      const sorted = [...last.map((p) => p.v)].sort((a, b) => a - b);
-      const mid = Math.floor(sorted.length / 2);
-      const med =
-        sorted.length % 2
-          ? sorted[mid]!
-          : (sorted[mid - 1]! + sorted[mid]!) / 2;
-      const below = last.filter((p) => p.v < QF_RULES.roceAvg).length;
-      quality.push({
-        id: "roce",
-        label: "ROCE",
-        rule: `≥ ${QF_RULES.roceAvg}% median`,
-        value: pct(med),
-        verdict: med >= QF_RULES.roceAvg ? "pass" : "fail",
-        note: `${last.length} yrs median · ${below ? `${below} yr${below > 1 ? "s" : ""} below ${QF_RULES.roceAvg}%` : `never below ${QF_RULES.roceAvg}%`}`,
-      });
-    } else {
-      quality.push({ id: "roce", label: "ROCE", rule: `≥ ${QF_RULES.roceAvg}% median`, value: "—", verdict: "na", note: "Not enough years" });
-    }
+    const r = roceAverage(annual);
+    const rule = `> ${ROCE_MIN}% average`;
+    quality.push(
+      r
+        ? {
+            id: "roce",
+            label: "ROCE",
+            rule,
+            value: pct(r.avg),
+            verdict: r.avg > ROCE_MIN ? "pass" : "fail",
+            note: `${r.years} yrs average · FY${r.from} → FY${r.to} · ${r.below ? `${r.below} yr${r.below > 1 ? "s" : ""} at or below ${ROCE_MIN}%` : `never below ${ROCE_MIN}%`}`,
+          }
+        : { id: "roce", label: "ROCE", rule, value: "—", verdict: "na", note: "Not enough years" },
+    );
   }
   // 4) Promoter holding steady / rising
   {
@@ -359,7 +397,8 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
     }
   }
 
-  const peg = buildPeg(t, pl?.dates.length ? pl.dates : annual?.dates ?? [], pl?.dates.length ? pl.eps : annual?.eps ?? [], quarters ?? []);
+  const yearNow = latestAnnualEpsPat(pl);
+  const peg = buildPeg(t, pl?.dates.length ? pl.dates : annual?.dates ?? [], pl?.dates.length ? pl.eps : annual?.eps ?? [], quarters ?? [], yearNow);
 
   const scored = quality.filter((q) => q.verdict !== "na");
   return {
@@ -388,19 +427,19 @@ function buildPeg(
   ticker: string,
   dates: string[],
   eps: Array<number | null>,
-  quarters: Array<{ date: string; eps: number | null }>,
+  quarters: Array<{ date: string; eps: number | null; netIncome?: number | null; revenue?: number | null }>,
+  year: { eps: number | null; pat: number | null } = { eps: null, pat: null },
 ): PegInfo {
   const warnings: string[] = [];
   const pts = annualPoints(dates, eps);
   const price = loadMetricsMap().get(ticker)?.price ?? null;
 
-  // P/E: price ÷ TTM EPS (last 4 quarters), else latest annual EPS.
-  const qs = trailingYear(quarters, Date.now(), (q) => q.eps != null);
-  const ttm = qs ? qs.reduce((a, q) => a + (q.eps as number), 0) : null;
+  // P/E: price ÷ current EPS — the same rule as Napkin's headline P/E.
   const lastFy = pts.at(-1)?.v ?? null;
-  const epsNow = ttm ?? lastFy;
+  const pick = pickCurrentEps({ quarters, annualEps: year.eps ?? lastFy, annualPat: year.pat });
+  const epsNow = pick.eps;
   const pe = price != null && epsNow != null && epsNow > 0 ? price / epsNow : null;
-  const peBasis = ttm != null ? "price ÷ TTM EPS (last 12 months)" : "price ÷ latest annual EPS";
+  const peBasis = `price ÷ ${pick.source ? EPS_PICK_LABEL[pick.source] : "latest annual EPS"}`;
   if (price != null && epsNow != null && epsNow <= 0) warnings.push("Loss-making on current earnings — P/E and PEG not meaningful.");
 
   const growth = (years: number): { g: number | null; start: number | null; startYear: string | null } => {

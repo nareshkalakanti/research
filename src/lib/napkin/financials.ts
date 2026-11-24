@@ -15,7 +15,11 @@ import {
   fetchScreenerAnnualPl,
 } from "@/lib/screener-annual";
 import { fetchScreenerTopRatios } from "@/lib/screener-ratios";
-import { toYfinanceSymbol, yfSymbolCandidates } from "@/lib/yfinance";
+import { fetchCashDebt, inrPerUnit, toYfinanceSymbol, yfSymbolCandidates } from "@/lib/yfinance";
+import { fetchScreenerQuarterlyFundamentals } from "@/lib/screener-quarters";
+import { masterLabels } from "@/lib/stock-master";
+import { EPS_PICK_LABEL, latestAnnualEpsPat, pickCurrentEps } from "./current-eps";
+import { isLender } from "./performance";
 import { growwAnnualPairs, screenerPlPairs } from "./cagr-history";
 import type { NapkinCagr, NapkinStockJson } from "./types";
 
@@ -482,9 +486,22 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     null;
   let price = num(priceMod.regularMarketPrice) ?? num(fin.currentPrice);
 
+  // Yahoo reports some Indian companies in US dollars (Infosys): convert every
+  // statement amount to rupees. A currency with no rate → Yahoo amounts unused.
+  const fx = await inrPerUnit(typeof fin.financialCurrency === "string" ? fin.financialCurrency : null);
+  if (fx != null && fx !== 1) warnings.push(`Yahoo statements in ${String(fin.financialCurrency)}: converted at ₹${fx.toFixed(2)}.`);
+  if (fx == null) warnings.push(`Yahoo statements in ${String(fin.financialCurrency)} (no rate): Screener figures used.`);
+  const toInr = (v: unknown): number | null => {
+    const n = num(v);
+    return n == null || fx == null ? null : n * fx;
+  };
+  const fxS = (xs: Array<[string, number]>): Array<[string, number]> =>
+    fx == null ? [] : fx === 1 ? xs : xs.map(([y, v]) => [y, v * fx] as [string, number]);
+
   // When Yahoo is throttling, skip annual Yahoo modules — Screener owns CAGRs.
   const emptyAnnual: Array<Record<string, unknown>> = [];
-  const [income, cashflow, balance, screenerPl, screenerBs] = await Promise.all([
+  const marketForYahoo = resolveListingMarket(bare);
+  const [income, cashflow, balance, screenerPl, screenerBs, quarters, cashDebt] = await Promise.all([
     yahooLimited
       ? Promise.resolve(emptyAnnual)
       : annualModule(symbol, "financials"),
@@ -496,19 +513,23 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
       : annualModule(symbol, "balance-sheet"),
     fetchScreenerAnnualPl(bare).catch(() => null),
     fetchScreenerAnnualBs(bare).catch(() => null),
+    fetchScreenerQuarterlyFundamentals(bare).catch(() => []),
+    yahooLimited || yahooMissing
+      ? Promise.resolve({ cash_cr: null, debt_cr: null, symbol: null })
+      : fetchCashDebt(bare, marketForYahoo).catch(() => ({ cash_cr: null, debt_cr: null, symbol: null })),
   ]);
 
-  const revenueS = series(income, REV);
-  const niS = series(income, NI);
-  const epsS = epsByYear(income);
-  const ebitS = series(income, EBIT);
-  const ebitdaS = series(income, EBITDA);
-  const fcfS = series(cashflow, FCF);
-  const equityS = series(balance, EQUITY);
-  const assetsS = series(balance, ASSETS);
-  const clS = series(balance, CL);
-  const debtS = series(balance, DEBT);
-  const cashS = series(balance, CASH);
+  const revenueS = fxS(series(income, REV));
+  const niS = fxS(series(income, NI));
+  const epsS = fxS(epsByYear(income));
+  const ebitS = fxS(series(income, EBIT));
+  const ebitdaS = fxS(series(income, EBITDA));
+  const fcfS = fxS(series(cashflow, FCF));
+  const equityS = fxS(series(balance, EQUITY));
+  const assetsS = fxS(series(balance, ASSETS));
+  const clS = fxS(series(balance, CL));
+  const debtS = fxS(series(balance, DEBT));
+  const cashS = fxS(series(balance, CASH));
 
   const trailingEps = num(stats.trailingEps);
   const rev2 = windowCagr(revenueS, 2);
@@ -616,14 +637,25 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     warnings.push(REASON_SHORT_5Y);
   }
 
-  let latestNi = niS.at(-1)?.[1] ?? num(fin.netIncomeToCommon);
-  let latestRev = revenueS.at(-1)?.[1] ?? num(fin.totalRevenue);
+  let latestNi = niS.at(-1)?.[1] ?? toInr(fin.netIncomeToCommon);
+  let latestRev = revenueS.at(-1)?.[1] ?? toInr(fin.totalRevenue);
   const latestEbit = ebitS.at(-1)?.[1] ?? null;
   const latestEq = equityS.at(-1)?.[1] ?? null;
   const latestAssets = assetsS.at(-1)?.[1] ?? null;
   const latestCl = clS.at(-1)?.[1] ?? null;
 
-  let trailingEpsFill = trailingEps;
+  // Current EPS: one rule across the app (see pickCurrentEps) — Yahoo's
+  // trailing EPS only when it agrees with the annual report (VBL: Yahoo ₹2.89
+  // against ₹8.98 for the year).
+  const { eps: annualEpsNow, pat: annualPatNow } = latestAnnualEpsPat(screenerPl);
+  const epsPick = pickCurrentEps({ quarters, annualEps: annualEpsNow, annualPat: annualPatNow, yahooTtm: trailingEps });
+  let trailingEpsFill = epsPick.eps ?? trailingEps;
+  const epsBasis = epsPick.source ? EPS_PICK_LABEL[epsPick.source] : trailingEps != null ? EPS_PICK_LABEL.yahoo_ttm : null;
+  if (epsPick.rejected_yahoo != null) {
+    warnings.push(
+      `Yahoo trailing EPS ₹${epsPick.rejected_yahoo.toFixed(2)} disagrees with the annual report (₹${annualEpsNow?.toFixed(2)}): annual EPS used.`,
+    );
+  }
   // Yahoo often blanks current levels on NSE SME — fill from Screener annual + ratios.
   if (screenerPl) {
     if (trailingEpsFill == null) {
@@ -641,8 +673,10 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
 
   let marketCap =
     num(priceMod.marketCap) ?? num(det.marketCap);
-  let pe =
-    num(det.trailingPE) ?? num(fin.trailingPE) ?? num(stats.forwardPE);
+  // P/E is always price ÷ the EPS shown; a loss means no P/E. Only with no
+  // EPS at all does a quoted P/E fill in.
+  let pe: number | null =
+    trailingEpsFill != null ? null : num(det.trailingPE) ?? num(fin.trailingPE) ?? null;
 
   // Current ROE/ROCE: Screener top ratios (same as Screener company card) →
   // annual last resort → Tickertape → Yahoo. Do not prefer annual over top —
@@ -655,7 +689,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
   {
     const ratios = await fetchScreenerTopRatios(bare).catch(() => null);
     if (ratios) {
-      if (pe == null && ratios.stock_pe != null) pe = ratios.stock_pe;
+      if (pe == null && trailingEpsFill == null && ratios.stock_pe != null) pe = ratios.stock_pe;
       if (roe == null && ratios.roe != null) roe = ratios.roe;
       screenerTopRoce = ratios.roce;
       // Price/mcap: prefer exchange/Yahoo; Screener only fills blanks.
@@ -693,7 +727,7 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
         writeTickertapeRatiosCache(bare, tape);
         if (roe == null && tape.roe != null) roe = tape.roe;
         if (roce == null && tape.roce != null) roce = tape.roce;
-        if (pe == null && tape.pe != null) pe = tape.pe;
+        if (pe == null && trailingEpsFill == null && tape.pe != null) pe = tape.pe;
         if (price == null && tape.price != null) price = tape.price;
         if (marketCap == null && tape.mcap_cr != null) {
           marketCap = tape.mcap_cr * INR_PER_CR;
@@ -735,13 +769,15 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     );
   }
 
+  if (price != null && trailingEpsFill != null) pe = trailingEpsFill > 0 ? price / trailingEpsFill : null;
+
   let marginNow: number | null = null;
   if (latestNi != null && latestRev != null && latestRev !== 0) {
     marginNow = latestNi / latestRev;
   }
 
   const latestEbitda =
-    ebitdaS.at(-1)?.[1] ?? num(fin.ebitda) ?? null;
+    ebitdaS.at(-1)?.[1] ?? toInr(fin.ebitda) ?? null;
   let ebitda_margin: number | null = null;
   if (latestEbitda != null && latestRev != null && latestRev > 0) {
     ebitda_margin = latestEbitda / latestRev;
@@ -751,15 +787,22 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     if (op != null && revCr != null && revCr > 0) ebitda_margin = op / revCr;
   }
 
-  const totalDebt = debtS.at(-1)?.[1] ?? num(fin.totalDebt) ?? null;
+  // Debt and cash: the same figures the Cash rich checks use — Yahoo's latest
+  // (financialData), else Screener borrowings — not Yahoo's annual balance
+  // sheet (Polycab ₹4,501 Cr there against ₹272 Cr borrowings).
+  const scrBorrow = screenerBs ? lastFinite(screenerBs.borrowings) : null;
+  const scrBook = screenerBs ? lastFinite(screenerBs.book_value) : null;
+  const totalDebt =
+    cashDebt.debt_cr != null
+      ? cashDebt.debt_cr * INR_PER_CR
+      : scrBorrow != null
+        ? scrBorrow * INR_PER_CR
+        : debtS.at(-1)?.[1] ?? toInr(fin.totalDebt) ?? null;
+  const cashNow = cashDebt.cash_cr != null ? cashDebt.cash_cr * INR_PER_CR : cashS.at(-1)?.[1] ?? toInr(fin.totalCash) ?? null;
+  // Equity: Screener book value (₹ Cr, consolidated) first, else Yahoo's.
+  const equityNow = scrBook != null && scrBook > 0 ? scrBook * INR_PER_CR : latestEq;
   let debt_equity: number | null = null;
-  if (totalDebt != null && latestEq != null && latestEq > 0) {
-    debt_equity = totalDebt / latestEq;
-  } else if (screenerBs) {
-    const borrow = lastFinite(screenerBs.borrowings);
-    const book = lastFinite(screenerBs.book_value);
-    if (borrow != null && book != null && book > 0) debt_equity = borrow / book;
-  }
+  if (totalDebt != null && equityNow != null && equityNow > 0) debt_equity = totalDebt / equityNow;
 
   let years = [
     ...new Set(
@@ -876,10 +919,12 @@ export async function getStockData(ticker: string): Promise<NapkinStockJson> {
     net_income: latestNi ?? null,
     ebitda: latestEbitda,
     ebitda_margin,
-    free_cash_flow: fcfS.at(-1)?.[1] ?? num(fin.freeCashflow) ?? null,
+    free_cash_flow: fcfS.at(-1)?.[1] ?? toInr(fin.freeCashflow) ?? null,
     total_debt: totalDebt,
     debt_equity,
-    cash: cashS.at(-1)?.[1] ?? num(fin.totalCash) ?? null,
+    cash: cashNow,
+    eps_basis: epsBasis,
+    is_lender: isLender(masterLabels().get(bare)?.industry ?? null, String(profile.industry || "") || null),
     shares_outstanding: num(stats.sharesOutstanding) ?? num(priceMod.sharesOutstanding),
     roe,
     roce,

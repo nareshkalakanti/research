@@ -52,6 +52,10 @@ export type NapkinDataQuality = {
 
 export type NapkinStockJson = {
   ok: boolean;
+  /** How current EPS was found (P/E = price ÷ this EPS). */
+  eps_basis?: string | null;
+  /** Bank / NBFC: EBITDA margin, ROCE and debt/equity checks do not apply. */
+  is_lender?: boolean;
   error?: string | null;
   error_code?: string | null;
   company_name: string | null;

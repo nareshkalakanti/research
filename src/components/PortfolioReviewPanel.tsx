@@ -35,7 +35,7 @@ type ReviewRow = {
   v_checks: FundCheck[];
   total: number;
   total_max: number;
-  rating: "Excellent" | "Good" | "Average" | "Poor" | "No data";
+  rating: "Excellent" | "Good" | "Average" | "Poor" | "Incomplete" | "No data";
 };
 type DrawerKind = "fundamental" | "management" | "quality" | "valuation";
 const DRAWER: Record<DrawerKind, { title: string; label: string; max: number; src: string }> = {
@@ -251,7 +251,7 @@ export function PortfolioReviewPanel({
   /** Colour by share of checks passed: ≥ 65% green · ≥ 40% amber · else red. */
   const cls = (got: number, of: number) => (!of ? "na" : got / of >= 0.65 ? "good" : got / of >= 0.4 ? "mid" : "bad");
   const ratingCls = (r: ReviewRow) =>
-    r.rating === "Excellent" ? "top" : r.rating === "Good" ? "good" : r.rating === "Average" ? "mid" : r.rating === "Poor" ? "bad" : "na";
+    r.rating === "Excellent" ? "top" : r.rating === "Good" ? "good" : r.rating === "Average" ? "mid" : r.rating === "Poor" ? "bad" : "na"; // Incomplete / No data: grey
   const valCls = (v: number, n: number) => (!n ? "na" : v >= 3 ? "good" : v >= 1 ? "mid" : "bad");
 
   return (

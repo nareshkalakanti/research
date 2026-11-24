@@ -540,6 +540,29 @@ export async function fetchYfAboutProfile(
 }
 
 /** Total cash and total debt (₹ Cr) from Yahoo's financialData, trying NSE / BSE symbols. */
+const fxMemo = new Map<string, { at: number; v: number | null }>();
+/**
+ * Rupees per one unit of `currency` (Yahoo `USDINR=X`). Yahoo reports some
+ * Indian companies' statements in US dollars (Infosys): every amount from
+ * those statements is multiplied by this. INR / blank → 1; unknown → null.
+ */
+export async function inrPerUnit(currency: string | null | undefined): Promise<number | null> {
+  const cur = (currency || "INR").trim().toUpperCase();
+  if (cur === "INR") return 1;
+  const hit = fxMemo.get(cur);
+  if (hit && Date.now() - hit.at < 12 * 3_600_000) return hit.v;
+  let v: number | null = null;
+  try {
+    const q = (await withTimeout(yf.quote(`${cur}INR=X`), 7000)) as { regularMarketPrice?: number } | undefined;
+    v = num(q?.regularMarketPrice);
+    if (v != null && v <= 0) v = null;
+  } catch {
+    v = null;
+  }
+  fxMemo.set(cur, { at: Date.now(), v });
+  return v;
+}
+
 const cashMemo = new Map<string, { at: number; v: { cash_cr: number | null; debt_cr: number | null; symbol: string | null } }>();
 /** Hits kept 6 h, misses 24 h (small SME / BSE names never have a Yahoo cash figure). */
 export async function fetchCashDebt(
@@ -561,14 +584,17 @@ async function fetchCashDebtRaw(
   for (const symbol of yfSymbolCandidates(ticker, market).slice(0, 3)) {
     try {
       const qs = (await yf.quoteSummary(symbol, { modules: ["financialData"] })) as {
-        financialData?: { totalCash?: number | null; totalDebt?: number | null };
+        financialData?: { totalCash?: number | null; totalDebt?: number | null; financialCurrency?: string | null };
       };
       const fd = qs?.financialData;
       if (!fd) continue;
       const cash = num(fd.totalCash);
       const debt = num(fd.totalDebt);
       if (cash == null && debt == null) continue;
-      return { cash_cr: cash == null ? null : cash / 1e7, debt_cr: debt == null ? null : debt / 1e7, symbol };
+      // Statements in another currency (Infosys: US dollars) → rupees; no rate → no figure.
+      const fx = await inrPerUnit(fd.financialCurrency);
+      if (fx == null) return { cash_cr: null, debt_cr: null, symbol: null };
+      return { cash_cr: cash == null ? null : (cash * fx) / 1e7, debt_cr: debt == null ? null : (debt * fx) / 1e7, symbol };
     } catch {
       /* next symbol */
     }
