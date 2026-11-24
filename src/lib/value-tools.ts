@@ -1058,14 +1058,20 @@ export async function buildIndustryCycle(opts?: { fresh?: boolean }): Promise<{ 
     const ret3y = avg(e.r3);
     const ret5y = avg(e.r5);
     if (ret3y == null && ret5y == null) continue;
+    // A horizon only counts when enough of the industry has that much history
+    // (≥ 3 stocks and ≥ half of them): one old stock must not label a group of
+    // recent listings (e.g. New age Platform E Retail = Nykaa + 5 new IPOs).
+    const need = Math.max(Math.min(3, e.n), Math.ceil(e.n / 2));
+    const c3 = e.r3.length >= need ? ret3y : null;
+    const c5 = e.r5.length >= need ? ret5y : null;
     const status: CycleStatus =
-      ret5y != null && ret5y < CYCLE.deepOut5y
+      c5 != null && c5 < CYCLE.deepOut5y
         ? "deep_out"
-        : ret3y != null && ret3y < CYCLE.out3y
+        : c3 != null && c3 < CYCLE.out3y
           ? "out"
-          : ret5y != null && ret5y > CYCLE.extremeHot5y
+          : c5 != null && c5 > CYCLE.extremeHot5y
             ? "extreme_hot"
-            : ret3y != null && ret3y > CYCLE.hot3y
+            : c3 != null && c3 > CYCLE.hot3y
               ? "hot"
               : "neutral";
     const r2 = (v: number | null) => (v == null ? null : Math.round(v * 100) / 100);
