@@ -1,5 +1,5 @@
 /**
- * Yahoo quarterly income — PEAD2-style field picks + stub trim.
+ * Yahoo quarterly income — field picks + stub trim.
  * Uses yahoo-finance2 `fundamentalsTimeSeries` (JS stand-in for
  * `yf.Ticker(...).quarterly_income_stmt`).
  */
@@ -25,14 +25,14 @@ import { toYfinanceSymbol, yfSymbolCandidates } from "./yfinance";
 
 export type { QuarterPoint };
 
-/** PEAD REVENUE_FIELDS → Yahoo camelCase keys. */
+/** Revenue fields → Yahoo camelCase keys. */
 const REVENUE_FIELDS = [
   "totalRevenue",
   "operatingRevenue",
   "revenue",
 ] as const;
 
-/** PEAD EBIDT_FIELDS (+ pretax fallbacks). */
+/** EBITDA fields (+ pretax fallbacks). */
 const EBIDT_FIELDS = [
   "operatingIncome",
   "EBIT",
@@ -42,7 +42,7 @@ const EBIDT_FIELDS = [
   "netIncomeContinuousOperations",
 ] as const;
 
-/** PEAD NET_INCOME_FIELDS. */
+/** Net income fields. */
 const NET_INCOME_FIELDS = [
   "netIncome",
   "netIncomeCommonStockholders",
@@ -50,7 +50,7 @@ const NET_INCOME_FIELDS = [
   "dilutedNIAvailtoComStockholders",
 ] as const;
 
-/** PEAD EPS_FIELDS. */
+/** EPS fields. */
 const EPS_FIELDS = [
   "dilutedEPS",
   "basicEPS",
@@ -283,7 +283,7 @@ export async function fetchQuarterlyFundamentals(
     screenerForce?: boolean;
     /** Skip Screener live/cache overlay (bulk Fill Quarters — avoid throttle hangs). */
     skipScreener?: boolean;
-    /** PEAD bulk: Yahoo first; Groww tip-extend; skip Screener when skipScreener. */
+    /** Bulk: Yahoo first; Groww tip-extend; skip Screener when skipScreener. */
     yahooFirst?: boolean;
   },
 ): Promise<{
@@ -337,7 +337,7 @@ export async function fetchQuarterlyFundamentals(
     }
   };
 
-  // stocks-ai PEAD path: Yahoo first, then deepen only if empty.
+  // Yahoo first, then deepen only if empty.
   if (opts?.yahooFirst) {
     const yfHit = await fetchYahooQuarterSeries(symbolCandidates);
     if (yfHit.quarters.length >= 2) {

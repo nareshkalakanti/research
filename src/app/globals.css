@@ -2330,50 +2330,13 @@ a.brand-btn:hover .brand-name {
   padding-left: 2px;
 }
 
-.pead2-score {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 3.1rem;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  font-size: 0.84rem;
-  line-height: 1.2;
-}
 
-.pead2-score-high {
-  background: var(--cb-d1fae5);
-  color: var(--ct-047857);
-}
 
-.pead2-score-mid {
-  background: var(--cb-fef3c7);
-  color: var(--ct-b45309);
-}
 
-.pead2-score-low {
-  background: var(--cb-fee2e2);
-  color: var(--ct-b91c1c);
-}
 
-.pead2-score-na {
-  background: var(--cb-f1f5f9);
-  color: var(--muted);
-}
 
-.pead-good {
-  color: var(--ct-047857);
-}
 
-.pead-mid {
-  color: var(--ct-b45309);
-}
 
-.pead-bad {
-  color: var(--ct-b91c1c);
-}
 
 .seven-rule-card {
   border: 1px solid var(--border, var(--cl-e5e7eb));
@@ -2503,9 +2466,6 @@ a.brand-btn:hover .brand-name {
   color: var(--ct-6b7280);
 }
 
-.pead-na {
-  color: var(--muted);
-}
 
 .toolbar {
   display: flex;
@@ -3306,18 +3266,7 @@ button.result-tag {
   color: var(--ct-6b21a8);
 }
 
-.tag-scan-pead {
-  background: var(--cb-eef2ff);
-  border-color: var(--cl-c7d2fe);
-  color: var(--ct-3730a3);
-}
 
-.tag-scan-pead.on,
-.result-tag.tag-scan-pead {
-  background: var(--cb-4f46e5);
-  border-color: var(--cl-4338ca);
-  color: var(--ct-ffffff);
-}
 
 .tag-scan-quant {
   background: var(--cb-ecfdf5);
@@ -5287,75 +5236,14 @@ button.result-tag {
   color: var(--ink);
 }
 
-.data-table--pead col.col-name {
-  width: 22%;
-}
-.data-table--pead col.col-revgr-pct,
-.data-table--pead col.col-patgr {
-  width: 7.5rem;
-}
-.data-table--pead col.col-revgr,
-.data-table--pead col.col-mgn,
-.data-table--pead col.col-roce,
-.data-table--pead col.col-pead {
-  width: 6.2rem;
-}
-.data-table--pead col.col-tech {
-  width: 8.5rem;
-}
 
-.data-table--pead tbody td {
-  padding-top: 10px;
-  padding-bottom: 10px;
-  vertical-align: middle;
-  border-bottom: 1px solid var(--cl-eef2f7);
-}
-.data-table--pead .col-name {
-  max-width: 280px;
-}
 
-.pead-co {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-}
-.pead-co-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.pead-co-head {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-.pead-name-link {
-  color: var(--ct-2563eb);
-  font-weight: 600;
-  font-size: 15.7px;
-  text-decoration: none;
-  line-height: 1.25;
-}
-.pead-name-link:hover {
-  text-decoration: underline;
-}
-.pead-sector {
+.wl-industry {
   font-size: 13.4px;
   color: var(--muted);
   line-height: 1.3;
 }
 
-.data-table--pead td.yoy-up {
-  color: var(--ct-16a34a);
-  font-weight: 650;
-}
-.data-table--pead td.yoy-down {
-  color: var(--ct-dc2626);
-  font-weight: 650;
-}
 
 .tech-cell--very-strong {
   color: var(--ct-15803d);
@@ -19405,29 +19293,29 @@ button.rot-stat-best-name:not(:disabled):hover {
 }
 
 /* Napkin header strip — Fwd PE under the company name */
-.napkin-pead-strip {
+.napkin-pe-strip {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
 
-.napkin-pead-strip {
+.napkin-pe-strip {
   align-items: center;
 }
 
-.napkin-pead-stat {
+.napkin-pe-stat {
   display: inline-flex;
   align-items: center;
   gap: 8px;
 }
 
-.napkin-pead-stat + .napkin-pead-stat {
+.napkin-pe-stat + .napkin-pe-stat {
   padding-left: 12px;
   border-left: 1px solid var(--line);
 }
 
-.napkin-pead-stat-label {
+.napkin-pe-stat-label {
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -19435,7 +19323,7 @@ button.rot-stat-best-name:not(:disabled):hover {
   color: var(--muted);
 }
 
-.napkin-pead-stat-num {
+.napkin-pe-stat-num {
   font-size: 1rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -19466,7 +19354,6 @@ button.rot-stat-best-name:not(:disabled):hover {
 }
 
 /* Flex parents already set gap — drop the extra left margin */
-.pead-co-head .np-chip,
 .ticker-np-line .np-chip,
 .nano-meta .np-chip,
 .company-meta .np-chip,

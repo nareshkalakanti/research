@@ -6,9 +6,8 @@ import { fetchDailyBars, fetchWeeklyBars } from "./ohlc";
 import { rollingMean } from "./indicators";
 import { yfSymbolCandidates } from "./yfinance";
 import YahooFinance from "yahoo-finance2";
-import { usableAnnounceResultDate } from "./pead-announced";
+import { computeReturnsPct, usableAnnounceResultDate } from "./result-dates";
 import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
-import { computeReturnsPct } from "./pead-score";
 import { crossedAbove200DmaFromCloses } from "./dma200-cross";
 
 const yf = new YahooFinance({
@@ -98,7 +97,7 @@ async function quoteLiveBits(
         num((q as { trailingPe?: unknown }).trailingPe);
       const low = num((q as { fiftyTwoWeekLow?: unknown }).fiftyTwoWeekLow);
       const high = num((q as { fiftyTwoWeekHigh?: unknown }).fiftyTwoWeekHigh);
-      // Prefer the first symbol that has a live last price (same as PEAD metrics).
+      // Prefer the first symbol that has a live last price.
       if (out.price == null && price != null && price > 0) out.price = round2(price);
       if (pe != null && pe > 0) out.pe = round2(pe);
       if (low != null) out.low = round2(low);
@@ -150,7 +149,7 @@ export async function loadQuoteTape(
   ]);
   const closes = bars.map((b) => b.close).filter((c) => Number.isFinite(c));
   const lastClose = closes.length ? round2(closes[closes.length - 1]!) : null;
-  // Live last trade — not last daily bar (bars lag the session / PEAD column).
+  // Live last trade — not last daily bar (bars lag the session).
   const price = quote.price ?? lastClose;
   const prev_close =
     closes.length > 1

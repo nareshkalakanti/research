@@ -1,5 +1,5 @@
 /**
- * Quarterly panel unit tests (no network) — PEAD-aligned helpers.
+ * Quarterly panel unit tests (no network).
  * Run: npm run test:quarters
  */
 import assert from "node:assert/strict";

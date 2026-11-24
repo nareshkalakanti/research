@@ -262,8 +262,7 @@ export function ScanPanel() {
           ? "asc"
           : key === "price" ||
               key === "mcap_cr" ||
-              key === "rsi_m" ||
-              key === "pead_score"
+              key === "rsi_m"
             ? "desc"
             : "asc",
       );
@@ -288,8 +287,7 @@ export function ScanPanel() {
         setDir("asc");
       } else if (
         sort === "rsi_m" ||
-        sort === "rsi_rank" ||
-        sort === "pead_score"
+        sort === "rsi_rank"
       ) {
         setSort("name");
         setDir("asc");

@@ -37,7 +37,6 @@ export type SortKey =
   | "rsi_m"
   | "rsi_rank"
   | "fund_count"
-  | "pead_score"
   | "seven_rule_score"
   | "sales_yoy"
   | "np_yoy"
@@ -69,7 +68,7 @@ type Props = {
   showMatched?: boolean;
   showMissing?: boolean;
   /** Scan signal columns: 12m mom, RSI M, fund overlap count, or none. */
-  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "rule7" | "quant" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "rule7" | "quant" | null;
   /** @deprecated Prefer signalMode. */
   showMomentum?: boolean;
   /** Allow deleting a stock from local DBs (Missing Data). */
@@ -241,12 +240,10 @@ export function CompanyTable({
     setPanel("about");
   }, [expandTicker]);
 
-  const mode: "mom" | "rsi" | "overlap" | "pead" | "rule7" | "quant" | null =
+  const mode: "mom" | "rsi" | "overlap" | "rule7" | "quant" | null =
     signalMode ?? (showMomentum ? "mom" : null);
   const colSpan =
-    mode === "pead"
-      ? 8
-      : mode === "rule7"
+    mode === "rule7"
         ? 7
       : mode === "quant"
         ? 10
@@ -328,13 +325,6 @@ export function CompanyTable({
           label: "Count",
           align: "right",
         },
-      ];
-    }
-    if (mode === "pead") {
-      return [
-        { key: "name", label: "Company", align: "left" },
-        { key: "pead_score", label: "PEAD Potential", align: "left" },
-        { id: "tech", key: "pead_score", label: "Tech Strength", align: "left", sortable: false },
       ];
     }
     if (mode === "rule7") {
@@ -435,12 +425,6 @@ export function CompanyTable({
                 <col className="col-price" />
                 <col className="col-fund-count" />
               </>
-            ) : mode === "pead" ? (
-              <>
-                <col className="col-name" />
-                <col className="col-pead" />
-                <col className="col-tech" />
-              </>
             ) : mode === "rule7" ? (
               <>
                 <col className="col-ticker" />
@@ -478,11 +462,7 @@ export function CompanyTable({
             <tr>
               {headers.map((h) => {
                 const colClass =
-                  h.id === "tech"
-                    ? "col-tech"
-                    : h.key === "pead_score"
-                      ? "col-pead"
-                      : h.key === "sector"
+                  h.key === "sector"
                     ? "col-sec"
                     : h.key === "momentum_pct"
                       ? "col-mom"
@@ -904,33 +884,6 @@ function FundCountTag({ value }: { value: number | null | undefined }) {
   );
 }
 
-function BandChip({
-  band,
-  solid,
-}: {
-  band: "High" | "Med" | "Low" | null | undefined;
-  solid?: boolean;
-}) {
-  if (!band) return <span className="fund-chip fund-chip--na">—</span>;
-  return (
-    <span
-      className={`fund-chip fund-chip--${band.toLowerCase()}${solid ? " fund-chip--solid" : ""}`}
-    >
-      {band}
-    </span>
-  );
-}
-
-function techArrow(
-  strength: string | null | undefined,
-  change: string | null | undefined,
-): string {
-  if (strength === "Very Strong" || change === "Improved") return "↑";
-  if (strength === "Strong" || change === "Stable") return "→";
-  return "↓";
-}
-
-
 function CompanyRows({
   company: r,
   open,
@@ -958,7 +911,7 @@ function CompanyRows({
   showMore: boolean;
   showMatched?: boolean;
   showMissing?: boolean;
-  signalMode?: "mom" | "rsi" | "overlap" | "pead" | "rule7" | "quant" | null;
+  signalMode?: "mom" | "rsi" | "overlap" | "rule7" | "quant" | null;
   hideBrief?: boolean;
   allowDelete?: boolean;
   onDeleteStock?: (ticker: string) => void | Promise<void>;
@@ -1078,40 +1031,6 @@ function CompanyRows({
             {r.basket?.rank != null ? r.basket.rank : "—"}
           </td>
         ) : null}
-        {signalMode === "pead" ? (
-          <td className="col-name col-pead-co">
-            <div className="pead-co-text">
-                <div className="pead-co-head">
-                  <a
-                    className="pead-name-link"
-                    href={r.tv}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`${r.name} — TradingView`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    {r.name}
-                  </a>
-                  <a
-                    className="np-chip"
-                    href={napkinUrl(r.ticker)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={`Open ${r.ticker} in Napkin`}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    NP
-                  </a>
-                </div>
-                {displaySubSector || displaySector ? (
-                  <span className="pead-sector">
-                    {displaySubSector || displaySector}
-                  </span>
-                ) : null}
-            </div>
-          </td>
-        ) : (
-        <>
         <td className="col-ticker">
           <span className="ticker-np-line">
             <a
@@ -1200,8 +1119,6 @@ function CompanyRows({
             </div>
           ) : null}
         </td>
-        </>
-        )}
         {signalMode === "quant" ? (
           <>
             <SecCell
@@ -1294,29 +1211,6 @@ function CompanyRows({
             </td>
             <td className="num col-fund-count">
               <FundCountTag value={r.fund_count} />
-            </td>
-          </>
-        ) : signalMode === "pead" ? (
-          <>
-            <td className="col-pead">
-              <BandChip band={r.fundamentals?.pead_band} solid />
-            </td>
-            <td className="col-tech">
-              {r.fundamentals?.tech_strength ? (
-                <span
-                  className={`tech-cell tech-cell--${(r.fundamentals.tech_strength || "weak").toLowerCase().replace(/\s+/g, "-")}`}
-                >
-                  {r.fundamentals.tech_strength}{" "}
-                  <span className="tech-arrow" aria-hidden>
-                    {techArrow(
-                      r.fundamentals.tech_strength,
-                      r.fundamentals.tech_change,
-                    )}
-                  </span>
-                </span>
-              ) : (
-                "—"
-              )}
             </td>
           </>
         ) : signalMode === "rule7" ? (

@@ -152,7 +152,7 @@ export type Company = {
     scrape_failed?: boolean;
     board?: boolean;
   };
-  /** Scan PEAD view — YoY + chips from cached quarters / annual / signals. */
+  /** YoY + chips from cached quarters / annual / signals. */
   fundamentals?: {
     sales_yoy: number | null;
     np_yoy: number | null;
@@ -160,13 +160,10 @@ export type Company = {
     rev_growth: "High" | "Med" | "Low" | null;
     margin_exp: "High" | "Med" | "Low" | null;
     roce_impr: "High" | "Med" | "Low" | null;
-    pead: number | null;
-    pead_band: "High" | "Med" | "Low" | null;
     tech_strength: string | null;
     tech_change: string | null;
     dma200_pct: number | null;
   };
-  pead_score?: number | null;
   seven_rule?: {
     score: number;
     passed: number;

@@ -15,7 +15,7 @@ import {
 import { listingDisplaySymbol, tradingviewUrl, websiteUrl } from "@/lib/links";
 import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
-import { NapkinPeadStrip } from "@/components/napkin/NapkinPeadStrip";
+import { NapkinPeStrip } from "@/components/napkin/NapkinPeStrip";
 import { RevenueEarningsChart } from "@/components/RevenueEarningsChart";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
@@ -270,7 +270,7 @@ export function NapkinPanel() {
                 Market Cap {napkinMetric(data.overview, "mcap")}
                 {sectorLabel ? ` · ${sectorLabel}` : ""}
               </div>
-              <NapkinPeadStrip
+              <NapkinPeStrip
                 data={qtr}
                 pe={napkinPeDisplay(napkinMetric(data.overview, "pe"))}
                 ttmEps={parseDisplayedMoney(napkinMetric(data.overview, "eps"))}

@@ -765,9 +765,12 @@ async function scoreValuation(
       if (eps <= 0) out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: "Loss", points: 0, note: "Needs positive EPS" });
       else {
         const iv = eps * (8.5 + 2 * g);
-        out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: `₹${price.toFixed(0)} vs ₹${iv.toFixed(0)}`, points: pts(band(price / iv)), note:
-            e5 == null || eN == null
-              ? "g = 0% (less than 6 years of EPS history)"
+        // Under 6 years of EPS there is no 5-year growth: not scored, rather than
+        // assuming 0% growth and marking a young company expensive.
+        const short = e5 == null || eN == null;
+        out.push({ id: "iv", label: "Intrinsic value analysis", rule: "price < EPS × (8.5 + 2g) +1 · > 2× −1", value: `₹${price.toFixed(0)} vs ₹${iv.toFixed(0)}`, points: short ? null : pts(band(price / iv)), note:
+            short
+              ? "Not scored: needs 6 years of EPS history (value shown at g = 0%)"
               : e5 <= 0 || eN <= 0
                 ? "g = 0% (loss in the start or latest year)"
                 : `g = ${g.toFixed(1)}% (5-yr EPS growth, capped ${VALN.growthCap}%)`,
@@ -824,6 +827,13 @@ const EMPTY_SCORE_TTL_MS = 5 * 60_000;
 type ScoreBundle = { at: number; ttl: number; checks: FundCheck[]; m: FundCheck[]; val: FundCheck[] };
 const scoreMemo = new Map<string, ScoreBundle>();
 
+/**
+ * Scores saved before the last rule change are recalculated on next use.
+ * Bump when a check's rule changes (2026-11-24: intrinsic value not scored
+ * without 6 years of EPS).
+ */
+const RULES_CHANGED_AT = Date.parse("2026-11-24T09:42:00Z");
+
 function readDiskScore(ticker: string): ScoreBundle | null {
   return withDb((db) => {
     const row = db
@@ -835,6 +845,7 @@ function readDiskScore(ticker: string): ScoreBundle | null {
       | undefined;
     if (!row) return null;
     if (Date.now() - row.scored_at >= row.ttl_ms) return null;
+    if (row.scored_at < RULES_CHANGED_AT) return null;
     try {
       return {
         at: row.scored_at,
@@ -875,7 +886,7 @@ function writeDiskScore(ticker: string, v: ScoreBundle): void {
 function lookupScore(ticker: string): ScoreBundle | null {
   const key = ticker.toUpperCase();
   const mem = scoreMemo.get(key);
-  if (mem && Date.now() - mem.at < mem.ttl) return mem;
+  if (mem && Date.now() - mem.at < mem.ttl && mem.at >= RULES_CHANGED_AT) return mem;
   const disk = readDiskScore(key);
   if (disk) {
     scoreMemo.set(key, disk);

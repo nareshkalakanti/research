@@ -14,11 +14,7 @@ import {
 export type AppTab =
   | "dashboard"
   | "scan"
-  | "theme-scanner"
   | "governance"
-  | "marketiq"
-  | "orderbookiq"
-  | "boardroomiq"
   | "research"
   | "watchlist"
   | "napkin"
@@ -27,8 +23,7 @@ export type AppTab =
   | "price-action"
   | "scanner"
   | "value"
-  | "portfolio"
-  | "signals";
+  | "portfolio";
 
 /** Top nav tabs only — other panels stay wired but are not listed here. */
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
@@ -47,19 +42,8 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
 
 export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [];
 
-/** Hidden from top nav; still reachable via `?tab=` / path and AppShell panels. */
-export const IQ_TABS: AppTab[] = [
-  "marketiq",
-  "orderbookiq",
-  "boardroomiq",
-];
-
-const HIDDEN_TABS: AppTab[] = [
-  "governance",
-  "theme-scanner",
-  "signals",
-  ...IQ_TABS,
-];
+/** Hidden from top nav; opened from Dashboard and Napkin person / company links. */
+const HIDDEN_TABS: AppTab[] = ["governance"];
 
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";
@@ -73,7 +57,6 @@ export function tabFromParam(raw: string | null): AppTab {
     raw === "special"
   )
     return "scanner";
-  if (raw === "pead") return "napkin";
   if (raw === "review" || raw === "port" || raw === "portfolio-review") {
     return "portfolio";
   }
@@ -93,7 +76,6 @@ export function tabFromParam(raw: string | null): AppTab {
   if (raw === "fund") return "watchlist";
   if (raw === "rights") return "dashboard";
   if (raw === "radar") return "dashboard";
-  if (raw === "categories") return "theme-scanner";
   if (
     raw &&
     (APP_TABS.some((t) => t.id === raw) ||
@@ -114,7 +96,6 @@ export function readTabFromLocation(): AppTab {
   const path = pathOnly();
   if (path === "/watchlist" || path === "/fund") return "watchlist";
   if (path === "/dashboard") return "dashboard";
-  if (path === "/pead") return "napkin";
   return tabFromParam(new URLSearchParams(window.location.search).get("tab"));
 }
 
@@ -126,7 +107,7 @@ function buildHomeSearch(
   const params = new URLSearchParams(current.toString());
   if (next === "napkin") params.delete("tab");
   else params.set("tab", next);
-  if (next !== "orderbookiq") params.delete("ordersView");
+  params.delete("ordersView");
   if (next !== "value") params.delete("v");
   if (next !== "dashboard") params.delete("d");
   if (next !== "concall-drift") params.delete("drift");

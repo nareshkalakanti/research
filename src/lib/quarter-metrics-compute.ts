@@ -17,8 +17,8 @@ import {
   type QuarterMetricsRow,
 } from "@/lib/quarter-metrics-cache";
 import { isSqliteWalDamage } from "@/lib/sqlite-utils";
-import { usableAnnounceResultDate } from "@/lib/pead-announced";
-import { computeForwardPe, epsFromQuarterPanel } from "@/lib/valuation";
+import { usableAnnounceResultDate } from "@/lib/result-dates";
+import { forwardPeFromPanel } from "@/lib/valuation";
 import { fetchQuarterlyFundamentals } from "@/lib/yahoo-quarters";
 
 import type { QuarterExtraMetrics } from "@/lib/quarter-panel";
@@ -57,8 +57,7 @@ export function metricsSnapshotFromPanel(
   resultDate?: string | null,
   quarters?: Parameters<typeof yoyFromQuarters>[0],
 ): QuarterMetricsSnapshot {
-  const eps = epsFromQuarterPanel(panel);
-  const forwardPe = price ? computeForwardPe(price, eps) : null;
+  const forwardPe = price ? forwardPeFromPanel(price, panel) : null;
   const yoy =
     quarters && quarters.length
       ? yoyFromQuarters(quarters)

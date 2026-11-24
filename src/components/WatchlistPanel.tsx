@@ -35,7 +35,7 @@ import { useOptionalSetAppTab } from "@/lib/app-tab";
 import { WatchlistDashboard } from "@/components/WatchlistDashboard";
 import { QuoteTapeCard } from "@/components/QuoteTapeCard";
 import { writeFocusTicker } from "@/lib/workspace-ticker";
-import type { FundamentalsScanRow } from "@/lib/pead-bands";
+import type { FundamentalsScanRow } from "@/lib/fundamentals-bands";
 import { useUrlStringParam } from "@/lib/url-enum-param";
 
 type ChipList =
@@ -586,7 +586,7 @@ function WatchlistRow({
                 {r.company}
               </a>
               {industryLine(r.sector, r.sub_sector) ? (
-                <span className="pead-sector">
+                <span className="wl-industry">
                   {industryLine(r.sector, r.sub_sector)}
                 </span>
               ) : null}

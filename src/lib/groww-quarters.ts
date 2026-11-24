@@ -263,11 +263,11 @@ export async function fetchGrowwQuarterlyFundamentals(
   ticker: string,
   companyName?: string | null,
 ): Promise<QuarterPoint[]> {
-  const hit = await fetchGrowwPeadFill(ticker, companyName);
+  const hit = await fetchGrowwQuarterFill(ticker, companyName);
   return hit?.quarters ?? [];
 }
 
-export async function fetchGrowwPeadFill(
+export async function fetchGrowwQuarterFill(
   ticker: string,
   companyName?: string | null,
 ): Promise<{

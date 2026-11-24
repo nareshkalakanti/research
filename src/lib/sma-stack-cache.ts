@@ -1,13 +1,12 @@
 /**
- * Daily SMA 20/50/200 for PEAD Tech Strength — Yahoo bars, cached.
+ * Daily SMA 20/50/200 for Tech Strength — Yahoo bars, cached.
  * Not Scan EMA / TQ / 12m.
  */
 import { fetchDailyBars } from "./ohlc";
 import { rollingMean } from "./indicators";
 import { openSqliteNamed } from "./sqlite-utils";
-import { usableAnnounceResultDate } from "./pead-announced";
+import { resultEntryClose, usableAnnounceResultDate } from "./result-dates";
 import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
-import { resultEntryClose } from "./pead-score";
 
 const CACHE_MS = 24 * 60 * 60 * 1000;
 
@@ -16,7 +15,7 @@ export type SmaStack = {
   sma20: number | null;
   sma50: number | null;
   sma200: number | null;
-  /** First close on/after the latest result date (PEAD Ret baseline). */
+  /** First close on/after the latest result date (return-since-results baseline). */
   entry_close?: number | null;
   /** Result date `entry_close` was taken for — stale once a new result lands. */
   entry_date?: string | null;

@@ -16,7 +16,7 @@ import { FUND_WATCHLIST_LABELS } from "@/lib/fund-watchlist-meta";
 import { loadBreakoutMap, type BreakoutFlags } from "@/lib/signals";
 import { resolveListingMarket } from "@/lib/listing-market";
 import { loadFundamentalsScanMap } from "@/lib/fundamentals-scan";
-import type { FundamentalsScanRow } from "@/lib/pead-bands";
+import type { FundamentalsScanRow } from "@/lib/fundamentals-bands";
 
 export type IqMasterRow = {
   ticker: string;

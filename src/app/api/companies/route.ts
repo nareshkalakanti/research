@@ -77,7 +77,6 @@ import type { BbTimeframe } from "@/lib/signals";
 import { operatingMetricsTickerSet } from "@/lib/opm-consistency";
 import {
   attachFundamentalsScan,
-  fundamentalsScanTickerSet,
   invalidateFundamentalsScanCache,
   loadFundamentalsScanMap,
 } from "@/lib/fundamentals-scan";
@@ -90,8 +89,7 @@ import {
   loadSevenRuleScanMap,
   sevenRulePassTickerSet,
 } from "@/lib/seven-rule-scan";
-import { loadSmaStackMap, fetchAndCacheSmaStack } from "@/lib/sma-stack-cache";
-import { runConcurrent } from "@/lib/scrape-pool";
+import { loadSmaStackMap } from "@/lib/sma-stack-cache";
 import { brutalPassTickerSet } from "@/lib/brutal-scan";
 import { isAgeAtLeast, parseAgeMin } from "@/lib/company-age";
 import { listLatestConcallPassByTickers } from "@/lib/concall-screen";
@@ -426,7 +424,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     sp.get("opm") === "1" ||
     sp.get("stableOpm") === "1" ||
     sp.get("operating") === "1";
-  const filterPead = sp.get("pead") === "1";
   const filterRule7 =
     sp.get("rule7") === "1" ||
     sp.get("seven") === "1" ||
@@ -500,7 +497,6 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   const breakouts = loadBreakoutMap(bbTf);
   const operatingMetrics = operatingMetricsTickerSet();
-  const peadUniverse = fundamentalsScanTickerSet();
   const rule7Universe = sevenRulePassTickerSet();
   const quantUniverse = quantBasketTickerSet();
   const smaMapEarly = loadSmaStackMap();
@@ -778,7 +774,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     let mrsi85 = 0;
     let mrsi_empty = 0;
     let operating_metrics = 0;
-    let pead = 0;
     let rule7 = 0;
     let quant = 0;
     let brutal = 0;
@@ -870,7 +865,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       const rsiVal = flags?.mrsi?.rsi;
       if (rsiVal == null || !Number.isFinite(rsiVal)) mrsi_empty += 1;
       if (operatingMetrics.has(t)) operating_metrics += 1;
-      if (peadUniverse.has(t)) pead += 1;
       if (rule7Universe.has(t)) rule7 += 1;
       if (quantUniverse.has(t)) quant += 1;
       if (brutalPass.has(t)) brutal += 1;
@@ -904,7 +898,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       mrsi85,
       mrsi_empty,
       operating_metrics,
-      pead,
       rule7,
       quant,
       brutal,
@@ -942,7 +935,6 @@ async function buildCompaniesResponse(req: NextRequest) {
     filterMrsi85 ||
     filterMrsiEmpty ||
     filterOperatingMetrics ||
-    filterPead ||
     filterRule7 ||
     filterQuant ||
     filterBrutal;
@@ -980,7 +972,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       const hasMrsiEmpty = rsiVal == null || !Number.isFinite(rsiVal);
       const t = c.ticker.toUpperCase();
       if (filterBrutal) return brutalPass.has(t);
-      if (filterPead) return peadUniverse.has(t);
       if (filterRule7) return rule7Universe.has(t);
       if (filterQuant) return quantUniverse.has(t);
       if (filterOperatingMetrics) return operatingMetrics.has(t);
@@ -1132,10 +1123,10 @@ async function buildCompaniesResponse(req: NextRequest) {
   }
 
   const mul = dir === "desc" ? -1 : 1;
-  const peadMap = loadFundamentalsScanMap();
+  const fundMap = loadFundamentalsScanMap();
   const rule7Map = loadSevenRuleScanMap();
   const quantMap = loadQuantBasketMap();
-  let smaMap = loadSmaStackMap();
+  const smaMap = loadSmaStackMap();
   const relevanceTerms = qTerms.length
     ? qTerms
     : custom.trim()
@@ -1202,13 +1193,6 @@ async function buildCompaniesResponse(req: NextRequest) {
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
       if (an !== bn) return (an - bn) * mul;
     }
-    if (sort === "pead_score") {
-      const am = peadMap.get(a.ticker.toUpperCase())?.pead ?? null;
-      const bm = peadMap.get(b.ticker.toUpperCase())?.pead ?? null;
-      const an = am == null ? Number.NEGATIVE_INFINITY : am;
-      const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
-      return (an - bn) * mul;
-    }
     if (sort === "basket_score") {
       const am = quantMap.get(a.ticker.toUpperCase())?.score ?? null;
       const bm = quantMap.get(b.ticker.toUpperCase())?.score ?? null;
@@ -1224,15 +1208,15 @@ async function buildCompaniesResponse(req: NextRequest) {
       return (an - bn) * mul;
     }
     if (sort === "sales_yoy") {
-      const am = peadMap.get(a.ticker.toUpperCase())?.sales_yoy ?? null;
-      const bm = peadMap.get(b.ticker.toUpperCase())?.sales_yoy ?? null;
+      const am = fundMap.get(a.ticker.toUpperCase())?.sales_yoy ?? null;
+      const bm = fundMap.get(b.ticker.toUpperCase())?.sales_yoy ?? null;
       const an = am == null ? Number.NEGATIVE_INFINITY : am;
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
       return (an - bn) * mul;
     }
     if (sort === "np_yoy") {
-      const am = peadMap.get(a.ticker.toUpperCase())?.np_yoy ?? null;
-      const bm = peadMap.get(b.ticker.toUpperCase())?.np_yoy ?? null;
+      const am = fundMap.get(a.ticker.toUpperCase())?.np_yoy ?? null;
+      const bm = fundMap.get(b.ticker.toUpperCase())?.np_yoy ?? null;
       const an = am == null ? Number.NEGATIVE_INFINITY : am;
       const bn = bm == null ? Number.NEGATIVE_INFINITY : bm;
       return (an - bn) * mul;
@@ -1292,25 +1276,6 @@ async function buildCompaniesResponse(req: NextRequest) {
   const pageSafe = Math.min(page, pages);
   const start = (pageSafe - 1) * pageSize;
   const pageItems = companies.slice(start, start + pageSize);
-  if (filterPead) {
-    const need = pageItems.filter(
-      (c) => !smaMap.has(c.ticker.toUpperCase()),
-    );
-    if (need.length) {
-      try {
-        await runConcurrent(need.slice(0, 20), 4, async (c) => {
-          try {
-            await fetchAndCacheSmaStack(c.ticker, c.market);
-          } catch {
-            /* yahoo miss */
-          }
-        });
-      } catch {
-        /* ignore */
-      }
-      smaMap = loadSmaStackMap();
-    }
-  }
   const concallPass = listLatestConcallPassByTickers(
     pageItems.map((c) => c.ticker),
   );
@@ -1474,8 +1439,6 @@ async function buildCompaniesResponse(req: NextRequest) {
           price: sma.price ?? row.price,
         };
       })()),
-      pead_score:
-        peadMap.get(row.ticker.toUpperCase())?.pead ?? null,
       seven_rule: (() => {
         const r = rule7Map.get(row.ticker.toUpperCase());
         if (!r) return null;

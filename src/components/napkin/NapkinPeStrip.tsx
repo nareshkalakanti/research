@@ -3,6 +3,7 @@
 import type { ExpandQuarterData } from "@/lib/use-expand-quarters";
 import {
   epsFromQuarterPanel,
+  epsPeriodsPerYear,
   FORWARD_PE_NM,
   formatPeDisplay,
   forwardPeClass,
@@ -13,10 +14,10 @@ const fmtEps = (v: number) =>
   `₹${v.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
 
 /**
- * Compact header stat: Fwd PE (FinanciallyFree definition — latest quarter
- * EPS × 4, TTM if the latest quarter is a loss).
+ * Compact header stat: P/E and Fwd PE (latest result's EPS × 4 for quarterly
+ * filers, × 2 for half-yearly; the trailing year if the latest is a loss).
  */
-export function NapkinPeadStrip({
+export function NapkinPeStrip({
   data,
   pe,
   ttmEps,
@@ -32,37 +33,39 @@ export function NapkinPeadStrip({
   const fpeNm = fpe != null && fpe >= FORWARD_PE_NM;
   // 999 = loss-making (no positive EPS run-rate) or a real PE above 500.
   const qEps = data.panel ? epsFromQuarterPanel(data.panel) : [];
-  const fpeLoss = fpeNm && qEps.length > 0 && forwardPeRunRate(qEps) == null;
+  const perYear = data.panel ? epsPeriodsPerYear(data.panel.labels) : 4;
+  const fpeLoss = fpeNm && qEps.length > 0 && forwardPeRunRate(qEps, perYear) == null;
+  const period = perYear === 2 ? "half-year" : "quarter";
   const latestQ = qEps.length ? qEps[qEps.length - 1]! : null;
   const peMissing = !pe || pe === "N/A" || pe === "N/Ax";
   const peLoss = peMissing && ttmEps != null && ttmEps < 0;
 
   return (
-    <div className="napkin-pead-strip" aria-busy={loading}>
+    <div className="napkin-pe-strip" aria-busy={loading}>
       <div
-        className="napkin-pead-stat"
+        className="napkin-pe-stat"
         title={
           peLoss
             ? `Loss-making: last 12 months EPS ${fmtEps(ttmEps!)} — P/E not meaningful.`
             : "Trailing P/E: price ÷ last 12 months EPS."
         }
       >
-        <span className="napkin-pead-stat-label">P/E</span>
-        <span className={`napkin-pead-stat-num${peLoss ? " fpe-bad" : ""}`}>
+        <span className="napkin-pe-stat-label">P/E</span>
+        <span className={`napkin-pe-stat-num${peLoss ? " fpe-bad" : ""}`}>
           {peLoss ? "Loss" : peMissing ? "—" : pe}
         </span>
       </div>
       <div
-        className="napkin-pead-stat"
+        className="napkin-pe-stat"
         title={
           fpeLoss
-            ? `Loss-making: latest quarter EPS ${latestQ != null ? fmtEps(latestQ) : "negative"} and no profitable last-4-quarter total — Fwd PE not meaningful.`
-            : "Fwd PE: price ÷ latest quarter EPS × 4 (TTM if latest is a loss). N/M = above 500."
+            ? `Loss-making: latest ${period} EPS ${latestQ != null ? fmtEps(latestQ) : "negative"} and no profitable trailing year — Fwd PE not meaningful.`
+            : `Fwd PE: price ÷ latest ${period} EPS × ${perYear} (trailing year if latest is a loss). N/M = above 500.`
         }
       >
-        <span className="napkin-pead-stat-label">Fwd PE</span>
+        <span className="napkin-pe-stat-label">Fwd PE</span>
         <span
-          className={`napkin-pead-stat-num ${
+          className={`napkin-pe-stat-num ${
             fpe == null ? "fpe-na" : forwardPeClass(fpe)
           }`}
         >

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveQuarterPanelData } from "@/lib/quarter-metrics-compute";
 import { listedPriceFor } from "@/lib/listed-price";
 import { loadMetricsMap } from "@/lib/metrics";
-import { computeForwardPe, epsFromQuarterPanel } from "@/lib/valuation";
+import { forwardPeFromPanel } from "@/lib/valuation";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
     const livePrice = result.price ?? rowPrice;
     const forwardPe =
       result.panel && livePrice
-        ? computeForwardPe(livePrice, epsFromQuarterPanel(result.panel))
+        ? forwardPeFromPanel(livePrice, result.panel)
         : (snapshot?.forward_pe ?? null);
     const mk = (market || "").trim().toUpperCase();
     const noPanelError = !result.panel

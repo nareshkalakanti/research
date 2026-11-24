@@ -2,7 +2,7 @@ import { opmPctSeries } from "./opm-math";
 import { qoqCellTone } from "./stock-detail-metrics";
 
 /**
- * Screener-style quarterly panel (PEAD2 `build_quarter_panel`).
+ * Screener-style quarterly panel.
  * Last 5 quarters, ₹ → Cr when Yahoo amounts look like rupees.
  * Keep this module browser-safe (no yahoo-finance2 / node builtins).
  */
@@ -43,10 +43,10 @@ const MONTHS = [
   "Dec",
 ] as const;
 
-/** PEAD2_QUARTER_PANEL */
-export const PEAD2_QUARTER_PANEL = 5;
+/** Default number of result columns in the quarterly panel. */
+export const QUARTER_PANEL_COLUMNS = 5;
 
-/** Absolute ₹ vs ₹ Cr — same threshold as PEAD `_inr_crore_divisor`. */
+/** Absolute ₹ vs ₹ Cr threshold. */
 export const INR_CRORE = 10_000_000;
 const ABSOLUTE_INR_FLOOR = 1e5;
 
@@ -58,7 +58,7 @@ function toDateStr(d: Date | string | number): string {
 
 /**
  * Drop Yahoo placeholder quarters whose period-end is still in the future
- * (PEAD `trim_reported_quarters` — allow +5 days grace).
+ * (allow +5 days grace).
  */
 export function trimReportedQuarters(
   quarters: QuarterPoint[],
@@ -192,7 +192,7 @@ function quarterLabel(dateStr: string): string {
   return `${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-/** PEAD `_inr_crore_divisor`. */
+/** Divisor that converts absolute ₹ to ₹ Cr when needed. */
 export function inrCroreDivisor(values: Array<number | null>): number {
   const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
   if (!nums.length) return 1;
@@ -232,7 +232,7 @@ function scaleValues(
  */
 export function buildQuarterPanel(
   quarters: QuarterPoint[],
-  maxQuarters = PEAD2_QUARTER_PANEL,
+  maxQuarters = QUARTER_PANEL_COLUMNS,
 ): QuarterPanel | null {
   const qs = trimReportedQuarters(
     quarters.filter(
@@ -510,7 +510,7 @@ export function yoyFromPanel(panel: QuarterPanel): PanelYoY | null {
  * year-ago quarter, which makes same-month YoY null even when history exists.
  */
 export function yoyFromQuarters(quarters: QuarterPoint[]): PanelYoY | null {
-  const panel = buildQuarterPanel(quarters, Math.max(quarters.length, PEAD2_QUARTER_PANEL));
+  const panel = buildQuarterPanel(quarters, Math.max(quarters.length, QUARTER_PANEL_COLUMNS));
   return panel ? yoyFromPanel(panel) : null;
 }
 
@@ -518,7 +518,7 @@ export function extraMetricsFromQuarters(
   quarters: QuarterPoint[],
   cfProfit?: number | null,
 ): QuarterExtraMetrics | null {
-  const panel = buildQuarterPanel(quarters, Math.max(quarters.length, PEAD2_QUARTER_PANEL));
+  const panel = buildQuarterPanel(quarters, Math.max(quarters.length, QUARTER_PANEL_COLUMNS));
   return panel ? extraMetricsFromPanel(panel, cfProfit) : null;
 }
 

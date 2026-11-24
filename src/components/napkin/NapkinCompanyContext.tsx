@@ -19,7 +19,7 @@ export function NapkinCompanyContext({
   roce,
   qtr,
 }: {
-  /** Quarter data loaded once by the panel (shared with the PEAD strip). */
+  /** Quarter data loaded once by the panel (shared with the P/E strip). */
   qtr: ExpandQuarterData;
   ticker: string;
   exchange?: string | null;

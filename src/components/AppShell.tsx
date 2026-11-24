@@ -17,11 +17,6 @@ function PanelFallback() {
   return <Loading variant="block" label="Loading" rows={2} />;
 }
 
-const ThemeScanner = dynamic(
-  () =>
-    import("@/components/ThemeScanner").then((m) => m.ThemeScanner),
-  { loading: PanelFallback, ssr: false },
-);
 const ScanPanel = dynamic(
   () => import("@/components/ScanPanel").then((m) => m.ScanPanel),
   { loading: PanelFallback, ssr: false },
@@ -31,20 +26,6 @@ const GovernanceMapPanel = dynamic(
     import("@/components/GovernanceMapPanel").then(
       (m) => m.GovernanceMapPanel,
     ),
-  { loading: PanelFallback, ssr: false },
-);
-const MarketIqPanel = dynamic(
-  () => import("@/components/MarketIqPanel").then((m) => m.MarketIqPanel),
-  { loading: PanelFallback, ssr: false },
-);
-const OrderBookIqPanel = dynamic(
-  () =>
-    import("@/components/OrderBookIqPanel").then((m) => m.OrderBookIqPanel),
-  { loading: PanelFallback, ssr: false },
-);
-const BoardRoomIqPanel = dynamic(
-  () =>
-    import("@/components/BoardRoomIqPanel").then((m) => m.BoardRoomIqPanel),
   { loading: PanelFallback, ssr: false },
 );
 const ResearchPanel = dynamic(
@@ -101,27 +82,14 @@ const PriceActionPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
-const ValuePickrSignalsPanel = dynamic(
-  () =>
-    import("@/components/ValuePickrSignalsPanel").then(
-      (m) => m.ValuePickrSignalsPanel,
-    ),
-  { loading: PanelFallback, ssr: false },
-);
-
 const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
-  "theme-scanner": ThemeScanner,
   scan: ScanPanel,
   governance: GovernanceMapPanel,
   napkin: NapkinPanel,
   "concall-drift": ConcallDriftPanel,
-  signals: ValuePickrSignalsPanel,
   rotation: SectorRotationPanel,
   "price-action": PriceActionPanel,
-  marketiq: MarketIqPanel,
-  orderbookiq: OrderBookIqPanel,
-  boardroomiq: BoardRoomIqPanel,
   research: ResearchPanel,
   watchlist: WatchlistPanel,
   scanner: ScannerPanel,
@@ -140,7 +108,6 @@ const KeptPanel = memo(function KeptPanel({
 function preloadPanelModules() {
   void import("@/components/WatchlistPanel");
   void import("@/components/ScanPanel");
-  void import("@/components/ThemeScanner");
   void import("@/components/GovernanceMapPanel");
 }
 
@@ -236,12 +203,6 @@ export function AppShell() {
       window.history.replaceState(window.history.state, "", "/?tab=watchlist");
       return;
     }
-    if (t === "pead") {
-      params.delete("tab");
-      const qs = params.toString();
-      window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
-      return;
-    }
     if (t === "concall" || t === "strategy" || t === "drift") {
       params.set("tab", "concall-drift");
       const qs = params.toString();
@@ -250,12 +211,6 @@ export function AppShell() {
         "",
         qs ? `/?${qs}` : "/?tab=concall-drift",
       );
-      return;
-    }
-    if (t === "categories") {
-      params.set("tab", "theme-scanner");
-      const qs = params.toString();
-      window.history.replaceState(window.history.state, "", qs ? `/?${qs}` : "/");
       return;
     }
     if (t === "radar") {

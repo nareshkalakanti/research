@@ -1,11 +1,10 @@
 /**
- * Scan PEAD table: YoY growth, OPM/ROCE chips, percentile PEAD, tech from
- * cached signals. All figures from caches — no issuer special-cases.
+ * Quarterly fundamentals per stock for Scan / Watchlist: YoY growth, OPM and
+ * ROCE chips, tech from cached signals. All figures from caches.
  */
 import { openSqliteNamed } from "./sqlite-utils";
 import { opmYoyDeltaBps } from "./opm-math";
 import {
-  buildQuarterPanel,
   extraMetricsFromQuarters,
   yoyFromQuarters,
   type QuarterPoint,
@@ -13,33 +12,18 @@ import {
 import { loadQuarterMetricsMap } from "./quarter-metrics-cache";
 import { loadRoceDeltaMap } from "./screener-annual";
 import {
-  peadScoresPercentile,
-  returnsPctFromEntry,
-  type PeadInputs,
-} from "./pead-score";
-import { loadSmaStackMap } from "./sma-stack-cache";
-import { usableAnnounceResultDate } from "./pead-announced";
-import { computeForwardPe } from "./valuation";
-import {
   bandGrowth,
   bandMarginBps,
-  bandPead,
   bandRoceDelta,
   type FundamentalsScanRow,
-} from "./pead-bands";
+} from "./fundamentals-bands";
 
-export type { ChipBand, FundamentalsScanRow } from "./pead-bands";
-export {
-  bandGrowth,
-  bandMarginBps,
-  bandPead,
-  bandRoceDelta,
-  isPeadHhh,
-} from "./pead-bands";
+export type { ChipBand, FundamentalsScanRow } from "./fundamentals-bands";
+export { bandGrowth, bandMarginBps, bandRoceDelta } from "./fundamentals-bands";
 
 /**
  * Screenshot Tech Strength: daily SMA 20 / 50 / 200 stack vs price.
- * Separate from PEAD. Do not use Scan EMA, TQ, or 12−1 as a stand-in.
+ * Do not use Scan EMA, TQ, or 12−1 as a stand-in.
  */
 export function techFromSmaStack(opts: {
   price: number | null;
@@ -94,7 +78,6 @@ type QuarterOverlay = {
   ebidt_qoq: number | null;
   opm_bps: number | null;
   latest_date: string | null;
-  eps_values: number[];
   quarters: QuarterPoint[];
 };
 
@@ -131,7 +114,6 @@ export function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
           continue;
         }
         if (!Array.isArray(quarters) || !quarters.length) continue;
-        const panel = buildQuarterPanel(quarters);
         const yoy = yoyFromQuarters(quarters);
         const extras = extraMetricsFromQuarters(quarters);
         const bps = opmYoyDeltaBps(quarters);
@@ -146,7 +128,6 @@ export function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
           .map((q) => (q.date || "").slice(0, 10))
           .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
           .sort();
-        const epsRow = panel?.rows.find((r) => r.label === "EPS in Rs");
         map.set(row.ticker.toUpperCase(), {
           sales_yoy: yoy?.sales_yoy ?? null,
           np_yoy: yoy?.np_yoy ?? null,
@@ -158,9 +139,6 @@ export function loadQuarterOverlayMap(): Map<string, QuarterOverlay> {
           ebidt_qoq: extras?.ebidt_qoq ?? null,
           opm_bps: bps,
           latest_date: dated[dated.length - 1] ?? null,
-          eps_values: (epsRow?.values ?? []).filter(
-            (v): v is number => v != null && Number.isFinite(v),
-          ),
           quarters,
         });
       }
@@ -190,14 +168,12 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
 
   const overlay = loadQuarterOverlayMap();
   const metrics = loadQuarterMetricsMap();
-  const sma = loadSmaStackMap();
   const tickers = new Set<string>([
     ...[...metrics.keys()].map((t) => t.toUpperCase()),
     ...overlay.keys(),
   ]);
   const rows: Array<{
     ticker: string;
-    inputs: PeadInputs;
     sales_yoy: number | null;
     np_yoy: number | null;
     eps_yoy: number | null;
@@ -209,45 +185,17 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
     const sales_yoy = firstFinite(o?.sales_yoy, m?.sales_yoy);
     const np_yoy = firstFinite(o?.np_yoy, m?.np_yoy);
     const eps_yoy = firstFinite(o?.eps_yoy, m?.eps_yoy);
-    const s = sma.get(ticker);
-    // Ret since result: cached result-day close → latest cached price. Only
-    // when the cached baseline belongs to the current result date.
-    const resultDate = usableAnnounceResultDate(m?.result_date);
-    const returns_pct =
-      resultDate && s?.entry_date === resultDate
-        ? returnsPctFromEntry(s.entry_close, s.price)
-        : null;
-    // Fwd PE at today's price from current quarter EPS; cached value as fallback.
-    const fresh =
-      s?.price != null && o?.eps_values.length
-        ? computeForwardPe(s.price, o.eps_values)
-        : null;
     rows.push({
       ticker,
       sales_yoy,
       np_yoy,
       eps_yoy,
       opm_bps: o?.opm_bps ?? null,
-      inputs: {
-        returns_pct,
-        sales_yoy,
-        sales_qoq: o?.sales_qoq ?? m?.sales_qoq ?? null,
-        np_yoy,
-        np_qoq: o?.np_qoq ?? m?.np_qoq ?? null,
-        eps_yoy: o?.eps_yoy ?? m?.eps_yoy ?? null,
-        eps_qoq: o?.eps_qoq ?? m?.eps_qoq ?? null,
-        ebidt_yoy: o?.ebidt_yoy ?? m?.ebidt_yoy ?? null,
-        ebidt_qoq: o?.ebidt_qoq ?? m?.ebidt_qoq ?? null,
-        forward_pe: fresh ?? m?.forward_pe ?? null,
-        cf_profit: m?.cf_profit ?? null,
-      },
     });
   }
-  const scores = peadScoresPercentile(rows.map((r) => r.inputs));
   const roce = loadRoceDeltaMap();
   const map = new Map<string, FundamentalsScanRow>();
-  rows.forEach((r, i) => {
-    const pead = scores[i] ?? null;
+  rows.forEach((r) => {
     map.set(r.ticker, {
       sales_yoy: r.sales_yoy,
       np_yoy: r.np_yoy,
@@ -255,8 +203,6 @@ export function loadFundamentalsScanMap(): Map<string, FundamentalsScanRow> {
       rev_growth: bandGrowth(r.sales_yoy),
       margin_exp: bandMarginBps(r.opm_bps),
       roce_impr: bandRoceDelta(roce.get(r.ticker) ?? null),
-      pead,
-      pead_band: bandPead(pead),
       tech_strength: null,
       tech_change: null,
       dma200_pct: null,
@@ -309,8 +255,6 @@ export function attachFundamentalsScan(
     rev_growth: base?.rev_growth ?? null,
     margin_exp: base?.margin_exp ?? null,
     roce_impr: base?.roce_impr ?? null,
-    pead: base?.pead ?? null,
-    pead_band: base?.pead_band ?? null,
     tech_strength: tech?.strength ?? null,
     tech_change: tech?.change ?? null,
     dma200_pct,
