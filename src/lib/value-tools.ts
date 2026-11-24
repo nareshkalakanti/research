@@ -981,7 +981,7 @@ export async function fillValueQuality(onProgress: (done: number, total: number,
 // ---- Industry cycle: out of favour → hot -------------------------------------------------
 
 export const CYCLE = {
-  /** Classification on average constituent-company returns (per year). Checked in this order. */
+  /** Classification on the median constituent-company return (per year). Checked in this order. */
   deepOut5y: 2,
   out3y: 0,
   extremeHot5y: 35,
@@ -991,6 +991,7 @@ export type CycleStatus = "deep_out" | "out" | "extreme_hot" | "hot" | "neutral"
 export type CycleRow = {
   industry: string;
   status: CycleStatus;
+  /** Median company return per year; null when too few companies have that history. */
   ret3y: number | null;
   ret5y: number | null;
   n: number;
@@ -998,11 +999,17 @@ export type CycleRow = {
   cov5y: number;
 };
 
+/** A window's first close must be within this many days of its start date (else the series has a hole). */
+const CYCLE_START_SLACK_DAYS = 10;
+
 let cycleCache: { at: number; data: { rows: CycleRow[]; as_of: string | null } } | null = null;
 
 /**
- * Each industry's average 3-year and 5-year return per year (CAGR) across its
- * companies, from the stored daily prices, classified:
+ * Each industry's median 3-year and 5-year return per year (CAGR) across its
+ * companies, from the stored daily prices. Median, not average: one stock with
+ * an unadjusted capital reduction (SWANDEF ₹38 → ₹2,865) must not label a whole
+ * industry. Rights / partly-paid lines are left out, as on the Value page.
+ * Classified:
  * deep out of favour 5Y < 2% · out of favour 3Y < 0% · extremely hot 5Y > 35% ·
  * hot 3Y > 25% · neutral the rest.
  */
@@ -1011,7 +1018,8 @@ export async function buildIndustryCycle(opts?: { fresh?: boolean }): Promise<{ 
   const scan = buildScannerData();
   const years = rotationFetchYears();
   let asOf: string | null = null;
-  const per = await runConcurrent(scan.rows, 8, async (r) => {
+  const rows0 = scan.rows.filter((r) => r.industry && !isRightsOrPartlyPaid(r.t, r.name));
+  const per = await runConcurrent(rows0, 8, async (r) => {
     if (!r.industry) return null;
     try {
       const bars = await rotationCloses(r.t, r.market || "NSE", years);
@@ -1023,10 +1031,13 @@ export async function buildIndustryCycle(opts?: { fresh?: boolean }): Promise<{ 
         const d = new Date(`${last.date}T00:00:00Z`);
         d.setUTCFullYear(d.getUTCFullYear() - y);
         const want = d.toISOString().slice(0, 10);
-        // First bar on/after the date, but only if the series really starts by then.
+        // First bar on/after the date, but only if the series really starts by then
+        // and has no hole there (SICAGEN's "5-year" start was 7 months ago).
         if (bars[0]!.date > want) return null;
         const b = bars.find((x) => x.date >= want);
-        return b && b.close > 0 ? b.close : null;
+        if (!b || !(b.close > 0)) return null;
+        const lateDays = (Date.parse(`${b.date}T00:00:00Z`) - Date.parse(`${want}T00:00:00Z`)) / 86_400_000;
+        return lateDays <= CYCLE_START_SLACK_DAYS ? b.close : null;
       };
       const c3 = at(3);
       const c5 = at(5);
@@ -1040,7 +1051,7 @@ export async function buildIndustryCycle(opts?: { fresh?: boolean }): Promise<{ 
     }
   });
   const by = new Map<string, { n: number; r3: number[]; r5: number[] }>();
-  for (const r of scan.rows) {
+  for (const r of rows0) {
     if (!r.industry) continue;
     const e = by.get(r.industry) ?? { n: 0, r3: [], r5: [] };
     e.n++;
@@ -1052,11 +1063,16 @@ export async function buildIndustryCycle(opts?: { fresh?: boolean }): Promise<{ 
     if (p.r3 != null) e.r3.push(p.r3);
     if (p.r5 != null) e.r5.push(p.r5);
   }
-  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const median = (xs: number[]) => {
+    if (!xs.length) return null;
+    const s = [...xs].sort((a, b) => a - b);
+    const m = s.length >> 1;
+    return s.length % 2 ? s[m]! : (s[m - 1]! + s[m]!) / 2;
+  };
   const rows: CycleRow[] = [];
   for (const [industry, e] of by) {
-    const ret3y = avg(e.r3);
-    const ret5y = avg(e.r5);
+    const ret3y = median(e.r3);
+    const ret5y = median(e.r5);
     if (ret3y == null && ret5y == null) continue;
     // A horizon only counts when enough of the industry has that much history
     // (≥ 3 stocks and ≥ half of them): one old stock must not label a group of
@@ -1075,7 +1091,8 @@ export async function buildIndustryCycle(opts?: { fresh?: boolean }): Promise<{ 
               ? "hot"
               : "neutral";
     const r2 = (v: number | null) => (v == null ? null : Math.round(v * 100) / 100);
-    rows.push({ industry, status, ret3y: r2(ret3y), ret5y: r2(ret5y), n: e.n, cov3y: e.r3.length, cov5y: e.r5.length });
+    // Uncounted horizons are not shown either: a figure that contradicts the label misleads.
+    rows.push({ industry, status, ret3y: r2(c3), ret5y: r2(c5), n: e.n, cov3y: e.r3.length, cov5y: e.r5.length });
   }
   rows.sort((a, b) => (a.ret3y ?? 1e9) - (b.ret3y ?? 1e9));
   const data = { rows, as_of: asOf };

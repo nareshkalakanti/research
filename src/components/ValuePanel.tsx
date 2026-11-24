@@ -1029,8 +1029,8 @@ function CycleView({
         <HoldingsIndustryCheck values={picked} onChange={setPicked} available={eligible.map((r) => r.industry)} />
       </div>
       <p className="vx-hint vx-cycle-rule">
-        Average company return per year · Deep out of favour: 5Y &lt; 2% · Out of favour: 3Y &lt; 0% · Extremely hot: 5Y &gt; 35% · Hot: 3Y
-        &gt; 25% · Neutral: rest{asOf ? ` · prices to ${asOf}` : ""}
+        Median company return per year · Deep out of favour: 5Y &lt; 2% · Out of favour: 3Y &lt; 0% · Extremely hot: 5Y &gt; 35% · Hot: 3Y
+        &gt; 25% · Neutral: rest · “—” = too few companies with that much price history{asOf ? ` · prices to ${asOf}` : ""}
       </p>
 
       {err ? (
@@ -1145,8 +1145,18 @@ function CycleView({
                     <td>
                       <span className={`vx-cyc vx-cyc--${r.status}`}>{CYCLE_LABEL[r.status]}</span>
                     </td>
-                    <td className={`num ${(r.ret3y ?? 0) < 0 ? "neg" : ""}`}>{pct(r.ret3y)}</td>
-                    <td className={`num ${(r.ret5y ?? 0) < 0 ? "neg" : ""}`}>{pct(r.ret5y)}</td>
+                    <td
+                      className={`num ${(r.ret3y ?? 0) < 0 ? "neg" : ""}`}
+                      title={r.ret3y == null ? `Not enough history: ${r.cov3y} of ${r.n} companies have 3 years of prices` : undefined}
+                    >
+                      {pct(r.ret3y)}
+                    </td>
+                    <td
+                      className={`num ${(r.ret5y ?? 0) < 0 ? "neg" : ""}`}
+                      title={r.ret5y == null ? `Not enough history: ${r.cov5y} of ${r.n} companies have 5 years of prices` : undefined}
+                    >
+                      {pct(r.ret5y)}
+                    </td>
                     <td className="num">{r.n}</td>
                     <td className="num vx-r">
                       {r.cov3y} / {r.cov5y}
