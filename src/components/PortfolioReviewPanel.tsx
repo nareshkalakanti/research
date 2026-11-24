@@ -37,10 +37,11 @@ type ReviewRow = {
   total_max: number;
   rating: "Excellent" | "Good" | "Average" | "Poor" | "No data";
 };
-type DrawerKind = "fundamental" | "management" | "valuation";
+type DrawerKind = "fundamental" | "management" | "quality" | "valuation";
 const DRAWER: Record<DrawerKind, { title: string; label: string; max: number; src: string }> = {
   fundamental: { title: "Fundamental parameters", label: "Fundamental score", max: 6, src: "Screener annual results (consolidated)" },
   management: { title: "Management parameters", label: "Management score", max: 5, src: "Screener shareholding pattern (last 12 quarters)" },
+  quality: { title: "Quality parameters", label: "Quality score", max: 11, src: "Fundamental (Screener annual results) + management (shareholding pattern)" },
   valuation: { title: "Valuation parameters", label: "Valuation score", max: 6, src: "Peers = same industry (3+ with data) · cash: Yahoo" },
 };
 
@@ -421,11 +422,17 @@ export function PortfolioReviewPanel({
                         </button>
                       )}
                     </td>
-                    <td className="num vx-total-cell">
+                    <td className="num">
                       {r.scored < 0 ? null : (
-                        <>
-                          {r.quality} <small>/ 11</small>
-                        </>
+                        <button
+                          type="button"
+                          className={`vx-score vx-score--${cls(r.quality, r.scored + r.m_scored)}`}
+                          onClick={() => setDrawer({ row: r, kind: "quality" })}
+                          title="Show the fundamental + management checklist"
+                        >
+                          {r.scored + r.m_scored ? r.quality : "—"}
+                          <small>/ 11</small>
+                        </button>
                       )}
                     </td>
                     <td className="num">
@@ -490,13 +497,13 @@ export function PortfolioReviewPanel({
             <div className="vx-drawer-score">
               <span>{DRAWER[drawer.kind].label}</span>
               <strong>
-                {drawer.kind === "fundamental" ? drawer.row.fundamental : drawer.kind === "management" ? drawer.row.management : drawer.row.valuation}
+                {drawer.kind === "fundamental" ? drawer.row.fundamental : drawer.kind === "management" ? drawer.row.management : drawer.kind === "quality" ? drawer.row.quality : drawer.row.valuation}
                 <small> / {DRAWER[drawer.kind].max}</small>
               </strong>
             </div>
             <span className="vx-label vx-drawer-k">Detailed checks checklist</span>
             <ul className="vx-checks">
-              {(drawer.kind === "fundamental" ? drawer.row.checks : drawer.kind === "management" ? drawer.row.m_checks : drawer.row.v_checks).map((c) => (
+              {(drawer.kind === "fundamental" ? drawer.row.checks : drawer.kind === "management" ? drawer.row.m_checks : drawer.kind === "quality" ? [...drawer.row.checks, ...drawer.row.m_checks] : drawer.row.v_checks).map((c) => (
                 <li key={c.id}>
                   <div>
                     <strong>{c.label}</strong>

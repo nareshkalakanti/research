@@ -34,7 +34,7 @@ type EvalRow = {
   rating: "Excellent" | "Good" | "Average" | "Poor" | "No data";
 };
 
-type DrawerKind = "fundamental" | "management" | "valuation";
+type DrawerKind = "fundamental" | "management" | "quality" | "valuation";
 
 /** Same labels / max as Portfolio review (drawer uses /6; cell shows −4…+6). */
 const DRAWER: Record<
@@ -52,6 +52,12 @@ const DRAWER: Record<
     label: "Management score",
     max: 5,
     src: "Screener shareholding pattern (last 12 quarters)",
+  },
+  quality: {
+    title: "Quality parameters",
+    label: "Quality score",
+    max: 11,
+    src: "Fundamental (Screener annual results) + management (shareholding pattern)",
   },
   valuation: {
     title: "Valuation parameters",
@@ -137,7 +143,9 @@ export function NapkinPortfolioEval({ ticker }: { ticker: string }) {
         ? row.checks
         : drawer === "management"
           ? row.m_checks
-          : row.v_checks
+          : drawer === "quality"
+            ? [...row.checks, ...row.m_checks]
+            : row.v_checks
       : [];
   const scoreVal =
     drawer && row
@@ -145,7 +153,9 @@ export function NapkinPortfolioEval({ ticker }: { ticker: string }) {
         ? row.fundamental
         : drawer === "management"
           ? row.management
-          : row.valuation
+          : drawer === "quality"
+            ? row.quality
+            : row.valuation
       : null;
 
   return (
@@ -196,8 +206,16 @@ export function NapkinPortfolioEval({ ticker }: { ticker: string }) {
                         <small>/ 5</small>
                       </button>
                     </td>
-                    <td className="num vx-total-cell">
-                      {row.quality} <small>/ 11</small>
+                    <td className="num">
+                      <button
+                        type="button"
+                        className={`vx-score vx-score--${pr(row.quality, row.scored + row.m_scored ? 11 : 0)}`}
+                        onClick={() => row.scored + row.m_scored > 0 && setDrawer("quality")}
+                        title="Show the fundamental + management checklist"
+                      >
+                        {row.scored + row.m_scored ? row.quality : "—"}
+                        <small>/ 11</small>
+                      </button>
                     </td>
                     <td className="num">
                       <button

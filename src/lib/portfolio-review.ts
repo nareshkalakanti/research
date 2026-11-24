@@ -711,6 +711,11 @@ async function scoreManagement(t: string): Promise<FundCheck[]> {
           note: `${prev.v.toFixed(2)}% (${q(prev.d)}) → ${now.v.toFixed(2)}% (${q(now.d)})${gap >= 5 ? " · half-yearly filer" : ""}`,
         });
       } else out.push({ id: "promq", label: "Change in promoter holding (quarterly)", rule: "up vs last quarter", value: "—", points: null, note: "Only one filing" });
+    } else if (now) {
+      // One filing only (new listing): show the holding, nothing to compare yet.
+      const note = `promoters hold ${now.v.toFixed(2)}% (${q(now.d)}) · only one filing on Screener, nothing to compare`;
+      out.push({ id: "prom3y", label: "Change in promoter holding (3 years)", rule: "up vs 3 yrs ago", value: `${now.v.toFixed(2)}%`, points: null, note });
+      out.push({ id: "promq", label: "Change in promoter holding (quarterly)", rule: "up vs last quarter", value: `${now.v.toFixed(2)}%`, points: null, note });
     } else {
       out.push({ id: "prom3y", label: "Change in promoter holding (3 years)", rule: "up vs 3 yrs ago", value: "—", points: null, note: "No promoter history" });
       out.push({ id: "promq", label: "Change in promoter holding (quarterly)", rule: "up vs last quarter", value: "—", points: null, note: "No promoter history" });
