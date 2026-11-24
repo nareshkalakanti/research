@@ -148,13 +148,31 @@ function AppShellPanels() {
     };
   }, []);
 
-  // Top-bar Refresh: remount the open tab so it refetches everything.
+  // Top-bar Refresh: remount the open tab now; every other tab kept in memory
+  // is marked stale and remounts when next opened (one at a time, not all at once).
   const [nonce, setNonce] = useState<Partial<Record<AppTab, number>>>({});
+  const [stale, setStale] = useState<Set<AppTab>>(() => new Set());
   useEffect(() => {
-    const onRefresh = () => setNonce((n) => ({ ...n, [tab]: (n[tab] ?? 0) + 1 }));
+    const onRefresh = () => {
+      setNonce((n) => ({ ...n, [tab]: (n[tab] ?? 0) + 1 }));
+      setStale(new Set([...visited].filter((t) => t !== tab)));
+    };
     window.addEventListener("app:refresh", onRefresh);
     return () => window.removeEventListener("app:refresh", onRefresh);
-  }, [tab]);
+  }, [tab, visited]);
+  // Opening a stale tab: remount it so it reloads its data.
+  const [lastTab, setLastTab] = useState(tab);
+  if (lastTab !== tab) {
+    setLastTab(tab);
+    if (stale.has(tab)) {
+      setNonce((n) => ({ ...n, [tab]: (n[tab] ?? 0) + 1 }));
+      setStale((prev) => {
+        const next = new Set(prev);
+        next.delete(tab);
+        return next;
+      });
+    }
+  }
 
   useEffect(() => {
     const run = () => preloadPanelModules();

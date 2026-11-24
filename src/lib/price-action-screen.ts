@@ -49,6 +49,10 @@ async function tradingDates(opts: { to?: string; from?: string; days: number }):
 }
 
 let cache: { key: string; at: number; result: PaResult } | null = null;
+/** Top-bar Refresh: rebuild the screen from the price cache. */
+export function clearPriceActionCache(): void {
+  cache = null;
+}
 const CACHE_MS = 60_000;
 
 export async function buildPriceAction(opts: { to?: string; from?: string; days?: number } = {}): Promise<PaResult> {

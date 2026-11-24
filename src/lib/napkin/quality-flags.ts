@@ -178,6 +178,10 @@ export function cagrCheck(
 /** Results kept 6 h per stock: reopening a stock in Napkin is instant. */
 const QF_TTL_MS = 6 * 3_600_000;
 const qfMemo = new Map<string, { at: number; v: Promise<QualityFlags> }>();
+/** Top-bar Refresh: recompute quality checks from the saved statements. */
+export function clearQualityFlagsMemo(): void {
+  qfMemo.clear();
+}
 export function buildQualityFlags(ticker: string): Promise<QualityFlags> {
   const t = ticker.trim().toUpperCase();
   const hit = qfMemo.get(t);

@@ -168,6 +168,10 @@ function needsQuarterRefetch(
  *  The price comes from the row, so the chart pull is skipped. */
 const PANEL_LIVE_MS = 30 * 60_000;
 const panelLiveMemo = new Map<string, { at: number; p: ReturnType<typeof fetchQuarterlyFundamentals> }>();
+/** Top-bar Refresh: re-read quarterly panels from the caches. */
+export function clearQuarterPanelMemo(): void {
+  panelLiveMemo.clear();
+}
 function panelLive(key: string, market: string | null, force: boolean) {
   const hit = panelLiveMemo.get(key);
   if (!force && hit && Date.now() - hit.at < PANEL_LIVE_MS) return hit.p;
