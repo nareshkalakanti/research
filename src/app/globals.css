@@ -24356,3 +24356,18 @@ html[data-theme="light"] .nsc-drawer-wrap {
   .topbar.topbar--slim { position: static; }
 }
 .fam-dash-title { margin: 0 0 4px; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.02em; }
+.side-nav[hidden] { display: none; }
+.topbar-title { align-items: center; }
+.side-nav-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.side-nav-toggle:hover { color: var(--ink); background: var(--cb-eef1f5); }

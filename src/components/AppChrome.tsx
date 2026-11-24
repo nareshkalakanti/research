@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 import { APP_TABS, hrefForTab, useAppTab, type AppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
@@ -36,14 +36,17 @@ export function AppChrome({
     setTab(id);
   };
   const current = APP_TABS.find((t) => t.id === tab);
+  // Sidebar hidden / shown, remembered across visits.
+  const navHidden = useSyncExternalStore(subscribeNav, readNavHidden, () => false);
+  const toggleNav = () => writeNavHidden(!navHidden);
 
   return (
-    <div className="app app--side">
-      <aside className="side-nav" aria-label="Main">
+    <div className={navHidden ? "app app--side nav-hidden" : "app app--side"}>
+      <aside className="side-nav" aria-label="Main" hidden={navHidden}>
         <a
           className="side-nav-brand"
           href="/"
-          title="Research · India equities"
+          title="Research"
           onClick={(e) => go(e, "napkin")}
         >
           <BrandMark />
@@ -68,8 +71,18 @@ export function AppChrome({
       <div className="app-body">
         <header className="topbar topbar--slim">
           <div className="topbar-title">
+            <button
+              type="button"
+              className="side-nav-toggle"
+              onClick={toggleNav}
+              aria-expanded={!navHidden}
+              title={navHidden ? "Show menu" : "Hide menu"}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                <path d="M4 6h16 M4 12h16 M4 18h16" />
+              </svg>
+            </button>
             <span className="brand-name">{current?.label ?? "Research"}</span>
-            <span className="brand-sub">Research · India equities</span>
           </div>
           <div className="user-block">
             <RefreshButton />
@@ -100,6 +113,34 @@ export function AppChrome({
       </div>
     </div>
   );
+}
+
+const NAV_KEY = "side-nav-hidden";
+const navListeners = new Set<() => void>();
+/** Used when localStorage is blocked, so the toggle still works for this visit. */
+let navHiddenMem = false;
+
+function subscribeNav(cb: () => void): () => void {
+  navListeners.add(cb);
+  return () => navListeners.delete(cb);
+}
+
+function readNavHidden(): boolean {
+  try {
+    return window.localStorage.getItem(NAV_KEY) === "1";
+  } catch {
+    return navHiddenMem;
+  }
+}
+
+function writeNavHidden(hidden: boolean): void {
+  navHiddenMem = hidden;
+  try {
+    window.localStorage.setItem(NAV_KEY, hidden ? "1" : "0");
+  } catch {
+    /* storage blocked: navHiddenMem keeps the choice for this visit */
+  }
+  navListeners.forEach((cb) => cb());
 }
 
 /**
