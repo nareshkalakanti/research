@@ -11,6 +11,8 @@ export type ExpandQuarterData = {
   source: string | null;
   loading: boolean;
   error: string | null;
+  /** Data check warning for the chart (mismatch with annual report, jumps, stale). */
+  warning?: string | null;
 };
 
 /**
@@ -28,6 +30,7 @@ export function useExpandQuarters(
   const [yoy, setYoy] = useState<PanelYoY | null>(null);
   const [extras, setExtras] = useState<QuarterExtraMetrics | null>(null);
   const [source, setSource] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const genRef = useRef(0);
@@ -54,6 +57,7 @@ export function useExpandQuarters(
       setYoy(null);
       setExtras(null);
       setSource(null);
+      setWarning(null);
       setLoading(false);
       setError(null);
     }
@@ -82,6 +86,7 @@ export function useExpandQuarters(
           extras?: QuarterExtraMetrics | null;
           source?: string;
           error?: string;
+          warning?: string | null;
         };
         if (gen !== genRef.current) return;
         if (!r.ok || j.ok === false) {
@@ -90,6 +95,7 @@ export function useExpandQuarters(
           setYoy(null);
           setExtras(null);
           setSource(null);
+          setWarning(null);
           setError(j.error || "Could not load quarters");
           return;
         }
@@ -99,6 +105,7 @@ export function useExpandQuarters(
           setYoy(j.yoy ?? null);
           setExtras(j.extras ?? null);
           setSource(j.source ?? null);
+          setWarning(null);
           setError(j.error || "No quarterly data available");
           return;
         }
@@ -107,6 +114,7 @@ export function useExpandQuarters(
         setYoy(j.yoy ?? null);
         setExtras(j.extras ?? null);
         setSource(j.source ?? null);
+        setWarning(j.warning ?? null);
       })
       .catch(() => {
         if (gen === genRef.current) {
@@ -126,5 +134,6 @@ export function useExpandQuarters(
     source,
     loading,
     error,
+    warning,
   };
 }

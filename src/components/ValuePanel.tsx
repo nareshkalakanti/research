@@ -1532,6 +1532,7 @@ function EarningsTrendsView({ universe }: { universe: Stock[] | null }) {
   const [picked, setPicked] = useState<Stock | null>(null);
   const [panel, setPanel] = useState<QuarterPanel | null>(null);
   const [yoy, setYoy] = useState<{ sales_yoy: number | null; np_yoy: number | null; ebidt_yoy: number | null } | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -1563,11 +1564,13 @@ function EarningsTrendsView({ universe }: { universe: Stock[] | null }) {
           error?: string;
           quarters?: QuarterPanel | null;
           yoy?: { sales_yoy: number | null; np_yoy: number | null; ebidt_yoy: number | null };
+          warning?: string | null;
         };
         if (!live) return;
         if (!res.ok || j.ok === false || !j.quarters) throw new Error(j.error || "No quarterly data");
         setPanel(j.quarters);
         setYoy(j.yoy ?? null);
+        setWarning(j.warning ?? null);
       } catch (e) {
         if (live) {
           setPanel(null);
@@ -1631,6 +1634,7 @@ function EarningsTrendsView({ universe }: { universe: Stock[] | null }) {
               market={picked.market}
               loading={busy}
               error={err}
+              warning={warning}
             />
           )}
         </div>

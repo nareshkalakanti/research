@@ -8,6 +8,7 @@ import { openSqliteNamed } from "./sqlite-utils";
 import { fetchScreenerCompanyHtml, stockBlockedUntil } from "./screener-fetch";
 import type { QuarterPoint } from "./quarter-panel";
 import {
+  dropZeroSalesPlaceholders,
   mergeQuarterFill,
   trimReportedQuarters,
 } from "./quarter-panel";
@@ -155,6 +156,37 @@ function writeMissBlock(ticker: string, blockedUntil: string): void {
   writeCache(ticker, [], blockedUntil);
 }
 
+/**
+ * Save-time check: last 4 quarters' sales below 20% of the annual report means
+ * another currency or unit, not a real quarter. Infosys in US$ million reads
+ * ~0.12× its ₹ Cr annual sales ($1M ≈ ₹8.5 Cr).
+ * Values of ₹1 Cr+ are a rupee series and are converted first (chart rule).
+ */
+export function quartersLookForeign(quarters: QuarterPoint[], annualSales: number | null): boolean {
+  if (annualSales == null || annualSales < 5) return false;
+  const last = [...quarters]
+    .filter((q) => q.revenue != null && q.revenue > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .slice(-4);
+  if (last.length < 4) return false;
+  const rupees = last.some((q) => q.revenue! >= 1e7);
+  const ttm = last.reduce((t, q) => t + (rupees && q.revenue! >= 1e5 ? q.revenue! / 1e7 : q.revenue!), 0);
+  return ttm < annualSales * 0.2;
+}
+
+function latestAnnualSales(db: ReturnType<typeof openSqliteNamed>, ticker: string): number | null {
+  try {
+    const r = db.prepare(`SELECT annual_json AS j FROM screener_annual_cache WHERE UPPER(ticker) = ?`).get(ticker) as
+      | { j: string }
+      | undefined;
+    if (!r) return null;
+    const sales = (JSON.parse(r.j) as { sales: Array<number | null> }).sales;
+    return [...sales].reverse().find((v) => v != null && v > 0) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function writeCache(
   ticker: string,
   quarters: QuarterPoint[],
@@ -166,6 +198,12 @@ function writeCache(
     ...METRICS_OPEN,
   });
   try {
+    if (quarters.length) {
+      // ₹0 between real quarters is a placeholder, not a result.
+      quarters = dropZeroSalesPlaceholders(quarters);
+      // Foreign currency / units: keep what is saved rather than overwrite with it.
+      if (quartersLookForeign(quarters, latestAnnualSales(db, ticker.toUpperCase()))) return;
+    }
     db.prepare(
       `INSERT INTO screener_quarters_cache (ticker, quarters_json, fetched_at, blocked_until)
        VALUES (@ticker, @quarters_json, @fetched_at, @blocked_until)

@@ -14,6 +14,9 @@ import { openSqliteNamed } from "./sqlite-utils";
  *   wrong_code  — saved BSE code differs from the trusted list
  *   shared_code — one BSE code saved against several tickers
  *   same_data   — Screener annual figures identical to another ticker's
+ *   quarter_mismatch — saved quarters disagree with the annual report (last
+ *                 12 months outside 0.5–2× annual sales, or a 50× jump), e.g.
+ *                 Infosys's quarters saved in US dollars
  */
 
 /**
@@ -122,6 +125,63 @@ function sameDataGroups(): string[][] {
   return [...groups.values()].filter((g) => g.length > 1);
 }
 
+/** Saved quarterly series that disagree with the annual report (₹5 Cr+ companies). */
+function quarterMismatchTickers(): string[] {
+  const out: string[] = [];
+  const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
+  try {
+    const annual = new Map<string, number>();
+    for (const r of db.prepare(`SELECT UPPER(ticker) AS t, annual_json AS j FROM screener_annual_cache`).all() as Array<{
+      t: string;
+      j: string;
+    }>) {
+      try {
+        const a = JSON.parse(r.j) as { sales: Array<number | null> };
+        const last = [...a.sales].reverse().find((v) => v != null && v > 0);
+        if (last != null) annual.set(r.t, last);
+      } catch {
+        /* bad row */
+      }
+    }
+    const mi = (d: string) => Number(d.slice(0, 4)) * 12 + Number(d.slice(5, 7));
+    for (const r of db.prepare(`SELECT UPPER(ticker) AS t, quarters_json AS j FROM screener_quarters_cache`).all() as Array<{
+      t: string;
+      j: string;
+    }>) {
+      const ann = annual.get(r.t);
+      if (ann == null || ann < 5) continue;
+      try {
+        const qs = (JSON.parse(r.j) as Array<{ date: string; revenue: number | null }>)
+          .filter((q) => q.date && q.revenue != null)
+          .sort((a, b) => a.date.localeCompare(b.date))
+          // Same rule as the chart: only a series with a ₹1 Cr+ rupee amount is in rupees.
+          .map((q, _i, all) => ({
+            ...q,
+            revenue: all.some((x) => Math.abs(x.revenue!) >= 1e7) && Math.abs(q.revenue!) >= 1e5 ? q.revenue! / 1e7 : q.revenue!,
+          }));
+        if (qs.length < 2) continue;
+        let jump = false;
+        for (let i = 1; i < qs.length; i++) {
+          const a = qs[i - 1]!.revenue!;
+          const b = qs[i]!.revenue!;
+          if (a > 0 && b > 0 && (b / a > 50 || a / b > 50)) jump = true;
+        }
+        const four = qs.slice(-4);
+        const two = qs.slice(-2);
+        const steps = (xs: typeof qs, g: number) => xs.every((x, i) => i === 0 || Math.abs(mi(x.date) - mi(xs[i - 1]!.date) - g) <= 1);
+        const year = four.length === 4 && steps(four, 3) ? four : steps(two, 6) ? two : null;
+        const ratio = year ? year.reduce((t, q) => t + q.revenue!, 0) / ann : null;
+        if (jump || (ratio != null && (ratio < 0.5 || ratio > 2))) out.push(r.t);
+      } catch {
+        /* bad row */
+      }
+    }
+  } finally {
+    db.close();
+  }
+  return out;
+}
+
 export function findIdentitySuspects(): Suspect[] {
   const saved = savedCodes();
   const active = activeTickers();
@@ -158,6 +218,8 @@ export function findIdentitySuspects(): Suspect[] {
       .sort((a, b) => (active.get(b) ?? 0) - (active.get(a) ?? 0))[0];
     for (const t of group) add(t, "same_data", t === owner ? "refresh" : "clear");
   }
+  // Quarters that disagree with the annual report: re-read the company page with the identity check.
+  for (const t of quarterMismatchTickers()) if (active.has(t)) add(t, "quarter_mismatch");
   // Old aliases / replaced tickers: nothing to fetch, just drop what they hold.
   for (const s of out.values()) if (!active.has(s.ticker)) s.action = "retire";
   return [...out.values()].sort((a, b) => a.ticker.localeCompare(b.ticker));

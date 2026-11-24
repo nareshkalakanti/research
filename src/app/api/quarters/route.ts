@@ -3,6 +3,8 @@ import { resolveQuarterPanelData } from "@/lib/quarter-metrics-compute";
 import { listedPriceFor } from "@/lib/listed-price";
 import { loadMetricsMap } from "@/lib/metrics";
 import { forwardPeFromPanel } from "@/lib/valuation";
+import { quarterChecks } from "@/lib/quarter-checks";
+import { fetchScreenerAnnual } from "@/lib/screener-annual";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -54,6 +56,10 @@ export async function GET(req: NextRequest) {
       result.panel && livePrice
         ? forwardPeFromPanel(livePrice, result.panel)
         : (snapshot?.forward_pe ?? null);
+    const annual = await fetchScreenerAnnual(ticker, { cacheOnly: true }).catch(() => null);
+    const checks = quarterChecks(result.panel, annual?.sales);
+    // Wrong-looking series: keep the chart, drop YoY (it would be wrong too).
+    const yoyOk = !checks.breaks && !checks.mismatch;
     const mk = (market || "").trim().toUpperCase();
     const noPanelError = !result.panel
       ? mk === "NSE SME" || mk === "BSE SME"
@@ -69,7 +75,9 @@ export async function GET(req: NextRequest) {
       source: result.panel ? result.source : result.source,
       price: result.price ?? rowPrice ?? undefined,
       forward_pe: forwardPe ?? undefined,
-      yoy: snapshot
+      checks,
+      warning: checks.warning,
+      yoy: snapshot && yoyOk
         ? {
             sales_yoy: snapshot.sales_yoy,
             np_yoy: snapshot.np_yoy,

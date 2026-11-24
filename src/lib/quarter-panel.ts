@@ -48,7 +48,15 @@ export const QUARTER_PANEL_COLUMNS = 5;
 
 /** Absolute ₹ vs ₹ Cr threshold. */
 export const INR_CRORE = 10_000_000;
+/** Inside a rupee series, amounts this large are rupees (smaller ones are ₹ Cr cells mixed in). */
 const ABSOLUTE_INR_FLOOR = 1e5;
+/**
+ * A series is in absolute rupees only when it has an amount ≥ ₹1 Cr written in
+ * rupees (10,000,000+). No Indian company's quarterly sales in ₹ Cr come near
+ * that (Reliance ≈ 3.3 lakh Cr = 330,000), so ₹ Cr series are never divided:
+ * the old 1e5 test turned Reliance's and SBI's quarters into 0.
+ */
+const RUPEE_SERIES_FLOOR = 1e7;
 
 function toDateStr(d: Date | string | number): string {
   const x = new Date(d);
@@ -73,9 +81,9 @@ export function trimReportedQuarters(
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/** True when a P&L amount is absolute ₹ (not ₹ Cr). EPS is never this large. */
+/** True when a P&L amount can only be absolute ₹ (not ₹ Cr). EPS is never this large. */
 export function amountLooksAbsoluteInr(v: number | null | undefined): boolean {
-  return v != null && Number.isFinite(v) && Math.abs(v) >= ABSOLUTE_INR_FLOOR;
+  return v != null && Number.isFinite(v) && Math.abs(v) >= RUPEE_SERIES_FLOOR;
 }
 
 function amountLooksCroreScale(v: number | null | undefined): boolean {
@@ -104,9 +112,10 @@ function seriesHasCroreScale(qs: readonly QuarterPoint[]): boolean {
   );
 }
 
+/** Within a rupee series: rupee amounts → ₹ Cr; small ₹ Cr cells mixed in stay as they are. */
 function toCroreAmount(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v)) return null;
-  if (!amountLooksAbsoluteInr(v)) return v;
+  if (Math.abs(v) < ABSOLUTE_INR_FLOOR) return v;
   return Math.round((v / INR_CRORE) * 100) / 100;
 }
 
@@ -196,7 +205,7 @@ function quarterLabel(dateStr: string): string {
 export function inrCroreDivisor(values: Array<number | null>): number {
   const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
   if (!nums.length) return 1;
-  if (Math.max(...nums.map(Math.abs)) >= ABSOLUTE_INR_FLOOR) return INR_CRORE;
+  if (Math.max(...nums.map(Math.abs)) >= RUPEE_SERIES_FLOOR) return INR_CRORE;
   return 1;
 }
 
@@ -208,22 +217,27 @@ function scaleValues(
     return values.map((v) => (v == null ? null : Math.round(v * 100) / 100));
   }
   const nums = values.filter((v): v is number => v != null && Number.isFinite(v));
-  const hasAbs = nums.some((v) => Math.abs(v) >= ABSOLUTE_INR_FLOOR);
-  const hasCr = nums.some(
-    (v) => Math.abs(v) > 0 && Math.abs(v) < ABSOLUTE_INR_FLOOR,
+  const rupees = nums.some((v) => Math.abs(v) >= RUPEE_SERIES_FLOOR);
+  const cr = values.map((v) => {
+    if (v == null || !Number.isFinite(v)) return null;
+    // Rupee row (Yahoo): convert rupee cells; ₹ Cr cells mixed in stay. ₹ Cr row: untouched.
+    return rupees && Math.abs(v) >= ABSOLUTE_INR_FLOOR ? v / INR_CRORE : v;
+  });
+  // Small companies: ₹0.4 Cr must not show as 0 — keep 2 decimals under ₹10 Cr.
+  const small = cr.every((v) => v == null || Math.abs(v) < 10);
+  return cr.map((v) => (v == null ? null : small ? Math.round(v * 100) / 100 : Math.round(v)));
+}
+
+/**
+ * A reported 0 sales between non-zero neighbours is a missing figure, not zero
+ * revenue: drop it so charts show a gap, not a fake −100% quarter.
+ */
+export function dropZeroSalesPlaceholders(quarters: QuarterPoint[]): QuarterPoint[] {
+  const qs = [...quarters].sort((a, b) => a.date.localeCompare(b.date));
+  const nz = (v: number | null | undefined) => v != null && Number.isFinite(v) && v !== 0;
+  return qs.map((q, i) =>
+    q.revenue === 0 && (nz(qs[i - 1]?.revenue) || nz(qs[i + 1]?.revenue)) ? { ...q, revenue: null } : q,
   );
-  // Mixed Yahoo ₹ + Screener Cr in one row — convert per cell, never wipe Cr to 0.
-  if (hasAbs && hasCr) {
-    return values.map((v) => {
-      if (v == null || !Number.isFinite(v)) return null;
-      if (Math.abs(v) >= ABSOLUTE_INR_FLOOR) {
-        return Math.round(v / INR_CRORE);
-      }
-      return Math.round(v);
-    });
-  }
-  const div = inrCroreDivisor(values);
-  return values.map((v) => (v == null ? null : Math.round(v / div)));
 }
 
 /**
@@ -235,7 +249,7 @@ export function buildQuarterPanel(
   maxQuarters = QUARTER_PANEL_COLUMNS,
 ): QuarterPanel | null {
   const qs = trimReportedQuarters(
-    quarters.filter(
+    dropZeroSalesPlaceholders(quarters).filter(
       (q) =>
         q.revenue != null ||
         q.netIncome != null ||

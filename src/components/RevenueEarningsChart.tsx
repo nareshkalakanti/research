@@ -70,7 +70,10 @@ export function RevenueEarningsChart({
   market,
   loading,
   error,
+  warning,
 }: {
+  /** Data check warning (doesn't match annual report, jumps, stale): shown above the chart. */
+  warning?: string | null;
   panel: QuarterPanel | null;
   yoy: PanelYoY | null;
   name: string;
@@ -169,6 +172,7 @@ export function RevenueEarningsChart({
             {name} ({ticker}
             {mkt ? `.${mkt}` : ""})
           </p>
+          {warning ? <p className="vx-earn-warn">⚠ {warning}</p> : null}
           <div className="vx-earn-legend">
             <span className="vx-earn-leg vx-earn-leg--rev">Revenue {fmtInrCr(lastRev)}</span>
             <span className="vx-earn-leg vx-earn-leg--earn">Earnings {fmtInrCr(lastEarn)}</span>

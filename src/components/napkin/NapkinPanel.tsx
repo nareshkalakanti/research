@@ -298,6 +298,7 @@ export function NapkinPanel() {
                   market={data.exchange}
                   loading={qtr.loading && !qtr.panel}
                   error={qtr.error}
+                  warning={qtr.warning}
                 />
               </div>
             </div>
