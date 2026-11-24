@@ -219,7 +219,9 @@ export function cagrCheck(
 
 /** Results kept 6 h per stock: reopening a stock in Napkin is instant. */
 const QF_TTL_MS = 6 * 3_600_000;
-const qfMemo = new Map<string, { at: number; v: Promise<QualityFlags> }>();
+/** A result missing statements or shareholding (Screener paused / slow) is retried after 2 min. */
+const QF_PARTIAL_TTL_MS = 2 * 60_000;
+const qfMemo = new Map<string, { at: number; ttl: number; v: Promise<QualityFlags> }>();
 /** Top-bar Refresh: recompute quality checks from the saved statements. */
 export function clearQualityFlagsMemo(): void {
   qfMemo.clear();
@@ -227,12 +229,21 @@ export function clearQualityFlagsMemo(): void {
 export function buildQualityFlags(ticker: string): Promise<QualityFlags> {
   const t = ticker.trim().toUpperCase();
   const hit = qfMemo.get(t);
-  if (hit && Date.now() - hit.at < QF_TTL_MS) return hit.v;
+  if (hit && Date.now() - hit.at < hit.ttl) return hit.v;
   const v = buildQualityFlagsRaw(t).catch((e) => {
     qfMemo.delete(t);
     throw e;
   });
-  qfMemo.set(t, { at: Date.now(), v });
+  const entry = { at: Date.now(), ttl: QF_TTL_MS, v };
+  qfMemo.set(t, entry);
+  void v
+    .then((r) => {
+      const missing =
+        r.quality.some((q) => q.note === "No balance sheet" || q.note === "No annual EPS") ||
+        r.flags.some((f) => f.id === "promoter_low" && f.verdict === "na");
+      if (missing) entry.ttl = QF_PARTIAL_TTL_MS;
+    })
+    .catch(() => {});
   return v;
 }
 
