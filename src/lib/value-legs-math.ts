@@ -65,3 +65,25 @@ export function roce3yFromAnnual(roce: Array<number | null | undefined>): number
   if (!last3.length) return null;
   return last3.reduce((x, y) => x + y, 0) / last3.length;
 }
+
+/** A starting value below this share of the earlier peak is a trough, not a base for growth. */
+export const LOW_BASE_SHARE = 0.6;
+
+/**
+ * Growth measured from a trough is a recovery, not growth (SEPC: sales ₹1,208 Cr
+ * FY20 → ₹379 Cr FY23 → ₹1,054 Cr FY26 reads as 40% a year). Returns the earlier
+ * peak when `vals[startIdx]` is below 60% of it, else null. Oldest → newest.
+ */
+export function recoveryPeak(vals: Array<number | null | undefined>, startIdx: number): number | null {
+  const start = vals[startIdx];
+  if (start == null || !Number.isFinite(start) || startIdx <= 0) return null;
+  let peak = -Infinity;
+  for (let i = 0; i < startIdx; i++) {
+    const v = vals[i];
+    if (v != null && Number.isFinite(v) && v > peak) peak = v;
+  }
+  return peak > 0 && start < peak * LOW_BASE_SHARE ? peak : null;
+}
+
+/** Share capital growing more than this over a window means shares were issued: per-share history is not comparable. */
+export const DILUTION_LIMIT = 0.25;

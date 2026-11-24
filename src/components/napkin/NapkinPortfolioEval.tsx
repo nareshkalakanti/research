@@ -61,13 +61,12 @@ const DRAWER: Record<
   },
 };
 
-function tone(got: number, of: number): string {
-  if (!of) return "na";
-  const r = got / of;
-  return r >= 0.7 ? "good" : r >= 0.4 ? "mid" : "bad";
+/** Same thresholds as Portfolio review valuation pills. */
+/** Same colours as Portfolio review: ≥ 65% green · ≥ 40% amber · else red. */
+function pr(got: number, of: number): string {
+  return !of ? "na" : got / of >= 0.65 ? "good" : got / of >= 0.4 ? "mid" : "bad";
 }
 
-/** Same thresholds as Portfolio review valuation pills. */
 function valCls(v: number, scored: number): string {
   if (!scored) return "na";
   return v >= 3 ? "good" : v >= 1 ? "mid" : "bad";
@@ -155,71 +154,74 @@ export function NapkinPortfolioEval({ ticker }: { ticker: string }) {
       {err ? (
         <p className="qf-msg qf-msg--err">Could not score: {err}</p>
       ) : (
-        <div className="nsc nsc--portfolio">
-          <button
-            type="button"
-            className={`nsc-cell nsc-cell--${pending || !row?.scored ? "na" : tone(row.fundamental, 6)}`}
-            onClick={() => row && row.scored > 0 && setDrawer("fundamental")}
-            title="Fundamental checklist"
-          >
-            <span className="nsc-k">Fundamental score</span>
-            <span className="nsc-pill">
-              {pending || !row ? "…" : row.scored ? row.fundamental : "—"}
-              <small>/ 6</small>
-            </span>
-          </button>
-          <button
-            type="button"
-            className={`nsc-cell nsc-cell--${pending || !row?.m_scored ? "na" : tone(row.management, 5)}`}
-            onClick={() => row && row.m_scored > 0 && setDrawer("management")}
-            title="Management checklist"
-          >
-            <span className="nsc-k">Management score</span>
-            <span className="nsc-pill">
-              {pending || !row ? "…" : row.m_scored ? row.management : "—"}
-              <small>/ 5</small>
-            </span>
-          </button>
-          <div className="nsc-total">
-            <span className="nsc-k">Quality score</span>
-            <strong>
-              {pending || !row ? "…" : row.quality}
-              <small> / 11</small>
-            </strong>
-            <span className="nsc-sub">Fundamental + management</span>
-          </div>
-          <button
-            type="button"
-            className="nsc-cell"
-            onClick={() => row && row.v_scored > 0 && setDrawer("valuation")}
-            title="Valuation checklist · −4…+6"
-          >
-            <span className="nsc-k">Valuation score</span>
-            <span
-              className={`vx-score vx-score--val vx-score--${
-                pending || !row?.v_scored ? "na" : valCls(row.valuation, row.v_scored)
-              }`}
-            >
-              {pending || !row ? "…" : row.v_scored ? row.valuation : "—"}
-            </span>
-          </button>
-          <div className="nsc-total">
-            <span className="nsc-k">Total score</span>
-            <strong>
-              {pending || !row ? "…" : row.total}
-              <small> / 17</small>
-            </strong>
-            <span className="nsc-sub">Quality + valuation</span>
-          </div>
-          <div
-            className={`nsc-rating nsc-rating--${row ? ratingCls(row.rating) : "mid"}`}
-          >
-            <span className="nsc-k">Final rating</span>
-            <strong>{pending || !row ? "…" : row.rating}</strong>
-            <span className="nsc-sub">
-              Excellent 13+ · Good 9+ · Average 5+ · Quality = F + M
-            </span>
-          </div>
+        <div className="napkin-vx vx-scroll">
+          <table className="vx-table napkin-vx-table napkin-vx-table--6">
+            <thead>
+              <tr>
+                <th className="num" title="Click a score for the checklist">Fundamental score</th>
+                <th className="num" title="Click a score for the checklist">Management score</th>
+                <th className="num" title="Fundamental + management">Quality score</th>
+                <th className="num" title="Valuation checklist · range −4…+6">Valuation score</th>
+                <th className="num" title="Quality + valuation">Total score</th>
+                <th>Final rating</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                {pending || !row ? (
+                  <td colSpan={6} className="vx-empty">
+                    Scoring…
+                  </td>
+                ) : (
+                  <>
+                    <td className="num">
+                      <button
+                        type="button"
+                        className={`vx-score vx-score--${pr(row.fundamental, row.scored)}`}
+                        onClick={() => row.scored > 0 && setDrawer("fundamental")}
+                        title="Show the fundamental checklist"
+                      >
+                        {row.scored ? row.fundamental : "—"}
+                        <small>/ 6</small>
+                      </button>
+                    </td>
+                    <td className="num">
+                      <button
+                        type="button"
+                        className={`vx-score vx-score--${pr(row.management, row.m_scored)}`}
+                        onClick={() => row.m_scored > 0 && setDrawer("management")}
+                        title="Show the management checklist"
+                      >
+                        {row.m_scored ? row.management : "—"}
+                        <small>/ 5</small>
+                      </button>
+                    </td>
+                    <td className="num vx-total-cell">
+                      {row.quality} <small>/ 11</small>
+                    </td>
+                    <td className="num">
+                      <button
+                        type="button"
+                        className={`vx-score vx-score--val vx-score--${valCls(row.valuation, row.v_scored)}`}
+                        onClick={() => row.v_scored > 0 && setDrawer("valuation")}
+                        title="Valuation checklist · −4…+6"
+                      >
+                        {row.v_scored ? row.valuation : "—"}
+                      </button>
+                    </td>
+                    <td className="num vx-total-cell">
+                      {row.total} <small>/ 17</small>
+                    </td>
+                    <td>
+                      <span className={`vx-rating vx-rating--${ratingCls(row.rating)}`} title="Excellent 13+ · Good 9+ · Average 5+">
+                        {row.rating}
+                      </span>
+                    </td>
+                  </>
+                )}
+              </tr>
+            </tbody>
+          </table>
         </div>
       )}
 

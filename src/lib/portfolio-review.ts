@@ -444,9 +444,15 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
     fetchScreenerAnnualBs(t).catch(() => null),
   ]);
   const checks: FundCheck[] = [];
-  const fromCagr = (id: "bv" | "sales", label: string, dates: string[] | undefined, vals: Array<number | null> | undefined) => {
+  const fromCagr = (
+    id: "bv" | "sales",
+    label: string,
+    dates: string[] | undefined,
+    vals: Array<number | null> | undefined,
+    shareCapital?: { dates: string[]; values: Array<number | null> },
+  ) => {
     if (!dates?.length || !vals) return { id, label, rule: `> ${FUND.cagr}% CAGR · up to 10 yrs`, value: "—", points: null, note: "No data" } as FundCheck;
-    const c = cagrCheck(id, label, dates, vals);
+    const c = cagrCheck(id, label, dates, vals, shareCapital ? { shareCapital } : undefined);
     // Rule shows the span actually used (10 / 5 / 3), not a fixed "10 yrs".
     const spanNote = c.note?.match(/^(\d+)\s*yrs/)?.[1];
     const spanLabel = spanNote ? `${spanNote} yrs` : "up to 10 yrs";
@@ -476,7 +482,15 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
       })
     : undefined;
   {
-    const c = fromCagr("bv", "Book value growth (per share)", bs?.dates, bvps);
+    // Shares issued in the window (debt converted to equity, placements) make
+    // per-share history not comparable: the shared check marks it "not scored".
+    const c = fromCagr(
+      "bv",
+      "Book value growth (per share)",
+      bs?.dates,
+      bvps,
+      bs ? { dates: bs.dates, values: bs.equity_capital } : undefined,
+    );
     checks.push(c);
   }
   checks.push(
@@ -862,9 +876,10 @@ const scoreMemo = new Map<string, ScoreBundle>();
 /**
  * Scores saved before the last rule change are recalculated on next use.
  * Bump when a check's rule changes (2026-11-24: intrinsic value not scored
- * without 6 years of EPS; negative equity scores P/B −1).
+ * without 6 years of EPS; negative equity scores P/B −1; growth from a trough
+ * or across heavy share issuance is not scored).
  */
-const RULES_CHANGED_AT = Date.parse("2026-11-24T11:17:00Z");
+const RULES_CHANGED_AT = Date.parse("2026-11-24T14:30:00Z");
 
 function readDiskScore(ticker: string): ScoreBundle | null {
   return withDb((db) => {

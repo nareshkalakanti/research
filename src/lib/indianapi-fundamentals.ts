@@ -40,7 +40,8 @@ async function throttle(): Promise<void> {
   lastCallAt = Date.now();
 }
 
-async function indianGet(path: string, query: Record<string, string>): Promise<unknown> {
+/** Paced GET to IndianAPI (throws IndianApiRateLimitError on 429 / out of credits). */
+export async function indianGet(path: string, query: Record<string, string>): Promise<unknown> {
   const key = apiKey();
   if (!key) throw new Error("STOCK_PRICE_API_KEY missing");
   await throttle();

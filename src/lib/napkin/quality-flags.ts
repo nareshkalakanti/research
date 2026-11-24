@@ -3,6 +3,7 @@ import {
   fetchScreenerAnnualBs,
   fetchScreenerAnnualPl,
 } from "../screener-annual";
+import { DILUTION_LIMIT, recoveryPeak } from "../value-legs-math";
 import { loadMetricsMap } from "../metrics";
 import { fetchCashDebt } from "../yfinance";
 import { fetchScreenerQuarterlyFundamentals } from "../screener-quarters";
@@ -92,39 +93,46 @@ export function annualPoints(dates: string[], vals: Array<number | null>): Array
   return pts.filter((p) => p.date.slice(5, 7) === main);
 }
 
-/** CAGR over up to `years` years using the last point and the point that many years back. */
+/**
+ * CAGR over 10 years when the history allows, else 5, else 3 — chosen by years
+ * of history only, never shortened to dodge a weak start. The start is the
+ * point exactly that many years back; growth uses the real year count.
+ * Strict eligibility (no point, figure still shown):
+ *   - start below 60% of an earlier peak → "Recovery from a low base"
+ *   - share capital up more than 25% in the window → "Not comparable" (when given)
+ */
 export function cagrCheck(
   id: string,
   label: string,
   dates: string[],
   vals: Array<number | null>,
+  opts?: { shareCapital?: { dates: string[]; values: Array<number | null> } },
 ): QfCheck {
   const rule = `≥ ${QF_RULES.cagr}% CAGR`;
   const pts = annualPoints(dates, vals);
   if (pts.length < QF_RULES.minYears + 1) {
     return { id, label, rule, value: "—", verdict: "na", note: `Only ${Math.max(0, pts.length - 1)} years of data` };
   }
-  // 10 years when available, else 5, else 3 — shorten when the start year is a low base.
-  const avail = pts.length - 1;
-  let span = avail >= QF_RULES.years ? QF_RULES.years : avail >= 5 ? 5 : 3;
+  const year = (d: string) => Number(d.slice(0, 4));
   const end = pts[pts.length - 1]!;
-  let start = pts[pts.length - 1 - span]!;
-  const typical = (() => {
-    const xs = pts.slice(-10).map((p) => p.v).filter((v) => v > 0).sort((a, b) => a - b);
-    return xs.length ? xs[xs.length >> 1]! : null;
-  })();
-  let lowBase = false;
-  if (
-    typical != null &&
-    start.v > 0 &&
-    start.v < typical * 0.5 &&
-    avail >= 3 &&
-    span > 3
-  ) {
-    span = 3;
-    start = pts[pts.length - 1 - span]!;
-    lowBase = true;
+  const firstYear = year(pts[0]!.date);
+  const avail = year(end.date) - firstYear;
+  let startIdx = -1;
+  let span = 0;
+  for (const want of [QF_RULES.years, 5, 3]) {
+    if (avail < want) continue;
+    const idx = pts.findIndex((p) => year(p.date) === year(end.date) - want);
+    if (idx >= 0) {
+      startIdx = idx;
+      span = want;
+      break;
+    }
   }
+  if (startIdx < 0) {
+    return { id, label, rule, value: "—", verdict: "na", note: "Gaps in the yearly history" };
+  }
+  const start = pts[startIdx]!;
+  const years = `${span} yrs · ${start.date.slice(0, 4)} → ${end.date.slice(0, 4)}`;
   if (start.v <= 0 || end.v <= 0) {
     return {
       id,
@@ -137,16 +145,34 @@ export function cagrCheck(
     };
   }
   const g = (Math.pow(end.v / start.v, 1 / span) - 1) * 100;
-  return {
-    id,
-    label,
-    rule,
-    value: pct(g),
-    verdict: g >= QF_RULES.cagr ? "pass" : "fail",
-    note: `${span} yrs · ${start.date.slice(0, 4)} → ${end.date.slice(0, 4)}${
-      lowBase ? " · shortened — early year was a low base" : ""
-    }`,
-  };
+  const peak = recoveryPeak(pts.map((p) => p.v), startIdx);
+  if (peak != null) {
+    return {
+      id,
+      label,
+      rule,
+      value: pct(g),
+      verdict: "na",
+      note: `${years} · Recovery from a low base (earlier peak ${Math.round(peak).toLocaleString("en-IN")}): not scored`,
+    };
+  }
+  if (opts?.shareCapital) {
+    const cap = annualPoints(opts.shareCapital.dates, opts.shareCapital.values);
+    const at = (y: number) => cap.find((p) => year(p.date) === y)?.v ?? null;
+    const c0 = at(year(start.date));
+    const c1 = at(year(end.date));
+    if (c0 != null && c1 != null && c0 > 0 && c1 / c0 - 1 > DILUTION_LIMIT) {
+      return {
+        id,
+        label,
+        rule,
+        value: pct(g),
+        verdict: "na",
+        note: `${years} · Not comparable: share capital +${Math.round((c1 / c0 - 1) * 100)}% (shares issued)`,
+      };
+    }
+  }
+  return { id, label, rule, value: pct(g), verdict: g >= QF_RULES.cagr ? "pass" : "fail", note: years };
 }
 
 /** Results kept 6 h per stock: reopening a stock in Napkin is instant. */
@@ -185,7 +211,9 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
   // 1) Book value
   quality.push(
     bs?.dates.length
-      ? cagrCheck("bv", "Book value growth", bs.dates, bs.book_value)
+      ? cagrCheck("bv", "Book value growth", bs.dates, bs.book_value, {
+          shareCapital: { dates: bs.dates, values: bs.equity_capital },
+        })
       : { id: "bv", label: "Book value growth", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No balance sheet" },
   );
   // 2) EPS

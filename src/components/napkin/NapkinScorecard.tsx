@@ -34,7 +34,8 @@ function ratingFor(total: number): Rating {
   return total >= 15 ? "Excellent" : total >= 11 ? "Good" : total >= 7 ? "Average" : "Poor";
 }
 const capAt = (r: Rating, max: Rating): Rating => (ORDER.indexOf(r) > ORDER.indexOf(max) ? max : r);
-const tone = (got: number, of: number) => (!of ? "na" : got / of >= 0.7 ? "good" : got / of >= 0.4 ? "mid" : "bad");
+/** Same colours as Portfolio review: ≥ 65% green · ≥ 40% amber · else red. */
+const pr = (got: number, of: number) => (!of ? "na" : got / of >= 0.65 ? "good" : got / of >= 0.4 ? "mid" : "bad");
 
 /** Each special situation as its own block with ✓ / ✗ conditions. */
 function SpecialPanel({ checks }: { checks: QualityFlags["special"] }) {
@@ -67,35 +68,6 @@ function SpecialPanel({ checks }: { checks: QualityFlags["special"] }) {
       ))}
       <p className="nsc-sp-foot">All conditions must hold. Capex story: growth from new capacity. Cash rich: market values the business below its net cash.</p>
     </div>
-  );
-}
-
-function Cell({
-  kind,
-  label,
-  value,
-  of,
-  sub,
-  cls,
-  onOpen,
-}: {
-  kind: Kind;
-  label: string;
-  value: number | null;
-  of: string;
-  sub: string;
-  cls: string;
-  onOpen: (k: Kind) => void;
-}) {
-  return (
-    <button type="button" className={`nsc-cell nsc-cell--${cls}`} onClick={() => onOpen(kind)} title={`${label}: open the checklist`}>
-      <span className="nsc-k">{label}</span>
-      <span className="nsc-pill">
-        {value == null ? "—" : value}
-        <small>{of}</small>
-      </span>
-      <span className="nsc-sub">{sub}</span>
-    </button>
   );
 }
 
@@ -242,35 +214,82 @@ export function NapkinScorecard({
   return (
     <div className="napkin-sheet-section">
       <h2 className="napkin-block-title">Score</h2>
-      <div className="nsc">
-        <Cell onOpen={setOpen} kind="quality" label="Quality" value={qPts} of="/ 6" cls={qPts == null ? "na" : tone(qPts, 6)} sub={quality ? `${quality.quality_passed}/${qScored} checks` : qualityReady ? "no data" : "loading…"} />
-        <Cell onOpen={setOpen} kind="momentum" label="Momentum" value={mPts} of="/ 5" cls={mPts == null ? "na" : tone(mPts, 5)} sub={!sevenRule ? "—" : `${sevenRule.passed}/${sevenRule.rules.length} rules${sevenRule.ratingLabel && sevenRule.ratingLabel !== "No" ? ` · ${sevenRule.ratingLabel}` : ""}`} />
-        <Cell onOpen={setOpen} kind="quarters" label="Quarters" value={qrPts} of="/ 3" cls={qrPts == null ? "na" : tone(qrPts, 3)} sub={qrank ? `${qrank.score.toFixed(1)}/10 · ${qrank.band}` : "—"} />
-        <Cell onOpen={setOpen} kind="flags" label="Red flags" value={fPts} of="/ 4" cls={fPts == null ? "na" : raised === 0 ? "good" : raised === 1 ? "mid" : "bad"} sub={quality ? (raised ? `${raised} raised` : "clean") : qualityReady ? "no data" : "loading…"} />
-        <Cell onOpen={setOpen} kind="special" label="Special" value={sPts == null ? null : sPts} of="+ 2" cls={sPts ? "good" : "na"} sub={sQual.length ? sQual.map((c) => c.label).join(" · ") : quality ? "none" : "loading…"} />
-        <button type="button" className="nsc-cell nsc-cell--info" onClick={() => setOpen("tech")} title="Tech: not counted in the total">
-          <span className="nsc-k">Tech</span>
-          <span className="nsc-pill">
-            {maAbove == null ? "—" : maAbove}
-            <small>/ {maKnown || 4} MAs</small>
-          </span>
-          <span className="nsc-sub">
-            {fromHigh == null ? (tape ? "no price data" : "loading…") : `${fromHigh >= -0.5 ? "at" : `${Math.round(fromHigh)}% from`} 52W high`}
-          </span>
-        </button>
-        <div className="nsc-total">
-          <span className="nsc-k">Total</span>
-          <strong>
-            {total}
-            <small> / 20</small>
-          </strong>
-          <span className="nsc-sub">{pending ? "still loading…" : "quality-weighted"}</span>
-        </div>
-        <div className={`nsc-rating nsc-rating--${rCls}`}>
-          <span className="nsc-k">Final rating</span>
-          <strong>{pending ? "…" : rating}</strong>
-          <span className="nsc-sub">{caps.length ? `capped: ${caps.join(", ")}` : "Excellent 15+ · Good 11+ · Average 7+"}</span>
-        </div>
+      <div className="napkin-vx vx-scroll">
+        <table className="vx-table napkin-vx-table">
+          <thead>
+            <tr>
+              <th className="num" title="10 / 5 / 3-yr growth, ROCE, promoter · click for checks">Quality</th>
+              <th className="num" title="7 rules on earnings and returns · click for rules">Momentum</th>
+              <th className="num" title="Quarterly growth score · click for detail">Quarters</th>
+              <th className="num" title="4 minus penalties · click for flags">Red flags</th>
+              <th className="num" title="Capex story / cash rich (bonus)">Special</th>
+              <th className="num" title="Price above moving averages · not in the total">Tech</th>
+              <th className="num">Total</th>
+              <th>Final rating</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="num">
+                <button type="button" className={`vx-score vx-score--${qPts == null ? "na" : pr(qPts, 6)}`} onClick={() => setOpen("quality")} title={quality ? `${quality.quality_passed}/${qScored} checks` : "Quality checks"}>
+                  {qPts ?? "—"}
+                  <small>/ 6</small>
+                </button>
+              </td>
+              <td className="num">
+                <button type="button" className={`vx-score vx-score--${mPts == null ? "na" : pr(mPts, 5)}`} onClick={() => setOpen("momentum")} title={sevenRule ? `${sevenRule.passed}/${sevenRule.rules.length} rules` : "Momentum rules"}>
+                  {mPts ?? "—"}
+                  <small>/ 5</small>
+                </button>
+              </td>
+              <td className="num">
+                <button type="button" className={`vx-score vx-score--${qrPts == null ? "na" : pr(qrPts, 3)}`} onClick={() => setOpen("quarters")} title={qrank ? `${qrank.score.toFixed(1)}/10 · ${qrank.band}` : "Quarters"}>
+                  {qrPts ?? "—"}
+                  <small>/ 3</small>
+                </button>
+              </td>
+              <td className="num">
+                <button
+                  type="button"
+                  className={`vx-score vx-score--${fPts == null ? "na" : raised === 0 ? "good" : raised === 1 ? "mid" : "bad"}`}
+                  onClick={() => setOpen("flags")}
+                  title={quality ? (raised ? `${raised} raised` : "clean") : "Red flags"}
+                >
+                  {fPts ?? "—"}
+                  <small>/ 4</small>
+                </button>
+              </td>
+              <td className="num">
+                <button type="button" className={`vx-score vx-score--${sPts ? "good" : "na"}`} onClick={() => setOpen("special")} title={sQual.length ? sQual.map((c) => c.label).join(" · ") : "none"}>
+                  {sPts == null ? "—" : `+${sPts}`}
+                  <small>/ 2</small>
+                </button>
+              </td>
+              <td className="num">
+                <button
+                  type="button"
+                  className={`vx-score vx-score--${maAbove == null ? "na" : pr(maAbove, maKnown || 4)}`}
+                  onClick={() => setOpen("tech")}
+                  title={fromHigh == null ? "Tech · not in the total" : `${fromHigh >= -0.5 ? "at" : `${Math.round(fromHigh)}% from`} 52W high · not in the total`}
+                >
+                  {maAbove ?? "—"}
+                  <small>/ {maKnown || 4}</small>
+                </button>
+              </td>
+              <td className="num vx-total-cell">
+                {pending ? "…" : total} <small>/ 20</small>
+              </td>
+              <td>
+                <span
+                  className={`vx-rating vx-rating--${pending ? "na" : rCls}`}
+                  title={caps.length ? `capped: ${caps.join(", ")}` : "Excellent 15+ · Good 11+ · Average 7+"}
+                >
+                  {pending ? "…" : rating}
+                </span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
       {open ? (
         <div className="nsc-drawer-wrap" onClick={() => setOpen(null)}>

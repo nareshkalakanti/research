@@ -30,6 +30,8 @@ type Stock = {
   src?: "screener" | "upstox" | "yahoo" | null;
   /** Legs can't be completed from the company's own results (not a data gap). */
   na?: "no_revenue" | "short_history" | "erratic" | "negative_equity" | null;
+  /** 3-yr sales growth measured from a trough: shown, ranked last on growth. */
+  sales_recovery?: boolean;
 };
 
 const NA_LABEL: Record<NonNullable<Stock["na"]>, { short: string; title: string }> = {
@@ -101,7 +103,8 @@ function rankSet(rows: Stock[]): Ranked[] {
     s.forEach(([t, v], i) => out.set(t, i > 0 && v === s[i - 1]![1] ? out.get(s[i - 1]![0])! : i + 1));
     return out;
   };
-  const g = rankBy(work.map((r) => [r.t, r.sales3y!]), true);
+  // Growth from a trough is a recovery: ranked last on the growth leg.
+  const g = rankBy(work.map((r) => [r.t, r.sales_recovery ? Number.NEGATIVE_INFINITY : r.sales3y!]), true);
   const o = rankBy(work.map((r) => [r.t, r.roce3y!]), true);
   const p = rankBy(work.map((r) => [r.t, r.pb != null && r.pb > 0 ? r.pb : Number.POSITIVE_INFINITY]), false);
   return work
@@ -633,6 +636,14 @@ export function ValuePanel() {
                               }
                             >
                               {r.sales3y == null && r.na && r.na !== "negative_equity" ? <NaChip na={r.na} /> : pct(r.sales3y)}
+                              {r.sales_recovery ? (
+                                <>
+                                  {" "}
+                                  <span className="vx-na" title="The 3-year window starts in a trough (below 60% of an earlier year's sales): this is a recovery, not growth. Ranked last on growth.">
+                                    Recovery
+                                  </span>
+                                </>
+                              ) : null}
                               {r.src === "yahoo" ? <sup className="vx-src">Y</sup> : null}
                               {r.src === "upstox" ? <sup className="vx-src">U</sup> : null}
                             </span>{" "}

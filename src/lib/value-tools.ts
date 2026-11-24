@@ -25,7 +25,7 @@ import {
   INDIANAPI_STOCKS_PER_RUN,
   IndianApiRateLimitError,
 } from "./indianapi-fundamentals";
-import { roce3yFromAnnual, sales3yFromAnnual } from "./value-legs-math";
+import { recoveryPeak, roce3yFromAnnual, sales3yFromAnnual } from "./value-legs-math";
 
 /**
  * Value page: the ranking universe (Sales growth 3Y, ROCE 3Y, P/B per stock,
@@ -63,6 +63,8 @@ type ScreenerLegs = {
   /** Latest full-year book value even when zero / negative (bv keeps only > 0). */
   bvLatest?: number | null;
   salesNa?: ValueNa | null;
+  /** 3-yr window starts in a trough (below 60% of an earlier year): a recovery, not growth. */
+  salesRecovery?: boolean;
 };
 
 function loadScreenerLegs(): Map<string, ScreenerLegs> {
@@ -90,6 +92,7 @@ function loadScreenerLegs(): Map<string, ScreenerLegs> {
             roce3y,
             fy: idx.length ? a.dates[idx[idx.length - 1]!]!.slice(0, 4) : null,
             salesNa: sales3y == null ? salesNaReason(sales) : null,
+            salesRecovery: sales3y != null && sales.length >= 4 && recoveryPeak(sales, sales.length - 4) != null,
           });
         } catch {
           /* bad row */
@@ -163,6 +166,8 @@ export type ValueStock = {
   src: "screener" | "upstox" | "indianapi" | "yahoo" | null;
   /** Legs can't be completed (shell / young / erratic / negative equity): not a data gap. */
   na: ValueNa | null;
+  /** Sales growth measured from a trough: shown, but ranked last on growth. */
+  sales_recovery: boolean;
 };
 
 /** Below this market cap (₹ Cr) the gap fill skips a stock unless asked to include micro-caps. */
@@ -229,6 +234,7 @@ export function buildValueUniverse(_opts?: {
       roce3y,
       pb,
       na,
+      sales_recovery: sc?.sales3y != null && !!sc.salesRecovery,
       src:
         sales3y == null && roce3y == null && pb == null
           ? null

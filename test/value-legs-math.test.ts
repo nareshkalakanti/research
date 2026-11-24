@@ -31,3 +31,15 @@ assert.equal(roce3yFromAnnual([null, null, null, null, 12.5]), 12.5);
 assert.equal(roce3yFromAnnual([10, 20, 30]), 20);
 
 console.log("value-legs-math: ok");
+
+// ---- Recovery from a low base ----
+import { recoveryPeak } from "../src/lib/value-legs-math";
+// SEPC sales: FY19 1202, FY20 1208, FY21 583, FY22 329, FY23 379, FY24 561, FY25 598, FY26 1054.
+const sepc = [1202, 1208, 583, 329, 379, 561, 598, 1054];
+assert.equal(recoveryPeak(sepc, sepc.length - 4), 1208); // 3-yr start FY23 = 379 < 60% of 1208
+// Steady grower: no earlier peak above the start.
+assert.equal(recoveryPeak([100, 120, 150, 180, 220], 1), null);
+// Small dip (above 60% of the peak) is not a trough.
+assert.equal(recoveryPeak([100, 120, 90, 130], 2), null);
+assert.equal(recoveryPeak([379, 561], 0), null);
+console.log("recovery ok");
