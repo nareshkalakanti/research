@@ -37,8 +37,35 @@ import { roce3yFromAnnual, sales3yFromAnnual } from "./value-legs-math";
  * three years earlier) and 3-year average ROCE — the same definitions as the
  * Intrinsic Value ranking. Read in one pass from metrics.db.
  */
-function loadScreenerLegs(): Map<string, { sales3y: number | null; roce3y: number | null; fy: string | null; bv?: number | null }> {
-  const out = new Map<string, { sales3y: number | null; roce3y: number | null; fy: string | null; bv?: number | null }>();
+/**
+ * Why a stock's legs can never be completed from its own results — shown as a
+ * label instead of a blank, and kept out of the fill queue (no source can fix it).
+ */
+export type ValueNa = "no_revenue" | "short_history" | "erratic" | "negative_equity";
+
+/** Sales 3Y is null on full annual data: say why (same rules as sales3yFromAnnual). */
+function salesNaReason(sales: Array<number | null>): ValueNa | null {
+  const known = sales.filter((v) => v != null).length;
+  if (known < 4) return "short_history";
+  const end = sales[sales.length - 1];
+  const start = sales[sales.length - 4];
+  if (end == null || end <= 0 || start == null || start < 1) return "no_revenue";
+  if (end / start > 20 || start / end > 20) return "erratic";
+  return null;
+}
+
+type ScreenerLegs = {
+  sales3y: number | null;
+  roce3y: number | null;
+  fy: string | null;
+  bv?: number | null;
+  /** Latest full-year book value even when zero / negative (bv keeps only > 0). */
+  bvLatest?: number | null;
+  salesNa?: ValueNa | null;
+};
+
+function loadScreenerLegs(): Map<string, ScreenerLegs> {
+  const out = new Map<string, ScreenerLegs>();
   try {
     const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
     try {
@@ -57,7 +84,12 @@ function loadScreenerLegs(): Map<string, { sales3y: number | null; roce3y: numbe
           const roce = idx.map((i) => a.roce[i] ?? null);
           const sales3y = sales3yFromAnnual(sales);
           const roce3y = roce3yFromAnnual(roce);
-          out.set(r.t, { sales3y, roce3y, fy: idx.length ? a.dates[idx[idx.length - 1]!]!.slice(0, 4) : null });
+          out.set(r.t, {
+            sales3y,
+            roce3y,
+            fy: idx.length ? a.dates[idx[idx.length - 1]!]!.slice(0, 4) : null,
+            salesNa: sales3y == null ? salesNaReason(sales) : null,
+          });
         } catch {
           /* bad row */
         }
@@ -71,16 +103,21 @@ function loadScreenerLegs(): Map<string, { sales3y: number | null; roce3y: numbe
           for (const d of b.dates) months.set(d.slice(5, 7), (months.get(d.slice(5, 7)) ?? 0) + 1);
           const main = [...months].sort((x, y) => y[1] - x[1])[0]?.[0];
           let bv: number | null = null;
+          let bvLatest: number | null = null;
           for (let i = b.dates.length - 1; i >= 0; i--) {
             const v = b.book_value[i];
-            if (b.dates[i]!.slice(5, 7) === main && v != null && v > 0) {
+            if (b.dates[i]!.slice(5, 7) !== main || v == null) continue;
+            if (bvLatest == null) bvLatest = v;
+            if (v > 0) {
               bv = v;
               break;
             }
           }
           const e = out.get(r.t);
-          if (e) e.bv = bv;
-          else out.set(r.t, { sales3y: null, roce3y: null, fy: null, bv });
+          if (e) {
+            e.bv = bv;
+            e.bvLatest = bvLatest;
+          } else out.set(r.t, { sales3y: null, roce3y: null, fy: null, bv, bvLatest });
         } catch {
           /* skip */
         }
@@ -123,7 +160,12 @@ export type ValueStock = {
   pb: number | null;
   /** Where Sales growth / ROCE came from: Screener annual (preferred), then APIs. */
   src: "screener" | "upstox" | "indianapi" | "yahoo" | null;
+  /** Legs can't be completed (shell / young / erratic / negative equity): not a data gap. */
+  na: ValueNa | null;
 };
+
+/** Below this market cap (₹ Cr) the gap fill skips a stock unless asked to include micro-caps. */
+export const VALUE_FILL_MIN_MCAP_CR = 50;
 
 export type ValueUniverse = {
   rows: ValueStock[];
@@ -156,6 +198,10 @@ export function buildValueUniverse(_opts?: {
     const sales3y = sc?.sales3y ?? (h && ok(h.sales_growth_3y) ? h.sales_growth_3y : null);
     const roce3y = sc?.roce3y ?? (h && ok(h.roce_3y) ? h.roce_3y : null);
     const pb = scPb ?? yahooPb;
+    // Latest book value ≤ 0 is negative equity: no P/B, ranked last on P/B instead.
+    const negEquity = pb == null && sc?.bvLatest != null && sc.bvLatest <= 0;
+    const na: ValueNa | null =
+      sales3y == null && sc?.salesNa ? sc.salesNa : negEquity ? "negative_equity" : null;
     if (h?.fetched_at && (ok(h.sales_growth_3y) || ok(h.roce_3y) || yahooPb) && (!asOf || h.fetched_at > asOf)) {
       asOf = h.fetched_at;
     }
@@ -178,6 +224,7 @@ export function buildValueUniverse(_opts?: {
       sales3y,
       roce3y,
       pb,
+      na,
       src:
         sales3y == null && roce3y == null && pb == null
           ? null
@@ -206,9 +253,7 @@ export function buildValueUniverse(_opts?: {
     as_of: asOf,
     unranked_fetchable: (() => {
       const tried = screenerPagesTriedSince(SCREENER_RETRY_MS);
-      return rows.filter(
-        (r) => (r.sales3y == null || r.roce3y == null || r.pb == null || r.pb <= 0) && !tried.has(r.t),
-      ).length;
+      return rows.filter((r) => valueGapFixable(r) && !tried.has(r.t)).length;
     })(),
   };
 }
@@ -216,6 +261,18 @@ export function buildValueUniverse(_opts?: {
 /** True when Sales / ROCE / P/B are not all ready for Intrinsic Value ranking. */
 export function valueLegsIncomplete(r: Pick<ValueStock, "sales3y" | "roce3y" | "pb">): boolean {
   return r.sales3y == null || r.roce3y == null || r.pb == null || r.pb <= 0;
+}
+
+/**
+ * A gap worth fetching: legs incomplete, not explained by the company's own
+ * results (`na`), and at least ₹50 Cr unless micro-caps are included.
+ */
+export function valueGapFixable(
+  r: Pick<ValueStock, "sales3y" | "roce3y" | "pb" | "na" | "mcap">,
+  opts?: { includeMicro?: boolean },
+): boolean {
+  if (!valueLegsIncomplete(r) || r.na) return false;
+  return !!opts?.includeMicro || (r.mcap ?? 0) >= VALUE_FILL_MIN_MCAP_CR;
 }
 
 // ---- Headwind / Tailwind ------------------------------------------------------------
@@ -584,13 +641,16 @@ function screenerTriedSince(sinceMs: number): Map<string, string> {
  * Why Sales 3Y / ROCE 3Y is missing on the Value universe.
  * Fixable: never_fetched → gaps → ht_failed. Skip short_history (not enough years).
  */
-export function classifySalesRoceGaps(opts?: { includePortfolio?: boolean }): {
+export function classifySalesRoceGaps(opts?: { includePortfolio?: boolean; includeMicro?: boolean }): {
   counts: Record<SalesRoceGapKind, number>;
   gaps: SalesRoceGap[];
   fixable: SalesRoceGap[];
 } {
   const { rows } = buildValueUniverse({ includePortfolio: opts?.includePortfolio });
-  const miss = rows.filter((r) => r.sales3y == null || r.roce3y == null);
+  // Shell / young / erratic / negative-equity stocks and micro-caps never enter the queue.
+  const miss = rows.filter(
+    (r) => (r.sales3y == null || r.roce3y == null) && valueGapFixable(r, { includeMicro: opts?.includeMicro }),
+  );
   const annual = loadAnnualMeta();
   const ht = loadHtIvMap();
   const counts: Record<SalesRoceGapKind, number> = {
@@ -881,7 +941,7 @@ export async function fillValueQuality(onProgress: (done: number, total: number,
   // 2) P/B-only (Sales+ROCE already in).
   const { rows } = buildValueUniverse();
   const needBsOnly = rows
-    .filter((r) => r.sales3y != null && r.roce3y != null && (r.pb == null || r.pb <= 0))
+    .filter((r) => r.sales3y != null && r.roce3y != null && (r.pb == null || r.pb <= 0) && valueGapFixable(r))
     .sort((a, b) => (b.mcap ?? 0) - (a.mcap ?? 0));
   const tried = screenerPagesTriedSince(SCREENER_RETRY_MS);
   const todo = needBsOnly.filter((r) => !tried.has(r.t)).slice(0, SCREENER_PAGES_PER_RUN);

@@ -108,7 +108,10 @@ function buildHomeSearch(
   if (next === "napkin") params.delete("tab");
   else params.set("tab", next);
   params.delete("ordersView");
-  if (next !== "value") params.delete("v");
+  if (next !== "value") {
+    params.delete("v");
+    params.delete("ind");
+  }
   if (next !== "dashboard") params.delete("d");
   if (next !== "concall-drift") params.delete("drift");
   if (next !== "rotation") params.delete("rot");

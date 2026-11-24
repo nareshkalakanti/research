@@ -25,6 +25,7 @@ import {
   refreshAllRotationMetricsGaps,
   refreshMissingHtIvForMembers,
   refreshRotationMemberMetrics,
+  syncMetricsFromBars,
 } from "@/lib/sector-rotation-board";
 
 import { syncRotationFromMaster } from "@/lib/stock-master";
@@ -160,7 +161,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, saved });
       }
       const saved = await refreshAllRotationMetricsGaps();
-      return NextResponse.json({ ok: true, saved });
+      // Stale rows: latest cached close → price and market cap (no Yahoo quote needed).
+      const fromBars = syncMetricsFromBars();
+      return NextResponse.json({ ok: true, saved, from_bars: fromBars });
     }
     if (body.create) {
       const sector = createRotationSector(body.label || "");

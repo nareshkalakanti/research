@@ -28,7 +28,24 @@ type Stock = {
   roce3y: number | null;
   pb: number | null;
   src?: "screener" | "upstox" | "yahoo" | null;
+  /** Legs can't be completed from the company's own results (not a data gap). */
+  na?: "no_revenue" | "short_history" | "erratic" | "negative_equity" | null;
 };
+
+const NA_LABEL: Record<NonNullable<Stock["na"]>, { short: string; title: string }> = {
+  no_revenue: { short: "No revenue", title: "No or tiny sales (under ₹1 Cr) in the 3-year window: growth has no meaning" },
+  short_history: { short: "Under 4 yrs", title: "Fewer than 4 years of annual results: no 3-year growth yet" },
+  erratic: { short: "Erratic revenue", title: "Sales moved more than 20× over 3 years: growth would mislead" },
+  negative_equity: { short: "Negative equity", title: "Book value is zero or negative: no P/B (ranked last on P/B)" },
+};
+
+function NaChip({ na }: { na: NonNullable<Stock["na"]> }) {
+  return (
+    <span className="vx-na" title={NA_LABEL[na].title}>
+      {NA_LABEL[na].short}
+    </span>
+  );
+}
 type Industry = { name: string; n: number; ranked: number };
 type Wind = {
   industry: string;
@@ -48,6 +65,25 @@ type Row = Ranked | (Stock & { gR: null; rR: null; pR: null; total: null; rank: 
 type Filters = { q: string; industries: string[]; minCount: number; minCap: string; maxCap: string; exch: string };
 /** Default: ₹200 Cr+ (tiny SME names otherwise crowd the top). */
 const EMPTY: Filters = { q: "", industries: [], minCount: 0, minCap: "200", maxCap: "", exch: "all" };
+
+/** One industry opened from a link (all sizes, so the companies seen elsewhere are here). */
+const industryFilters = (name: string): Filters => ({ ...EMPTY, industries: [name], minCap: "" });
+
+/** `?ind=` keeps an opened industry in browser history, so Back returns to the full list. */
+function readIndParam(): string {
+  if (typeof window === "undefined") return "";
+  return (new URLSearchParams(window.location.search).get("ind") || "").trim();
+}
+
+function setIndParam(name: string, mode: "push" | "replace"): void {
+  const url = new URL(window.location.href);
+  if (name) url.searchParams.set("ind", name);
+  else url.searchParams.delete("ind");
+  const href = `${url.pathname}${url.search}${url.hash}`;
+  if (href === `${window.location.pathname}${window.location.search}${window.location.hash}`) return;
+  if (mode === "push") window.history.pushState(window.history.state, "", href);
+  else window.history.replaceState(window.history.state, "", href);
+}
 const PAGE = 25;
 
 const cr = (v: number | null) => (v == null ? "—" : `₹${v.toLocaleString("en-IN", { maximumFractionDigits: v < 100 ? 2 : 0 })} Cr`);
@@ -55,7 +91,10 @@ const pct = (v: number | null) => (v == null ? "—" : `${v.toFixed(2)}%`);
 
 /** Rank each leg inside the set (ties share the lower rank), sum = total score. */
 function rankSet(rows: Stock[]): Ranked[] {
-  const work = rows.filter((r) => r.sales3y != null && r.roce3y != null && r.pb != null && r.pb > 0);
+  // Negative equity has no P/B: rank it with the rest, last on the P/B leg.
+  const work = rows.filter(
+    (r) => r.sales3y != null && r.roce3y != null && ((r.pb != null && r.pb > 0) || r.na === "negative_equity"),
+  );
   const rankBy = (vals: Array<[string, number]>, desc: boolean) => {
     const s = [...vals].sort((a, b) => (desc ? b[1] - a[1] : a[1] - b[1]));
     const out = new Map<string, number>();
@@ -64,7 +103,7 @@ function rankSet(rows: Stock[]): Ranked[] {
   };
   const g = rankBy(work.map((r) => [r.t, r.sales3y!]), true);
   const o = rankBy(work.map((r) => [r.t, r.roce3y!]), true);
-  const p = rankBy(work.map((r) => [r.t, r.pb!]), false);
+  const p = rankBy(work.map((r) => [r.t, r.pb != null && r.pb > 0 ? r.pb : Number.POSITIVE_INFINITY]), false);
   return work
     .map((r) => {
       const gR = g.get(r.t)!;
@@ -223,9 +262,14 @@ export function ValuePanel() {
   const [industries, setIndustries] = useState<Industry[]>([]);
   const [asOf, setAsOf] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Filters>(EMPTY);
-  const [applied, setApplied] = useState<Filters>(EMPTY);
+  const [draft, setDraft] = useState<Filters>(() => {
+    const ind = readIndParam();
+    return ind ? industryFilters(ind) : EMPTY;
+  });
+  const [applied, setApplied] = useState<Filters>(draft);
   const [page, setPage] = useState(0);
+  /** Industry currently shown because of `?ind=` (cleared filters on Back). */
+  const [openedInd, setOpenedInd] = useState(readIndParam);
   /** Bumped after a quality fill so the table picks up the new data. */
   const [reloadKey, setReloadKey] = useState(0);
   /** Unranked stocks Screener has not been asked about in the last 30 days. */
@@ -260,9 +304,9 @@ export function ValuePanel() {
     };
   }, [reloadKey]);
 
-  /** Can't rank until Sales growth 3Y, ROCE 3Y and P/B are all present. */
+  /** Real data gaps: legs incomplete and not explained by the company's own results. */
   const missingAll = useMemo(
-    () => (rows ?? []).filter((r) => r.sales3y == null || r.roce3y == null || r.pb == null || r.pb <= 0).length,
+    () => (rows ?? []).filter((r) => !r.na && (r.sales3y == null || r.roce3y == null || r.pb == null || r.pb <= 0)).length,
     [rows],
   );
 
@@ -283,14 +327,30 @@ export function ValuePanel() {
   const openIndustry = useCallback(
     (name: string) => {
       // All sizes: the companies seen on Valuation / Cycle / Winds must be here too.
-      const f = { ...EMPTY, industries: [name], minCap: "" };
+      const f = industryFilters(name);
       setDraft(f);
       apply(f);
       setTab("rank");
+      setOpenedInd(name);
+      setIndParam(name, "push");
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
     [apply, setTab],
   );
+
+  // Back / Forward: restore or clear the industry opened via `?ind=`.
+  useEffect(() => {
+    const onPop = () => {
+      const ind = readIndParam();
+      if (ind === openedInd) return;
+      setOpenedInd(ind);
+      const f = ind ? industryFilters(ind) : EMPTY;
+      setDraft(f);
+      apply(f);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [apply, openedInd]);
 
   const ranked = useMemo(() => {
     if (!rows) return [];
@@ -319,6 +379,9 @@ export function ValuePanel() {
   const rankedN = useMemo(() => ranked.filter((r) => r.rank != null).length, [ranked]);
 
   const unranked = ranked.length - rankedN;
+  /** Unranked because the company's own results rule it out (not a data gap). */
+  const notRankable = useMemo(() => ranked.filter((r) => r.rank == null && r.na).length, [ranked]);
+  const noData = unranked - notRankable;
 
   const pages = Math.max(1, Math.ceil(ranked.length / PAGE));
   const shown = ranked.slice(page * PAGE, page * PAGE + PAGE);
@@ -459,6 +522,8 @@ export function ValuePanel() {
                 onClick={() => {
                   setDraft(EMPTY);
                   apply(EMPTY);
+                  setOpenedInd("");
+                  setIndParam("", "replace");
                 }}
               >
                 Reset
@@ -474,7 +539,8 @@ export function ValuePanel() {
               <strong>{rows ? ranked.length.toLocaleString("en-IN") : "…"}</strong>
               {rows && unranked ? (
                 <span className="vx-kpi-sub">
-                  {rankedN.toLocaleString("en-IN")} ranked · {unranked.toLocaleString("en-IN")} no data yet
+                  {rankedN.toLocaleString("en-IN")} ranked · {noData.toLocaleString("en-IN")} no data yet
+                  {notRankable ? ` · ${notRankable.toLocaleString("en-IN")} not rankable` : ""}
                 </span>
               ) : null}
             </div>
@@ -492,7 +558,8 @@ export function ValuePanel() {
             <div className="vx-table-head">
               <span className="vx-label vx-label--title">Ranked companies</span>
               <span className="vx-hint">
-                {unranked ? `${unranked.toLocaleString("en-IN")} without Sales / ROCE / P/B yet (listed last) · ` : ""}
+                {noData ? `${noData.toLocaleString("en-IN")} without Sales / ROCE / P/B yet (listed last) · ` : ""}
+                {notRankable ? `${notRankable.toLocaleString("en-IN")} not rankable (no revenue, under 4 yrs or erratic) · ` : ""}
                 {asOf ? `data to ${asOf.slice(0, 10)}` : ""}
               </span>
             </div>
@@ -565,7 +632,7 @@ export function ValuePanel() {
                                       : undefined
                               }
                             >
-                              {pct(r.sales3y)}
+                              {r.sales3y == null && r.na && r.na !== "negative_equity" ? <NaChip na={r.na} /> : pct(r.sales3y)}
                               {r.src === "yahoo" ? <sup className="vx-src">Y</sup> : null}
                               {r.src === "upstox" ? <sup className="vx-src">U</sup> : null}
                             </span>{" "}
@@ -575,9 +642,12 @@ export function ValuePanel() {
                             {pct(r.roce3y)} {r.rR != null ? <span className="vx-r">({r.rR})</span> : null}
                           </td>
                           <td className="num">
-                            {r.pb != null ? r.pb.toFixed(2) : "—"} {r.pR != null ? <span className="vx-r">({r.pR})</span> : null}
+                            {r.pb != null ? r.pb.toFixed(2) : r.na === "negative_equity" ? <NaChip na="negative_equity" /> : "—"}{" "}
+                            {r.pR != null ? <span className="vx-r">({r.pR})</span> : null}
                           </td>
-                          <td className="num vx-total">{r.total ?? <span className="vx-nodata">No data yet</span>}</td>
+                          <td className="num vx-total">
+                            {r.total ?? (r.na ? <span className="vx-nodata">Not rankable</span> : <span className="vx-nodata">No data yet</span>)}
+                          </td>
                         </tr>
                       );
                     })

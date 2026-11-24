@@ -279,14 +279,14 @@ async function fetchAndStore(key: string, ticker: string, market: string | null 
 // Background refreshes for stale series, a few at a time.
 const queue: Array<() => Promise<unknown>> = [];
 let active = 0;
-let onIdle: (() => void) | null = null;
+const onIdle = new Set<() => void>();
 function pump() {
   while (active < 4 && queue.length) {
     const job = queue.shift()!;
     active++;
     void job().finally(() => {
       active--;
-      if (!active && !queue.length) onIdle?.();
+      if (!active && !queue.length) onIdle.forEach((fn) => fn());
       pump();
     });
   }
@@ -295,7 +295,14 @@ const queued = new Set<string>();
 
 /** Called once the background refresh queue drains (e.g. drop cached ranks). */
 export function onRotationBarsRefreshed(fn: () => void): void {
-  onIdle = fn;
+  onIdle.add(fn);
+}
+
+/** Stored closes only — never fetches. Empty when nothing is cached yet. */
+export function cachedRotationCloses(ticker: string, market: string | null | undefined, years: number): Close[] {
+  preload();
+  const key = keyOf(ticker, market, years);
+  return (mem.get(key) ?? readDisk(key))?.bars ?? [];
 }
 
 export function rotationBarsRefreshing(): number {

@@ -1,9 +1,9 @@
 import { loadAllCompanies } from "./db";
 import { fetchNifty500DailyBars } from "./ohlc";
 import { masterLabels } from "./stock-master";
-import { onRotationBarsRefreshed, rotationCloses } from "./rotation-bars";
+import { cachedRotationCloses, onRotationBarsRefreshed, rotationCloses } from "./rotation-bars";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
-import { loadMetricsMap, refreshPagePrices } from "./metrics";
+import { loadMetricsMap, refreshPagePrices, upsertMetrics } from "./metrics";
 import { tradingviewUrl } from "./links";
 import { runConcurrent } from "./scrape-pool";
 import {
@@ -877,6 +877,67 @@ export function invalidateRotationRank(): void {
 }
 // Stale prices refresh in the background; re-rank once they are all in.
 onRotationBarsRefreshed(invalidateRotationRank);
+// …and carry the new closes into price / market cap (Yahoo quotes get throttled).
+onRotationBarsRefreshed(() => {
+  try {
+    syncMetricsFromBars();
+  } catch {
+    /* next refresh retries */
+  }
+});
+
+const IST_MS = 5.5 * 3_600_000;
+/** Biggest move accepted between the stored price and the latest close; beyond it is a split or bad data. */
+const MAX_CLOSE_RATIO = 2;
+
+/**
+ * Price and market cap from the cached daily close, without calling Yahoo:
+ * market cap × (latest close ÷ stored price), i.e. the stored share count at
+ * today's price. Only rows older than the newest bar; blanks need a real quote
+ * (no share count to scale), and moves beyond 2× are skipped (split / bad data).
+ */
+export function syncMetricsFromBars(): { checked: number; updated: number; skipped_ratio: number } {
+  const metrics = loadMetricsMap();
+  const years = rotationFetchYears();
+  const seen = new Set<string>();
+  const quotes: Parameters<typeof upsertMetrics>[0] = [];
+  const marketBy: Record<string, string> = {};
+  let checked = 0;
+  let skippedRatio = 0;
+  for (const sec of listRotationSectors()) {
+    for (const m of sec.members) {
+      const t = m.ticker.toUpperCase();
+      if (seen.has(t)) continue;
+      seen.add(t);
+      const row = metrics.get(t);
+      if (!row || !(row.price != null && row.price > 0) || !(row.market_cap_cr != null && row.market_cap_cr > 0)) continue;
+      const bars = cachedRotationCloses(m.ticker, m.market, years);
+      const last = bars[bars.length - 1];
+      if (!last || !(last.close > 0)) continue;
+      checked++;
+      const fetchedMs = Date.parse(row.fetched_at);
+      const fetchedDay = Number.isFinite(fetchedMs) ? new Date(fetchedMs + IST_MS).toISOString().slice(0, 10) : "";
+      if (fetchedDay >= last.date) continue;
+      const ratio = last.close / row.price;
+      if (ratio > MAX_CLOSE_RATIO || ratio < 1 / MAX_CLOSE_RATIO) {
+        skippedRatio++;
+        continue;
+      }
+      const prev = bars[bars.length - 2];
+      quotes.push({
+        ticker: t,
+        yf_symbol: "",
+        price: last.close,
+        mcap_cr: Math.round(row.market_cap_cr * ratio * 100) / 100,
+        sector: null,
+        change_pct: prev && prev.close > 0 ? ((last.close - prev.close) / prev.close) * 100 : null,
+      });
+      marketBy[t] = m.market;
+    }
+  }
+  const updated = quotes.length ? upsertMetrics(quotes, marketBy) : 0;
+  return { checked, updated, skipped_ratio: skippedRatio };
+}
 
 /**
  * Window returns for every sector (no sparklines), so Top/Bottom 20, Above
