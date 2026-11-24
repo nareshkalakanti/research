@@ -96,6 +96,11 @@ const SectorRotationPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const PriceActionPanel = dynamic(
+  () => import("@/components/PriceActionPanel").then((m) => m.PriceActionPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const ValuePickrSignalsPanel = dynamic(
   () =>
     import("@/components/ValuePickrSignalsPanel").then(
@@ -113,6 +118,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   "concall-drift": ConcallDriftPanel,
   signals: ValuePickrSignalsPanel,
   rotation: SectorRotationPanel,
+  "price-action": PriceActionPanel,
   marketiq: MarketIqPanel,
   orderbookiq: OrderBookIqPanel,
   boardroomiq: BoardRoomIqPanel,

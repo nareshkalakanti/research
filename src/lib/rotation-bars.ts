@@ -3,8 +3,8 @@ import { yfSymbolCandidates } from "./yfinance";
 import { openSqliteNamed } from "./sqlite-utils";
 
 /**
- * Daily closes for Sector Rotation, cached on disk (data/rotation_bars.db,
- * git-ignored) and in memory. Rotation needs only date + close.
+ * Daily closes and volume for Sector Rotation and the Price Action screen,
+ * cached on disk (data/rotation_bars.db, git-ignored) and in memory.
  *
  * Fresh = fetched after the last NSE close (15:30 IST), or within 6 h while the
  * market is open. A stale series is returned at once and refreshed in the
@@ -12,9 +12,11 @@ import { openSqliteNamed } from "./sqlite-utils";
  * a stock has been seen. A failed fetch keeps the old series.
  */
 
-export type Close = { date: string; close: number };
+/** `volume` is absent on series cached before volume was stored. */
+export type Close = { date: string; close: number; volume?: number };
 
-type Entry = { at: number; bars: Close[] };
+/** `volTried`: a refetch for volume already failed this run, so don't keep retrying. */
+type Entry = { at: number; bars: Close[]; volTried?: boolean };
 
 const mem = new Map<string, Entry>();
 const INTRADAY_TTL_MS = 6 * 3_600_000;
@@ -40,26 +42,43 @@ function withDb<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
   }
 }
 
-/** [epochDay int32, close float32] per bar. */
+/** [epochDay int32, close float32, volume float32] per bar (older rows: 8 bytes, no volume). */
+const STRIDE = 12;
 function pack(bars: Close[]): Buffer {
-  const buf = Buffer.alloc(bars.length * 8);
+  const buf = Buffer.alloc(bars.length * STRIDE);
   bars.forEach((b, i) => {
-    buf.writeInt32LE(Math.round(Date.parse(`${b.date}T00:00:00Z`) / 86_400_000), i * 8);
-    buf.writeFloatLE(b.close, i * 8 + 4);
+    const o = i * STRIDE;
+    buf.writeInt32LE(Math.round(Date.parse(`${b.date}T00:00:00Z`) / 86_400_000), o);
+    buf.writeFloatLE(b.close, o + 4);
+    buf.writeFloatLE(b.volume != null && Number.isFinite(b.volume) ? b.volume : 0, o + 8);
   });
   return buf;
 }
 
-function unpack(buf: Buffer | null): Close[] {
+function unpack(buf: Buffer | null, n: number): Close[] {
   if (!buf) return [];
+  const stride = n > 0 && buf.length === n * STRIDE ? STRIDE : 8;
   const out: Close[] = [];
-  for (let o = 0; o + 8 <= buf.length; o += 8)
-    out.push({
+  for (let o = 0; o + stride <= buf.length; o += stride) {
+    const b: Close = {
       date: new Date(buf.readInt32LE(o) * 86_400_000).toISOString().slice(0, 10),
       close: buf.readFloatLE(o + 4),
-    });
+    };
+    if (stride === STRIDE) b.volume = buf.readFloatLE(o + 8);
+    out.push(b);
+  }
   return out;
 }
+
+/** Stored before volume was kept: refetch once so the Price Action screen has volume. */
+/** Newest bar date seen in any series: the latest session the market had. */
+let newestDay = "";
+function noteNewest(bars: Close[]): void {
+  const d = bars[bars.length - 1]?.date;
+  if (d && d > newestDay) newestDay = d;
+}
+
+const lacksVolume = (bars: Close[]) => bars.length >= 2 && bars[bars.length - 1]!.volume === undefined;
 
 /** Last NSE close (15:30 IST on a weekday) at or before now, in ms. */
 function lastCloseMs(now = Date.now()): number {
@@ -84,6 +103,12 @@ function marketOpen(now = Date.now()): boolean {
 function isFresh(e: Entry, now = Date.now()): boolean {
   // One close is a stub from the source, not a history: retry like an empty series.
   if (e.bars.length < 2) return now - e.at < EMPTY_RETRY_MS;
+  if (!e.volTried && lacksVolume(e.bars)) return false;
+  // Missing the latest session other stocks have (e.g. Yahoo's blank last close):
+  // retry, at most every 30 min, so thinly traded stocks don't refetch on every call.
+  const lastSession = new Date(lastCloseMs(now) + IST_MS).toISOString().slice(0, 10);
+  const expected = newestDay < lastSession ? newestDay : lastSession;
+  if (e.bars[e.bars.length - 1]!.date < expected && now - e.at >= EMPTY_RETRY_MS) return false;
   if (e.at >= lastCloseMs(now)) return !marketOpen(now) || now - e.at < INTRADAY_TTL_MS;
   return false;
 }
@@ -94,10 +119,10 @@ const keyOf = (ticker: string, market: string | null | undefined, years: number)
 function readDisk(key: string): Entry | null {
   try {
     return withDb((db) => {
-      const r = db.prepare(`SELECT fetched_at, blob FROM bars WHERE key = ?`).get(key) as
-        | { fetched_at: number; blob: Buffer | null }
+      const r = db.prepare(`SELECT fetched_at, n, blob FROM bars WHERE key = ?`).get(key) as
+        | { fetched_at: number; n: number; blob: Buffer | null }
         | undefined;
-      return r ? { at: r.fetched_at, bars: unpack(r.blob) } : null;
+      return r ? { at: r.fetched_at, bars: unpack(r.blob, r.n) } : null;
     });
   } catch {
     return null;
@@ -136,20 +161,34 @@ async function chartCloses(symbol: string, years: number): Promise<Close[]> {
   );
   if (!res.ok) throw new Error(`chart ${res.status}`);
   const j = (await res.json()) as {
-    chart?: { result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: Array<number | null> }> } }> };
+    chart?: {
+      result?: Array<{
+        meta?: { regularMarketPrice?: number; regularMarketTime?: number };
+        timestamp?: number[];
+        indicators?: { quote?: Array<{ close?: Array<number | null>; volume?: Array<number | null> }> };
+      }>;
+    };
   };
   const r = j.chart?.result?.[0];
   const ts = r?.timestamp ?? [];
   const cl = r?.indicators?.quote?.[0]?.close ?? [];
+  const vol = r?.indicators?.quote?.[0]?.volume ?? [];
+  const istDay = (sec: number) => new Date((sec + 5.5 * 3600) * 1000).toISOString().slice(0, 10);
+  // Yahoo often leaves the latest day's close blank (volume present) until the
+  // next update; its meta price for that same day fills it.
+  const metaPx = r?.meta?.regularMarketPrice;
+  const metaDay = r?.meta?.regularMarketTime ? istDay(r.meta.regularMarketTime) : "";
   const out: Close[] = [];
   const seen = new Set<string>();
   for (let i = 0; i < ts.length; i++) {
-    const c = cl[i];
+    const date = istDay(ts[i]!);
+    let c = cl[i];
+    if (c == null && i === ts.length - 1 && date === metaDay && metaPx != null) c = metaPx;
     if (c == null || !Number.isFinite(c) || c <= 0) continue;
-    const date = new Date((ts[i]! + 5.5 * 3600) * 1000).toISOString().slice(0, 10);
     if (seen.has(date)) continue;
     seen.add(date);
-    out.push({ date, close: c });
+    const v = vol[i];
+    out.push({ date, close: c, volume: v != null && Number.isFinite(v) && v >= 0 ? v : 0 });
   }
   return out;
 }
@@ -164,7 +203,7 @@ const isRecent = (bars: Close[]) =>
 async function nseSmeCloses(ticker: string, years: number): Promise<Close[]> {
   const sym = ticker.trim().toUpperCase().replace(/-SM$/, "");
   const bars = await fetchGrowwDailyBarsOne(sym, "NSE", Math.ceil(years * 365.25));
-  return bars.map((b) => ({ date: b.date, close: b.close }));
+  return bars.map((b) => ({ date: b.date, close: b.close, volume: b.volume ?? 0 }));
 }
 
 /** Primary symbol, then NSE / SME / BSE aliases; first with enough fresh history wins. */
@@ -208,18 +247,27 @@ async function fetchAndStore(key: string, ticker: string, market: string | null 
     try {
       bars = await slot(() => directCloses(ticker, market, years));
       // Rare: nothing on Yahoo's chart endpoint — the app-wide fetcher also tries Groww.
-      if (!bars.length) bars = (await slot(() => fetchDailyBars(ticker, market, years))).map((b) => ({ date: b.date, close: b.close }));
-      else bars = adjustSplitJumps(bars.map((b) => ({ ...b, open: b.close, high: b.close, low: b.close, volume: 0 }))).map((b) => ({ date: b.date, close: b.close }));
+      if (!bars.length)
+        bars = (await slot(() => fetchDailyBars(ticker, market, years))).map((b) => ({
+          date: b.date,
+          close: b.close,
+          volume: b.volume ?? 0,
+        }));
+      else
+        bars = adjustSplitJumps(
+          bars.map((b) => ({ date: b.date, open: b.close, high: b.close, low: b.close, close: b.close, volume: b.volume ?? 0 })),
+        ).map((b) => ({ date: b.date, close: b.close, volume: b.volume }));
     } catch {
       bars = [];
     }
     // Yahoo hiccup: keep what we had, retry later.
     if (bars.length < 2 && prev && prev.bars.length > bars.length) {
-      const keep = { at: Date.now() - INTRADAY_TTL_MS + 30 * 60_000, bars: prev.bars };
+      const keep = { at: Date.now() - INTRADAY_TTL_MS + 30 * 60_000, bars: prev.bars, volTried: true };
       mem.set(key, keep);
       return prev.bars;
     }
     const e = { at: Date.now(), bars };
+    noteNewest(bars);
     mem.set(key, e);
     writeDisk(key, e);
     return bars;
@@ -261,12 +309,17 @@ function preload(): void {
   preloaded = true;
   try {
     withDb((db) => {
-      for (const r of db.prepare(`SELECT key, fetched_at, blob FROM bars`).all() as Array<{
+      for (const r of db.prepare(`SELECT key, fetched_at, n, blob FROM bars`).all() as Array<{
         key: string;
         fetched_at: number;
+        n: number;
         blob: Buffer | null;
       }>)
-        if (!mem.has(r.key)) mem.set(r.key, { at: r.fetched_at, bars: unpack(r.blob) });
+        if (!mem.has(r.key)) {
+          const bars = unpack(r.blob, r.n);
+          noteNewest(bars);
+          mem.set(r.key, { at: r.fetched_at, bars });
+        }
     });
   } catch {
     /* empty cache */

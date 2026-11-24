@@ -24301,3 +24301,46 @@ html[data-theme="light"] .nsc-drawer-wrap {
     opacity: 0.35;
   }
 }
+
+/* Price Action screen */
+.pa-table td.pos { color: var(--ok); }
+.pa-table td.neg { color: var(--danger); }
+.pa-table .pa-sort { cursor: pointer; user-select: none; }
+.pa-table .pa-sort.on { color: var(--accent); }
+.pa-dots { display: inline-flex; gap: 4px; vertical-align: middle; }
+.pa-dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  background: #d9dde3;
+}
+.pa-dot.on { background: #4cc35a; }
+.pa-dot.none { background: transparent; outline: 1px dashed #c9ced6; outline-offset: -1px; }
+.pa-big { font-weight: 650; font-size: 15px; }
+.pa-sector { white-space: nowrap; }
+.pa-sub { opacity: 0.65; }
+.pa-cap { display: block; font-size: 12px; opacity: 0.75; }
+.pa-cap-cr { white-space: nowrap; }
+.pa-tag {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 650;
+  background: color-mix(in srgb, #4cc35a 18%, transparent);
+  color: #2f8f3a;
+}
+.pa-rules { margin-top: 10px; line-height: 1.5; }
+.pa-rockets { white-space: nowrap; }
+.pa-rocket {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: color-mix(in srgb, #f0a63a 18%, transparent);
+  color: #b26b00;
+}
+.pa-rocket--rpi { background: color-mix(in srgb, #6ea0ff 18%, transparent); color: #2f5fbf; }
