@@ -57,7 +57,7 @@ type Wind = {
   below: number;
   score: number;
   ret3m: number | null;
-  indicator: "FAVOUR" | "OUT" | "NEUTRAL";
+  indicator: "FAVOUR" | "OUT" | "NEUTRAL" | "FEW";
   is_market?: boolean;
 };
 type Ranked = Stock & { gR: number; rR: number; pR: number; total: number; rank: number };
@@ -696,6 +696,7 @@ const WIND_LABEL: Record<Wind["indicator"], string> = {
   FAVOUR: "In favour",
   OUT: "Out of favour",
   NEUTRAL: "Neutral",
+  FEW: "Too few stocks",
 };
 
 function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
@@ -729,7 +730,7 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
   }, []);
 
   const counts = useMemo(() => {
-    const c = { FAVOUR: 0, OUT: 0, NEUTRAL: 0 };
+    const c = { FAVOUR: 0, OUT: 0, NEUTRAL: 0, FEW: 0 };
     for (const r of rows ?? []) {
       if (r.is_market) continue;
       if (r.n >= minN) c[r.indicator]++;
@@ -761,6 +762,7 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
               ["FAVOUR", "In favour", counts.FAVOUR],
               ["NEUTRAL", "Neutral", counts.NEUTRAL],
               ["OUT", "Out of favour", counts.OUT],
+              ["FEW", "Too few stocks", counts.FEW],
             ] as const
           ).map(([id, label, n]) => (
             <button key={id} type="button" className={show === id ? "on" : ""} aria-pressed={show === id} onClick={() => setShow(id)}>
@@ -796,7 +798,7 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
           available={(rows ?? []).filter((r) => !r.is_market && r.n >= minN).map((r) => r.industry)}
         />
         <span className="vx-hint vx-push">
-          Favour / out of favour from breadth vs 50-day average{asOf ? ` · prices to ${asOf}` : ""}
+          Favour / out of favour from breadth vs 50-day average · industries with fewer than 3 stocks are not labelled{asOf ? ` · prices to ${asOf}` : ""}
           {" · click Full Market to open score history below"}
         </span>
       </div>
@@ -854,7 +856,7 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
                     {Number(r.score.toFixed(4))}
                   </span>
                   <span className="vx-badge">
-                    {r.indicator === "FAVOUR" ? "▲ " : r.indicator === "OUT" ? "▼ " : "• "}
+                    {r.indicator === "FAVOUR" ? "▲ " : r.indicator === "OUT" ? "▼ " : r.indicator === "FEW" ? "" : "• "}
                     {WIND_LABEL[r.indicator]}
                   </span>
                 </div>

@@ -287,7 +287,7 @@ export function valueGapFixable(
 
 // ---- Headwind / Tailwind ------------------------------------------------------------
 
-export type WindIndicator = "FAVOUR" | "OUT" | "NEUTRAL";
+export type WindIndicator = "FAVOUR" | "OUT" | "NEUTRAL" | "FEW";
 
 export type WindRow = {
   industry: string;
@@ -311,9 +311,45 @@ export const WIND = {
   favour: 0.2,
   /** Breadth score ≤ this → Out of favour. */
   out: -0.2,
-  minStocks: 1,
+  /** Fewer stocks than this: "Too few stocks", not labelled (one stock is not a trend). */
+  minStocks: 3,
+  /** The 50-day average uses closes from this many calendar days (≈ 50 sessions)… */
+  smaCalendarDays: 72,
+  /** …and needs at least this many of them (thinly traded stocks skip sessions). */
+  smaMinCloses: 35,
+  /** 3-month return: the close 3 calendar months back, within this many days. */
+  ret3mSlackDays: 10,
   marketLabel: "Full Market",
 } as const;
+
+/** 50-day average over real calendar time ending at `endIdx`, or null when too few closes. */
+function smaCalendar(bars: Array<{ date: string; close: number }>, endIdx: number): number | null {
+  const end = Date.parse(`${bars[endIdx]!.date}T00:00:00Z`);
+  const from = end - WIND.smaCalendarDays * 86_400_000;
+  let sum = 0;
+  let n = 0;
+  for (let k = endIdx; k >= 0; k--) {
+    if (Date.parse(`${bars[k]!.date}T00:00:00Z`) <= from) break;
+    sum += bars[k]!.close;
+    n++;
+  }
+  return n >= WIND.smaMinCloses ? sum / n : null;
+}
+
+/** % change from the close 3 calendar months back (within 10 days), or null. */
+function ret3mCalendar(bars: Array<{ date: string; close: number }>): number | null {
+  const last = bars[bars.length - 1]!;
+  const d = new Date(`${last.date}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() - 3);
+  const want = d.getTime();
+  for (let k = bars.length - 1; k >= 0; k--) {
+    const t = Date.parse(`${bars[k]!.date}T00:00:00Z`);
+    if (t > want) continue;
+    const lag = (want - t) / 86_400_000;
+    return lag <= WIND.ret3mSlackDays && bars[k]!.close > 0 ? (last.close / bars[k]!.close - 1) * 100 : null;
+  }
+  return null;
+}
 
 export function windIndicator(score: number): WindIndicator {
   if (score >= WIND.favour) return "FAVOUR";
@@ -389,8 +425,8 @@ export async function buildMarketScoreHistory(opts?: {
   }
 
   const master = loadStockMaster();
-  const stocks = [...master.entries()].filter(([, m]) => {
-    if (!m.tracked || !m.active || !m.industry) return false;
+  const stocks = [...master.entries()].filter(([t, m]) => {
+    if (!m.tracked || !m.active || !m.industry || isRightsOrPartlyPaid(t, m.name)) return false;
     if (isMarket) return true;
     return m.industry === industry;
   });
@@ -454,9 +490,8 @@ export async function buildMarketScoreHistory(opts?: {
       const gap =
         (Date.parse(`${date}T12:00:00Z`) - Date.parse(`${bars[j]!.date}T12:00:00Z`)) / 86_400_000;
       if (gap > 14) continue;
-      let sum = 0;
-      for (let k = j - WIND.smaDays + 1; k <= j; k += 1) sum += bars[k]!.close;
-      const sma = sum / WIND.smaDays;
+      const sma = smaCalendar(bars, j);
+      if (sma == null) continue;
       const e = byDate.get(date)!;
       if (bars[j]!.close > sma) e.up += 1;
       else e.down += 1;
@@ -505,7 +540,9 @@ function median(xs: number[]): number | null {
 export async function buildHeadwinds(opts?: { fresh?: boolean }): Promise<{ rows: WindRow[]; as_of: string | null }> {
   if (!opts?.fresh && windCache && Date.now() - windCache.at < 10 * 60_000) return windCache.data;
   const master = loadStockMaster();
-  const stocks = [...master.entries()].filter(([, m]) => m.tracked && m.active && m.industry);
+  const stocks = [...master.entries()].filter(
+    ([t, m]) => m.tracked && m.active && m.industry && !isRightsOrPartlyPaid(t, m.name),
+  );
   const years = rotationFetchYears();
   let asOf: string | null = null;
   const stats = await runConcurrent(stocks, 8, async ([t, m]) => {
@@ -516,14 +553,14 @@ export async function buildHeadwinds(opts?: { fresh?: boolean }): Promise<{ rows
       if (!asOf || last.date > asOf) asOf = last.date;
       // Skip stocks with no trade for 3+ weeks (suspended / illiquid).
       if (Date.now() - Date.parse(`${last.date}T12:00:00Z`) > 21 * 86_400_000) return null;
-      const win = bars.slice(-WIND.smaDays);
-      const sma = win.reduce((a, b) => a + b.close, 0) / win.length;
-      const back = bars[bars.length - 64];
+      // Real calendar time: thinly traded stocks' last 50 closes can span months.
+      const sma = smaCalendar(bars, bars.length - 1);
+      if (sma == null) return null;
       return {
         industry: m.industry!,
         sector: m.sector,
         up: last.close > sma,
-        ret3m: back && back.close > 0 ? (last.close / back.close - 1) * 100 : null,
+        ret3m: ret3mCalendar(bars),
       };
     } catch {
       return null;
@@ -547,7 +584,7 @@ export async function buildHeadwinds(opts?: { fresh?: boolean }): Promise<{ rows
     mUp += e.up;
     mDown += e.down;
     mRets.push(...e.rets);
-    if (n < WIND.minStocks) continue;
+    if (n < 1) continue;
     const score = Math.round(((e.up - e.down) / n) * 10000) / 10000;
     rows.push({
       industry,
@@ -557,7 +594,8 @@ export async function buildHeadwinds(opts?: { fresh?: boolean }): Promise<{ rows
       below: e.down,
       score,
       ret3m: median(e.rets),
-      indicator: windIndicator(score),
+      // One or two stocks are not a trend: shown, but not labelled.
+      indicator: n < WIND.minStocks ? "FEW" : windIndicator(score),
     });
   }
   rows.sort((a, b) => b.score - a.score || b.n - a.n);
