@@ -17,8 +17,8 @@ function PanelFallback() {
   return <Loading variant="block" label="Loading" rows={2} />;
 }
 
-const ScanPanel = dynamic(
-  () => import("@/components/ScanPanel").then((m) => m.ScanPanel),
+const StrategyPanel = dynamic(
+  () => import("@/components/StrategyPanel").then((m) => m.StrategyPanel),
   { loading: PanelFallback, ssr: false },
 );
 const GovernanceMapPanel = dynamic(
@@ -84,7 +84,7 @@ const PriceActionPanel = dynamic(
 
 const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
-  scan: ScanPanel,
+  scan: StrategyPanel,
   governance: GovernanceMapPanel,
   napkin: NapkinPanel,
   "concall-drift": ConcallDriftPanel,
@@ -107,7 +107,7 @@ const KeptPanel = memo(function KeptPanel({
 
 function preloadPanelModules() {
   void import("@/components/WatchlistPanel");
-  void import("@/components/ScanPanel");
+  void import("@/components/StrategyPanel");
   void import("@/components/GovernanceMapPanel");
 }
 

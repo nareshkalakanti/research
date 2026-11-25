@@ -48,6 +48,8 @@ export type QuartersFillSelection = {
   age25?: boolean;
   funds?: FundFilterState;
   fundAll?: boolean;
+  /** Industry picker (stock-master industry names; empty = all). */
+  industries?: string[];
 };
 
 function cachedQuartersUsableMap(): Map<
@@ -104,9 +106,15 @@ function applySelectionFilters<
     market: string;
     mcap_cr?: number | null;
     founded_year?: string | null;
+    sector?: string | null;
+    sub_sector?: string | null;
   },
 >(companies: T[], opts: QuartersFillSelection): T[] {
   let out = companies;
+  if (opts.industries?.length) {
+    const set = new Set(opts.industries);
+    out = out.filter((c) => set.has((c.sub_sector || c.sector || "").trim()));
+  }
   if (opts.cap && opts.cap !== "All") {
     out = out.filter((c) => capTier(c.mcap_cr ?? null) === opts.cap);
   }
@@ -142,6 +150,7 @@ function applySelectionFilters<
 
 export function hasQuartersFillSelection(opts: QuartersFillSelection): boolean {
   if (opts.cap && opts.cap !== "All") return true;
+  if (opts.industries?.length) return true;
   if (
     opts.hold ||
     opts.edge ||

@@ -31,6 +31,7 @@ type Body = {
   ageMin?: number | null;
   age25?: boolean;
   funds?: FundFilterState;
+  industries?: string[];
 };
 
 function parseFunds(raw: unknown): FundFilterState {
@@ -55,6 +56,9 @@ function selectionFromBody(body: Body): QuartersFillSelection {
     ageMin:
       parseAgeMin(body.ageMin) ?? (body.age25 === true ? 25 : null),
     funds: parseFunds(body.funds),
+    industries: Array.isArray(body.industries)
+      ? body.industries.map((s) => String(s).trim()).filter(Boolean)
+      : [],
   };
 }
 

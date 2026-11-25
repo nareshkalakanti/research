@@ -34,7 +34,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "price-action", label: "Price Action", short: "PA" },
   { id: "portfolio", label: "Portfolio", short: "Port" },
   { id: "concall-drift", label: "Drift", short: "Drift" },
-  { id: "scan", label: "Scan", short: "Scan" },
+  { id: "scan", label: "Strategy", short: "Strategy" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
   { id: "scanner", label: "Scanner", short: "Scanner" },
   { id: "research", label: "Research", short: "Research" },
@@ -115,7 +115,10 @@ function buildHomeSearch(
   if (next !== "dashboard") params.delete("d");
   if (next !== "concall-drift") params.delete("drift");
   if (next !== "rotation") params.delete("rot");
-  if (next !== "scan") params.delete("scan");
+  if (next !== "scan") {
+    params.delete("scan");
+    params.delete("strat");
+  }
   if (next !== "watchlist") params.delete("wl");
   if (next !== "governance") {
     params.delete("personId");

@@ -67,7 +67,18 @@ type Body = {
   /** Absolute mcap bounds in ₹ Cr (from MCAP range slider). */
   mcapMin?: number | null;
   mcapMax?: number | null;
+  /** Industry picker (stock-master industry names; empty = all). */
+  industries?: string[];
 };
+
+/** Same key as /api/companies: industry, falling back to sector. */
+function industryOf(c: { sub_sector?: string | null; sector?: string | null }): string {
+  return (c.sub_sector || c.sector || "").trim();
+}
+
+function parseIndustries(raw: unknown): string[] {
+  return Array.isArray(raw) ? raw.map((s) => String(s).trim()).filter(Boolean) : [];
+}
 
 function parseFunds(raw: unknown): FundFilterState {
   const out = Object.fromEntries(
@@ -89,6 +100,8 @@ function applySelectionFilters<
     market: string;
     mcap_cr?: number | null;
     founded_year?: string | null;
+    sector?: string | null;
+    sub_sector?: string | null;
   },
 >(
   companies: T[],
@@ -104,9 +117,14 @@ function applySelectionFilters<
     fundAll?: boolean;
     mcapMin?: number | null;
     mcapMax?: number | null;
+    industries?: string[];
   },
 ): T[] {
   let out = companies;
+  if (opts.industries?.length) {
+    const set = new Set(opts.industries);
+    out = out.filter((c) => set.has(industryOf(c)));
+  }
   if (opts.cap && opts.cap !== "All") {
     out = out.filter((c) => capTier(c.mcap_cr ?? null) === opts.cap);
   }
@@ -166,8 +184,10 @@ function hasSelectionFilters(opts: {
   fundAll?: boolean;
   mcapMin?: number | null;
   mcapMax?: number | null;
+  industries?: string[];
 }): boolean {
   if (opts.cap && opts.cap !== "All") return true;
+  if (opts.industries?.length) return true;
   if (opts.mcapMin != null && opts.mcapMin > 0) return true;
   if (opts.mcapMax != null) return true;
   if (
@@ -245,6 +265,7 @@ export async function POST(req: NextRequest) {
       body.mcapMax != null && Number.isFinite(Number(body.mcapMax))
         ? Number(body.mcapMax)
         : null,
+    industries: parseIndustries(body.industries),
   };
   const scope: ScanScope =
     body.scope === "list"

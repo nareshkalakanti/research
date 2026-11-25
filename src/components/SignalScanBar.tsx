@@ -41,6 +41,8 @@ type Props = {
   fundAll?: boolean;
   mcapMin?: number | null;
   mcapMax?: number | null;
+  /** Industry picker selection (empty = all). */
+  industries?: string[];
   bbCount?: number;
   bbWCount?: number;
   bbMCount?: number;
@@ -186,8 +188,10 @@ export function hasScanSelection(opts: {
   funds?: FundFilterState;
   fundAll?: boolean;
   mcapNarrowed?: boolean;
+  industries?: string[];
 }): boolean {
   if (opts.cap && opts.cap !== "All") return true;
+  if (opts.industries?.length) return true;
   if (opts.mcapNarrowed) return true;
   if (
     opts.hold ||
@@ -221,6 +225,7 @@ export function SignalScanBar({
   fundAll,
   mcapMin,
   mcapMax,
+  industries,
   bbCount,
   bbWCount,
   bbMCount,
@@ -305,6 +310,7 @@ export function SignalScanBar({
               fundAll: !!fundAll,
               mcapMin: mcapMin ?? null,
               mcapMax: mcapMax ?? null,
+              industries: industries ?? [],
             }
           : {}),
       };
@@ -466,6 +472,7 @@ export function SignalScanBar({
       fundAll,
       mcapMin,
       mcapMax,
+      industries,
       onBatch,
       onDone,
       onView,
@@ -487,9 +494,10 @@ export function SignalScanBar({
             fundAll: !!fundAll,
             mcapMin: mcapMin ?? null,
             mcapMax: mcapMax ?? null,
+            industries: industries ?? [],
           }
         : { scope: "list" as const },
-    [scope, cap, hold, gov, sme, note, ageMin, funds, fundAll, mcapMin, mcapMax],
+    [scope, cap, hold, gov, sme, note, ageMin, funds, fundAll, mcapMin, mcapMax, industries],
   );
 
   const runQuartersFill = useCallback(async () => {

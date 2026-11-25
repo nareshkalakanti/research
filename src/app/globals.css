@@ -24327,18 +24327,115 @@ html[data-theme="light"] .nsc-drawer-wrap {
   background: color-mix(in srgb, #f0a63a 14%, transparent);
 }
 
-/* Napkin: Revenue vs Earnings kept compact (the Value tab keeps the full size). */
-.napkin-earn-card {
-  padding: 12px 14px;
-  max-width: 760px;
+
+/* ---- Strategy tab: Signals | IPO2 ---- */
+.strategy-views { margin: 0 0 12px; width: max-content; }
+.ipo2-stages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+.ipo2-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--vx-line, var(--line)); border-radius: 999px; background: transparent;
+  color: inherit; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
-.napkin-earn-card .vx-earn-title { font-size: 0.95rem; }
-.napkin-earn-card .vx-earn-head { margin-bottom: 6px; }
-.napkin-earn-card .vx-earn-body {
-  grid-template-columns: minmax(0, 1fr) minmax(140px, 170px);
-  gap: 10px;
+.ipo2-chip em { font-style: normal; font-weight: 500; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.ipo2-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ipo2-chip.on em { opacity: 0.9; }
+.ipo2-filters { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; margin-bottom: 10px; }
+.ipo2-filters .vx-field:first-child { width: 240px; }
+.ipo2-toggle { display: inline-flex; align-items: center; gap: 6px; height: 40px; font-size: 13px; cursor: pointer; }
+.ipo2-table td { vertical-align: top; }
+.ipo2-row { cursor: pointer; }
+.ipo2-row:hover td, .ipo2-row.open td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.ipo2-listed span, .ipo2-stage span, .ipo2-entry span, .ipo2-sub, .ipo2-cap {
+  display: block; font-size: 12px; color: var(--muted);
 }
-.napkin-earn-card .vx-earn-svg { max-height: 190px; }
-.napkin-earn-card .vx-earn-metrics { padding: 8px 10px; gap: 6px; }
-.napkin-earn-card .vx-earn-metric { font-size: 0.74rem; }
-.napkin-earn-card .vx-earn-metric strong { font-size: 0.78rem; }
+.ipo2-listed { white-space: nowrap; }
+.ipo2-warn { color: var(--danger) !important; white-space: normal; }
+.ipo2-stage { min-width: 220px; }
+.ipo2-stage span:not(.ipo2-pill) { margin-top: 3px; }
+.ipo2-pill {
+  display: inline-block !important; padding: 1px 8px; border-radius: 999px; font-size: 11.5px !important;
+  font-weight: 650; color: var(--ink) !important; background: color-mix(in srgb, var(--muted) 16%, transparent);
+}
+.ipo2-pill--buy_zone { background: color-mix(in srgb, #1d9a5b 22%, transparent); color: #157347 !important; }
+.ipo2-pill--near_pivot { background: color-mix(in srgb, #2f6fd6 20%, transparent); color: #2559ad !important; }
+.ipo2-pill--in_base { background: color-mix(in srgb, #2f6fd6 11%, transparent); }
+.ipo2-pill--late, .ipo2-pill--extended { background: color-mix(in srgb, #e08a1e 20%, transparent); color: #a35f00 !important; }
+.ipo2-pill--broken { background: color-mix(in srgb, #d0453a 16%, transparent); color: #b2332a !important; }
+html[data-theme="dark"] .ipo2-pill--buy_zone { color: #5fd69a !important; }
+html[data-theme="dark"] .ipo2-pill--near_pivot { color: #8fb4f5 !important; }
+html[data-theme="dark"] .ipo2-pill--late, html[data-theme="dark"] .ipo2-pill--extended { color: #f2b25e !important; }
+html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
+.ipo2-entry { min-width: 190px; }
+.ipo2-entry b.ipo2-live { color: var(--ok); }
+.ipo2-stop { color: var(--danger) !important; opacity: 0.85; }
+.ipo2-checks { min-width: 170px; }
+.ipo2-check { display: inline-block; margin: 0 4px 4px 0; padding: 1px 6px; border-radius: 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.ipo2-check.pass { background: color-mix(in srgb, #1d9a5b 16%, transparent); color: var(--ok); }
+.ipo2-check.fail { background: color-mix(in srgb, #d0453a 12%, transparent); color: var(--danger); }
+.ipo2-check.na { background: color-mix(in srgb, var(--muted) 12%, transparent); color: var(--muted); }
+.ipo2-more { margin: 12px auto 4px; display: block; }
+.ipo2-detail td { background: var(--surface); padding: 12px 14px 16px !important; }
+.ipo2-chart svg { display: block; width: 100%; min-width: 720px; height: auto; }
+.ipo2-grid { stroke: var(--line); stroke-width: 1; }
+.ipo2-ax { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ipo2-price { fill: none; stroke: var(--accent); stroke-width: 1.8; stroke-linejoin: round; }
+.ipo2-base { fill: color-mix(in srgb, #2f6fd6 8%, transparent); }
+.ipo2-base--failed { fill: color-mix(in srgb, #d0453a 7%, transparent); }
+.ipo2-bh { stroke: var(--muted); stroke-dasharray: 5 4; opacity: 0.7; }
+.ipo2-blab { fill: var(--muted); font-size: 11px; font-weight: 600; }
+.ipo2-stopline { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 4 3; }
+.ipo2-dot { stroke: var(--surface); stroke-width: 2; fill: #1d9a5b; }
+.ipo2-dot--pivot { fill: #2f6fd6; }
+.ipo2-dot--add { fill: #7c5cc4; }
+.ipo2-dotn { fill: #fff; font-size: 9.5px; font-weight: 700; pointer-events: none; }
+.ipo2-vup { fill: color-mix(in srgb, #1d9a5b 45%, transparent); }
+.ipo2-vdn { fill: color-mix(in srgb, #d0453a 40%, transparent); }
+.ipo2-entries { margin: 10px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
+.ipo2-entries li { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.ipo2-num {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: #1d9a5b; color: #fff; font-size: 10.5px; font-weight: 700; flex: none;
+}
+.ipo2-num.ipo2-dot--pivot { background: #2f6fd6; }
+.ipo2-num.ipo2-dot--add { background: #7c5cc4; }
+.ipo2-table td.pa-sector { white-space: normal; min-width: 150px; max-width: 210px; }
+.ipo2-table td:first-child { min-width: 210px; }
+.ipo2-base--weak { fill: color-mix(in srgb, var(--muted) 7%, transparent); }
+.ipo2-pill--no_rise { background: color-mix(in srgb, var(--muted) 14%, transparent); }
+
+/* ---- Napkin: bases & entries card ---- */
+.napkin-bases-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.napkin-bases-mode { margin: 2px 0 6px; font-size: 13px; color: var(--muted); }
+.napkin-bases-stage { margin: 0; font-size: 13.5px; color: var(--ink); }
+.napkin-bases-live { margin: 6px 0 0; font-size: 13.5px; color: var(--ok); }
+.napkin-bases-live--wait { color: var(--muted); }
+.napkin-bases-range button { height: 30px; min-width: 40px; padding: 0 10px; font-size: 12.5px; }
+.napkin-bases-range { height: 30px; }
+.napkin-bases-foot { margin: 8px 0 0; font-size: 12px; }
+.napkin-bases .ipo2-chart svg { min-width: 640px; }
+.napkin-bases .ipo2-chart { overflow-x: auto; }
+
+/* ---- Bases chart (IPO2 rows + Napkin), IPO2 entry-map style ---- */
+.bc-area-top { stop-color: var(--accent); stop-opacity: 0.18; }
+.bc-area-bot { stop-color: var(--accent); stop-opacity: 0.01; }
+.bc-price { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.bc-zone--base { fill: color-mix(in srgb, #2f6fd6 9%, transparent); }
+.bc-zone--run { fill: color-mix(in srgb, #d6a028 10%, transparent); }
+.bc-zone--failed { fill: color-mix(in srgb, #d0453a 8%, transparent); }
+.bc-zone--weak { fill: color-mix(in srgb, var(--muted) 7%, transparent); }
+.bc-zlab { fill: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: 0.04em; text-transform: uppercase; }
+.bc-bh { stroke: var(--accent); stroke-dasharray: 6 4; opacity: 0.75; }
+.bc-note { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.bc-dot { stroke: var(--surface); stroke-width: 2; fill: #1d9a5b; }
+.bc-dotn { fill: #fff; font-size: 10.5px; font-weight: 700; pointer-events: none; }
+.bc-elab { fill: var(--ink); font-size: 12px; font-weight: 650; paint-order: stroke; stroke: var(--surface); stroke-width: 4px; pointer-events: none; }
+.bc-table-wrap { overflow-x: auto; margin-top: 10px; }
+.bc-table { border-collapse: collapse; width: 100%; font-size: 13px; }
+.bc-table th, .bc-table td { padding: 6px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.bc-table th { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+.bc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.bc-table .bc-stop { color: var(--danger); }
+.bc-table tr.bc-live td { background: color-mix(in srgb, #1d9a5b 10%, transparent); font-weight: 600; }
+.napkin-bases .ipo2-chart svg, .ipo2-chart svg { min-width: 720px; }
+.bc-dot.ipo2-dot--pivot { fill: #2f6fd6; }
+.bc-dot.ipo2-dot--add { fill: #7c5cc4; }

@@ -116,6 +116,7 @@ export function ScanPanel() {
     filterSme,
     filterNote,
     ageMin,
+    industries.join(","),
   ].join("|");
   // Page belongs to one filter set: any filter change starts at page 1.
   // (Before, page 1 loaded once, then the old page number reloaded on the
@@ -322,6 +323,8 @@ export function ScanPanel() {
     if (filterSme) parts.push("SME");
     if (filterHold) parts.push("Hold");
     if (ageMin != null) parts.push(`Age ≥${ageMin}`);
+    if (industries.length === 1) parts.push(industries[0]!);
+    else if (industries.length > 1) parts.push(`${industries.length} industries`);
     const base = scanListLabel(list);
     return parts.length ? `${base} · ${parts.join(" · ")}` : base;
   }, [
@@ -334,6 +337,7 @@ export function ScanPanel() {
     filterSme,
     filterHold,
     ageMin,
+    industries,
   ]);
   const selectionActive = hasScanSelection({
     hold: filterHold,
@@ -344,6 +348,7 @@ export function ScanPanel() {
     funds: EMPTY_FUNDS,
     fundAll: filterFundAll,
     mcapNarrowed,
+    industries,
   });
   useEffect(() => {
     if (selectionActive) setScanScope("selection");
@@ -506,6 +511,7 @@ export function ScanPanel() {
           fundAll={filterFundAll}
           mcapMin={mcapNarrowed ? mcapBounds.minCr : null}
           mcapMax={mcapNarrowed ? mcapBounds.maxCr : null}
+          industries={industries}
           bbCount={data?.signals?.bb}
           bbWCount={data?.signals?.bb_w}
           bbMCount={data?.signals?.bb_m}
