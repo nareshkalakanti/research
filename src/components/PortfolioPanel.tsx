@@ -5,6 +5,7 @@ import {
   invalidateReviewMembership,
 } from "@/components/ReviewPlusButton";
 import { PortfolioReviewPanel } from "@/components/PortfolioReviewPanel";
+import { ExcellentList } from "@/components/ExcellentList";
 import { PORTFOLIO_BAG } from "@/lib/portfolio-review-types";
 
 type UniverseStock = {
@@ -60,6 +61,7 @@ export function PortfolioPanel() {
           loadUniverse();
         }}
       />
+      <ExcellentList />
     </section>
   );
 }
