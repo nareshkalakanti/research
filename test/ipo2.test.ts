@@ -68,4 +68,15 @@ assert.equal(favouredSector("Trading", "Pharmaceuticals"), false);
 assert.equal(favouredSector("Pharma Formulations", "Healthcare"), true);
 assert.equal(favouredSector(null, "Healthcare"), true);
 
+// First run from the issue price: issue 80, listed at 100 (+25% day 1), best close 160 → +100%.
+const fromIssue = analyzeBases(px.map((close, i) => ({ date: dates[i]!, close, volume: vol[i] })), { listed: true, issuePrice: 80 })!;
+assert.equal(fromIssue.run_base, "issue");
+assert.equal(fromIssue.listing_gain_pct, 25);
+assert.equal(fromIssue.run_pct, 100);
+assert.equal(a.run_base, "first_close");
+// Prices adjusted for a later 1:10 split, issue price not: issue 900 vs day-1 close 100 → not used.
+const splitIssue = analyzeBases(px.map((close, i) => ({ date: dates[i]!, close, volume: vol[i] })), { listed: true, issuePrice: 900 })!;
+assert.equal(splitIssue.issue_mismatch, true);
+assert.equal(splitIssue.run_base, "first_close");
+
 console.log("ipo2 ok");

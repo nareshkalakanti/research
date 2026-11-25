@@ -53,7 +53,6 @@ export function NapkinBasesCard({ ticker, market }: { ticker: string; market?: s
   if (!d) return <p className="vx-empty">Loading bases for {ticker}…</p>;
   if (!d.ok) return <p className="vx-msg vx-msg--err">{d.error}</p>;
   const a = d.analysis;
-  const live = a.live_entry;
   const hint = BASE_STAGES.find((s) => s.id === a.stage)?.hint;
 
   return (
@@ -65,6 +64,13 @@ export function NapkinBasesCard({ ticker, market }: { ticker: string; market?: s
             {d.mode === "ipo" && d.listing_date ? (
               <>
                 Listed {shortDate(d.listing_date)} ({age(d.listing_date, a.last_date)}) · IPO rules
+                {a.issue_price != null && !a.issue_mismatch ? (
+                  <>
+                    {" "}
+                    · issue {inr(a.issue_price)}
+                    {a.listing_gain_pct != null ? `, day 1 ${a.listing_gain_pct > 0 ? "+" : ""}${a.listing_gain_pct}%` : ""}
+                  </>
+                ) : null}
                 {a.run_pct != null ? (
                   <>
                     {" "}
@@ -73,7 +79,8 @@ export function NapkinBasesCard({ ticker, market }: { ticker: string; market?: s
                       {a.run_pct > 0 ? "+" : ""}
                       {a.run_pct}%
                     </b>{" "}
-                    in 8 wks {a.urgency === true ? "✓ urgency" : a.urgency === false ? "(under 50%)" : ""}
+                    in 8 wks from the {a.run_base === "issue" ? "issue price" : "day-1 close"}{" "}
+                    {a.urgency === true ? "✓ urgency" : a.urgency === false ? "(under 50%)" : ""}
                   </>
                 ) : null}
               </>
@@ -88,15 +95,6 @@ export function NapkinBasesCard({ ticker, market }: { ticker: string; market?: s
             {a.stage_note}
             {a.vol_dry && (a.stage === "in_base" || a.stage === "near_pivot") ? " · volume drying up" : ""}
           </p>
-          {live ? (
-            <p className="napkin-bases-live">
-              <b>{live.label}</b> {shortDate(live.date)}: above {inr(live.level)}, stop {inr(live.stop)} (risk {live.risk_pct}%)
-            </p>
-          ) : a.pivot != null && a.to_pivot_pct != null && a.to_pivot_pct > 0 && (a.stage === "in_base" || a.stage === "near_pivot") ? (
-            <p className="napkin-bases-live napkin-bases-live--wait">
-              Pivot {inr(a.pivot)}: {a.to_pivot_pct}% above today&apos;s {inr(a.last_close)}
-            </p>
-          ) : null}
         </div>
         {d.mode === "established" ? (
           <div className="pa-presets napkin-bases-range" role="group" aria-label="Chart range">
@@ -110,13 +108,28 @@ export function NapkinBasesCard({ ticker, market }: { ticker: string; market?: s
           <span className="vx-earn-period">Since listing</span>
         )}
       </div>
+      <div className={`bc-verdict bc-verdict--${a.verdict.call}`}>
+        <div className="bc-verdict-head">
+          <span className="bc-verdict-call">{a.verdict.call}</span>
+          <span className="bc-verdict-action">{a.verdict.action}</span>
+        </div>
+        {a.verdict.reasons.length ? (
+          <ul>
+            {a.verdict.reasons.map((r) => (
+              <li key={r.text} className={r.good ? undefined : "bad"}>
+                {r.text}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
       {a.corp_actions.length ? (
         <p className="vx-msg napkin-bases-warn">
           Split / bonus not in the saved prices, adjusted here:{" "}
           {a.corp_actions.map((c) => `${shortDate(c.date)} (×${c.ratio})`).join(", ")}. Check the corporate action if it looks wrong.
         </p>
       ) : null}
-      <BaseChart series={d.series} analysis={a} ticker={d.ticker} fromIdx={fromIdx} height={240} />
+      <BaseChart series={d.series} analysis={a} ticker={d.ticker} fromIdx={fromIdx} height={300} />
       <p className="vx-hint napkin-bases-foot">
         Daily closes. Low cheat / cheat: a tight sideways pause in the lower / middle third of a base, buy above its high. Pivot: close
         above the base high. E1B / E2B: small pause after the breakout. Stops at most 8% under the buy level.

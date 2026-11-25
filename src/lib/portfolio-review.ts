@@ -1323,3 +1323,145 @@ export async function buildReview(opts?: {
     peer_columns_missing: !!screenerPeerColumnsMissingSince(),
   };
 }
+
+/* ------------------------------------------------------------------ */
+/* Slow background scoring (Watchlist lists)                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Watchlist stocks get the same Portfolio review scores, but filled slowly so
+ * Screener isn't hammered: one stock at a time, 45–60 s apart, stopping when
+ * Screener pauses us and waiting while Portfolio review scores its own list.
+ */
+export type SlowScoreJob = {
+  running: boolean;
+  total: number;
+  done: number;
+  failed: number;
+  current: string | null;
+  paused_until: string | null;
+  started_at: string;
+  finished_at: string | null;
+};
+
+const SLOW_GAP_MS = 45_000;
+const SLOW_JITTER_MS = 15_000;
+/** A stock that couldn't be scored isn't retried for this long. */
+const SLOW_RETRY_MS = 6 * 3_600_000;
+const SLOW_KEY = Symbol.for("research.holdingsSlowScoreJob");
+const SLOW_TRIED = Symbol.for("research.holdingsSlowScoreTried");
+type SlowHolder = { [SLOW_KEY]?: SlowScoreJob; [SLOW_TRIED]?: Map<string, number> };
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export function holdingsScoreJob(): SlowScoreJob | null {
+  return (globalThis as SlowHolder)[SLOW_KEY] ?? null;
+}
+
+/** Saved scores only (never fetches): ticker → row. Missing = not scored yet. */
+export function savedReviewRows(tickers: string[]): Map<string, ReviewRow> {
+  const scan = new Map(buildScannerData().rows.map((r) => [r.t.toUpperCase(), r]));
+  const out = new Map<string, ReviewRow>();
+  for (const raw of tickers) {
+    const t = raw.trim().toUpperCase();
+    if (!t) continue;
+    const hit = lookupScore(t);
+    if (!hit) continue;
+    const s = scan.get(t);
+    out.set(
+      t,
+      rowFromScores(
+        t,
+        new Date(hit.at).toISOString(),
+        s ? { t: s.t, name: s.name, market: s.market, industry: s.industry ?? null, mcap: s.mcap ?? null } : undefined,
+        hit.checks,
+        hit.m,
+        hit.val,
+      ),
+    );
+  }
+  return out;
+}
+
+const SLOW_QUEUE = Symbol.for("research.watchlistSlowScoreQueue");
+type QueueHolder = { [SLOW_QUEUE]?: string[] };
+
+/**
+ * Queue the tickers that have no saved score and make sure the slow job runs.
+ * The list just opened goes to the front, so the chip you're looking at fills
+ * first; anything already queued stays behind it. Returns the job.
+ */
+export function startHoldingsSlowScoring(tickers: string[]): SlowScoreJob | null {
+  const holder = globalThis as SlowHolder & QueueHolder;
+  const tried = (holder[SLOW_TRIED] ??= new Map());
+  const queue = (holder[SLOW_QUEUE] ??= []);
+  const now = Date.now();
+  const need = [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))].filter(
+    (t) => !lookupScore(t) && now - (tried.get(t) ?? 0) > SLOW_RETRY_MS,
+  );
+  if (need.length) {
+    const front = new Set(need);
+    const rest = queue.filter((t) => !front.has(t));
+    queue.splice(0, queue.length, ...need, ...rest);
+  }
+  const cur = holder[SLOW_KEY];
+  if (cur?.running) {
+    cur.total = cur.done + queue.length + (cur.current ? 1 : 0);
+    return cur;
+  }
+  if (!queue.length) return cur ?? null;
+  const paused = screenerPausedUntil();
+  if (paused) return { ...(cur ?? emptySlowJob()), running: false, paused_until: paused };
+  const job: SlowScoreJob = { ...emptySlowJob(), running: true, total: queue.length };
+  holder[SLOW_KEY] = job;
+  const scan = new Map(buildScannerData().rows.map((r) => [r.t.toUpperCase(), r]));
+  void (async () => {
+    let peerCtx: ReturnType<typeof loadPeers> | null = null;
+    const ctx = () => (peerCtx ??= loadPeers());
+    try {
+      while (queue.length) {
+        const until = screenerPausedUntil();
+        if (until) {
+          job.paused_until = until;
+          break;
+        }
+        // Portfolio review is scoring its own list: let it go first.
+        while (scoreJobs.size > 0) await sleep(10_000);
+        const t = queue.shift()!;
+        if (lookupScore(t)) {
+          job.done++;
+          continue;
+        }
+        job.current = t;
+        tried.set(t, Date.now());
+        try {
+          await cachedScore(t, scan.get(t)?.market ?? "NSE", ctx);
+          if (!lookupScore(t)) job.failed++; // partial (Screener slow / no data): retried later
+        } catch {
+          job.failed++;
+        }
+        job.done++;
+        job.current = null;
+        job.total = job.done + queue.length;
+        await sleep(SLOW_GAP_MS + Math.random() * SLOW_JITTER_MS);
+      }
+    } finally {
+      job.running = false;
+      job.current = null;
+      job.finished_at = new Date().toISOString();
+    }
+  })();
+  return job;
+}
+
+function emptySlowJob(): SlowScoreJob {
+  return {
+    running: false,
+    total: 0,
+    done: 0,
+    failed: 0,
+    current: null,
+    paused_until: null,
+    started_at: new Date().toISOString(),
+    finished_at: null,
+  };
+}

@@ -68,6 +68,9 @@ export const IPO2_RULES = {
   /** One-day close ratio beyond these (past any exchange circuit) = split / bonus. */
   splitDrop: 0.65,
   splitJump: 1.55,
+  /** Day-1 close outside this × the issue price: history is on another share basis (split / bonus since). */
+  issueBasisMin: 0.6,
+  issueBasisMax: 4,
 };
 
 export type EntryKind = "low_cheat" | "cheat" | "pivot" | "add";
@@ -122,6 +125,13 @@ export type Ipo2Analysis = {
   last_close: number;
   last_date: string;
   run_pct: number | null;
+  /** What the first run is measured from: the IPO issue price, or the listing-day close when no issue price is known. */
+  run_base: "issue" | "first_close" | null;
+  /** Issue price (as issued, before any later split adjustment) and the day-1 close vs it. */
+  issue_price: number | null;
+  /** Issue price known but the price history is on another share basis: not used. */
+  issue_mismatch: boolean;
+  listing_gain_pct: number | null;
   urgency: boolean | null;
   bases: Ipo2Base[];
   entries: Ipo2Entry[];
@@ -139,6 +149,16 @@ export type Ipo2Analysis = {
   pivot: number | null;
   to_pivot_pct: number | null;
   vol_dry: boolean | null;
+  verdict: Verdict;
+};
+
+/** Final call for the stock from its stage, entry and base quality. */
+export type Verdict = {
+  call: "buy" | "watch" | "wait" | "avoid";
+  /** One line: what to do now. */
+  action: string;
+  /** Why: good points (+) and cautions (−). */
+  reasons: Array<{ good: boolean; text: string }>;
 };
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
@@ -203,7 +223,11 @@ export function analyzeIpo2(series: Close[], R = IPO2_RULES): Ipo2Analysis | nul
  * A base that fails (too deep) resets the count: the old high stops mattering and
  * the next setup needs a fresh 25% rise.
  */
-export function analyzeBases(raw: Close[], opts: { listed: boolean }, R = IPO2_RULES): Ipo2Analysis | null {
+export function analyzeBases(
+  raw: Close[],
+  opts: { listed: boolean; issuePrice?: number | null },
+  R = IPO2_RULES,
+): Ipo2Analysis | null {
   const listed = opts.listed;
   const { series, actions } = adjustCorporateActions(raw, R);
   const n = series.length;
@@ -215,7 +239,16 @@ export function analyzeBases(raw: Close[], opts: { listed: boolean }, R = IPO2_R
 
   const runEnd = Math.min(n, R.urgencyDays + 1);
   const runMax = Math.max(...c.slice(0, runEnd));
-  const runPct = listed && c[0]! > 0 ? (runMax / c[0]! - 1) * 100 : null;
+  // Issue price on today's share basis (splits / bonuses since listing scale it too).
+  const issue = listed && opts.issuePrice != null && opts.issuePrice > 0 ? opts.issuePrice : null;
+  const issueScaled = issue != null ? actions.reduce((x, a) => x * a.ratio, issue) : null;
+  // Prices already adjusted for a later split / bonus while the issue price isn't: not comparable.
+  const issueMismatch =
+    issueScaled != null && (c[0]! / issueScaled < R.issueBasisMin || c[0]! / issueScaled > R.issueBasisMax);
+  const issueAdj = issueMismatch ? null : issueScaled;
+  const runFrom = issueAdj ?? (listed ? c[0]! : null);
+  const runPct = runFrom != null && runFrom > 0 ? (runMax / runFrom - 1) * 100 : null;
+  const listingGain = issueAdj != null ? r1((c[0]! / issueAdj - 1) * 100) : null;
   // Not enough days yet and not already there: undecided.
   const urgency = runPct == null ? null : runPct >= R.urgencyPct ? true : n < runEnd || n <= R.urgencyDays ? null : false;
 
@@ -443,6 +476,10 @@ export function analyzeBases(raw: Close[], opts: { listed: boolean }, R = IPO2_R
     last_close: r2(p),
     last_date: d(last),
     run_pct: runPct == null ? null : r1(runPct),
+    run_base: runPct == null ? null : issueAdj != null ? "issue" : "first_close",
+    issue_price: issue,
+    issue_mismatch: issueMismatch,
+    listing_gain_pct: listingGain,
     urgency,
     listed,
     corp_actions: actions,
@@ -455,7 +492,131 @@ export function analyzeBases(raw: Close[], opts: { listed: boolean }, R = IPO2_R
     pivot,
     to_pivot_pct: toPivot,
     vol_dry: volDry,
+    verdict: makeVerdict({
+      stage,
+      note,
+      live,
+      openBase,
+      pivot,
+      toPivot,
+      volDry,
+      legs,
+      listed,
+      urgency,
+      runPct,
+      lastBreakoutPct: lastBreakout != null ? r1((p / c[lastBreakout]! - 1) * 100) : null,
+      lastFail,
+      bases,
+      R,
+    }),
   };
+}
+
+function makeVerdict(x: {
+  stage: Ipo2Stage;
+  note: string;
+  live: Ipo2Entry | null;
+  openBase: Ipo2Base | null;
+  pivot: number | null;
+  toPivot: number | null;
+  volDry: boolean | null;
+  legs: number;
+  listed: boolean;
+  urgency: boolean | null;
+  runPct: number | null;
+  lastBreakoutPct: number | null;
+  lastFail: { idx: number; depth: number; label: string } | null;
+  bases: Ipo2Base[];
+  R: typeof IPO2_RULES;
+}): Verdict {
+  const { R } = x;
+  const reasons: Verdict["reasons"] = [];
+  const baseOf = (b: Ipo2Base | null | undefined) => {
+    if (!b || !b.valid) return;
+    const [lo, hi] = R.idealDepth;
+    const max = b.ipo_base ? R.maxDepthIpoPct : R.maxDepthPct;
+    if (b.depth_pct >= lo && b.depth_pct <= hi) reasons.push({ good: true, text: `Base ${b.depth_pct}% deep: in the ideal ${lo}–${hi}%` });
+    else if (b.depth_pct < lo) reasons.push({ good: true, text: `Shallow base, ${b.depth_pct}% deep (tight is fine)` });
+    else reasons.push({ good: false, text: `Base ${b.depth_pct}% deep: deeper than the ideal ${hi}% (max ${max}%)` });
+    const wks = Math.round(b.days / 5);
+    if (wks > 65) reasons.push({ good: false, text: `Long base: ${wks} weeks` });
+    if (b.prior_rise_pct != null) reasons.push({ good: true, text: `${b.prior_rise_pct}% rise into the base` });
+  };
+  const ipoReason = () => {
+    if (!x.listed || x.urgency == null) return;
+    reasons.push(
+      x.urgency
+        ? { good: true, text: `Urgency run after listing: +${r1(x.runPct!)}% in 8 weeks` }
+        : {
+            good: false,
+            text: `No urgency run after listing (${x.runPct != null && x.runPct > 0 ? "+" : ""}${x.runPct != null ? r1(x.runPct) : "?"}% in 8 weeks, needs ${R.urgencyPct}%)`,
+          },
+    );
+  };
+  const volReason = () => {
+    if (x.volDry === true) reasons.push({ good: true, text: "Volume drying up in the base" });
+  };
+  const inr = (n: number) => `₹${fmt(n)}`;
+
+  switch (x.stage) {
+    case "buy_zone": {
+      const e = x.live!;
+      const b = [...x.bases].reverse().find((bb) => bb.valid && bb.n === e.base && bb.start_idx <= e.idx);
+      if (e.kind === "pivot" || e.kind === "add") {
+        if (e.vol_x != null)
+          reasons.push(
+            e.vol_x >= R.breakoutVolX
+              ? { good: true, text: `Breakout on ${e.vol_x}× average volume: confirmed` }
+              : { good: false, text: `Breakout on only ${e.vol_x}× average volume (want ${R.breakoutVolX}×): unconfirmed, buy smaller` },
+          );
+      } else reasons.push({ good: true, text: `${e.label}: early entry inside the base, tight stop` });
+      if (e.kind !== "add") baseOf(b);
+      ipoReason();
+      return { call: "buy", action: `Buy above ${inr(e.level)}, stop ${inr(e.stop)} (risk ${e.risk_pct}%)`, reasons };
+    }
+    case "near_pivot": {
+      baseOf(x.openBase);
+      volReason();
+      ipoReason();
+      const stop = x.pivot! * (1 - R.maxStopPct / 100);
+      return {
+        call: "watch",
+        action: `Watch: buy on a close above the pivot ${inr(x.pivot!)} (${x.toPivot}% away) on strong volume, stop about ${inr(stop)}`,
+        reasons,
+      };
+    }
+    case "in_base": {
+      baseOf(x.openBase);
+      volReason();
+      ipoReason();
+      return {
+        call: "wait",
+        action: `Wait: base still forming, ${x.toPivot}% under the pivot ${inr(x.pivot!)}. Watch for a tight pause (cheat) or the breakout`,
+        reasons,
+      };
+    }
+    case "pullback":
+      ipoReason();
+      return { call: "wait", action: `Wait: ${x.note}. No base yet (needs ${R.baseMinDays / 5}+ weeks)`, reasons };
+    case "running":
+      ipoReason();
+      return { call: "wait", action: "Wait: no base to buy from. The next entry comes from the next base", reasons };
+    case "extended":
+      reasons.push({ good: false, text: `${x.lastBreakoutPct}% above the breakout: chasing raises the risk` });
+      ipoReason();
+      return { call: "wait", action: "Don't chase: wait for a small pause (E1B / E2B) or a new base", reasons };
+    case "late":
+      reasons.push({ good: false, text: `Leg E${x.legs} after the breakout: the late, stretched part of the run` });
+      return { call: "avoid", action: "Avoid new buys: late stage. Holders sell into strength", reasons };
+    case "broken":
+      if (x.lastFail) reasons.push({ good: false, text: `${x.lastFail.label} failed (over ${x.lastFail.depth}% deep)` });
+      return { call: "avoid", action: `Avoid: the base broke. Wait for a ${R.priorRisePct}% recovery and a new base`, reasons };
+    case "no_rise":
+      reasons.push({ good: false, text: `Resting without a ${R.priorRisePct}% rise into it: not a setup` });
+      return { call: "avoid", action: "Avoid for now: no uptrend into this base", reasons };
+    case "new":
+      return { call: "wait", action: "Wait: too new. The first entry comes from the IPO base", reasons };
+  }
 }
 
 function dateShort(iso: string): string {
@@ -569,6 +730,113 @@ export async function nseListingDates(opts?: { wait?: boolean }): Promise<{ map:
 }
 
 /* ------------------------------------------------------------------ */
+/* Issue prices (NSE past issues: main board + SME)                    */
+/* ------------------------------------------------------------------ */
+
+const NSE_PAST_ISSUES = "https://www.nseindia.com/api/public-past-issues";
+
+type IssueRec = { price: number; listing: string };
+let issueMem: { at: number; map: Map<string, IssueRec> } | null = null;
+let issueFetch: Promise<void> | null = null;
+
+function withIssueDb<T>(fn: (db: ReturnType<typeof openSqliteNamed>) => T): T {
+  return withStrategyDb((db) => {
+    db.exec(`CREATE TABLE IF NOT EXISTS ipo_issue_prices (
+      symbol TEXT PRIMARY KEY,
+      issue_price REAL NOT NULL,
+      listing_date TEXT NOT NULL,
+      board TEXT NOT NULL,
+      fetched_at INTEGER NOT NULL
+    )`);
+    return fn(db);
+  });
+}
+
+function readSavedIssues(): { at: number; map: Map<string, IssueRec> } {
+  return withIssueDb((db) => {
+    const rows = db.prepare(`SELECT symbol, issue_price, listing_date, fetched_at FROM ipo_issue_prices`).all() as Array<{
+      symbol: string;
+      issue_price: number;
+      listing_date: string;
+      fetched_at: number;
+    }>;
+    return {
+      at: rows.reduce((a, r) => Math.max(a, r.fetched_at), 0),
+      map: new Map(rows.map((r) => [r.symbol, { price: r.issue_price, listing: r.listing_date }])),
+    };
+  });
+}
+
+/** NSE's past-issues list → issue price + listing date per symbol (equity and SME only). */
+async function refreshIssuePrices(): Promise<void> {
+  const res = await fetch(NSE_PAST_ISSUES, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+      Accept: "application/json",
+      Referer: "https://www.nseindia.com/",
+    },
+    redirect: "follow",
+    signal: AbortSignal.timeout(45_000),
+  });
+  if (!res.ok) return;
+  const list = (await res.json()) as Array<{
+    symbol?: string;
+    issuePrice?: string | null;
+    listingDate?: string | null;
+    securityType?: string;
+  }>;
+  if (!Array.isArray(list) || list.length < 200) return; // refused / truncated: keep what's saved
+  const at = Date.now();
+  const rows: Array<[string, number, string, string]> = [];
+  for (const x of list) {
+    if (x.securityType !== "Equity" && x.securityType !== "SME") continue;
+    const sym = (x.symbol ?? "").trim().toUpperCase();
+    const price = Number((x.issuePrice ?? "").trim());
+    const listing = parseNseListingDate(x.listingDate);
+    if (sym && listing && Number.isFinite(price) && price > 0) rows.push([sym, price, listing, x.securityType]);
+  }
+  withIssueDb((db) => {
+    const ins = db.prepare(
+      `INSERT INTO ipo_issue_prices (symbol, issue_price, listing_date, board, fetched_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(symbol) DO UPDATE SET issue_price = excluded.issue_price, listing_date = excluded.listing_date,
+         board = excluded.board, fetched_at = excluded.fetched_at`,
+    );
+    db.transaction(() => {
+      for (const [sym, pr, dt, b] of rows) ins.run(sym, pr, dt, b, at);
+    })();
+  });
+  issueMem = readSavedIssues();
+}
+
+/** Issue prices by NSE symbol. Stale or missing: returns what's saved and refreshes once a day. */
+export async function nseIssuePrices(opts?: { wait?: boolean }): Promise<Map<string, IssueRec>> {
+  if (!issueMem) {
+    try {
+      issueMem = readSavedIssues();
+    } catch {
+      issueMem = { at: 0, map: new Map() };
+    }
+  }
+  if (Date.now() - issueMem.at > LIST_TTL_MS && !issueFetch) {
+    issueFetch = refreshIssuePrices()
+      .catch(() => {})
+      .finally(() => {
+        issueFetch = null;
+      });
+  }
+  if ((opts?.wait || issueMem.map.size === 0) && issueFetch) await issueFetch;
+  return issueMem.map;
+}
+
+/** The issue price for this listing — only when NSE's record lists within 10 days of our listing date. */
+function issuePriceFor(issues: Map<string, IssueRec>, ticker: string, listing: string): number | null {
+  const rec = issues.get(ticker.toUpperCase());
+  if (!rec) return null;
+  return Math.abs(daysBetween(rec.listing, listing)) <= 10 ? rec.price : null;
+}
+
+/* ------------------------------------------------------------------ */
 /* Screen                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -641,6 +909,10 @@ export type Ipo2Row = {
   price: number;
   ret_pct: number;
   run_pct: number | null;
+  run_base: "issue" | "first_close" | null;
+  issue_price: number | null;
+  issue_mismatch: boolean;
+  listing_gain_pct: number | null;
   urgency: boolean | null;
   growth: Growth | null;
   growth_ok: boolean | null;
@@ -670,6 +942,8 @@ export type Ipo2Result = {
   no_prices: number;
   listing_dates: number;
   listing_dates_at: string | null;
+  /** Rows whose first run is measured from the IPO issue price (else the listing-day close). */
+  with_issue_price: number;
   /** Stocks whose prices are older than the latest trading day, now refreshing in the background. */
   stale_prices: number;
   refreshing: number;
@@ -781,7 +1055,10 @@ function seriesSinceListing(
 export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo2Result> {
   if (!opts?.refresh && screenCache && Date.now() - screenCache.at < SCREEN_TTL_MS) return screenCache.result;
   const R = IPO2_RULES;
-  const { map: nse, at: nseAt } = await nseListingDates({ wait: opts?.refresh });
+  const [{ map: nse, at: nseAt }, issues] = await Promise.all([
+    nseListingDates({ wait: opts?.refresh }),
+    nseIssuePrices({ wait: opts?.refresh }),
+  ]);
   const years = rotationFetchYears();
   const cutoff = new Date(Date.now() - R.maxAgeYears * 365.25 * 86_400_000).toISOString().slice(0, 10);
   const labels = masterLabels();
@@ -817,7 +1094,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       continue;
     }
     universe++;
-    const a = analyzeIpo2(s.series);
+    const a = analyzeBases(s.series, { listed: true, issuePrice: issuePriceFor(issues, t, s.listing) });
     if (!a) continue;
     const lab = labels.get(t);
     const g = growth.get(t) ?? null;
@@ -845,6 +1122,10 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       price: a.last_close,
       ret_pct: r1((a.last_close / a.first_close - 1) * 100),
       run_pct: s.gap ? null : a.run_pct,
+      run_base: s.gap ? null : a.run_base,
+      issue_price: a.issue_price,
+      issue_mismatch: a.issue_mismatch,
+      listing_gain_pct: a.listing_gain_pct,
       urgency,
       growth: g,
       growth_ok: growthOk,
@@ -881,6 +1162,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
     skipped_old: skippedOld,
     no_prices: noPrices,
     listing_dates: nse.size,
+    with_issue_price: rows.filter((r) => r.run_base === "issue").length,
     listing_dates_at: nseAt ? new Date(nseAt).toISOString() : null,
     rules: R,
     built_at: new Date().toISOString(),
@@ -928,7 +1210,8 @@ export async function stockBasesDetail(ticker: string, marketHint?: string | nul
   const nseDate = nse.get(t) ?? null;
   const s = seriesSinceListing(t, market, nseDate, years, cutoff, bulkFirstTradeDays(years));
   if (s && !olderCompany(t, s.source === "nse" ? nseDate : null, bseCodes(), bulkListingDays(nse))) {
-    const analysis = analyzeBases(s.series, { listed: true });
+    const issues = await nseIssuePrices();
+    const analysis = analyzeBases(s.series, { listed: true, issuePrice: issuePriceFor(issues, t, s.listing) });
     if (analysis)
       return {
         ok: true,

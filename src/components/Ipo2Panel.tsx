@@ -237,8 +237,10 @@ export function Ipo2Panel() {
             {R.addMinDepthPct}–{R.addMaxDepthPct}% pause of {R.addMinDays}+ days after the breakout. Stops sit under the pause or pivot low,
             at most {R.maxStopPct}% below the buy level.
             <br />
-            Uses saved daily closes, so the listing price is the first close, not the issue price. The day-1 ignite bar and QIB
-            subscription aren&apos;t checked (no open/high/low or subscription data saved). Today&apos;s volume is partial until the close.
+            First run is measured from the IPO issue price (NSE&apos;s past issues) where known
+            {data ? ` (${data.with_issue_price.toLocaleString("en-IN")} of ${data.rows.length.toLocaleString("en-IN")} stocks)` : ""}, else
+            from the listing-day close: BSE-only issues and some main-board IPOs aren&apos;t in NSE&apos;s list. The day-1 ignite bar and
+            QIB subscription aren&apos;t checked (no open/high/low or subscription data saved). Today&apos;s volume is partial until the close.
           </p>
         ) : null}
       </div>
@@ -271,7 +273,10 @@ export function Ipo2Panel() {
                 <th>Company</th>
                 <th>Industry</th>
                 <th>Listed</th>
-                <th className="num" title={`Best close in the first ${R?.urgencyDays ?? 40} trading days vs the first close`}>
+                <th
+                  className="num"
+                  title={`Best close in the first ${R?.urgencyDays ?? 40} trading days vs the IPO issue price (or the listing-day close when no issue price is known)`}
+                >
                   First run
                 </th>
                 <th className="num">Since listing</th>
@@ -321,6 +326,21 @@ export function Ipo2Panel() {
                           {age(r.age_months)}
                           {r.listing_source === "history" ? " · from prices" : ""}
                         </span>
+                        {r.issue_price != null ? (
+                          r.issue_mismatch ? (
+                            <span
+                              className="ipo2-warn"
+                              title="The saved prices are adjusted for a later split / bonus, the issue price isn't, so it isn't used"
+                            >
+                              Issue {inr(r.issue_price)}: split / bonus since listing, not used
+                            </span>
+                          ) : (
+                            <span>
+                              Issue {inr(r.issue_price)}
+                              {r.listing_gain_pct != null ? ` · day 1 ${pct(r.listing_gain_pct)}` : ""}
+                            </span>
+                          )
+                        ) : null}
                         {r.history_gap ? <span className="ipo2-warn">Prices start later: first run not checked</span> : null}
                         {r.corp_actions.length ? (
                           <span className="ipo2-warn" title="A one-day move past any exchange circuit: earlier prices adjusted as a split / bonus">
@@ -329,7 +349,12 @@ export function Ipo2Panel() {
                           </span>
                         ) : null}
                       </td>
-                      <td className={`num ${r.urgency ? "pos-t" : ""}`}>{r.run_pct == null ? "—" : pct(r.run_pct)}</td>
+                      <td className={`num ${r.urgency ? "pos-t" : ""}`}>
+                        {r.run_pct == null ? "—" : pct(r.run_pct)}
+                        {r.run_base ? (
+                          <span className="ipo2-sub">{r.run_base === "issue" ? "from issue" : "from day-1 close"}</span>
+                        ) : null}
+                      </td>
                       <td className={`num ${r.ret_pct >= 0 ? "pos-t" : "neg"}`}>
                         {pct(r.ret_pct)}
                         <span className="ipo2-sub">{inr(r.price)}</span>
@@ -344,7 +369,9 @@ export function Ipo2Panel() {
                         <Check
                           ok={r.urgency}
                           label="Urgency"
-                          title={`Up ${R?.urgencyPct ?? 50}%+ within ${R?.urgencyDays ?? 40} trading days of listing`}
+                          title={`Up ${R?.urgencyPct ?? 50}%+ within ${R?.urgencyDays ?? 40} trading days of listing, from the ${
+                            r.run_base === "issue" ? "issue price" : "listing-day close (no issue price known)"
+                          }`}
                         />
                         <Check
                           ok={r.growth_ok}

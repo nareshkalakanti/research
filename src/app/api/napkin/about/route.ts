@@ -7,6 +7,7 @@ import {
   loadAllCompanies,
   pickAboutText,
 } from "@/lib/db";
+import { cleanAboutText, cleanHeadline, isPlaceholderText } from "@/lib/about-clean";
 import { saveYfAboutProfile } from "@/lib/company-about-write";
 import { resolveListingMarket } from "@/lib/listing-market";
 import { isSqliteCorrupt, openSqliteNamed } from "@/lib/sqlite-utils";
@@ -36,7 +37,7 @@ function splitProducts(raw: string | null | undefined): string[] {
   return t
     .split(/\s*[;|·]\s*|\s*,\s*|\n+/)
     .map((p) => p.trim())
-    .filter((p) => p.length >= 2 && !/^n\/?a$/i.test(p));
+    .filter((p) => p.length >= 2 && !isPlaceholderText(p));
 }
 
 /** Pull "products include A, B and C" style lists from about text. */
@@ -163,7 +164,7 @@ function payloadFromRow(
     products.length < 2 ? productsFromAbout(about || brandCorpus) : [];
   // Brands first so About shows Gowardhan/Go-style names ahead of category nouns.
   const merged = mergeProductLists(brands, products, fromAbout);
-  const headline = row.business_model?.trim() || null;
+  const headline = cleanHeadline(row.business_model);
   const hasBody = !!(about && about.replace(/\s/g, "").length >= 40);
   if (!headline && !hasBody && !merged.length) return null;
   return {
@@ -175,7 +176,7 @@ function payloadFromRow(
     sub_sector: row.sub_sector ?? null,
     about: hasBody ? about : null,
     products: merged.slice(0, 8),
-    headquarters: row.headquarters ?? null,
+    headquarters: cleanAboutText(row.headquarters),
     market: row.market ?? null,
     source: "company_about",
   };

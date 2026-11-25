@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  REVIEW_SCORE_HEADERS,
+  ReviewScoreCells,
+  ReviewScoreDrawer,
+  type ReviewDrawerKind,
+  type ReviewScoreRow,
+} from "@/components/ReviewScores";
 import { FundPagesBar } from "@/components/FundPagesBar";
 import { ExchangeSeg, exchangeMatch, type ExchangeId } from "@/components/FilterBar";
 import { Loading } from "@/components/Loading";
@@ -542,12 +549,20 @@ function WatchlistRow({
   onRemoveHold,
   rank,
   showMomentumColumn,
+  score,
+  showScores,
+  scoreQueued,
+  onOpenScore,
 }: {
   r: WatchRow;
   canRemove: boolean;
   onRemoveHold?: (ticker: string) => void;
   rank?: number | null;
   showMomentumColumn: boolean;
+  score?: ReviewScoreRow;
+  showScores?: boolean;
+  scoreQueued?: boolean;
+  onOpenScore?: (row: ReviewScoreRow, kind: ReviewDrawerKind) => void;
 }) {
   const [open, setOpen] = useState(false);
   const qtr = useExpandQuarters(r.ticker, r.market, r.price, open);
@@ -638,6 +653,13 @@ function WatchlistRow({
             )}
           </td>
         ) : null}
+        {showScores ? (
+          <ReviewScoreCells
+            r={score}
+            pending={scoreQueued ? "Scoring slowly…" : "Not scored yet"}
+            onOpen={(row, kind) => onOpenScore?.(row, kind)}
+          />
+        ) : null}
         <td className="col-remove">
           {canRemove ? (
             <button
@@ -666,7 +688,7 @@ function WatchlistRow({
       </tr>
       {open ? (
         <tr className="wl-expand-row">
-          <td colSpan={showMomentumColumn ? 11 : 10}>
+          <td colSpan={(showMomentumColumn ? 11 : 10) + (showScores ? 6 : 0)}>
             <div className="wl-card">
               <WlKpis qtr={qtr} row={r} />
               <div className="wl-card-body">
@@ -1219,6 +1241,57 @@ export function WatchlistPanel() {
   const rankedList =
     list === "named" || list === "holdings" || list === "common";
   const momentumOn = rankedList;
+
+  // Every watchlist view: Portfolio-review scores. Saved ones show at once; the
+  // rest are scored slowly in the background (one a minute), so poll while that runs.
+  const showScores = list !== "dashboard";
+  const holdKey = showScores ? [...activeTickers].map((t) => t.toUpperCase()).sort().join(",") : "";
+  const [holdScores, setHoldScores] = useState<{
+    key: string;
+    scores: Record<string, ReviewScoreRow>;
+    missing: number;
+    job: { running: boolean; total: number; done: number; failed: number } | null;
+    paused: string | null;
+  } | null>(null);
+  const [scorePoll, setScorePoll] = useState(0);
+  /** Final-rating column filter ("all" = no filter). */
+  const [ratingFilter, setRatingFilter] = useState<string>("all");
+  const [scoreDrawer, setScoreDrawer] = useState<{ row: ReviewScoreRow; kind: ReviewDrawerKind } | null>(null);
+  const closeScoreDrawer = useCallback(() => setScoreDrawer(null), []);
+  useEffect(() => {
+    if (!holdKey) return;
+    let live = true;
+    void fetch(`/api/watchlist/scores?tickers=${encodeURIComponent(holdKey)}`, { cache: "no-store" })
+      .then((res) => res.json())
+      .then(
+        (j: {
+          ok?: boolean;
+          scores?: Record<string, ReviewScoreRow>;
+          missing?: number;
+          job?: { running: boolean; total: number; done: number; failed: number } | null;
+          screener_paused_until?: string | null;
+        }) => {
+          if (!live || !j.ok) return;
+          setHoldScores({
+            key: holdKey,
+            scores: j.scores ?? {},
+            missing: j.missing ?? 0,
+            job: j.job ?? null,
+            paused: j.screener_paused_until ?? null,
+          });
+        },
+      )
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [holdKey, scorePoll]);
+  const scoreJobRunning = !!holdScores?.job?.running && holdScores.key === holdKey;
+  useEffect(() => {
+    if (!scoreJobRunning) return;
+    const t = setTimeout(() => setScorePoll((n) => n + 1), 60_000);
+    return () => clearTimeout(t);
+  }, [scoreJobRunning, scorePoll]);
   const showMomentumColumn = momentumOn;
 
   const momRankByTicker = useMemo(() => {
@@ -1341,8 +1414,21 @@ export function WatchlistPanel() {
   }, [activeTickers]);
 
   const needle = q.trim().toLowerCase();
+  const ratingCounts = new Map<string, number>();
+  if (showScores)
+    for (const r of sortedRows) {
+      if (!exchangeMatch(r.market, exch)) continue;
+      const sc = holdScores?.scores[r.ticker.toUpperCase()];
+      const k = sc && sc.scored >= 0 ? sc.rating : "Not scored";
+      ratingCounts.set(k, (ratingCounts.get(k) ?? 0) + 1);
+    }
   const visible = sortedRows.filter((r) => {
     if (!exchangeMatch(r.market, exch)) return false;
+    if (showScores && ratingFilter !== "all") {
+      const sc = holdScores?.scores[r.ticker.toUpperCase()];
+      const rating = sc && sc.scored >= 0 ? sc.rating : "Not scored";
+      if (rating !== ratingFilter) return false;
+    }
     if (!needle) return true;
     return (
       r.ticker.toLowerCase().includes(needle) ||
@@ -1603,13 +1689,24 @@ export function WatchlistPanel() {
         </p>
       ) : (
         <div className="table-wrap">
-          <table className="data-table wl-simple-table">
+          {showScores && holdScores ? (
+            <p className="wl-score-status">
+              Scores: {Object.keys(holdScores.scores).length} of {activeTickers.length} scored
+              {holdScores.paused
+                ? ` · Screener paused until ${new Date(holdScores.paused).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}, scoring resumes after`
+                : holdScores.job?.running
+                  ? ` · scoring the rest slowly in the background, about one a minute (${holdScores.job.done} of ${holdScores.job.total} in the queue done)`
+                  : ""}
+            </p>
+          ) : null}
+          <table className={`data-table wl-simple-table${showScores ? " napkin-vx wl-scores" : ""}`}>
             <colgroup>
               <col className="col-name" />
               <col className="col-mcap_cr" />
               <col className="col-price" />
               <col className="col-chg" />
               {showMomentumColumn ? <col className="col-mom" /> : null}
+              {showScores ? REVIEW_SCORE_HEADERS.map((h) => <col key={h.label} className="col-rs" />) : null}
               <col className="col-remove" />
             </colgroup>
             <thead>
@@ -1625,6 +1722,31 @@ export function WatchlistPanel() {
                     Mom
                   </th>
                 ) : null}
+                {showScores
+                  ? REVIEW_SCORE_HEADERS.map((h) => (
+                      <th key={h.label} className={h.num ? "num col-rs" : "col-rs"} title={h.title}>
+                        {h.label === "Final rating" ? (
+                          <label className="wl-rating-filter">
+                            <span>Final rating</span>
+                            <select
+                              value={ratingFilter}
+                              onChange={(e) => setRatingFilter(e.target.value)}
+                              aria-label="Filter by final rating"
+                            >
+                              <option value="all">All</option>
+                              {["Excellent", "Good", "Average", "Poor", "Incomplete", "No data", "Not scored"].map((o) => (
+                                <option key={o} value={o}>
+                                  {o} ({ratingCounts.get(o) ?? 0})
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : (
+                          h.label
+                        )}
+                      </th>
+                    ))
+                  : null}
                 <th className="col-remove" />
               </tr>
             </thead>
@@ -1640,6 +1762,10 @@ export function WatchlistPanel() {
                       : undefined
                   }
                   showMomentumColumn={showMomentumColumn}
+                  showScores={showScores}
+                  score={holdScores?.scores[r.ticker.toUpperCase()]}
+                  scoreQueued={!!holdScores?.job?.running}
+                  onOpenScore={(row, kind) => setScoreDrawer({ row, kind })}
                   onRemoveHold={
                     list === "holdings"
                       ? removeHolding
@@ -1651,6 +1777,7 @@ export function WatchlistPanel() {
               ))}
             </tbody>
           </table>
+          <ReviewScoreDrawer drawer={scoreDrawer} onClose={closeScoreDrawer} />
         </div>
       )}
         </>

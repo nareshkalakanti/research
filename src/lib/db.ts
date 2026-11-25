@@ -1,3 +1,4 @@
+import { cleanAboutText, cleanHeadline } from "./about-clean";
 import Database from "better-sqlite3";
 import { loadStockMaster, masterLabels } from "./stock-master";
 import fs from "fs";
@@ -265,9 +266,10 @@ function trustedScrapeFields(row: RawAbout): Pick<
       listing,
       row.scraped_about_clean,
     ),
-    products: dropIfConflictsListing(listing, row.products),
-    end_markets: dropIfConflictsListing(listing, row.end_markets),
-    business_model: dropIfConflictsListing(listing, row.business_model),
+    // Short AI fields: drop "not specified in the text" placeholders and shared template headlines.
+    products: cleanAboutText(dropIfConflictsListing(listing, row.products)),
+    end_markets: cleanAboutText(dropIfConflictsListing(listing, row.end_markets)),
+    business_model: cleanHeadline(dropIfConflictsListing(listing, row.business_model)),
     llm_about: dropIfConflictsListing(listing, row.llm_about),
   };
 }
