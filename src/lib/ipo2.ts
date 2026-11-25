@@ -20,10 +20,17 @@ import { masterLabels } from "./stock-master";
 export const IPO2_RULES = {
   /** Listed within this many years. */
   maxAgeYears: 4,
-  /** Urgency run: up this much from the first close… */
-  urgencyPct: 50,
-  /** …within this many trading days (~8 weeks). */
-  urgencyDays: 40,
+  /**
+   * Urgency (IPO V2.0 notes): 6 of the first 8 weekly bars green after listing,
+   * or 6 of the first 9 sessions green on the daily chart ("5-6 green days / 8-9").
+   * Green = closed above the previous close (closes only, no opens saved).
+   */
+  urgencyWeeks: 8,
+  urgencyGreenWeeks: 6,
+  urgencyDays: 9,
+  urgencyGreenDays: 6,
+  /** The 8-week move is still shown (info only, not a rule). */
+  runDays: 40,
   /** A rest of this many trading days below the high is a base (IPO base / later bases). */
   ipoBaseMinDays: 15,
   baseMinDays: 25,
@@ -133,6 +140,12 @@ export type Ipo2Analysis = {
   issue_mismatch: boolean;
   listing_gain_pct: number | null;
   urgency: boolean | null;
+  /** Green weekly bars in the first 8 weeks after listing (weeks so far when younger). */
+  green_weeks: number | null;
+  weeks_seen: number;
+  /** Green days in the first 9 sessions after listing day. */
+  green_days: number | null;
+  days_seen: number;
   bases: Ipo2Base[];
   entries: Ipo2Entry[];
   /** Expansion legs since the last breakout (1 = E1, 2 = E2, 3+ = E3 / late). */
@@ -203,6 +216,13 @@ export function adjustCorporateActions(series: Close[], R = IPO2_RULES): { serie
   return { series: out ?? series, actions: actions.reverse() };
 }
 
+/** Trading week (Mon–Sun) of an ISO date, as the Monday's date. */
+function weekKey(iso: string): string {
+  const t = Date.parse(`${iso}T00:00:00Z`);
+  const dow = (new Date(t).getUTCDay() + 6) % 7;
+  return new Date(t - dow * 86_400_000).toISOString().slice(0, 10);
+}
+
 const ENTRY_LABEL: Record<EntryKind, string> = {
   low_cheat: "Low cheat",
   cheat: "Cheat",
@@ -237,7 +257,7 @@ export function analyzeBases(
   const hasVol = v.some((x) => x > 0);
   const d = (i: number) => series[i]!.date;
 
-  const runEnd = Math.min(n, R.urgencyDays + 1);
+  const runEnd = Math.min(n, R.runDays + 1);
   const runMax = Math.max(...c.slice(0, runEnd));
   // Issue price on today's share basis (splits / bonuses since listing scale it too).
   const issue = listed && opts.issuePrice != null && opts.issuePrice > 0 ? opts.issuePrice : null;
@@ -249,8 +269,48 @@ export function analyzeBases(
   const runFrom = issueAdj ?? (listed ? c[0]! : null);
   const runPct = runFrom != null && runFrom > 0 ? (runMax / runFrom - 1) * 100 : null;
   const listingGain = issueAdj != null ? r1((c[0]! / issueAdj - 1) * 100) : null;
-  // Not enough days yet and not already there: undecided.
-  const urgency = runPct == null ? null : runPct >= R.urgencyPct ? true : n < runEnd || n <= R.urgencyDays ? null : false;
+  // Urgency: count green weekly bars (first 8 weeks) and green days (first 9 sessions after listing day).
+  // Week 1 is green when its close beats the issue price (or the day-1 close when no issue price is known).
+  let greenWeeks: number | null = null;
+  let weeksSeen = 0;
+  let greenDays: number | null = null;
+  let daysSeen = 0;
+  if (listed) {
+    const weekCloses: number[] = [];
+    let wk = "";
+    for (let i = 0; i < n && weekCloses.length <= R.urgencyWeeks; i++) {
+      const k = weekKey(d(i));
+      if (k !== wk) {
+        weekCloses.push(c[i]!);
+        wk = k;
+      } else weekCloses[weekCloses.length - 1] = c[i]!;
+    }
+    // The last collected week may still be in progress only when it's the latest bar.
+    const weeks = weekCloses.slice(0, R.urgencyWeeks);
+    weeksSeen = weeks.length;
+    let prev = issueAdj ?? c[0]!;
+    greenWeeks = 0;
+    for (const w of weeks) {
+      if (w > prev) greenWeeks++;
+      prev = w;
+    }
+    const dEnd = Math.min(n - 1, R.urgencyDays);
+    daysSeen = Math.max(0, dEnd);
+    greenDays = 0;
+    for (let i = 1; i <= dEnd; i++) if (c[i]! > c[i - 1]!) greenDays++;
+  }
+  const weeksOk = greenWeeks != null && greenWeeks >= R.urgencyGreenWeeks;
+  const daysOk = greenDays != null && greenDays >= R.urgencyGreenDays;
+  // Can't reach 6 any more: no. Still possible and not all weeks seen: undecided.
+  const weeksLeft = R.urgencyWeeks - weeksSeen;
+  const daysLeft = R.urgencyDays - daysSeen;
+  const urgency = !listed
+    ? null
+    : weeksOk || daysOk
+      ? true
+      : (greenWeeks ?? 0) + weeksLeft >= R.urgencyGreenWeeks || (greenDays ?? 0) + daysLeft >= R.urgencyGreenDays
+        ? null
+        : false;
 
   const bases: Ipo2Base[] = [];
   const entries: Ipo2Entry[] = [];
@@ -481,6 +541,10 @@ export function analyzeBases(
     issue_mismatch: issueMismatch,
     listing_gain_pct: listingGain,
     urgency,
+    green_weeks: greenWeeks,
+    weeks_seen: weeksSeen,
+    green_days: greenDays,
+    days_seen: daysSeen,
     listed,
     corp_actions: actions,
     bases,
@@ -503,9 +567,10 @@ export function analyzeBases(
       legs,
       listed,
       urgency,
-      runPct,
-      fromIssue: issueAdj != null,
-      listingGain,
+      greenWeeks,
+      weeksSeen,
+      greenDays,
+      daysSeen,
       lastBreakoutPct: lastBreakout != null ? r1((p / c[lastBreakout]! - 1) * 100) : null,
       lastFail,
       bases,
@@ -525,10 +590,10 @@ function makeVerdict(x: {
   legs: number;
   listed: boolean;
   urgency: boolean | null;
-  runPct: number | null;
-  /** Run measured from the issue price (includes the listing-day gain), else from the day-1 close. */
-  fromIssue: boolean;
-  listingGain: number | null;
+  greenWeeks: number | null;
+  weeksSeen: number;
+  greenDays: number | null;
+  daysSeen: number;
   lastBreakoutPct: number | null;
   lastFail: { idx: number; depth: number; label: string } | null;
   bases: Ipo2Base[];
@@ -549,16 +614,15 @@ function makeVerdict(x: {
   };
   const ipoReason = () => {
     if (!x.listed || x.urgency == null) return;
-    // Say what the run is measured from: from the issue price it includes the listing-day gain.
-    const sign = (v: number) => `${v > 0 ? "+" : ""}${r1(v)}%`;
-    const from = x.fromIssue
-      ? `from the issue price${x.listingGain != null ? `, listing day ${sign(x.listingGain)}` : ""}`
-      : "from the day-1 close";
-    const run = x.runPct != null ? sign(x.runPct) : "?";
+    const wk = `${x.greenWeeks ?? 0}/${x.weeksSeen} green weeks`;
+    const dy = `${x.greenDays ?? 0}/${x.daysSeen} green days`;
     reasons.push(
       x.urgency
-        ? { good: true, text: `Urgency run: ${run} in 8 weeks ${from}` }
-        : { good: false, text: `No urgency run: ${run} in 8 weeks ${from}, needs +${R.urgencyPct}%` },
+        ? { good: true, text: `Urgency after listing: ${wk}, ${dy}` }
+        : {
+            good: false,
+            text: `No urgency after listing: ${wk}, ${dy} (needs ${R.urgencyGreenWeeks}/${R.urgencyWeeks} weeks or ${R.urgencyGreenDays}/${R.urgencyDays} days)`,
+          },
     );
   };
   const volReason = () => {
@@ -922,6 +986,10 @@ export type Ipo2Row = {
   issue_mismatch: boolean;
   listing_gain_pct: number | null;
   urgency: boolean | null;
+  green_weeks: number | null;
+  weeks_seen: number;
+  green_days: number | null;
+  days_seen: number;
   growth: Growth | null;
   growth_ok: boolean | null;
   favoured: boolean;
@@ -937,7 +1005,7 @@ export type Ipo2Row = {
   legs: number;
   /** One-day jumps treated as splits / bonuses (earlier prices adjusted). */
   corp_actions: CorpAction[];
-  /** Checklist passes out of the checks we can run (urgency, growth, sector, depth). */
+  /** Checklist passes out of the checks we can run (urgency, growth, depth). Sector is shown, not scored for now. */
   score: number;
   last_date: string;
 };
@@ -1113,7 +1181,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
     const cur = a.bases[a.bases.length - 1] ?? null;
     const depthOk =
       cur && cur.status !== "failed" ? cur.depth_pct <= (cur.ipo_base ? R.maxDepthIpoPct : R.maxDepthPct) : null;
-    const score = [urgency, growthOk, favoured, depthOk].filter((x) => x === true).length;
+    const score = [urgency, growthOk, depthOk].filter((x) => x === true).length;
     rows.push({
       ticker: t,
       name: co.name,
@@ -1135,6 +1203,10 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       issue_mismatch: a.issue_mismatch,
       listing_gain_pct: a.listing_gain_pct,
       urgency,
+      green_weeks: s.gap ? null : a.green_weeks,
+      weeks_seen: s.gap ? 0 : a.weeks_seen,
+      green_days: s.gap ? null : a.green_days,
+      days_seen: s.gap ? 0 : a.days_seen,
       growth: g,
       growth_ok: growthOk,
       favoured,

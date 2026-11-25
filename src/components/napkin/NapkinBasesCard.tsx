@@ -71,16 +71,15 @@ export function NapkinBasesCard({ ticker, market }: { ticker: string; market?: s
                     {a.listing_gain_pct != null ? `, day 1 ${a.listing_gain_pct > 0 ? "+" : ""}${a.listing_gain_pct}%` : ""}
                   </>
                 ) : null}
-                {a.run_pct != null ? (
+                {a.green_weeks != null ? (
                   <>
                     {" "}
-                    · first run{" "}
+                    · urgency{" "}
                     <b className={a.urgency ? "pos-t" : undefined}>
-                      {a.run_pct > 0 ? "+" : ""}
-                      {a.run_pct}%
+                      {a.green_weeks}/{a.weeks_seen} green weeks, {a.green_days ?? 0}/{a.days_seen} green days
                     </b>{" "}
-                    in 8 wks from the {a.run_base === "issue" ? "issue price" : "day-1 close"}{" "}
-                    {a.urgency === true ? "✓ urgency" : a.urgency === false ? "(under 50%)" : ""}
+                    {a.urgency === true ? "✓" : a.urgency === false ? "(needs 6/8 weeks or 6/9 days)" : ""}
+                    {a.run_pct != null ? ` · ${a.run_pct > 0 ? "+" : ""}${a.run_pct}% in 8 wks` : ""}
                   </>
                 ) : null}
               </>

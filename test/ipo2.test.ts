@@ -17,7 +17,7 @@ const seg = (from: number, to: number, days: number, v: number) => {
 };
 px.push(100);
 vol.push(300);
-seg(100, 160, 30, 150); // +60% in 30 days: urgency
+seg(100, 160, 30, 150); // steady rise after listing: every day green (urgency)
 seg(160, 126, 12, 160); // heavy selling into the base (21% deep)
 seg(126, 127, 8, 40); // tight, quiet pause in the lower third
 seg(127, 145, 10, 90); // clears the pause: low cheat
@@ -30,7 +30,31 @@ const dates = px.map((_, i) => new Date(Date.UTC(2025, 0, 1) + i * 86_400_000).t
 const a = analyzeIpo2(px.map((close, i) => ({ date: dates[i]!, close, volume: vol[i] })))!;
 
 assert.equal(a.urgency, true);
+assert.equal(a.green_days, 9);
+assert.equal(a.days_seen, 9);
+assert.equal(a.weeks_seen, 8);
 assert.ok(a.run_pct! >= 50);
+
+// Urgency is green bars, not size: a big pop then up-down chop has no urgency.
+const chop = [100, 150, ...Array.from({ length: 70 }, (_, i) => (i % 2 ? 151 : 149) + (i % 7 === 0 ? -3 : 0))];
+const ch = analyzeIpo2(chop.map((close, i) => ({ date: dates[i]!, close, volume: 100 })))!;
+assert.ok(ch.run_pct! >= 50, "big listing run");
+assert.ok(ch.green_days! < 6, `green days ${ch.green_days}`);
+assert.equal(ch.urgency, false);
+// Six green weeks out of eight (small steady gains, red days inside the weeks) is urgency.
+// Listed on a Sunday so each 7-day block is one Mon–Sun week; the listing week itself is flat (not green).
+const sun = Date.UTC(2025, 0, 5);
+const weekly: number[] = [100];
+for (let w = 0; w < 8; w++)
+  for (let dd = 0; dd < 7; dd++) {
+    const last = weekly[weekly.length - 1]!;
+    weekly.push(dd % 2 ? last - 1 : w === 3 ? last - 0.5 : last + 2); // block 3 red
+  }
+const wkDates = weekly.map((_, i) => new Date(sun + i * 86_400_000).toISOString().slice(0, 10));
+const wkA = analyzeIpo2(weekly.map((close, i) => ({ date: wkDates[i]!, close, volume: 100 })))!;
+assert.ok(wkA.green_days! < 6, `green days ${wkA.green_days}`);
+assert.equal(wkA.green_weeks, 6, `green weeks ${wkA.green_weeks}`);
+assert.equal(wkA.urgency, true);
 assert.equal(a.bases.length, 1);
 assert.equal(a.bases[0]!.status, "breakout");
 assert.ok(a.bases[0]!.depth_pct > 18 && a.bases[0]!.depth_pct < 26);

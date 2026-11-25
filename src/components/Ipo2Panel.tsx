@@ -78,7 +78,6 @@ export function Ipo2Panel() {
   const [stages, setStages] = useState<Ipo2Stage[]>(["buy_zone", "near_pivot"]);
   const [exch, setExch] = useState<Exch>("all");
   const [urgencyOnly, setUrgencyOnly] = useState(false);
-  const [favOnly, setFavOnly] = useState(false);
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("score");
   const [open, setOpen] = useState<string | null>(null);
@@ -115,11 +114,10 @@ export function Ipo2Panel() {
       if (exch === "bse" && r.market !== "BSE") return false;
       if (exch === "bse_sme" && r.market !== "BSE SME") return false;
       if (urgencyOnly && r.urgency !== true) return false;
-      if (favOnly && !r.favoured) return false;
       if (needle && !`${r.name} ${r.ticker} ${r.industry ?? ""}`.toLowerCase().includes(needle)) return false;
       return true;
     });
-  }, [data, exch, urgencyOnly, favOnly, q]);
+  }, [data, exch, urgencyOnly, q]);
 
   const counts = useMemo(() => {
     const m = new Map<Ipo2Stage, number>();
@@ -210,11 +208,8 @@ export function Ipo2Panel() {
           </div>
           <label className="ipo2-toggle">
             <input type="checkbox" checked={urgencyOnly} onChange={(e) => setUrgencyOnly(e.target.checked)} />
-            Urgency run only (+{R?.urgencyPct ?? 50}% in {R ? Math.round(R.urgencyDays / 5) : 8} wks)
-          </label>
-          <label className="ipo2-toggle">
-            <input type="checkbox" checked={favOnly} onChange={(e) => setFavOnly(e.target.checked)} />
-            Favoured sectors only
+            Urgency only ({R?.urgencyGreenWeeks ?? 6}/{R?.urgencyWeeks ?? 8} green weeks or {R?.urgencyGreenDays ?? 6}/
+            {R?.urgencyDays ?? 9} green days)
           </label>
           <label className="vx-field">
             <span className="vx-label">Sort</span>
@@ -275,9 +270,11 @@ export function Ipo2Panel() {
                 <th>Listed</th>
                 <th
                   className="num"
-                  title={`Best close in the first ${R?.urgencyDays ?? 40} trading days vs the IPO issue price (or the listing-day close when no issue price is known)`}
+                  title={`Green weekly bars in the first ${R?.urgencyWeeks ?? 8} weeks after listing and green days in the first ${
+                    R?.urgencyDays ?? 9
+                  } sessions (closed above the previous close). Below: the best close in 8 weeks vs the issue price or day-1 close.`}
                 >
-                  First run
+                  Urgency
                 </th>
                 <th className="num">Since listing</th>
                 <th>Stage</th>
@@ -350,9 +347,12 @@ export function Ipo2Panel() {
                         ) : null}
                       </td>
                       <td className={`num ${r.urgency ? "pos-t" : ""}`}>
-                        {r.run_pct == null ? "—" : pct(r.run_pct)}
-                        {r.run_base ? (
-                          <span className="ipo2-sub">{r.run_base === "issue" ? "from issue" : "from day-1 close"}</span>
+                        {r.green_weeks == null ? "—" : `${r.green_weeks}/${r.weeks_seen} wks`}
+                        {r.green_days != null ? <span className="ipo2-sub">{`${r.green_days}/${r.days_seen} days`}</span> : null}
+                        {r.run_pct != null ? (
+                          <span className="ipo2-sub">
+                            {pct(r.run_pct)} {r.run_base === "issue" ? "from issue" : "from day 1"}
+                          </span>
                         ) : null}
                       </td>
                       <td className={`num ${r.ret_pct >= 0 ? "pos-t" : "neg"}`}>
@@ -369,9 +369,9 @@ export function Ipo2Panel() {
                         <Check
                           ok={r.urgency}
                           label="Urgency"
-                          title={`Up ${R?.urgencyPct ?? 50}%+ within ${R?.urgencyDays ?? 40} trading days of listing, from the ${
-                            r.run_base === "issue" ? "issue price" : "listing-day close (no issue price known)"
-                          }`}
+                          title={`${r.green_weeks ?? 0}/${r.weeks_seen} green weeks, ${r.green_days ?? 0}/${r.days_seen} green days after listing. Needs ${
+                            R?.urgencyGreenWeeks ?? 6
+                          }/${R?.urgencyWeeks ?? 8} weeks or ${R?.urgencyGreenDays ?? 6}/${R?.urgencyDays ?? 9} days.`}
                         />
                         <Check
                           ok={r.growth_ok}
@@ -386,7 +386,6 @@ export function Ipo2Panel() {
                               : "No year-ago quarter saved"
                           }
                         />
-                        <Check ok={r.favoured} label="Sector" title="Tech, FMCG / consumer, pharma / healthcare, renewables" />
                         <Check
                           ok={r.base_depth_pct == null ? null : r.stage !== "broken"}
                           label="Depth"
