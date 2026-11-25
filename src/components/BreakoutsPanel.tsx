@@ -42,24 +42,23 @@ const SCREENS: { id: Screen; label: string; hint: string }[] = [
 ];
 const LABEL: Record<Screen, string> = { multi: "Multi-year", vcp: "VCP", blue: "Blue sky", none: "Other" };
 
-const CAPS = [
-  { id: 0, label: "All" },
-  { id: 500, label: "₹500 Cr+" },
-  { id: 1000, label: "₹1,000 Cr+" },
-  { id: 5000, label: "₹5,000 Cr+" },
-] as const;
+/** Market cap range in ₹ Cr; 0 = no limit. */
+const CAP_STEPS = [0, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000] as const;
+const capLabel = (v: number) => (v === 0 ? "Any" : v >= 100000 ? `₹${v / 100000}L Cr` : `₹${v.toLocaleString("en-IN")} Cr`);
 
-type Exch = "all" | "nse" | "bse" | "bsesme";
+type Exch = "all" | "nse" | "nsesme" | "bse" | "bsesme";
 const EXCH: { id: Exch; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "nse", label: "NSE + NSE SME" },
+  { id: "nse", label: "NSE" },
+  { id: "nsesme", label: "NSE SME" },
   { id: "bse", label: "BSE" },
   { id: "bsesme", label: "BSE SME" },
 ];
 function exchOf(market: string): Exch {
   const m = market.toUpperCase();
-  if (m.startsWith("BSE")) return m.includes("SME") ? "bsesme" : "bse";
-  return "nse";
+  const sme = m.includes("SME") || m.includes("EMERGE");
+  if (m.startsWith("BSE")) return sme ? "bsesme" : "bse";
+  return sme ? "nsesme" : "nse";
 }
 
 const num = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -84,7 +83,7 @@ function Spark({ r }: { r: Row }) {
     <svg className={`bo-spark ${up ? "up" : "down"}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden>
       <defs>
         <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.28" />
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.12" />
           <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
         </linearGradient>
       </defs>
@@ -128,8 +127,7 @@ function Card({ r }: { r: Row }) {
       </div>
       <a className="bo-chart" href={tv} target="_blank" rel="noopener noreferrer" title="Open chart in TradingView">
         <Spark r={r} />
-        <span className="bo-pivot-lbl">pivot {pivotFmt(r.pivot)}</span>
-        <span className="bo-open">Open chart ↗</span>
+        <span className="bo-pivot-lbl">Pivot ₹{pivotFmt(r.pivot)} · chart ↗</span>
       </a>
       <dl className="bo-stats">
         <div>
@@ -189,6 +187,7 @@ function download(label: string, rows: Row[], date: string | null) {
 export function BreakoutsPanel() {
   const [data, setData] = useState<Data | null>(null);
   const [minCap, setMinCap] = useState<number>(500);
+  const [maxCap, setMaxCap] = useState<number>(0);
   const [exch, setExch] = useState<Exch>("all");
   const [only, setOnly] = useState<Screen | "all">("all");
 
@@ -210,9 +209,12 @@ export function BreakoutsPanel() {
   const rows = useMemo(
     () =>
       (data?.rows ?? []).filter(
-        (r) => (minCap === 0 || (r.mcap_cr ?? 0) >= minCap) && (exch === "all" || exchOf(r.market) === exch),
+        (r) =>
+          (minCap === 0 || (r.mcap_cr ?? 0) >= minCap) &&
+          (maxCap === 0 || (r.mcap_cr != null && r.mcap_cr <= maxCap)) &&
+          (exch === "all" || exchOf(r.market) === exch),
       ),
-    [data, minCap, exch],
+    [data, minCap, maxCap, exch],
   );
 
   if (!data) return <div className="vx-card vx-empty">Scanning for breakouts…</div>;
@@ -234,12 +236,23 @@ export function BreakoutsPanel() {
           </p>
         </div>
         <div className="bo-filters">
-          <div className="bo-seg" role="group" aria-label="Market cap">
-            {CAPS.map((c) => (
-              <button key={c.id} type="button" className={minCap === c.id ? "on" : undefined} onClick={() => setMinCap(c.id)}>
-                {c.label}
-              </button>
-            ))}
+          <div className="bo-range" role="group" aria-label="Market cap">
+            <span>Market cap</span>
+            <select value={minCap} onChange={(e) => setMinCap(Number(e.target.value))} aria-label="Minimum market cap">
+              {CAP_STEPS.filter((v) => maxCap === 0 || v < maxCap).map((v) => (
+                <option key={v} value={v}>
+                  {v === 0 ? "Min: Any" : `Min ${capLabel(v)}`}
+                </option>
+              ))}
+            </select>
+            <span className="bo-range-dash">–</span>
+            <select value={maxCap} onChange={(e) => setMaxCap(Number(e.target.value))} aria-label="Maximum market cap">
+              {CAP_STEPS.filter((v) => v === 0 || v > minCap).map((v) => (
+                <option key={v} value={v}>
+                  {v === 0 ? "Max: Any" : `Max ${capLabel(v)}`}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="bo-seg" role="group" aria-label="Exchange">
             {EXCH.map((c) => (
@@ -263,7 +276,7 @@ export function BreakoutsPanel() {
             title={s.hint}
             onClick={() => setOnly(s.id)}
           >
-            <i /> {s.label} <span>{rows.filter((r) => r.screen === s.id).length}</span>
+            {s.label} <span>{rows.filter((r) => r.screen === s.id).length}</span>
           </button>
         ))}
       </nav>
@@ -274,7 +287,6 @@ export function BreakoutsPanel() {
         return (
           <section key={s.id} className={`bo-group bo-group--${s.id}`}>
             <div className="bo-group-head">
-              <i className="bo-dot" />
               <span className="bo-group-title">{s.label}</span>
               <span className="bo-group-hint">{s.hint}</span>
               <button
