@@ -504,6 +504,8 @@ export function analyzeBases(
       listed,
       urgency,
       runPct,
+      fromIssue: issueAdj != null,
+      listingGain,
       lastBreakoutPct: lastBreakout != null ? r1((p / c[lastBreakout]! - 1) * 100) : null,
       lastFail,
       bases,
@@ -524,6 +526,9 @@ function makeVerdict(x: {
   listed: boolean;
   urgency: boolean | null;
   runPct: number | null;
+  /** Run measured from the issue price (includes the listing-day gain), else from the day-1 close. */
+  fromIssue: boolean;
+  listingGain: number | null;
   lastBreakoutPct: number | null;
   lastFail: { idx: number; depth: number; label: string } | null;
   bases: Ipo2Base[];
@@ -544,13 +549,16 @@ function makeVerdict(x: {
   };
   const ipoReason = () => {
     if (!x.listed || x.urgency == null) return;
+    // Say what the run is measured from: from the issue price it includes the listing-day gain.
+    const sign = (v: number) => `${v > 0 ? "+" : ""}${r1(v)}%`;
+    const from = x.fromIssue
+      ? `from the issue price${x.listingGain != null ? `, listing day ${sign(x.listingGain)}` : ""}`
+      : "from the day-1 close";
+    const run = x.runPct != null ? sign(x.runPct) : "?";
     reasons.push(
       x.urgency
-        ? { good: true, text: `Urgency run after listing: +${r1(x.runPct!)}% in 8 weeks` }
-        : {
-            good: false,
-            text: `No urgency run after listing (${x.runPct != null && x.runPct > 0 ? "+" : ""}${x.runPct != null ? r1(x.runPct) : "?"}% in 8 weeks, needs ${R.urgencyPct}%)`,
-          },
+        ? { good: true, text: `Urgency run: ${run} in 8 weeks ${from}` }
+        : { good: false, text: `No urgency run: ${run} in 8 weeks ${from}, needs +${R.urgencyPct}%` },
     );
   };
   const volReason = () => {
