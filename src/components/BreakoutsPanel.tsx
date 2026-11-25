@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { napkinUrl, tradingviewSymbol, tradingviewUrl, websiteUrl } from "@/lib/links";
 
 type Screen = "multi" | "vcp" | "blue" | "none";
@@ -65,32 +65,30 @@ const num = (v: number) => v.toLocaleString("en-IN", { minimumFractionDigits: 2,
 const pivotFmt = (v: number) => Math.round(v).toLocaleString("en-IN");
 
 function Spark({ r }: { r: Row }) {
-  const gid = `bo-g-${useId().replace(/:/g, "")}`;
   const W = 300;
-  const H = 110;
+  const H = 90;
   const pts = r.chart;
   if (pts.length < 2) return <div className="bo-spark" />;
   const lo = Math.min(...pts, r.pivot);
   const hi = Math.max(...pts, r.pivot);
   const span = hi - lo || 1;
-  const x = (i: number) => (i / (pts.length - 1)) * W;
-  const y = (v: number) => 6 + (1 - (v - lo) / span) * (H - 12);
+  const x = (i: number) => 3 + (i / (pts.length - 1)) * (W - 6);
+  const y = (v: number) => 5 + (1 - (v - lo) / span) * (H - 10);
   const d = pts.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
   const up = pts[pts.length - 1]! >= pts[0]!;
   const py = y(r.pivot);
   const bx = x(r.base_from);
+  // Base box: from the pivot down to the lowest close inside the base.
+  const baseLow = Math.min(...pts.slice(r.base_from));
+  const by = y(baseLow);
+  const ex = x(pts.length - 1);
+  const ey = y(pts[pts.length - 1]!);
   return (
     <svg className={`bo-spark ${up ? "up" : "down"}`} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden>
-      <defs>
-        <linearGradient id={gid} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.12" />
-          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <rect className="bo-base" x={bx} y={0} width={W - bx} height={H} />
-      <path d={`${d}L${W},${H}L0,${H}Z`} fill={`url(#${gid})`} />
+      <rect className="bo-base" x={bx} y={py} width={W - 3 - bx} height={Math.max(2, by - py)} />
       <line className="bo-pivot" x1={0} x2={W} y1={py} y2={py} vectorEffect="non-scaling-stroke" />
       <path className="bo-line" d={d} vectorEffect="non-scaling-stroke" />
+      <circle className="bo-end" cx={ex} cy={ey} r={3.2} vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -99,62 +97,43 @@ function Card({ r }: { r: Row }) {
   const web = websiteUrl(r.website);
   const tv = tradingviewUrl(r.ticker, r.market);
   const up = (r.day_pct ?? 0) >= 0;
-  const vsPivot = Math.abs(r.above_pct) < 1 ? "At pivot" : `+${Math.round(r.above_pct)}%`;
+  const where = Math.abs(r.above_pct) < 1 ? "at its pivot" : `${Math.round(r.above_pct)}% above it`;
   return (
     <article className="bo-card">
-      <header className="bo-top">
-        <div className="bo-id">
-          <a className="bo-tk" href={tv} target="_blank" rel="noopener noreferrer">
-            {r.ticker}
-          </a>
-          {r.market !== "NSE" ? <span className="bo-ex">{r.market}</span> : null}
-          {r.also.map((a) => (
-            <span key={a} className={`bo-tag bo-tag--${a}`}>
-              {LABEL[a]}
-            </span>
-          ))}
-        </div>
-        <span className={`bo-chg ${up ? "pos" : "neg"}`}>
-          {r.day_pct == null ? "—" : `${up ? "+" : ""}${r.day_pct.toFixed(2)}%`}
+      <div className="bo-l1">
+        <a className="bo-tk" href={tv} target="_blank" rel="noopener noreferrer">
+          {r.ticker}
+        </a>
+        <span className="bo-px">
+          {num(r.price)}{" "}
+          <span className={up ? "pos" : "neg"}>{r.day_pct == null ? "" : `${up ? "+" : ""}${r.day_pct.toFixed(2)}%`}</span>
         </span>
-      </header>
-      <div className="bo-row2">
-        <span className="bo-name" title={`${r.name}${r.industry ? ` · ${r.industry}` : ""}`}>
+      </div>
+      <div className="bo-l2">
+        <span className="bo-name" title={r.name}>
           {r.name}
-          {r.industry ? <span className="bo-ind"> · {r.industry}</span> : null}
         </span>
-        <span className="bo-px">₹{num(r.price)}</span>
+        {r.rel_vol != null ? (
+          <span className="bo-rv">Rel vol {r.rel_vol >= 10 ? Math.round(r.rel_vol) : r.rel_vol.toFixed(1)}× so far</span>
+        ) : null}
       </div>
       <a className="bo-chart" href={tv} target="_blank" rel="noopener noreferrer" title="Open chart in TradingView">
         <Spark r={r} />
-        <span className="bo-pivot-lbl">Pivot ₹{pivotFmt(r.pivot)} · chart ↗</span>
       </a>
-      <dl className="bo-stats">
-        <div>
-          <dt>Base</dt>
-          <dd>{r.base_weeks}w</dd>
-        </div>
-        <div>
-          <dt>vs pivot</dt>
-          <dd>{vsPivot}</dd>
-        </div>
-        <div>
-          <dt>RS</dt>
-          <dd>
-            {r.rs ?? "—"}
-            {r.rs != null ? (
-              <i className="bo-rs" style={{ ["--rs" as string]: `${r.rs}%` }} data-hi={r.rs >= 80 ? "" : undefined} />
-            ) : null}
-          </dd>
-        </div>
-        <div>
-          <dt>Rel vol</dt>
-          <dd className={r.rel_vol != null && r.rel_vol >= 1.5 ? "hot" : undefined}>
-            {r.rel_vol == null ? "—" : `${r.rel_vol >= 10 ? Math.round(r.rel_vol) : r.rel_vol.toFixed(1)}×`}
-          </dd>
-        </div>
-      </dl>
-      <footer className="bo-links">
+      <div className="bo-facts">
+        <span>pivot {pivotFmt(r.pivot)}</span>
+        <span>{r.base_weeks}-week base</span>
+        <span>{where}</span>
+        {r.rs != null ? <span>RS {r.rs}</span> : null}
+        {r.also.map((a) => (
+          <b key={a}>also {LABEL[a]}</b>
+        ))}
+      </div>
+      <div className="bo-l4">
+        <span className="bo-ind" title={r.industry ?? ""}>
+          {r.industry ?? "—"}
+          {r.market !== "NSE" ? ` · ${r.market}` : ""}
+        </span>
         <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
           NP
         </a>
@@ -163,8 +142,7 @@ function Card({ r }: { r: Row }) {
             Web
           </a>
         ) : null}
-        {r.mcap_cr != null ? <span className="bo-mcap">₹{Math.round(r.mcap_cr).toLocaleString("en-IN")} Cr</span> : null}
-      </footer>
+      </div>
     </article>
   );
 }
@@ -281,14 +259,17 @@ export function BreakoutsPanel() {
         ))}
       </nav>
 
+      <div className="bo-groups">
       {SCREENS.filter((s) => only === "all" || only === s.id).map((s) => {
         const list = rows.filter((r) => r.screen === s.id);
         if (!list.length) return null;
         return (
-          <section key={s.id} className={`bo-group bo-group--${s.id}`}>
+          <section key={s.id} className="bo-group" style={{ "--n": Math.min(list.length, 6) } as CSSProperties}>
             <div className="bo-group-head">
-              <span className="bo-group-title">{s.label}</span>
-              <span className="bo-group-hint">{s.hint}</span>
+              <span className="bo-group-title" title={s.hint}>
+                {s.label}
+              </span>
+              <span className="bo-count">{list.length}</span>
               <button
                 type="button"
                 className="bo-dl"
@@ -299,7 +280,6 @@ export function BreakoutsPanel() {
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
                   <path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
-                {list.length}
               </button>
             </div>
             <div className="bo-grid">
@@ -310,6 +290,7 @@ export function BreakoutsPanel() {
           </section>
         );
       })}
+      </div>
       {!rows.length ? <div className="vx-card vx-empty">No breakouts today with these filters.</div> : null}
     </div>
   );
