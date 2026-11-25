@@ -40,6 +40,25 @@ export const IPO2_RULES = {
   ipoRangeMinPause: 2,
   ipoRangeMaxDays: 15,
   ipoRangePct: 15,
+  /**
+   * Sell signals while holding (IPO V2.0 charts: Kaynes "first daily extension, close 2/3 …
+   * 2nd daily extension, close 1/3", Jyoti CNC "sold 1/3rd" twice at the orange 10% marks,
+   * HIL "56% up move, 12 green days in a row, highest vols"):
+   *   1st / 2nd extension  close ≥ 10% above its 10-day average; the 2nd after cooling back
+   *                        under 5%, or straight on once 5%+ above the 1st extension's close
+   *   Climax run           ≥ 25% in 10 sessions with 8+ green days (on the highest volume
+   *                        since the entry when volume is saved)
+   * Counted per position: the first entry from a new base starts the count again
+   * (adds, and a second entry from the same base, don't).
+   */
+  extMaDays: 10,
+  extPct: 10,
+  extResetPct: 5,
+  climaxDays: 10,
+  climaxRisePct: 25,
+  climaxGreenDays: 8,
+  /** A sell signal is "now" for this many sessions. */
+  sellFreshDays: 5,
   /** A rest of this many trading days below the high is a base (IPO base / later bases). */
   ipoBaseMinDays: 15,
   baseMinDays: 25,
@@ -105,6 +124,22 @@ export type Ipo2Entry = {
   vol_x: number | null;
 };
 
+export type SellKind = "ext1" | "ext2" | "climax";
+
+export type Ipo2Sell = {
+  kind: SellKind;
+  label: string;
+  /** What to do: "Sell 1/3", "Sell another 1/3", "Sell into strength". */
+  action: string;
+  idx: number;
+  date: string;
+  price: number;
+  /** Close vs its 10-day average, %. */
+  ext_pct: number;
+  /** Gain over the last 10 sessions, % (climax). */
+  run_pct: number | null;
+};
+
 export type Ipo2Base = {
   n: number;
   start_idx: number;
@@ -157,6 +192,10 @@ export type Ipo2Analysis = {
   days_seen: number;
   bases: Ipo2Base[];
   entries: Ipo2Entry[];
+  /** Sell signals while holding: 1st / 2nd daily extension, climax run. */
+  sells: Ipo2Sell[];
+  /** Latest sell signal when it's within the last few sessions. */
+  sell_now: Ipo2Sell | null;
   /** Expansion legs since the last breakout (1 = E1, 2 = E2, 3+ = E3 / late). */
   legs: number;
   stage: Ipo2Stage;
@@ -488,6 +527,69 @@ export function analyzeBases(
     }
   }
 
+  // Sell signals while holding, per position (a new entry from a base restarts the count).
+  const sells: Ipo2Sell[] = [];
+  {
+    // A position starts at the first entry of each base (cheat and pivot of one base = one position).
+    const starts = new Set<number>();
+    const seenBase = new Set<number>();
+    for (const e of entries)
+      if (e.kind !== "add" && !seenBase.has(e.base)) {
+        seenBase.add(e.base);
+        starts.add(e.idx);
+      }
+    const first = entries.length ? entries[0]!.idx : n;
+    let count = 0;
+    let armed = true;
+    let climaxDone = false;
+    let posStart = first;
+    let ext1Price = 0;
+    for (let i = first; i < n; i++) {
+      if (i > first && starts.has(i)) {
+        count = 0;
+        armed = true;
+        climaxDone = false;
+        posStart = i;
+      }
+      if (i < R.extMaDays - 1) continue;
+      let sum = 0;
+      for (let k = i - R.extMaDays + 1; k <= i; k++) sum += c[k]!;
+      const ma = sum / R.extMaDays;
+      const ext = (c[i]! / ma - 1) * 100;
+      if (!armed && ext < R.extResetPct) armed = true;
+      const base10 = i >= R.climaxDays ? c[i - R.climaxDays]! : null;
+      const run = base10 ? (c[i]! / base10 - 1) * 100 : null;
+      let green = 0;
+      if (base10) for (let k = i - R.climaxDays + 1; k <= i; k++) if (c[k]! > c[k - 1]!) green++;
+      const volTop = !hasVol || v[i]! >= Math.max(...v.slice(posStart, i + 1));
+      if (!climaxDone && i > posStart && run != null && run >= R.climaxRisePct && green >= R.climaxGreenDays && volTop) {
+        sells.push({ kind: "climax", label: "Climax run", action: "Sell into strength", idx: i, date: d(i), price: r2(c[i]!), ext_pct: r1(ext), run_pct: r1(run) });
+        climaxDone = true;
+        armed = false;
+        continue;
+      }
+      // 2nd extension: re-armed after cooling off, or a further 5%+ leg straight on (Jyoti CNC 535 → 625).
+      const nextLeg = count === 1 && c[i]! >= ext1Price * (1 + R.extResetPct / 100);
+      if ((armed || nextLeg) && count < 2 && i > posStart && ext >= R.extPct) {
+        count++;
+        sells.push({
+          kind: count === 1 ? "ext1" : "ext2",
+          label: count === 1 ? "1st daily extension" : "2nd daily extension",
+          action: count === 1 ? "Sell 1/3" : "Sell another 1/3",
+          idx: i,
+          date: d(i),
+          price: r2(c[i]!),
+          ext_pct: r1(ext),
+          run_pct: run == null ? null : r1(run),
+        });
+        if (count === 1) ext1Price = c[i]!;
+        armed = false;
+      }
+    }
+  }
+  const lastSell = sells[sells.length - 1] ?? null;
+  const sellNow = lastSell && n - 1 - lastSell.idx < R.sellFreshDays ? lastSell : null;
+
   // Current stage.
   const last = n - 1;
   const p = c[last]!;
@@ -572,6 +674,8 @@ export function analyzeBases(
     corp_actions: actions,
     bases,
     entries,
+    sells,
+    sell_now: sellNow,
     legs,
     stage,
     stage_note: note,
@@ -579,7 +683,7 @@ export function analyzeBases(
     pivot,
     to_pivot_pct: toPivot,
     vol_dry: volDry,
-    verdict: makeVerdict({
+    verdict: withSell(makeVerdict({
       stage,
       note,
       live,
@@ -598,8 +702,27 @@ export function analyzeBases(
       lastFail,
       bases,
       R,
-    }),
+    }), sellNow, stage),
   };
+}
+
+/** A fresh sell signal leads the verdict for holders (buyers' advice stays after it). */
+function withSell(v: Verdict, sell: Ipo2Sell | null, stage: Ipo2Stage): Verdict {
+  if (!sell) return v;
+  const why =
+    sell.kind === "climax"
+      ? `Climax run ${shortIso(sell.date)}: +${sell.run_pct}% in 10 sessions, mostly green days`
+      : `${sell.label} ${shortIso(sell.date)}: close ${sell.ext_pct}% above its 10-day average`;
+  const holders = `Holders: ${sell.action.toLowerCase()} (${sell.label.toLowerCase()})`;
+  return {
+    ...v,
+    action: stage === "buy_zone" ? v.action : `${holders}. ${v.action}`,
+    reasons: [{ good: false, text: why }, ...v.reasons],
+  };
+}
+
+function shortIso(iso: string): string {
+  return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
 function makeVerdict(x: {
@@ -1024,6 +1147,8 @@ export type Ipo2Row = {
   stage_note: string;
   live_entry: Ipo2Entry | null;
   last_entry: Ipo2Entry | null;
+  /** Sell signal in the last few sessions (1st / 2nd extension, climax). */
+  sell_now: Ipo2Sell | null;
   pivot: number | null;
   to_pivot_pct: number | null;
   vol_dry: boolean | null;
@@ -1241,6 +1366,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       stage_note: a.stage_note,
       live_entry: a.live_entry,
       last_entry: a.entries[a.entries.length - 1] ?? null,
+      sell_now: a.sell_now,
       pivot: a.pivot,
       to_pivot_pct: a.to_pivot_pct,
       vol_dry: a.vol_dry,

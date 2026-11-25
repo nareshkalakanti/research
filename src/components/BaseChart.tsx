@@ -85,6 +85,7 @@ export function BaseChart({
   const closes = view.map((b) => b.close);
   const vols = view.map((b) => b.volume ?? 0);
   const entries = a.entries.filter((e) => e.idx >= start);
+  const sells = (a.sells ?? []).filter((e) => e.idx >= start);
   const bases = a.bases.filter((b) => (b.end_idx ?? series.length - 1) >= start);
   const lo = Math.min(...closes, ...entries.map((e) => e.stop)) * 0.96;
   const hi = Math.max(...closes, ...entries.map((e) => e.level)) * 1.04;
@@ -234,6 +235,22 @@ export function BaseChart({
         ) : null}
         <path d={area} fill={`url(#${gid})`} />
         <path className="bc-price" d={line} />
+        {sells.map((sv) => {
+          const sx = x(sv.idx);
+          const sy = y(sv.price) - 9;
+          return (
+            <g key={`s-${sv.idx}`} className={`bc-sell bc-sell--${sv.kind}`}>
+              <path d={`M${sx - 6},${sy - 9}L${sx + 6},${sy - 9}L${sx},${sy}Z`}>
+                <title>{`${sv.label} ${shortDate(sv.date)}: ${sv.action} at ${inr(sv.price)} (${sv.ext_pct}% above the 10-day average${
+                  sv.kind === "climax" && sv.run_pct != null ? `, +${sv.run_pct}% in 10 sessions` : ""
+                })`}</title>
+              </path>
+              <text className="bc-sell-lab" x={sx} y={sy - 13} textAnchor="middle">
+                {sv.kind === "climax" ? "Climax" : sv.kind === "ext1" ? "S1/3" : "S2/3"}
+              </text>
+            </g>
+          );
+        })}
         {entries.map((e, k) => {
           const ex = x(e.idx);
           const ey = y(e.level);
@@ -316,6 +333,32 @@ export function BaseChart({
       ) : (
         <p className="vx-hint">No entries in this period: no base after a 25% rise has triggered.</p>
       )}
+      {sells.length ? (
+        <div className="bc-table-wrap">
+          <table className="bc-table">
+            <thead>
+              <tr>
+                <th>Sell signal</th>
+                <th>Date</th>
+                <th>Do</th>
+                <th className="num">Close</th>
+                <th className="num">vs 10-day avg</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sells.slice(-TABLE_ROWS).map((sv) => (
+                <tr key={`s-${sv.idx}`} className={a.sell_now && a.sell_now.idx === sv.idx ? "bc-live" : undefined}>
+                  <td>{sv.label}</td>
+                  <td>{shortDate(sv.date)}</td>
+                  <td>{sv.action}</td>
+                  <td className="num">{inr(sv.price)}</td>
+                  <td className="num">+{sv.ext_pct}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }

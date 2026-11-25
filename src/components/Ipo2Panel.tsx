@@ -363,6 +363,11 @@ export function Ipo2Panel() {
                         <span className={`ipo2-pill ipo2-pill--${r.stage}`}>{STAGE_LABEL[r.stage]}</span>
                         <span>{r.stage_note}</span>
                         {r.vol_dry && (r.stage === "in_base" || r.stage === "near_pivot") ? <span className="ipo2-sub">Volume drying up</span> : null}
+                        {r.sell_now ? (
+                          <span className="ipo2-sell" title={`${r.sell_now.label} on ${shortDate(r.sell_now.date)} at ${inr(r.sell_now.price)}, ${r.sell_now.ext_pct}% above the 10-day average`}>
+                            {r.sell_now.action}: {r.sell_now.label.toLowerCase()}
+                          </span>
+                        ) : null}
                       </td>
                       <EntryCell e={r.live_entry ?? r.last_entry} live={!!r.live_entry} />
                       <td className="ipo2-checks">

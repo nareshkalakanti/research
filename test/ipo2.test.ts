@@ -79,6 +79,30 @@ assert.equal(rb.idx, 7);
 assert.equal(rb.level, 65);
 assert.equal(rb.stop, 60); // post-listing low, within the 8% cap
 assert.equal(ir.entries.filter((e) => e.kind === "ipo_range").length, 1);
+// Sell signals: 1st extension once the close is 10%+ above its 10-day average, the 2nd on a further 5%+ leg.
+assert.deepEqual(
+  ir.sells.map((x) => `${x.kind}@${x.idx}`),
+  ["ext1@9", "ext2@10"],
+  ir.sells.map((x) => `${x.kind}@${x.idx}`).join(","),
+);
+assert.equal(ir.sells[0]!.action, "Sell 1/3");
+assert.equal(ir.sells[1]!.action, "Sell another 1/3");
+assert.equal(ir.sell_now?.idx, 10); // 3 sessions ago: still "now" (5-session window)
+assert.match(ir.verdict.reasons[0]!.text, /2nd daily extension/);
+// Climax: after a pivot breakout, 10 sessions with 9 green days and +30% on the highest volume.
+const cl: number[] = [100];
+const clv: number[] = [500];
+for (let i = 1; i <= 30; i++) { cl.push(100 + i * 1.6); clv.push(200); } // run into the base
+for (let i = 1; i <= 20; i++) { cl.push(148 - (i % 4)); clv.push(100); } // IPO base, ~6% deep… deepen:
+for (let i = 1; i <= 10; i++) { cl.push(130 + (i % 2)); clv.push(80); }
+cl.push(150); clv.push(300); // pivot breakout
+for (let i = 1; i <= 10; i++) { cl.push(cl[cl.length - 1]! * (i === 5 ? 0.995 : 1.03)); clv.push(200 + i * 30); }
+const clA = analyzeIpo2(cl.map((close, i) => ({ date: dates[i]!, close, volume: clv[i] })))!;
+assert.ok(clA.sells.some((x) => x.kind === "climax"), clA.sells.map((x) => x.kind).join(","));
+// A quiet drift up never extends 10% over its 10-day average: no sell signals.
+const quiet = Array.from({ length: 80 }, (_, i) => 100 + i * 0.3 + (i % 3));
+assert.equal(analyzeBases(quiet.map((close, i) => ({ date: dates[i]!, close, volume: 100 })), { listed: false })!.sells.length, 0);
+
 // Too late (after 15 sessions) or too wide a range: no listing-range breakout.
 const late = [100, ...Array.from({ length: 16 }, (_, i) => 95 + (i % 3)), 110];
 assert.ok(!analyzeIpo2(late.map((close, i) => ({ date: dates[i]!, close, volume: 100 })))!.entries.some((e) => e.kind === "ipo_range"));

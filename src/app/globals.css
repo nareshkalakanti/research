@@ -24439,6 +24439,11 @@ html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
 .napkin-bases .ipo2-chart svg, .ipo2-chart svg { min-width: 720px; }
 .bc-dot.ipo2-dot--pivot { fill: #2f6fd6; }
 .bc-dot.ipo2-dot--add { fill: #7c5cc4; }
+.bc-sell path { fill: var(--warn); stroke: var(--surface); stroke-width: 1; }
+.bc-sell--climax path { fill: var(--danger); }
+.ipo2-sell { display: block; margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--warn); }
+.bc-sell-lab { font-size: 10.5px; font-weight: 650; fill: var(--warn); }
+.bc-sell--climax .bc-sell-lab { fill: var(--danger); }
 .napkin-bases-warn { margin: 4px 0 8px; font-size: 12.5px; }
 
 /* Bases chart: drawn 1:1 with the card, so these are real pixel sizes. */
