@@ -12,6 +12,7 @@ import { invalidateNotesCache } from "@/lib/notes";
 import { invalidateOperatingMetricsCache, invalidateStableOpmCache } from "@/lib/opm-consistency";
 import { clearReviewScores } from "@/lib/portfolio-review";
 import { clearPriceActionCache } from "@/lib/price-action-screen";
+import { clearBreakoutCache } from "@/lib/breakout-screen";
 import { invalidateQuantBasketCache } from "@/lib/quant-basket";
 import { invalidateQuarterMetricsCache } from "@/lib/quarter-metrics-cache";
 import { clearQuarterPanelMemo } from "@/lib/quarter-metrics-compute";
@@ -42,6 +43,7 @@ export async function POST() {
   clearReviewScores();
   clearQualityFlagsMemo();
   clearPriceActionCache();
+  clearBreakoutCache();
   clearQuarterPanelMemo();
   invalidateQuarterMetricsCache();
   invalidateQuarterOverlayCache();

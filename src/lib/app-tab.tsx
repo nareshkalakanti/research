@@ -21,6 +21,7 @@ export type AppTab =
   | "concall-drift"
   | "rotation"
   | "price-action"
+  | "breakouts"
   | "scanner"
   | "value"
   | "portfolio";
@@ -32,6 +33,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "value", label: "Value", short: "Value" },
   { id: "rotation", label: "Trend", short: "Trend" },
   { id: "price-action", label: "Price Action", short: "PA" },
+  { id: "breakouts", label: "Breakouts", short: "BO" },
   { id: "portfolio", label: "Portfolio", short: "Port" },
   { id: "concall-drift", label: "Drift", short: "Drift" },
   { id: "scan", label: "Strategy", short: "Strategy" },
