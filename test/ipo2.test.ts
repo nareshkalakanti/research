@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { analyzeIpo2, parseNseListingDate } from "../src/lib/ipo2";
+import { adjustCorporateActions, analyzeBases, analyzeIpo2, favouredSector, parseNseListingDate } from "../src/lib/ipo2";
 
 // NSE list date formats.
 assert.equal(parseNseListingDate("06-OCT-2008"), "2008-10-06");
@@ -48,5 +48,24 @@ const deep = [100, ...Array.from({ length: 20 }, (_, i) => 100 - i * 3)];
 const b = analyzeIpo2(deep.map((close, i) => ({ date: dates[i]!, close, volume: 100 })))!;
 assert.equal(b.stage, "broken");
 assert.equal(b.entries.length, 0);
+
+// Unadjusted 1:1 bonus (price halves overnight): earlier prices halved, flagged, no fake failed base.
+const pre = Array.from({ length: 60 }, (_, i) => 300 + i);
+const post = Array.from({ length: 30 }, (_, i) => 180 + i);
+const bonus = [...pre, ...post].map((close, i) => ({ date: dates[i]!, close, volume: 100 }));
+const adj = adjustCorporateActions(bonus);
+assert.equal(adj.actions.length, 1);
+assert.equal(adj.actions[0]!.ratio, 0.5);
+assert.equal(Math.round(adj.series[59]!.close), 180); // 359 × (180 / 359)
+const ab = analyzeBases(bonus, { listed: false })!;
+assert.equal(ab.corp_actions.length, 1);
+assert.ok(ab.bases.every((b) => b.status !== "failed"));
+// Ordinary 15% fall: not a corporate action.
+assert.equal(adjustCorporateActions([{ date: dates[0]!, close: 100 }, { date: dates[1]!, close: 85 }]).actions.length, 0);
+
+// Sector: industry decides; "Trading" under Pharma isn't favoured.
+assert.equal(favouredSector("Trading", "Pharmaceuticals"), false);
+assert.equal(favouredSector("Pharma Formulations", "Healthcare"), true);
+assert.equal(favouredSector(null, "Healthcare"), true);
 
 console.log("ipo2 ok");

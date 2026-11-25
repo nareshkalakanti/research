@@ -24439,3 +24439,4 @@ html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
 .napkin-bases .ipo2-chart svg, .ipo2-chart svg { min-width: 720px; }
 .bc-dot.ipo2-dot--pivot { fill: #2f6fd6; }
 .bc-dot.ipo2-dot--add { fill: #7c5cc4; }
+.napkin-bases-warn { margin: 4px 0 8px; font-size: 12.5px; }

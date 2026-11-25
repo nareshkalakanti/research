@@ -254,6 +254,10 @@ export function Ipo2Panel() {
                   "en-IN",
                 )} older companies skipped (old BSE code or NSE batch listing)${
                   data.no_prices ? ` · ${data.no_prices} without saved prices` : ""
+                }${
+                  data.stale_prices
+                    ? ` · ${data.stale_prices.toLocaleString("en-IN")} with older prices updating in the background (Refresh in a minute)`
+                    : ""
                 } · click a row for its chart`
               : loading
                 ? "Loading…"
@@ -318,6 +322,12 @@ export function Ipo2Panel() {
                           {r.listing_source === "history" ? " · from prices" : ""}
                         </span>
                         {r.history_gap ? <span className="ipo2-warn">Prices start later: first run not checked</span> : null}
+                        {r.corp_actions.length ? (
+                          <span className="ipo2-warn" title="A one-day move past any exchange circuit: earlier prices adjusted as a split / bonus">
+                            Split / bonus adjusted:{" "}
+                            {r.corp_actions.map((c) => `${shortDate(c.date)} ×${c.ratio}`).join(", ")}
+                          </span>
+                        ) : null}
                       </td>
                       <td className={`num ${r.urgency ? "pos-t" : ""}`}>{r.run_pct == null ? "—" : pct(r.run_pct)}</td>
                       <td className={`num ${r.ret_pct >= 0 ? "pos-t" : "neg"}`}>
@@ -340,7 +350,9 @@ export function Ipo2Panel() {
                           ok={r.growth_ok}
                           label="Growth"
                           title={
-                            r.growth && (r.growth.sales_yoy != null || r.growth.np_yoy != null)
+                            r.growth?.stale
+                              ? `No recent quarter: the latest saved one is ${r.growth.quarter}, over ${R?.growthMaxAgeMonths ?? 9} months old`
+                              : r.growth && (r.growth.sales_yoy != null || r.growth.np_yoy != null)
                               ? `Latest quarter (${r.growth.quarter}) vs a year earlier: sales ${pct(r.growth.sales_yoy)}, profit ${pct(
                                   r.growth.np_yoy,
                                 )}. Needs both ≥ ${R?.growthPct ?? 20}%.`

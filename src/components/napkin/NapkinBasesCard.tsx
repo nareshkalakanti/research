@@ -110,6 +110,12 @@ export function NapkinBasesCard({ ticker, market }: { ticker: string; market?: s
           <span className="vx-earn-period">Since listing</span>
         )}
       </div>
+      {a.corp_actions.length ? (
+        <p className="vx-msg napkin-bases-warn">
+          Split / bonus not in the saved prices, adjusted here:{" "}
+          {a.corp_actions.map((c) => `${shortDate(c.date)} (×${c.ratio})`).join(", ")}. Check the corporate action if it looks wrong.
+        </p>
+      ) : null}
       <BaseChart series={d.series} analysis={a} ticker={d.ticker} fromIdx={fromIdx} height={240} />
       <p className="vx-hint napkin-bases-foot">
         Daily closes. Low cheat / cheat: a tight sideways pause in the lower / middle third of a base, buy above its high. Pivot: close

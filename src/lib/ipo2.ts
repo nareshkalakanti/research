@@ -2,7 +2,7 @@ import { loadAllCompanies } from "./db";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
 import { loadMetricsMap } from "./metrics";
 import { fetchNseMainEquityList, fetchNseSmeEquityList, isNseRightsEntitlement } from "./nse-equity-lists";
-import { cachedRotationCloses, rotationCloses, type Close } from "./rotation-bars";
+import { cachedRotationCloses, onRotationBarsRefreshed, rotationBarsRefreshing, rotationCloses, type Close } from "./rotation-bars";
 import { rotationFetchYears } from "./sector-rotation-series";
 import { openSqliteNamed } from "./sqlite-utils";
 import { masterLabels } from "./stock-master";
@@ -61,6 +61,13 @@ export const IPO2_RULES = {
   bulkListingDay: 20,
   /** BSE scrip codes below this were issued before ~2021: an older company, not an IPO. */
   newBseCodeMin: 543000,
+  /** Saved prices of this many stocks starting the same day = a data gap, not listings. */
+  bulkFirstTrade: 10,
+  /** Growth check uses a quarter ending within this many months. */
+  growthMaxAgeMonths: 9,
+  /** One-day close ratio beyond these (past any exchange circuit) = split / bonus. */
+  splitDrop: 0.65,
+  splitJump: 1.55,
 };
 
 export type EntryKind = "low_cheat" | "cheat" | "pivot" | "add";
@@ -126,6 +133,8 @@ export type Ipo2Analysis = {
   live_entry: Ipo2Entry | null;
   /** Listed-in-window rules (IPO base, urgency) were applied. */
   listed: boolean;
+  /** One-day jumps treated as splits / bonuses (earlier prices adjusted). */
+  corp_actions: CorpAction[];
   /** Current or last base high (pivot level) and the distance to it. */
   pivot: number | null;
   to_pivot_pct: number | null;
@@ -145,6 +154,33 @@ function avgVol(v: number[], end: number, len: number): number | null {
     }
   }
   return k >= Math.min(len, 10) ? s / k : null;
+}
+
+export type CorpAction = { date: string; ratio: number };
+
+/**
+ * Splits / bonuses the saved prices don't reflect: a one-day move past any
+ * exchange circuit. Back-adjusts earlier closes (and volume) by that ratio.
+ */
+export function adjustCorporateActions(series: Close[], R = IPO2_RULES): { series: Close[]; actions: CorpAction[] } {
+  const actions: CorpAction[] = [];
+  let out: Close[] | null = null;
+  for (let i = series.length - 1; i >= 1; i--) {
+    const src = out ?? series;
+    const prev = src[i - 1]!.close;
+    const cur = src[i]!.close;
+    if (!(prev > 0) || !(cur > 0)) continue;
+    const ratio = cur / prev;
+    if (ratio >= R.splitDrop && ratio <= R.splitJump) continue;
+    out = out ?? series.map((b) => ({ ...b }));
+    for (let j = 0; j < i; j++) {
+      const b = out[j]!;
+      b.close *= ratio;
+      if (b.volume != null) b.volume /= ratio;
+    }
+    actions.push({ date: series[i]!.date, ratio: r2(ratio) });
+  }
+  return { series: out ?? series, actions: actions.reverse() };
 }
 
 const ENTRY_LABEL: Record<EntryKind, string> = {
@@ -167,8 +203,9 @@ export function analyzeIpo2(series: Close[], R = IPO2_RULES): Ipo2Analysis | nul
  * A base that fails (too deep) resets the count: the old high stops mattering and
  * the next setup needs a fresh 25% rise.
  */
-export function analyzeBases(series: Close[], opts: { listed: boolean }, R = IPO2_RULES): Ipo2Analysis | null {
+export function analyzeBases(raw: Close[], opts: { listed: boolean }, R = IPO2_RULES): Ipo2Analysis | null {
   const listed = opts.listed;
+  const { series, actions } = adjustCorporateActions(raw, R);
   const n = series.length;
   if (n < 2) return null;
   const c = series.map((b) => b.close);
@@ -408,6 +445,7 @@ export function analyzeBases(series: Close[], opts: { listed: boolean }, R = IPO
     run_pct: runPct == null ? null : r1(runPct),
     urgency,
     listed,
+    corp_actions: actions,
     bases,
     entries,
     legs,
@@ -538,15 +576,20 @@ export async function nseListingDates(opts?: { wait?: boolean }): Promise<{ map:
 const FAVOURED =
   /\b(IT\b|software|computer|internet|infotech|e[ -]?commerce|e[ -]?services|new age platform|data centre|fmcg|personal care|food|dairy|snacks|consumer electronics|domestic appliances|retail|pharma|biotech|hospital|diagnostic|medical|healthcare|ayurved|renewable|solar|wind|non conventional|green)/i;
 
+/** Industry decides; the broad sector only when there's no industry ("Trading" under Pharma isn't pharma). */
 export function favouredSector(industry: string | null | undefined, sector?: string | null): boolean {
-  return FAVOURED.test(`${industry ?? ""} ${sector ?? ""}`);
+  const ind = (industry ?? "").trim();
+  return FAVOURED.test(ind || (sector ?? ""));
 }
 
-type Growth = { sales_yoy: number | null; np_yoy: number | null; quarter: string | null };
+type Growth = { sales_yoy: number | null; np_yoy: number | null; quarter: string | null; stale: boolean };
 
 /** Latest quarter vs the same quarter a year earlier (Screener quarters). */
 function quarterGrowth(): Map<string, Growth> {
   const out = new Map<string, Growth>();
+  const cut = new Date();
+  cut.setUTCMonth(cut.getUTCMonth() - IPO2_RULES.growthMaxAgeMonths);
+  const recentQ = cut.toISOString().slice(0, 7);
   const db = openSqliteNamed("metrics.db", { readonly: true, wal: true });
   try {
     for (const r of db.prepare(`SELECT UPPER(ticker) AS t, quarters_json AS j FROM screener_quarters_cache`).all() as Array<{
@@ -563,7 +606,13 @@ function quarterGrowth(): Map<string, Growth> {
         const prev = qs.find((x) => Math.abs(mi(q.date) - mi(x.date) - 12) <= 1);
         const yoy = (a: number | null | undefined, b: number | null | undefined) =>
           a != null && b != null && b > 0 && a / b < 100 && a / b > 0.01 ? r1((a / b - 1) * 100) : null;
-        out.set(r.t, { sales_yoy: yoy(q.revenue, prev?.revenue), np_yoy: yoy(q.netIncome, prev?.netIncome), quarter: q.date.slice(0, 7) });
+        const quarter = q.date.slice(0, 7);
+        if (quarter < recentQ) {
+          // Too old to say anything about growth now.
+          out.set(r.t, { sales_yoy: null, np_yoy: null, quarter, stale: true });
+          continue;
+        }
+        out.set(r.t, { sales_yoy: yoy(q.revenue, prev?.revenue), np_yoy: yoy(q.netIncome, prev?.netIncome), quarter, stale: false });
       } catch {
         /* bad row */
       }
@@ -606,6 +655,8 @@ export type Ipo2Row = {
   to_pivot_pct: number | null;
   vol_dry: boolean | null;
   legs: number;
+  /** One-day jumps treated as splits / bonuses (earlier prices adjusted). */
+  corp_actions: CorpAction[];
   /** Checklist passes out of the checks we can run (urgency, growth, sector, depth). */
   score: number;
   last_date: string;
@@ -619,11 +670,15 @@ export type Ipo2Result = {
   no_prices: number;
   listing_dates: number;
   listing_dates_at: string | null;
+  /** Stocks whose prices are older than the latest trading day, now refreshing in the background. */
+  stale_prices: number;
+  refreshing: number;
   rules: typeof IPO2_RULES;
   built_at: string;
 };
 
 let screenCache: { at: number; result: Ipo2Result } | null = null;
+let refreshHooked = false;
 const SCREEN_TTL_MS = 10 * 60_000;
 
 export function clearIpo2Cache(): void {
@@ -666,6 +721,22 @@ function bulkListingDays(nse: Map<string, string>): Set<string> {
   return new Set([...dayCount].filter(([, k]) => k >= IPO2_RULES.bulkListingDay).map(([dt]) => dt));
 }
 
+let bulkStartMemo: { at: number; set: Set<string> } | null = null;
+/** First-trade dates (inside the saved window) shared by many stocks: data gaps, not listings. */
+function bulkFirstTradeDays(years: number): Set<string> {
+  if (bulkStartMemo && Date.now() - bulkStartMemo.at < SCREEN_TTL_MS) return bulkStartMemo.set;
+  const windowStart = new Date(Date.now() - years * 365.25 * 86_400_000).toISOString().slice(0, 10);
+  const count = new Map<string, number>();
+  for (const co of loadAllCompanies()) {
+    const s = cachedRotationCloses(co.ticker, (co.market || "NSE").trim(), years);
+    const f = s[0]?.date;
+    if (f && daysBetween(windowStart, f) > 30) count.set(f, (count.get(f) ?? 0) + 1);
+  }
+  const set = new Set([...count].filter(([, k]) => k >= IPO2_RULES.bulkFirstTrade).map(([dt]) => dt));
+  bulkStartMemo = { at: Date.now(), set };
+  return set;
+}
+
 function daysBetween(a: string, b: string): number {
   return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
 }
@@ -677,23 +748,27 @@ function seriesSinceListing(
   nseDate: string | null,
   years: number,
   cutoff: string,
+  bulkStarts: Set<string>,
 ): { series: Close[]; listing: string; source: "nse" | "history"; gap: boolean } | null {
   const all = cachedRotationCloses(ticker, market, years);
   if (all.length < 2) return null;
   const first = all[0]!.date;
+  // Many stocks' saved prices starting the same day: a data gap (resumed trading), not a listing.
+  const firstIsGap = bulkStarts.has(first);
   // History that reaches back to the start of the saved window: listed before it.
   const windowStart = new Date(Date.now() - years * 365.25 * 86_400_000).toISOString().slice(0, 10);
   const historyIsListing = daysBetween(windowStart, first) > 30;
   let listing: string;
   let source: "nse" | "history";
-  if (nseDate && historyIsListing && daysBetween(first, nseDate) > 10) {
+  if (nseDate && historyIsListing && !firstIsGap && daysBetween(first, nseDate) > 10) {
     // Traded before the NSE date (BSE / SME first, migrated later): count from the first trade.
     listing = first;
     source = "history";
   } else if (nseDate) {
     listing = nseDate;
     source = "nse";
-  } else if (historyIsListing) {
+  } else if (historyIsListing && !firstIsGap && !market.toUpperCase().startsWith("NSE")) {
+    // BSE / BSE SME: no official date here, so the first trade. NSE stocks need NSE's date.
     listing = first;
     source = "history";
   } else return null;
@@ -716,6 +791,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
 
   const codes = bseCodes();
   const bulkDays = bulkListingDays(nse);
+  const bulkStarts = bulkFirstTradeDays(years);
   const rows: Ipo2Row[] = [];
   let universe = 0;
   let noPrices = 0;
@@ -728,7 +804,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
     const market = (co.market || "NSE").trim();
     const nseDate = nse.get(t) ?? null;
     if (nseDate && nseDate < cutoff) continue; // official date says older
-    const s = seriesSinceListing(co.ticker, market, nseDate, years, cutoff);
+    const s = seriesSinceListing(co.ticker, market, nseDate, years, cutoff, bulkStarts);
     if (s && olderCompany(t, s.source === "nse" ? nseDate : null, codes, bulkDays)) {
       skippedOld++;
       continue;
@@ -783,11 +859,23 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       to_pivot_pct: a.to_pivot_pct,
       vol_dry: a.vol_dry,
       legs: a.legs,
+      corp_actions: a.corp_actions,
       score,
       last_date: a.last_date,
     });
   }
+  // Prices older than the latest trading day: refresh in the background (queued, 6 at a time);
+  // the screen rebuilds once the queue drains.
+  const latest = rows.reduce((m, r) => (r.last_date > m ? r.last_date : m), "");
+  const stale = rows.filter((r) => r.last_date < latest);
+  if (!refreshHooked) {
+    refreshHooked = true;
+    onRotationBarsRefreshed(() => clearIpo2Cache());
+  }
+  for (const r of stale) void rotationCloses(r.ticker, r.market, years).catch(() => {});
   const result: Ipo2Result = {
+    stale_prices: stale.length,
+    refreshing: rotationBarsRefreshing(),
     rows,
     universe,
     skipped_old: skippedOld,
@@ -838,13 +926,29 @@ export async function stockBasesDetail(ticker: string, marketHint?: string | nul
   const { map: nse } = await nseListingDates();
   const cutoff = new Date(Date.now() - IPO2_RULES.maxAgeYears * 365.25 * 86_400_000).toISOString().slice(0, 10);
   const nseDate = nse.get(t) ?? null;
-  const s = seriesSinceListing(t, market, nseDate, years, cutoff);
+  const s = seriesSinceListing(t, market, nseDate, years, cutoff, bulkFirstTradeDays(years));
   if (s && !olderCompany(t, s.source === "nse" ? nseDate : null, bseCodes(), bulkListingDays(nse))) {
     const analysis = analyzeBases(s.series, { listed: true });
     if (analysis)
-      return { ok: true, ticker: t, mode: "ipo", listing_date: s.listing, listing_source: s.source, series: s.series, analysis };
+      return {
+        ok: true,
+        ticker: t,
+        mode: "ipo",
+        listing_date: s.listing,
+        listing_source: s.source,
+        series: adjustCorporateActions(s.series).series,
+        analysis,
+      };
   }
   const analysis = analyzeBases(all, { listed: false });
   if (!analysis) return { ok: false, error: `${t}: too few prices` };
-  return { ok: true, ticker: t, mode: "established", listing_date: null, listing_source: null, series: all, analysis };
+  return {
+    ok: true,
+    ticker: t,
+    mode: "established",
+    listing_date: null,
+    listing_source: null,
+    series: adjustCorporateActions(all).series,
+    analysis,
+  };
 }
