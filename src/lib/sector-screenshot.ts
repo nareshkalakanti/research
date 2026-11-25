@@ -212,7 +212,7 @@ export async function importSectorFromScreenshot(
   const names = parsed.names;
   if (!names.length) {
     throw new Error(
-      "Could not read company names from the screenshot. Paste a Name-column table (Ltd/Limited rows).",
+      "No stock table found in this image. Use a Screener table screenshot with the Name and Industry columns.",
     );
   }
   // Screener Industry column first — never Yahoo/NSE taxonomy as a substitute.

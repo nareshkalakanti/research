@@ -362,7 +362,24 @@ function looksName(s: string): boolean {
   if (PRICEISH.test(t)) return false;
   if (/^market\s+cap/i.test(t) || /^close\s+price/i.test(t)) return false;
   if (!/[A-Za-z]/.test(t)) return false;
+  if (looksOcrJunk(t)) return false;
   return true;
+}
+
+/**
+ * Handwritten notes / non-table photos OCR into lines like "ROE = 6-+4/. (Less)"
+ * or "ordonrg _» Req." — symbols no listed company name carries.
+ */
+function looksOcrJunk(t: string): boolean {
+  if (/[=»«\\_~%<>^|]/.test(t)) return true;
+  if (/\s[—–-]\s*$|^\s*[—–]/.test(t)) return true;
+  const open = (t.match(/\(/g) || []).length;
+  const close = (t.match(/\)/g) || []).length;
+  if (open !== close) return true;
+  // Mostly 1–3 letter fragments ("Geb, es cask, S gns oF Winn wg") is noise.
+  const words = t.split(/[\s,]+/).filter(Boolean);
+  const short = words.filter((w) => w.replace(/[^A-Za-z]/g, "").length <= 3).length;
+  return words.length >= 4 && short / words.length > 0.5 && !/\b(?:Ltd|Limited)\b/i.test(t);
 }
 
 /** Screener Name rows are issuer-shaped; reject single-token schema junk. */

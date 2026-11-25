@@ -204,7 +204,6 @@ export function SectorShotPanel() {
               donePayload = ev;
             } else if (ev.t === "error") {
               streamError = ev.error || "Extract failed";
-              pushLog(streamError);
             }
           }
         }
@@ -234,7 +233,6 @@ export function SectorShotPanel() {
         return donePayload.industry || saved.label || "";
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
         setShotLog((prev) => [...prev, `Failed: ${msg}`]);
         return "";
       }
@@ -341,7 +339,6 @@ export function SectorShotPanel() {
               donePayload = ev;
             } else if (ev.t === "error") {
               streamError = ev.error || "Extract failed";
-              pushLog(streamError);
             }
           }
         }
@@ -362,18 +359,8 @@ export function SectorShotPanel() {
         );
         const missLines = unresolvedSummaryLines(donePayload.unresolved);
         for (const line of missLines) pushLog(line);
-        const miss = (Array.isArray(donePayload.unresolved)
-          ? donePayload.unresolved
-          : []
-        )
-          .map((x) => String(x || "").trim())
-          .filter(Boolean);
-        if (miss.length) {
-          setError(`Unresolved (${miss.length}): ${miss.slice(0, 12).join(", ")}`);
-        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
         setShotLog((prev) => [...prev, `Failed: ${msg}`]);
       } finally {
         shotRunning.current = false;
@@ -731,13 +718,6 @@ export function SectorShotPanel() {
           </p>
         ) : null}
       </div>
-      {shotLog.length ? (
-        <ol className="rot-shot-log" aria-live="polite">
-          {shotLog.map((line, i) => (
-            <li key={`${i}-${line.slice(0, 24)}`}>{line}</li>
-          ))}
-        </ol>
-      ) : null}
       {error ? <div className="table-meta">{error}</div> : null}
       <table className="rot-table">
         <thead>

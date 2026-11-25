@@ -1035,7 +1035,6 @@ export function SectorRotationPanel() {
             };
           } else if (ev.t === "error") {
             streamError = ev.error || "Extract failed";
-            pushLog(streamError);
           }
         }
       }
@@ -1053,10 +1052,6 @@ export function SectorRotationPanel() {
         );
       }
       setOpenId(json.sector.id);
-      const miss = (json.unresolved || []).filter(Boolean);
-      if (miss.length) {
-        setError(`Unresolved: ${miss.join(", ")}`);
-      }
       const saved = (json.sector.members ?? []) as Array<{
         ticker?: string;
         name?: string;
@@ -1101,7 +1096,6 @@ export function SectorRotationPanel() {
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      setError(msg);
       setShotLog((prev) => [...prev, `Failed: ${msg}`]);
       return "";
     }
@@ -2056,13 +2050,6 @@ export function SectorRotationPanel() {
           ) : null}
         </div>
       </form>
-      ) : null}
-      {shotLog.length ? (
-        <ol className="rot-shot-log" aria-live="polite">
-          {shotLog.map((line, i) => (
-            <li key={`${i}-${line.slice(0, 24)}`}>{line}</li>
-          ))}
-        </ol>
       ) : null}
 
       {error ? <div className="table-meta">{error}</div> : null}
