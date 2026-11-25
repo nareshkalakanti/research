@@ -26,7 +26,7 @@ type Payload = {
 const cr = (v: number | null) => (v == null ? "—" : `₹${Math.round(v).toLocaleString("en-IN")} Cr`);
 
 /**
- * Portfolio page: every stock rated Excellent (total 13+ of 17) among
+ * Portfolio page: every stock rated Excellent (13+ of 17) or Good (9–12) among
  * ₹200 Cr+ / ROCE 15%+ companies. Scoring runs slowly in the background.
  */
 export function ExcellentList() {
@@ -34,6 +34,7 @@ export function ExcellentList() {
   const [poll, setPoll] = useState(0);
   const [drawer, setDrawer] = useState<{ row: ReviewScoreRow; kind: ReviewDrawerKind } | null>(null);
   const [hideOwned, setHideOwned] = useState(false);
+  const [showGood, setShowGood] = useState(true);
 
   useEffect(() => {
     let live = true;
@@ -57,7 +58,9 @@ export function ExcellentList() {
   if (!data) return <div className="vx-card vx-empty">Loading Excellent list…</div>;
   if (!data.ok) return <div className="vx-card vx-empty vx-msg--err">Could not load: {data.error}</div>;
 
-  const rows = hideOwned ? data.rows.filter((r) => !r.owned) : data.rows;
+  const excellent = data.rows.filter((r) => r.rating === "Excellent").length;
+  const good = data.rows.length - excellent;
+  const rows = data.rows.filter((r) => (showGood || r.rating === "Excellent") && !(hideOwned && r.owned));
   const pct = data.universe ? Math.round((data.scored / data.universe) * 100) : 0;
   const left = data.missing;
   const running = !!data.job?.running;
@@ -66,15 +69,20 @@ export function ExcellentList() {
     <div className="vx-card xl-card">
       <div className="xl-head">
         <div>
-          <span className="vx-label vx-label--title">Excellent stocks</span>
+          <span className="vx-label vx-label--title">Excellent &amp; Good stocks</span>
           <p className="vx-hint">
-            Rated Excellent (13+ of 17) on the same checks as your portfolio · companies ₹{data.rules.min_mcap_cr} Cr+ with ROCE{" "}
-            {data.rules.min_roce}%+ · <b>{data.rows.length}</b> found in {data.scored} scored
+            Rated Excellent (13+ of 17) or Good (9–12) on the same checks as your portfolio · companies ₹{data.rules.min_mcap_cr} Cr+ with
+            ROCE {data.rules.min_roce}%+ · <b>{excellent}</b> Excellent and <b>{good}</b> Good in {data.scored} scored
           </p>
         </div>
-        <label className="xl-toggle">
-          <input type="checkbox" checked={hideOwned} onChange={(e) => setHideOwned(e.target.checked)} /> Hide stocks I own
-        </label>
+        <div className="xl-toggles">
+          <label className="xl-toggle">
+            <input type="checkbox" checked={showGood} onChange={(e) => setShowGood(e.target.checked)} /> Show Good
+          </label>
+          <label className="xl-toggle">
+            <input type="checkbox" checked={hideOwned} onChange={(e) => setHideOwned(e.target.checked)} /> Hide stocks I own
+          </label>
+        </div>
       </div>
 
       {left > 0 ? (
@@ -114,7 +122,9 @@ export function ExcellentList() {
             {!rows.length ? (
               <tr>
                 <td colSpan={8} className="vx-empty">
-                  {data.rows.length ? "You own every Excellent stock found so far." : "No Excellent stocks yet — they appear here as scoring runs."}
+                  {data.rows.length && hideOwned
+                    ? "You own every stock listed here so far."
+                    : "No Excellent or Good stocks yet — they appear here as scoring runs."}
                 </td>
               </tr>
             ) : (

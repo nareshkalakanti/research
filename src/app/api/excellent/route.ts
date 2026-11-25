@@ -9,10 +9,11 @@ export const dynamic = "force-dynamic";
 /** Stocks scored for the Excellent list: market cap ₹200 Cr+ and ROCE 15%+. */
 const MIN_MCAP_CR = 200;
 const MIN_ROCE = 15;
+const rank = (rating: string) => (rating === "Excellent" ? 0 : 1);
 
 /**
- * GET /api/excellent: every stock rated Excellent by the Portfolio review
- * (total 13+ of 17), from saved scores only. Stocks in the universe that have
+ * GET /api/excellent: every stock rated Excellent (total 13+ of 17) or Good
+ * (9–12) by the Portfolio review, from saved scores only, Excellent first. Stocks in the universe that have
  * no score yet are queued behind anything already waiting (Watchlist first),
  * one Screener page every 20–30 s.
  */
@@ -27,8 +28,8 @@ export async function GET() {
     const job = missing.length ? startHoldingsSlowScoring([], { later: missing }) : holdingsScoreJob();
     const owned = new Set(listReviewTickers().map((t) => t.toUpperCase()));
     const rows = [...saved.values()]
-      .filter((r) => r.rating === "Excellent")
-      .sort((a, b) => b.total - a.total || b.quality - a.quality || (b.mcap ?? 0) - (a.mcap ?? 0))
+      .filter((r) => r.rating === "Excellent" || r.rating === "Good")
+      .sort((a, b) => rank(a.rating) - rank(b.rating) || b.total - a.total || b.quality - a.quality || (b.mcap ?? 0) - (a.mcap ?? 0))
       .map((r) => ({ ...r, owned: owned.has(r.t.toUpperCase()) }));
     return NextResponse.json({
       ok: true,

@@ -24551,6 +24551,7 @@ html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
 .xl-card > .xl-head, .xl-card > .wl-score-progress { margin: 0 18px; }
 .xl-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .xl-head .vx-hint { margin: 2px 0 0; }
+.xl-toggles { display: flex; gap: 14px; flex-wrap: wrap; }
 .xl-toggle { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--vx-muted, var(--muted)); cursor: pointer; }
 .xl-ind { color: var(--vx-muted, var(--muted)); }
 .xl-owned { font-size: 0.7rem; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--vx-accent, #3b82f6) 18%, transparent); color: var(--vx-accent, #3b82f6); }
