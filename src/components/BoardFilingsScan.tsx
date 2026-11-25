@@ -146,7 +146,8 @@ export function BoardFilingsScan() {
               ))}
             </ul>
           ) : null}
-          {job.joins.length ? (
+          {/* Live list while scanning only; once done the summary line is enough. */}
+          {running && job.joins.length ? (
             <div className="bfs-joins">
               <span className="bfs-joins-label">Directors found this run</span>
               <ul>
