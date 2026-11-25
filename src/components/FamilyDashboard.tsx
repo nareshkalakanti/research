@@ -1,6 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
+import { BoardFilingsScan } from "@/components/BoardFilingsScan";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FamilyMapCards, type FamilyRow, FamilyAddProgress, type FamilyAddWork } from "@/components/FamilyMapCards";
 import { FamilyDashSearch, type DashSuggestHit } from "@/components/FamilyDashSearch";
@@ -611,6 +612,7 @@ export function FamilyDashboard() {
           </button>
         </div>
       </div>
+      <BoardFilingsScan />
       {addWork ? <FamilyAddProgress work={addWork} /> : null}
       {adding ? (
         <form
