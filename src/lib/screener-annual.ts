@@ -587,6 +587,16 @@ function readPlCache(
   }
 }
 
+/**
+ * Cached yearly P&L and balance sheet only, never a Screener fetch (expired
+ * rows are fine). For re-deriving a saved score's check after a rule fix.
+ */
+export function cachedAnnualPlBs(ticker: string): { pl: ScreenerAnnualPl | null; bs: ScreenerAnnualBs | null } {
+  const pl = readPlCache(ticker, { allowExpired: true });
+  const bs = readBsCache(ticker, { allowExpired: true });
+  return { pl: pl && pl !== "blocked" ? pl : null, bs: bs && bs !== "blocked" ? bs : null };
+}
+
 function writePlCache(
   ticker: string,
   series: ScreenerAnnualPl,

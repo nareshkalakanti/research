@@ -1,8 +1,9 @@
-import { annualPoints, bookValuePerShare, businessBreak, cagrCheck, ROCE_MIN, roceAverage } from "./napkin/quality-flags";
+import { adjustedShareCount, annualPoints, bookValuePerShare, businessBreak, cagrCheck, ROCE_MIN, roceAverage } from "./napkin/quality-flags";
 import { runConcurrent } from "./scrape-pool";
 import { buildScannerData } from "./scanner";
 import {
   annualCachesFresh,
+  cachedAnnualPlBs,
   fetchScreenerAnnual,
   fetchScreenerAnnualBs,
   fetchScreenerAnnualPl,
@@ -449,6 +450,63 @@ async function warmScreenerForReview(ticker: string, opts?: { force?: boolean })
   }
 }
 
+function cagrFundCheck(
+  id: "bv" | "sales",
+  label: string,
+  dates: string[] | undefined,
+  vals: Array<number | null> | undefined,
+  shareCapital: { dates: string[]; values: Array<number | null> } | undefined,
+  brk: ReturnType<typeof businessBreak>,
+): FundCheck {
+  if (!dates?.length || !vals) return { id, label, rule: `> ${FUND.cagr}% CAGR · up to 10 yrs`, value: "—", points: null, note: "No data" } as FundCheck;
+  const c = cagrCheck(id, label, dates, vals, { ...(shareCapital ? { shareCapital } : {}), businessBreak: brk });
+  // Rule shows the span actually used (10 / 5 / 3), not a fixed "10 yrs".
+  const spanNote = c.note?.match(/^(\d+)\s*yrs/)?.[1];
+  const spanLabel = spanNote ? `${spanNote} yrs` : "up to 10 yrs";
+  return {
+    id,
+    label,
+    rule: `> ${FUND.cagr}% CAGR · ${spanLabel}`,
+    value: c.value,
+    points: c.verdict === "na" ? null : c.verdict === "pass" ? 1 : 0,
+    note: c.note,
+  } as FundCheck;
+}
+
+/**
+ * Book value per share growth (shared rule, see bookValuePerShare). Shares
+ * really issued in the window (placements, rights, debt converted) make the
+ * per-share history not comparable: marked "not scored". Bonus issues are not
+ * dilution (see adjustedShareCount).
+ */
+function bookValueCheck(
+  pl: Parameters<typeof bookValuePerShare>[0],
+  bs: (NonNullable<Parameters<typeof bookValuePerShare>[1]> & { dates: string[] }) | null | undefined,
+  brk: ReturnType<typeof businessBreak>,
+): FundCheck {
+  return cagrFundCheck("bv", "Book value growth (per share)", bs?.dates, bookValuePerShare(pl, bs), adjustedShareCount(pl, bs), brk);
+}
+
+/** Saved before bonus issues stopped counting as dilution (25 Nov 2026). */
+const OLD_BV_DILUTION = /Not comparable: share capital \+\d+% \(shares issued\)/;
+
+/**
+ * A saved score whose book value check was skipped by the old share-capital
+ * rule: re-derive that one check from the cached statements (no Screener
+ * fetch) and save it back. Returns the bundle unchanged otherwise.
+ */
+function migrateBvCheck(ticker: string, v: ScoreBundle): ScoreBundle {
+  const i = v.checks.findIndex((c) => c.id === "bv");
+  if (i < 0 || !OLD_BV_DILUTION.test(v.checks[i]!.note ?? "")) return v;
+  const { pl, bs } = cachedAnnualPlBs(ticker);
+  if (!pl?.dates.length || !bs?.dates.length) return v;
+  const checks = [...v.checks];
+  checks[i] = bookValueCheck(pl, bs, businessBreak(pl.dates, pl.revenue));
+  const next = { ...v, checks };
+  writeDiskScore(ticker, next);
+  return next;
+}
+
 async function scoreFundamental(t: string): Promise<FundCheck[]> {
   const [annual, pl, bs] = await Promise.all([
     fetchScreenerAnnual(t).catch(() => null),
@@ -463,36 +521,8 @@ async function scoreFundamental(t: string): Promise<FundCheck[]> {
     label: string,
     dates: string[] | undefined,
     vals: Array<number | null> | undefined,
-    shareCapital?: { dates: string[]; values: Array<number | null> },
-  ) => {
-    if (!dates?.length || !vals) return { id, label, rule: `> ${FUND.cagr}% CAGR · up to 10 yrs`, value: "—", points: null, note: "No data" } as FundCheck;
-    const c = cagrCheck(id, label, dates, vals, { ...(shareCapital ? { shareCapital } : {}), businessBreak: brk });
-    // Rule shows the span actually used (10 / 5 / 3), not a fixed "10 yrs".
-    const spanNote = c.note?.match(/^(\d+)\s*yrs/)?.[1];
-    const spanLabel = spanNote ? `${spanNote} yrs` : "up to 10 yrs";
-    return {
-      id,
-      label,
-      rule: `> ${FUND.cagr}% CAGR · ${spanLabel}`,
-      value: c.value,
-      points: c.verdict === "na" ? null : c.verdict === "pass" ? 1 : 0,
-      note: c.note,
-    } as FundCheck;
-  };
-  // Per share (shared rule, see bookValuePerShare).
-  const bvps = bookValuePerShare(pl, bs);
-  {
-    // Shares issued in the window (debt converted to equity, placements) make
-    // per-share history not comparable: the shared check marks it "not scored".
-    const c = fromCagr(
-      "bv",
-      "Book value growth (per share)",
-      bs?.dates,
-      bvps,
-      bs ? { dates: bs.dates, values: bs.equity_capital } : undefined,
-    );
-    checks.push(c);
-  }
+  ) => cagrFundCheck(id, label, dates, vals, undefined, brk);
+  checks.push(bookValueCheck(pl, bs, brk));
   checks.push(
     fromCagr("sales", "Sales growth", pl?.dates.length ? pl.dates : annual?.dates, pl?.dates.length ? pl.revenue : annual?.sales),
   );
@@ -945,11 +975,16 @@ function writeDiskScore(ticker: string, v: ScoreBundle): void {
 function lookupScore(ticker: string): ScoreBundle | null {
   const key = ticker.toUpperCase();
   const mem = scoreMemo.get(key);
-  if (mem && Date.now() - mem.at < mem.ttl && mem.at >= RULES_CHANGED_AT) return mem;
+  if (mem && Date.now() - mem.at < mem.ttl && mem.at >= RULES_CHANGED_AT) {
+    const m = migrateBvCheck(key, mem);
+    if (m !== mem) scoreMemo.set(key, m);
+    return m;
+  }
   const disk = readDiskScore(key);
   if (disk) {
-    scoreMemo.set(key, disk);
-    return disk;
+    const d = migrateBvCheck(key, disk);
+    scoreMemo.set(key, d);
+    return d;
   }
   return null;
 }

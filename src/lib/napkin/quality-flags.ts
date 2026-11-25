@@ -136,6 +136,30 @@ export function bookValuePerShare(
 }
 
 /**
+ * Shares outstanding by year (net profit ÷ EPS, bonus/split-adjusted), for the
+ * dilution guard on book value growth. Equity capital is the wrong signal: a
+ * 1:1 bonus doubles it with no new shares sold (TCS, Infosys, ITC, BEL), which
+ * wrongly marked half the universe "shares issued". Falls back to equity
+ * capital when the P&L has no usable EPS.
+ */
+export function adjustedShareCount(
+  pl: { dates: string[]; pat: Array<number | null>; eps: Array<number | null> } | null | undefined,
+  bs: { dates: string[]; equity_capital?: Array<number | null> } | null | undefined,
+): { dates: string[]; values: Array<number | null> } | undefined {
+  if (pl?.dates.length) {
+    const values = pl.dates.map((_, i) => {
+      const pat = pl.pat[i];
+      const eps = pl.eps[i];
+      return pat != null && eps != null && Math.abs(eps) >= 0.01 && Math.abs(pat) >= 0.5 && Math.sign(pat) === Math.sign(eps)
+        ? pat / eps
+        : null;
+    });
+    if (values.filter((v) => v != null).length >= 2) return { dates: pl.dates, values };
+  }
+  return bs?.equity_capital ? { dates: bs.dates, values: bs.equity_capital } : undefined;
+}
+
+/**
  * Business changed: one year's sales more than 10× the year before (₹10 Cr+),
  * e.g. a shell that took in a demerged business (NIIT MTS: ₹13 Cr → ₹1,132 Cr in
  * FY2022). Growth across that year is not comparable; ROCE counts only after it.
@@ -178,7 +202,7 @@ export function roceAverage(
  * point exactly that many years back; growth uses the real year count.
  * Strict eligibility (no point, figure still shown):
  *   - start below 60% of an earlier peak → "Recovery from a low base"
- *   - share capital up more than 25% in the window → "Not comparable" (when given)
+ *   - shares outstanding (profit ÷ EPS) up more than 25% → "Not comparable" (when given)
  */
 export function cagrCheck(
   id: string,
@@ -322,7 +346,7 @@ async function buildQualityFlagsRaw(ticker: string): Promise<QualityFlags> {
     quality.push(
       bs?.dates.length && bvps
         ? cagrCheck("bv", "Book value growth (per share)", bs.dates, bvps, {
-            shareCapital: { dates: bs.dates, values: bs.equity_capital },
+            shareCapital: adjustedShareCount(pl, bs),
             businessBreak: brk,
           })
         : { id: "bv", label: "Book value growth (per share)", rule: `≥ ${QF_RULES.cagr}% CAGR`, value: "—", verdict: "na", note: "No balance sheet" },

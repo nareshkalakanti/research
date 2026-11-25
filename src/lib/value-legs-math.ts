@@ -85,5 +85,5 @@ export function recoveryPeak(vals: Array<number | null | undefined>, startIdx: n
   return peak > 0 && start < peak * LOW_BASE_SHARE ? peak : null;
 }
 
-/** Share capital growing more than this over a window means shares were issued: per-share history is not comparable. */
+/** Shares outstanding (bonus-adjusted) growing more than this over a window means shares were issued: per-share history is not comparable. */
 export const DILUTION_LIMIT = 0.25;
