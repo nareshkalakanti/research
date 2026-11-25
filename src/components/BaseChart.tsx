@@ -27,7 +27,7 @@ export function shortDate(iso: string): string {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" });
 }
 
-const SHORT: Record<string, string> = { low_cheat: "Low cheat", cheat: "Cheat", pivot: "Pivot" };
+const SHORT: Record<string, string> = { ipo_range: "Range BO", low_cheat: "Low cheat", cheat: "Cheat", pivot: "Pivot" };
 
 /** Entry table: latest rows shown first, the rest behind a button. */
 const TABLE_ROWS = 8;

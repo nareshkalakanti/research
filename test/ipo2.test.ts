@@ -59,13 +59,31 @@ assert.equal(a.bases.length, 1);
 assert.equal(a.bases[0]!.status, "breakout");
 assert.ok(a.bases[0]!.depth_pct > 18 && a.bases[0]!.depth_pct < 26);
 const kinds = a.entries.map((e) => e.kind);
-assert.deepEqual(kinds, ["low_cheat", "pivot", "add"], kinds.join(","));
-const pivot = a.entries[1]!;
+// Climbing straight out of listing: the listing-range breakout on day 3 comes first.
+assert.deepEqual(kinds, ["ipo_range", "low_cheat", "pivot", "add"], kinds.join(","));
+assert.equal(a.entries[0]!.idx, 3);
+const pivot = a.entries[2]!;
 assert.equal(pivot.level, 160);
 assert.ok(pivot.risk_pct <= 8, `pivot stop capped at 8%: ${pivot.risk_pct}`);
 assert.ok(pivot.vol_x! >= 1.5);
-assert.equal(a.entries[2]!.label, "E1B add");
+assert.equal(a.entries[3]!.label, "E1B add");
 assert.equal(a.legs, 2);
+
+// IREDA-like listing: tight range for a week after listing, then a close above it.
+const ireda = [60, 65, 63, 65, 63, 64, 64, 71, 85, 102, 112, 120, 118, 121];
+const ir = analyzeIpo2(ireda.map((close, i) => ({ date: dates[i]!, close, volume: 100 })))!;
+const rb = ir.entries[0]!;
+assert.equal(rb.kind, "ipo_range");
+assert.equal(rb.label, "Listing-range breakout");
+assert.equal(rb.idx, 7);
+assert.equal(rb.level, 65);
+assert.equal(rb.stop, 60); // post-listing low, within the 8% cap
+assert.equal(ir.entries.filter((e) => e.kind === "ipo_range").length, 1);
+// Too late (after 15 sessions) or too wide a range: no listing-range breakout.
+const late = [100, ...Array.from({ length: 16 }, (_, i) => 95 + (i % 3)), 110];
+assert.ok(!analyzeIpo2(late.map((close, i) => ({ date: dates[i]!, close, volume: 100 })))!.entries.some((e) => e.kind === "ipo_range"));
+const wide = [100, 120, 98, 100, 104, 108, 125];
+assert.ok(!analyzeIpo2(wide.map((close, i) => ({ date: dates[i]!, close, volume: 100 })))!.entries.some((e) => e.kind === "ipo_range"));
 
 // Base deeper than 40% after listing: broken, no entries from it.
 const deep = [100, ...Array.from({ length: 20 }, (_, i) => 100 - i * 3)];

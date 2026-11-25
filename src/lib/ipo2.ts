@@ -31,6 +31,15 @@ export const IPO2_RULES = {
   urgencyGreenDays: 6,
   /** The 8-week move is still shown (info only, not a rule). */
   runDays: 40,
+  /**
+   * Listing-range breakout (IREDA "urgency in the base, buy here", Jyoti CNC 473,
+   * Waaree 2450): in the first sessions after listing, the first close above the
+   * highest close since listing, after at least 2 sessions of pause, with all
+   * closes since listing within a tight range. Stop under the post-listing low.
+   */
+  ipoRangeMinPause: 2,
+  ipoRangeMaxDays: 15,
+  ipoRangePct: 15,
   /** A rest of this many trading days below the high is a base (IPO base / later bases). */
   ipoBaseMinDays: 15,
   baseMinDays: 25,
@@ -80,7 +89,7 @@ export const IPO2_RULES = {
   issueBasisMax: 4,
 };
 
-export type EntryKind = "low_cheat" | "cheat" | "pivot" | "add";
+export type EntryKind = "ipo_range" | "low_cheat" | "cheat" | "pivot" | "add";
 
 export type Ipo2Entry = {
   kind: EntryKind;
@@ -224,6 +233,7 @@ function weekKey(iso: string): string {
 }
 
 const ENTRY_LABEL: Record<EntryKind, string> = {
+  ipo_range: "Listing-range breakout",
   low_cheat: "Low cheat",
   cheat: "Cheat",
   pivot: "Pivot breakout",
@@ -364,6 +374,19 @@ export function analyzeBases(
         base.end = d(i);
         lastBreakout = null;
         legs = 0;
+      } else if (
+        listed &&
+        bases.length === 0 &&
+        lastBreakout == null &&
+        !entries.length &&
+        i > R.ipoRangeMinPause &&
+        i <= R.ipoRangeMaxDays &&
+        (H / Math.min(...c.slice(0, i)) - 1) * 100 <= R.ipoRangePct
+      ) {
+        // Listing-range breakout: first close above the post-listing range; starts E1.
+        push("ipo_range", i, H, Math.min(...c.slice(0, i)));
+        lastBreakout = i;
+        legs = 1;
       } else if (lastBreakout != null) {
         const depth = (1 - minSinceH / H) * 100;
         // Adds only on E1 and E2 (E1B, E2B); E3 is the leg to sell into.
@@ -490,7 +513,7 @@ export function analyzeBases(
   let stage: Ipo2Stage;
   let note: string;
   const failedLast = lastFail != null && (lastBreakout == null || lastBreakout < lastFail.idx);
-  if (listed && n < R.ipoBaseMinDays) {
+  if (listed && n < R.ipoBaseMinDays && !live) {
     stage = "new";
     note = `${n} trading days since listing`;
   } else if (live) {
@@ -641,7 +664,9 @@ function makeVerdict(x: {
               ? { good: true, text: `Breakout on ${e.vol_x}× average volume: confirmed` }
               : { good: false, text: `Breakout on only ${e.vol_x}× average volume (want ${R.breakoutVolX}×): unconfirmed, buy smaller` },
           );
-      } else reasons.push({ good: true, text: `${e.label}: early entry inside the base, tight stop` });
+      } else if (e.kind === "ipo_range")
+        reasons.push({ good: true, text: "Listing-range breakout: first close above the range held since listing, stop under the post-listing low" });
+      else reasons.push({ good: true, text: `${e.label}: early entry inside the base, tight stop` });
       if (e.kind !== "add") baseOf(b);
       ipoReason();
       return { call: "buy", action: `Buy above ${inr(e.level)}, stop ${inr(e.stop)} (risk ${e.risk_pct}%)`, reasons };
