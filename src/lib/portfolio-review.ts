@@ -1330,7 +1330,7 @@ export async function buildReview(opts?: {
 
 /**
  * Watchlist stocks get the same Portfolio review scores, but filled slowly so
- * Screener isn't hammered: one stock at a time, 45–60 s apart, stopping when
+ * Screener isn't hammered: one stock at a time, 20–30 s apart, stopping when
  * Screener pauses us and waiting while Portfolio review scores its own list.
  */
 export type SlowScoreJob = {
@@ -1344,8 +1344,8 @@ export type SlowScoreJob = {
   finished_at: string | null;
 };
 
-const SLOW_GAP_MS = 45_000;
-const SLOW_JITTER_MS = 15_000;
+const SLOW_GAP_MS = 20_000;
+const SLOW_JITTER_MS = 10_000;
 /** A stock that couldn't be scored isn't retried for this long. */
 const SLOW_RETRY_MS = 6 * 3_600_000;
 const SLOW_KEY = Symbol.for("research.holdingsSlowScoreJob");
@@ -1390,19 +1390,26 @@ type QueueHolder = { [SLOW_QUEUE]?: string[] };
  * The list just opened goes to the front, so the chip you're looking at fills
  * first; anything already queued stays behind it. Returns the job.
  */
-export function startHoldingsSlowScoring(tickers: string[]): SlowScoreJob | null {
+export function startHoldingsSlowScoring(
+  tickers: string[],
+  opts?: { /** Queue these at the back (everything else on the Watchlist); `tickers` go to the front. */ later?: string[] },
+): SlowScoreJob | null {
   const holder = globalThis as SlowHolder & QueueHolder;
   const tried = (holder[SLOW_TRIED] ??= new Map());
   const queue = (holder[SLOW_QUEUE] ??= []);
   const now = Date.now();
-  const need = [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))].filter(
-    (t) => !lookupScore(t) && now - (tried.get(t) ?? 0) > SLOW_RETRY_MS,
-  );
+  const missing = (list: string[]) =>
+    [...new Set(list.map((t) => t.trim().toUpperCase()).filter(Boolean))].filter(
+      (t) => !lookupScore(t) && now - (tried.get(t) ?? 0) > SLOW_RETRY_MS,
+    );
+  const need = missing(tickers);
   if (need.length) {
     const front = new Set(need);
     const rest = queue.filter((t) => !front.has(t));
     queue.splice(0, queue.length, ...need, ...rest);
   }
+  const queued = new Set(queue);
+  for (const t of missing(opts?.later ?? [])) if (!queued.has(t)) queue.push(t);
   const cur = holder[SLOW_KEY];
   if (cur?.running) {
     cur.total = cur.done + queue.length + (cur.current ? 1 : 0);

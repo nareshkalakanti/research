@@ -53,8 +53,7 @@ export function FundPagesBar() {
       <div className="fund-pages-head">
         <strong>Investor pages (Screener)</strong>
         <span className="sl-sub">
-          {st.sources.length} pages →{" "}
-          {new Set(st.sources.map((s) => s.list_key)).size} fund lists ·{" "}
+          {new Set(st.sources.map((s) => s.list_key)).size} fund lists ({st.sources.length} Screener pages) ·{" "}
           {last ? `updated ${new Date(last).toLocaleString("en-IN")}` : "not updated yet"}
           {errors ? ` · ${errors} with errors` : ""} · updates daily by itself
         </span>
@@ -75,18 +74,32 @@ export function FundPagesBar() {
       {msg ? <p className="table-meta">{msg}</p> : null}
       {open ? (
         <ul className="fund-pages-list">
-          {st.sources.map((s) => (
-            <li key={s.url}>
-              <a href={s.url} target="_blank" rel="noopener noreferrer">
-                {decodeURIComponent(s.url.replace(/^https:\/\/www\.screener\.in\/people\/\d+\//, "").replace(/\/$/, "")).replace(/-/g, " ")}
-              </a>
-              <span className="sl-sub">
-                → list “{s.label}” ·{" "}
-                {s.last_pulled ? `${s.last_count ?? 0} stocks, ${new Date(s.last_pulled).toLocaleDateString("en-IN")}` : "not pulled yet"}
-              </span>
-              {s.last_error ? <span className="sl-flag-text">{s.last_error}</span> : null}
-            </li>
-          ))}
+          {/* One row per fund list; a list fed by two Screener pages (Manohar) shows both links. */}
+          {[...new Set(st.sources.map((s) => s.list_key))].map((key) => {
+            const pages = st.sources.filter((s) => s.list_key === key);
+            const first = pages[0]!;
+            const pulled = pages.map((s) => s.last_pulled).filter((x): x is string => !!x).sort().at(-1);
+            const total = pages.reduce((n, s) => n + (s.last_count ?? 0), 0);
+            const errs = pages.map((s) => s.last_error).filter((e): e is string => !!e);
+            return (
+              <li key={key}>
+                <strong>{first.label}</strong>
+                <span className="sl-sub">
+                  {" "}
+                  · {pulled ? `${total} stocks, ${new Date(pulled).toLocaleDateString("en-IN")}` : "not pulled yet"}
+                  {pages.length > 1 ? ` · ${pages.length} Screener pages` : ""}
+                </span>
+                <span className="fund-pages-links">
+                  {pages.map((s) => (
+                    <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer">
+                      {decodeURIComponent(s.url.replace(/^https:\/\/www\.screener\.in\/people\/\d+\//, "").replace(/\/$/, "")).replace(/-/g, " ")}
+                    </a>
+                  ))}
+                </span>
+                {errs.length ? <span className="sl-flag-text">{errs[0]}</span> : null}
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </div>
