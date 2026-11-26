@@ -25066,3 +25066,5 @@ html[data-theme="dark"] .pt-root {
 .fd-blank { color: var(--muted); }
 .fd-legend { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 @media (max-width: 640px) { .fd-both li, .fd-list li { grid-template-columns: 1fr; } }
+/* Industry with its broad sector under it (stock lists across the app). */
+.ind-sector { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 400; color: var(--muted); line-height: 1.3; }

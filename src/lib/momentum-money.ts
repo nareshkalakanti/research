@@ -80,6 +80,7 @@ export type MmRow = {
   yoy_pct: number | null;
   gain_pct: number;
   industry: string | null;
+  sector: string | null;
   mcap_cr: number | null;
   /** Listed within 3 years before the rally started. */
   ipo: boolean;
@@ -387,6 +388,7 @@ export async function buildMomentumMoney(year?: number): Promise<MmResult> {
       yoy_pct: yearAgo >= 0 && Date.parse(s[best]!.date) - Date.parse(s[yearAgo]!.date) >= 350 * 86_400_000 ? r1((s[best]!.close / s[yearAgo]!.close - 1) * 100) : null,
       gain_pct: r1(gain),
       industry: lab?.industry ?? lab?.sector ?? null,
+      sector: lab?.sector ?? null,
       mcap_cr: metrics.get(t)?.market_cap_cr ?? null,
       ipo,
       best_date: s[best]!.date,

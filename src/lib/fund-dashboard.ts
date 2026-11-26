@@ -12,7 +12,10 @@ import { loadStockMaster } from "./stock-master";
 export type Move = "entered" | "added" | "cut" | "exited" | "held";
 export type DashStock = { ticker: string; name: string | null; sector: string; now: number | null; before: number | null; move: Move };
 export type DashSector = {
+  /** Industry name (grouping is by industry; the field keeps its old name). */
   sector: string;
+  /** The broad sector that industry belongs to. */
+  parent: string | null;
   held: number;
   entered: number;
   added: number;
@@ -31,7 +34,7 @@ export type DashInvestor = {
   holdings: number;
   sectors: DashSector[];
   /** Sectors of this investor's picks in the latest picks quarter (Picks tracker source with the same name), if any. */
-  picks: { quarter: string; sectors: Array<{ sector: string; n: number; tickers: string[] }> } | null;
+  picks: { quarter: string; sectors: Array<{ sector: string; parent: string | null; n: number; tickers: string[] }> } | null;
 };
 export type FundDashboard = { investors: DashInvestor[]; options: Array<{ key: string; label: string }> };
 
@@ -66,7 +69,7 @@ function investor(key: string, label: string, master: ReturnType<typeof loadStoc
     const m = master.get(t);
     // Grouped by industry (sectors are too broad: Shivalik's shunt resistors sat under "Non Ferrous Metals").
     const sector = m?.industry || "Unclassified";
-    const s = bySector.get(sector) ?? { sector, held: 0, entered: 0, added: 0, cut: 0, exited: 0, score: 0, stocks: [] };
+    const s = bySector.get(sector) ?? { sector, parent: m?.sector ?? null, held: 0, entered: 0, added: 0, cut: 0, exited: 0, score: 0, stocks: [] };
     if (now != null) s.held++;
     if (move === "entered") s.entered++;
     else if (move === "exited") s.exited++;
@@ -93,13 +96,15 @@ function investor(key: string, label: string, master: ReturnType<typeof loadStoc
       const q = mine.map((p) => p.quarter).sort().pop();
       if (q) {
         const m = new Map<string, string[]>();
+        const parentOf = new Map<string, string | null>();
         for (const p of mine.filter((x) => x.quarter === q)) {
           const sec = p.industry || "Unclassified";
           m.set(sec, [...(m.get(sec) ?? []), p.ticker]);
+          if (!parentOf.has(sec)) parentOf.set(sec, p.sector ?? null);
         }
         out.picks = {
           quarter: q,
-          sectors: [...m].map(([sector, tickers]) => ({ sector, n: tickers.length, tickers })).sort((a, b) => b.n - a.n || a.sector.localeCompare(b.sector)),
+          sectors: [...m].map(([sector, tickers]) => ({ sector, parent: parentOf.get(sector) ?? null, n: tickers.length, tickers })).sort((a, b) => b.n - a.n || a.sector.localeCompare(b.sector)),
         };
       }
     }

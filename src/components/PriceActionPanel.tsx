@@ -145,13 +145,14 @@ function Rockets({ r }: { r: Row }) {
   );
 }
 
-/** Industry only (StockScans), like the rest of the app; the broad sector is in the tooltip. */
+/** Industry (StockScans) with its broad sector under it. */
 function Sector({ r }: { r: Row }) {
   const label = r.industry || r.sector;
   const title = [r.sector, r.industry].filter(Boolean).join(" › ") || undefined;
   return (
     <td className="pa-sector" title={title}>
       {label ?? "—"}
+      {r.industry && r.sector && r.sector !== r.industry ? <small className="ind-sector">{r.sector}</small> : null}
     </td>
   );
 }
@@ -453,7 +454,7 @@ export function PriceActionPanel() {
                   <th className="num">Volume × 5D</th>
                   <th className="num">1M</th>
                   <th className="num">3M</th>
-                  <th>Sector</th>
+                  <th>Industry</th>
                   {th("mcap", "Market cap", "num")}
                 </tr>
               ) : (
@@ -463,7 +464,7 @@ export function PriceActionPanel() {
                   <th>{range}</th>
                   {th("trending", "Trending days", "num")}
                   {th("streak", "Streak", "num")}
-                  <th>Sector</th>
+                  <th>Industry</th>
                   {th("mcap", "Market cap", "num")}
                   {th("day", "Last day", "num")}
                 </tr>

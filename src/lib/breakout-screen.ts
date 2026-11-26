@@ -46,6 +46,7 @@ export type BoRow = {
   name: string;
   market: string;
   industry: string | null;
+  sector: string | null;
   website: string | null;
   mcap_cr: number | null;
   price: number;
@@ -141,7 +142,7 @@ function sparkline(s: Close[], from: number, baseIdx: number): { chart: number[]
   return { chart, base_from: Math.min(chart.length - 1, Math.round((baseIdx - from) / step)) };
 }
 
-type Hit = Omit<BoRow, "ticker" | "name" | "market" | "industry" | "website" | "mcap_cr" | "rs" | "lockout">;
+type Hit = Omit<BoRow, "ticker" | "name" | "market" | "industry" | "sector" | "website" | "mcap_cr" | "rs" | "lockout">;
 
 function dayStats(s: Close[]): { price: number; day_pct: number | null; rel_vol: number | null } {
   const t = s.length - 1;
@@ -271,6 +272,7 @@ export async function buildBreakouts(): Promise<BoResult> {
       name: m.name,
       market: m.market || "NSE",
       industry: lab?.industry ?? lab?.sector ?? null,
+      sector: lab?.sector ?? null,
       website: sites.get(t) ?? null,
       mcap_cr: metrics.get(t)?.market_cap_cr ?? null,
       rs: rsOf(raws[i] ?? null),

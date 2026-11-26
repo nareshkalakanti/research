@@ -76,7 +76,7 @@ export function FundDashboardPanel() {
     const am = new Map(A.sectors.map((s) => [s.sector, s]));
     const bm = new Map(B.sectors.map((s) => [s.sector, s]));
     return [...names]
-      .map((n) => ({ sector: n, a: am.get(n) ?? null, b: bm.get(n) ?? null }))
+      .map((n) => ({ sector: n, parent: am.get(n)?.parent ?? bm.get(n)?.parent ?? null, a: am.get(n) ?? null, b: bm.get(n) ?? null }))
       .sort(
         (x, y) =>
           (y.a?.score ?? 0) + (y.b?.score ?? 0) - ((x.a?.score ?? 0) + (x.b?.score ?? 0)) ||
@@ -139,7 +139,10 @@ export function FundDashboardPanel() {
               <ul className="fd-both">
                 {both.map((x) => (
                   <li key={x.sector}>
-                    <b>{x.sector}</b>
+                    <b>
+                      {x.sector}
+                      {x.a.parent ? <small className="ind-sector">{x.a.parent}</small> : null}
+                    </b>
                     <span className="fd-both-side">
                       <em>{A.label}</em>
                       {x.a.stocks.filter((s) => s.move === "entered" || s.move === "added").map(stockChip)}
@@ -176,7 +179,10 @@ export function FundDashboardPanel() {
                 <tbody>
                   {table.map((r) => (
                     <tr key={r.sector}>
-                      <td className="fd-sector">{r.sector}</td>
+                      <td className="fd-sector">
+                        {r.sector}
+                        {r.parent ? <small className="ind-sector">{r.parent}</small> : null}
+                      </td>
                       <td>
                         <SectorCell s={r.a} />
                       </td>
@@ -222,7 +228,10 @@ function InvestorCard({ inv }: { inv: DashInvestor }) {
         <ul className="fd-list">
           {into.map((s) => (
             <li key={s.sector}>
-              <span className="fd-list-name">{s.sector}</span>
+              <span className="fd-list-name">
+                {s.sector}
+                {s.parent ? <small className="ind-sector">{s.parent}</small> : null}
+              </span>
               <span className="fd-list-chips">{s.stocks.filter((x) => x.move === "entered" || x.move === "added").map(stockChip)}</span>
             </li>
           ))}
@@ -236,7 +245,10 @@ function InvestorCard({ inv }: { inv: DashInvestor }) {
           <ul className="fd-list">
             {out.map((s) => (
               <li key={s.sector}>
-                <span className="fd-list-name">{s.sector}</span>
+                <span className="fd-list-name">
+                  {s.sector}
+                  {s.parent ? <small className="ind-sector">{s.parent}</small> : null}
+                </span>
                 <span className="fd-list-chips">{s.stocks.filter((x) => x.move === "cut" || x.move === "exited").map(stockChip)}</span>
               </li>
             ))}
@@ -264,6 +276,7 @@ function PicksAhead({ inv }: { inv: DashInvestor }) {
           <li key={s.sector}>
             <span className="fd-list-name">
               {s.sector} <b className="fd-n">{s.n}</b>
+              {s.parent ? <small className="ind-sector">{s.parent}</small> : null}
               {held.has(s.sector) ? <span className="fd-tag">Fund holds</span> : <span className="fd-tag fd-tag--new">Not held yet</span>}
             </span>
             <span className="fd-list-chips">

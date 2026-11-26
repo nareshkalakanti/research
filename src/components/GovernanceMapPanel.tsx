@@ -1121,7 +1121,8 @@ export function GovernanceMapPanel() {
                                 .filter(Boolean)
                                 .join(" · ")}
                               {c.headquarters ? ` · ${c.headquarters}` : ""}
-                              {c.sector ? ` · ${c.sector}` : ""}
+                              {c.industry ? ` · ${c.industry}` : ""}
+                              {c.sector && c.sector !== c.industry ? ` · ${c.sector}` : ""}
                               {c.market_cap_cr != null
                                 ? ` · ₹${formatMcap(c.market_cap_cr)}`
                                 : ""}

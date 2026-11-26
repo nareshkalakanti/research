@@ -25,6 +25,8 @@ export type TickerHit = {
   name: string;
   market: string;
   sector: string | null;
+  /** Industry (sub-sector) when the company list has one. */
+  industry?: string | null;
   mcap_cr: number | null;
   source?: "local" | "groww";
 };
@@ -71,6 +73,7 @@ function localHits(q: string, limit: number): TickerHit[] {
           name: co?.name || fromScrip,
           market: co?.market || "BSE",
           sector: co?.sector || null,
+          industry: co?.sub_sector || null,
           mcap_cr:
             co?.mcap_cr != null && Number.isFinite(co.mcap_cr)
               ? co.mcap_cr
@@ -94,6 +97,7 @@ function localHits(q: string, limit: number): TickerHit[] {
         name: name || ticker,
         market: String(c.market || ""),
         sector: c.sector || null,
+        industry: c.sub_sector || null,
         mcap_cr:
           c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
         source: "local",
@@ -121,6 +125,7 @@ function localHits(q: string, limit: number): TickerHit[] {
           name: name || ticker,
           market: String(c.market || ""),
           sector: c.sector || null,
+          industry: c.sub_sector || null,
           mcap_cr:
             c.mcap_cr != null && Number.isFinite(c.mcap_cr) ? c.mcap_cr : null,
           source: "local",
@@ -333,6 +338,7 @@ export async function GET(req: NextRequest) {
             name,
             market: co?.market || "BSE",
             sector: co?.sector || null,
+          industry: co?.sub_sector || null,
             mcap_cr:
               co?.mcap_cr != null && Number.isFinite(co.mcap_cr)
                 ? co.mcap_cr
@@ -370,6 +376,7 @@ export async function GET(req: NextRequest) {
             name: (co?.name || live.name || live.ticker).replace(/-\$$/, "").trim(),
             market: co?.market || "BSE",
             sector: co?.sector || null,
+          industry: co?.sub_sector || null,
             mcap_cr:
               co?.mcap_cr != null && Number.isFinite(co.mcap_cr)
                 ? co.mcap_cr

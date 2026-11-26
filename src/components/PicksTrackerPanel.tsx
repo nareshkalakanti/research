@@ -764,7 +764,10 @@ export function PicksTrackerPanel() {
                             ) : null}
                           </span>
                         </td>
-                        <td className="pt-col-industry">{p.industry ?? p.sector ?? "—"}</td>
+                        <td className="pt-col-industry">
+                          {p.industry ?? "—"}
+                          {p.sector ? <small className="ind-sector">{p.sector}</small> : null}
+                        </td>
                         <td className="pt-col-mcap">{cr(p.mcap_cr)}</td>
                         <td className="pt-col-date">{qLabel(p.quarter)}</td>
                         <td className="pt-col-trend">
@@ -826,16 +829,16 @@ function SectorBars({ rows: stocks, range, what }: { rows: TrackRow[]; range: st
 
   const rows = useMemo(() => {
     const label = (p: Pick) => p.industry ?? "Unclassified";
-    const per = new Map<string, { tickers: Set<string>; byQ: Map<string, Set<string>> }>();
+    const per = new Map<string, { tickers: Set<string>; byQ: Map<string, Set<string>>; sector: string | null }>();
     for (const r of stocks) {
       const g = label(r.p);
-      const e = per.get(g) ?? { tickers: new Set<string>(), byQ: new Map<string, Set<string>>() };
+      const e = per.get(g) ?? { tickers: new Set<string>(), byQ: new Map<string, Set<string>>(), sector: r.p.sector ?? null };
       e.tickers.add(r.p.ticker);
       for (const k of r.qs) e.byQ.set(k, (e.byQ.get(k) ?? new Set<string>()).add(r.p.ticker));
       per.set(g, e);
     }
     return [...per]
-      .map(([name, e]) => ({ name, n: e.tickers.size, byQ: range.map((k) => e.byQ.get(k)?.size ?? 0) }))
+      .map(([name, e]) => ({ name, sector: e.sector, n: e.tickers.size, byQ: range.map((k) => e.byQ.get(k)?.size ?? 0) }))
       .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
   }, [stocks, range]);
 
@@ -858,7 +861,10 @@ function SectorBars({ rows: stocks, range, what }: { rows: TrackRow[]; range: st
         <ul className="pt-bars" aria-label="Picks by industry">
           {shown.map((r) => (
             <li key={r.name} title={`${r.name}\n${range.map((k, i) => `${qLabel(k)}: ${r.byQ[i]}`).join("\n")}`}>
-              <span className="pt-bar-name">{r.name}</span>
+              <span className="pt-bar-name">
+                {r.name}
+                {r.sector ? <small className="ind-sector">{r.sector}</small> : null}
+              </span>
               <span className="pt-bar-track">
                 <i style={{ width: `${(r.n / max) * 100}%` }} />
                 <b>{r.n}</b>

@@ -330,6 +330,7 @@ export function Ipo2Panel() {
                       </td>
                       <td className="pa-sector" title={[r.sector, r.industry].filter(Boolean).join(" › ") || undefined}>
                         {r.industry || r.sector || "—"}
+                        {r.industry && r.sector && r.sector !== r.industry ? <small className="ind-sector">{r.sector}</small> : null}
                         <span className="pa-cap-cr ipo2-cap">{cr(r.mcap_cr)}</span>
                       </td>
                       <td className="ipo2-listed" title={r.listing_source === "nse" ? "NSE listing date" : "First day in the saved prices"}>

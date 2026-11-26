@@ -368,7 +368,10 @@ function WinnersView() {
                     <td>{listed(r.listing_date)}</td>
                     <td className={`num ${r.yoy_pct != null && r.yoy_pct < 0 ? "neg" : ""}`}>{pct(r.yoy_pct)}</td>
                     <td className="num pos">{pct(r.gain_pct)}</td>
-                    <td>{r.industry ?? "—"}</td>
+                    <td>
+                      {r.industry ?? "—"}
+                      {r.sector && r.sector !== r.industry ? <small className="ind-sector">{r.sector}</small> : null}
+                    </td>
                     <td className="num">{cr(r.mcap_cr)}</td>
                   </tr>
                 ))}

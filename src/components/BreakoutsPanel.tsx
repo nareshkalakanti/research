@@ -10,6 +10,7 @@ type Row = {
   name: string;
   market: string;
   industry: string | null;
+  sector: string | null;
   website: string | null;
   mcap_cr: number | null;
   price: number;
@@ -149,8 +150,9 @@ function Card({ r }: { r: Row }) {
         {r.pivot != null && r.lockout ? <b title={lockout ?? ""}>also Lockout {r.lockout.green}/8</b> : null}
       </div>
       <div className="bo-l4">
-        <span className="bo-ind" title={r.industry ?? ""}>
+        <span className="bo-ind" title={[r.industry, r.sector].filter(Boolean).join(" · ")}>
           {r.industry ?? "—"}
+          {r.sector && r.sector !== r.industry ? <small className="ind-sector">{r.sector}</small> : null}
           {r.market !== "NSE" ? ` · ${r.market}` : ""}
         </span>
         <a className="np-chip" href={napkinUrl(r.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">

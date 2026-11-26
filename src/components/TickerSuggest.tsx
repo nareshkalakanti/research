@@ -16,6 +16,7 @@ export type TickerSuggestHit = {
   name: string;
   market: string;
   sector?: string | null;
+  industry?: string | null;
   mcap_cr?: number | null;
   source?: "local" | "groww";
 };
@@ -369,10 +370,12 @@ export function TickerSuggest({
                           <div className="ticker-suggest-name">
                             {highlightMatch(h.name, q)}
                           </div>
-                          {h.sector || mcap ? (
+                          {h.sector || h.industry || mcap ? (
                             <div className="ticker-suggest-meta">
-                              {h.sector ? <span>{h.sector}</span> : null}
-                              {h.sector && mcap ? (
+                              {h.industry || h.sector ? (
+                                <span>{[h.industry, h.sector !== h.industry ? h.sector : null].filter(Boolean).join(" · ")}</span>
+                              ) : null}
+                              {(h.sector || h.industry) && mcap ? (
                                 <span className="ticker-suggest-dot" aria-hidden>
                                   ·
                                 </span>
