@@ -159,7 +159,17 @@ export function mergeQuarterFill(
   extra: QuarterPoint[],
 ): QuarterPoint[] {
   if (!extra.length) return base;
-  const [left, right] = alignQuarterSeriesUnits(base, extra);
+  const [left, rightAll] = alignQuarterSeriesUnits(base, extra);
+  // Half-yearly filer (SME: Mar / Sep): another source's quarter inside that history
+  // (e.g. a Dec quarter) double counts part of a half-year — keep only its periods on
+  // the same rhythm, or newer than the last half (a move to quarterly reporting).
+  const halves = halfYearRhythm(left);
+  const right = halves
+    ? rightAll.filter((q) => {
+        const d = q.date.slice(0, 10);
+        return d > halves.last || halves.months.has(Number(d.slice(5, 7)));
+      })
+    : rightAll;
   const byDate = new Map<string, QuarterPoint>();
   for (const q of [...left, ...right]) {
     const date = q.date.slice(0, 10);
@@ -186,6 +196,18 @@ export function mergeQuarterFill(
         q.ebit != null,
     ),
   );
+}
+
+/** The series' report months and last date when it files every ~6 months (2+ steps), else null. */
+export function halfYearRhythm(qs: QuarterPoint[]): { months: Set<number>; last: string } | null {
+  const ds = [...new Set(qs.map((q) => q.date.slice(0, 10)))].sort();
+  if (ds.length < 3) return null;
+  const mi = (d: string) => Number(d.slice(0, 4)) * 12 + Number(d.slice(5, 7));
+  for (let i = 1; i < ds.length; i++) {
+    const gap = mi(ds[i]!) - mi(ds[i - 1]!);
+    if (gap < 5 || gap > 7) return null;
+  }
+  return { months: new Set(ds.map((d) => Number(d.slice(5, 7)))), last: ds[ds.length - 1]! };
 }
 
 export function missingSalesOrProfit(quarters: QuarterPoint[]): boolean {
