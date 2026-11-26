@@ -507,7 +507,8 @@ export function analyzeBases(
       level: r2(level),
       stop: r2(stop),
       risk_pct: r1(((level - stop) / level) * 100),
-      base: base?.n ?? bases.length,
+      // After a breakout (adds) the base is gone: keep the number of the base it broke out of.
+      base: base?.n ?? (lastBreakout != null && entries.length ? entries[entries.length - 1]!.base : bases.length),
       vol_x: hasVol && a ? r2(v[i]! / a) : null,
       follow: null,
     });
@@ -704,30 +705,37 @@ export function analyzeBases(
   // Failed bases broke down: their "right side" is the breakdown, so no volume read.
   if (hasVol) for (const b of bases) if (b.status !== "failed") b.vol = baseVolume(c, v, b, n, R);
 
-  // Sell signals while holding, per position (a new entry from a base restarts the count).
+  // Sell signals while holding. A position opens at an entry (adds only add to one), restarts at
+  // the first entry from a new base, and ends when a close falls under its stop: no sells while flat.
   const sells: Ipo2Sell[] = [];
   {
-    // A position starts at the first entry of each base (cheat and pivot of one base = one position).
-    const starts = new Set<number>();
-    const seenBase = new Set<number>();
-    for (const e of entries)
-      if (e.kind !== "add" && e.kind !== "band" && !seenBase.has(e.base)) {
-        seenBase.add(e.base);
-        starts.add(e.idx);
-      }
+    const byIdx = new Map<number, Ipo2Entry[]>();
+    for (const e of entries) byIdx.set(e.idx, [...(byIdx.get(e.idx) ?? []), e]);
     const first = entries.length ? entries[0]!.idx : n;
+    let holding = false;
+    let stop = 0;
+    let curBase = -1;
     let count = 0;
     let armed = true;
     let climaxDone = false;
     let posStart = first;
     let ext1Price = 0;
     for (let i = first; i < n; i++) {
-      if (i > first && starts.has(i)) {
+      const today = byIdx.get(i) ?? [];
+      for (const e of today) {
+        if (e.kind === "add" || e.kind === "band") continue;
+        if (holding && e.base === curBase) continue;
+        holding = true;
+        stop = e.stop;
+        curBase = e.base;
         count = 0;
         armed = true;
         climaxDone = false;
         posStart = i;
       }
+      if (holding && c[i]! < stop) holding = false;
+      // Not on an entry day: a breakout close is a buy, not a sell.
+      if (!holding || today.length) continue;
       if (i < R.extMaDays - 1) continue;
       let sum = 0;
       for (let k = i - R.extMaDays + 1; k <= i; k++) sum += c[k]!;
@@ -789,7 +797,9 @@ export function analyzeBases(
     lastEntry.risk_pct <= R.maxRiskPct &&
     last - lastEntry.idx <= R.freshDays &&
     p <= lastEntry.level * (1 + R.chaseMaxPct / 100) &&
-    p > lastEntry.stop
+    p > lastEntry.stop &&
+    // Failed follow-through (Kaynes: buying should come with follow-through days): no longer a buy.
+    lastEntry.follow?.ok !== false
   )
     live = lastEntry;
 
