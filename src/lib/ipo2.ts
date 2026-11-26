@@ -889,7 +889,7 @@ function makeVerdict(x: {
       good: true,
       text: `Lockout rally: ${x.lockout.green}/8 green weeks since ${shortIso(x.lockout.start)}, +${x.lockout.gain_pct}% from ${inr(
         x.lockout.from_price,
-      )} (end of stage 1 / start of stage 2)`,
+      )}, out of a ${x.lockout.base_weeks}-week base (end of stage 1 / start of stage 2)`,
     });
 
   switch (x.stage) {

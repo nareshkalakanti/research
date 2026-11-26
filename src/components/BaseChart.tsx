@@ -283,7 +283,7 @@ export function BaseChart({
               <rect x={x0} y={PH - 3} width={Math.max(2, x1 - x0)} height={4} rx={2}>
                 <title>{`Lockout rally ${shortDate(l.start)} – ${shortDate(l.end)}: ${l.green} of 8 weekly bars green, +${l.gain_pct}% from ${inr(
                   l.from_price,
-                )} (week before ${l.ma_start_pct > 0 ? `${l.ma_start_pct}% above` : `${Math.abs(l.ma_start_pct)}% under`} its 30-week average)`}</title>
+                )} out of a ${l.base_weeks}-week, ${l.base_depth_pct}% deep base (week before ${l.ma_start_pct > 0 ? `${l.ma_start_pct}% above` : `${Math.abs(l.ma_start_pct)}% under`} its 30-week average)`}</title>
               </rect>
               {x1 - x0 >= textW(text, 10) ? (
                 <text x={x0} y={PH + 10}>

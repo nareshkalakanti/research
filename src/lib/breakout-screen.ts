@@ -61,7 +61,7 @@ export type BoRow = {
   screen: BoScreen | null;
   also: BoScreen[];
   /** Lockout rally running now. */
-  lockout: { green: number; gain_pct: number; start: string; from_price: number; weeks: number } | null;
+  lockout: { green: number; gain_pct: number; start: string; from_price: number; weeks: number; base_weeks: number } | null;
   /** Closes for the sparkline (≤ 120 points) and where the base starts in it. */
   chart: number[];
   base_from: number;
@@ -253,7 +253,7 @@ export async function buildBreakouts(): Promise<BoResult> {
     const hit = detectBreakout(s);
     const lo = currentLockout(s);
     if (!hit && !lo) return;
-    const lockout = lo ? { green: lo.green, gain_pct: lo.gain_pct, start: lo.start, from_price: lo.from_price, weeks: lo.weeks } : null;
+    const lockout = lo ? { green: lo.green, gain_pct: lo.gain_pct, start: lo.start, from_price: lo.from_price, weeks: lo.weeks, base_weeks: lo.base_weeks } : null;
     // Lockout only: chart from a little before the run, the run shaded.
     const body: Hit = hit ?? {
       ...dayStats(s),

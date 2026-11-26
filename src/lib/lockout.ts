@@ -8,6 +8,10 @@
  *   - the week before the run closed under, at, or at most 10% above the average
  *     (still basing / just turning up, not already stretched in stage 2), and
  *   - the run ends above the average, and the average has risen over the run.
+ * Proper base first: the run starts from a base of 7+ weeks — the highest close of
+ * the prior year was made at least 7 weeks before the run, and the last 7 weeks
+ * moved sideways (high ÷ low within 30%). A stock that keeps making new highs along
+ * its average is trending, not coming out of a base.
  */
 export const LOCKOUT_RULES = {
   weeks: 8,
@@ -17,6 +21,11 @@ export const LOCKOUT_RULES = {
   minMaWeeks: 10,
   /** Week before the run at most this % above the 30-week average. */
   stage1BandPct: 10,
+  /** Base before the run: at least this many weeks since the base high (highest close of the prior year). */
+  minBaseWeeks: 7,
+  baseLookbackWeeks: 52,
+  /** The last minBaseWeeks before the run: highest ÷ lowest weekly close within this %. */
+  baseRangePct: 30,
   /** A rally ending this many weeks ago or less is current (1 = this week). */
   freshWeeks: 2,
 } as const;
@@ -36,6 +45,9 @@ export type Lockout = {
   weeks: number;
   /** Week before the run vs its 30-week average, %. */
   ma_start_pct: number;
+  /** The base the run came out of: weeks since its high, and its depth (%). */
+  base_weeks: number;
+  base_depth_pct: number;
 };
 
 type Bar = { date: string; close: number };
@@ -65,6 +77,25 @@ function weekly(s: Bar[]): Week[] {
   return out;
 }
 
+/** Base ending at week `ref`: weeks since the prior year's highest close (its first time) and the depth below it. */
+function baseBefore(w: Week[], ref: number, R: typeof LOCKOUT_RULES): { weeks: number; depth: number } | null {
+  const from = Math.max(0, ref - R.baseLookbackWeeks);
+  let h = from;
+  for (let k = from; k <= ref; k++) if (w[k]!.close > w[h]!.close) h = k;
+  const weeks = ref - h;
+  if (weeks < R.minBaseWeeks) return null;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let k = ref - R.minBaseWeeks + 1; k <= ref; k++) {
+    lo = Math.min(lo, w[k]!.close);
+    hi = Math.max(hi, w[k]!.close);
+  }
+  if (!(lo > 0) || (hi / lo - 1) * 100 > R.baseRangePct) return null;
+  let min = Infinity;
+  for (let k = h; k <= ref; k++) min = Math.min(min, w[k]!.close);
+  return { weeks, depth: (1 - min / w[h]!.close) * 100 };
+}
+
 function sma(w: Week[], end: number, len: number, min: number): number | null {
   const from = Math.max(0, end - len + 1);
   if (end - from + 1 < min) return null;
@@ -91,7 +122,10 @@ export function lockoutRallies(s: Bar[], R = LOCKOUT_RULES): Lockout[] {
     if (startPct > R.stage1BandPct) continue;
     if (!(w[e]!.close > maE && maE > maS)) continue;
     const prev = out[out.length - 1];
-    if (prev && ref <= prev._end) {
+    const same = prev && ref <= prev._end;
+    const base = same ? null : baseBefore(w, ref, R);
+    if (!same && !base) continue;
+    if (prev && same) {
       // Same run, still going: extend it.
       prev._end = e;
       prev.end = s[w[e]!.last]!.date;
@@ -113,6 +147,8 @@ export function lockoutRallies(s: Bar[], R = LOCKOUT_RULES): Lockout[] {
       green,
       weeks: R.weeks,
       ma_start_pct: r1(startPct),
+      base_weeks: base!.weeks,
+      base_depth_pct: r1(base!.depth),
     });
   }
   return out.map(({ _ref, _end, ...l }) => {

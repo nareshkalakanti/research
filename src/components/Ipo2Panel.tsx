@@ -411,7 +411,7 @@ export function Ipo2Panel() {
                           <Check
                             ok={true}
                             label="Lockout"
-                            title={`Lockout rally since ${shortDate(r.lockout.start)}: ${r.lockout.green} of 8 weekly bars green, +${r.lockout.gain_pct}% (end of stage 1 / start of stage 2)`}
+                            title={`Lockout rally since ${shortDate(r.lockout.start)}: ${r.lockout.green} of 8 weekly bars green, +${r.lockout.gain_pct}% out of a ${r.lockout.base_weeks}-week base (end of stage 1 / start of stage 2)`}
                           />
                         ) : null}
                         <Check ok={null} label="QIB" title="QIB subscription not saved: check the IPO's subscription page" />

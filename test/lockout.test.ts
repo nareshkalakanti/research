@@ -36,4 +36,13 @@ assert.equal(lockoutRallies(series([100, 104, 108, 107, 112, 116, 115, 120, 125]
 const old = series([...run, ...Array.from({ length: 10 }, (_, i) => 125 - (i % 2 ? 3 : 1))]);
 assert.equal(currentLockout(old), null);
 
+// Base recorded: weeks since the base high.
+assert.ok(all[0]!.base_weeks >= 7);
+
+// A steady uptrend hugging its average with a 3-week dip, no 7-week base: not a lockout.
+const trend: number[] = [];
+for (let i = 0; i < 40; i++) trend.push(100 + i * 0.6 + (i % 2 ? 0.4 : -0.4));
+const dip = [...trend, trend[39]! - 3, trend[39]! - 4, trend[39]! - 2];
+assert.equal(lockoutRallies(series([...dip, ...[2, 4, 3, 6, 8, 7, 10, 12].map((d) => trend[39]! + d)])).length, 0);
+
 console.log("lockout ok");

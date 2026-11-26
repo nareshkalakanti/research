@@ -22,7 +22,7 @@ type Row = {
   /** null: not breaking out today, listed for its lockout rally. */
   screen: Screen | null;
   also: Screen[];
-  lockout: { green: number; gain_pct: number; start: string; from_price: number; weeks: number } | null;
+  lockout: { green: number; gain_pct: number; start: string; from_price: number; weeks: number; base_weeks: number } | null;
   chart: number[];
   base_from: number;
 };
@@ -45,7 +45,7 @@ const SCREENS: { id: Group; label: string; hint: string }[] = [
   {
     id: "lockout",
     label: "Lockout rallies",
-    hint: "6 of the last 8 weekly bars green, starting near the 30-week average: end of stage 1 / start of stage 2 (Davinder Khurana's Lockout Rallies). Breaking out today or not.",
+    hint: "6 of the last 8 weekly bars green, out of a 7+ week base, starting near the 30-week average: end of stage 1 / start of stage 2 (Davinder Khurana's Lockout Rallies). Breaking out today or not.",
   },
 ];
 const inGroup = (r: Row, g: Group) => (g === "lockout" ? r.lockout != null : r.screen === g);
@@ -109,7 +109,7 @@ function Card({ r }: { r: Row }) {
   const tv = tradingviewUrl(r.ticker, r.market);
   const up = (r.day_pct ?? 0) >= 0;
   const where = r.above_pct == null ? null : Math.abs(r.above_pct) < 1 ? "at its pivot" : `${Math.round(r.above_pct)}% above it`;
-  const lockout = r.lockout ? `${r.lockout.green}/8 green weeks · +${Math.round(r.lockout.gain_pct)}% since ${shortDay(r.lockout.start)}` : null;
+  const lockout = r.lockout ? `${r.lockout.green}/8 green weeks · +${Math.round(r.lockout.gain_pct)}% since ${shortDay(r.lockout.start)} · out of a ${r.lockout.base_weeks}-week base` : null;
   return (
     <article className="bo-card">
       <div className="bo-l1">
