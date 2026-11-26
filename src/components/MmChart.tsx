@@ -47,6 +47,8 @@ export function MmChart({
   /** Reasons under the verdict: hidden until asked for. */
   const [why, setWhy] = useState(false);
   const [showEntries, setShowEntries] = useState(false);
+  /** IPO2 view range: 1Y daily candles, 3Y / All weekly. */
+  const [range, setRange] = useState<"1Y" | "3Y" | "All">("3Y");
   const tab: Tab = mode === "ipo2" ? "ipo2" : tabSel;
   const [boxRef, boxW] = useWidth();
 
@@ -70,12 +72,14 @@ export function MmChart({
 
   if (!data) return <div ref={boxRef} className="mm-chart vx-empty">Loading {ticker} chart…</div>;
   if (!data.ok) return <div ref={boxRef} className="mm-chart vx-empty">{data.error}</div>;
-  const { weeks: all } = data;
-  // The IPO2 tab hides the momentum marks.
+  // The IPO2 tab hides the momentum marks; its 1Y range uses daily bars.
+  const daily = tab === "ipo2" && range === "1Y";
+  const all = daily ? data.days : data.weeks;
   const st = tab === "momentum" ? data.study : null;
   const ipo2 = tab === "ipo2" ? data.ipo2 : [];
   const idx = (iso: string | null | undefined) => {
     if (!iso) return -1;
+    if (iso < all[0]!.date && daily) return -1; // before the 1Y window
     let k = all.findIndex((w) => w.date >= iso);
     if (k < 0) k = all.length - 1;
     return k;
@@ -88,6 +92,9 @@ export function MmChart({
     first = Math.max(0, idx(st.stage4_high_date ?? st.rally_from) - 6);
     const lastBase = st.base2 ?? st.base1 ?? null;
     last = lastBase?.end ? Math.min(all.length - 1, idx(lastBase.end) + 10) : all.length - 1;
+  } else if (daily || range === "All") {
+    first = 0;
+    last = all.length - 1;
   } else {
     first = Math.max(0, all.length - 156);
     if (ipo2.length) first = Math.max(first, idx(ipo2[0]!.date) - 12);
@@ -250,6 +257,16 @@ export function MmChart({
         ))}
       </div>
       )}
+      {tab === "ipo2" ? (
+        <div className="mmc-range" role="group" aria-label="Chart range">
+          {(["1Y", "3Y", "All"] as const).map((r) => (
+            <button key={r} type="button" className={range === r ? "on" : undefined} aria-pressed={range === r} onClick={() => setRange(r)}>
+              {r}
+            </button>
+          ))}
+          <span>{daily ? "daily candles" : "weekly candles"}</span>
+        </div>
+      ) : null}
       <div className="mmc-plot">
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`${data.ticker} weekly chart with stage 4, lockout rally and bases`}>
         {ticks.map((t) => (
@@ -321,7 +338,7 @@ export function MmChart({
         data.ipo2.length ? (
           <>
           <button type="button" className="mmc-why" aria-expanded={showEntries} onClick={() => setShowEntries((v) => !v)}>
-            {showEntries ? "Hide entries" : `Show entries (${data.ipo2.length})`}
+            {showEntries ? "Hide Entries" : `Show Entries (${data.ipo2.length})`}
             <span aria-hidden>{showEntries ? "▴" : "▾"}</span>
           </button>
           {showEntries ? (
@@ -358,7 +375,7 @@ export function MmChart({
         <p className="vx-hint mmc-foot">No lockout rally (6/8 green weeks with a 50%+ move) after the 52-week low.</p>
       ) : null}
       <p className="vx-hint mmc-foot">
-        Weekly {data.candles ? "candles" : "closes"}, log scale. Hover a zone or dot for its numbers.
+        {daily ? "Daily" : "Weekly"} {data.candles ? "candles" : "closes"}, log scale. Hover a zone or dot for its numbers.
         {tab === "ipo2"
           ? ` IPO2 entries from daily closes${data.ipo2_listed ? " (IPO rules: listed in the last 4 years)" : ""}: only the three that worked best across all stocks in 2023–25 — listing-range breakout, pivot breakout, E1B / E2B add. No sell marks.`
           : ""}

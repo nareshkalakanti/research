@@ -501,6 +501,8 @@ export type MmChart =
       ticker: string;
       candles: boolean;
       weeks: MmChartWeek[];
+      /** The last ~12 months of daily bars (for the 1Y view). */
+      days: MmChartWeek[];
       study: MmStudy | null;
       /** IPO rules applied (listed in the last 4 years) for the IPO2 entries. */
       ipo2_listed: boolean;
@@ -647,6 +649,13 @@ export async function stockChart(ticker: string, opts: { year?: number; market?:
   const study = studyWinner(bars, lowDate, nifty);
   const candles = bars.some((b) => b.high != null);
   const weeks = weekly(bars, candles).map((x) => ({ date: bars[x.last]!.date, open: x.open, high: x.high, low: x.low, close: x.close }));
+  const days = bars.slice(-252).map((b) => ({
+    date: b.date,
+    open: candles ? (b.open ?? b.close) : b.close,
+    high: candles ? (b.high ?? b.close) : b.close,
+    low: candles ? (b.low ?? b.close) : b.close,
+    close: b.close,
+  }));
   const ipo = ipo2Analysis(t, market, nifty);
   let verdict = ipo?.verdict ?? null;
   // IPO V2.0 items the IPO2 engine doesn't read itself: the day-1 ignite bar and growth in the first quarters.
@@ -679,6 +688,7 @@ export async function stockChart(ticker: string, opts: { year?: number; market?:
     ticker: t,
     candles,
     weeks,
+    days,
     study,
     ipo2_listed: ipo?.listed ?? false,
     ipo2: ipo?.entries ?? [],
