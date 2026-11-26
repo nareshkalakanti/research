@@ -24745,6 +24745,28 @@ html[data-theme="dark"] .pt-root {
   font-weight: 700;
 }
 .pt-add-inline { flex: 1 1 280px; min-width: 0; }
+.pt-bulk { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+.pt-bulk-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; font-size: 13px; color: var(--ink); }
+.pt-bulk-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.pt-bulk-list li {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 280px; height: 30px; padding: 0 4px 0 10px;
+  border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); font-size: 12.5px;
+}
+.pt-bulk-list li small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-bulk-list li.dup { opacity: 0.55; border-style: dashed; }
+.pt-bulk-list li button {
+  flex: none; width: 22px; height: 22px; border: 0; border-radius: 50%; background: transparent; color: var(--muted);
+  font: inherit; font-size: 15px; line-height: 1; cursor: pointer;
+}
+.pt-bulk-list li button:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.pt-bulk-foot { display: flex; gap: 12px; align-items: center; }
+.pt-bulk-go {
+  height: 34px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--ink); color: var(--surface);
+  font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.pt-bulk-go:disabled { opacity: 0.45; cursor: default; }
+.pt-bulk-msg { display: flex; align-items: center; gap: 8px; }
+.pt-bulk-msg .link-btn { margin-left: auto; }
 .pt-add-inline .ticker-suggest { flex: none; width: 100%; max-width: none; }
 .pt-search {
   width: 100%; height: 42px; border: 1px solid var(--line-strong); border-radius: 12px;
@@ -24769,7 +24791,7 @@ html[data-theme="dark"] .pt-root {
 .pt-card { margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; }
 .pt-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
 .pt-card-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
-.pt-chart-plot { min-width: 0; width: 100%; min-height: 280px; }
+.pt-chart-plot { min-width: 0; width: 100%; }
 .pt-lines { display: block; width: 100%; height: auto; max-width: 100%; }
 .pt-lines .grid { stroke: var(--line); stroke-width: 1; }
 .pt-lines .base { stroke: var(--line-strong); stroke-width: 1.2; }

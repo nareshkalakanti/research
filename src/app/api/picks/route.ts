@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addPick, addSource, readPicks, removePick, removeSource } from "@/lib/picks-tracker";
+import { addPick, addPicks, addSource, readPicks, removePick, removeSource } from "@/lib/picks-tracker";
 
 export const runtime = "nodejs";
 
@@ -17,12 +17,20 @@ export async function GET() {
  *   { action: "source", name }                               → add a source
  *   { action: "remove-source", name }                        → delete a source and all its picks
  *   { action: "add", source, quarter, ticker, market?, name? } → add a stock to a source's quarter
+ *   { action: "add-many", source, quarter, items: [{ ticker, market?, name? }] }
+ *                                                            → add a list of stocks (also returns { result: { added, already } })
  *   { action: "remove", source, quarter, ticker }            → remove it
  * Returns the updated data.
  */
 export async function POST(req: NextRequest) {
   try {
-    const b = (await req.json()) as Record<string, string>;
+    const body = (await req.json()) as Record<string, unknown>;
+    if (body.action === "add-many") {
+      const items = Array.isArray(body.items) ? (body.items as Array<Record<string, unknown>>) : [];
+      const result = addPicks({ source: String(body.source ?? ""), quarter: String(body.quarter ?? ""), items });
+      return NextResponse.json({ ok: true, result, ...readPicks() });
+    }
+    const b = body as Record<string, string>;
     if (b.action === "source") addSource(b.name ?? "");
     else if (b.action === "remove-source") removeSource(b.name ?? "");
     else if (b.action === "add") addPick({ source: b.source ?? "", quarter: b.quarter ?? "", ticker: b.ticker ?? "", market: b.market, name: b.name });

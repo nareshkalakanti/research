@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { napkinUrl } from "@/lib/links";
-import type { Pick, PicksData } from "@/lib/picks-tracker";
+import type { BulkAddResult, Pick, PicksData } from "@/lib/picks-tracker";
 
 /* ---------- quarters ---------- */
 
@@ -48,29 +48,53 @@ const STATUS_LABEL: Record<RowStatus, (qs: number, n: number) => string> = {
   earlier: (qs) => `Earlier · ${qs} qtr${qs === 1 ? "" : "s"}`,
 };
 
+/** Chosen source / quarter / range survive remounts (tab refresh, reloads) for this browser session. */
+const VIEW_KEY = "picks-tracker:view";
+type View = { source: string | null; quarter: string; custom: { from: string; to: string } | null };
+const QK = /^\d{4}-Q[1-4]$/;
+function readView(): View {
+  const fallback: View = { source: null, quarter: currentQuarter(), custom: null };
+  try {
+    const v = JSON.parse(window.sessionStorage.getItem(VIEW_KEY) ?? "null") as Partial<View> | null;
+    if (!v) return fallback;
+    const custom = v.custom && QK.test(v.custom.from) && QK.test(v.custom.to) ? v.custom : null;
+    return {
+      source: typeof v.source === "string" ? v.source : null,
+      quarter: typeof v.quarter === "string" && QK.test(v.quarter) ? v.quarter : fallback.quarter,
+      custom,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 /** Picks tracker (Research): stocks the user enters per source and quarter; the stocks and sectors each source keeps tracking. */
 export function PicksTrackerPanel() {
   const [data, setData] = useState<PicksData | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [source, setSource] = useState<string | null>(null);
-  const [quarter, setQuarter] = useState(currentQuarter());
-  const [custom, setCustom] = useState<{ from: string; to: string } | null>(null);
+  const [initial] = useState(readView);
+  const [source, setSource] = useState<string | null>(initial.source);
+  const [quarter, setQuarter] = useState(initial.quarter);
+  const [custom, setCustom] = useState<{ from: string; to: string } | null>(initial.custom);
   const [editingRange, setEditingRange] = useState(false);
   const [newSource, setNewSource] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("source");
   const [busy, setBusy] = useState(false);
+  /** Stocks picked from search, waiting to be added together. */
+  const [bulk, setBulk] = useState<TickerSuggestHit[]>([]);
+  const [bulkResult, setBulkResult] = useState<BulkAddResult | null>(null);
   const rangeRef = useRef<HTMLDivElement | null>(null);
 
-  const post = useCallback(async (body: Record<string, string>) => {
+  const post = useCallback(async (body: Record<string, unknown>) => {
     setBusy(true);
     try {
       const r = await fetch("/api/picks", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-      const j = (await r.json()) as PicksData & { ok: boolean; error?: string };
+      const j = (await r.json()) as PicksData & { ok: boolean; error?: string; result?: BulkAddResult };
       if (!j.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setData({ sources: j.sources, picks: j.picks });
       setErr(null);
-      return true;
+      return j.result ?? true;
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
       return false;
@@ -93,6 +117,14 @@ export function PicksTrackerPanel() {
       live = false;
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(VIEW_KEY, JSON.stringify({ source, quarter, custom } satisfies View));
+    } catch {
+      /* storage off: view just resets on reload */
+    }
+  }, [source, quarter, custom]);
 
   useEffect(() => {
     if (!editingRange) return;
@@ -188,10 +220,27 @@ export function PicksTrackerPanel() {
       .sort((a, b) => b.qs.size - a.qs.size || a.p.ticker.localeCompare(b.p.ticker));
   }, [picks, src, range, lastQ, prevQ]);
 
-  const addHit = async (hit: TickerSuggestHit) => {
+  /** A search pick joins the list; "Add N stocks" saves the whole list at once. */
+  const addHit = (hit: TickerSuggestHit) => {
     if (!src) return;
-    await post({ action: "add", source: src, quarter, ticker: hit.ticker, market: hit.market, name: hit.name });
+    const t = hit.ticker.toUpperCase();
+    setBulk((l) => (l.some((h) => h.ticker.toUpperCase() === t) ? l : [...l, hit]));
+    setBulkResult(null);
     setQ("");
+  };
+
+  const addMany = async () => {
+    if (!src || !bulk.length) return;
+    const res = await post({
+      action: "add-many",
+      source: src,
+      quarter,
+      items: bulk.map((h) => ({ ticker: h.ticker, market: h.market, name: h.name })),
+    });
+    if (res && typeof res === "object") {
+      setBulkResult(res);
+      setBulk([]);
+    }
   };
 
   const rangeFromValue = custom?.from ?? rangeFrom;
@@ -370,16 +419,62 @@ export function PicksTrackerPanel() {
           <TickerSuggest
             value={q}
             onChange={setQ}
-            onSelect={(h) => void addHit(h)}
+            onSelect={addHit}
             clearOnSelect
             persistGroww={false}
-            placeholder={src ? `Search to add to ${src}…` : "Add a source first"}
+            placeholder={src ? `Search and pick stocks for ${src}…` : "Add a source first"}
             className="pt-search"
-            submitLabel="add"
+            submitLabel="add to list"
             disabled={!src || busy}
           />
         </div>
       </div>
+
+      {bulk.length > 0 && src ? (
+        <div className="vx-card pt-bulk">
+          <div className="pt-bulk-head">
+            <span>
+              List for <b>{src}</b> · {qLabel(quarter)}
+            </span>
+            <span className="vx-hint">{bulk.length} picked</span>
+          </div>
+          <ul className="pt-bulk-list" aria-label="Stocks to add">
+            {bulk.map((h) => {
+              const already = current.some((p) => p.ticker === h.ticker.toUpperCase());
+              return (
+                <li key={h.ticker} className={already ? "dup" : undefined} title={already ? "Already in this quarter" : h.name}>
+                  <b>{h.ticker}</b>
+                  {h.name ? <small>{h.name}</small> : null}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${h.ticker} from the list`}
+                    onClick={() => setBulk((l) => l.filter((x) => x.ticker !== h.ticker))}
+                  >
+                    ×
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="pt-bulk-foot">
+            <button type="button" className="pt-bulk-go" disabled={busy} onClick={() => void addMany()}>
+              {busy ? "Adding…" : `Add ${bulk.length} stock${bulk.length === 1 ? "" : "s"} to ${src}`}
+            </button>
+            <button type="button" className="link-btn" onClick={() => setBulk([])}>
+              Clear list
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {bulkResult ? (
+        <p className="vx-msg pt-bulk-msg" role="status">
+          Added {bulkResult.added.length}
+          {bulkResult.already.length ? ` · ${bulkResult.already.length} already on the list` : ""}
+          <button type="button" className="link-btn" aria-label="Dismiss" onClick={() => setBulkResult(null)}>
+            ×
+          </button>
+        </p>
+      ) : null}
 
       {!data ? (
         <div className="vx-card vx-empty">Loading…</div>
@@ -526,18 +621,25 @@ function IndustryLines({
 }) {
   const box = useRef<HTMLDivElement | null>(null);
   const [bw, setBw] = useState(0);
+  const [vh, setVh] = useState(() => window.innerHeight);
   const [focus, setFocus] = useState<string | null>(null);
   useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
     const ro = new ResizeObserver(() => setBw(el.clientWidth));
     ro.observe(el);
-    return () => ro.disconnect();
+    const onResize = () => setVh(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
   if (!series.length) return null;
 
   const W = Math.max(360, bw || 720);
-  const H = 300;
+  // Height follows the screen: ~a quarter of the viewport, never taller than 40% of the width (13" laptops stay compact).
+  const H = Math.round(Math.max(180, Math.min(280, vh * 0.26, W * 0.4)));
   const L = 40;
   const R = 20;
   const T = 20;

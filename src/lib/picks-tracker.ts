@@ -95,6 +95,41 @@ export function addPick(p: { source: string; quarter: string; ticker: string; ma
   }
 }
 
+export type BulkAddResult = { added: string[]; already: string[] };
+
+/** Add a list of stocks (picked from search) to one source's quarter in one go. */
+export function addPicks(p: {
+  source: string;
+  quarter: string;
+  items: Array<{ ticker?: unknown; market?: unknown; name?: unknown }>;
+}): BulkAddResult {
+  const source = clean(p.source, 60);
+  const quarter = clean(p.quarter, 7);
+  if (!source || !QUARTER_RE.test(quarter)) throw new Error("source and quarter (YYYY-Qn) needed");
+  const items = (Array.isArray(p.items) ? p.items : []).slice(0, 300);
+  const res: BulkAddResult = { added: [], already: [] };
+  const d = db();
+  try {
+    const now = new Date().toISOString();
+    const ins = d.prepare("INSERT OR IGNORE INTO picks (source, quarter, ticker, market, name, added_at) VALUES (?, ?, ?, ?, ?, ?)");
+    d.transaction(() => {
+      d.prepare("INSERT OR IGNORE INTO sources (name, created_at) VALUES (?, ?)").run(source, now);
+      const seen = new Set<string>();
+      for (const it of items) {
+        const ticker = clean(it?.ticker, 30).toUpperCase();
+        if (!ticker || seen.has(ticker)) continue;
+        seen.add(ticker);
+        const r = ins.run(source, quarter, ticker, clean(it?.market, 20) || "NSE", clean(it?.name, 200) || null, now);
+        (r.changes ? res.added : res.already).push(ticker);
+      }
+    })();
+  } finally {
+    d.close();
+  }
+  if (!res.added.length && !res.already.length) throw new Error("Pick at least one stock");
+  return res;
+}
+
 export function removePick(p: { source: string; quarter: string; ticker: string }): void {
   const d = db();
   try {
