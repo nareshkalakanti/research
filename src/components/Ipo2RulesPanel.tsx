@@ -65,7 +65,7 @@ const BUILT: Row[] = [
   {
     rule: "Follow-through days",
     source: "Kaynes: “Buying comes with follow-through days”",
-    app: "The 3 sessions after an entry: 2+ green, still above the buy level, volume at least the 50-day average (listing days left out).",
+    app: "The 3 sessions after an entry: 2+ green, still above the buy level, volume at least the 50-day average (listing days left out). A failed follow-through takes the entry off “Buy”.",
     ours: "3 sessions, 2 green, 1× volume",
   },
   {
@@ -77,7 +77,7 @@ const BUILT: Row[] = [
   {
     rule: "Extension sells",
     source: "Jyoti CNC: sold 1/3 at 535, 1/3 at 625; orange “10%” marks",
-    app: "Sell signal after an entry: 1st close 10%+ above its 10-day average, then again on a 2nd extension (after cooling under 5%, or a further 5% leg). No position sizes: how much to sell is your call. Counted per base.",
+    app: "Sell signal after an entry: 1st close 10%+ above its 10-day average, then again on a 2nd extension (after cooling under 5%, or a further 5% leg). No position sizes: how much to sell is your call. Only while holding: the position ends when a close falls under the entry’s stop, and there is no sell on an entry day. Counted per base.",
   },
   {
     rule: "Climax run",
