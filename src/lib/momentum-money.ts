@@ -493,6 +493,17 @@ export type MmChartWeek = { date: string; open: number; high: number; low: numbe
 
 /** Old IPO2 entries kept for the chart's IPO2 tab: the three that worked best across all stocks (2023–25). */
 export type MmIpo2Entry = { kind: "ipo_range" | "pivot" | "add"; label: string; date: string; level: number; stop: number; risk_pct: number };
+/** Valid IPO2 bases for the pivot-high line and zone (old BaseChart `bc-bh` / `bc-zone`). */
+export type MmIpo2Base = {
+  n: number;
+  start: string;
+  end: string | null;
+  high: number;
+  depth_pct: number;
+  days: number;
+  ipo_base: boolean;
+  status: "open" | "breakout" | "failed";
+};
 const IPO2_KEEP = IPO2_BEST;
 
 export type MmChart =
@@ -507,6 +518,8 @@ export type MmChart =
       /** IPO rules applied (listed in the last 4 years) for the IPO2 entries. */
       ipo2_listed: boolean;
       ipo2: MmIpo2Entry[];
+      /** Valid bases for the pivot-high dashed line on the IPO2 chart. */
+      ipo2_bases: MmIpo2Base[];
       /** Today's call from the IPO2 rules (kept entries only, no sells). */
       verdict: Verdict | null;
       /** The momentum notes checked on this stock's study (winner year, or the trailing year). */
@@ -558,6 +571,18 @@ function ipo2Analysis(ticker: string, market: string, nifty: Close[] | null) {
     listing_gain_pct: a.listing_gain_pct,
     verdict: a.verdict,
     stage_note: a.stage_note,
+    bases: a.bases
+      .filter((b) => b.valid)
+      .map((b) => ({
+        n: b.n,
+        start: b.start,
+        end: b.end,
+        high: b.high,
+        depth_pct: b.depth_pct,
+        days: b.days,
+        ipo_base: b.ipo_base,
+        status: b.status,
+      })),
     entries: a.entries.map((e) => ({
       kind: e.kind as MmIpo2Entry["kind"],
       label: e.label,
@@ -692,6 +717,7 @@ export async function stockChart(ticker: string, opts: { year?: number; market?:
     study,
     ipo2_listed: ipo?.listed ?? false,
     ipo2: ipo?.entries ?? [],
+    ipo2_bases: ipo?.bases ?? [],
     verdict,
     momentum: study ? momentumReasons(study) : [],
     stage_note: ipo?.stage_note ?? null,

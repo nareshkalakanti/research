@@ -92,6 +92,11 @@ const MomentumMoneyPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const PicksTrackerPanel = dynamic(
+  () => import("@/components/PicksTrackerPanel").then((m) => m.PicksTrackerPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const PANELS: Record<AppTab, ComponentType> = {
   dashboard: FamilyDashboard,
   scan: StrategyPanel,
@@ -102,6 +107,7 @@ const PANELS: Record<AppTab, ComponentType> = {
   "price-action": PriceActionPanel,
   breakouts: BreakoutsPanel,
   "momentum-money": MomentumMoneyPanel,
+  picks: PicksTrackerPanel,
   research: ResearchPanel,
   watchlist: WatchlistPanel,
   scanner: ScannerPanel,

@@ -5,6 +5,7 @@ import type { MmBase, MmChart as Chart } from "@/lib/momentum-money";
 
 type Tab = "momentum" | "ipo2";
 const SHORT: Record<string, string> = { ipo_range: "Range BO", pivot: "Pivot" };
+const daysToWks = (d: number) => Math.max(1, Math.round(d / 5));
 
 const day = (iso: string) =>
   new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" });
@@ -77,8 +78,9 @@ export function MmChart({
   const all = daily ? data.days : data.weeks;
   const st = tab === "momentum" ? data.study : null;
   const ipo2 = tab === "ipo2" ? data.ipo2 : [];
+  const ipo2Bases = tab === "ipo2" ? data.ipo2_bases : [];
   const idx = (iso: string | null | undefined) => {
-    if (!iso) return -1;
+    if (!iso || !all.length) return -1;
     if (iso < all[0]!.date && daily) return -1; // before the 1Y window
     let k = all.findIndex((w) => w.date >= iso);
     if (k < 0) k = all.length - 1;
@@ -102,6 +104,10 @@ export function MmChart({
   }
   const weeks = all.slice(first, last + 1);
   const n = weeks.length;
+  // Only entries in the visible window — number these 1…n (old BaseChart did the same).
+  const visible = ipo2
+    .map((e, i) => ({ e, i, k: idx(e.date) }))
+    .filter(({ k }) => k >= first && k <= last);
 
   // Drawn inside a bordered frame (8px padding + 1px border each side).
   const W = Math.max(600, (boxW || 900) - 18);
@@ -110,8 +116,14 @@ export function MmChart({
   const R = 14;
   const T = 44;
   const B = 26;
-  const lo = Math.min(...weeks.map((w) => w.low), ...ipo2.filter((e) => idx(e.date) >= first).map((e) => e.stop)) * 0.94;
-  const hi = Math.max(...weeks.map((w) => w.high)) * 1.06;
+  const lastPivot = [...ipo2Bases].reverse().find((b) => b.status !== "failed") ?? null;
+  const lo =
+    Math.min(
+      ...weeks.map((w) => w.low),
+      ...visible.map(({ e }) => e.stop),
+      ...(lastPivot && idx(lastPivot.start) <= last ? [lastPivot.high] : []),
+    ) * 0.94;
+  const hi = Math.max(...weeks.map((w) => w.high), ...(lastPivot && idx(lastPivot.start) <= last ? [lastPivot.high] : [])) * 1.06;
   const ly = (v: number) => Math.log(v);
   const y = (v: number) => T + ((H - T - B) * (ly(hi) - ly(v))) / (ly(hi) - ly(lo));
   const x = (k: number) => L + ((W - L - R) * (k - first + 0.5)) / n;
@@ -280,6 +292,38 @@ export function MmChart({
         {rally}
         {baseBox(st?.base1 ?? null, "Base 1")}
         {baseBox(st?.base2 ?? null, "Base 2")}
+        {ipo2Bases.map((b) => {
+          const a = idx(b.start);
+          const e = b.end ? idx(b.end) : all.length - 1;
+          if (e < first || a > last) return null;
+          const x0 = x(Math.max(a, first)) - bw / 2;
+          const x1 = x(Math.min(e, last)) + bw / 2;
+          const name = b.ipo_base ? "IPO base" : `Base ${b.n}`;
+          return (
+            <g key={`ib-${b.n}-${b.start}`} className={`mmc-zone mmc-zone--${b.status === "failed" ? "failed" : "base"}`}>
+              <rect x={x0} y={T - 6} width={Math.max(2, x1 - x0)} height={H - T - B + 6}>
+                <title>{`${name}: ${b.depth_pct}% deep, ${daysToWks(b.days)} weeks${b.status === "failed" ? ", failed" : b.status === "open" ? ", still open" : ""}`}</title>
+              </rect>
+            </g>
+          );
+        })}
+        {lastPivot ? (() => {
+          const a = idx(lastPivot.start);
+          const e = lastPivot.end ? idx(lastPivot.end) : all.length - 1;
+          if (e < first || a > last) return null;
+          const x0 = x(Math.max(a, first));
+          const x1 = x(Math.min(e, last));
+          return (
+            <g className="mmc-bh">
+              <line x1={x0} x2={x1} y1={y(lastPivot.high)} y2={y(lastPivot.high)}>
+                <title>{`Pivot ${inr(lastPivot.high)} · ${lastPivot.ipo_base ? "IPO base" : `Base ${lastPivot.n}`}`}</title>
+              </line>
+              <text className="mmc-bh-lab" x={Math.max(x0 + 4, x1 - 4)} y={y(lastPivot.high) - 5} textAnchor="end">
+                {inr(lastPivot.high)}
+              </text>
+            </g>
+          );
+        })() : null}
         {!data.candles ? (
           <path className="mmc-line" d={weeks.map((w, i) => `${i ? "L" : "M"}${x(i + first).toFixed(1)},${y(w.close).toFixed(1)}`).join("")} />
         ) : null}
@@ -301,26 +345,26 @@ export function MmChart({
           );
         })}
         {stage4}
-        {ipo2.map((e, i) => {
-          const k = idx(e.date);
-          if (k < first || k > last) return null;
-          // Label only when it clears the previous entry's label (the number and table still show it).
-          const prev = ipo2.slice(0, i).reverse().find((p) => idx(p.date) >= first);
-          const next = ipo2.slice(i + 1).find((p) => idx(p.date) <= last);
-          const near = (p: (typeof ipo2)[number] | undefined, dx: number) =>
-            !!p && Math.abs(x(k) - x(idx(p.date))) <= dx && Math.abs(y(e.level) - y(p.level)) <= 26;
+        {visible.map(({ e, k }, vi) => {
+          // Sit on the signal bar's high (weekly/daily candle top) — buy level stays in the tooltip.
+          const bar = all[k]!;
+          const mark = y(bar.high);
+          const prev = visible[vi - 1];
+          const next = visible[vi + 1];
+          const near = (p: (typeof visible)[number] | undefined, dx: number) =>
+            !!p && Math.abs(x(k) - x(p.k)) <= dx && Math.abs(mark - y(all[p.k]!.high)) <= 26;
           const showLab = !near(prev, 44) && !near(next, 30);
           return (
             <g key={`${e.date}-${e.kind}`} className={`mmc-entry mmc-entry--${e.kind}`}>
-              <line className="mmc-stop" x1={x(k) - 9} x2={x(k) + 9} y1={y(e.stop)} y2={y(e.stop)} />
-              <circle cx={x(k)} cy={y(e.level)} r={8}>
+              <line className="mmc-stop" x1={x(k) - 14} x2={x(k) + 14} y1={y(e.stop)} y2={y(e.stop)} />
+              <circle cx={x(k)} cy={mark} r={8}>
                 <title>{`${e.label} ${day(e.date)}: buy above ${inr(e.level)}, stop ${inr(e.stop)} (${e.risk_pct}%)`}</title>
               </circle>
-              <text className="mmc-entry-n" x={x(k)} y={y(e.level) + 3.5} textAnchor="middle">
-                {i + 1}
+              <text className="mmc-entry-n" x={x(k)} y={mark + 3.5} textAnchor="middle">
+                {vi + 1}
               </text>
               {showLab ? (
-                <text className="mmc-entry-lab" x={x(k)} y={y(e.level) - 13} textAnchor="middle">
+                <text className="mmc-entry-lab" x={x(k)} y={mark - 13} textAnchor="middle">
                   {e.kind === "add" ? e.label.replace(" add", "") : SHORT[e.kind]}
                 </text>
               ) : null}
@@ -338,7 +382,7 @@ export function MmChart({
         data.ipo2.length ? (
           <>
           <button type="button" className="mmc-why" aria-expanded={showEntries} onClick={() => setShowEntries((v) => !v)}>
-            {showEntries ? "Hide Entries" : `Show Entries (${data.ipo2.length})`}
+            {showEntries ? "Hide Entries" : `Show Entries (${visible.length})`}
             <span aria-hidden>{showEntries ? "▴" : "▾"}</span>
           </button>
           {showEntries ? (
@@ -354,9 +398,9 @@ export function MmChart({
               </tr>
             </thead>
             <tbody>
-              {data.ipo2.map((e, i) => (
+              {visible.map(({ e }, vi) => (
                 <tr key={`${e.date}-${e.kind}`}>
-                  <td>{i + 1}</td>
+                  <td>{vi + 1}</td>
                   <td>{e.label}</td>
                   <td>{day(e.date)}</td>
                   <td className="num">{inr(e.level)}</td>
@@ -377,7 +421,7 @@ export function MmChart({
       <p className="vx-hint mmc-foot">
         {daily ? "Daily" : "Weekly"} {data.candles ? "candles" : "closes"}, log scale. Hover a zone or dot for its numbers.
         {tab === "ipo2"
-          ? ` IPO2 entries from daily closes${data.ipo2_listed ? " (IPO rules: listed in the last 4 years)" : ""}: only the three that worked best across all stocks in 2023–25 — listing-range breakout, pivot breakout, E1B / E2B add. No sell marks.`
+          ? ` IPO2 entries from daily closes${data.ipo2_listed ? " (IPO rules: listed in the last 4 years)" : ""}: the three that worked best across all stocks in 2023–25 — listing-range breakout, pivot breakout, E1B / E2B add. Dashed accent line is the current base pivot. No sell marks.`
           : ""}
       </p>
     </div>
