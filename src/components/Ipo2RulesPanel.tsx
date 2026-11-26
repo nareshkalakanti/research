@@ -51,6 +51,12 @@ const BUILT: Row[] = [
     ours: "pause length and depth",
   },
   {
+    rule: "Add on the 10/20-day band",
+    source: "Jyoti CNC: “E/D” bounce on the band, then “Pyramid – 2nd long, added at 626”",
+    app: "Any stock, after a breakout on E1 / E2: a pullback closes into the 10/20-day averages (no more than 3% under the 20-day), then a green close back above the 10-day with the 10-day over the 20-day. One per pullback; stop under the pullback low and the 20-day.",
+    ours: "1% band, 3% under the 20-day, 5-session look-back",
+  },
+  {
     rule: "Follow-through days",
     source: "Kaynes: “Buying comes with follow-through days”",
     app: "The 3 sessions after an entry: 2+ green, still above the buy level, volume at least the 50-day average (listing days left out).",
@@ -100,11 +106,6 @@ const QUESTIONS: Row[] = [
 ];
 
 const NEXT: Row[] = [
-  {
-    rule: "Add on the 10/20-day band",
-    source: "Jyoti: “E/D” bounce on the band, then “Pyramid – 2nd long”",
-    app: "Not built: adds only come from small bases (E1B / E2B).",
-  },
   {
     rule: "Strength at listing",
     source: "Waaree: “No selling post listing day in the deteriorated market conditions”",

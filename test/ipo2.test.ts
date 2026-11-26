@@ -60,13 +60,16 @@ assert.equal(a.bases[0]!.status, "breakout");
 assert.ok(a.bases[0]!.depth_pct > 18 && a.bases[0]!.depth_pct < 26);
 const kinds = a.entries.map((e) => e.kind);
 // Climbing straight out of listing: the listing-range breakout on day 3 comes first.
-assert.deepEqual(kinds, ["ipo_range", "low_cheat", "pivot", "add"], kinds.join(","));
+// The E1 pause (185 → 176) bounces off the 10/20-day band: a band add, then the E1B add at the new high.
+assert.deepEqual(kinds, ["ipo_range", "low_cheat", "pivot", "band", "add"], kinds.join(","));
 assert.equal(a.entries[0]!.idx, 3);
 const pivot = a.entries[2]!;
 assert.equal(pivot.level, 160);
 assert.ok(pivot.risk_pct <= 8, `pivot stop capped at 8%: ${pivot.risk_pct}`);
 assert.ok(pivot.vol_x! >= 1.5);
-assert.equal(a.entries[3]!.label, "E1B add");
+assert.equal(a.entries[3]!.label, "E1 band add");
+assert.ok(a.entries[3]!.level < 185, "band add comes before the new high");
+assert.equal(a.entries[4]!.label, "E1B add");
 assert.equal(a.legs, 2);
 
 // IREDA-like listing: tight range for a week after listing, then a close above it.

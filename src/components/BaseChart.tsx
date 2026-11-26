@@ -141,7 +141,7 @@ export function BaseChart({
   const dotBoxes: Box[] = entries.map((e) => ({ x0: x(e.idx) - 10, x1: x(e.idx) + 10, y0: y(e.level) - 10, y1: y(e.level) + 10 }));
   const placed: Box[] = [];
   const entryLabel = entries.map((e) => {
-    const text = e.kind === "add" ? e.label.replace(" add", "") : SHORT[e.kind]!;
+    const text = e.kind === "add" || e.kind === "band" ? e.label.replace(" add", "") : SHORT[e.kind]!;
     const w = textW(text, EPX);
     const ex = x(e.idx);
     const ey = y(e.level);

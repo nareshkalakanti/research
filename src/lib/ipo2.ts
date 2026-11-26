@@ -127,6 +127,14 @@ export const IPO2_RULES = {
   /** A line needs this many peaks touching it (within tlTouchPct) after the high. */
   tlTouches: 2,
   tlTouchPct: 1.5,
+  /**
+   * Add on the 10/20-day band (Jyoti CNC "E/D" bounce, then "Pyramid – 2nd long"): after a breakout,
+   * on E1 / E2, a pullback that closes into the 10/20-day averages (not more than 3% under the 20-day)
+   * and bounces: a green close back above the 10-day while the 10-day is above the 20-day.
+   */
+  bandLookback: 5,
+  bandTolPct: 1,
+  bandBelowPct: 3,
   /** Follow-through (Kaynes "buying comes with follow-through days"): the sessions after an entry. */
   followDays: 3,
   followGreen: 2,
@@ -134,7 +142,7 @@ export const IPO2_RULES = {
   followVolX: 1,
 };
 
-export type EntryKind = "ipo_range" | "trendline" | "low_cheat" | "cheat" | "pivot" | "add";
+export type EntryKind = "ipo_range" | "trendline" | "low_cheat" | "cheat" | "pivot" | "add" | "band";
 
 /** What happened in the sessions after an entry. */
 export type FollowThrough = {
@@ -338,6 +346,7 @@ const ENTRY_LABEL: Record<EntryKind, string> = {
   cheat: "Cheat",
   pivot: "Pivot breakout",
   add: "Add",
+  band: "Band add",
 };
 
 /** Bases, entries and stage for a stock listed in the last 4 years (series starts at listing). */
@@ -432,6 +441,20 @@ export function analyzeBases(
   let tookLow = false;
   let tookMid = false;
   let tookTrend = false;
+  /** One band add per pullback (resets on a new high). */
+  let tookBand = false;
+  const ma = (len: number) => {
+    const out: number[] = new Array(n).fill(NaN);
+    let sum = 0;
+    for (let k = 0; k < n; k++) {
+      sum += c[k]!;
+      if (k >= len) sum -= c[k - len]!;
+      if (k >= len - 1) out[k] = sum / len;
+    }
+    return out;
+  };
+  const ma10 = ma(10);
+  const ma20 = ma(20);
   /** Stop of this base's trendline entry: a close under it re-arms the trendline (a new line can form). */
   let trendStop = 0;
   let lastBreakout: number | null = null;
@@ -510,9 +533,25 @@ export function analyzeBases(
       tookLow = false;
       tookMid = false;
       tookTrend = false;
+      tookBand = false;
       continue;
     }
     minSinceH = Math.min(minSinceH, p);
+    // Band add: pullback into the 10/20-day averages after a breakout, then a bounce (before it becomes a base).
+    if (lastBreakout != null && legs <= 2 && !base && !tookBand && i >= 20 && i - hIdx < R.baseMinDays) {
+      let touchLow = Infinity;
+      let broke = false;
+      for (let k = Math.max(hIdx + 1, i - R.bandLookback); k < i; k++) {
+        const hiBand = Math.max(ma10[k]!, ma20[k]!) * (1 + R.bandTolPct / 100);
+        if (c[k]! <= hiBand) touchLow = Math.min(touchLow, c[k]!);
+        if (c[k]! < ma20[k]! * (1 - R.bandBelowPct / 100)) broke = true;
+      }
+      if (Number.isFinite(touchLow) && !broke && p > c[i - 1]! && p > ma10[i]! && ma10[i]! > ma20[i]!) {
+        // Stop under the pullback low and at least 3% under the 20-day (capped at 8% like every entry).
+        push("band", i, p, Math.min(touchLow, minSinceH, ma20[i]! * (1 - R.bandBelowPct / 100)), `E${legs} band add`);
+        tookBand = true;
+      }
+    }
     const depth = (1 - minSinceH / H) * 100;
     const ipoBase = listed && bases.length === 0;
     if (!base && i - hIdx >= (ipoBase ? R.ipoBaseMinDays : R.baseMinDays) && depth >= (ipoBase ? R.ipoBaseMinDepthPct : R.baseMinDepthPct)) {
@@ -643,7 +682,7 @@ export function analyzeBases(
     const starts = new Set<number>();
     const seenBase = new Set<number>();
     for (const e of entries)
-      if (e.kind !== "add" && !seenBase.has(e.base)) {
+      if (e.kind !== "add" && e.kind !== "band" && !seenBase.has(e.base)) {
         seenBase.add(e.base);
         starts.add(e.idx);
       }
@@ -734,7 +773,7 @@ export function analyzeBases(
     stage = "buy_zone";
     const b = [...bases].reverse().find((x) => x.valid && x.n === live!.base && x.start_idx <= live!.idx);
     note =
-      live.kind === "add"
+      live.kind === "add" || live.kind === "band"
         ? `${live.label} after the base ${live.base} breakout`
         : b
           ? `${b.ipo_base ? "IPO base" : `Base ${b.n}`} · ${b.depth_pct}% deep · ${Math.round(b.days / 5)} wks`
@@ -1014,7 +1053,9 @@ function makeVerdict(x: {
               ? { good: true, text: `Breakout on ${e.vol_x}× average volume: confirmed` }
               : { good: false, text: `Breakout on only ${e.vol_x}× average volume (want ${R.breakoutVolX}×): unconfirmed, buy smaller` },
           );
-      } else if (e.kind === "trendline")
+      } else if (e.kind === "band")
+        reasons.push({ good: true, text: "Band add: pulled back into the 10/20-day averages after the breakout and bounced, the uptrend intact" });
+      else if (e.kind === "trendline")
         reasons.push({ good: true, text: "Trendline break: first close above the falling line across the base highs, before the pivot" });
       else if (e.kind === "ipo_range")
         reasons.push({ good: true, text: "Listing-range breakout: first close above the range held since listing, stop under the post-listing low" });
@@ -1032,7 +1073,7 @@ function makeVerdict(x: {
               : { good: true, text: `Follow-through so far: ${what} (${R.followDays - f.days} more session${R.followDays - f.days === 1 ? "" : "s"} to judge)` },
         );
       }
-      if (e.kind !== "add") baseOf(b);
+      if (e.kind !== "add" && e.kind !== "band") baseOf(b);
       ipoReason();
       return { call: "buy", action: `Buy above ${inr(e.level)}, stop ${inr(e.stop)} (risk ${e.risk_pct}%)`, reasons };
     }
