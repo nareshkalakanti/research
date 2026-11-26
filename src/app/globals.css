@@ -24606,3 +24606,29 @@ html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
 .ipo2-rules .ipo2-rules-ours { color: var(--muted); font-size: 12px; max-width: 220px; }
 .ipo2-rules-page .vx-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
 .ipo2-detail td > .mm-chart { position: sticky; left: 0; max-width: calc(100vw - 140px); }
+
+/* Header: grouped sections with a sub-tab row for the open group. */
+.subtabs {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 calc(-1 * clamp(10px, 2vw, 20px)) -8px;
+  padding: 0 clamp(10px, 2vw, 20px);
+  border-top: 1px solid var(--line);
+}
+.subtabs::-webkit-scrollbar { display: none; }
+.subtab {
+  padding: 8px 12px 7px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.subtab:hover { color: var(--ink); }
+.subtab.on { color: var(--ink); border-bottom-color: var(--ink); }

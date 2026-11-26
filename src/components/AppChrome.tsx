@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
-import { APP_TABS, hrefForTab, useAppTab, type AppTab } from "@/lib/app-tab";
+import { APP_GROUPS, APP_TABS, groupOfTab, hrefForTab, useAppTab, type AppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
 import { OllamaBar } from "@/components/OllamaBar";
@@ -28,6 +28,27 @@ export function AppChrome({
 }) {
   const { user, logout } = useAuth();
   const { tab, setTab } = useAppTab();
+  const group = groupOfTab(tab);
+  // Last page opened in each group: clicking a group reopens it.
+  useEffect(() => {
+    try {
+      localStorage.setItem(`app_group_last:${group.id}`, tab);
+    } catch {
+      /* private mode */
+    }
+  }, [group.id, tab]);
+  const openGroup = (gid: string) => {
+    const g = APP_GROUPS.find((x) => x.id === gid)!;
+    let next: AppTab = g.tabs[0]!.id;
+    try {
+      const saved = localStorage.getItem(`app_group_last:${gid}`) as AppTab | null;
+      if (saved && g.tabs.some((t) => t.id === saved)) next = saved;
+    } catch {
+      /* private mode */
+    }
+    setTab(next);
+  };
+  const plainClick = (e: React.MouseEvent) => !(e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0);
 
   return (
     <div className="app">
@@ -57,34 +78,46 @@ export function AppChrome({
         </a>
 
         <nav className="tabs" aria-label="Main">
-          <div className="tabs-group" role="group" aria-label="Research">
-            {APP_TABS.map((t) => (
+          <div className="tabs-group" role="group" aria-label="Sections">
+            {APP_GROUPS.map((g) => (
               <a
-                key={t.id}
-                className={tab === t.id ? "tab on" : "tab"}
-                href={hrefForTab(t.id)}
-                aria-current={tab === t.id ? "page" : undefined}
-                title={t.label}
+                key={g.id}
+                className={group.id === g.id ? "tab on" : "tab"}
+                href={hrefForTab(g.tabs[0]!.id)}
+                aria-current={group.id === g.id ? "page" : undefined}
+                title={g.tabs.map((t) => t.label).join(" · ")}
                 onClick={(e) => {
-                  if (
-                    e.metaKey ||
-                    e.ctrlKey ||
-                    e.shiftKey ||
-                    e.altKey ||
-                    e.button !== 0
-                  ) {
-                    return;
-                  }
+                  if (!plainClick(e)) return;
                   e.preventDefault();
-                  setTab(t.id);
+                  openGroup(g.id);
                 }}
               >
-                <span className="tab-label-full">{t.label}</span>
-                <span className="tab-label-short">{t.short}</span>
+                <span className="tab-label-full">{g.label}</span>
+                <span className="tab-label-short">{g.short}</span>
               </a>
             ))}
           </div>
         </nav>
+
+        {group.tabs.length > 1 ? (
+          <nav className="subtabs" aria-label={group.label}>
+            {group.tabs.map((t) => (
+              <a
+                key={t.id}
+                className={tab === t.id || (t.id === "dashboard" && tab === "governance") ? "subtab on" : "subtab"}
+                href={hrefForTab(t.id)}
+                aria-current={tab === t.id ? "page" : undefined}
+                onClick={(e) => {
+                  if (!plainClick(e)) return;
+                  e.preventDefault();
+                  setTab(t.id);
+                }}
+              >
+                {t.label}
+              </a>
+            ))}
+          </nav>
+        ) : null}
 
         <div className="user-block">
           <RefreshButton />

@@ -46,6 +46,68 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
 
 export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [];
 
+/**
+ * Top nav groups. Every page keeps its own tab id and URL (`?tab=…`); the header shows the
+ * groups and a sub-tab row for the open group's pages.
+ */
+export type AppGroup = { id: string; label: string; short: string; tabs: Array<{ id: AppTab; label: string }> };
+export const APP_GROUPS: AppGroup[] = [
+  { id: "napkin", label: "Napkin", short: "Napkin", tabs: [{ id: "napkin", label: "Napkin" }] },
+  {
+    id: "markets",
+    label: "Markets",
+    short: "Mkts",
+    tabs: [
+      { id: "rotation", label: "Trend" },
+      { id: "price-action", label: "Price Action" },
+      { id: "breakouts", label: "Breakouts" },
+    ],
+  },
+  {
+    id: "strategies",
+    label: "Strategies",
+    short: "Strat",
+    tabs: [
+      { id: "momentum-money", label: "Momentum & Money" },
+      { id: "scan", label: "Signals" },
+    ],
+  },
+  {
+    id: "screens",
+    label: "Screens",
+    short: "Screens",
+    tabs: [
+      { id: "scanner", label: "Scanner" },
+      { id: "value", label: "Value" },
+      { id: "concall-drift", label: "Drift" },
+    ],
+  },
+  {
+    id: "portfolio",
+    label: "Portfolio",
+    short: "Port",
+    tabs: [
+      { id: "portfolio", label: "Portfolio" },
+      { id: "watchlist", label: "Watchlist" },
+    ],
+  },
+  {
+    id: "research",
+    label: "Research",
+    short: "Research",
+    tabs: [
+      { id: "research", label: "Research" },
+      { id: "dashboard", label: "Governance" },
+    ],
+  },
+];
+
+/** The group a tab belongs to (Governance's hidden company / person view sits under Research). */
+export function groupOfTab(tab: AppTab): AppGroup {
+  if (tab === "governance") return APP_GROUPS.find((g) => g.id === "research")!;
+  return APP_GROUPS.find((g) => g.tabs.some((t) => t.id === tab)) ?? APP_GROUPS[0]!;
+}
+
 /** Hidden from top nav; opened from Dashboard and Napkin person / company links. */
 const HIDDEN_TABS: AppTab[] = ["governance"];
 
