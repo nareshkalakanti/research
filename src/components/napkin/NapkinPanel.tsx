@@ -17,7 +17,6 @@ import type { NapkinResearch } from "@/lib/napkin/types";
 import { NapkinCompanyContext } from "@/components/napkin/NapkinCompanyContext";
 import { NapkinPeStrip } from "@/components/napkin/NapkinPeStrip";
 import { RevenueEarningsChart } from "@/components/RevenueEarningsChart";
-import { NapkinBasesCard } from "@/components/napkin/NapkinBasesCard";
 import { useExpandQuarters } from "@/lib/use-expand-quarters";
 import { NapkinValuation } from "@/components/napkin/NapkinValuation";
 import { parseDisplayedMoney } from "@/lib/napkin/format";
@@ -287,12 +286,6 @@ export function NapkinPanel() {
               roe={parseDisplayedPct(napkinMetric(data.overview, "roe"))}
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
-
-            <div className="napkin-sheet-section napkin-earn-block">
-              <div className="napkin-earn-card napkin-bases-card">
-                <NapkinBasesCard key={data.ticker} ticker={data.ticker} market={data.exchange} />
-              </div>
-            </div>
 
             <div className="napkin-sheet-section napkin-earn-block">
               <div className="napkin-earn-card">
