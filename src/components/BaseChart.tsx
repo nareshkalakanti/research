@@ -87,6 +87,7 @@ export function BaseChart({
   const entries = a.entries.filter((e) => e.idx >= start);
   const sells = (a.sells ?? []).filter((e) => e.idx >= start);
   const bases = a.bases.filter((b) => (b.end_idx ?? series.length - 1) >= start);
+  const volBases = bases.filter((b) => b.valid && b.vol).slice(-TABLE_ROWS);
   const lo = Math.min(...closes, ...entries.map((e) => e.stop)) * 0.96;
   const hi = Math.max(...closes, ...entries.map((e) => e.level)) * 1.04;
   const x = (i: number) => L + ((W - L - R) * (i - start + 0.5)) / n;
@@ -198,7 +199,7 @@ export function BaseChart({
               >
                 <title>{`${name}: ${b.depth_pct}% deep, ${daysToWks(b.days)} weeks${b.status === "failed" ? ", failed" : ""}${
                   b.prior_rise_pct != null ? `, ${b.prior_rise_pct}% rise into it` : ""
-                }`}</title>
+                }${b.vol ? `. Volume: left ${b.vol.left_x}×, bottom ${b.vol.bottom_x}×, right ${b.vol.right_x}×` : ""}`}</title>
               </rect>
               {lab ? (
                 <>
@@ -333,6 +334,46 @@ export function BaseChart({
       ) : (
         <p className="vx-hint">No entries in this period: no base after a 25% rise has triggered.</p>
       )}
+      {volBases.length ? (
+        <div className="bc-table-wrap">
+          <table className="bc-table">
+            <thead>
+              <tr>
+                <th title="Each side as × the base's own average daily volume">Base volume</th>
+                <th className="num">Left side</th>
+                <th className="num">Bottom</th>
+                <th className="num">Right side</th>
+                <th className="num">Up ÷ down days</th>
+                <th>Read</th>
+              </tr>
+            </thead>
+            <tbody>
+              {volBases.map((b) => {
+                const q = b.vol!;
+                const ok = q.cooled && q.returning === true;
+                const bad = !q.cooled || q.returning === false;
+                const read = !q.cooled
+                  ? "No dry-up at the bottom"
+                  : q.returning === false
+                    ? "Dried up, not returning"
+                    : q.returning
+                      ? "Heavy left, dry bottom, returning"
+                      : "Dried up, right side early";
+                return (
+                  <tr key={`v-${b.start_idx}`}>
+                    <td>{b.ipo_base ? "IPO base" : `Base ${b.n}`}</td>
+                    <td className="num">{q.left_x}×</td>
+                    <td className="num">{q.bottom_x}×</td>
+                    <td className="num">{q.right_x ? `${q.right_x}×` : "—"}</td>
+                    <td className="num">{q.right_updown != null ? `${q.right_updown}×` : "—"}</td>
+                    <td className={ok ? "bc-ok" : bad ? "bc-stop" : undefined}>{read}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
       {sells.length ? (
         <div className="bc-table-wrap">
           <table className="bc-table">

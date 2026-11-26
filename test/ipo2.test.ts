@@ -145,4 +145,24 @@ const splitIssue = analyzeBases(px.map((close, i) => ({ date: dates[i]!, close, 
 assert.equal(splitIssue.issue_mismatch, true);
 assert.equal(splitIssue.run_base, "first_close");
 
+// Base volume: heavy selling on the left, quiet at the bottom, buying back on the right.
+{
+  const q = a.bases[0]!.vol!;
+  assert.ok(q, "base volume read");
+  assert.ok(q.left_x > q.bottom_x, `left ${q.left_x} > bottom ${q.bottom_x}`);
+  assert.equal(q.cooled, true);
+  assert.equal(q.returning, true);
+  // Same prices on flat volume: no dry-up.
+  const flat = analyzeIpo2(px.map((close, i) => ({ date: dates[i]!, close, volume: 100 })))!;
+  assert.equal(flat.bases[0]!.vol!.cooled, false);
+  // Right side climbing on selling volume (down days heavier): not returning.
+  const vs = px.map((_, i) => (i > 0 && px[i]! < px[i - 1]! ? 300 : vol[i]!));
+  const wiggle = px.map((p0, i) => (i > 50 && i < 60 && i % 2 ? p0 - 2 : p0));
+  const vs2 = wiggle.map((p0, i) => (i > 50 && i < 60 && i > 0 && p0 < wiggle[i - 1]! ? 400 : vs[i]!));
+  const sell = analyzeIpo2(wiggle.map((close, i) => ({ date: dates[i]!, close, volume: vs2[i] })))!;
+  assert.equal(sell.bases[0]!.vol!.returning, false);
+  // No saved volume: no read.
+  assert.equal(analyzeIpo2(px.map((close, i) => ({ date: dates[i]!, close })))!.bases[0]!.vol, null);
+}
+
 console.log("ipo2 ok");

@@ -396,6 +396,17 @@ export function Ipo2Panel() {
                           label="Depth"
                           title={r.base_depth_pct == null ? "No base yet" : `Latest base ${r.base_depth_pct}% deep`}
                         />
+                        <Check
+                          ok={!r.base_vol ? null : !r.base_vol.cooled || r.base_vol.returning === false ? false : r.base_vol.returning ? true : null}
+                          label="Volume"
+                          title={
+                            !r.base_vol
+                              ? "No base volume saved"
+                              : `Latest base volume (× its average): left side ${r.base_vol.left_x}×, bottom ${r.base_vol.bottom_x}×, right side ${r.base_vol.right_x}×${
+                                  r.base_vol.right_updown != null ? `, right-side up days ${r.base_vol.right_updown}× down days` : ""
+                                }. Want heavy on the left, dry at the bottom, returning on the right.`
+                          }
+                        />
                         <Check ok={null} label="QIB" title="QIB subscription not saved: check the IPO's subscription page" />
                       </td>
                     </tr>

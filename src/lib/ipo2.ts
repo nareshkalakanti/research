@@ -71,6 +71,14 @@ export const IPO2_RULES = {
   idealDepth: [18, 26] as [number, number],
   maxDepthIpoPct: 40,
   maxDepthPct: 35,
+  /** Base volume shape: length of the quiet "bottom" week, searched within 2× this either side of the low. */
+  bottomDays: 5,
+  /** Quietest bottom week at or under this × the left-side average = dried up (median base is ~0.4). */
+  volCoolX: 0.6,
+  /** Right side needs this many sessions before it's judged. */
+  rightMinDays: 5,
+  /** Right-side up-day volume this many × down-day volume counts as returning even if the side is quiet overall. */
+  rightUpDownX: 1.5,
   /** Tight pause: 5 closes within this range (moving sideways), volume below average. */
   pauseDays: 5,
   pauseRangePct: 6,
@@ -156,6 +164,26 @@ export type Ipo2Base = {
   valid: boolean;
   /** Rise into the base high from the prior ~6-month low (null for the IPO base). */
   prior_rise_pct: number | null;
+  /** Volume shape: heavy on the left, drying up at the bottom, returning on the right. Null without volume. */
+  vol: BaseVolume | null;
+};
+
+/** Volume across a base, each side as × the base's own average daily volume. */
+export type BaseVolume = {
+  /** Lowest close of the base (splits left side from right side). */
+  low_idx: number;
+  /** Left side: from the base high down to the low. */
+  left_x: number;
+  /** Bottom: the quietest week near the low. */
+  bottom_x: number;
+  /** Right side: from the low back up toward the pivot. */
+  right_x: number;
+  /** Right side: average volume on up days ÷ down days (above 1 = buying). */
+  right_updown: number | null;
+  /** Selling heavier on the left than at the bottom. */
+  cooled: boolean;
+  /** Volume coming back on the right: right side above the bottom and up days outweigh down days. */
+  returning: boolean | null;
 };
 
 export type Ipo2Stage =
@@ -466,6 +494,7 @@ export function analyzeBases(
         status: "open",
         valid,
         prior_rise_pct: ipoBase ? null : r1(rise),
+        vol: null,
       };
       bases.push(base);
     }
@@ -526,6 +555,9 @@ export function analyzeBases(
       }
     }
   }
+
+  // Failed bases broke down: their "right side" is the breakdown, so no volume read.
+  if (hasVol) for (const b of bases) if (b.status !== "failed") b.vol = baseVolume(c, v, b, n, R);
 
   // Sell signals while holding, per position (a new entry from a base restarts the count).
   const sells: Ipo2Sell[] = [];
@@ -706,6 +738,76 @@ export function analyzeBases(
   };
 }
 
+/**
+ * Left / right side volume of a base (IPO V2.0 base drawing): heavy selling on the way
+ * down, quiet at the bottom, volume coming back as it climbs the right side.
+ */
+function baseVolume(c: number[], v: number[], b: Ipo2Base, n: number, R: typeof IPO2_RULES): BaseVolume | null {
+  // Base sessions: after the high up to the breakout / failure day (excluded) or today.
+  const from = b.start_idx + 1;
+  const to = b.end_idx ?? n; // exclusive
+  if (to - from < 6) return null;
+  let lowIdx = from;
+  for (let i = from; i < to; i++) if (c[i]! < c[lowIdx]!) lowIdx = i;
+  const avg = (a: number, z: number, keep?: (i: number) => boolean) => {
+    let s = 0;
+    let k = 0;
+    for (let i = Math.max(a, 0); i < Math.min(z, n); i++)
+      if (v[i]! > 0 && (!keep || keep(i))) {
+        s += v[i]!;
+        k++;
+      }
+    return k ? s / k : null;
+  };
+  const all = avg(from, to);
+  const left = avg(from, lowIdx + 1);
+  // Bottom: the quietest week within ±bottomDays·2 sessions of the low (a shakeout spike on the low day is fine).
+  let bottom: number | null = null;
+  for (let a = Math.max(from, lowIdx - 2 * R.bottomDays); a + R.bottomDays <= Math.min(to, lowIdx + 2 * R.bottomDays + 1); a++) {
+    const w = avg(a, a + R.bottomDays);
+    if (w != null && (bottom == null || w < bottom)) bottom = w;
+  }
+  if (!all || left == null || bottom == null) return null;
+  const rightDays = to - lowIdx - 1;
+  const right = rightDays >= 1 ? avg(lowIdx + 1, to) : null;
+  const up = rightDays >= 1 ? avg(lowIdx + 1, to, (i) => c[i]! > c[i - 1]!) : null;
+  const dn = rightDays >= 1 ? avg(lowIdx + 1, to, (i) => c[i]! < c[i - 1]!) : null;
+  const updown = up != null && dn ? r2(up / dn) : null;
+  const judged = rightDays >= R.rightMinDays && right != null;
+  return {
+    low_idx: lowIdx,
+    left_x: r2(left / all),
+    bottom_x: r2(bottom / all),
+    right_x: right == null ? 0 : r2(right / all),
+    right_updown: updown,
+    cooled: bottom <= left * R.volCoolX,
+    // Buying on the right: up days outweigh down days, and either volume is back above the bottom or up days clearly lead.
+    // No down days at all on the right counts as buying.
+    returning: !judged
+      ? null
+      : updown == null
+        ? up != null && right! > bottom
+        : updown > 1 && (right! > bottom || updown >= R.rightUpDownX),
+  };
+}
+
+/** One line on a base's volume shape for the verdict. */
+function baseVolReason(b: Ipo2Base): { good: boolean; text: string } | null {
+  const q = b.vol;
+  if (!q) return null;
+  const x = (k: number) => `${k}×`;
+  const ud = q.right_updown != null ? `, up days ${x(q.right_updown)} down days` : "";
+  if (q.cooled && q.returning)
+    return {
+      good: true,
+      text: `Base volume: heavy on the left (${x(q.left_x)}), dried up at the bottom (${x(q.bottom_x)}), returning on the right (${x(q.right_x)}${ud})`,
+    };
+  if (!q.cooled) return { good: false, text: `Base volume didn't dry up at the bottom (${x(q.bottom_x)} vs ${x(q.left_x)} on the left side)` };
+  if (q.returning === false)
+    return { good: false, text: `Volume dried up at the bottom (${x(q.bottom_x)}) but isn't coming back on the right side (${x(q.right_x)}${ud})` };
+  return { good: true, text: `Volume dried up at the bottom (${x(q.bottom_x)} vs ${x(q.left_x)} on the left); right side still early` };
+}
+
 /** A fresh sell signal leads the verdict for holders (buyers' advice stays after it). */
 function withSell(v: Verdict, sell: Ipo2Sell | null, stage: Ipo2Stage): Verdict {
   if (!sell) return v;
@@ -757,6 +859,8 @@ function makeVerdict(x: {
     const wks = Math.round(b.days / 5);
     if (wks > 65) reasons.push({ good: false, text: `Long base: ${wks} weeks` });
     if (b.prior_rise_pct != null) reasons.push({ good: true, text: `${b.prior_rise_pct}% rise into the base` });
+    const vr = baseVolReason(b);
+    if (vr) reasons.push(vr);
   };
   const ipoReason = () => {
     if (!x.listed || x.urgency == null) return;
@@ -1143,6 +1247,8 @@ export type Ipo2Row = {
   favoured: boolean;
   bases: number;
   base_depth_pct: number | null;
+  /** Latest base's left / right side volume (shown, not scored). */
+  base_vol: BaseVolume | null;
   stage: Ipo2Stage;
   stage_note: string;
   live_entry: Ipo2Entry | null;
@@ -1362,6 +1468,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       favoured,
       bases: a.bases.length,
       base_depth_pct: cur ? cur.depth_pct : null,
+      base_vol: cur?.vol ?? null,
       stage: a.stage,
       stage_note: a.stage_note,
       live_entry: a.live_entry,

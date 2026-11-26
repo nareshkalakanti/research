@@ -24435,6 +24435,7 @@ html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
 .bc-table th { font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
 .bc-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .bc-table .bc-stop { color: var(--danger); }
+.bc-table .bc-ok { color: var(--ok); }
 .bc-table tr.bc-live td { background: color-mix(in srgb, #1d9a5b 10%, transparent); font-weight: 600; }
 .napkin-bases .ipo2-chart svg, .ipo2-chart svg { min-width: 720px; }
 .bc-dot.ipo2-dot--pivot { fill: #2f6fd6; }
