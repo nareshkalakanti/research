@@ -24499,3 +24499,110 @@ html[data-theme="light"] .nsc-drawer-wrap {
 .mm-sym a:first-child { font-weight: 650; color: var(--ink); text-decoration: none; }
 .mm-exch, .mm-tag { padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 4px; font-size: 11px; color: var(--muted); }
 .mm-foot { margin-top: 10px; max-width: 980px; }
+.mm-status { margin: -2px 0 8px; font-size: 12.5px; color: var(--muted); }
+
+/* Momentum and Money chart */
+.mm-row { cursor: pointer; }
+.mm-row:hover td, .mm-row.open td { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.mm-detail td { padding: 12px 14px 14px !important; white-space: normal !important; background: var(--surface); }
+.mm-chart { width: 100%; overflow-x: auto; }
+.mm-chart svg { display: block; }
+.mmc-grid { stroke: var(--line); stroke-width: 1; }
+.mmc-ax { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.mmc-up line, .mmc-up rect { stroke: var(--ok); fill: var(--ok); }
+.mmc-dn line, .mmc-dn rect { stroke: var(--danger); fill: var(--danger); }
+.mmc-up line, .mmc-dn line { stroke-width: 1; }
+.mmc-line { fill: none; stroke: var(--ink); stroke-width: 1.6; }
+.mmc-big { fill: var(--ink); font-size: 10px; font-weight: 700; }
+.mmc-rally rect { fill: color-mix(in srgb, var(--ink) 6%, transparent); }
+.mmc-rally text, .mmc-base text, .mmc-stage4 text { fill: var(--ink); font-size: 11px; font-weight: 650; }
+.mmc-base rect { fill: color-mix(in srgb, var(--ink) 5%, transparent); stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.mmc-stage4 line { stroke: var(--muted); stroke-width: 1.4; stroke-dasharray: 6 4; }
+.mmc-foot { margin: 6px 0 0; font-size: 12px; }
+.mmc-tabs { display: inline-flex; gap: 0; margin: 0 0 8px; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; }
+.mmc-tabs button { height: 30px; padding: 0 12px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.mmc-tabs button.on { background: var(--ink); color: var(--surface); }
+.mmc-entry circle { fill: var(--ink); stroke: var(--surface); stroke-width: 2; }
+.mmc-entry-n { fill: var(--surface); font-size: 9.5px; font-weight: 700; pointer-events: none; }
+.mmc-entry-lab { fill: var(--ink); font-size: 10.5px; font-weight: 650; }
+.mmc-stop { stroke: var(--danger); stroke-width: 2; stroke-dasharray: 3 2; }
+.mmc-entries { margin-top: 8px; }
+.napkin-mm-title { margin: 0 0 8px; font-size: 15px; font-weight: 700; color: var(--ink); }
+.mmc-listing { margin: 0 0 8px; font-size: 13px; color: var(--muted); }
+.mmc-verdict { margin: 0 0 12px; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); }
+.mmc-verdict-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.mmc-verdict-head b { font-size: 14.5px; color: var(--ink); }
+.mmc-call { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; border: 1px solid var(--line-strong); color: var(--ink); }
+.mmc-verdict--buy .mmc-call { background: var(--ok); border-color: var(--ok); color: #fff; }
+.mmc-verdict--avoid .mmc-call { border-color: var(--danger); color: var(--danger); }
+.mmc-stage { margin: 6px 0 0; font-size: 12.5px; color: var(--muted); }
+.mmc-verdict ul { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 13px; }
+.mmc-reasons { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 4px 24px; }
+.mmc-reasons h4 { margin: 10px 0 0; font-size: 11.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); }
+.mmc-verdict li { color: var(--ink); }
+.mmc-verdict li i { font-style: normal; font-weight: 700; }
+.mmc-verdict li.good i { color: var(--ok); }
+.mmc-verdict li.bad i { color: var(--danger); }
+/* Chart text readable over candles: a halo in the card colour. */
+.mm-chart svg text { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.mm-chart .mmc-entry-n { stroke: none; }
+
+/* IPO2 screen (Momentum & Money tab) */
+.ipo2-stages { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 12px; }
+.ipo2-chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px;
+  border: 1px solid var(--vx-line, var(--line)); border-radius: 999px; background: transparent;
+  color: inherit; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.ipo2-chip em { font-style: normal; font-weight: 500; opacity: 0.7; font-variant-numeric: tabular-nums; }
+.ipo2-chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.ipo2-chip.on em { opacity: 0.9; }
+.ipo2-filters { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: flex-end; margin-bottom: 10px; }
+.ipo2-filters .vx-field:first-child { width: 240px; }
+.ipo2-toggle { display: inline-flex; align-items: center; gap: 6px; height: 40px; font-size: 13px; cursor: pointer; }
+.ipo2-table td { vertical-align: top; }
+.ipo2-row { cursor: pointer; }
+.ipo2-row:hover td, .ipo2-row.open td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.ipo2-listed span, .ipo2-stage span, .ipo2-entry span, .ipo2-sub, .ipo2-cap {
+  display: block; font-size: 12px; color: var(--muted);
+}
+.ipo2-listed { white-space: nowrap; }
+.ipo2-warn { color: var(--danger) !important; white-space: normal; }
+.ipo2-stage { min-width: 220px; }
+.ipo2-stage span:not(.ipo2-pill) { margin-top: 3px; }
+.ipo2-pill {
+  display: inline-block !important; padding: 1px 8px; border-radius: 999px; font-size: 11.5px !important;
+  font-weight: 650; color: var(--ink) !important; background: color-mix(in srgb, var(--muted) 16%, transparent);
+}
+.ipo2-pill--buy_zone { background: color-mix(in srgb, #1d9a5b 22%, transparent); color: #157347 !important; }
+.ipo2-pill--near_pivot { background: color-mix(in srgb, #2f6fd6 20%, transparent); color: #2559ad !important; }
+.ipo2-pill--in_base { background: color-mix(in srgb, #2f6fd6 11%, transparent); }
+.ipo2-pill--late, .ipo2-pill--extended { background: color-mix(in srgb, #e08a1e 20%, transparent); color: #a35f00 !important; }
+.ipo2-pill--broken { background: color-mix(in srgb, #d0453a 16%, transparent); color: #b2332a !important; }
+html[data-theme="dark"] .ipo2-pill--buy_zone { color: #5fd69a !important; }
+html[data-theme="dark"] .ipo2-pill--near_pivot { color: #8fb4f5 !important; }
+html[data-theme="dark"] .ipo2-pill--late, html[data-theme="dark"] .ipo2-pill--extended { color: #f2b25e !important; }
+html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
+.ipo2-entry { min-width: 190px; }
+.ipo2-entry b.ipo2-live { color: var(--ok); }
+.ipo2-stop { color: var(--danger) !important; opacity: 0.85; }
+.ipo2-checks { min-width: 170px; }
+.ipo2-check { display: inline-block; margin: 0 4px 4px 0; padding: 1px 6px; border-radius: 4px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.ipo2-check.pass { background: color-mix(in srgb, #1d9a5b 16%, transparent); color: var(--ok); }
+.ipo2-check.fail { background: color-mix(in srgb, #d0453a 12%, transparent); color: var(--danger); }
+.ipo2-check.na { background: color-mix(in srgb, var(--muted) 12%, transparent); color: var(--muted); }
+.ipo2-more { margin: 12px auto 4px; display: block; }
+.ipo2-detail td { background: var(--surface); padding: 12px 14px 16px !important; }
+.ipo2-table td.pa-sector { white-space: normal; min-width: 150px; max-width: 210px; }
+.ipo2-table td:first-child { min-width: 210px; }
+.ipo2-pill--no_rise { background: color-mix(in srgb, var(--muted) 14%, transparent); }
+/* IPO V2.0 rules page */
+.ipo2-rules-page .vx-hint { max-width: 880px; margin-top: 6px; }
+.ipo2-rules-h { margin: 22px 0 8px; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.ipo2-rules { width: 100%; }
+.ipo2-rules td { vertical-align: top; white-space: normal; line-height: 1.45; font-size: 13px; }
+.ipo2-rules .ipo2-rules-name { font-weight: 650; color: var(--ink); min-width: 160px; }
+.ipo2-rules .ipo2-rules-src { color: var(--muted); max-width: 320px; }
+.ipo2-rules .ipo2-rules-ours { color: var(--muted); font-size: 12px; max-width: 220px; }
+.ipo2-rules-page .vx-table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.ipo2-detail td > .mm-chart { position: sticky; left: 0; max-width: calc(100vw - 140px); }

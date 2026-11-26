@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { Loading } from "@/components/Loading";
+import { MmChart } from "@/components/MmChart";
+import { useUrlEnumParam } from "@/lib/url-enum-param";
 import { napkinUrl, tradingviewUrl } from "@/lib/links";
-import type { MmBase, MmResult, MmRow } from "@/lib/momentum-money";
+import type { MmBase, MmResult, MmRow, MmStudy } from "@/lib/momentum-money";
 
 type Data = (MmResult & { ok: true }) | { ok: false; error: string };
 
@@ -143,14 +147,52 @@ function Sym({ r }: { r: MmRow }) {
   );
 }
 
-/** Momentum and Money: yearly winners and the user's winner-study notes tested on them. */
+const Ipo2Panel = dynamic(() => import("@/components/Ipo2Panel").then((m) => m.Ipo2Panel), {
+  loading: () => <Loading variant="block" />,
+  ssr: false,
+});
+
+const VIEWS = ["winners", "ipo2"] as const;
+
+/** Momentum and Money: yearly winners with the winner-study notes, and the IPO2 screen. */
 export function MomentumMoneyPanel() {
+  const [view, setView] = useUrlEnumParam("mm", VIEWS, "winners");
+  return (
+    <section className="vx mm">
+      <header className="vx-head">
+        <div>
+          <span className="vx-eyebrow">Yearly winners and what they had in common · IPO2</span>
+          <h2 className="vx-title">
+            Momentum <span>and Money</span>
+          </h2>
+        </div>
+        <div className="vx-tabs" role="tablist" aria-label="Momentum and Money views">
+          {(
+            [
+              ["winners", "Yearly winners"],
+              ["ipo2", "IPO2"],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? "on" : ""} onClick={() => setView(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </header>
+      {view === "ipo2" ? <Ipo2Panel /> : <WinnersView />}
+    </section>
+  );
+}
+
+/** Yearly winners and the user's winner-study notes tested on them. */
+function WinnersView() {
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1);
   const [data, setData] = useState<Data | null>(null);
   const [minCap, setMinCap] = useState(300);
   const [maxCap, setMaxCap] = useState(0);
   const [minGain, setMinGain] = useState(200);
   const [exch, setExch] = useState<Exch>("nse");
+  const [openT, setOpenT] = useState<string | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -182,17 +224,58 @@ export function MomentumMoneyPanel() {
   );
   const loading = !data || (data.ok && data.year !== year);
 
-  return (
-    <section className="vx mm">
-      <header className="vx-head">
-        <div>
-          <span className="vx-eyebrow">Yearly winners and what they had in common</span>
-          <h2 className="vx-title">
-            Momentum <span>and Money</span>
-          </h2>
-        </div>
-      </header>
+  // Highs and lows: fetch candle studies for the winners on screen (saved server-side, so repeats are quick).
+  const [candle, setCandle] = useState<Record<string, MmStudy | null>>({});
+  const [reading, setReading] = useState(0);
+  const tickersKey = rows.map((r) => r.ticker).join(",");
+  useEffect(() => {
+    if (!data?.ok || data.year !== year) return;
+    const missing = tickersKey ? tickersKey.split(",").filter((t) => !(`${year}:${t}` in candle)) : [];
+    if (!missing.length) return;
+    let live = true;
+    void (async () => {
+      setReading(missing.length);
+      for (let i = 0; i < missing.length && live; i += 50) {
+        const chunk = missing.slice(i, i + 50);
+        let studies: Record<string, MmStudy | null> = {};
+        try {
+          const res = await fetch("/api/momentum-money", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ year, tickers: chunk }),
+          });
+          const j = (await res.json()) as { ok: boolean; studies?: Record<string, MmStudy | null> };
+          if (j.ok && j.studies) studies = j.studies;
+        } catch {
+          /* keep the closes study for this chunk */
+        }
+        if (!live) return;
+        setCandle((prev) => {
+          const next = { ...prev };
+          for (const t of chunk) next[`${year}:${t}`] = studies[t] ?? null;
+          return next;
+        });
+        setReading(Math.max(0, missing.length - i - chunk.length));
+      }
+    })();
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickersKey, year, data]);
+  // Candle study where fetched (null = no candles on Yahoo: keep the closes study).
+  const view = useMemo(
+    () =>
+      rows.map((r) => {
+        const c = candle[`${year}:${r.ticker}`];
+        return c ? { ...r, study: c } : r;
+      }),
+    [rows, candle, year],
+  );
+  const fromCandles = view.filter((r) => r.study?.candles).length;
 
+  return (
+    <div className="mm-winners">
       <div className="mm-filters">
         <label className="vx-field">
           <span className="vx-label">Year</span>
@@ -250,7 +333,7 @@ export function MomentumMoneyPanel() {
             ))}
           </select>
         </label>
-        <button type="button" className="mm-export" disabled={!rows.length} onClick={() => exportCsv(year, rows)}>
+        <button type="button" className="mm-export" disabled={!rows.length} onClick={() => exportCsv(year, view)}>
           Export to Excel
         </button>
       </div>
@@ -296,12 +379,17 @@ export function MomentumMoneyPanel() {
           <h3 className="mm-h">
             2. Previous notes, tested on these winners <span>Know your winners · Deep dive outcome · Urgency</span>
           </h3>
+          <p className="mm-status">
+            {reading
+              ? `Reading highs and lows… ${reading} stock${reading === 1 ? "" : "s"} to go (${fromCandles} of ${view.length} done)`
+              : `${fromCandles} of ${view.length} from daily highs and lows${view.length > fromCandles ? "; the rest from closes (no candles on Yahoo)" : ""}`}
+          </p>
           <div className="mm-wrap">
-            <NotesTest rows={rows} />
+            <NotesTest rows={view} />
           </div>
 
           <h3 className="mm-h">
-            Winners – {year} <span>Stage 4 decline, lockout rally and bases for each</span>
+            Winners – {year} <span>Stage 4 decline, lockout rally and bases for each · click a row for its chart</span>
           </h3>
           <div className="mm-wrap">
             <table className="vx-table mm-table">
@@ -317,20 +405,30 @@ export function MomentumMoneyPanel() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => {
+                {view.map((r) => {
                   const s = r.study;
+                  const isOpen = openT === r.ticker;
                   return (
-                    <tr key={r.ticker}>
-                      <td>
-                        <Sym r={r} />
-                      </td>
-                      <td>{r.ipo ? <span className="mm-tag">IPO</span> : null}</td>
-                      <td className="num">{s?.stage4_pct != null ? Math.round(s.stage4_pct) : "—"}</td>
-                      <td className="num">{s ? Math.round(s.rally_pct) : "—"}</td>
-                      <td>{s ? `${day(s.rally_from)} – ${day(s.rally_to)}` : "No lockout rally found"}</td>
-                      <td>{base(s?.base1 ?? null)}</td>
-                      <td>{base(s?.base2 ?? null)}</td>
-                    </tr>
+                    <Fragment key={r.ticker}>
+                      <tr className={`mm-row${isOpen ? " open" : ""}`} onClick={() => setOpenT(isOpen ? null : r.ticker)}>
+                        <td>
+                          <Sym r={r} />
+                        </td>
+                        <td>{r.ipo ? <span className="mm-tag">IPO</span> : null}</td>
+                        <td className="num">{s?.stage4_pct != null ? Math.round(s.stage4_pct) : "—"}</td>
+                        <td className="num">{s ? Math.round(s.rally_pct) : "—"}</td>
+                        <td>{s ? `${day(s.rally_from)} – ${day(s.rally_to)}` : "No lockout rally found"}</td>
+                        <td>{base(s?.base1 ?? null)}</td>
+                        <td>{base(s?.base2 ?? null)}</td>
+                      </tr>
+                      {isOpen ? (
+                        <tr className="mm-detail">
+                          <td colSpan={7}>
+                            <MmChart year={year} ticker={r.ticker} />
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -338,13 +436,14 @@ export function MomentumMoneyPanel() {
           </div>
           <p className="vx-hint mm-foot">
             Gains from 52wk low: the year’s best close vs the lowest close of the 52 weeks before it (a rise, so stocks that only fell
-            don’t count); YoY on that same day. From saved daily closes (no highs or lows), so base and decline depths read shallower than on candle charts. Market cap is
-            today’s. Lockout rally: first 6/8-green-week run after the 52-week low that makes a 50%+ move, ending at the first pause of 4+
-            weeks. Bases: pause from a high until a weekly close above it (depth / weeks). Stage 4 decline: highest close of the 2 years
-            before the rally to the low after it. {data.nifty ? "" : "Nifty prices unavailable: index comparisons blank."}
+            don’t count); YoY on that same day. Study from daily candles (Yahoo, saved once a day): green weeks are green weekly
+            candles, depths run high → low. Market cap is today’s. Lockout rally: from the lowest low after the 52-week low, the first
+            run with 6/8 green weeks and a 50%+ move, ending at the first 2-week pause (no week above the swing high) once 50% up.
+            Bases: pause from a high until a week trades above it (depth / weeks). Stage 4 decline: highest high of the 2 years before
+            the rally to the lowest low after it. {data.nifty ? "" : "Nifty prices unavailable: index comparisons blank."}
           </p>
         </>
       )}
-    </section>
+    </div>
   );
 }

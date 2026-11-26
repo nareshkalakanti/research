@@ -1,5 +1,6 @@
 "use client";
 
+import { MmChart } from "@/components/MmChart";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import {
@@ -286,6 +287,13 @@ export function NapkinPanel() {
               roe={parseDisplayedPct(napkinMetric(data.overview, "roe"))}
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
+
+            <div className="napkin-sheet-section napkin-earn-block">
+              <div className="napkin-earn-card">
+                <h3 className="napkin-mm-title">Bases &amp; entries</h3>
+                <MmChart key={data.ticker} ticker={data.ticker} market={data.exchange} mode="ipo2" />
+              </div>
+            </div>
 
             <div className="napkin-sheet-section napkin-earn-block">
               <div className="napkin-earn-card">
