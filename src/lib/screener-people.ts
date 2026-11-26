@@ -32,6 +32,8 @@ const STALE_MS = 24 * 60 * 60 * 1000;
 /** The pages to follow, and the watchlist each one feeds. */
 export const PEOPLE_SOURCES: Array<{ url: string; list: string; label: string }> = [
   { url: "https://www.screener.in/people/161556/niveshaay-hedgehogs-fund/", list: "niveshaay", label: "Niveshaay" },
+  { url: "https://www.screener.in/people/197480/niveshaay-hedgehogs-fund/", list: "niveshaay", label: "Niveshaay" },
+  { url: "https://www.screener.in/people/198254/niveshaay-sambhav-fund/", list: "niveshaay", label: "Niveshaay" },
   { url: "https://www.screener.in/people/144524/negen-undiscovered-value-fund/", list: "negen", label: "Negen Capital / Negen Undiscovered Value Fund" },
   { url: "https://www.screener.in/people/131400/carnelian-structural-shift-fund/", list: "carnelian", label: "Carnelian Asset Management" },
   { url: "https://www.screener.in/people/20809/manohar-devabhaktumi/", list: "manohar", label: "Manohar Devabhaktuni" },
@@ -64,6 +66,13 @@ function withDb<T>(fn: (db: Database.Database) => T): T {
       prev_pct REAL,
       fetched_at TEXT NOT NULL,
       PRIMARY KEY (url, ticker)
+    );
+    CREATE TABLE IF NOT EXISTS fund_people_history (
+      url TEXT NOT NULL,
+      ticker TEXT NOT NULL,
+      quarter TEXT NOT NULL,
+      pct REAL,
+      PRIMARY KEY (url, ticker, quarter)
     );`);
     return fn(db);
   } finally {
@@ -141,7 +150,17 @@ async function fetchPeopleHtml(url: string, hops = 0): Promise<string> {
   return html;
 }
 
-type PageRow = { ref: string; name: string; pct: number | null; prev: number | null };
+/** hist: every quarter column on the page as [quarter key "2026-Q1", stake % or null (under 1% / not held)]. */
+type PageRow = { ref: string; name: string; pct: number | null; prev: number | null; hist: Array<[string, number | null]> };
+
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+/** "Mar 2026" → "2026-Q1" (calendar quarters: Jan–Mar = Q1). */
+export function quarterKeyOf(label: string): string | null {
+  const m = /^([A-Za-z]{3})[a-z]* (\d{4})$/.exec(label.trim());
+  if (!m) return null;
+  const mi = MONTHS.indexOf(m[1]!.toLowerCase());
+  return mi < 0 ? null : `${m[2]}-Q${Math.floor(mi / 3) + 1}`;
+}
 
 /**
  * Holdings table: header row of quarters ("Dec 2024 … Sep 2026", oldest → newest),
@@ -163,8 +182,13 @@ export function parsePeopleHtml(html: string): PageRow[] {
     if (!head.length) return;
     // Column index of each quarter in the header row.
     const cols: number[] = [];
+    const qkeys: string[] = [];
     head.find("th,td").each((i, c) => {
-      if (QTR.test($(c).text().replace(/\s+/g, " ").trim())) cols.push(i);
+      const t = $(c).text().replace(/\s+/g, " ").trim();
+      if (QTR.test(t)) {
+        cols.push(i);
+        qkeys.push(quarterKeyOf(t) ?? t);
+      }
     });
     if (!cols.length) return;
     $(table)
@@ -193,6 +217,7 @@ export function parsePeopleHtml(html: string): PageRow[] {
           name: a.text().replace(/\s+/g, " ").trim(),
           pct: at >= 0 ? vals[at]! : null,
           prev,
+          hist: qkeys.map((k, i) => [k, vals[i] ?? null]),
         });
       });
   });
@@ -321,6 +346,14 @@ export async function pullPeopleSource(url: string): Promise<PullResult> {
           `INSERT INTO fund_people_holdings (url, ticker, pct, prev_pct, fetched_at) VALUES (?, ?, ?, ?, ?)`,
         );
         for (const { r, m } of items) ins.run(url, m.ticker, r.pct, r.prev, now);
+        // Full quarter history for every row on the page (also stocks since sold), for the picks comparison.
+        db.prepare(`DELETE FROM fund_people_history WHERE url = ?`).run(url);
+        const hist = db.prepare(`INSERT OR REPLACE INTO fund_people_history (url, ticker, quarter, pct) VALUES (?, ?, ?, ?)`);
+        for (const r of rows) {
+          const m = map.get(r.ref);
+          if (!m) continue;
+          for (const [q, v] of r.hist) hist.run(url, m.ticker, q, v);
+        }
         db.prepare(`UPDATE fund_people_sources SET last_pulled = ?, last_count = ?, last_error = NULL WHERE url = ?`).run(
           now,
           items.length,
@@ -361,6 +394,138 @@ export async function pullAllPeople(opts?: { onlyStale?: boolean; maxAgeMs?: num
     await new Promise((s) => setTimeout(s, 8000 + Math.random() * 4000));
   }
   return out;
+}
+
+/** Fund name from a people-page slug ("niveshaay-sambhav-fund" → "Niveshaay Sambhav Fund"); a name shared by two pages gets the page id. */
+function pageNamer(urls: string[]): (url: string) => string {
+  const slugName = (url: string) =>
+    (/\/people\/\d+\/([^/]+)/.exec(url)?.[1] ?? url).replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const dup = new Map<string, number>();
+  for (const u of urls) dup.set(slugName(u), (dup.get(slugName(u)) ?? 0) + 1);
+  return (url) => {
+    const n = slugName(url);
+    return (dup.get(n) ?? 0) > 1 ? `${n} (${/\/people\/(\d+)/.exec(url)?.[1] ?? "?"})` : n;
+  };
+}
+
+export type FundHistory = {
+  /** Quarter columns the pages cover, oldest first. */
+  quarters: string[];
+  /** ticker → fund label → quarter → stake % (absent = under 1% / not held). */
+  byTicker: Record<string, Record<string, Record<string, number>>>;
+  funds: Array<{ url: string; label: string; last_pulled: string | null; last_error: string | null }>;
+};
+
+/** Stake history from every people page of one watchlist (e.g. "niveshaay"), per fund page. */
+export function fundHistoryForList(listKey: string): FundHistory {
+  return withDb((db) => {
+    const funds = db
+      .prepare(`SELECT url, label, last_pulled, last_error FROM fund_people_sources WHERE list_key = ? ORDER BY url`)
+      .all(listKey) as FundHistory["funds"];
+    const quarters = new Set<string>();
+    const byTicker: FundHistory["byTicker"] = {};
+    const rows = db
+      .prepare(
+        `SELECT h.url, h.ticker, h.quarter, h.pct FROM fund_people_history h
+         JOIN fund_people_sources s ON s.url = h.url WHERE s.list_key = ?`,
+      )
+      .all(listKey) as Array<{ url: string; ticker: string; quarter: string; pct: number | null }>;
+    const name = pageNamer(funds.map((f) => f.url));
+    for (const r of rows) {
+      quarters.add(r.quarter);
+      if (r.pct == null) continue;
+      const f = ((byTicker[r.ticker.toUpperCase()] ??= {})[name(r.url)] ??= {});
+      f[r.quarter] = r.pct;
+    }
+    return { quarters: [...quarters].sort(), byTicker, funds };
+  });
+}
+
+/** Watchlist keys that have at least one followed people page (the investors with filings history). */
+export function peopleListKeys(): string[] {
+  return withDb((db) =>
+    (db.prepare(`SELECT DISTINCT list_key FROM fund_people_sources WHERE list_key != ''`).all() as Array<{ list_key: string }>).map(
+      (r) => r.list_key,
+    ),
+  );
+}
+
+export type FundHolder = {
+  /** Watchlist label the page feeds (e.g. "Niveshaay"), and the fund named on the page. */
+  investor: string;
+  fund: string;
+  url: string;
+  /** Stake % per quarter key ("2026-Q3"), null = under 1% / not held that quarter. */
+  series: Record<string, number | null>;
+  latest: number | null;
+  prev: number | null;
+  /** new / increased / decreased / unchanged / exited (held before, not in the latest filing). */
+  change: "new" | "increased" | "decreased" | "unchanged" | "exited";
+  fetched_at: string | null;
+};
+
+/**
+ * Every followed Screener people page that shows a stake in this stock (1%+ filings), with its quarter history.
+ * Pages pulled before history was kept fall back to their latest and previous stake.
+ */
+export function fundHoldersOf(ticker: string): { quarters: string[]; holders: FundHolder[] } {
+  const t = ticker.trim().toUpperCase();
+  if (!t) return { quarters: [], holders: [] };
+  return withDb((db) => {
+    const sources = db.prepare(`SELECT url, label, last_pulled FROM fund_people_sources`).all() as Array<{
+      url: string;
+      label: string;
+      last_pulled: string | null;
+    }>;
+    const name = pageNamer(sources.map((x) => x.url));
+    const hist = db
+      .prepare(`SELECT url, quarter, pct FROM fund_people_history WHERE UPPER(ticker) = ? ORDER BY quarter`)
+      .all(t) as Array<{ url: string; quarter: string; pct: number | null }>;
+    const now = db
+      .prepare(`SELECT url, pct, prev_pct, fetched_at FROM fund_people_holdings WHERE UPPER(ticker) = ?`)
+      .all(t) as Array<{ url: string; pct: number | null; prev_pct: number | null; fetched_at: string }>;
+    const quarters = new Set<string>();
+    const out: FundHolder[] = [];
+    for (const src of sources) {
+      const h = hist.filter((r) => r.url === src.url);
+      const cur = now.find((r) => r.url === src.url);
+      if (!h.some((r) => r.pct != null) && !cur) continue;
+      const series: Record<string, number | null> = {};
+      for (const r of h) {
+        series[r.quarter] = r.pct;
+        quarters.add(r.quarter);
+      }
+      const qs = h.map((r) => r.quarter);
+      let latest: number | null;
+      let prev: number | null = null;
+      if (qs.length) {
+        // Same rule as the watchlist: the latest filing, or the one before it (filings come in late).
+        const last = series[qs[qs.length - 1]!] ?? null;
+        const atIdx = last != null ? qs.length - 1 : series[qs[qs.length - 2] ?? ""] != null ? qs.length - 2 : -1;
+        latest = atIdx >= 0 ? series[qs[atIdx]!]! : null;
+        for (let i = (atIdx >= 0 ? atIdx : qs.length) - 1; i >= 0; i--)
+          if (series[qs[i]!] != null) {
+            prev = series[qs[i]!]!;
+            break;
+          }
+      } else {
+        latest = cur?.pct ?? null;
+        prev = cur?.prev_pct ?? null;
+      }
+      if (latest == null && qs.length) {
+        // Sold long ago is noise here: keep an exit only if the stake was there in the last two filings.
+        const lastHeld = qs.reduce((b, q, i) => (series[q] != null ? i : b), -1);
+        if (lastHeld < qs.length - 3) continue;
+      }
+      const d = latest != null && prev != null ? latest - prev : null;
+      const change: FundHolder["change"] =
+        latest == null ? "exited" : prev == null ? "new" : d! > 0.05 ? "increased" : d! < -0.05 ? "decreased" : "unchanged";
+      out.push({ investor: src.label, fund: name(src.url), url: src.url, series, latest, prev, change, fetched_at: cur?.fetched_at ?? src.last_pulled });
+    }
+    const order = { increased: 0, new: 1, unchanged: 2, decreased: 3, exited: 4 };
+    out.sort((a, b) => order[a.change] - order[b.change] || (b.latest ?? 0) - (a.latest ?? 0));
+    return { quarters: [...quarters].sort(), holders: out };
+  });
 }
 
 export type PeopleStatus = {

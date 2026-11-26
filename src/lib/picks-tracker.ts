@@ -1,5 +1,8 @@
 import { openSqliteNamed } from "./sqlite-utils";
-import { masterLabels } from "./stock-master";
+import { loadAllCompanies } from "./db";
+import { listFundCatalog } from "./fund-watchlists";
+import { fundHistoryForList, type FundHistory } from "./screener-people";
+import { loadStockMaster, masterLabels } from "./stock-master";
 
 /**
  * Picks tracker: stocks the user enters per source (e.g. Niveshaay) per quarter, nothing pulled.
@@ -17,10 +20,37 @@ export type Pick = {
   name: string | null;
   sector: string | null;
   industry: string | null;
+  /** Market cap (₹ Cr) and website from the company list, read at load time. */
+  mcap_cr: number | null;
+  web: string | null;
   added_at: string;
 };
 
-export type PicksData = { sources: string[]; picks: Pick[] };
+/** funds: per source, the stake history of the fund pages behind the watchlist with the same name (if any). */
+export type PicksData = { sources: string[]; picks: Pick[]; funds?: Record<string, FundHistory> };
+
+/** A source's fund watchlist: same key or label (case-insensitive), e.g. "Niveshaay" → list "niveshaay". */
+function fundsBySource(sources: string[]): Record<string, FundHistory> {
+  const out: Record<string, FundHistory> = {};
+  let catalog: Array<{ key: string; label: string }> = [];
+  try {
+    catalog = listFundCatalog();
+  } catch {
+    return out;
+  }
+  for (const s of sources) {
+    const n = s.trim().toLowerCase();
+    const hit = catalog.find((c) => c.key.toLowerCase() === n || c.label.trim().toLowerCase() === n);
+    if (!hit) continue;
+    try {
+      const h = fundHistoryForList(hit.key);
+      if (h.funds.length) out[s] = h;
+    } catch {
+      /* no fund history yet */
+    }
+  }
+  return out;
+}
 
 function db() {
   const d = openSqliteNamed("picks_tracker.db", { readonly: false, wal: true });
@@ -48,16 +78,29 @@ export function readPicks(): PicksData {
   const d = db();
   try {
     const labels = masterLabels();
+    const companies = new Map(loadAllCompanies().map((c) => [c.ticker.toUpperCase(), c]));
+    const master = loadStockMaster();
     const sources = (d.prepare("SELECT name FROM sources ORDER BY created_at").all() as Array<{ name: string }>).map((r) => r.name);
     const picks = (
       d.prepare("SELECT source, quarter, ticker, market, name, added_at FROM picks ORDER BY quarter, source, added_at").all() as Array<
-        Omit<Pick, "sector" | "industry">
+        Omit<Pick, "sector" | "industry" | "mcap_cr" | "web">
       >
     ).map((p) => {
-      const lab = labels.get(p.ticker.toUpperCase());
-      return { ...p, sector: lab?.sector ?? null, industry: lab?.industry ?? null };
+      const t = p.ticker.toUpperCase();
+      const lab = labels.get(t);
+      const co = companies.get(t);
+      // Exchange from the listing (NSE / NSE SME / BSE / BSE SME), else what was saved with the pick.
+      const market = co?.market || master.get(t)?.exchange || p.market;
+      return {
+        ...p,
+        market,
+        sector: lab?.sector ?? null,
+        industry: lab?.industry ?? null,
+        mcap_cr: co?.mcap_cr ?? null,
+        web: co?.web ?? null,
+      };
     });
-    return { sources, picks };
+    return { sources, picks, funds: fundsBySource(sources) };
   } finally {
     d.close();
   }
@@ -138,6 +181,27 @@ export function removePick(p: { source: string; quarter: string; ticker: string 
       clean(p.quarter, 7),
       clean(p.ticker, 30).toUpperCase(),
     );
+  } finally {
+    d.close();
+  }
+}
+
+/** Rename a source; its picks move with it. Refuses a name another source already uses. */
+export function renameSource(from: string, to: string): void {
+  const a = clean(from, 60);
+  const b = clean(to, 60);
+  if (!a || !b) throw new Error("Old and new source names needed");
+  if (a === b) return;
+  const d = db();
+  try {
+    d.transaction(() => {
+      if (!d.prepare("SELECT 1 FROM sources WHERE name = ?").get(a)) throw new Error(`No source “${a}”`);
+      // Same name in another case ("niveshaay" → "Niveshaay") is a plain rename, not a clash.
+      const clash = d.prepare("SELECT name FROM sources WHERE name = ? COLLATE NOCASE AND name != ?").get(b, a);
+      if (clash) throw new Error(`A source named “${b}” already exists`);
+      d.prepare("UPDATE sources SET name = ? WHERE name = ?").run(b, a);
+      d.prepare("UPDATE picks SET source = ? WHERE source = ?").run(b, a);
+    })();
   } finally {
     d.close();
   }

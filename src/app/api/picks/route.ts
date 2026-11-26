@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { addPick, addPicks, addSource, readPicks, removePick, removeSource } from "@/lib/picks-tracker";
+import { addPick, addPicks, addSource, readPicks, removePick, removeSource, renameSource } from "@/lib/picks-tracker";
 
 export const runtime = "nodejs";
 
@@ -16,6 +16,7 @@ export async function GET() {
  * POST /api/picks
  *   { action: "source", name }                               → add a source
  *   { action: "remove-source", name }                        → delete a source and all its picks
+ *   { action: "rename-source", name, to }                    → rename a source (its picks move with it)
  *   { action: "add", source, quarter, ticker, market?, name? } → add a stock to a source's quarter
  *   { action: "add-many", source, quarter, items: [{ ticker, market?, name? }] }
  *                                                            → add a list of stocks (also returns { result: { added, already } })
@@ -33,6 +34,7 @@ export async function POST(req: NextRequest) {
     const b = body as Record<string, string>;
     if (b.action === "source") addSource(b.name ?? "");
     else if (b.action === "remove-source") removeSource(b.name ?? "");
+    else if (b.action === "rename-source") renameSource(b.name ?? "", b.to ?? "");
     else if (b.action === "add") addPick({ source: b.source ?? "", quarter: b.quarter ?? "", ticker: b.ticker ?? "", market: b.market, name: b.name });
     else if (b.action === "remove") removePick({ source: b.source ?? "", quarter: b.quarter ?? "", ticker: b.ticker ?? "" });
     else return NextResponse.json({ ok: false, error: "Unknown action" }, { status: 400 });

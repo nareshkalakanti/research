@@ -24,6 +24,7 @@ export type AppTab =
   | "breakouts"
   | "momentum-money"
   | "picks"
+  | "funds"
   | "scanner"
   | "value"
   | "portfolio";
@@ -38,6 +39,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "breakouts", label: "Breakouts", short: "BO" },
   { id: "momentum-money", label: "Momentum & Money", short: "M&M" },
   { id: "picks", label: "Picks tracker", short: "Picks" },
+  { id: "funds", label: "Fund dashboard", short: "Funds" },
   { id: "portfolio", label: "Portfolio", short: "Port" },
   { id: "concall-drift", label: "Drift", short: "Drift" },
   { id: "scan", label: "Strategy", short: "Strategy" },
@@ -101,6 +103,7 @@ export const APP_GROUPS: AppGroup[] = [
       { id: "research", label: "Research" },
       { id: "dashboard", label: "Governance" },
       { id: "picks", label: "Picks tracker" },
+      { id: "funds", label: "Fund dashboard" },
     ],
   },
 ];

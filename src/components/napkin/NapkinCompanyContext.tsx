@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { CompanyAboutCard } from "@/components/CompanyAboutCard";
+import { NapkinFundHolders } from "@/components/napkin/NapkinFundHolders";
 import { NapkinScorecard } from "@/components/napkin/NapkinScorecard";
 import { NapkinPortfolioEval } from "@/components/napkin/NapkinPortfolioEval";
 import { NapkinPriceMaStrip } from "@/components/napkin/NapkinPriceMaStrip";
@@ -59,6 +60,8 @@ export function NapkinCompanyContext({
           priceFallback={price}
         />
       </div>
+
+      <NapkinFundHolders ticker={ticker} />
 
       <NapkinScorecard
         sevenRule={sevenRule}
