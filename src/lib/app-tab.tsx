@@ -22,6 +22,7 @@ export type AppTab =
   | "rotation"
   | "price-action"
   | "breakouts"
+  | "momentum-money"
   | "scanner"
   | "value"
   | "portfolio";
@@ -34,6 +35,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "rotation", label: "Trend", short: "Trend" },
   { id: "price-action", label: "Price Action", short: "PA" },
   { id: "breakouts", label: "Breakouts", short: "BO" },
+  { id: "momentum-money", label: "Momentum & Money", short: "M&M" },
   { id: "portfolio", label: "Portfolio", short: "Port" },
   { id: "concall-drift", label: "Drift", short: "Drift" },
   { id: "scan", label: "Strategy", short: "Strategy" },
