@@ -208,4 +208,15 @@ assert.equal(splitIssue.run_base, "first_close");
   assert.equal(analyzeBases(days.map((date, i) => ({ date, close: 100 + i })), { listed: true })!.listing_strength, null);
 }
 
+// Positron: no sells after the position is stopped out, and none on the entry day itself.
+{
+  // Listing-range breakout at 65 (stop 60), then a slide under the stop, then a sharp rebound.
+  const px2 = [60, 65, 63, 65, 63, 64, 64, 71, 66, 62, 58, 55, 52, 50, 49, 48, 50, 55, 61, 66];
+  const d2 = px2.map((_, i) => new Date(Date.UTC(2025, 0, 1) + i * 86_400_000).toISOString().slice(0, 10));
+  const st = analyzeIpo2(px2.map((close, i) => ({ date: d2[i]!, close, volume: 100 })))!;
+  assert.equal(st.entries[0]!.kind, "ipo_range");
+  assert.equal(st.sells.length, 0, st.sells.map((x) => x.date).join(","));
+  for (const e of a.entries) assert.ok(!a.sells.some((x) => x.idx === e.idx), `no sell on entry day ${e.date}`);
+}
+
 console.log("ipo2 ok");
