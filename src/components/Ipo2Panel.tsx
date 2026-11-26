@@ -407,6 +407,17 @@ export function Ipo2Panel() {
                                 }. Want heavy on the left, dry at the bottom, returning on the right.`
                           }
                         />
+                        <Check
+                          ok={r.listing_strength ? r.listing_strength.ok : null}
+                          label="Listing"
+                          title={
+                            r.listing_strength
+                              ? `First ${r.listing_strength.days} sessions after listing day: ${r.listing_strength.stock_pct}% vs Nifty ${r.listing_strength.nifty_pct}% (${
+                                  r.listing_strength.rel_pct > 0 ? "+" : ""
+                                }${r.listing_strength.rel_pct} pts), lowest close ${r.listing_strength.low_pct}% vs listing day. Wants 10+ pts ahead of Nifty without falling 5% under the listing-day close.`
+                              : "No Nifty data for the listing window, or too new"
+                          }
+                        />
                         {r.lockout ? (
                           <Check
                             ok={true}

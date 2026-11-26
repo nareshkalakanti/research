@@ -57,6 +57,12 @@ const BUILT: Row[] = [
     ours: "1% band, 3% under the 20-day, 5-session look-back",
   },
   {
+    rule: "Strength at listing",
+    source: "Waaree: “No selling post listing day in the deteriorated market conditions otherwise”",
+    app: "First 20 sessions after listing day vs Nifty 50 on the same dates: 10+ points ahead, never closing 5% under the listing-day close. Says so when Nifty fell over the window. Shown, not scored.",
+    ours: "20 sessions, 10 pts, 5% hold, Nifty −2% = weak market",
+  },
+  {
     rule: "Follow-through days",
     source: "Kaynes: “Buying comes with follow-through days”",
     app: "The 3 sessions after an entry: 2+ green, still above the buy level, volume at least the 50-day average (listing days left out).",
@@ -106,11 +112,6 @@ const QUESTIONS: Row[] = [
 ];
 
 const NEXT: Row[] = [
-  {
-    rule: "Strength at listing",
-    source: "Waaree: “No selling post listing day in the deteriorated market conditions”",
-    app: "Not built: would compare the first weeks with Nifty.",
-  },
   {
     rule: "Growth in the initial quarters",
     source: "“High growth sales / earning numbers in the initial quarters”",

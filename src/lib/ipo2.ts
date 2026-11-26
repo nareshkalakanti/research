@@ -2,6 +2,7 @@ import { loadAllCompanies } from "./db";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
 import { currentLockout, lockoutRallies, weekKey, type Lockout } from "./lockout";
 import { loadMetricsMap } from "./metrics";
+import { fetchNiftyDailyBars } from "./ohlc";
 import { fetchNseMainEquityList, fetchNseSmeEquityList, isNseRightsEntitlement } from "./nse-equity-lists";
 import { cachedRotationCloses, onRotationBarsRefreshed, rotationBarsRefreshing, rotationCloses, type Close } from "./rotation-bars";
 import { rotationFetchYears } from "./sector-rotation-series";
@@ -135,6 +136,18 @@ export const IPO2_RULES = {
   bandLookback: 5,
   bandTolPct: 1,
   bandBelowPct: 3,
+  /**
+   * Strength at listing (Waaree: "No selling post listing day in the deteriorated market conditions"):
+   * the first sessions after listing day vs Nifty 50 over the same dates.
+   */
+  listingDays: 20,
+  listingMinDays: 5,
+  /** Beat Nifty by this many points… */
+  listingRelPct: 10,
+  /** …without closing more than this % under the listing-day close. */
+  listingHoldPct: 5,
+  /** Nifty down this much over the window = a weak market (makes holding up count for more). */
+  listingWeakMktPct: -2,
   /** Follow-through (Kaynes "buying comes with follow-through days"): the sessions after an entry. */
   followDays: 3,
   followGreen: 2,
@@ -173,6 +186,20 @@ export type Ipo2Entry = {
   follow: FollowThrough | null;
   /** Trendline entries: where the falling line starts (the base high) — drawn to (idx, level). */
   tl?: { from_idx: number; from_price: number };
+};
+
+/** First weeks after listing day vs Nifty 50. */
+export type ListingStrength = {
+  days: number;
+  /** Change from the listing-day close, %. */
+  stock_pct: number;
+  nifty_pct: number;
+  rel_pct: number;
+  /** Lowest close in the window vs the listing-day close, %. */
+  low_pct: number;
+  /** Nifty fell over the window. */
+  weak_market: boolean;
+  ok: boolean;
 };
 
 export type SellKind = "ext1" | "ext2" | "climax";
@@ -267,6 +294,8 @@ export type Ipo2Analysis = {
   sells: Ipo2Sell[];
   /** Latest sell signal when it's within the last few sessions. */
   sell_now: Ipo2Sell | null;
+  /** First weeks after listing vs Nifty 50 (null without Nifty data or not a listing). */
+  listing_strength: ListingStrength | null;
   /** Lockout rallies: 6/8 green weekly bars at the end of stage 1 / start of stage 2. */
   lockouts: Lockout[];
   /** Lockout rally still running (this week or last). */
@@ -364,7 +393,7 @@ export function analyzeIpo2(series: Close[], R = IPO2_RULES): Ipo2Analysis | nul
  */
 export function analyzeBases(
   raw: Close[],
-  opts: { listed: boolean; issuePrice?: number | null },
+  opts: { listed: boolean; issuePrice?: number | null; market?: Close[] | null },
   R = IPO2_RULES,
 ): Ipo2Analysis | null {
   const listed = opts.listed;
@@ -735,6 +764,7 @@ export function analyzeBases(
       }
     }
   }
+  const listingStrength = listed && opts.market?.length ? strengthAtListing(c, series, opts.market, R) : null;
   const lockouts = lockoutRallies(series);
   const lockout = currentLockout(series, lockouts);
 
@@ -827,6 +857,7 @@ export function analyzeBases(
     entries,
     sells,
     sell_now: sellNow,
+    listing_strength: listingStrength,
     lockouts,
     lockout,
     legs,
@@ -855,8 +886,48 @@ export function analyzeBases(
       lastFail,
       bases,
       lockout,
+      listingStrength,
       R,
     }), sellNow, stage),
+  };
+}
+
+/** First sessions after listing day vs Nifty 50 on the same dates (both from the listing-day close). */
+function strengthAtListing(c: number[], series: Close[], market: Close[], R: typeof IPO2_RULES): ListingStrength | null {
+  const end = Math.min(series.length - 1, R.listingDays);
+  if (end < R.listingMinDays) return null;
+  const idx = new Map(market.map((b, i) => [b.date, i]));
+  // Nifty on or before a date (holidays / missing days).
+  const at = (iso: string): number | null => {
+    const hit = idx.get(iso);
+    if (hit != null) return market[hit]!.close;
+    let lo = 0;
+    let hi = market.length - 1;
+    let best = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (market[mid]!.date <= iso) {
+        best = mid;
+        lo = mid + 1;
+      } else hi = mid - 1;
+    }
+    return best >= 0 ? market[best]!.close : null;
+  };
+  const n0 = at(series[0]!.date);
+  const n1 = at(series[end]!.date);
+  if (n0 == null || n1 == null || !(n0 > 0) || market[0]!.date > series[0]!.date) return null;
+  const stock = (c[end]! / c[0]! - 1) * 100;
+  const nifty = (n1 / n0 - 1) * 100;
+  const low = (Math.min(...c.slice(1, end + 1)) / c[0]! - 1) * 100;
+  const rel = stock - nifty;
+  return {
+    days: end,
+    stock_pct: r1(stock),
+    nifty_pct: r1(nifty),
+    rel_pct: r1(rel),
+    low_pct: r1(low),
+    weak_market: nifty <= R.listingWeakMktPct,
+    ok: rel >= R.listingRelPct && low > -R.listingHoldPct,
   };
 }
 
@@ -1000,6 +1071,7 @@ function makeVerdict(x: {
   lastFail: { idx: number; depth: number; label: string } | null;
   bases: Ipo2Base[];
   lockout: Lockout | null;
+  listingStrength: ListingStrength | null;
   R: typeof IPO2_RULES;
 }): Verdict {
   const { R } = x;
@@ -1018,6 +1090,24 @@ function makeVerdict(x: {
     if (vr) reasons.push(vr);
   };
   const ipoReason = () => {
+    const ls = x.listingStrength;
+    if (ls) {
+      const sp = `${ls.stock_pct > 0 ? "+" : ""}${ls.stock_pct}%`;
+      const np = `${ls.nifty_pct > 0 ? "+" : ""}${ls.nifty_pct}%`;
+      reasons.push(
+        ls.ok
+          ? {
+              good: true,
+              text: ls.weak_market
+                ? `Strength at listing: ${sp} in its first ${ls.days} sessions while Nifty fell ${np}: no selling after listing day`
+                : `Strength at listing: ${sp} in its first ${ls.days} sessions vs Nifty ${np}`,
+            }
+          : {
+              good: false,
+              text: `Weak after listing: ${sp} in its first ${ls.days} sessions vs Nifty ${np}${ls.low_pct <= -R.listingHoldPct ? `, fell ${Math.abs(ls.low_pct)}% under the listing-day close` : ""}`,
+            },
+      );
+    }
     if (!x.listed || x.urgency == null) return;
     const wk = `${x.greenWeeks ?? 0}/${x.weeksSeen} green weeks`;
     const dy = `${x.greenDays ?? 0}/${x.daysSeen} green days`;
@@ -1436,6 +1526,8 @@ export type Ipo2Row = {
   sell_now: Ipo2Sell | null;
   /** Lockout rally running now (6/8 green weeks at the end of stage 1 / start of stage 2). */
   lockout: Lockout | null;
+  /** First weeks after listing vs Nifty 50. */
+  listing_strength: ListingStrength | null;
   pivot: number | null;
   to_pivot_pct: number | null;
   vol_dry: boolean | null;
@@ -1565,12 +1657,23 @@ function seriesSinceListing(
   return { series, listing, source, gap: daysBetween(listing, series[0]!.date) > 10 };
 }
 
+/** Nifty 50 daily closes covering the listing window (Yahoo, cached in memory); null when unavailable. */
+async function niftyCloses(): Promise<Close[] | null> {
+  try {
+    const bars = await fetchNiftyDailyBars(IPO2_RULES.maxAgeYears + 1);
+    return bars.length ? bars.map((b) => ({ date: b.date, close: b.close })) : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo2Result> {
   if (!opts?.refresh && screenCache && Date.now() - screenCache.at < SCREEN_TTL_MS) return screenCache.result;
   const R = IPO2_RULES;
-  const [{ map: nse, at: nseAt }, issues] = await Promise.all([
+  const [{ map: nse, at: nseAt }, issues, nifty] = await Promise.all([
     nseListingDates({ wait: opts?.refresh }),
     nseIssuePrices({ wait: opts?.refresh }),
+    niftyCloses(),
   ]);
   const years = rotationFetchYears();
   const cutoff = new Date(Date.now() - R.maxAgeYears * 365.25 * 86_400_000).toISOString().slice(0, 10);
@@ -1607,7 +1710,8 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       continue;
     }
     universe++;
-    const a = analyzeBases(s.series, { listed: true, issuePrice: issuePriceFor(issues, t, s.listing) });
+    // A series with a gap doesn't start at listing: no listing-window reads.
+    const a = analyzeBases(s.series, { listed: true, issuePrice: issuePriceFor(issues, t, s.listing), market: s.gap ? null : nifty });
     if (!a) continue;
     const lab = labels.get(t);
     const g = growth.get(t) ?? null;
@@ -1656,6 +1760,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       last_entry: a.entries[a.entries.length - 1] ?? null,
       sell_now: a.sell_now,
       lockout: a.lockout,
+      listing_strength: a.listing_strength,
       pivot: a.pivot,
       to_pivot_pct: a.to_pivot_pct,
       vol_dry: a.vol_dry,
@@ -1730,8 +1835,8 @@ export async function stockBasesDetail(ticker: string, marketHint?: string | nul
   const nseDate = nse.get(t) ?? null;
   const s = seriesSinceListing(t, market, nseDate, years, cutoff, bulkFirstTradeDays(years));
   if (s && !olderCompany(t, s.source === "nse" ? nseDate : null, bseCodes(), bulkListingDays(nse))) {
-    const issues = await nseIssuePrices();
-    const analysis = analyzeBases(s.series, { listed: true, issuePrice: issuePriceFor(issues, t, s.listing) });
+    const [issues, nifty] = await Promise.all([nseIssuePrices(), niftyCloses()]);
+    const analysis = analyzeBases(s.series, { listed: true, issuePrice: issuePriceFor(issues, t, s.listing), market: s.gap ? null : nifty });
     if (analysis)
       return {
         ok: true,

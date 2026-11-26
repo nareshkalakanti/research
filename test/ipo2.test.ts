@@ -194,4 +194,18 @@ assert.equal(splitIssue.run_base, "first_close");
   assert.equal(tf.follow?.ok, false);
 }
 
+// Strength at listing: holds and climbs while Nifty falls; vs a listing that sinks with the market.
+{
+  const days = Array.from({ length: 30 }, (_, i) => new Date(Date.UTC(2024, 9, 1) + i * 86_400_000).toISOString().slice(0, 10));
+  const nifty = days.map((date, i) => ({ date, close: 25000 * (1 - 0.003 * i) })); // −6% over 20 sessions
+  const strong = analyzeBases(days.map((date, i) => ({ date, close: 100 + i * 1.5, volume: 100 })), { listed: true, market: nifty })!;
+  assert.equal(strong.listing_strength?.ok, true);
+  assert.equal(strong.listing_strength?.weak_market, true);
+  assert.ok(strong.verdict.reasons.some((r) => r.text.startsWith("Strength at listing") && r.text.includes("Nifty fell")));
+  const weak = analyzeBases(days.map((date, i) => ({ date, close: 100 - i * 0.5, volume: 100 })), { listed: true, market: nifty })!;
+  assert.equal(weak.listing_strength?.ok, false);
+  // No Nifty: no read.
+  assert.equal(analyzeBases(days.map((date, i) => ({ date, close: 100 + i })), { listed: true })!.listing_strength, null);
+}
+
 console.log("ipo2 ok");
