@@ -1,5 +1,6 @@
 import { loadAllCompanies } from "./db";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
+import { currentLockout } from "./lockout";
 import { loadMetricsMap } from "./metrics";
 import { rotationBarsRefreshing, rotationCloses, type Close } from "./rotation-bars";
 import { runConcurrent } from "./scrape-pool";
@@ -19,6 +20,8 @@ import { masterLabels } from "./stock-master";
  *                        last (last one ≤ 10%), volume drying up
  *   Blue sky             no higher close in the whole history (2+ years)
  *   No named screen      any other breakout from a 2+ week base
+ * Plus Lockout rallies (any stock, breaking out today or not): 6 of the last 8
+ * weekly bars green at the end of stage 1 / start of stage 2 (see lockout.ts).
  */
 export const BO_RULES = {
   /** Today within this much below the pivot still counts as "at its pivot". */
@@ -48,13 +51,17 @@ export type BoRow = {
   price: number;
   day_pct: number | null;
   rel_vol: number | null;
-  pivot: number;
+  /** Breakout pivot; null when the stock is only in the list for a lockout rally. */
+  pivot: number | null;
   /** today vs pivot, % (−1 … +5). */
-  above_pct: number;
-  base_weeks: number;
+  above_pct: number | null;
+  base_weeks: number | null;
   rs: number | null;
-  screen: BoScreen;
+  /** Breakout screen; null = not breaking out today (lockout rally only). */
+  screen: BoScreen | null;
   also: BoScreen[];
+  /** Lockout rally running now. */
+  lockout: { green: number; gain_pct: number; start: string; from_price: number; weeks: number } | null;
   /** Closes for the sparkline (≤ 120 points) and where the base starts in it. */
   chart: number[];
   base_from: number;
@@ -134,7 +141,16 @@ function sparkline(s: Close[], from: number, baseIdx: number): { chart: number[]
   return { chart, base_from: Math.min(chart.length - 1, Math.round((baseIdx - from) / step)) };
 }
 
-type Hit = Omit<BoRow, "ticker" | "name" | "market" | "industry" | "website" | "mcap_cr" | "rs">;
+type Hit = Omit<BoRow, "ticker" | "name" | "market" | "industry" | "website" | "mcap_cr" | "rs" | "lockout">;
+
+function dayStats(s: Close[]): { price: number; day_pct: number | null; rel_vol: number | null } {
+  const t = s.length - 1;
+  const c = s[t]!.close;
+  const prev = s[t - 1]?.close ?? 0;
+  const v50 = avgVol(s, t - BO_RULES.relVolDays, t);
+  const vt = s[t]!.volume;
+  return { price: c, day_pct: prev > 0 ? (c / prev - 1) * 100 : null, rel_vol: v50 && vt != null ? vt / v50 : null };
+}
 
 /** Breakout today from a base, or null. */
 export function detectBreakout(s: Close[]): Hit | null {
@@ -171,13 +187,9 @@ export function detectBreakout(s: Close[]): Hit | null {
   if (allTime && s.length >= BO_RULES.blueSkyMinBars) tags.push("blue");
   const screen: BoScreen = tags[0] ?? "none";
 
-  const v50 = avgVol(s, t - BO_RULES.relVolDays, t);
-  const vt = s[t]!.volume;
   const from = Math.max(0, pivotIdx - Math.max(15, Math.round(baseDays * 0.3)));
   return {
-    price: c,
-    day_pct: prev > 0 ? (c / prev - 1) * 100 : null,
-    rel_vol: v50 && vt != null ? vt / v50 : null,
+    ...dayStats(s),
     pivot,
     above_pct: above,
     base_weeks: Math.round(baseDays / 5),
@@ -239,7 +251,19 @@ export async function buildBreakouts(): Promise<BoResult> {
     const s = bars[i] ?? [];
     if (!s.length || s[s.length - 1]!.date !== date) return;
     const hit = detectBreakout(s);
-    if (!hit) return;
+    const lo = currentLockout(s);
+    if (!hit && !lo) return;
+    const lockout = lo ? { green: lo.green, gain_pct: lo.gain_pct, start: lo.start, from_price: lo.from_price, weeks: lo.weeks } : null;
+    // Lockout only: chart from a little before the run, the run shaded.
+    const body: Hit = hit ?? {
+      ...dayStats(s),
+      pivot: null,
+      above_pct: null,
+      base_weeks: null,
+      screen: null,
+      also: [],
+      ...sparkline(s, Math.max(0, lo!.start_idx - 40), lo!.start_idx),
+    };
     const t = m.ticker.toUpperCase();
     const lab = labels.get(t);
     rows.push({
@@ -250,10 +274,11 @@ export async function buildBreakouts(): Promise<BoResult> {
       website: sites.get(t) ?? null,
       mcap_cr: metrics.get(t)?.market_cap_cr ?? null,
       rs: rsOf(raws[i] ?? null),
-      ...hit,
+      lockout,
+      ...body,
     });
   });
-  rows.sort((a, b) => (b.rs ?? -1) - (a.rs ?? -1) || b.base_weeks - a.base_weeks);
+  rows.sort((a, b) => (b.rs ?? -1) - (a.rs ?? -1) || (b.base_weeks ?? 0) - (a.base_weeks ?? 0));
   const result: BoResult = { date, rows, universe: members.length, refreshing: rotationBarsRefreshing(), rules: BO_RULES };
   cache = { at: Date.now(), result };
   return result;

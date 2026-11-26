@@ -1,5 +1,6 @@
 import { loadAllCompanies } from "./db";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
+import { currentLockout, lockoutRallies, weekKey, type Lockout } from "./lockout";
 import { loadMetricsMap } from "./metrics";
 import { fetchNseMainEquityList, fetchNseSmeEquityList, isNseRightsEntitlement } from "./nse-equity-lists";
 import { cachedRotationCloses, onRotationBarsRefreshed, rotationBarsRefreshing, rotationCloses, type Close } from "./rotation-bars";
@@ -224,6 +225,10 @@ export type Ipo2Analysis = {
   sells: Ipo2Sell[];
   /** Latest sell signal when it's within the last few sessions. */
   sell_now: Ipo2Sell | null;
+  /** Lockout rallies: 6/8 green weekly bars at the end of stage 1 / start of stage 2. */
+  lockouts: Lockout[];
+  /** Lockout rally still running (this week or last). */
+  lockout: Lockout | null;
   /** Expansion legs since the last breakout (1 = E1, 2 = E2, 3+ = E3 / late). */
   legs: number;
   stage: Ipo2Stage;
@@ -290,13 +295,6 @@ export function adjustCorporateActions(series: Close[], R = IPO2_RULES): { serie
     actions.push({ date: series[i]!.date, ratio: r2(ratio) });
   }
   return { series: out ?? series, actions: actions.reverse() };
-}
-
-/** Trading week (Mon–Sun) of an ISO date, as the Monday's date. */
-function weekKey(iso: string): string {
-  const t = Date.parse(`${iso}T00:00:00Z`);
-  const dow = (new Date(t).getUTCDay() + 6) % 7;
-  return new Date(t - dow * 86_400_000).toISOString().slice(0, 10);
 }
 
 const ENTRY_LABEL: Record<EntryKind, string> = {
@@ -619,6 +617,9 @@ export function analyzeBases(
       }
     }
   }
+  const lockouts = lockoutRallies(series);
+  const lockout = currentLockout(series, lockouts);
+
   const lastSell = sells[sells.length - 1] ?? null;
   const sellNow = lastSell && n - 1 - lastSell.idx < R.sellFreshDays ? lastSell : null;
 
@@ -708,6 +709,8 @@ export function analyzeBases(
     entries,
     sells,
     sell_now: sellNow,
+    lockouts,
+    lockout,
     legs,
     stage,
     stage_note: note,
@@ -733,6 +736,7 @@ export function analyzeBases(
       lastBreakoutPct: lastBreakout != null ? r1((p / c[lastBreakout]! - 1) * 100) : null,
       lastFail,
       bases,
+      lockout,
       R,
     }), sellNow, stage),
   };
@@ -845,6 +849,7 @@ function makeVerdict(x: {
   lastBreakoutPct: number | null;
   lastFail: { idx: number; depth: number; label: string } | null;
   bases: Ipo2Base[];
+  lockout: Lockout | null;
   R: typeof IPO2_RULES;
 }): Verdict {
   const { R } = x;
@@ -879,6 +884,13 @@ function makeVerdict(x: {
     if (x.volDry === true) reasons.push({ good: true, text: "Volume drying up in the base" });
   };
   const inr = (n: number) => `₹${fmt(n)}`;
+  if (x.lockout)
+    reasons.push({
+      good: true,
+      text: `Lockout rally: ${x.lockout.green}/8 green weeks since ${shortIso(x.lockout.start)}, +${x.lockout.gain_pct}% from ${inr(
+        x.lockout.from_price,
+      )} (end of stage 1 / start of stage 2)`,
+    });
 
   switch (x.stage) {
     case "buy_zone": {
@@ -1255,6 +1267,8 @@ export type Ipo2Row = {
   last_entry: Ipo2Entry | null;
   /** Sell signal in the last few sessions (1st / 2nd extension, climax). */
   sell_now: Ipo2Sell | null;
+  /** Lockout rally running now (6/8 green weeks at the end of stage 1 / start of stage 2). */
+  lockout: Lockout | null;
   pivot: number | null;
   to_pivot_pct: number | null;
   vol_dry: boolean | null;
@@ -1474,6 +1488,7 @@ export async function buildIpo2Screen(opts?: { refresh?: boolean }): Promise<Ipo
       live_entry: a.live_entry,
       last_entry: a.entries[a.entries.length - 1] ?? null,
       sell_now: a.sell_now,
+      lockout: a.lockout,
       pivot: a.pivot,
       to_pivot_pct: a.to_pivot_pct,
       vol_dry: a.vol_dry,

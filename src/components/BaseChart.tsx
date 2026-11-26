@@ -88,6 +88,7 @@ export function BaseChart({
   const sells = (a.sells ?? []).filter((e) => e.idx >= start);
   const bases = a.bases.filter((b) => (b.end_idx ?? series.length - 1) >= start);
   const volBases = bases.filter((b) => b.valid && b.vol).slice(-TABLE_ROWS);
+  const lockouts = (a.lockouts ?? []).filter((l) => l.end_idx >= start);
   const lo = Math.min(...closes, ...entries.map((e) => e.stop)) * 0.96;
   const hi = Math.max(...closes, ...entries.map((e) => e.level)) * 1.04;
   const x = (i: number) => L + ((W - L - R) * (i - start + 0.5)) / n;
@@ -268,6 +269,25 @@ export function BaseChart({
               {lab ? (
                 <text className="bc-elab" x={ex} y={lab.y} textAnchor="middle">
                   {lab.text}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+        {lockouts.map((l) => {
+          const x0 = x(Math.max(start, l.start_idx)) - bw / 2;
+          const x1 = x(l.end_idx) + bw / 2;
+          const text = `Lockout ${l.green}/8`;
+          return (
+            <g key={`lo-${l.start_idx}`} className="bc-lockout">
+              <rect x={x0} y={PH - 3} width={Math.max(2, x1 - x0)} height={4} rx={2}>
+                <title>{`Lockout rally ${shortDate(l.start)} – ${shortDate(l.end)}: ${l.green} of 8 weekly bars green, +${l.gain_pct}% from ${inr(
+                  l.from_price,
+                )} (week before ${l.ma_start_pct > 0 ? `${l.ma_start_pct}% above` : `${Math.abs(l.ma_start_pct)}% under`} its 30-week average)`}</title>
+              </rect>
+              {x1 - x0 >= textW(text, 10) ? (
+                <text x={x0} y={PH + 10}>
+                  {text}
                 </text>
               ) : null}
             </g>

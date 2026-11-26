@@ -407,6 +407,13 @@ export function Ipo2Panel() {
                                 }. Want heavy on the left, dry at the bottom, returning on the right.`
                           }
                         />
+                        {r.lockout ? (
+                          <Check
+                            ok={true}
+                            label="Lockout"
+                            title={`Lockout rally since ${shortDate(r.lockout.start)}: ${r.lockout.green} of 8 weekly bars green, +${r.lockout.gain_pct}% (end of stage 1 / start of stage 2)`}
+                          />
+                        ) : null}
                         <Check ok={null} label="QIB" title="QIB subscription not saved: check the IPO's subscription page" />
                       </td>
                     </tr>
