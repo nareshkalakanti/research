@@ -97,6 +97,19 @@ R2 keeps one folder per machine:
 
 Pick a source explicitly with `FROM=main npm run db:restore` or `FROM=laptop npm run db:restore`. Only one machine should run without `R2_MACHINE`.
 
+#### Bringing picks and fund data to another machine
+
+`git pull` brings code only; databases move through R2. Picks (`picks_tracker.db`) and followed fund pages with their stake history (`fund_watchlists.db`) do not merge between machines, so edit them on one machine and pull them on the other:
+
+```bash
+git pull
+npm run dev:stop
+FROM=a3426-21014 npm run db:restore -- picks_tracker.db fund_watchlists.db
+npm run dev:bg
+```
+
+Set `FROM` to the `R2_MACHINE` of the machine you last edited on (`a3426-21014` here, `main` for the main machine). The machine you edited on must have backed up since (hourly with `npm run dev:bg`, or `npm run db:backup` now). Leave out the database names to restore every database.
+
 ### Clones from before 2026-11-20
 
 The git history was rewritten on 2026-11-20 to take the databases out. On an older clone: stop the app, copy `data/` somewhere safe, then
