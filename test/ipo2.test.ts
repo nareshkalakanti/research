@@ -165,4 +165,30 @@ assert.equal(splitIssue.run_base, "first_close");
   assert.equal(analyzeIpo2(px.map((close, i) => ({ date: dates[i]!, close })))!.bases[0]!.vol, null);
 }
 
+// Trendline break: falling highs across a base (150 → 144 → 138), first close above the line under the pivot.
+{
+  const run = (legs: Array<[number, number]>) => {
+    const tp: number[] = [100];
+    for (const [to, days] of legs) {
+      const from = tp[tp.length - 1]!;
+      for (let i = 1; i <= days; i++) tp.push(from + ((to - from) * i) / days);
+    }
+    const td = tp.map((_, i) => new Date(Date.UTC(2024, 0, 1) + i * 86_400_000).toISOString().slice(0, 10));
+    return analyzeBases(tp.map((close, i) => ({ date: td[i]!, close, volume: 100 })), { listed: false })!;
+  };
+  const base: Array<[number, number]> = [[150, 30], [130, 8], [144, 6], [125, 8], [138, 6], [122, 8]];
+  // Breaks the line and keeps going: follow-through.
+  const good = run([...base, [140, 8], [146, 4]]);
+  const tl = good.entries.find((e) => e.kind === "trendline");
+  assert.ok(tl, `trendline entry: ${good.entries.map((e) => e.kind).join(",")}`);
+  assert.ok(tl.level < 150 && tl.level > 122, `level ${tl.level}`);
+  assert.equal(tl.tl?.from_price, 150);
+  assert.equal(tl.follow?.ok, true, JSON.stringify(tl.follow));
+  // Pokes over the line and fades: no follow-through.
+  const fade = run([...base, [133, 6], [126, 4], [124, 4]]);
+  const tf = fade.entries.find((e) => e.kind === "trendline");
+  assert.ok(tf);
+  assert.equal(tf.follow?.ok, false);
+}
+
 console.log("ipo2 ok");

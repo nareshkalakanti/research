@@ -65,6 +65,8 @@ export const IPO2_RULES = {
   baseMinDays: 25,
   /** Shallower than this is a pause, not a base. */
   baseMinDepthPct: 8,
+  /** The IPO base may be tighter (Cyient DLM: 7.5% deep, first long on its breakout). */
+  ipoBaseMinDepthPct: 5,
   /** Outside the IPO base, a base needs this much rise into its high (from the low of the prior ~6 months). */
   priorRisePct: 25,
   priorRiseDays: 126,
@@ -115,9 +117,35 @@ export const IPO2_RULES = {
   /** Day-1 close outside this × the issue price: history is on another share basis (split / bonus since). */
   issueBasisMin: 0.6,
   issueBasisMax: 4,
+  /** Trendline break (Syrma, Cyient DLM first entries): base this many sessions old, line's 2nd touch this far after the high. */
+  tlMinDays: 20,
+  tlMinGap: 10,
+  /** Closes may poke this % over the line without breaking it. */
+  tlTolPct: 0.5,
+  /** A line needs this many peaks touching it (within tlTouchPct) after the high. */
+  tlTouches: 2,
+  tlTouchPct: 1.5,
+  /** Follow-through (Kaynes "buying comes with follow-through days"): the sessions after an entry. */
+  followDays: 3,
+  followGreen: 2,
+  /** Their average volume at least this × the 50-day average. */
+  followVolX: 1,
 };
 
-export type EntryKind = "ipo_range" | "low_cheat" | "cheat" | "pivot" | "add";
+export type EntryKind = "ipo_range" | "trendline" | "low_cheat" | "cheat" | "pivot" | "add";
+
+/** What happened in the sessions after an entry. */
+export type FollowThrough = {
+  /** Sessions seen so far (out of followDays). */
+  days: number;
+  green: number;
+  /** Their average volume ÷ the 50-day average before the entry. */
+  vol_x: number | null;
+  /** Close at the end still above the buy level. */
+  held: boolean;
+  /** null while still in progress. */
+  ok: boolean | null;
+};
 
 export type Ipo2Entry = {
   kind: EntryKind;
@@ -131,6 +159,10 @@ export type Ipo2Entry = {
   base: number;
   /** Breakout volume ÷ 50-day average (pivot / add); null when no volume saved. */
   vol_x: number | null;
+  /** Follow-through days after the entry. */
+  follow: FollowThrough | null;
+  /** Trendline entries: where the falling line starts (the base high) — drawn to (idx, level). */
+  tl?: { from_idx: number; from_price: number };
 };
 
 export type SellKind = "ext1" | "ext2" | "climax";
@@ -258,10 +290,10 @@ export type Verdict = {
 const r1 = (n: number) => Math.round(n * 10) / 10;
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-function avgVol(v: number[], end: number, len: number): number | null {
+function avgVol(v: number[], end: number, len: number, floor = 0): number | null {
   let s = 0;
   let k = 0;
-  for (let j = Math.max(0, end - len); j < end; j++) {
+  for (let j = Math.max(floor, end - len); j < end; j++) {
     if (v[j]! > 0) {
       s += v[j]!;
       k++;
@@ -299,6 +331,7 @@ export function adjustCorporateActions(series: Close[], R = IPO2_RULES): { serie
 
 const ENTRY_LABEL: Record<EntryKind, string> = {
   ipo_range: "Listing-range breakout",
+  trendline: "Trendline break",
   low_cheat: "Low cheat",
   cheat: "Cheat",
   pivot: "Pivot breakout",
@@ -396,6 +429,9 @@ export function analyzeBases(
   let pause: { hi: number; lo: number; zone: "low" | "mid" } | null = null;
   let tookLow = false;
   let tookMid = false;
+  let tookTrend = false;
+  /** Stop of this base's trendline entry: a close under it re-arms the trendline (a new line can form). */
+  let trendStop = 0;
   let lastBreakout: number | null = null;
   let legs = 0;
   /** Valid bases since the last reset (a failed base). */
@@ -403,8 +439,10 @@ export function analyzeBases(
   let resetIdx = 0;
   let lastFail: { idx: number; depth: number; label: string } | null = null;
 
+  // Listing-day volume dwarfs everything after it: leave the first two sessions out of volume averages.
+  const volFloor = listed ? 2 : 0;
   const push = (kind: EntryKind, i: number, level: number, structStop: number, label?: string) => {
-    const a = avgVol(v, i, 50);
+    const a = avgVol(v, i, 50, volFloor);
     // Stop under the pause / pivot low, but never more than maxStopPct below the buy level.
     const stop = Math.max(structStop, level * (1 - R.maxStopPct / 100));
     entries.push({
@@ -417,6 +455,7 @@ export function analyzeBases(
       risk_pct: r1(((level - stop) / level) * 100),
       base: base?.n ?? bases.length,
       vol_x: hasVol && a ? r2(v[i]! / a) : null,
+      follow: null,
     });
   };
 
@@ -468,12 +507,13 @@ export function analyzeBases(
       pause = null;
       tookLow = false;
       tookMid = false;
+      tookTrend = false;
       continue;
     }
     minSinceH = Math.min(minSinceH, p);
     const depth = (1 - minSinceH / H) * 100;
     const ipoBase = listed && bases.length === 0;
-    if (!base && i - hIdx >= (ipoBase ? R.ipoBaseMinDays : R.baseMinDays) && depth >= R.baseMinDepthPct) {
+    if (!base && i - hIdx >= (ipoBase ? R.ipoBaseMinDays : R.baseMinDays) && depth >= (ipoBase ? R.ipoBaseMinDepthPct : R.baseMinDepthPct)) {
       const lo = Math.min(...c.slice(Math.max(resetIdx, hIdx - R.priorRiseDays), hIdx + 1));
       const rise = lo > 0 ? (H / lo - 1) * 100 : 0;
       const valid = ipoBase || rise >= R.priorRisePct;
@@ -517,12 +557,28 @@ export function analyzeBases(
       pause = null;
       tookLow = false;
       tookMid = false;
+      tookTrend = false;
       continue;
     }
     if (base.status !== "open" || !base.valid) continue;
 
+    // Trendline break: first close above a falling line across the base's highs, still under the pivot.
+    if (tookTrend && p < trendStop) tookTrend = false;
+    if (!tookTrend && i - hIdx >= R.tlMinDays && p < H) {
+      const tl = fallingLine(c, hIdx, i, R);
+      if (tl && p > tl.at(i) && c[i - 1]! <= tl.at(i - 1) && !(entries.length && entries[entries.length - 1]!.idx > i - 5)) {
+        // Stop under the recent lows (since the last touch, at least the last 10 sessions).
+        push("trendline", i, tl.at(i), Math.min(...c.slice(Math.min(tl.touch, i - 10), i)));
+        const e = entries[entries.length - 1]!;
+        e.tl = { from_idx: hIdx, from_price: r2(H) };
+        trendStop = e.stop;
+        tookTrend = true;
+      }
+    }
+
     // A pause triggers when today's close clears its high.
-    if (pause && p > pause.hi) {
+    const enteredToday = entries.length > 0 && entries[entries.length - 1]!.idx === i;
+    if (pause && p > pause.hi && !enteredToday) {
       if (pause.zone === "low" && !tookLow) {
         push("low_cheat", i, pause.hi, pause.lo);
         tookLow = true;
@@ -552,6 +608,27 @@ export function analyzeBases(
         }
       }
     }
+  }
+
+  // Follow-through: the sessions after each entry — mostly green, on volume, holding above the buy level.
+  for (const e of entries) {
+    const end = Math.min(n - 1, e.idx + R.followDays);
+    const days = end - e.idx;
+    if (days <= 0) continue;
+    let green = 0;
+    for (let k = e.idx + 1; k <= end; k++) if (c[k]! > c[k - 1]!) green++;
+    const a = avgVol(v, e.idx, 50, volFloor);
+    let vs = 0;
+    for (let k = e.idx + 1; k <= end; k++) vs += v[k]!;
+    const volX = hasVol && a ? r2(vs / days / a) : null;
+    const held = c[end]! >= e.level;
+    const ok =
+      days < R.followDays
+        ? green + (R.followDays - days) >= R.followGreen && held
+          ? null
+          : false
+        : green >= R.followGreen && held && (volX == null || volX >= R.followVolX);
+    e.follow = { days, green, vol_x: volX, held, ok };
   }
 
   // Failed bases broke down: their "right side" is the breakdown, so no volume read.
@@ -743,6 +820,38 @@ export function analyzeBases(
 }
 
 /**
+ * Falling line from the base high through the highest later peak (the flattest line resting
+ * on the highs), when every close since the high stays under it.
+ */
+function fallingLine(
+  c: number[],
+  s: number,
+  i: number,
+  R: typeof IPO2_RULES,
+): { at: (j: number) => number; touch: number } | null {
+  let best: { m: number; k: number } | null = null;
+  for (let k = s + R.tlMinGap; k <= i - 3; k++) {
+    const pk = c[k]!;
+    if (!(pk >= c[k - 1]! && pk >= c[k - 2]! && pk >= c[k + 1]! && pk >= c[k + 2]!)) continue;
+    if (pk >= c[s]!) continue;
+    const m = (pk - c[s]!) / (k - s);
+    if (!best || m > best.m) best = { m, k };
+  }
+  if (!best) return null;
+  const { m, k } = best;
+  const at = (j: number) => c[s]! + m * (j - s);
+  for (let j = s + 1; j < i; j++) if (c[j]! > at(j) * (1 + R.tlTolPct / 100)) return null;
+  // At least two peaks on the line after the high: a real trendline, not one stray point.
+  let touches = 0;
+  for (let q = s + 3; q <= i - 3; q++) {
+    const pk = c[q]!;
+    if (pk >= c[q - 1]! && pk >= c[q - 2]! && pk >= c[q + 1]! && pk >= c[q + 2]! && pk >= at(q) * (1 - R.tlTouchPct / 100)) touches++;
+  }
+  if (touches < R.tlTouches) return null;
+  return { at, touch: k };
+}
+
+/**
  * Left / right side volume of a base (IPO V2.0 base drawing): heavy selling on the way
  * down, quiet at the bottom, volume coming back as it climbs the right side.
  */
@@ -903,9 +1012,24 @@ function makeVerdict(x: {
               ? { good: true, text: `Breakout on ${e.vol_x}× average volume: confirmed` }
               : { good: false, text: `Breakout on only ${e.vol_x}× average volume (want ${R.breakoutVolX}×): unconfirmed, buy smaller` },
           );
-      } else if (e.kind === "ipo_range")
+      } else if (e.kind === "trendline")
+        reasons.push({ good: true, text: "Trendline break: first close above the falling line across the base highs, before the pivot" });
+      else if (e.kind === "ipo_range")
         reasons.push({ good: true, text: "Listing-range breakout: first close above the range held since listing, stop under the post-listing low" });
       else reasons.push({ good: true, text: `${e.label}: early entry inside the base, tight stop` });
+      const f = e.follow;
+      if (!f) reasons.push({ good: true, text: `Follow-through: watch the next ${R.followDays} sessions (want ${R.followGreen}+ green, holding above ${inr(e.level)}, on volume)` });
+      else {
+        const vol = f.vol_x != null ? `, volume ${f.vol_x}× average` : "";
+        const what = `${f.green}/${f.days} green days${vol}${f.held ? "" : `, back under ${inr(e.level)}`}`;
+        reasons.push(
+          f.ok === true
+            ? { good: true, text: `Follow-through: ${what}. Buying is coming in` }
+            : f.ok === false
+              ? { good: false, text: `Weak follow-through: ${what}. Buy smaller or wait` }
+              : { good: true, text: `Follow-through so far: ${what} (${R.followDays - f.days} more session${R.followDays - f.days === 1 ? "" : "s"} to judge)` },
+        );
+      }
       if (e.kind !== "add") baseOf(b);
       ipoReason();
       return { call: "buy", action: `Buy above ${inr(e.level)}, stop ${inr(e.stop)} (risk ${e.risk_pct}%)`, reasons };

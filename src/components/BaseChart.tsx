@@ -27,7 +27,7 @@ export function shortDate(iso: string): string {
   return new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "2-digit", timeZone: "UTC" });
 }
 
-const SHORT: Record<string, string> = { ipo_range: "Range BO", low_cheat: "Low cheat", cheat: "Cheat", pivot: "Pivot" };
+const SHORT: Record<string, string> = { ipo_range: "Range BO", trendline: "TL break", low_cheat: "Low cheat", cheat: "Cheat", pivot: "Pivot" };
 
 /** Entry table: latest rows shown first, the rest behind a button. */
 const TABLE_ROWS = 8;
@@ -253,6 +253,18 @@ export function BaseChart({
             </g>
           );
         })}
+        {entries.map((e) =>
+          e.tl ? (
+            <line
+              key={`tl-${e.idx}`}
+              className="bc-tl"
+              x1={x(Math.max(start, e.tl.from_idx))}
+              y1={y(e.tl.from_price + ((e.level - e.tl.from_price) * (Math.max(start, e.tl.from_idx) - e.tl.from_idx)) / Math.max(1, e.idx - e.tl.from_idx))}
+              x2={x(e.idx)}
+              y2={y(e.level)}
+            />
+          ) : null,
+        )}
         {entries.map((e, k) => {
           const ex = x(e.idx);
           const ey = y(e.level);
@@ -327,6 +339,7 @@ export function BaseChart({
                 <th className="num">Stop</th>
                 <th className="num">Risk</th>
                 <th className="num">Volume</th>
+                <th title="The next 3 sessions: green days, volume vs average, still above the buy level">Follow-through</th>
               </tr>
             </thead>
             <tbody>
@@ -341,6 +354,13 @@ export function BaseChart({
                   <td className="num bc-stop">{inr(e.stop)}</td>
                   <td className="num">{e.risk_pct}%</td>
                   <td className="num">{e.vol_x != null && (e.kind === "pivot" || e.kind === "add") ? `${e.vol_x}×` : "—"}</td>
+                  <td className={e.follow?.ok === true ? "bc-ok" : e.follow?.ok === false ? "bc-stop" : undefined}>
+                    {!e.follow
+                      ? "next 3 days"
+                      : `${e.follow.ok === true ? "✓" : e.follow.ok === false ? "✗" : "…"} ${e.follow.green}/${e.follow.days} green${
+                          e.follow.vol_x != null ? ` · ${e.follow.vol_x}×` : ""
+                        }${e.follow.held ? "" : " · lost level"}`}
+                  </td>
                 </tr>
               ))}
             </tbody>
