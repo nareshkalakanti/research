@@ -429,23 +429,6 @@ export function ValuePanel() {
             )}
           </h2>
         </div>
-        <div className="vx-tabs" role="tablist" aria-label="Value tools">
-          <button type="button" role="tab" aria-selected={tab === "rank"} className={tab === "rank" ? "on" : ""} onClick={() => setTab("rank")}>
-            Ranking tool
-          </button>
-          <button type="button" role="tab" aria-selected={tab === "cycle"} className={tab === "cycle" ? "on" : ""} onClick={() => setTab("cycle")}>
-            Industry cycle
-          </button>
-          <button type="button" role="tab" aria-selected={tab === "valuation"} className={tab === "valuation" ? "on" : ""} onClick={() => setTab("valuation")}>
-            Valuation
-          </button>
-          <button type="button" role="tab" aria-selected={tab === "earnings"} className={tab === "earnings" ? "on" : ""} onClick={() => setTab("earnings")}>
-            Earnings Trends
-          </button>
-          <button type="button" role="tab" aria-selected={tab === "winds"} className={tab === "winds" ? "on" : ""} onClick={() => setTab("winds")}>
-            Favour / Out of favour
-          </button>
-        </div>
       </header>
 
       {err ? <p className="vx-msg vx-msg--err">Could not load: {err}</p> : null}

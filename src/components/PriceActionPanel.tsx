@@ -167,7 +167,7 @@ function Cap({ r }: { r: Row }) {
 }
 
 export function PriceActionPanel() {
-  const [view, setView] = useState<View>("2wk");
+  const [view, setView] = useState<View>("latest");
   const [from, setFrom] = useState(isoDaysAgo(30));
   const [to, setTo] = useState(isoDaysAgo(0));
   /** Quick range in use; null once the dates are edited by hand. */
@@ -182,7 +182,7 @@ export function PriceActionPanel() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
-  const [minCap, setMinCap] = useState("");
+  const [minCap, setMinCap] = useState("200");
   const [maxCap, setMaxCap] = useState("");
   const [exch, setExch] = useState("all");
   const [minDays, setMinDays] = useState(0);

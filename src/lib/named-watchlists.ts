@@ -303,6 +303,23 @@ export function upsertNamedWatch(
   }
 }
 
+/** Delete a whole named list: its stocks and its name. Returns false when there was no such list. */
+export function deleteNamedList(listKey: string): boolean {
+  const key = normalizeListKey(listKey);
+  if (!key || !fs.existsSync(DB_PATH)) return false;
+  const db = openWrite();
+  try {
+    let n = 0;
+    db.transaction(() => {
+      n += db.prepare(`DELETE FROM named_watchlists WHERE list_key = ?`).run(key).changes;
+      n += db.prepare(`DELETE FROM named_list_meta WHERE list_key = ?`).run(key).changes;
+    })();
+    return n > 0;
+  } finally {
+    db.close();
+  }
+}
+
 export function deleteNamedWatch(listKey: string, ticker: string): boolean {
   const key = normalizeListKey(listKey);
   const t = (ticker || "").trim().toUpperCase();

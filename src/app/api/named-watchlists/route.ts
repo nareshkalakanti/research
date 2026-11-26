@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createNamedList,
+  deleteNamedList,
   deleteNamedWatch,
   listNamedWatchlists,
   loadNamedWatchlist,
@@ -143,8 +144,13 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ...payload(list), row, lists: listNamedWatchlists() });
 }
 
+/** DELETE ?list=&ticker= removes one stock; DELETE ?list=&all=1 deletes the whole list. */
 export async function DELETE(req: NextRequest) {
   const list = listParam(req);
+  if (list && req.nextUrl.searchParams.get("all") === "1") {
+    if (!deleteNamedList(list)) return NextResponse.json({ ok: false, error: "No such list" }, { status: 404 });
+    return NextResponse.json({ ok: true as const, lists: withFundList(listNamedWatchlists()) });
+  }
   const ticker = (req.nextUrl.searchParams.get("ticker") || "").trim().toUpperCase();
   if (!list || !ticker) {
     return NextResponse.json(

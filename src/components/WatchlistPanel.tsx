@@ -1035,6 +1035,30 @@ export function WatchlistPanel() {
     }
   }, [renameName, namedKey, applyNamedLists]);
 
+  const deleteList = useCallback(async () => {
+    if (!namedKey) return;
+    const n = namedLists.find((l) => l.key === namedKey)?.count ?? 0;
+    if (!window.confirm(`Delete the list “${namedLabel}”${n ? ` and its ${n} stock${n === 1 ? "" : "s"}` : ""}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/named-watchlists?list=${encodeURIComponent(namedKey)}&all=1`, { method: "DELETE" });
+      const json = (await res.json()) as {
+        ok?: boolean;
+        lists?: Array<{ key: string; label: string; tickers: string[]; count: number }>;
+        error?: string;
+      };
+      if (!res.ok || json.ok === false) {
+        setError(json.error || "Could not delete list");
+        return;
+      }
+      if (json.lists) applyNamedLists(json.lists);
+      setRenameOpen(false);
+      setError(null);
+      setWl("holdings");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete list");
+    }
+  }, [namedKey, namedLabel, namedLists, applyNamedLists]);
+
   const addHolding = useCallback(
     async (hit: {
       ticker: string;
@@ -1543,6 +1567,11 @@ export function WatchlistPanel() {
             title={`Rename ${namedLabel}`}
           >
             Rename
+          </button>
+        ) : null}
+        {list === "named" && !renameOpen ? (
+          <button type="button" className="chip tag-chip wl-del-list" onClick={() => void deleteList()} title={`Delete ${namedLabel}`}>
+            Delete list
           </button>
         ) : null}
         {newListOpen ? (

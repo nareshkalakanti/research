@@ -23,6 +23,7 @@ export type AppTab =
   | "price-action"
   | "breakouts"
   | "momentum-money"
+  | "ipo2"
   | "picks"
   | "funds"
   | "scanner"
@@ -38,6 +39,7 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "price-action", label: "Price Action", short: "PA" },
   { id: "breakouts", label: "Breakouts", short: "BO" },
   { id: "momentum-money", label: "Money & Momentum", short: "M&M" },
+  { id: "ipo2", label: "IPO2", short: "IPO2" },
   { id: "picks", label: "Picks tracker", short: "Picks" },
   { id: "funds", label: "Fund dashboard", short: "Funds" },
   { id: "portfolio", label: "Portfolio", short: "Port" },
@@ -54,7 +56,9 @@ export const PAGE_TABS: { id: AppTab; label: string; short: string }[] = [];
  * Top nav groups. Every page keeps its own tab id and URL (`?tab=…`); the header shows the
  * groups and a sub-tab row for the open group's pages.
  */
-export type AppGroup = { id: string; label: string; short: string; tabs: Array<{ id: AppTab; label: string }> };
+/** A page in a top-menu section; `view` opens an in-page view through its URL setting (e.g. Value's `?v=cycle`). */
+export type AppGroupItem = { id: AppTab; label: string; view?: { param: string; value: string | null } };
+export type AppGroup = { id: string; label: string; short: string; tabs: AppGroupItem[] };
 export const APP_GROUPS: AppGroup[] = [
   { id: "napkin", label: "Napkin", short: "Napkin", tabs: [{ id: "napkin", label: "Napkin" }] },
   {
@@ -73,10 +77,21 @@ export const APP_GROUPS: AppGroup[] = [
     short: "M&M",
     tabs: [
       { id: "momentum-money", label: "Money & Momentum" },
-      { id: "scan", label: "Signals" },
+      { id: "ipo2", label: "IPO2" },
     ],
   },
-  { id: "value", label: "Intrinsic Value Tool", short: "Value", tabs: [{ id: "value", label: "Intrinsic Value Tool" }] },
+  {
+    id: "value",
+    label: "Intrinsic Value Tool",
+    short: "Value",
+    tabs: [
+      { id: "value", label: "Ranking tool", view: { param: "v", value: null } },
+      { id: "value", label: "Industry cycle", view: { param: "v", value: "cycle" } },
+      { id: "value", label: "Valuation", view: { param: "v", value: "valuation" } },
+      { id: "value", label: "Earnings Trends", view: { param: "v", value: "earnings" } },
+      { id: "value", label: "Favour / Out of favour", view: { param: "v", value: "winds" } },
+    ],
+  },
   { id: "drift", label: "Concall Drift", short: "Drift", tabs: [{ id: "concall-drift", label: "Concall Drift" }] },
   { id: "governance", label: "Governance", short: "Gov", tabs: [{ id: "dashboard", label: "Governance" }] },
   {
@@ -90,6 +105,7 @@ export const APP_GROUPS: AppGroup[] = [
       { id: "watchlist", label: "Watchlist" },
       { id: "picks", label: "Picks tracker" },
       { id: "funds", label: "Fund dashboard" },
+      { id: "scan", label: "Signals" },
     ],
   },
 ];

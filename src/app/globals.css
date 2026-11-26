@@ -25071,3 +25071,21 @@ html[data-theme="dark"] .pt-root {
 
 /* "Score now" bar: scoring runs only when asked (Portfolio / Watchlist / Excellent). */
 .wl-score-now { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 0 0 10px; }
+
+/* Top-menu dropdown (sections with several pages): titled list, an icon per page. */
+.tab-caret { margin-left: 5px; font-size: 0.95em; line-height: 1; opacity: 0.75; }
+button.tab { font-family: inherit; }
+.nav-menu {
+  position: fixed; z-index: 60; width: 260px; padding: 8px;
+  border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--ink) 18%, transparent);
+}
+.nav-menu-title { padding: 6px 10px 8px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.nav-menu-item {
+  display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 9px;
+  color: var(--ink); font-size: 14.5px; text-decoration: none;
+}
+.nav-menu-item svg { flex: none; color: var(--muted); }
+.nav-menu-item:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.nav-menu-item.on { font-weight: 600; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.nav-menu-item.on svg { color: var(--ink); }
