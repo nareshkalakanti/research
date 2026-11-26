@@ -34,7 +34,7 @@ const stockChip = (s: DashStock) => (
   </a>
 );
 
-/** Followed investors compared by sector: what they hold, where they are buying and selling, where both are building. */
+/** Followed investors compared by industry: what they hold, where they are buying and selling, where both are building. */
 export function FundDashboardPanel() {
   const [a, setA] = useState("niveshaay");
   const [b, setB] = useState("kacholia");
@@ -105,7 +105,7 @@ export function FundDashboardPanel() {
     <section className="vx fd-root">
       <header className="vx-head">
         <div>
-          <span className="vx-eyebrow">What two investors are buying and selling, sector by sector</span>
+          <span className="vx-eyebrow">What two investors are buying and selling, industry by industry</span>
           <h2 className="vx-title">
             Fund <span>dashboard</span>
           </h2>
@@ -134,7 +134,7 @@ export function FundDashboardPanel() {
 
           <div className="vx-card fd-card">
             <h3 className="fd-h">Both building</h3>
-            <p className="vx-hint">Sectors where both are buying or adding since {qEnd(A.since)}.</p>
+            <p className="vx-hint">Industries where both are buying or adding since {qEnd(A.since)}.</p>
             {both.length ? (
               <ul className="fd-both">
                 {both.map((x) => (
@@ -152,7 +152,7 @@ export function FundDashboardPanel() {
                 ))}
               </ul>
             ) : (
-              <p className="vx-hint">No sector where both are building right now.</p>
+              <p className="vx-hint">No industry where both are building right now.</p>
             )}
           </div>
 
@@ -163,12 +163,12 @@ export function FundDashboardPanel() {
             ))}
 
           <div className="vx-card fd-card">
-            <h3 className="fd-h">Sector by sector</h3>
+            <h3 className="fd-h">Industry by industry</h3>
             <div className="fd-table-wrap">
               <table className="fd-table">
                 <thead>
                   <tr>
-                    <th>Sector</th>
+                    <th>Industry</th>
                     <th>{A.label}</th>
                     <th>{B.label}</th>
                   </tr>
@@ -247,7 +247,7 @@ function InvestorCard({ inv }: { inv: DashInvestor }) {
   );
 }
 
-/** The investor's own latest picks by sector: where the fund may go next, flagged when it holds nothing there yet. */
+/** The investor's own latest picks by industry: where the fund may go next, flagged when it holds nothing there yet. */
 function PicksAhead({ inv }: { inv: DashInvestor }) {
   const held = new Set(inv.sectors.filter((s) => s.held > 0).map((s) => s.sector));
   const p = inv.picks!;
@@ -257,7 +257,7 @@ function PicksAhead({ inv }: { inv: DashInvestor }) {
         {inv.label}&rsquo;s picks · {qSpan(p.quarter)}
       </h3>
       <p className="vx-hint">
-        Sectors of their latest recommendations (Picks tracker). <b>Not held yet</b> = the fund has no 1%+ stake in that sector — a place it may enter next.
+        Industries of their latest recommendations (Picks tracker). <b>Not held yet</b> = the fund has no 1%+ stake in that industry — a place it may enter next.
       </p>
       <ul className="fd-list">
         {p.sectors.map((s) => (

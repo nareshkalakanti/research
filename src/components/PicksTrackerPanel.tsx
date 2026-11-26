@@ -125,7 +125,7 @@ function readView(): View {
   }
 }
 
-/** Picks tracker (Research): stocks the user enters per source and quarter; the stocks and sectors each source keeps tracking. */
+/** Picks tracker (Research): stocks the user enters per source and quarter; the stocks and industries each source keeps tracking. */
 export function PicksTrackerPanel() {
   const [data, setData] = useState<PicksData | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -817,18 +817,15 @@ export function PicksTrackerPanel() {
   );
 }
 
-type Group = "sector" | "industry";
-
 /**
  * Ranked horizontal bars: how many of the shown stocks (same range + filter as the table) sit in each
- * sector or industry. Hover a row for its count in each quarter.
+ * industry (the user's call: industry only, sectors are too broad). Hover a row for its count in each quarter.
  */
 function SectorBars({ rows: stocks, range, what }: { rows: TrackRow[]; range: string[]; what: string }) {
-  const [group, setGroup] = useState<Group>("sector");
   const [showAll, setShowAll] = useState(false);
 
   const rows = useMemo(() => {
-    const label = (p: Pick) => (group === "sector" ? (p.sector ?? p.industry) : (p.industry ?? p.sector)) ?? "Unclassified";
+    const label = (p: Pick) => p.industry ?? "Unclassified";
     const per = new Map<string, { tickers: Set<string>; byQ: Map<string, Set<string>> }>();
     for (const r of stocks) {
       const g = label(r.p);
@@ -840,7 +837,7 @@ function SectorBars({ rows: stocks, range, what }: { rows: TrackRow[]; range: st
     return [...per]
       .map(([name, e]) => ({ name, n: e.tickers.size, byQ: range.map((k) => e.byQ.get(k)?.size ?? 0) }))
       .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
-  }, [stocks, range, group]);
+  }, [stocks, range]);
 
   const total = new Set(stocks.map((r) => r.p.ticker)).size;
   const max = Math.max(1, ...rows.map((r) => r.n));
@@ -853,19 +850,12 @@ function SectorBars({ rows: stocks, range, what }: { rows: TrackRow[]; range: st
         <div>
           <h3>Where the picks are</h3>
           <p className="vx-hint">
-            {`${total} stock${total === 1 ? "" : "s"} ${what} · ${rows.length} ${group === "sector" ? (rows.length === 1 ? "sector" : "sectors") : rows.length === 1 ? "industry" : "industries"}`}
+            {`${total} stock${total === 1 ? "" : "s"} ${what} · ${rows.length} ${rows.length === 1 ? "industry" : "industries"}`}
           </p>
-        </div>
-        <div className="pt-scope" role="group" aria-label="Group by">
-          {(["sector", "industry"] as const).map((g) => (
-            <button key={g} type="button" className={group === g ? "on" : undefined} aria-pressed={group === g} onClick={() => setGroup(g)}>
-              {g === "sector" ? "Sector" : "Industry"}
-            </button>
-          ))}
         </div>
       </div>
       {rows.length ? (
-        <ul className="pt-bars" aria-label={`Picks by ${group}`}>
+        <ul className="pt-bars" aria-label="Picks by industry">
           {shown.map((r) => (
             <li key={r.name} title={`${r.name}\n${range.map((k, i) => `${qLabel(k)}: ${r.byQ[i]}`).join("\n")}`}>
               <span className="pt-bar-name">{r.name}</span>

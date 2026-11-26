@@ -64,7 +64,8 @@ function investor(key: string, label: string, master: ReturnType<typeof loadStoc
     const move: Move =
       before == null ? "entered" : now == null ? "exited" : now > before + 0.05 ? "added" : now < before - 0.05 ? "cut" : "held";
     const m = master.get(t);
-    const sector = m?.sector || m?.industry || "Unclassified";
+    // Grouped by industry (sectors are too broad: Shivalik's shunt resistors sat under "Non Ferrous Metals").
+    const sector = m?.industry || "Unclassified";
     const s = bySector.get(sector) ?? { sector, held: 0, entered: 0, added: 0, cut: 0, exited: 0, score: 0, stocks: [] };
     if (now != null) s.held++;
     if (move === "entered") s.entered++;
@@ -93,7 +94,7 @@ function investor(key: string, label: string, master: ReturnType<typeof loadStoc
       if (q) {
         const m = new Map<string, string[]>();
         for (const p of mine.filter((x) => x.quarter === q)) {
-          const sec = p.sector || p.industry || "Unclassified";
+          const sec = p.industry || "Unclassified";
           m.set(sec, [...(m.get(sec) ?? []), p.ticker]);
         }
         out.picks = {
