@@ -149,12 +149,24 @@ export function BaseChart({
     for (const above of [prefAbove, !prefAbove]) {
       const ly = above ? ey - 15 : ey + 24;
       const box = { x0: ex - w / 2 - 2, x1: ex + w / 2 + 2, y0: ly - EPX, y1: ly + 3 };
-      if (box.y0 < T - 4 || box.y1 > PH - 8) continue;
+      if (box.y0 < T - 4 || box.y1 > PH - 8 || box.x0 < L + 2 || box.x1 > W - 4) continue;
       if (placed.some((o) => hits(o, box)) || dotBoxes.some((o) => hits(o, box))) continue;
       placed.push(box);
       return { text, y: ly };
     }
     return null;
+  });
+  // Sell labels above their triangle; dropped (triangle and tooltip stay) when they'd hit an entry label or dot.
+  const sellLabel = sells.map((sv) => {
+    const text = sv.kind === "climax" ? "Climax" : sv.kind === "ext1" ? "Sell" : "Sell 2";
+    const w = textW(text, 11);
+    const sx = x(sv.idx);
+    const ly = y(sv.price) - 9 - 13;
+    const box = { x0: sx - w / 2 - 2, x1: sx + w / 2 + 2, y0: ly - 11, y1: ly + 2 };
+    if (box.y0 < T - 4 || box.x0 < L + 2 || box.x1 > W - 4) return null;
+    if (placed.some((o) => hits(o, box)) || dotBoxes.some((o) => hits(o, box))) return null;
+    placed.push(box);
+    return text;
   });
   // Dense views: smaller dots.
   const dotR = entries.length > 12 ? 8 : 10;
@@ -247,9 +259,11 @@ export function BaseChart({
                   sv.kind === "climax" && sv.run_pct != null ? `, +${sv.run_pct}% in 10 sessions` : ""
                 })`}</title>
               </path>
-              <text className="bc-sell-lab" x={sx} y={sy - 13} textAnchor="middle">
-                {sv.kind === "climax" ? "Climax" : sv.kind === "ext1" ? "Sell" : "Sell 2"}
-              </text>
+              {sellLabel[sells.indexOf(sv)] ? (
+                <text className="bc-sell-lab" x={sx} y={sy - 13} textAnchor="middle">
+                  {sellLabel[sells.indexOf(sv)]}
+                </text>
+              ) : null}
             </g>
           );
         })}
