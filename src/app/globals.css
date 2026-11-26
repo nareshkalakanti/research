@@ -24792,6 +24792,26 @@ html[data-theme="dark"] .pt-root {
 .pt-card-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px; }
 .pt-card-head h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); }
 .pt-chart-plot { min-width: 0; width: 100%; }
+.pt-bars { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 0; padding: 0; list-style: none; }
+.pt-bars li {
+  display: grid; grid-template-columns: minmax(120px, 240px) 1fr; align-items: center; gap: 12px;
+  padding: 5px 6px; border-radius: 8px; font-size: 13px;
+}
+.pt-bars li:hover { background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.pt-bar-name { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-bar-track { display: flex; align-items: center; gap: 8px; max-width: 720px; height: 14px; }
+.pt-bar-track i { display: block; flex: none; height: 100%; max-width: calc(100% - 36px); min-width: 4px; border-radius: 0 4px 4px 0; background: var(--pt-s1); }
+.pt-bar-track b { flex: none; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.pt-bars-more { margin-top: 6px; }
+.pt-filter { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.pt-filter button {
+  height: 30px; padding: 0 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface);
+  color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer;
+}
+.pt-filter button b { margin-left: 4px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); }
+.pt-filter button.on { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+.pt-filter button.on b { color: inherit; }
+@media (max-width: 640px) { .pt-bars li { grid-template-columns: minmax(90px, 140px) 1fr; gap: 8px; } }
 .pt-lines { display: block; width: 100%; height: auto; max-width: 100%; }
 .pt-lines .grid { stroke: var(--line); stroke-width: 1; }
 .pt-lines .base { stroke: var(--line-strong); stroke-width: 1.2; }

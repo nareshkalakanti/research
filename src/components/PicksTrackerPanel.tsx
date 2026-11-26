@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import { napkinUrl } from "@/lib/links";
 import type { BulkAddResult, Pick, PicksData } from "@/lib/picks-tracker";
@@ -34,11 +34,10 @@ const qRange = (a: string, b: string) => {
   return out;
 };
 
-/** Categorical series colours (validated for colour-blind separation); the 8th slot and beyond fold into "Other". */
-const SERIES = ["var(--pt-s1)", "var(--pt-s2)", "var(--pt-s3)", "var(--pt-s4)", "var(--pt-s5)", "var(--pt-s6)", "var(--pt-s7)"];
-
 type Scope = "source" | "all";
 type RowStatus = "all" | "still" | "new" | "dropped" | "earlier";
+/** Table filter: every row, tracked in every quarter of the range, on the latest quarter's list, new, dropped. */
+type RowFilter = "any" | "every" | "now" | "new" | "dropped";
 
 const STATUS_LABEL: Record<RowStatus, (qs: number, n: number) => string> = {
   all: (qs, n) => `${qs} of ${n} quarters`,
@@ -47,6 +46,49 @@ const STATUS_LABEL: Record<RowStatus, (qs: number, n: number) => string> = {
   dropped: () => "Dropped",
   earlier: (qs) => `Earlier · ${qs} qtr${qs === 1 ? "" : "s"}`,
 };
+
+type TrackRow = { p: Pick; qs: Set<string>; status: RowStatus };
+
+/** One row per stock (per source) seen in the range: which quarters it was on the list, and its status at the end. */
+function trackRows(list: Pick[], range: string[]): TrackRow[] {
+  const lastQ = range[range.length - 1]!;
+  const prevQ = range.length > 1 ? range[range.length - 2]! : null;
+  const by = new Map<string, { p: Pick; qs: Set<string> }>();
+  for (const p of list) {
+    if (!range.includes(p.quarter)) continue;
+    const key = `${p.source}|${p.ticker}`;
+    const r = by.get(key) ?? { p, qs: new Set<string>() };
+    r.qs.add(p.quarter);
+    // Prefer the newest quarter's labels/name for the row.
+    if (qIndex(p.quarter) >= qIndex(r.p.quarter)) r.p = p;
+    by.set(key, r);
+  }
+  return [...by.values()]
+    .map(({ p, qs }) => {
+      const inLast = qs.has(lastQ);
+      const inPrev = prevQ ? qs.has(prevQ) : false;
+      const status: RowStatus =
+        inLast && qs.size === range.length && range.length > 1
+          ? "all"
+          : inLast && inPrev
+            ? "still"
+            : inLast
+              ? "new"
+              : inPrev
+                ? "dropped"
+                : "earlier";
+      return { p, qs, status };
+    })
+    .sort((a, b) => b.qs.size - a.qs.size || a.p.ticker.localeCompare(b.p.ticker));
+}
+
+function matchesFilter(r: TrackRow, f: RowFilter, lastQ: string): boolean {
+  if (f === "every") return r.status === "all";
+  if (f === "now") return r.qs.has(lastQ);
+  if (f === "new") return r.status === "new";
+  if (f === "dropped") return r.status === "dropped";
+  return true;
+}
 
 /** Chosen source / quarter / range survive remounts (tab refresh, reloads) for this browser session. */
 const VIEW_KEY = "picks-tracker:view";
@@ -80,6 +122,7 @@ export function PicksTrackerPanel() {
   const [newSource, setNewSource] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("source");
+  const [rowFilter, setRowFilter] = useState<RowFilter>("any");
   const [busy, setBusy] = useState(false);
   /** Stocks picked from search, waiting to be added together. */
   const [bulk, setBulk] = useState<TickerSuggestHit[]>([]);
@@ -160,65 +203,46 @@ export function PicksTrackerPanel() {
 
   const picks = useMemo(() => data?.picks ?? [], [data]);
   const scoped = useMemo(() => (scope === "source" ? picks.filter((p) => p.source === src) : picks), [picks, scope, src]);
-  const inQuarter = (list: Pick[], key: string) => list.filter((p) => p.quarter === key);
   const current = picks.filter((p) => p.source === src && p.quarter === quarter);
 
-  const industryCount = (list: Pick[]) => {
-    const m = new Map<string, number>();
-    for (const p of list) {
-      const s = p.industry ?? p.sector ?? "Unclassified";
-      m.set(s, (m.get(s) ?? 0) + 1);
-    }
-    return m;
-  };
   const srcLast = new Set(picks.filter((p) => p.source === src && p.quarter === lastQ).map((p) => p.ticker));
   const srcPrev = new Set(prevQ ? picks.filter((p) => p.source === src && p.quarter === prevQ).map((p) => p.ticker) : []);
   const newCount = [...srcLast].filter((t) => !srcPrev.has(t)).length;
   const droppedCount = [...srcPrev].filter((t) => !srcLast.has(t)).length;
 
-  /* ---------- industry lines ---------- */
-  const industrySeries = useMemo(() => {
-    const totals = new Map<string, number>();
-    const perQ = range.map((k) => industryCount(inQuarter(scoped, k)));
-    for (const m of perQ) for (const [s, n] of m) totals.set(s, (totals.get(s) ?? 0) + n);
-    const ranked = [...totals].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([s]) => s);
-    const shown = ranked.slice(0, SERIES.length);
-    const other = ranked.slice(SERIES.length);
-    const series = shown.map((s, i) => ({ name: s, color: SERIES[i]!, values: perQ.map((m) => m.get(s) ?? 0) }));
-    if (other.length)
-      series.push({ name: `Other (${other.length})`, color: "var(--pt-other)", values: perQ.map((m) => other.reduce((t, s) => t + (m.get(s) ?? 0), 0)) });
-    return { series };
-  }, [scoped, range]);
 
   /* ---------- tracking rows (selected source) ---------- */
-  const rows = useMemo(() => {
-    const mine = picks.filter((p) => p.source === src && range.includes(p.quarter));
-    const by = new Map<string, { p: Pick; qs: Set<string> }>();
-    for (const p of mine) {
-      const r = by.get(p.ticker) ?? { p, qs: new Set<string>() };
-      r.qs.add(p.quarter);
-      // Prefer the newest quarter's labels/name for the row.
-      if (qIndex(p.quarter) >= qIndex(r.p.quarter)) r.p = p;
-      by.set(p.ticker, r);
-    }
-    return [...by.values()]
-      .map(({ p, qs }) => {
-        const inLast = qs.has(lastQ);
-        const inPrev = prevQ ? qs.has(prevQ) : false;
-        const status: RowStatus =
-          inLast && qs.size === range.length && range.length > 1
-            ? "all"
-            : inLast && inPrev
-              ? "still"
-              : inLast
-                ? "new"
-                : inPrev
-                  ? "dropped"
-                  : "earlier";
-        return { p, qs, status };
-      })
-      .sort((a, b) => b.qs.size - a.qs.size || a.p.ticker.localeCompare(b.p.ticker));
-  }, [picks, src, range, lastQ, prevQ]);
+  const rows = useMemo(() => trackRows(picks.filter((p) => p.source === src), range), [picks, src, range]);
+
+  const multi = range.length > 1;
+  const filterCount: Record<RowFilter, number> = {
+    any: rows.length,
+    every: rows.filter((r) => r.status === "all").length,
+    now: rows.filter((r) => r.qs.has(lastQ)).length,
+    new: rows.filter((r) => r.status === "new").length,
+    dropped: rows.filter((r) => r.status === "dropped").length,
+  };
+  const activeFilter: RowFilter = !multi && rowFilter !== "any" && rowFilter !== "now" ? "any" : rowFilter;
+  const shownRows = rows.filter((r) => matchesFilter(r, activeFilter, lastQ));
+  // The chart counts the same stocks as the table (same range + filter); "All sources" widens it to every source.
+  const chartRows =
+    scope === "source" ? shownRows : trackRows(scoped, range).filter((r) => matchesFilter(r, activeFilter, lastQ));
+  const filterLabel = {
+    any: multi ? `in ${rangeLabel}` : `in ${qLabel(lastQ)}`,
+    every: `in every quarter, ${rangeLabel}`,
+    now: `on the list in ${qLabel(lastQ)}`,
+    new: `new in ${qLabel(lastQ)}`,
+    dropped: `dropped in ${qLabel(lastQ)}`,
+  }[activeFilter];
+  const filterOpts: Array<[RowFilter, string]> = multi
+    ? [
+        ["any", "All in range"],
+        ["every", `Every quarter ${qLabel(rangeFrom, true)} → ${qLabel(lastQ)}`],
+        ["now", `On the list in ${qLabel(lastQ)}`],
+        ["new", "New"],
+        ["dropped", "Dropped"],
+      ]
+    : [["any", `On the list in ${qLabel(lastQ)}`]];
 
   /** A search pick joins the list; "Add N stocks" saves the whole list at once. */
   const addHit = (hit: TickerSuggestHit) => {
@@ -340,6 +364,19 @@ export function PicksTrackerPanel() {
           </button>
           {editingRange ? (
             <div className="pt-date-menu" role="listbox" aria-label="Pick quarter">
+              <button
+                type="button"
+                className="pt-date-custom"
+                onClick={() => {
+                  const now = currentQuarter();
+                  setCustom({ from: qKey(qOf(now).y, 1), to: now });
+                  setQuarter(now);
+                  setRowFilter("every");
+                  setEditingRange(false);
+                }}
+              >
+                <span>Year to date</span>
+              </button>
               <button
                 type="button"
                 className={`pt-date-custom${custom ? " on" : ""}`}
@@ -487,7 +524,7 @@ export function PicksTrackerPanel() {
           <div className="pt-scope-row">
             <span className="vx-hint">
               {current.length} in {qLabel(quarter)}
-              {src ? ` · ${src}` : ""} · sector trend {rangeLabel}
+              {src ? ` · ${src}` : ""} · {rangeLabel}
               {prevQ ? (
                 <>
                   {" "}
@@ -505,7 +542,7 @@ export function PicksTrackerPanel() {
             </div>
           </div>
 
-          <IndustryLines range={range} series={industrySeries.series} title="Sector trend" />
+          <SectorBars rows={chartRows} range={range} what={filterLabel} />
 
           <div className="vx-card pt-card">
             <div className="pt-card-head">
@@ -528,7 +565,16 @@ export function PicksTrackerPanel() {
                 </span>
               </div>
             </div>
-            {rows.length ? (
+            {multi ? (
+              <div className="pt-filter" role="group" aria-label="Show stocks">
+                {filterOpts.map(([k, label]) => (
+                  <button key={k} type="button" className={activeFilter === k ? "on" : undefined} aria-pressed={activeFilter === k} onClick={() => setRowFilter(k)}>
+                    {label} <b>{filterCount[k]}</b>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {shownRows.length ? (
               <div className="pt-table-wrap">
                 <table className="pt-table">
                   <thead>
@@ -549,7 +595,7 @@ export function PicksTrackerPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map(({ p, qs, status }) => (
+                    {shownRows.map(({ p, qs, status }) => (
                       <tr key={p.ticker}>
                         <td className="pt-col-stock">
                           <a href={napkinUrl(p.ticker)} target="_blank" rel="noopener noreferrer">
@@ -600,7 +646,7 @@ export function PicksTrackerPanel() {
                 </table>
               </div>
             ) : (
-              <p className="vx-hint">No stocks for {src} in this range.</p>
+              <p className="vx-hint">{rows.length ? "No stocks match this filter." : `No stocks for ${src} in this range.`}</p>
             )}
           </div>
         </>
@@ -609,127 +655,74 @@ export function PicksTrackerPanel() {
   );
 }
 
-/** Industry picks over quarters: multi-line chart + industry-name legend (no tickers). */
-function IndustryLines({
-  range,
-  series,
-  title = "Industry picks over quarters",
-}: {
-  range: string[];
-  series: Array<{ name: string; color: string; values: number[] }>;
-  title?: string;
-}) {
-  const box = useRef<HTMLDivElement | null>(null);
-  const [bw, setBw] = useState(0);
-  const [vh, setVh] = useState(() => window.innerHeight);
-  const [focus, setFocus] = useState<string | null>(null);
-  useLayoutEffect(() => {
-    const el = box.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setBw(el.clientWidth));
-    ro.observe(el);
-    const onResize = () => setVh(window.innerHeight);
-    window.addEventListener("resize", onResize);
-    return () => {
-      ro.disconnect();
-      window.removeEventListener("resize", onResize);
-    };
-  }, []);
-  if (!series.length) return null;
+type Group = "sector" | "industry";
 
-  const W = Math.max(360, bw || 720);
-  // Height follows the screen: ~a quarter of the viewport, never taller than 40% of the width (13" laptops stay compact).
-  const H = Math.round(Math.max(180, Math.min(280, vh * 0.26, W * 0.4)));
-  const L = 40;
-  const R = 20;
-  const T = 20;
-  const B = 42;
-  const max = Math.max(2, ...series.flatMap((s) => s.values));
-  const step = max <= 6 ? 1 : max <= 12 ? 2 : Math.ceil(max / 6);
-  const top = Math.ceil(max / step) * step;
-  const plotW = W - L - R;
-  const x = (i: number) => (range.length === 1 ? L + plotW / 2 : L + (i * plotW) / (range.length - 1));
-  const y = (v: number) => T + (H - T - B) * (1 - v / top);
-  const ticks: number[] = [];
-  for (let v = 0; v <= top; v += step) ticks.push(v);
+/**
+ * Ranked horizontal bars: how many of the shown stocks (same range + filter as the table) sit in each
+ * sector or industry. Hover a row for its count in each quarter.
+ */
+function SectorBars({ rows: stocks, range, what }: { rows: TrackRow[]; range: string[]; what: string }) {
+  const [group, setGroup] = useState<Group>("sector");
+  const [showAll, setShowAll] = useState(false);
 
-  const last = range.length - 1;
-  const lead = series.reduce((b, s) => ((s.values[last] ?? 0) > (b.values[last] ?? 0) ? s : b), series[0]!);
+  const rows = useMemo(() => {
+    const label = (p: Pick) => (group === "sector" ? (p.sector ?? p.industry) : (p.industry ?? p.sector)) ?? "Unclassified";
+    const per = new Map<string, { tickers: Set<string>; byQ: Map<string, Set<string>> }>();
+    for (const r of stocks) {
+      const g = label(r.p);
+      const e = per.get(g) ?? { tickers: new Set<string>(), byQ: new Map<string, Set<string>>() };
+      e.tickers.add(r.p.ticker);
+      for (const k of r.qs) e.byQ.set(k, (e.byQ.get(k) ?? new Set<string>()).add(r.p.ticker));
+      per.set(g, e);
+    }
+    return [...per]
+      .map(([name, e]) => ({ name, n: e.tickers.size, byQ: range.map((k) => e.byQ.get(k)?.size ?? 0) }))
+      .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+  }, [stocks, range, group]);
+
+  const total = new Set(stocks.map((r) => r.p.ticker)).size;
+  const max = Math.max(1, ...rows.map((r) => r.n));
+  const LIMIT = 12;
+  const shown = showAll ? rows : rows.slice(0, LIMIT);
 
   return (
     <div className="vx-card pt-card">
       <div className="pt-card-head">
         <div>
-          <h3>{title}</h3>
-          <p className="vx-hint">Industry names only · how the list shifts across quarters</p>
+          <h3>Where the picks are</h3>
+          <p className="vx-hint">
+            {total} stock{total === 1 ? "" : "s"} {what} · {rows.length} {group === "sector" ? "sector" : "industr"}
+            {group === "sector" ? (rows.length === 1 ? "" : "s") : rows.length === 1 ? "y" : "ies"}
+          </p>
         </div>
-        <span className="vx-hint">{qLabel(range[0]!)} → {qLabel(range[last]!)}</span>
-      </div>
-      <ul className="pt-ind-legend pt-ind-legend--grid" aria-label="Industries">
-        {series.map((s) => (
-          <li key={s.name}>
-            <button
-              type="button"
-              className={focus === s.name ? "on" : undefined}
-              onMouseEnter={() => setFocus(s.name)}
-              onMouseLeave={() => setFocus(null)}
-              onFocus={() => setFocus(s.name)}
-              onBlur={() => setFocus(null)}
-            >
-              <i style={{ background: s.color }} className="pt-swatch" aria-hidden="true" />
-              <span className="pt-ind-name">{s.name}</span>
+        <div className="pt-scope" role="group" aria-label="Group by">
+          {(["sector", "industry"] as const).map((g) => (
+            <button key={g} type="button" className={group === g ? "on" : undefined} aria-pressed={group === g} onClick={() => setGroup(g)}>
+              {g === "sector" ? "Sector" : "Industry"}
             </button>
-          </li>
-        ))}
-      </ul>
-      <div className="pt-chart-plot" ref={box}>
-        <svg
-          className="pt-lines"
-          width={W}
-          height={H}
-          viewBox={`0 0 ${W} ${H}`}
-          role="img"
-          aria-label={`Industry picks: ${series.map((s) => `${s.name} ${s.values.join(", ")}`).join("; ")}`}
-        >
-          {ticks.map((v) => (
-            <g key={v}>
-              <line className={v === 0 ? "base" : "grid"} x1={L} x2={W - R} y1={y(v)} y2={y(v)} />
-              <text className="ax" x={L - 8} y={y(v) + 4} textAnchor="end">
-                {v}
-              </text>
-            </g>
           ))}
-          {range.map((k, i) => (
-            <text key={k} className="ax" x={x(i)} y={H - 14} textAnchor="middle">
-              {qLabel(k, true)}
-            </text>
-          ))}
-          {[...series]
-            .sort((a, b) => (a.name === lead.name ? 1 : 0) - (b.name === lead.name ? 1 : 0))
-            .map((s) => {
-              const dim = focus != null && focus !== s.name;
-              const hot = focus === s.name || s.name === lead.name;
-              const pts = s.values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
-              return (
-                <g key={s.name} className={dim ? "pt-series dim" : "pt-series"} opacity={dim ? 0.22 : 1}>
-                  <polyline
-                    points={pts}
-                    fill="none"
-                    stroke={s.color}
-                    strokeWidth={hot ? 3 : 2}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                  {s.values.map((v, i) => (
-                    <circle key={i} cx={x(i)} cy={y(v)} r={hot ? 4.5 : 3.5} fill={s.color} className="pt-chart-dot">
-                      <title>{`${s.name} · ${qLabel(range[i]!)}: ${v}`}</title>
-                    </circle>
-                  ))}
-                </g>
-              );
-            })}
-        </svg>
+        </div>
       </div>
+      {rows.length ? (
+        <ul className="pt-bars" aria-label={`Picks by ${group}`}>
+          {shown.map((r) => (
+            <li key={r.name} title={`${r.name}\n${range.map((k, i) => `${qLabel(k)}: ${r.byQ[i]}`).join("\n")}`}>
+              <span className="pt-bar-name">{r.name}</span>
+              <span className="pt-bar-track">
+                <i style={{ width: `${(r.n / max) * 100}%` }} />
+                <b>{r.n}</b>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vx-hint">No stocks match this filter.</p>
+      )}
+      {rows.length > LIMIT ? (
+        <button type="button" className="link-btn pt-bars-more" onClick={() => setShowAll((v) => !v)}>
+          {showAll ? "Show top 12" : `Show all ${rows.length}`}
+        </button>
+      ) : null}
     </div>
   );
 }
