@@ -45,7 +45,7 @@ const SCREENS: { id: Group; label: string; hint: string }[] = [
   {
     id: "lockout",
     label: "Lockout rallies",
-    hint: "6 of the last 8 weekly bars green, out of a 7+ week base, starting near the 30-week average: end of stage 1 / start of stage 2 (Davinder Khurana's Lockout Rallies). Breaking out today or not.",
+    hint: "Concentrated green bars with range expansion: 6 of the last 8 weekly bars green, each green week 1.5× the base's usual weekly move, out of a 7+ week base, starting near the 30-week average: end of stage 1 / start of stage 2 (Davinder Khurana's Lockout Rallies). Breaking out today or not.",
   },
 ];
 const inGroup = (r: Row, g: Group) => (g === "lockout" ? r.lockout != null : r.screen === g);

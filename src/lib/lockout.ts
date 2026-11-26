@@ -1,15 +1,19 @@
 /**
- * Lockout Rallies (Davinder Khurana, IPO V2.0 notes): 6 of 8 weekly bars green at
- * the end of stage 1 or the start of stage 2 — a steady climb with no pullback to
- * buy, so anyone waiting is "locked out".
+ * Lockout Rallies (Davinder Khurana, IPO V2.0 notes):
+ *   "Highly concentrated green bars showing range expansion with urgency"
+ *   "6/8 green weekly bars at the end of stage 1 or start of stage 2"
+ * A steady climb with no pullback to buy, so anyone waiting is "locked out".
+ *
+ * Range expansion (closes only, so bar size = weekly % move): the run's green weeks
+ * move at least 1.5× the average weekly move inside the base before it.
  *
  * From daily closes only: a week is green when its last close beats the week before.
  * Stage check on the 30-week average of weekly closes:
  *   - the week before the run closed under, at, or at most 10% above the average
  *     (still basing / just turning up, not already stretched in stage 2), and
  *   - the run ends above the average, and the average has risen over the run.
- * Proper base first: the run starts from a base of 7+ weeks — the highest close of
- * the prior year was made at least 7 weeks before the run, and the last 7 weeks
+ * Proper base first: the run starts from a base of 7+ weeks — the prior year's high
+ * (first close within 5% of it) came at least 7 weeks before the run, and the last 7 weeks
  * moved sideways (high ÷ low within 30%). A stock that keeps making new highs along
  * its average is trending, not coming out of a base.
  */
@@ -17,15 +21,21 @@ export const LOCKOUT_RULES = {
   weeks: 8,
   green: 6,
   maWeeks: 30,
-  /** Fewer weekly bars than this before the run: no average, no stage read (urgency covers new listings). */
-  minMaWeeks: 10,
+  /** Fewer weekly bars than this: average over what there is (a young IPO's base is its stage 1). */
+  minMaWeeks: 7,
   /** Week before the run at most this % above the 30-week average. */
   stage1BandPct: 10,
   /** Base before the run: at least this many weeks since the base high (highest close of the prior year). */
   minBaseWeeks: 7,
   baseLookbackWeeks: 52,
+  /** Base high = first weekly close within this % of the prior year's highest close. */
+  baseHighTolPct: 5,
   /** The last minBaseWeeks before the run: highest ÷ lowest weekly close within this %. */
   baseRangePct: 30,
+  /** Green weeks in the run move at least this × the base's average weekly move. */
+  expansionX: 1.5,
+  /** Base weeks used for that average (the latest ones). */
+  expansionBaseWeeks: 26,
   /** A rally ending this many weeks ago or less is current (1 = this week). */
   freshWeeks: 2,
 } as const;
@@ -48,6 +58,8 @@ export type Lockout = {
   /** The base the run came out of: weeks since its high, and its depth (%). */
   base_weeks: number;
   base_depth_pct: number;
+  /** Range expansion: green weeks' average move ÷ the base's average weekly move. */
+  expansion_x: number;
 };
 
 type Bar = { date: string; close: number };
@@ -77,11 +89,20 @@ function weekly(s: Bar[]): Week[] {
   return out;
 }
 
-/** Base ending at week `ref`: weeks since the prior year's highest close (its first time) and the depth below it. */
+/**
+ * Base ending at week `ref`: weeks since the base high and the depth below it. The base high is
+ * the first close of the prior year within 5% of its highest close — a flat base retests its high.
+ */
 function baseBefore(w: Week[], ref: number, R: typeof LOCKOUT_RULES): { weeks: number; depth: number } | null {
   const from = Math.max(0, ref - R.baseLookbackWeeks);
-  let h = from;
-  for (let k = from; k <= ref; k++) if (w[k]!.close > w[h]!.close) h = k;
+  let top = from;
+  for (let k = from; k <= ref; k++) if (w[k]!.close > w[top]!.close) top = k;
+  let h = top;
+  for (let k = from; k <= top; k++)
+    if (w[k]!.close >= w[top]!.close * (1 - R.baseHighTolPct / 100)) {
+      h = k;
+      break;
+    }
   const weeks = ref - h;
   if (weeks < R.minBaseWeeks) return null;
   let lo = Infinity;
@@ -93,7 +114,7 @@ function baseBefore(w: Week[], ref: number, R: typeof LOCKOUT_RULES): { weeks: n
   if (!(lo > 0) || (hi / lo - 1) * 100 > R.baseRangePct) return null;
   let min = Infinity;
   for (let k = h; k <= ref; k++) min = Math.min(min, w[k]!.close);
-  return { weeks, depth: (1 - min / w[h]!.close) * 100 };
+  return { weeks, depth: (1 - min / w[top]!.close) * 100 };
 }
 
 function sma(w: Week[], end: number, len: number, min: number): number | null {
@@ -125,6 +146,27 @@ export function lockoutRallies(s: Bar[], R = LOCKOUT_RULES): Lockout[] {
     const same = prev && ref <= prev._end;
     const base = same ? null : baseBefore(w, ref, R);
     if (!same && !base) continue;
+    let expansion = 0;
+    if (!same) {
+      // Range expansion: green weeks in the run vs the base's ordinary weekly move.
+      const mv = (k: number) => Math.abs(w[k]!.close / w[k - 1]!.close - 1);
+      let gs = 0;
+      let gn = 0;
+      for (let k = ref + 1; k <= e; k++)
+        if (w[k]!.close > w[k - 1]!.close) {
+          gs += mv(k);
+          gn++;
+        }
+      let bs = 0;
+      let bn = 0;
+      for (let k = Math.max(1, ref - Math.min(base!.weeks, R.expansionBaseWeeks) + 1); k <= ref; k++) {
+        bs += mv(k);
+        bn++;
+      }
+      const baseMove = bn ? bs / bn : 0;
+      expansion = baseMove > 0 ? gs / gn / baseMove : Infinity;
+      if (expansion < R.expansionX) continue;
+    }
     if (prev && same) {
       // Same run, still going: extend it.
       prev._end = e;
@@ -149,6 +191,7 @@ export function lockoutRallies(s: Bar[], R = LOCKOUT_RULES): Lockout[] {
       ma_start_pct: r1(startPct),
       base_weeks: base!.weeks,
       base_depth_pct: r1(base!.depth),
+      expansion_x: Number.isFinite(expansion) ? r1(expansion) : 99,
     });
   }
   return out.map(({ _ref, _end, ...l }) => {
