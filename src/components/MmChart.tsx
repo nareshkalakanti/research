@@ -44,6 +44,9 @@ export function MmChart({
 }) {
   const [data, setData] = useState<Chart | null>(null);
   const [tabSel, setTab] = useState<Tab>("momentum");
+  /** Reasons under the verdict: hidden until asked for. */
+  const [why, setWhy] = useState(false);
+  const [showEntries, setShowEntries] = useState(false);
   const tab: Tab = mode === "ipo2" ? "ipo2" : tabSel;
   const [boxRef, boxW] = useWidth();
 
@@ -93,7 +96,8 @@ export function MmChart({
   const weeks = all.slice(first, last + 1);
   const n = weeks.length;
 
-  const W = Math.max(600, boxW || 900);
+  // Drawn inside a bordered frame (8px padding + 1px border each side).
+  const W = Math.max(600, (boxW || 900) - 18);
   const H = 340;
   const L = 58;
   const R = 14;
@@ -196,6 +200,13 @@ export function MmChart({
             </div>
           ) : null}
           {data.stage_note ? <p className="mmc-stage">{data.stage_note}</p> : null}
+          {(data.verdict?.reasons.length ?? 0) + (mode !== "ipo2" ? data.momentum.length : 0) ? (
+            <button type="button" className="mmc-why" aria-expanded={why} onClick={() => setWhy((v) => !v)}>
+              {why ? "Hide reasons" : `Show reasons (${(data.verdict?.reasons.length ?? 0) + (mode !== "ipo2" ? data.momentum.length : 0)})`}
+              <span aria-hidden>{why ? "▴" : "▾"}</span>
+            </button>
+          ) : null}
+          {why ? (
           <div className="mmc-reasons">
             {data.verdict?.reasons.length ? (
               <div>
@@ -222,6 +233,7 @@ export function MmChart({
               </div>
             ) : null}
           </div>
+          ) : null}
         </div>
       ) : null}
       {mode === "ipo2" ? null : (
@@ -238,6 +250,7 @@ export function MmChart({
         ))}
       </div>
       )}
+      <div className="mmc-plot">
       <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={`${data.ticker} weekly chart with stage 4, lockout rally and bases`}>
         {ticks.map((t) => (
           <g key={t}>
@@ -303,8 +316,15 @@ export function MmChart({
           </text>
         ))}
       </svg>
+      </div>
       {tab === "ipo2" ? (
         data.ipo2.length ? (
+          <>
+          <button type="button" className="mmc-why" aria-expanded={showEntries} onClick={() => setShowEntries((v) => !v)}>
+            {showEntries ? "Hide entries" : `Show entries (${data.ipo2.length})`}
+            <span aria-hidden>{showEntries ? "▴" : "▾"}</span>
+          </button>
+          {showEntries ? (
           <table className="vx-table mm-table mmc-entries">
             <thead>
               <tr>
@@ -329,6 +349,8 @@ export function MmChart({
               ))}
             </tbody>
           </table>
+          ) : null}
+          </>
         ) : (
           <p className="vx-hint mmc-foot">No IPO2 entries for this stock.</p>
         )

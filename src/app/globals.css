@@ -24632,3 +24632,20 @@ html[data-theme="dark"] .ipo2-pill--broken { color: #f08a80 !important; }
 }
 .subtab:hover { color: var(--ink); }
 .subtab.on { color: var(--ink); border-bottom-color: var(--ink); }
+.mmc-plot { border: 1px solid var(--line-strong); border-radius: 10px; padding: 8px; background: var(--surface); overflow: hidden; }
+.mmc-why {
+  display: inline-flex; align-items: center; gap: 6px; margin: 8px 0 0; padding: 0; border: 0; background: none;
+  color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+}
+.mmc-why:hover { color: var(--ink); }
+/* Napkin: sections the reader can hide */
+.napkin-fold-head { display: flex; justify-content: flex-end; margin: 0 0 -4px; }
+.napkin-fold-head button, .napkin-fold-bar em {
+  border: 0; background: none; padding: 2px 4px; color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; font-style: normal; cursor: pointer;
+}
+.napkin-fold-head button:hover { color: var(--ink); }
+.napkin-fold-bar {
+  display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 10px 0; padding: 12px 16px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 14px; font-weight: 650; cursor: pointer;
+}
+.napkin-fold-bar:hover em { color: var(--ink); }

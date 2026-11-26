@@ -1,6 +1,7 @@
 "use client";
 
 import { MmChart } from "@/components/MmChart";
+import { NapkinFold } from "@/components/napkin/NapkinFold";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { TickerSuggest, type TickerSuggestHit } from "@/components/TickerSuggest";
 import {
@@ -38,6 +39,9 @@ function fmtUpdated(iso: string | null | undefined): string {
   });
 }
 
+
+/** The valuation section is hidden for now (not deleted): set true to show it again. */
+const SHOW_VALUATION = false;
 export function NapkinPanel() {
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(false);
@@ -288,13 +292,16 @@ export function NapkinPanel() {
               roce={parseDisplayedPct(napkinMetric(data.overview, "roce"))}
             />
 
+            <NapkinFold id="bases" title="Bases & entries">
             <div className="napkin-sheet-section napkin-earn-block">
               <div className="napkin-earn-card">
                 <h3 className="napkin-mm-title">Bases &amp; entries</h3>
                 <MmChart key={data.ticker} ticker={data.ticker} market={data.exchange} mode="ipo2" />
               </div>
             </div>
+            </NapkinFold>
 
+            <NapkinFold id="revenue" title="Revenue vs. Earnings">
             <div className="napkin-sheet-section napkin-earn-block">
               <div className="napkin-earn-card">
                 <RevenueEarningsChart
@@ -309,9 +316,12 @@ export function NapkinPanel() {
                 />
               </div>
             </div>
+            </NapkinFold>
 
-            <NapkinValuation key={data.ticker} data={data} />
+            {/* Napkin valuation (Napkin Factor, entry price, composite verdict, sensitivity): hidden on request, code kept. */}
+            {SHOW_VALUATION ? <NapkinValuation key={data.ticker} data={data} /> : null}
 
+            <NapkinFold id="board" title="Board map">
             <div className="napkin-sheet-section napkin-board-map">
               <h2 className="napkin-block-title">Board map</h2>
               <StockNetworkSearch
@@ -327,6 +337,7 @@ export function NapkinPanel() {
                 }
               />
             </div>
+            </NapkinFold>
 
             <div className="napkin-sheet-section napkin-foot">
               <p className={`napkin-status-line napkin-status-line--${status}`}>
