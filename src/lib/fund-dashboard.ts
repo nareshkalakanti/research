@@ -1,6 +1,6 @@
 import { listFundCatalog } from "./fund-watchlists";
 import { readPicks } from "./picks-tracker";
-import { fundHistoryForList, peopleListKeys } from "./screener-people";
+import { fundHistoryForList, peopleListKeys, peopleListLabels } from "./screener-people";
 import { loadStockMaster } from "./stock-master";
 
 /**
@@ -84,7 +84,9 @@ function investor(key: string, label: string, master: ReturnType<typeof loadStoc
   // The investor's own recommendations, if they are a Picks tracker source (e.g. Niveshaay).
   try {
     const pk = readPicks();
-    const src = pk.sources.find((x) => x.trim().toLowerCase() === label.trim().toLowerCase() || x.trim().toLowerCase() === key);
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const alias = new Set([norm(label), norm(key), ...peopleListLabels().filter((p) => p.key === key).map((p) => norm(p.label))]);
+    const src = pk.sources.find((x) => alias.has(norm(x)));
     if (src) {
       const mine = pk.picks.filter((p) => p.source === src);
       const q = mine.map((p) => p.quarter).sort().pop();

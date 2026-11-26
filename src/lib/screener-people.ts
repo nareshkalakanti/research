@@ -441,6 +441,17 @@ export function fundHistoryForList(listKey: string): FundHistory {
   });
 }
 
+/** Each followed people page's watchlist key and the name it is followed under (e.g. kacholia → "Ashish Kacholia"). */
+export function peopleListLabels(): Array<{ key: string; label: string }> {
+  return withDb(
+    (db) =>
+      db.prepare(`SELECT DISTINCT list_key AS key, label FROM fund_people_sources WHERE list_key != ''`).all() as Array<{
+        key: string;
+        label: string;
+      }>,
+  );
+}
+
 /** Watchlist keys that have at least one followed people page (the investors with filings history). */
 export function peopleListKeys(): string[] {
   return withDb((db) =>

@@ -1,7 +1,7 @@
 import { openSqliteNamed } from "./sqlite-utils";
 import { loadAllCompanies } from "./db";
 import { listFundCatalog } from "./fund-watchlists";
-import { fundHistoryForList, type FundHistory } from "./screener-people";
+import { fundHistoryForList, peopleListLabels, type FundHistory } from "./screener-people";
 import { loadStockMaster, masterLabels } from "./stock-master";
 
 /**
@@ -29,21 +29,28 @@ export type Pick = {
 /** funds: per source, the stake history of the fund pages behind the watchlist with the same name (if any). */
 export type PicksData = { sources: string[]; picks: Pick[]; funds?: Record<string, FundHistory> };
 
-/** A source's fund watchlist: same key or label (case-insensitive), e.g. "Niveshaay" → list "niveshaay". */
+/**
+ * A source's fund watchlist, matched by name ignoring case, spaces and punctuation: the list's key, its label,
+ * or the name its Screener pages are followed under. "Niveshaay" → niveshaay, "Ashish Kacholia" → kacholia.
+ */
 function fundsBySource(sources: string[]): Record<string, FundHistory> {
   const out: Record<string, FundHistory> = {};
-  let catalog: Array<{ key: string; label: string }> = [];
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const names = new Map<string, string>(); // normalized name → list key
   try {
-    catalog = listFundCatalog();
+    for (const c of listFundCatalog()) {
+      names.set(norm(c.key), c.key);
+      names.set(norm(c.label), c.key);
+    }
+    for (const p of peopleListLabels()) names.set(norm(p.label), p.key);
   } catch {
     return out;
   }
   for (const s of sources) {
-    const n = s.trim().toLowerCase();
-    const hit = catalog.find((c) => c.key.toLowerCase() === n || c.label.trim().toLowerCase() === n);
-    if (!hit) continue;
+    const key = names.get(norm(s));
+    if (!key) continue;
     try {
-      const h = fundHistoryForList(hit.key);
+      const h = fundHistoryForList(key);
       if (h.funds.length) out[s] = h;
     } catch {
       /* no fund history yet */

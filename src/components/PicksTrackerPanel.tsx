@@ -1046,8 +1046,11 @@ function FundHoldingView({ picks, range, fund, source }: { picks: Pick[]; range:
     const pk = qIndex(firstPick);
     const firstQ = held[0]!;
     const lastQ = held[held.length - 1]!;
-    const now = latest ? total(t, latest) : null;
+    // Latest filing, or the one before it when the company has not filed yet.
+    const now = latest ? (total(t, latest) ?? total(t, qFromIndex(qIndex(latest) - 1))) : null;
     const from = held.find((q) => qIndex(q) >= pk - 1) ?? null;
+    // Sold more than a year before the pick: not relevant to it.
+    if (!from && qIndex(lastQ) < pk - 4) return null;
     const peakQ = held.filter((q) => qIndex(q) >= pk - 1).reduce<string | null>((b, q) => (b == null || total(t, q)! > total(t, b)! ? q : b), null);
     const peak = peakQ ? total(t, peakQ)! : null;
     const base = from ? total(t, from)! : null;
