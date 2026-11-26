@@ -65,7 +65,7 @@ const BUILT: Row[] = [
   {
     rule: "Extension sells",
     source: "Jyoti CNC: sold 1/3 at 535, 1/3 at 625; orange “10%” marks",
-    app: "1st close 10%+ above its 10-day average: sell 1/3. 2nd (after cooling under 5%, or a further 5% leg): sell another 1/3. Counted per base.",
+    app: "Sell signal after an entry: 1st close 10%+ above its 10-day average, then again on a 2nd extension (after cooling under 5%, or a further 5% leg). No position sizes: how much to sell is your call. Counted per base.",
   },
   {
     rule: "Climax run",
@@ -82,11 +82,6 @@ const BUILT: Row[] = [
 ];
 
 const QUESTIONS: Row[] = [
-  {
-    rule: "How much to sell at the first extension",
-    source: "Kaynes: “First daily extension → close 2/3rd”, “2nd daily extension → close 1/3rd”. Jyoti: 1/3 and 1/3. Waaree, Syrma: halves.",
-    app: "Built as 1/3 then another 1/3.",
-  },
   {
     rule: "The red “5%” triangle",
     source: "Jyoti (daily) and EPACK (weekly), at the top of the run",

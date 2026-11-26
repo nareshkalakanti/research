@@ -85,8 +85,8 @@ assert.deepEqual(
   ["ext1@9", "ext2@10"],
   ir.sells.map((x) => `${x.kind}@${x.idx}`).join(","),
 );
-assert.equal(ir.sells[0]!.action, "Sell 1/3");
-assert.equal(ir.sells[1]!.action, "Sell another 1/3");
+assert.equal(ir.sells[0]!.action, "Sell");
+assert.equal(ir.sells[1]!.action, "Sell again");
 assert.equal(ir.sell_now?.idx, 10); // 3 sessions ago: still "now" (5-session window)
 assert.match(ir.verdict.reasons[0]!.text, /2nd daily extension/);
 // Climax: after a pivot breakout, 10 sessions with 9 green days and +30% on the highest volume.

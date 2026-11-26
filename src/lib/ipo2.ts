@@ -49,6 +49,8 @@ export const IPO2_RULES = {
    *                        under 5%, or straight on once 5%+ above the 1st extension's close
    *   Climax run           ≥ 25% in 10 sessions with 8+ green days (on the highest volume
    *                        since the entry when volume is saved)
+   * No position sizes: a sell signal after an entry is enough (the user's call — the notes
+   * sell 1/3, 2/3 or halves depending on the chart).
    * Counted per position: the first entry from a new base starts the count again
    * (adds, and a second entry from the same base, don't).
    */
@@ -170,7 +172,7 @@ export type SellKind = "ext1" | "ext2" | "climax";
 export type Ipo2Sell = {
   kind: SellKind;
   label: string;
-  /** What to do: "Sell 1/3", "Sell another 1/3", "Sell into strength". */
+  /** What to do: "Sell", "Sell again", "Sell into strength" (no sizes). */
   action: string;
   idx: number;
   date: string;
@@ -682,7 +684,7 @@ export function analyzeBases(
         sells.push({
           kind: count === 1 ? "ext1" : "ext2",
           label: count === 1 ? "1st daily extension" : "2nd daily extension",
-          action: count === 1 ? "Sell 1/3" : "Sell another 1/3",
+          action: count === 1 ? "Sell" : "Sell again",
           idx: i,
           date: d(i),
           price: r2(c[i]!),

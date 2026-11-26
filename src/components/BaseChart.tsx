@@ -248,7 +248,7 @@ export function BaseChart({
                 })`}</title>
               </path>
               <text className="bc-sell-lab" x={sx} y={sy - 13} textAnchor="middle">
-                {sv.kind === "climax" ? "Climax" : sv.kind === "ext1" ? "S1/3" : "S2/3"}
+                {sv.kind === "climax" ? "Climax" : sv.kind === "ext1" ? "Sell" : "Sell 2"}
               </text>
             </g>
           );
