@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { buildScannerData } from "@/lib/scanner";
-import { holdingsScoreJob, listReviewTickers, savedReviewRows, startHoldingsSlowScoring } from "@/lib/portfolio-review";
+import { holdingsScoreJob, listReviewTickers, savedReviewRows, startHoldingsSlowScoring, tickersNeedingScore } from "@/lib/portfolio-review";
 import { screenerPausedUntil } from "@/lib/screener-fetch";
 
 export const runtime = "nodejs";
@@ -13,11 +13,11 @@ const rank = (rating: string) => (rating === "Excellent" ? 0 : 1);
 
 /**
  * GET /api/excellent: every stock rated Excellent (total 13+ of 17) or Good
- * (9–12) by the Portfolio review, from saved scores only, Excellent first. Stocks in the universe that have
- * no score yet are queued behind anything already waiting (Watchlist first),
- * one Screener page every 20–30 s.
+ * (9–12) by the Portfolio review, from saved scores only, Excellent first. Nothing is fetched unless
+ * asked: `?score=1` queues universe stocks without a current score behind anything already waiting
+ * (Watchlist first), one Screener page every 20–30 s.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const universe = buildScannerData().rows.filter(
       (r) => (r.mcap ?? 0) >= MIN_MCAP_CR && (r.roce ?? -Infinity) >= MIN_ROCE,
@@ -25,7 +25,8 @@ export async function GET() {
     const tickers = universe.map((r) => r.t.toUpperCase());
     const saved = savedReviewRows(tickers);
     const missing = tickers.filter((t) => !saved.has(t));
-    const job = missing.length ? startHoldingsSlowScoring([], { later: missing }) : holdingsScoreJob();
+    const due = req.nextUrl.searchParams.get("score") === "1" ? tickersNeedingScore(tickers) : [];
+    const job = due.length ? startHoldingsSlowScoring([], { later: due }) : holdingsScoreJob();
     const owned = new Set(listReviewTickers().map((t) => t.toUpperCase()));
     const rows = [...saved.values()]
       .filter((r) => r.rating === "Excellent" || r.rating === "Good")

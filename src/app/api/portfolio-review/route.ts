@@ -8,6 +8,7 @@ import {
   removeFromReview,
   resolveTickers,
   scoreReviewTicker,
+  startReviewScoring,
   type ReviewBag,
 } from "@/lib/portfolio-review";
 // parseReviewBag re-exported from portfolio-review (types + server)
@@ -51,16 +52,20 @@ export async function GET(req: Request) {
   }
 }
 
-/** POST {add: string[]} · {remove: ticker} · {clear: true} · optional {bag}. */
+/** POST {add: string[]} · {remove: ticker} · {clear: true} · {score: true} (start background scoring) · optional {bag}. */
 export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as {
     add?: string[];
     remove?: string;
     clear?: boolean;
+    score?: boolean;
     bag?: string;
   };
   const bag = bagOf(req, body.bag);
   try {
+    if (body.score) {
+      return NextResponse.json({ ok: true, bag, ...startReviewScoring(bag) });
+    }
     if (body.clear) {
       removeFromReview(null, bag);
       return NextResponse.json({ ok: true, bag });

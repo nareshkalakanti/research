@@ -12,7 +12,7 @@ type Master = {
 };
 type Status = { companies: number; mapped: number; pages: number; last: string | null; blocked_at: string | null };
 
-/** Scanner: progress of the StockScans industry scrape, with start / stop. */
+/** Data page: StockScans industry data, with "Get latest" (incremental: new companies and pages older than 30 days) and stop. */
 export function StockscansBar({ onDone }: { onDone: () => void }) {
   const [st, setSt] = useState<Status | null>(null);
   const [job, setJob] = useState<NanoFillJob | null>(null);
@@ -87,9 +87,9 @@ export function StockscansBar({ onDone }: { onDone: () => void }) {
             className="btn-ghost"
             disabled={!!job?.running}
             onClick={() => void post({})}
-            title="Reads StockScans company pages one every 3–5 s; each page also gives ~6 peers"
+            title="Incremental: only companies new on StockScans or last read over 30 days ago, one page every 3–5 s (each page also gives ~6 peers)"
           >
-            {st.mapped ? "Update from StockScans" : "Scrape from StockScans"}
+            {st.mapped ? "Get latest from StockScans" : "Get data from StockScans"}
           </button>
         </span>
       )}

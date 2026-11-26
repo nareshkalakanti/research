@@ -923,7 +923,8 @@ const scoreMemo = new Map<string, ScoreBundle>();
  */
 const RULES_CHANGED_AT = Date.parse("2026-11-24T21:46:00Z");
 
-function readDiskScore(ticker: string): ScoreBundle | null {
+/** stale: also return a saved score past its refresh time (pages show saved scores; only "Score now" refreshes). */
+function readDiskScore(ticker: string, stale = false): ScoreBundle | null {
   return withDb((db) => {
     const row = db
       .prepare(
@@ -933,7 +934,7 @@ function readDiskScore(ticker: string): ScoreBundle | null {
       | { scored_at: number; ttl_ms: number; checks_json: string; m_json: string; val_json: string }
       | undefined;
     if (!row) return null;
-    if (Date.now() - row.scored_at >= row.ttl_ms) return null;
+    if (!stale && Date.now() - row.scored_at >= row.ttl_ms) return null;
     if (row.scored_at < RULES_CHANGED_AT) return null;
     try {
       return {
@@ -971,22 +972,27 @@ function writeDiskScore(ticker: string, v: ScoreBundle): void {
   });
 }
 
-/** Memory first, then disk — only then hit Screener. */
-function lookupScore(ticker: string): ScoreBundle | null {
+/** Memory first, then disk — only then hit Screener. `stale`: accept a saved score past its refresh time. */
+function lookupScore(ticker: string, opts?: { stale?: boolean }): ScoreBundle | null {
   const key = ticker.toUpperCase();
   const mem = scoreMemo.get(key);
-  if (mem && Date.now() - mem.at < mem.ttl && mem.at >= RULES_CHANGED_AT) {
+  if (mem && (opts?.stale || Date.now() - mem.at < mem.ttl) && mem.at >= RULES_CHANGED_AT) {
     const m = migrateBvCheck(key, mem);
     if (m !== mem) scoreMemo.set(key, m);
     return m;
   }
-  const disk = readDiskScore(key);
+  const disk = readDiskScore(key, !!opts?.stale);
   if (disk) {
     const d = migrateBvCheck(key, disk);
     scoreMemo.set(key, d);
     return d;
   }
   return null;
+}
+
+/** Tickers without a current score (never scored, or past their refresh time): what "Score now" would fetch. */
+export function tickersNeedingScore(tickers: string[]): string[] {
+  return [...new Set(tickers.map((t) => t.trim().toUpperCase()).filter(Boolean))].filter((t) => !lookupScore(t));
 }
 
 async function cachedScore(
@@ -1215,6 +1221,10 @@ export async function buildReview(opts?: {
 }): Promise<{
   rows: ReviewRow[];
   pending: number;
+  /** A "Score now" job is running for this list. */
+  scoring?: boolean;
+  /** Saved scores past their refresh time (shown as they are until scored again). */
+  stale?: number;
   screener_paused_until: string | null;
   /** Screener's peer table lacks P/B / P/S columns: peer valuation uses our industry medians. */
   peer_columns_missing: boolean;
@@ -1313,7 +1323,7 @@ export async function buildReview(opts?: {
     const key = ticker.toUpperCase();
     const s = scan.get(key);
     const legs = valueLegs.get(key) ?? null;
-    const hit = lookupScore(key);
+    const hit = lookupScore(key, { stale: true });
     if (hit) {
       rows.push(rowFromScores(key, added_at, s, hit.checks, hit.m, hit.val, legs));
     } else {
@@ -1350,13 +1360,26 @@ export async function buildReview(opts?: {
     };
   }
 
-  kickScoreJob(bag, need);
+  // Opening the page never fetches: scoring starts only from "Score now" (startReviewScoring).
   return {
     rows,
     pending: need.length,
+    scoring: scoreJobs.has(bag),
+    stale: tickersNeedingScore(list.map((x) => x.ticker)).length - need.length,
     screener_paused_until: screenerPausedUntil(),
     peer_columns_missing: !!screenerPeerColumnsMissingSince(),
   };
+}
+
+/**
+ * "Score now" on a review list: score, in the background, every stock without a current score
+ * (never scored or past its refresh time). Saved to portfolio_scores as each finishes.
+ */
+export function startReviewScoring(bag: ReviewBag = PORTFOLIO_BAG): { started: number; running: boolean } {
+  const scan = new Map(buildScannerData().rows.map((r) => [r.t.toUpperCase(), r.market]));
+  const need = tickersNeedingScore(listReviewTickers(bag)).map((t) => ({ ticker: t, market: scan.get(t) ?? "NSE" }));
+  kickScoreJob(bag, need);
+  return { started: need.length, running: scoreJobs.has(bag) };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1399,7 +1422,7 @@ export function savedReviewRows(tickers: string[]): Map<string, ReviewRow> {
   for (const raw of tickers) {
     const t = raw.trim().toUpperCase();
     if (!t) continue;
-    const hit = lookupScore(t);
+    const hit = lookupScore(t, { stale: true });
     if (!hit) continue;
     const s = scan.get(t);
     out.set(

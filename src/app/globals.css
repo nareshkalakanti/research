@@ -25068,3 +25068,6 @@ html[data-theme="dark"] .pt-root {
 @media (max-width: 640px) { .fd-both li, .fd-list li { grid-template-columns: 1fr; } }
 /* Industry with its broad sector under it (stock lists across the app). */
 .ind-sector { display: block; margin-top: 1px; font-size: 11.5px; font-weight: 400; color: var(--muted); line-height: 1.3; }
+
+/* "Score now" bar: scoring runs only when asked (Portfolio / Watchlist / Excellent). */
+.wl-score-now { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 0 0 10px; }

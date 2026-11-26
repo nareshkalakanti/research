@@ -64,6 +64,9 @@ export function PortfolioReviewPanel({
   /** Screener rate-limit: stocks without data cannot be scored until then. */
   const [pausedUntil, setPausedUntil] = useState<string | null>(null);
   const [peerColsMissing, setPeerColsMissing] = useState(false);
+  /** Background "Score now" job running, and saved scores past their refresh time. */
+  const [scoring, setScoring] = useState(false);
+  const [stale, setStale] = useState(0);
 
   const load = useCallback(async (opts?: { fresh?: boolean }) => {
     try {
@@ -77,9 +80,13 @@ export function PortfolioReviewPanel({
         pending?: number;
         screener_paused_until?: string | null;
         peer_columns_missing?: boolean;
+        scoring?: boolean;
+        stale?: number;
       };
       if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
       setErr(null);
+      setScoring(!!j.scoring);
+      setStale(j.stale ?? 0);
       setRows(j.rows ?? []);
       setPausedUntil(j.screener_paused_until ?? null);
       setPeerColsMissing(!!j.peer_columns_missing);
@@ -93,12 +100,12 @@ export function PortfolioReviewPanel({
     const id = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(id);
   }, [load]);
-  // Screener scores fill in the background — poll until every row is done.
+  // Scores fill in only after "Score now": poll while that background job runs.
   useEffect(() => {
-    if (!rows?.some((r) => r.scored < 0)) return;
-    const id = window.setInterval(() => void load(), 1500);
+    if (!scoring) return;
+    const id = window.setInterval(() => void load(), 3000);
     return () => window.clearInterval(id);
-  }, [rows, load]);
+  }, [scoring, load]);
   // + / ✓ on this page — reload when that bag's membership changes.
   useEffect(() => {
     let t: number | null = null;
@@ -170,9 +177,14 @@ export function PortfolioReviewPanel({
           : (j.found?.length ? "Already in your list" : "Nothing added") + miss,
       );
       setQ("");
+      // Adding is a click: score the new stocks in the background.
+      if (j.added) {
+        const sj = (await post({ score: true })) as { running?: boolean };
+        setScoring(!!sj.running);
+      }
       await load();
       onMembershipChange?.();
-      if (j.added) setMsg(`Added ${j.added}${miss}`);
+      if (j.added) setMsg(`Added ${j.added} · scoring in the background${miss}`);
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
     } finally {
@@ -311,23 +323,38 @@ export function PortfolioReviewPanel({
         <div className="vx-table-head">
           <span className="vx-label vx-label--title">Stock evaluation table</span>
           <div className="vx-table-actions">
+            {rows?.length ? (
+              <span className="vx-hint">
+                {scoring
+                  ? "Scoring in the background…"
+                  : [
+                      rows.filter((r) => r.scored < 0).length ? `${rows.filter((r) => r.scored < 0).length} not scored` : "",
+                      stale ? `${stale} older than a week` : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || "Scores saved"}
+              </span>
+            ) : null}
             <button
               type="button"
               className="vx-btn"
-              disabled={busy}
-              title="Reload and rescore the portfolio list"
-              onClick={() => {
+              disabled={busy || scoring || !rows?.length}
+              title="Score stocks without a current score in the background (Screener); scores are saved"
+              onClick={async () => {
                 setBusy(true);
-                setMsg("Refreshing…");
-                void load({ fresh: true })
-                  .then(() => {
-                    onMembershipChange?.();
-                    setMsg(null);
-                  })
-                  .finally(() => setBusy(false));
+                try {
+                  const j = (await post({ score: true })) as { ok?: boolean; started?: number; running?: boolean; error?: string };
+                  if (j.ok === false) throw new Error(j.error);
+                  setScoring(!!j.running);
+                  setMsg(j.started ? `Scoring ${j.started} in the background` : "Every score is current");
+                } catch (e) {
+                  setMsg(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setBusy(false);
+                }
               }}
             >
-              Refresh
+              {scoring ? "Scoring…" : "Score now"}
             </button>
             {rows?.length ? (
               <button
@@ -405,7 +432,7 @@ export function PortfolioReviewPanel({
                     </td>
                     <td className="num">
                       {r.scored < 0 ? (
-                        <span className="vx-hint">Scoring…</span>
+                        <span className="vx-hint">{scoring ? "Scoring…" : "Not scored"}</span>
                       ) : (
                         <button
                           type="button"

@@ -35,10 +35,12 @@ export function ExcellentList() {
   const [drawer, setDrawer] = useState<{ row: ReviewScoreRow; kind: ReviewDrawerKind } | null>(null);
   const [hideOwned, setHideOwned] = useState(false);
   const [showGood, setShowGood] = useState(true);
+  /** Bumped by "Score now": the next load asks the server to queue unscored stocks. */
+  const [scoreReq, setScoreReq] = useState(0);
 
   useEffect(() => {
     let live = true;
-    void fetch("/api/excellent", { cache: "no-store" })
+    void fetch(scoreReq && poll === scoreReq ? "/api/excellent?score=1" : "/api/excellent", { cache: "no-store" })
       .then((r) => r.json())
       .then((j: Payload) => {
         if (live) setData(j);
@@ -47,10 +49,10 @@ export function ExcellentList() {
     return () => {
       live = false;
     };
-  }, [poll]);
-  // Refresh every 30 s while stocks are still being scored.
+  }, [poll, scoreReq]);
+  // Refresh every 30 s while the background scoring runs.
   useEffect(() => {
-    if (!data?.missing) return;
+    if (!data?.job?.running) return;
     const t = setTimeout(() => setPoll((n) => n + 1), 30_000);
     return () => clearTimeout(t);
   }, [data]);
@@ -85,7 +87,23 @@ export function ExcellentList() {
         </div>
       </div>
 
-      {left > 0 ? (
+      {left > 0 && !running ? (
+        <div className="wl-score-now">
+          <span className="vx-hint">{left} companies not scored yet · scoring runs only when you ask, in the background</span>
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => {
+              const n = poll + 1;
+              setScoreReq(n);
+              setPoll(n);
+            }}
+          >
+            Score now
+          </button>
+        </div>
+      ) : null}
+      {left > 0 && running ? (
         <div className="wl-score-progress" role="status">
           <div className="wl-score-progress-head">
             <span>

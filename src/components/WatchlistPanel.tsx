@@ -1289,6 +1289,23 @@ export function WatchlistPanel() {
     };
   }, [holdKey, allWatchKey, scorePoll]);
   const scoreJobRunning = !!holdScores?.job?.running && holdScores.key === holdKey;
+  /** "Score now": queue stocks without a current score (this list first) in the slow background job. */
+  const [scoreStarting, setScoreStarting] = useState(false);
+  const scoreNow = useCallback(async () => {
+    if (!holdKey) return;
+    setScoreStarting(true);
+    try {
+      await fetch("/api/watchlist/scores", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickers: holdKey.split(","), all: allWatchKey ? allWatchKey.split(",") : [], score: true }),
+      });
+    } finally {
+      setScoreStarting(false);
+      setScorePoll((n) => n + 1);
+    }
+  }, [holdKey, allWatchKey]);
   useEffect(() => {
     if (!scoreJobRunning) return;
     const t = setTimeout(() => setScorePoll((n) => n + 1), 60_000);
@@ -1660,6 +1677,17 @@ export function WatchlistPanel() {
         </p>
       ) : (
         <div className="table-wrap">
+          {showScores && holdScores && !holdScores.job?.running ? (
+            <div className="wl-score-now">
+              <span className="vx-hint">
+                {holdScores.missing ? `${holdScores.missing} of ${holdScores.total} Watchlist stocks not scored` : "Scores saved"} · scoring runs only when
+                you ask, in the background
+              </span>
+              <button type="button" className="btn-ghost" disabled={scoreStarting} onClick={() => void scoreNow()}>
+                {scoreStarting ? "Starting…" : "Score now"}
+              </button>
+            </div>
+          ) : null}
           {showScores && holdScores && holdScores.total && holdScores.missing > 0 && (holdScores.job?.running || holdScores.paused) ? (
             (() => {
               // Whole Watchlist (every list); hidden once everything is scored.

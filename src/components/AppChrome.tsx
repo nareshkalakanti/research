@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { APP_GROUPS, APP_TABS, groupOfTab, hrefForTab, useAppTab, type AppTab } from "@/lib/app-tab";
 import { useAuth } from "@/lib/auth";
 import { BrandMark } from "@/components/BrandMark";
-import { OllamaBar } from "@/components/OllamaBar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export type { AppTab };
@@ -122,7 +121,6 @@ export function AppChrome({
         <div className="user-block">
           <RefreshButton />
           <ThemeToggle />
-          <OllamaBar />
           {user ? (
             <span className="user-email" title={user}>
               {user}

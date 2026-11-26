@@ -33,18 +33,18 @@ export type AppTab =
 export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "napkin", label: "Napkin", short: "Napkin" },
   { id: "dashboard", label: "Governance", short: "Gov" },
-  { id: "value", label: "Value", short: "Value" },
+  { id: "value", label: "Intrinsic Value Tool", short: "Value" },
   { id: "rotation", label: "Trend", short: "Trend" },
   { id: "price-action", label: "Price Action", short: "PA" },
   { id: "breakouts", label: "Breakouts", short: "BO" },
-  { id: "momentum-money", label: "Momentum & Money", short: "M&M" },
+  { id: "momentum-money", label: "Money & Momentum", short: "M&M" },
   { id: "picks", label: "Picks tracker", short: "Picks" },
   { id: "funds", label: "Fund dashboard", short: "Funds" },
   { id: "portfolio", label: "Portfolio", short: "Port" },
-  { id: "concall-drift", label: "Drift", short: "Drift" },
+  { id: "concall-drift", label: "Concall Drift", short: "Drift" },
   { id: "scan", label: "Strategy", short: "Strategy" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
-  { id: "scanner", label: "Scanner", short: "Scanner" },
+  { id: "scanner", label: "Data", short: "Data" },
   { id: "research", label: "Research", short: "Research" },
 ];
 
@@ -62,55 +62,41 @@ export const APP_GROUPS: AppGroup[] = [
     label: "Markets",
     short: "Mkts",
     tabs: [
-      { id: "rotation", label: "Trend" },
-      { id: "price-action", label: "Price Action" },
       { id: "breakouts", label: "Breakouts" },
+      { id: "rotation", label: "Trend" },
     ],
   },
+  { id: "price-action", label: "Price Action", short: "PA", tabs: [{ id: "price-action", label: "Price Action" }] },
   {
-    id: "strategies",
-    label: "Strategies",
-    short: "Strat",
+    id: "momentum",
+    label: "Money & Momentum",
+    short: "M&M",
     tabs: [
-      { id: "momentum-money", label: "Momentum & Money" },
+      { id: "momentum-money", label: "Money & Momentum" },
       { id: "scan", label: "Signals" },
     ],
   },
-  {
-    id: "screens",
-    label: "Screens",
-    short: "Screens",
-    tabs: [
-      { id: "scanner", label: "Scanner" },
-      { id: "value", label: "Value" },
-      { id: "concall-drift", label: "Drift" },
-    ],
-  },
-  {
-    id: "portfolio",
-    label: "Portfolio",
-    short: "Port",
-    tabs: [
-      { id: "portfolio", label: "Portfolio" },
-      { id: "watchlist", label: "Watchlist" },
-    ],
-  },
+  { id: "value", label: "Intrinsic Value Tool", short: "Value", tabs: [{ id: "value", label: "Intrinsic Value Tool" }] },
+  { id: "drift", label: "Concall Drift", short: "Drift", tabs: [{ id: "concall-drift", label: "Concall Drift" }] },
+  { id: "governance", label: "Governance", short: "Gov", tabs: [{ id: "dashboard", label: "Governance" }] },
   {
     id: "research",
     label: "Research",
     short: "Research",
     tabs: [
       { id: "research", label: "Research" },
-      { id: "dashboard", label: "Governance" },
+      { id: "scanner", label: "Data" },
+      { id: "portfolio", label: "Portfolio" },
+      { id: "watchlist", label: "Watchlist" },
       { id: "picks", label: "Picks tracker" },
       { id: "funds", label: "Fund dashboard" },
     ],
   },
 ];
 
-/** The group a tab belongs to (Governance's hidden company / person view sits under Research). */
+/** The group a tab belongs to (Governance's hidden company / person view sits under Governance). */
 export function groupOfTab(tab: AppTab): AppGroup {
-  if (tab === "governance") return APP_GROUPS.find((g) => g.id === "research")!;
+  if (tab === "governance") return APP_GROUPS.find((g) => g.id === "governance")!;
   return APP_GROUPS.find((g) => g.tabs.some((t) => t.id === tab)) ?? APP_GROUPS[0]!;
 }
 

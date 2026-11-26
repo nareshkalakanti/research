@@ -262,6 +262,13 @@ export function ScannerPanel() {
 
   return (
     <section className="nano-section sc-panel">
+      <header className="vx-head">
+        <div>
+          <span className="vx-eyebrow">Every listed stock, with prices, ratios and industry</span>
+          <h2 className="vx-title">Data</h2>
+        </div>
+      </header>
+      <StockscansBar onDone={() => void load()} />
       <div className="sc-card">
         <div className="sc-card-head">
           <input
@@ -493,7 +500,6 @@ export function ScannerPanel() {
           </button>
         </div>
       ) : null}
-      <StockscansBar onDone={() => void load()} />
       <p className="table-meta">
         Prices as of {data.as_of ? new Date(data.as_of).toLocaleString("en-IN") : "—"} · Industry from StockScans for{" "}
         {data.rows.filter((r) => r.ind_src === "stockscans").length.toLocaleString("en-IN")} stocks, the app&apos;s own
