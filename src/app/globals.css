@@ -25422,20 +25422,35 @@ button.tab { font-family: inherit; }
 .mcs-div-cell { vertical-align: middle; }
 .mcs-pill {
   display: inline-flex;
-  align-items: baseline;
-  gap: 2px;
-  padding: 0 6px;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  box-sizing: border-box;
   height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+  min-width: 3.75rem;
+  padding: 0 7px;
+  margin: 0;
   border-radius: 999px;
   border: 1px solid transparent;
   font: inherit;
   font-size: 10px;
   font-variant-numeric: tabular-nums;
-  line-height: 16px;
+  line-height: 1;
   letter-spacing: -0.01em;
   white-space: nowrap;
   vertical-align: middle;
-  box-sizing: border-box;
+  overflow: hidden;
+  flex: 0 0 auto;
+  appearance: none;
+  -webkit-appearance: none;
+}
+.mcs-pill b,
+.mcs-pill em {
+  display: inline-block;
+  line-height: 1;
+  max-height: 18px;
 }
 .mcs-pill b {
   font-weight: 700;
@@ -25459,6 +25474,7 @@ button.tab { font-family: inherit; }
   border-color: color-mix(in srgb, var(--ink) 14%, transparent);
   background: color-mix(in srgb, var(--ink) 3%, transparent);
   color: var(--muted);
+  min-width: 3.75rem;
 }
 .mcs-pill--board {
   border-color: #b7c6e0;

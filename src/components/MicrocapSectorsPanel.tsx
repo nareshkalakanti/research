@@ -106,7 +106,7 @@ function DivYieldBubble({ n }: { n: number | null | undefined }) {
   if (n == null || !Number.isFinite(n)) {
     return (
       <span className="mcs-pill mcs-pill--div empty" title="Dividend yield not on file">
-        <b>—</b>
+        <b>-</b>
         <em>dy</em>
       </span>
     );
@@ -149,7 +149,7 @@ function BoardLinksBubble({
         </>
       ) : (
         <>
-          <b>—</b>
+          <b>-</b>
           <em>bd</em>
         </>
       )}
