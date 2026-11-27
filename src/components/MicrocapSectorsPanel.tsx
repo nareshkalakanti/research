@@ -580,12 +580,13 @@ export function MicrocapSectorsPanel() {
   };
 
   useEffect(() => {
-    if (!sel) return;
+    // Board view still stacks stocks under the columns; scroll them into view.
+    if (!sel || view === "pockets" || view === "sectors") return;
     const t = window.setTimeout(() => {
       document.getElementById("mcs-stocks")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 50);
     return () => window.clearTimeout(t);
-  }, [sel]);
+  }, [sel, view]);
 
   const sectors = useMemo(() => {
     if (!data?.ok) return [];
@@ -708,8 +709,8 @@ export function MicrocapSectorsPanel() {
             Micro <span>Monopolies</span>
           </h2>
           <p className="vx-hint mcs-lede">
-            Same layout as Value → Valuation: strongest pockets on the left, weakest on the right. Click a bar to see
-            the companies — pick the <em>average</em> name in the strongest pocket.
+            Top 20 or Bot 20 full width — click a bar and the companies open beside it. Pick the <em>average</em> name
+            in the strongest pocket.
           </p>
         </div>
       </header>
@@ -827,39 +828,37 @@ export function MicrocapSectorsPanel() {
         <div className="vx-card vx-empty vx-msg--err">Could not load: {data.error}</div>
       ) : !sectors.length ? (
         <div className="vx-card vx-empty">No sectors match.</div>
-      ) : view === "pockets" ? (
+      ) : view === "pockets" || view === "sectors" ? (
         <>
-          <div className="vx-bars-grid vx-bars-grid--solo">
-            <Bars
-              title={
-                rankSide === "top"
-                  ? "Top 20 pockets by avg 12M return"
-                  : "Bottom 20 pockets by avg 12M return"
-              }
-              side={rankSide}
-              rows={pocketRows}
-              sel={sel}
-              onPick={pick}
-              scaleMax={pocketScale}
-            />
+          <div className={`mcs-rank-row${sel ? " mcs-rank-row--split" : ""}`}>
+            <div className="mcs-rank-bars">
+              <Bars
+                title={
+                  view === "pockets"
+                    ? rankSide === "top"
+                      ? "Top 20 pockets by avg 12M return"
+                      : "Bottom 20 pockets by avg 12M return"
+                    : rankSide === "top"
+                      ? "Top 20 sectors by avg 12M return"
+                      : "Bottom 20 sectors by avg 12M return"
+                }
+                side={rankSide}
+                rows={view === "pockets" ? pocketRows : sectorRows}
+                sel={sel}
+                onPick={pick}
+                scaleMax={view === "pockets" ? pocketScale : sectorScale}
+              />
+            </div>
+            {sel ? (
+              <div className="mcs-rank-stocks">
+                <StocksBelow sel={sel} board={board} minN={minN} maxMcap={maxMcap} onClose={() => setSel(null)} />
+              </div>
+            ) : null}
           </div>
-          {!pocketRows.length ? <div className="vx-card vx-empty">No pockets clear Min companies.</div> : null}
+          {view === "pockets" && !pocketRows.length ? (
+            <div className="vx-card vx-empty">No pockets clear Min companies.</div>
+          ) : null}
         </>
-      ) : view === "sectors" ? (
-        <div className="vx-bars-grid vx-bars-grid--solo">
-          <Bars
-            title={
-              rankSide === "top"
-                ? "Top 20 sectors by avg 12M return"
-                : "Bottom 20 sectors by avg 12M return"
-            }
-            side={rankSide}
-            rows={sectorRows}
-            sel={sel}
-            onPick={pick}
-            scaleMax={sectorScale}
-          />
-        </div>
       ) : (
         <>
           <div className="mcs-board" role="list" aria-label="Sector return columns">
@@ -878,12 +877,11 @@ export function MicrocapSectorsPanel() {
               Show top 7
             </button>
           ) : null}
+          {sel ? (
+            <StocksBelow sel={sel} board={board} minN={minN} maxMcap={maxMcap} onClose={() => setSel(null)} />
+          ) : null}
         </>
       )}
-
-      {sel ? (
-        <StocksBelow sel={sel} board={board} minN={minN} maxMcap={maxMcap} onClose={() => setSel(null)} />
-      ) : null}
     </section>
   );
 }

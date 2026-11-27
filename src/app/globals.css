@@ -22869,7 +22869,42 @@ html[data-theme="light"] .vx-vgraph {
 }
 .vx-bars-grid--solo {
   grid-template-columns: 1fr;
-  max-width: 44rem;
+  max-width: none;
+  width: 100%;
+}
+.mcs-rank-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+  margin-bottom: 10px;
+  width: 100%;
+  align-items: start;
+}
+.mcs-rank-row--split {
+  grid-template-columns: minmax(300px, 0.9fr) minmax(0, 1.35fr);
+}
+.mcs-rank-bars,
+.mcs-rank-stocks {
+  min-width: 0;
+}
+.mcs-rank-bars .vx-bars {
+  width: 100%;
+}
+.mcs-rank-stocks .mcs-stocks {
+  margin-top: 0;
+  max-height: min(78vh, 820px);
+  display: flex;
+  flex-direction: column;
+}
+.mcs-rank-stocks .mcs-stocks .vx-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+@media (max-width: 1100px) {
+  .mcs-rank-row--split {
+    grid-template-columns: 1fr;
+  }
 }
 @media (max-width: 1000px) {
   .vx-bars-grid {
