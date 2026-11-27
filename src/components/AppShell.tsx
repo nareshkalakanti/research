@@ -87,6 +87,16 @@ const BreakoutsPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const MicrocapPanel = dynamic(
+  () => import("@/components/MicrocapPanel").then((m) => m.MicrocapPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
+const MicrocapSectorsPanel = dynamic(
+  () => import("@/components/MicrocapSectorsPanel").then((m) => m.MicrocapSectorsPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const MomentumMoneyPanel = dynamic(
   () => import("@/components/MomentumMoneyPanel").then((m) => m.MomentumMoneyPanel),
   { loading: PanelFallback, ssr: false },
@@ -96,11 +106,6 @@ const Ipo2Panel = dynamic(() => import("@/components/Ipo2Panel").then((m) => m.I
   loading: PanelFallback,
   ssr: false,
 });
-
-const FundDashboardPanel = dynamic(
-  () => import("@/components/FundDashboardPanel").then((m) => m.FundDashboardPanel),
-  { loading: PanelFallback, ssr: false },
-);
 
 const PicksTrackerPanel = dynamic(
   () => import("@/components/PicksTrackerPanel").then((m) => m.PicksTrackerPanel),
@@ -116,9 +121,10 @@ const PANELS: Record<AppTab, ComponentType> = {
   rotation: SectorRotationPanel,
   "price-action": PriceActionPanel,
   breakouts: BreakoutsPanel,
+  microcap: MicrocapPanel,
+  "micro-sectors": MicrocapSectorsPanel,
   "momentum-money": MomentumMoneyPanel,
   picks: PicksTrackerPanel,
-  funds: FundDashboardPanel,
   ipo2: Ipo2Panel,
   research: ResearchPanel,
   watchlist: WatchlistPanel,

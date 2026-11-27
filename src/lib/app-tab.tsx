@@ -22,10 +22,11 @@ export type AppTab =
   | "rotation"
   | "price-action"
   | "breakouts"
+  | "microcap"
+  | "micro-sectors"
   | "momentum-money"
   | "ipo2"
   | "picks"
-  | "funds"
   | "scanner"
   | "value"
   | "portfolio";
@@ -38,10 +39,11 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "rotation", label: "Trend", short: "Trend" },
   { id: "price-action", label: "Price Action", short: "PA" },
   { id: "breakouts", label: "Breakouts", short: "BO" },
+  { id: "microcap", label: "Microcap", short: "Micro" },
+  { id: "micro-sectors", label: "Micro Monopolies", short: "µMono" },
   { id: "momentum-money", label: "Money & Momentum", short: "M&M" },
   { id: "ipo2", label: "IPO2", short: "IPO2" },
   { id: "picks", label: "Picks tracker", short: "Picks" },
-  { id: "funds", label: "Fund dashboard", short: "Funds" },
   { id: "portfolio", label: "Portfolio", short: "Port" },
   { id: "concall-drift", label: "Concall Drift", short: "Drift" },
   { id: "scan", label: "Strategy", short: "Strategy" },
@@ -70,7 +72,16 @@ export const APP_GROUPS: AppGroup[] = [
       { id: "rotation", label: "Trend" },
     ],
   },
-  { id: "price-action", label: "Price Action", short: "PA", tabs: [{ id: "price-action", label: "Price Action" }] },
+  {
+    id: "microcap",
+    label: "Microcap",
+    short: "Micro",
+    tabs: [
+      { id: "microcap", label: "Distribution" },
+      { id: "micro-sectors", label: "Micro Monopolies" },
+    ],
+  },
+  { id: "price-action", label: "Price Action", short: "Price", tabs: [{ id: "price-action", label: "Price Action" }] },
   {
     id: "momentum",
     label: "Money & Momentum",
@@ -90,6 +101,7 @@ export const APP_GROUPS: AppGroup[] = [
       { id: "value", label: "Valuation", view: { param: "v", value: "valuation" } },
       { id: "value", label: "Earnings Trends", view: { param: "v", value: "earnings" } },
       { id: "value", label: "Favour / Out of favour", view: { param: "v", value: "winds" } },
+      { id: "portfolio", label: "Portfolio" },
     ],
   },
   { id: "drift", label: "Concall Drift", short: "Drift", tabs: [{ id: "concall-drift", label: "Concall Drift" }] },
@@ -97,14 +109,12 @@ export const APP_GROUPS: AppGroup[] = [
   {
     id: "research",
     label: "Research",
-    short: "Research",
+    short: "More",
     tabs: [
       { id: "research", label: "Research" },
       { id: "scanner", label: "Data" },
-      { id: "portfolio", label: "Portfolio" },
       { id: "watchlist", label: "Watchlist" },
       { id: "picks", label: "Picks tracker" },
-      { id: "funds", label: "Fund dashboard" },
       { id: "scan", label: "Signals" },
     ],
   },
@@ -148,6 +158,7 @@ export function tabFromParam(raw: string | null): AppTab {
     return "watchlist";
   }
   if (raw === "fund") return "watchlist";
+  if (raw === "funds") return "picks";
   if (raw === "rights") return "dashboard";
   if (raw === "radar") return "dashboard";
   if (
@@ -200,7 +211,9 @@ function buildHomeSearch(
   }
   const t = (ticker || "").trim().toUpperCase();
   if (next === "napkin") {
-    params.delete("ticker");
+    // Header search / NP chips open Napkin with `?ticker=`; brand home clears it.
+    if (t) params.set("ticker", t);
+    else params.delete("ticker");
   } else if (t && (next === "research" || next === "governance")) {
     params.set("ticker", t);
   } else if (next !== "research" && next !== "governance") {

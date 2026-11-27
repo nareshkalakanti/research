@@ -320,6 +320,55 @@ export function loadConnectedStockHubs(opts?: {
   }
 }
 
+/**
+ * How many other listed boards share ≥1 director with each ticker
+ * (same edge definition as ConnectedStockHubs / FamilyGraph outside nodes).
+ */
+export function boardLinkedCountsForTickers(tickers: string[]): Map<string, number> {
+  const wanted = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
+  const map = new Map<string, number>();
+  if (!wanted.length) return map;
+  const db = sharedGovernanceDb();
+  try {
+    ensureNetworkViews(db, false);
+    db.exec(ifNotExists(COMPANY_NETWORK_VIEW_SQL, "company_network"));
+    const gone = JSON.stringify([...inactiveListingTickerSet()]);
+    const rows = db
+      .prepare(
+        `WITH edges AS (
+           SELECT ticker_a AS ticker, ticker_b AS other FROM company_network
+           UNION ALL
+           SELECT ticker_b, ticker_a FROM company_network
+         ),
+         live AS (
+           SELECT * FROM edges
+            WHERE ticker NOT IN (SELECT value FROM json_each(@gone))
+              AND other NOT IN (SELECT value FROM json_each(@gone))
+         )
+         SELECT ticker, COUNT(*) AS n
+           FROM live
+          WHERE ticker IN (SELECT value FROM json_each(@want))
+          GROUP BY ticker`,
+      )
+      .all({ gone, want: JSON.stringify(wanted) }) as Array<{ ticker: string; n: number }>;
+    for (const r of rows) {
+      const t = (r.ticker || "").toUpperCase();
+      if (t) map.set(t, Number(r.n) || 0);
+    }
+  } catch {
+    /* missing views / db */
+  } finally {
+    db.close();
+  }
+  return map;
+}
+
 function likePattern(q: string): string {
   const escaped = q.replace(/[\\%_]/g, (ch) => `\\${ch}`);
   return `%${escaped}%`;
