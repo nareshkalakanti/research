@@ -12,29 +12,44 @@ import {
   writeTickertapeRatiosCache,
 } from "./tickertape-ratios-cache";
 import { tickertapeStockRatios } from "./web-mcap";
+import { valueLegsForTickers, type ValueNa } from "./value-tools";
 
 /** Microcap board for the sector-return table (≤ this market cap). */
 export const MICROCAP_SECTOR_MAX_CR = 1000;
 
 export type MicrocapBoardFilter = "all" | "main" | "sme";
 
+/** Value-style ranks inside the Top/Bot pocket or sector set (lower total = better). */
+export type MicrocapValueRanks = {
+  /** Names with Sales + ROCE + P/B usable for the Value ranking. */
+  n_value: number;
+  avg_sales3y: number | null;
+  avg_roce3y: number | null;
+  avg_pb: number | null;
+  gR: number | null;
+  rR: number | null;
+  pR: number | null;
+  /** gR + rR + pR — null when the pocket/sector is not Value-rankable. */
+  total: number | null;
+};
+
 export type MicrocapIndustryReturn = {
   industry: string;
   n: number;
   /** Equal-weight average 12-month return (%). */
   avg_ret_1y: number;
-};
+} & MicrocapValueRanks;
 
 export type MicrocapSectorReturn = {
   sector: string;
   n: number;
   avg_ret_1y: number;
-  /** Industry with the lowest average return in this sector. */
+  /** Industry with the best Value total in this sector (named industries only). */
   low: MicrocapIndustryReturn | null;
-  /** Industry with the highest average return in this sector. */
+  /** Industry with the worst Value total in this sector (named industries only). */
   high: MicrocapIndustryReturn | null;
   industries: MicrocapIndustryReturn[];
-};
+} & MicrocapValueRanks;
 
 export type MicrocapSectorBoard = {
   max_mcap_cr: number;
@@ -143,8 +158,77 @@ function resolveSectorIndustry(
   return null;
 }
 
+type ValueAgg = {
+  rets: number[];
+  sales: number[];
+  roce: number[];
+  pb: number[];
+  /** Recoveries counted in sales avg but flagged for pocket-level growth ranking. */
+  recovery_n: number;
+};
+
+function emptyAgg(): ValueAgg {
+  return { rets: [], sales: [], roce: [], pb: [], recovery_n: 0 };
+}
+
+function valueRanksFromAgg(a: ValueAgg): MicrocapValueRanks {
+  // sales/roce/pb only get a push when the stock has a full triple.
+  return {
+    n_value: a.sales.length,
+    avg_sales3y: mean(a.sales),
+    avg_roce3y: mean(a.roce),
+    avg_pb: mean(a.pb),
+    gR: null,
+    rR: null,
+    pR: null,
+    total: null,
+  };
+}
+
+/** Rank items like Value: Sales ↑ · ROCE ↑ · P/B ↓ · total = sum of ranks (lower better). */
+function applyValueRanks<T extends MicrocapValueRanks>(
+  rows: T[],
+  opts: {
+    sales: (r: T) => number;
+    roce: (r: T) => number;
+    pb: (r: T) => number;
+    /** True → ranked last on the growth leg (recovery-heavy pocket). */
+    recovery?: (r: T) => boolean;
+  },
+): void {
+  const work = rows.filter((r) => r.n_value > 0 && r.avg_sales3y != null && r.avg_roce3y != null && r.avg_pb != null);
+  const rankBy = (vals: Array<[T, number]>, desc: boolean) => {
+    const s = [...vals].sort((a, b) => (desc ? b[1] - a[1] : a[1] - b[1]));
+    const out = new Map<T, number>();
+    s.forEach(([row, v], i) => out.set(row, i > 0 && v === s[i - 1]![1] ? out.get(s[i - 1]![0])! : i + 1));
+    return out;
+  };
+  const g = rankBy(
+    work.map((r) => [r, opts.recovery?.(r) ? Number.NEGATIVE_INFINITY : opts.sales(r)] as [T, number]),
+    true,
+  );
+  const o = rankBy(
+    work.map((r) => [r, opts.roce(r)] as [T, number]),
+    true,
+  );
+  const p = rankBy(
+    work.map((r) => [r, opts.pb(r)] as [T, number]),
+    false,
+  );
+  for (const r of work) {
+    const gR = g.get(r)!;
+    const rR = o.get(r)!;
+    const pR = p.get(r)!;
+    r.gR = gR;
+    r.rR = rR;
+    r.pR = pR;
+    r.total = gR + rR + pR;
+  }
+}
+
 /**
- * For names ≤ ₹maxMcap Cr: equal-weight avg 12-month return by sector › industry.
+ * For names ≤ ₹maxMcap Cr: equal-weight avg 12-month return by sector › industry,
+ * plus Value-style Sales / ROCE / P/B ranks (same legs as the ranking tool).
  * StockScans first; classifications sector › sub_sector when StockScans is flat.
  */
 export function buildMicrocapSectorReturns(opts?: {
@@ -161,10 +245,14 @@ export function buildMicrocapSectorReturns(opts?: {
   const cls = loadClassificationsMap();
   const metrics = loadMetricsMap();
 
-  type Agg = { rets: number[] };
-  const bySector = new Map<string, Agg>();
-  /** Industry key "" = labeled sector but blank industry. */
-  const byInd = new Map<string, Map<string, Agg>>();
+  type Hit = {
+    ticker: string;
+    sector: string;
+    industry: string;
+    mcap_cr: number;
+    ret_1y: number;
+  };
+  const hits: Hit[] = [];
   let withRet = 0;
   let universe = 0;
   let clsFallback = 0;
@@ -188,16 +276,45 @@ export function buildMicrocapSectorReturns(opts?: {
     const ret = ret1yPct(closes);
     if (ret == null || !Number.isFinite(ret)) continue;
     withRet++;
+    hits.push({
+      ticker: ticker.toUpperCase(),
+      sector,
+      industry,
+      mcap_cr: mcap,
+      ret_1y: ret,
+    });
+  }
 
-    const s = bySector.get(sector) ?? { rets: [] };
-    s.rets.push(ret);
-    bySector.set(sector, s);
+  const legs = valueLegsForTickers(
+    hits.map((h) => h.ticker),
+    new Map(hits.map((h) => [h.ticker, h.mcap_cr] as const)),
+  );
 
-    const indMap = byInd.get(sector) ?? new Map<string, Agg>();
-    const i = indMap.get(industry) ?? { rets: [] };
-    i.rets.push(ret);
-    indMap.set(industry, i);
-    byInd.set(sector, indMap);
+  const bySector = new Map<string, ValueAgg>();
+  /** Industry key "" = labeled sector but blank industry. */
+  const byInd = new Map<string, Map<string, ValueAgg>>();
+
+  for (const h of hits) {
+    const push = (a: ValueAgg) => {
+      a.rets.push(h.ret_1y);
+      const leg = legs.get(h.ticker);
+      // Pocket/sector Value avg needs a real P/B (skip negative-equity names here).
+      if (!leg || leg.sales3y == null || leg.roce3y == null || leg.pb == null || !(leg.pb > 0)) return;
+      a.sales.push(leg.sales3y);
+      a.roce.push(leg.roce3y);
+      a.pb.push(leg.pb);
+      if (leg.sales_recovery) a.recovery_n += 1;
+    };
+
+    const s = bySector.get(h.sector) ?? emptyAgg();
+    push(s);
+    bySector.set(h.sector, s);
+
+    const indMap = byInd.get(h.sector) ?? new Map<string, ValueAgg>();
+    const i = indMap.get(h.industry) ?? emptyAgg();
+    push(i);
+    indMap.set(h.industry, i);
+    byInd.set(h.sector, indMap);
   }
 
   // Industry name that is another sector on this board (e.g. Trading under Plastics) —
@@ -212,49 +329,128 @@ export function buildMicrocapSectorReturns(opts?: {
         industry,
         n: a.rets.length,
         avg_ret_1y: mean(a.rets)!,
-        rets: a.rets,
+        agg: a,
       }));
       const pluralityN = raw.reduce((m, x) => Math.max(m, x.n), 0);
 
       const kept: MicrocapIndustryReturn[] = [];
-      const otherRets: number[] = [];
+      const otherAgg = emptyAgg();
+
+      const foldIntoOther = (a: ValueAgg) => {
+        otherAgg.rets.push(...a.rets);
+        otherAgg.sales.push(...a.sales);
+        otherAgg.roce.push(...a.roce);
+        otherAgg.pb.push(...a.pb);
+        otherAgg.recovery_n += a.recovery_n;
+      };
 
       for (const x of raw) {
         if (!x.industry) {
-          otherRets.push(...x.rets);
+          foldIntoOther(x.agg);
           continue;
         }
         const ik = x.industry.toLowerCase();
         const crossTag = ik !== sectorKey && sectorNames.has(ik) && x.n < pluralityN;
         if (crossTag || x.n < minInd) {
-          otherRets.push(...x.rets);
+          foldIntoOther(x.agg);
           continue;
         }
-        kept.push({ industry: x.industry, n: x.n, avg_ret_1y: x.avg_ret_1y });
+        const vr = valueRanksFromAgg(x.agg);
+        vr.n_value = x.agg.sales.length;
+        const row: MicrocapIndustryReturn & { _recovery?: boolean } = {
+          industry: x.industry,
+          n: x.n,
+          avg_ret_1y: x.avg_ret_1y,
+          ...vr,
+        };
+        row._recovery = x.agg.sales.length > 0 && x.agg.recovery_n > x.agg.sales.length / 2;
+        kept.push(row);
       }
 
-      if (otherRets.length) {
-        kept.push({ industry: "Other", n: otherRets.length, avg_ret_1y: mean(otherRets)! });
+      if (otherAgg.rets.length) {
+        const vr = valueRanksFromAgg(otherAgg);
+        vr.n_value = otherAgg.sales.length;
+        const row: MicrocapIndustryReturn & { _recovery?: boolean } = {
+          industry: "Other",
+          n: otherAgg.rets.length,
+          avg_ret_1y: mean(otherAgg.rets)!,
+          ...vr,
+        };
+        row._recovery = otherAgg.sales.length > 0 && otherAgg.recovery_n > otherAgg.sales.length / 2;
+        kept.push(row);
       }
 
-      const industries = kept.sort(
-        (a, b) => b.avg_ret_1y - a.avg_ret_1y || a.industry.localeCompare(b.industry),
-      );
-      const named = industries.filter((x) => x.industry !== "Other");
-      const forSpread = named.length ? named : industries;
-      const high = forSpread[0] ?? null;
-      const low = forSpread.length ? forSpread[forSpread.length - 1]! : null;
-      return {
+      const secVr = valueRanksFromAgg(agg);
+      secVr.n_value = agg.sales.length;
+      const secRow: MicrocapSectorReturn & { _recovery?: boolean } = {
         sector,
         n: agg.rets.length,
         avg_ret_1y: avg,
-        low,
-        high,
-        industries,
+        low: null,
+        high: null,
+        industries: kept,
+        ...secVr,
       };
+      secRow._recovery = agg.sales.length > 0 && agg.recovery_n > agg.sales.length / 2;
+      return secRow;
     })
-    .filter((s) => s.n >= minInd)
-    .sort((a, b) => b.avg_ret_1y - a.avg_ret_1y || a.sector.localeCompare(b.sector));
+    .filter((s) => s.n >= minInd);
+
+  // Value-rank named pockets across the board (mutate industry objects in place).
+  type PocketRef = MicrocapIndustryReturn & { _recovery?: boolean };
+  const allPockets: PocketRef[] = [];
+  for (const s of sectors) {
+    for (const ind of s.industries) {
+      if (ind.industry === "Other") continue;
+      if (ind.n_value < minInd) continue;
+      allPockets.push(ind as PocketRef);
+    }
+  }
+  applyValueRanks(allPockets, {
+    sales: (r) => r.avg_sales3y!,
+    roce: (r) => r.avg_roce3y!,
+    pb: (r) => r.avg_pb!,
+    recovery: (r) => !!r._recovery,
+  });
+
+  type SectorRef = MicrocapSectorReturn & { _recovery?: boolean };
+  const rankableSectors = (sectors as SectorRef[]).filter((s) => s.n_value >= minInd);
+  applyValueRanks(rankableSectors, {
+    sales: (r) => r.avg_sales3y!,
+    roce: (r) => r.avg_roce3y!,
+    pb: (r) => r.avg_pb!,
+    recovery: (r) => !!r._recovery,
+  });
+
+  for (const s of sectors) {
+    delete (s as { _recovery?: boolean })._recovery;
+    for (const ind of s.industries) {
+      delete (ind as { _recovery?: boolean })._recovery;
+    }
+    // Industries: Value total first (ranking-tool order).
+    s.industries.sort(
+      (a, b) =>
+        (a.total == null ? 1 : 0) - (b.total == null ? 1 : 0) ||
+        (a.total ?? 0) - (b.total ?? 0) ||
+        b.avg_ret_1y - a.avg_ret_1y ||
+        a.industry.localeCompare(b.industry),
+    );
+    // Board High / Low stay return-based (best / worst 12M inside the sector).
+    const named = s.industries.filter((x) => x.industry !== "Other");
+    const byRet = [...named].sort(
+      (a, b) => b.avg_ret_1y - a.avg_ret_1y || a.industry.localeCompare(b.industry),
+    );
+    s.high = byRet[0] ?? null;
+    s.low = byRet.length ? byRet[byRet.length - 1]! : null;
+  }
+
+  sectors.sort(
+    (a, b) =>
+      (a.total == null ? 1 : 0) - (b.total == null ? 1 : 0) ||
+      (a.total ?? 0) - (b.total ?? 0) ||
+      b.avg_ret_1y - a.avg_ret_1y ||
+      a.sector.localeCompare(b.sector),
+  );
 
   return {
     max_mcap_cr: maxMcap,
@@ -282,6 +478,18 @@ export type MicrocapStockRow = {
   div_yield_pct: number | null;
   /** Other listed boards sharing ≥1 director (gov board map). */
   board_links: number;
+  /** Value legs (same sources as Value / Intrinsic Value). */
+  sales3y: number | null;
+  roce3y: number | null;
+  pb: number | null;
+  na: ValueNa | null;
+  sales_recovery: boolean;
+  /** Rank of each leg inside this pocket/sector list (null = not rankable). */
+  gR: number | null;
+  rR: number | null;
+  pR: number | null;
+  /** gR + rR + pR — lower is better (null = not rankable / missing data). */
+  total: number | null;
 };
 
 export type MicrocapStockList = {
@@ -386,19 +594,77 @@ export function listMicrocapStocks(opts: {
         : hits.filter((h) => h.industry === wantInd);
 
   const linkCounts = boardLinkedCountsForTickers(filtered.map((h) => h.ticker));
-  const stocks: MicrocapStockRow[] = filtered.map((h) => ({
-    ticker: h.ticker,
-    name: master.get(h.ticker)?.name?.trim() || h.ticker,
-    market: h.market,
-    mcap_cr: h.mcap_cr,
-    ret_1y: h.ret_1y,
-    sector: h.sector,
-    industry: h.industry || "—",
-    div_yield_pct: divYieldPct(tape.get(h.ticker)?.div_yield ?? null),
-    board_links: linkCounts.get(h.ticker) ?? 0,
-  }));
+  const mcapBy = new Map(filtered.map((h) => [h.ticker, h.mcap_cr] as const));
+  const legs = valueLegsForTickers(
+    filtered.map((h) => h.ticker),
+    mcapBy,
+  );
 
-  stocks.sort((a, b) => b.ret_1y - a.ret_1y || a.name.localeCompare(b.name));
+  const stocks: MicrocapStockRow[] = filtered.map((h) => {
+    const leg = legs.get(h.ticker);
+    return {
+      ticker: h.ticker,
+      name: master.get(h.ticker)?.name?.trim() || h.ticker,
+      market: h.market,
+      mcap_cr: h.mcap_cr,
+      ret_1y: h.ret_1y,
+      sector: h.sector,
+      industry: h.industry || "—",
+      div_yield_pct: divYieldPct(tape.get(h.ticker)?.div_yield ?? null),
+      board_links: linkCounts.get(h.ticker) ?? 0,
+      sales3y: leg?.sales3y ?? null,
+      roce3y: leg?.roce3y ?? null,
+      pb: leg?.pb ?? null,
+      na: leg?.na ?? null,
+      sales_recovery: !!leg?.sales_recovery,
+      gR: null,
+      rR: null,
+      pR: null,
+      total: null,
+    };
+  });
+
+  // Same ranking as Value: Sales ↑ · ROCE ↑ · P/B ↓ inside this pocket / sector list.
+  const rankable = stocks.filter(
+    (r) => r.sales3y != null && r.roce3y != null && ((r.pb != null && r.pb > 0) || r.na === "negative_equity"),
+  );
+  const rankBy = (vals: Array<[string, number]>, desc: boolean) => {
+    const s = [...vals].sort((a, b) => (desc ? b[1] - a[1] : a[1] - b[1]));
+    const out = new Map<string, number>();
+    s.forEach(([t, v], i) => out.set(t, i > 0 && v === s[i - 1]![1] ? out.get(s[i - 1]![0])! : i + 1));
+    return out;
+  };
+  const g = rankBy(
+    rankable.map((r) => [r.ticker, r.sales_recovery ? Number.NEGATIVE_INFINITY : r.sales3y!] as [string, number]),
+    true,
+  );
+  const o = rankBy(
+    rankable.map((r) => [r.ticker, r.roce3y!] as [string, number]),
+    true,
+  );
+  const p = rankBy(
+    rankable.map((r) => [r.ticker, r.pb != null && r.pb > 0 ? r.pb : Number.POSITIVE_INFINITY] as [string, number]),
+    false,
+  );
+  for (const r of stocks) {
+    const gR = g.get(r.ticker);
+    const rR = o.get(r.ticker);
+    const pR = p.get(r.ticker);
+    if (gR == null || rR == null || pR == null) continue;
+    r.gR = gR;
+    r.rR = rR;
+    r.pR = pR;
+    r.total = gR + rR + pR;
+  }
+
+  // Ranked first (lower total better), then by 12M return for the rest / ties.
+  stocks.sort(
+    (a, b) =>
+      (a.total == null ? 1 : 0) - (b.total == null ? 1 : 0) ||
+      (a.total ?? 0) - (b.total ?? 0) ||
+      b.ret_1y - a.ret_1y ||
+      a.name.localeCompare(b.name),
+  );
 
   return {
     sector: wantSector,
@@ -406,6 +672,220 @@ export function listMicrocapStocks(opts: {
     max_mcap_cr: maxMcap,
     board,
     stocks,
+  };
+}
+
+/** Default cohort size for Top / Mid / Bot pocket → company Ranking. */
+const RANK_POCKET_N = 20;
+
+export type MicrocapPocketSide = "top" | "mid" | "bot" | "all";
+
+export type MicrocapRankedRow = MicrocapStockRow & {
+  /** 1-based Value rank inside this list (null = not rankable / no data). */
+  rank: number | null;
+};
+
+export type MicrocapRanking = {
+  max_mcap_cr: number;
+  board: MicrocapBoardFilter;
+  min_industry_n: number;
+  /** Which Value-pocket cohort names were drawn from. */
+  pocket_side: MicrocapPocketSide;
+  /** Cohort size (Top/Mid/Bot N); 0 when pocket_side is all. */
+  from_pockets: number;
+  pocket_keys: string[];
+  ranked: number;
+  no_data: number;
+  not_rankable: number;
+  stocks: MicrocapRankedRow[];
+};
+
+function pickPocketCohort<T extends { key: string; total: number }>(
+  all: T[],
+  side: MicrocapPocketSide,
+  n: number,
+): T[] {
+  if (side === "all" || n <= 0) return all;
+  const sortedAsc = [...all].sort((a, b) => a.total - b.total || a.key.localeCompare(b.key));
+  if (side === "top") return sortedAsc.slice(0, n);
+  if (side === "bot") return [...sortedAsc].reverse().slice(0, n);
+  // Mid: drop Top N and Bot N, then take N around the median (worst → best).
+  const topKeys = new Set(sortedAsc.slice(0, n).map((p) => p.key));
+  const botKeys = new Set([...sortedAsc].reverse().slice(0, n).map((p) => p.key));
+  const rest = sortedAsc.filter((p) => !topKeys.has(p.key) && !botKeys.has(p.key));
+  if (rest.length <= n) return rest;
+  const start = Math.max(0, Math.floor((rest.length - n) / 2));
+  return rest.slice(start, start + n);
+}
+
+/**
+ * Value-style company ranking (Sales ↑ · ROCE ↑ · P/B ↓ → total, lower better).
+ * Default: names in the Top 20 Value pockets; `pocketSide` switches Mid / Bot / All.
+ */
+export function listMicrocapRanking(opts?: {
+  maxMcapCr?: number;
+  board?: MicrocapBoardFilter;
+  minIndustryN?: number;
+  /** Top / Mid / Bot Value-pocket cohort, or all pockets on the board. */
+  pocketSide?: MicrocapPocketSide;
+  /** Cohort size for Top / Mid / Bot (ignored when pocketSide is all). */
+  pocketN?: number;
+}): MicrocapRanking {
+  const maxMcap = opts?.maxMcapCr ?? MICROCAP_SECTOR_MAX_CR;
+  const board = opts?.board ?? "all";
+  const minInd = Math.max(1, opts?.minIndustryN ?? 2);
+  const pocketSide: MicrocapPocketSide = opts?.pocketSide ?? "top";
+  const pocketN = Math.max(0, opts?.pocketN ?? RANK_POCKET_N);
+  const years = rotationFetchYears();
+  const labels = masterLabels();
+  const cls = loadClassificationsMap();
+  const metrics = loadMetricsMap();
+  const master = loadStockMaster();
+  const tape = loadTickertapeRatiosMap();
+
+  type Hit = {
+    ticker: string;
+    market: string | null;
+    mcap_cr: number | null;
+    ret_1y: number;
+    sector: string;
+    industry: string;
+  };
+  const hits: Hit[] = [];
+  for (const [ticker, row] of metrics) {
+    const mcap = row.market_cap_cr;
+    if (mcap == null || !(mcap > 0) || mcap > maxMcap) continue;
+    const sme = isSmeMarket(row.market);
+    if (board === "main" && sme) continue;
+    if (board === "sme" && !sme) continue;
+    const resolved = resolveSectorIndustry(ticker, labels.get(ticker.toUpperCase()), cls);
+    if (!resolved) continue;
+    const closes = cachedRotationCloses(ticker, row.market, years);
+    const ret = ret1yPct(closes);
+    if (ret == null || !Number.isFinite(ret)) continue;
+    hits.push({
+      ticker: ticker.toUpperCase(),
+      market: row.market,
+      mcap_cr: mcap,
+      ret_1y: ret,
+      sector: resolved.sector,
+      industry: resolved.industry || "—",
+    });
+  }
+
+  let pocketKeys: string[] = [];
+  let pool = hits;
+  if (pocketSide !== "all") {
+    const boardData = buildMicrocapSectorReturns({ maxMcapCr: maxMcap, board, minIndustryN: minInd });
+    const allPockets = boardData.sectors.flatMap((s) =>
+      s.industries
+        .filter((i) => i.industry !== "Other" && i.total != null)
+        .map((i) => ({
+          key: `${s.sector}/${i.industry}`,
+          sector: s.sector,
+          industry: i.industry,
+          total: i.total!,
+        })),
+    );
+    const pockets = pickPocketCohort(allPockets, pocketSide, pocketN);
+    pocketKeys = pockets.map((p) => p.key);
+    const want = new Set(pockets.map((p) => `${p.sector}\u0000${p.industry}`));
+    pool = hits.filter((h) => want.has(`${h.sector}\u0000${h.industry}`));
+  }
+
+  const linkCounts = boardLinkedCountsForTickers(pool.map((h) => h.ticker));
+  const mcapBy = new Map(pool.map((h) => [h.ticker, h.mcap_cr] as const));
+  const legs = valueLegsForTickers(
+    pool.map((h) => h.ticker),
+    mcapBy,
+  );
+
+  const stocks: MicrocapRankedRow[] = pool.map((h) => {
+    const leg = legs.get(h.ticker);
+    return {
+      ticker: h.ticker,
+      name: master.get(h.ticker)?.name?.trim() || h.ticker,
+      market: h.market,
+      mcap_cr: h.mcap_cr,
+      ret_1y: h.ret_1y,
+      sector: h.sector,
+      industry: h.industry,
+      div_yield_pct: divYieldPct(tape.get(h.ticker)?.div_yield ?? null),
+      board_links: linkCounts.get(h.ticker) ?? 0,
+      sales3y: leg?.sales3y ?? null,
+      roce3y: leg?.roce3y ?? null,
+      pb: leg?.pb ?? null,
+      na: leg?.na ?? null,
+      sales_recovery: !!leg?.sales_recovery,
+      gR: null,
+      rR: null,
+      pR: null,
+      total: null,
+      rank: null,
+    };
+  });
+
+  const rankable = stocks.filter(
+    (r) => r.sales3y != null && r.roce3y != null && ((r.pb != null && r.pb > 0) || r.na === "negative_equity"),
+  );
+  const rankBy = (vals: Array<[string, number]>, desc: boolean) => {
+    const s = [...vals].sort((a, b) => (desc ? b[1] - a[1] : a[1] - b[1]));
+    const out = new Map<string, number>();
+    s.forEach(([t, v], i) => out.set(t, i > 0 && v === s[i - 1]![1] ? out.get(s[i - 1]![0])! : i + 1));
+    return out;
+  };
+  const g = rankBy(
+    rankable.map((r) => [r.ticker, r.sales_recovery ? Number.NEGATIVE_INFINITY : r.sales3y!] as [string, number]),
+    true,
+  );
+  const o = rankBy(
+    rankable.map((r) => [r.ticker, r.roce3y!] as [string, number]),
+    true,
+  );
+  const p = rankBy(
+    rankable.map((r) => [r.ticker, r.pb != null && r.pb > 0 ? r.pb : Number.POSITIVE_INFINITY] as [string, number]),
+    false,
+  );
+  for (const r of rankable) {
+    const gR = g.get(r.ticker)!;
+    const rR = o.get(r.ticker)!;
+    const pR = p.get(r.ticker)!;
+    r.gR = gR;
+    r.rR = rR;
+    r.pR = pR;
+    r.total = gR + rR + pR;
+  }
+
+  const ordered = [...rankable].sort(
+    (a, b) =>
+      (a.total ?? 0) - (b.total ?? 0) ||
+      (a.gR ?? 0) - (b.gR ?? 0) ||
+      (a.rR ?? 0) - (b.rR ?? 0) ||
+      (a.pR ?? 0) - (b.pR ?? 0) ||
+      a.name.localeCompare(b.name),
+  );
+  ordered.forEach((r, i) => {
+    r.rank = i + 1;
+  });
+
+  const unranked = stocks.filter((r) => r.rank == null);
+  unranked.sort((a, b) => a.name.localeCompare(b.name));
+  const out = [...ordered, ...unranked];
+
+  const not_rankable = unranked.filter((r) => r.na != null && r.na !== "negative_equity").length;
+  const no_data = unranked.length - not_rankable;
+
+  return {
+    max_mcap_cr: maxMcap,
+    board,
+    min_industry_n: minInd,
+    pocket_side: pocketSide,
+    from_pockets: pocketSide === "all" ? 0 : pocketN,
+    pocket_keys: pocketKeys,
+    ranked: ordered.length,
+    no_data,
+    not_rankable,
+    stocks: out,
   };
 }
 

@@ -268,6 +268,51 @@ export function buildValueUniverse(_opts?: {
   };
 }
 
+/** Sales / ROCE / P/B for a ticker — same merge as Value (Screener preferred, Yahoo fill). */
+export type ValueLegSnap = {
+  sales3y: number | null;
+  roce3y: number | null;
+  pb: number | null;
+  na: ValueNa | null;
+  sales_recovery: boolean;
+};
+
+/**
+ * Look up Value legs for a ticker set (Micro Monopolies pocket lists, etc.).
+ * `mcapByTicker` in ₹ Cr — used for Screener book-value → P/B.
+ */
+export function valueLegsForTickers(
+  tickers: string[],
+  mcapByTicker?: Map<string, number | null | undefined>,
+): Map<string, ValueLegSnap> {
+  const out = new Map<string, ValueLegSnap>();
+  if (!tickers.length) return out;
+  const want = new Set(tickers.map((t) => t.toUpperCase()));
+  const ht = loadHtIvMap();
+  const legs = loadScreenerLegs();
+  for (const t of want) {
+    const h = ht.get(t);
+    const sc = legs.get(t);
+    const mcapNow = mcapByTicker?.get(t) ?? h?.market_cap_cr ?? null;
+    const scPb = sc?.bv != null && sc.bv > 0 && mcapNow != null && mcapNow > 0 ? mcapNow / sc.bv : null;
+    const yahooPb = h && ok(h.pb) && h.pb > 0 ? h.pb : null;
+    const sales3y = sc?.sales3y ?? (h && ok(h.sales_growth_3y) ? h.sales_growth_3y : null);
+    const roce3y = sc?.roce3y ?? (h && ok(h.roce_3y) ? h.roce_3y : null);
+    const negEquity = sc?.bvLatest != null && sc.bvLatest <= 0;
+    const pb = negEquity ? null : scPb ?? yahooPb;
+    const na: ValueNa | null =
+      sales3y == null && sc?.salesNa ? sc.salesNa : negEquity ? "negative_equity" : null;
+    out.set(t, {
+      sales3y,
+      roce3y,
+      pb,
+      na,
+      sales_recovery: sc?.sales3y != null && !!sc.salesRecovery,
+    });
+  }
+  return out;
+}
+
 /** True when Sales / ROCE / P/B are not all ready for Intrinsic Value ranking. */
 export function valueLegsIncomplete(r: Pick<ValueStock, "sales3y" | "roce3y" | "pb">): boolean {
   return r.sales3y == null || r.roce3y == null || r.pb == null || r.pb <= 0;

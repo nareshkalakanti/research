@@ -6,6 +6,8 @@ import { StockNetworkSearch } from "@/components/StockNetworkSearch";
 import { governancePersonUrl, napkinUrl, tradingviewUrl } from "@/lib/links";
 import type {
   MicrocapBoardFilter,
+  MicrocapRanking,
+  MicrocapRankedRow,
   MicrocapSectorBoard,
   MicrocapSectorReturn,
   MicrocapStockList,
@@ -14,19 +16,24 @@ import type {
 
 type Data = (MicrocapSectorBoard & { ok: true }) | { ok: false; error: string };
 type StocksData = (MicrocapStockList & { ok: true }) | { ok: false; error: string };
+type RankingData = (MicrocapRanking & { ok: true }) | { ok: false; error: string };
 
-type ViewId = "pockets" | "sectors" | "board";
+type ViewId = "pockets" | "sectors" | "ranking" | "board";
 type RankSide = "top" | "mid" | "bot";
+/** Ranking tab: which Value-pocket cohort feeds the company list. */
+type RankingPocketSide = RankSide | "all";
 type Sel = { sector: string; industry: string | null; side: RankSide };
 
 const MIN_N_OPTS = [1, 2, 3, 5, 10] as const;
 const MAX_MCAP_OPTS = [1000, 2000, 5000, 10000, 25000] as const;
 const RANK_N = 20;
+const RANKING_PAGE = 25;
 
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
-  { id: "pockets", label: "Pockets", hint: "Top / Mid / Bot industry & sub_sector — click a bar for the stocks" },
-  { id: "sectors", label: "Sectors", hint: "Top / Mid / Bot sector averages — click a bar for every name" },
-  { id: "board", label: "Board", hint: "Multi-column sector cards with High / Low" },
+  { id: "pockets", label: "Pockets", hint: "Top / Mid / Bot by Value total (Sales · ROCE · P/B) — click a bar for the stocks" },
+  { id: "sectors", label: "Sectors", hint: "Top / Mid / Bot sector Value totals — click a bar for every name" },
+  { id: "ranking", label: "Ranking", hint: "Pick Top / Mid / Bot / All pockets · companies ranked 1…N like Value" },
+  { id: "board", label: "Board", hint: "Multi-column sector cards with High / Low 12M return" },
 ];
 
 /**
@@ -61,6 +68,8 @@ function toPocketRank(p: PocketRow): RankRow {
     industry: p.industry,
     n: p.n,
     avg_ret_1y: p.avg_ret_1y,
+    total: p.total,
+    n_value: p.n_value,
   };
 }
 
@@ -72,6 +81,8 @@ function toSectorRank(s: MicrocapSectorReturn): RankRow {
     industry: null,
     n: s.n,
     avg_ret_1y: s.avg_ret_1y,
+    total: s.total,
+    n_value: s.n_value,
   };
 }
 
@@ -80,6 +91,8 @@ type PocketRow = {
   industry: string;
   n: number;
   avg_ret_1y: number;
+  total: number | null;
+  n_value: number;
 };
 
 type RankRow = {
@@ -90,11 +103,34 @@ type RankRow = {
   industry: string | null;
   n: number;
   avg_ret_1y: number;
+  /** Value ranking-tool total (lower = better). */
+  total: number | null;
+  n_value: number;
 };
+
+/** Lower Value total is better; unranked last. */
+function cmpValueTotal(
+  a: { total: number | null; avg_ret_1y: number; label?: string; industry?: string; sector?: string },
+  b: { total: number | null; avg_ret_1y: number; label?: string; industry?: string; sector?: string },
+  dir: "asc" | "desc",
+): number {
+  const aMiss = a.total == null ? 1 : 0;
+  const bMiss = b.total == null ? 1 : 0;
+  if (aMiss !== bMiss) return aMiss - bMiss;
+  if (a.total != null && b.total != null && a.total !== b.total) {
+    return dir === "asc" ? a.total - b.total : b.total - a.total;
+  }
+  return b.avg_ret_1y - a.avg_ret_1y;
+}
 
 function pct(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "—";
   return `${n > 0 ? "+" : ""}${n.toFixed(0)}%`;
+}
+
+function pct2(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
+  return `${n.toFixed(2)}%`;
 }
 
 function cr(n: number | null | undefined): string {
@@ -102,20 +138,28 @@ function cr(n: number | null | undefined): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })} Cr`;
 }
 
+const NA_SHORT: Record<NonNullable<MicrocapStockRow["na"]>, string> = {
+  no_revenue: "No revenue",
+  short_history: "Under 4 yrs",
+  erratic: "Erratic revenue",
+  negative_equity: "Negative equity",
+};
+
 function DivYieldBubble({ n }: { n: number | null | undefined }) {
-  if (n == null || !Number.isFinite(n)) {
+  // Missing or zero yield → show 0 (not "— dy").
+  if (n == null || !Number.isFinite(n) || n <= 0) {
     return (
-      <span className="mcs-pill mcs-pill--div empty" title="Dividend yield not on file">
-        <b>-</b>
-        <em>dy</em>
+      <span className="vx-score vx-score--na mcs-score" title={n == null ? "Dividend yield not on file" : "No dividend"}>
+        0
+        <small>dy</small>
       </span>
     );
   }
   const label = Number.isInteger(n) || Math.abs(n - Math.round(n)) < 0.05 ? String(Math.round(n)) : n.toFixed(1);
   return (
-    <span className="mcs-pill mcs-pill--div" title={`Dividend yield ${n.toFixed(1)}%`}>
-      <b>{label}%</b>
-      <em>dy</em>
+    <span className="vx-score vx-score--good mcs-score" title={`Dividend yield ${n.toFixed(1)}%`}>
+      {label}%
+      <small>dy</small>
     </span>
   );
 }
@@ -133,7 +177,7 @@ function BoardLinksBubble({
   return (
     <button
       type="button"
-      className={`mcs-pill mcs-pill--board${open ? " on" : ""}${count ? "" : " empty"}`}
+      className={`vx-score mcs-score${count ? " vx-score--good" : " vx-score--na"}${open ? " mcs-score--on" : ""}`}
       aria-expanded={open}
       title={
         count
@@ -142,17 +186,8 @@ function BoardLinksBubble({
       }
       onClick={onClick}
     >
-      {count ? (
-        <>
-          <b>{count}</b>
-          <em>{count === 1 ? "link" : "links"}</em>
-        </>
-      ) : (
-        <>
-          <b>-</b>
-          <em>bd</em>
-        </>
-      )}
+      {count}
+      <small>{count === 1 ? "link" : "links"}</small>
     </button>
   );
 }
@@ -185,7 +220,7 @@ function Bars({
   rows: RankRow[];
   sel: Sel | null;
   onPick: (next: Sel) => void;
-  /** Absolute return used to scale the fill (same scale both columns). */
+  /** Max Value total in the list — bar fill is inverted (lower total → longer bar). */
   scaleMax: number;
 }) {
   const tone = side === "top" ? "under" : side === "bot" ? "over" : "mid";
@@ -196,14 +231,22 @@ function Bars({
       {rows.map((r) => {
         const next: Sel = { sector: r.sector, industry: r.industry, side };
         const on = sameSel(sel, next);
-        const width = scaleMax > 0 ? Math.min(100, (Math.abs(r.avg_ret_1y) / scaleMax) * 100) : 0;
+        // Lower total = better → longer bar. Missing total → empty track.
+        const width =
+          r.total != null && scaleMax > 0
+            ? Math.min(100, ((scaleMax + 1 - r.total) / scaleMax) * 100)
+            : 0;
         return (
           <button
             key={r.key}
             type="button"
             className={`vx-bar-row${on ? " on" : ""}`}
             onClick={() => onPick(next)}
-            title={`${r.n} companies · click for the list`}
+            title={
+              r.total != null
+                ? `Value total ${r.total} · ${r.n_value}/${r.n} with Sales/ROCE/P/B · 12M ${pct(r.avg_ret_1y)} · click for the list`
+                : `${r.n} companies · not enough Value data · click for the list`
+            }
           >
             <span className="vx-bar-name" title={r.sub ? `${r.label} · ${r.sub}` : r.label}>
               {r.label}
@@ -212,7 +255,9 @@ function Bars({
             <span className="vx-bar-track" aria-hidden>
               <span className="vx-bar-fill" style={{ width: `${Math.max(width ? 4 : 0, width)}%` }} />
             </span>
-            <span className={`vx-bar-pct${r.avg_ret_1y < 0 ? " neg" : ""}`}>{pct(r.avg_ret_1y)}</span>
+            <span className="vx-bar-pct" title="Value total score (lower = better)">
+              {r.total != null ? r.total : "—"}
+            </span>
             <span className="vx-bar-k">{r.n}</span>
           </button>
         );
@@ -367,7 +412,7 @@ function StocksBelow({
           {data?.ok ? (
             <span className="vx-hint">
               {" "}
-              · {data.stocks.length.toLocaleString("en-IN")} companies · sorted by 12M return
+              · {data.stocks.length.toLocaleString("en-IN")} companies · ranked by Sales / ROCE / P/B (lower total better)
             </span>
           ) : null}
         </span>
@@ -392,6 +437,18 @@ function StocksBelow({
                 <th className="num">Div yield</th>
                 <th className="num" title="Connected boards sharing a director">
                   Board
+                </th>
+                <th className="num" title="3-year sales CAGR · ranked higher is better inside this list">
+                  Sales growth 3Y ↑
+                </th>
+                <th className="num" title="3-year average ROCE · ranked higher is better inside this list">
+                  ROCE 3Y ↑
+                </th>
+                <th className="num" title="Price / book · ranked lower is better inside this list">
+                  P/B ↓
+                </th>
+                <th className="num" title="Sum of Sales / ROCE / P/B ranks inside this list · lower is better">
+                  Total score
                 </th>
                 <th className="num">12M return</th>
               </tr>
@@ -428,12 +485,49 @@ function StocksBelow({
                         />
                       </td>
                       <td className="num">
+                        {s.sales3y == null && s.na && s.na !== "negative_equity" ? (
+                          <span className="vx-na">{NA_SHORT[s.na]}</span>
+                        ) : (
+                          pct2(s.sales3y)
+                        )}
+                        {s.sales_recovery ? (
+                          <>
+                            {" "}
+                            <span className="vx-na" title="3-year window starts in a trough — recovery, ranked last on growth">
+                              Recovery
+                            </span>
+                          </>
+                        ) : null}{" "}
+                        {s.gR != null ? <span className="vx-r">({s.gR})</span> : null}
+                      </td>
+                      <td className={`num ${(s.roce3y ?? 0) < 0 ? "neg" : ""}`}>
+                        {pct2(s.roce3y)} {s.rR != null ? <span className="vx-r">({s.rR})</span> : null}
+                      </td>
+                      <td className="num">
+                        {s.pb != null ? (
+                          s.pb.toFixed(2)
+                        ) : s.na === "negative_equity" ? (
+                          <span className="vx-na">{NA_SHORT.negative_equity}</span>
+                        ) : (
+                          "—"
+                        )}{" "}
+                        {s.pR != null ? <span className="vx-r">({s.pR})</span> : null}
+                      </td>
+                      <td className="num vx-total">
+                        {s.total ??
+                          (s.na ? (
+                            <span className="vx-nodata">Not rankable</span>
+                          ) : (
+                            <span className="vx-nodata">No data yet</span>
+                          ))}
+                      </td>
+                      <td className="num">
                         <Ret n={s.ret_1y} />
                       </td>
                     </tr>
                     {open ? (
                       <tr className="mcs-board-detail-row">
-                        <td colSpan={6}>
+                        <td colSpan={10}>
                           <div className="mcs-board-detail" id={`mcs-board-${s.ticker}`}>
                             <StockNetworkSearch
                               hideSearch
@@ -455,6 +549,200 @@ function StocksBelow({
   );
 }
 
+const POCKET_SIDE_LABEL: Record<RankingPocketSide, string> = {
+  top: "Top 20",
+  mid: "Mid 20",
+  bot: "Bot 20",
+  all: "All pockets",
+};
+
+/** Value-style ranked company list (1…N) from a Top / Mid / Bot / All pocket cohort. */
+function RankingTable({
+  board,
+  minN,
+  maxMcap,
+  filter,
+  pocketSide,
+}: {
+  board: MicrocapBoardFilter;
+  minN: number;
+  maxMcap: number;
+  filter: string;
+  pocketSide: RankingPocketSide;
+}) {
+  const [data, setData] = useState<RankingData | null>(null);
+  const [page, setPage] = useState(0);
+  const sideLabel = POCKET_SIDE_LABEL[pocketSide];
+
+  useEffect(() => {
+    let live = true;
+    setData(null);
+    setPage(0);
+    const sp = new URLSearchParams({
+      view: "ranking",
+      board,
+      minN: String(minN),
+      maxMcap: String(maxMcap),
+      pocketSide,
+      pocketN: String(RANK_N),
+    });
+    void fetch(`/api/microcap?${sp}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((j: RankingData) => {
+        if (live) setData(j);
+      })
+      .catch((e) => {
+        if (live) setData({ ok: false, error: String(e) });
+      });
+    return () => {
+      live = false;
+    };
+  }, [board, minN, maxMcap, pocketSide]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [filter]);
+
+  const rows = useMemo(() => {
+    if (!data?.ok) return [] as MicrocapRankedRow[];
+    const needle = filter.trim().toLowerCase();
+    if (!needle) return data.stocks;
+    return data.stocks.filter(
+      (s) =>
+        s.name.toLowerCase().includes(needle) ||
+        s.ticker.toLowerCase().includes(needle) ||
+        s.industry.toLowerCase().includes(needle) ||
+        s.sector.toLowerCase().includes(needle),
+    );
+  }, [data, filter]);
+
+  const pages = Math.max(1, Math.ceil(rows.length / RANKING_PAGE));
+  const pageSafe = Math.min(page, pages - 1);
+  const shown = rows.slice(pageSafe * RANKING_PAGE, pageSafe * RANKING_PAGE + RANKING_PAGE);
+
+  if (!data) return <div className="vx-card vx-empty">Ranking companies from {sideLabel}…</div>;
+  if (!data.ok) return <div className="vx-card vx-empty vx-msg--err">Could not load: {data.error}</div>;
+
+  const cohortHint =
+    data.pocket_side === "all"
+      ? "All Value pockets"
+      : `${POCKET_SIDE_LABEL[data.pocket_side]} Value pockets (${data.pocket_keys.length})`;
+
+  return (
+    <div className="vx-card vx-table-card">
+      <div className="vx-table-head">
+        <span className="vx-label vx-label--title">Ranked companies</span>
+        <span className="vx-hint">
+          From {cohortHint} · {data.ranked.toLocaleString("en-IN")} ranked
+          {data.no_data ? ` · ${data.no_data.toLocaleString("en-IN")} without Sales / ROCE / P/B yet (listed last)` : ""}
+          {data.not_rankable ? ` · ${data.not_rankable.toLocaleString("en-IN")} not rankable` : ""}
+        </span>
+      </div>
+      {!rows.length ? (
+        <p className="vx-empty">No companies match.</p>
+      ) : (
+        <>
+          <div className="vx-scroll">
+            <table className="vx-table">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Company</th>
+                  <th>Industry</th>
+                  <th className="num">Market cap</th>
+                  <th className="num">Sales growth 3Y ↑</th>
+                  <th className="num">ROCE 3Y ↑</th>
+                  <th className="num">P/B ↓</th>
+                  <th className="num">Total score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((s) => (
+                  <tr key={s.ticker} className={s.rank === 1 ? "is-best" : undefined}>
+                    <td className="vx-rank">{s.rank ?? "—"}</td>
+                    <td>
+                      <a className="vx-co" href={tradingviewUrl(s.ticker, s.market)} target="_blank" rel="noopener noreferrer">
+                        {s.name}
+                      </a>
+                      <span className="vx-sub">
+                        {s.ticker}
+                        {s.market && s.market !== "NSE" ? <em>{s.market}</em> : null}
+                        <ReviewPlusButton ticker={s.ticker} />
+                        <a className="np-chip" href={napkinUrl(s.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
+                          NP
+                        </a>
+                      </span>
+                    </td>
+                    <td>
+                      <span className="mcs-rank-sec" title={s.sector}>
+                        {s.industry}
+                      </span>
+                    </td>
+                    <td className="num">{cr(s.mcap_cr)}</td>
+                    <td className="num">
+                      {s.sales3y == null && s.na && s.na !== "negative_equity" ? (
+                        <span className="vx-na">{NA_SHORT[s.na]}</span>
+                      ) : (
+                        pct2(s.sales3y)
+                      )}
+                      {s.sales_recovery ? (
+                        <>
+                          {" "}
+                          <span className="vx-na" title="3-year window starts in a trough — recovery, ranked last on growth">
+                            Recovery
+                          </span>
+                        </>
+                      ) : null}{" "}
+                      {s.gR != null ? <span className="vx-r">({s.gR})</span> : null}
+                    </td>
+                    <td className={`num ${(s.roce3y ?? 0) < 0 ? "neg" : ""}`}>
+                      {pct2(s.roce3y)} {s.rR != null ? <span className="vx-r">({s.rR})</span> : null}
+                    </td>
+                    <td className="num">
+                      {s.pb != null ? (
+                        s.pb.toFixed(2)
+                      ) : s.na === "negative_equity" ? (
+                        <span className="vx-na">{NA_SHORT.negative_equity}</span>
+                      ) : (
+                        "—"
+                      )}{" "}
+                      {s.pR != null ? <span className="vx-r">({s.pR})</span> : null}
+                    </td>
+                    <td className="num vx-total">
+                      {s.total ??
+                        (s.na ? (
+                          <span className="vx-nodata">Not rankable</span>
+                        ) : (
+                          <span className="vx-nodata">No data yet</span>
+                        ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="vx-pager">
+            <button type="button" className="vx-btn" disabled={pageSafe === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+              Previous
+            </button>
+            <span className="vx-hint">
+              Page {pageSafe + 1} of {pages} · {rows.length.toLocaleString("en-IN")} companies
+            </span>
+            <button
+              type="button"
+              className="vx-btn"
+              disabled={pageSafe + 1 >= pages}
+              onClick={() => setPage((p) => Math.min(pages - 1, p + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 /** Micro Monopolies — Value-style Top/Bottom bars; pick the average name in the best pocket. */
 export function MicrocapSectorsPanel() {
   const [board, setBoard] = useState<MicrocapBoardFilter>("all");
@@ -463,6 +751,8 @@ export function MicrocapSectorsPanel() {
   const [view, setView] = useState<ViewId>("pockets");
   /** Pockets / sectors: show Top 20 or Bot 20 alone (full width). */
   const [rankSide, setRankSide] = useState<RankSide>("top");
+  /** Ranking tab: which pocket cohort to pull companies from. */
+  const [rankingSide, setRankingSide] = useState<RankingPocketSide>("top");
   const [data, setData] = useState<Data | null>(null);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Sel | null>(null);
@@ -628,8 +918,7 @@ export function MicrocapSectorsPanel() {
   };
 
   useEffect(() => {
-    // Board view still stacks stocks under the columns; scroll them into view.
-    if (!sel || view === "pockets" || view === "sectors") return;
+    if (!sel) return;
     const t = window.setTimeout(() => {
       document.getElementById("mcs-stocks")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }, 50);
@@ -652,80 +941,92 @@ export function MicrocapSectorsPanel() {
     for (const s of sectors) {
       for (const i of s.industries) {
         if (i.industry === "Other") continue;
-        rows.push({ sector: s.sector, industry: i.industry, n: i.n, avg_ret_1y: i.avg_ret_1y });
+        rows.push({
+          sector: s.sector,
+          industry: i.industry,
+          n: i.n,
+          avg_ret_1y: i.avg_ret_1y,
+          total: i.total,
+          n_value: i.n_value,
+        });
       }
     }
     return rows;
   }, [sectors]);
 
+  /** Only pockets/sectors with a Value total compete in Top / Mid / Bot. */
+  const pocketsRanked = useMemo(() => pockets.filter((p) => p.total != null), [pockets]);
+  const sectorsRanked = useMemo(() => sectors.filter((s) => s.total != null), [sectors]);
+
   const pocketTop = useMemo(
     () =>
-      [...pockets]
-        .sort((a, b) => b.avg_ret_1y - a.avg_ret_1y || a.industry.localeCompare(b.industry))
+      [...pocketsRanked]
+        .sort((a, b) => cmpValueTotal(a, b, "asc") || a.industry.localeCompare(b.industry))
         .slice(0, RANK_N)
         .map(toPocketRank),
-    [pockets],
+    [pocketsRanked],
   );
 
   const pocketBot = useMemo(
     () =>
-      [...pockets]
-        .sort((a, b) => a.avg_ret_1y - b.avg_ret_1y || a.industry.localeCompare(b.industry))
+      [...pocketsRanked]
+        .sort((a, b) => cmpValueTotal(a, b, "desc") || a.industry.localeCompare(b.industry))
         .slice(0, RANK_N)
         .map(toPocketRank),
-    [pockets],
+    [pocketsRanked],
   );
 
   const pocketMid = useMemo(() => {
     const topKeys = new Set(pocketTop.map((r) => r.key));
     const botKeys = new Set(pocketBot.map((r) => r.key));
+    // Mid ordered weakest → strongest Value (higher total → lower).
     return midRankRows(
-      pockets,
+      pocketsRanked,
       topKeys,
       botKeys,
       (p) => `${p.sector}/${p.industry}`,
-      (p) => p.avg_ret_1y,
+      (p) => -(p.total ?? 0),
     ).map(toPocketRank);
-  }, [pockets, pocketTop, pocketBot]);
+  }, [pocketsRanked, pocketTop, pocketBot]);
 
   const sectorTop = useMemo(
     () =>
-      [...sectors]
-        .sort((a, b) => b.avg_ret_1y - a.avg_ret_1y || a.sector.localeCompare(b.sector))
+      [...sectorsRanked]
+        .sort((a, b) => cmpValueTotal(a, b, "asc") || a.sector.localeCompare(b.sector))
         .slice(0, RANK_N)
         .map(toSectorRank),
-    [sectors],
+    [sectorsRanked],
   );
 
   const sectorBot = useMemo(
     () =>
-      [...sectors]
-        .sort((a, b) => a.avg_ret_1y - b.avg_ret_1y || a.sector.localeCompare(b.sector))
+      [...sectorsRanked]
+        .sort((a, b) => cmpValueTotal(a, b, "desc") || a.sector.localeCompare(b.sector))
         .slice(0, RANK_N)
         .map(toSectorRank),
-    [sectors],
+    [sectorsRanked],
   );
 
   const sectorMid = useMemo(() => {
     const topKeys = new Set(sectorTop.map((r) => r.key));
     const botKeys = new Set(sectorBot.map((r) => r.key));
     return midRankRows(
-      sectors,
+      sectorsRanked,
       topKeys,
       botKeys,
       (s) => s.sector,
-      (s) => s.avg_ret_1y,
+      (s) => -(s.total ?? 0),
     ).map(toSectorRank);
-  }, [sectors, sectorTop, sectorBot]);
+  }, [sectorsRanked, sectorTop, sectorBot]);
 
   const pocketRows = rankSide === "top" ? pocketTop : rankSide === "mid" ? pocketMid : pocketBot;
   const sectorRows = rankSide === "top" ? sectorTop : rankSide === "mid" ? sectorMid : sectorBot;
   const pocketScale = useMemo(() => {
-    const xs = pocketRows.map((r) => Math.abs(r.avg_ret_1y));
+    const xs = pocketRows.map((r) => r.total).filter((n): n is number => n != null);
     return Math.max(1, ...(xs.length ? xs : [1]));
   }, [pocketRows]);
   const sectorScale = useMemo(() => {
-    const xs = sectorRows.map((r) => Math.abs(r.avg_ret_1y));
+    const xs = sectorRows.map((r) => r.total).filter((n): n is number => n != null);
     return Math.max(1, ...(xs.length ? xs : [1]));
   }, [sectorRows]);
 
@@ -737,14 +1038,14 @@ export function MicrocapSectorsPanel() {
       <header className="vx-head">
         <div>
           <span className="vx-eyebrow">
-            Find the best sector / industry / sub_sector · equal-weight avg 12M return · default ≤ ₹1,000 Cr
+            Find the best sector / industry / sub_sector · Value ranking (Sales 3Y ↑ · ROCE 3Y ↑ · P/B ↓) · default ≤ ₹1,000 Cr
           </span>
           <h2 className="vx-title">
             Micro <span>Monopolies</span>
           </h2>
           <p className="vx-hint mcs-lede">
-            Top 20 · Mid 20 (bottom → up, between the extremes) · Bot 20 — full width; click a bar and companies open
-            beside it. Pick the <em>average</em> name in the strongest pocket.
+            Top 20 · Mid 20 (bottom → up, between the extremes) · Bot 20 by Value total score (lower = better) — same
+            legs as the ranking tool. Click a bar for companies ranked the same way.
           </p>
         </div>
       </header>
@@ -786,6 +1087,31 @@ export function MicrocapSectorsPanel() {
                     setRankSide(id);
                     setSel(null);
                   }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </label>
+        ) : null}
+        {view === "ranking" ? (
+          <label className="vx-field">
+            <span className="vx-label">Pockets</span>
+            <div className="mcs-seg" role="group" aria-label="Pocket cohort for company ranking">
+              {(
+                [
+                  ["top", "Top 20"],
+                  ["mid", "Mid 20"],
+                  ["bot", "Bot 20"],
+                  ["all", "All"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={rankingSide === id ? "on" : ""}
+                  aria-pressed={rankingSide === id}
+                  onClick={() => setRankingSide(id)}
                 >
                   {label}
                 </button>
@@ -857,7 +1183,9 @@ export function MicrocapSectorsPanel() {
         </span>
       </div>
 
-      {!data ? (
+      {view === "ranking" ? (
+        <RankingTable board={board} minN={minN} maxMcap={maxMcap} filter={q} pocketSide={rankingSide} />
+      ) : !data ? (
         <div className="vx-card vx-empty">Computing 12-month returns…</div>
       ) : !data.ok ? (
         <div className="vx-card vx-empty vx-msg--err">Could not load: {data.error}</div>
@@ -865,21 +1193,21 @@ export function MicrocapSectorsPanel() {
         <div className="vx-card vx-empty">No sectors match.</div>
       ) : view === "pockets" || view === "sectors" ? (
         <>
-          <div className={`mcs-rank-row${sel ? " mcs-rank-row--split" : ""}`}>
+          <div className="mcs-rank-row">
             <div className="mcs-rank-bars">
               <Bars
                 title={
                   view === "pockets"
                     ? rankSide === "top"
-                      ? "Top 20 pockets by avg 12M return"
+                      ? "Top 20 pockets by Value total (Sales ↑ · ROCE ↑ · P/B ↓)"
                       : rankSide === "mid"
-                        ? "Mid 20 pockets · bottom → up (between Top & Bot)"
-                        : "Bottom 20 pockets by avg 12M return"
+                        ? "Mid 20 pockets · worst → best Value total"
+                        : "Bottom 20 pockets by Value total (worst)"
                     : rankSide === "top"
-                      ? "Top 20 sectors by avg 12M return"
+                      ? "Top 20 sectors by Value total (Sales ↑ · ROCE ↑ · P/B ↓)"
                       : rankSide === "mid"
-                        ? "Mid 20 sectors · bottom → up (between Top & Bot)"
-                        : "Bottom 20 sectors by avg 12M return"
+                        ? "Mid 20 sectors · worst → best Value total"
+                        : "Bottom 20 sectors by Value total (worst)"
                 }
                 side={rankSide}
                 rows={view === "pockets" ? pocketRows : sectorRows}
@@ -888,12 +1216,10 @@ export function MicrocapSectorsPanel() {
                 scaleMax={view === "pockets" ? pocketScale : sectorScale}
               />
             </div>
-            {sel ? (
-              <div className="mcs-rank-stocks">
-                <StocksBelow sel={sel} board={board} minN={minN} maxMcap={maxMcap} onClose={() => setSel(null)} />
-              </div>
-            ) : null}
           </div>
+          {sel ? (
+            <StocksBelow sel={sel} board={board} minN={minN} maxMcap={maxMcap} onClose={() => setSel(null)} />
+          ) : null}
           {view === "pockets" && !pocketRows.length ? (
             <div className="vx-card vx-empty">No pockets clear Min companies.</div>
           ) : null}

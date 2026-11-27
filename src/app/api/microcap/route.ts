@@ -4,6 +4,7 @@ import {
   buildMicrocapSectorReturns,
   fillMicrocapDivYields,
   listMicrocapMissingDivYields,
+  listMicrocapRanking,
   listMicrocapStocks,
   type MicrocapBoardFilter,
 } from "@/lib/microcap-sector-returns";
@@ -31,8 +32,10 @@ function parseMaxMcap(raw: string | null): number {
  * GET /api/microcap              → cumulative mcap distribution (Main vs SME)
  * GET /api/microcap?view=sectors → avg 12M returns by sector › industry / sub_sector
  * GET /api/microcap?view=stocks&sector=…&industry=… → names in that pocket / sector
+ * GET /api/microcap?view=ranking → Value-ranked companies from a pocket cohort
  * GET /api/microcap?view=missing-div → board-wide names missing cached div yield
  *   &board=all|main|sme &minN=2 &maxMcap=1000 (Cr; default 1000)
+ *   &pocketSide=top|mid|bot|all &pocketN=20 (ranking only)
  *
  * POST /api/microcap
  *   { action: "fill-div", board?, maxMcap?, tickers?: [...] }
@@ -58,6 +61,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         ...listMicrocapStocks({ sector, industry, board, minIndustryN, maxMcapCr }),
+      });
+    }
+    if (view === "ranking") {
+      const sideRaw = (req.nextUrl.searchParams.get("pocketSide") || "top").toLowerCase();
+      const pocketSide =
+        sideRaw === "mid" || sideRaw === "bot" || sideRaw === "all" || sideRaw === "top" ? sideRaw : "top";
+      const nRaw = Number(req.nextUrl.searchParams.get("pocketN") ?? "20");
+      const pocketN = Number.isFinite(nRaw) ? Math.max(0, Math.min(200, Math.floor(nRaw))) : 20;
+      return NextResponse.json({
+        ok: true,
+        ...listMicrocapRanking({ board, minIndustryN, maxMcapCr, pocketSide, pocketN }),
       });
     }
     if (view === "missing-div") {

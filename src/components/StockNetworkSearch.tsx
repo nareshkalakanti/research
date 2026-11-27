@@ -16,6 +16,8 @@ type Network = {
   ticker: string;
   name: string;
   market: string;
+  group_name?: string | null;
+  group_tickers?: string[];
   companies: Array<{
     ticker: string;
     name: string;
@@ -29,6 +31,7 @@ type Network = {
     name: string;
     din: string | null;
     tickers: string[];
+    span_tickers?: string[];
     dir_score?: number;
   }>;
 };
@@ -99,12 +102,18 @@ export function StockNetworkSearch({
   const openCompany = (t: string) =>
     onOpenCompany ? onOpenCompany(t) : void pick(t);
   const focalTicker = (row?.ticker || "").toUpperCase();
-  const hub = (row?.companies ?? []).filter(
-    (c) => c.ticker.toUpperCase() === focalTicker,
+  const groupSet = new Set(
+    (row?.group_tickers ?? []).map((t) => t.toUpperCase()).filter(Boolean),
   );
-  const connected = (row?.companies ?? []).filter(
-    (c) => c.ticker.toUpperCase() !== focalTicker,
-  );
+  // Same business group stays in the hub (solid nodes); director-only links are outside.
+  const hub = (row?.companies ?? []).filter((c) => {
+    const t = c.ticker.toUpperCase();
+    return t === focalTicker || groupSet.has(t);
+  });
+  const connected = (row?.companies ?? []).filter((c) => {
+    const t = c.ticker.toUpperCase();
+    return t !== focalTicker && !groupSet.has(t);
+  });
 
   return (
     <div className="fam-stock-net">
@@ -145,9 +154,14 @@ export function StockNetworkSearch({
               <div className="gov-family-title-text">
                 <span className="gov-family-name">{row.name}</span>
                 <span className="gov-family-sub">
-                  {row.ticker} · {row.people.length} directors ·{" "}
-                  {connected.length} connected{" "}
-                  {connected.length === 1 ? "company" : "companies"}
+                  {row.ticker}
+                  {row.group_name ? ` · ${row.group_name}` : ""}
+                  {" · "}
+                  {row.people.length} directors
+                  {hub.length > 1 ? ` · ${hub.length} group listings` : ""}
+                  {connected.length
+                    ? ` · ${connected.length} connected ${connected.length === 1 ? "company" : "companies"}`
+                    : ""}
                 </span>
               </div>
               <BoxRefreshButton

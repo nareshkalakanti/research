@@ -321,8 +321,8 @@ export function loadConnectedStockHubs(opts?: {
 }
 
 /**
- * How many other listed boards share ≥1 director with each ticker
- * (same edge definition as ConnectedStockHubs / FamilyGraph outside nodes).
+ * How many other listed boards are linked to each ticker:
+ * director-shared boards (company_network) ∪ same-group siblings (company_groups).
  */
 export function boardLinkedCountsForTickers(tickers: string[]): Map<string, number> {
   const wanted = [
@@ -334,12 +334,26 @@ export function boardLinkedCountsForTickers(tickers: string[]): Map<string, numb
   ];
   const map = new Map<string, number>();
   if (!wanted.length) return map;
+  for (const t of wanted) map.set(t, 0);
   const db = sharedGovernanceDb();
   try {
     ensureNetworkViews(db, false);
     db.exec(ifNotExists(COMPANY_NETWORK_VIEW_SQL, "company_network"));
     const gone = JSON.stringify([...inactiveListingTickerSet()]);
-    const rows = db
+    const want = JSON.stringify(wanted);
+    const linked = new Map<string, Set<string>>();
+    const add = (ticker: string, other: string) => {
+      const t = ticker.toUpperCase();
+      const o = other.toUpperCase();
+      if (!t || !o || t === o) return;
+      let set = linked.get(t);
+      if (!set) {
+        set = new Set();
+        linked.set(t, set);
+      }
+      set.add(o);
+    };
+    const dirRows = db
       .prepare(
         `WITH edges AS (
            SELECT ticker_a AS ticker, ticker_b AS other FROM company_network
@@ -351,16 +365,30 @@ export function boardLinkedCountsForTickers(tickers: string[]): Map<string, numb
             WHERE ticker NOT IN (SELECT value FROM json_each(@gone))
               AND other NOT IN (SELECT value FROM json_each(@gone))
          )
-         SELECT ticker, COUNT(*) AS n
+         SELECT ticker, other
            FROM live
-          WHERE ticker IN (SELECT value FROM json_each(@want))
-          GROUP BY ticker`,
+          WHERE ticker IN (SELECT value FROM json_each(@want))`,
       )
-      .all({ gone, want: JSON.stringify(wanted) }) as Array<{ ticker: string; n: number }>;
-    for (const r of rows) {
-      const t = (r.ticker || "").toUpperCase();
-      if (t) map.set(t, Number(r.n) || 0);
+      .all({ gone, want }) as Array<{ ticker: string; other: string }>;
+    for (const r of dirRows) add(r.ticker, r.other);
+
+    try {
+      const groupRows = db
+        .prepare(
+          `SELECT UPPER(g1.ticker) AS ticker, UPPER(g2.ticker) AS other
+             FROM company_groups g1
+             JOIN company_groups g2 ON g2.group_key = g1.group_key
+            WHERE UPPER(g1.ticker) IN (SELECT value FROM json_each(@want))
+              AND UPPER(g1.ticker) <> UPPER(g2.ticker)
+              AND UPPER(g2.ticker) NOT IN (SELECT value FROM json_each(@gone))`,
+        )
+        .all({ want, gone }) as Array<{ ticker: string; other: string }>;
+      for (const r of groupRows) add(r.ticker, r.other);
+    } catch {
+      /* company_groups optional */
     }
+
+    for (const [t, set] of linked) map.set(t, set.size);
   } catch {
     /* missing views / db */
   } finally {

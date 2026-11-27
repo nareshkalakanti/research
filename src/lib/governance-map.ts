@@ -3679,19 +3679,115 @@ export type StockBoardNetwork = {
   ticker: string;
   name: string;
   market: string;
+  /** Business group from company_groups when classified. */
+  group_name: string | null;
+  /** Same-group listings including the focal ticker (empty when unclassified). */
+  group_tickers: string[];
   companies: GovCompanySeat[];
   people: Array<{
     person_id: string;
     name: string;
     din: string | null;
     tickers: string[];
+    /** Same-group listings spanned without a shared seat (house-control anchors). */
+    span_tickers?: string[];
     dir_score: number;
     recent_join?: boolean;
     joined_at?: string | null;
   }>;
 };
 
-/** Ego graph: directors on this ticker plus every other listed board they sit on. */
+/** Same-group tickers from company_groups (excluding inactive listings). */
+function loadSameGroupTickers(ticker: string): { group_name: string | null; tickers: string[] } {
+  const key = ticker.trim().toUpperCase();
+  if (!key) return { group_name: null, tickers: [] };
+  try {
+    const inactive = inactiveListingTickers();
+    const rows = withGovRetry(() => {
+      const db = getGov();
+      return db
+        .prepare(
+          `SELECT g2.ticker AS ticker, g2.group_name AS group_name
+             FROM company_groups g1
+             JOIN company_groups g2 ON g2.group_key = g1.group_key
+            WHERE UPPER(g1.ticker) = ?
+            ORDER BY g2.ticker`,
+        )
+        .all(key) as Array<{ ticker: string; group_name: string }>;
+    });
+    if (!rows.length) return { group_name: null, tickers: [] };
+    const tickers = [
+      ...new Set(
+        rows
+          .map((r) => (r.ticker || "").toUpperCase())
+          .filter((t) => t && !inactive.has(t)),
+      ),
+    ].sort();
+    return { group_name: rows[0]?.group_name?.trim() || null, tickers };
+  } catch {
+    return { group_name: null, tickers: [] };
+  }
+}
+
+/** Lightweight company card for a same-group sibling with no seat on the ego map yet. */
+function stubGroupCompany(ticker: string): GovCompanySeat | null {
+  const t = ticker.toUpperCase();
+  try {
+    const row = withGovRetry(() => {
+      const db = getGov();
+      return db
+        .prepare(`SELECT ticker, name, market FROM companies WHERE UPPER(ticker) = ? LIMIT 1`)
+        .get(t) as { ticker: string; name: string | null; market: string | null } | undefined;
+    });
+    if (!row?.ticker) return null;
+    let market = (row.market || "NSE").toUpperCase();
+    const isSme = market === "NSE SME" || market === "BSE SME";
+    if (!isSme && market.startsWith("NSE")) market = "NSE";
+    else if (!isSme && market.startsWith("BSE")) market = "BSE";
+    const m = loadMetricsMap().get(t);
+    const mcap = m?.market_cap_cr ?? null;
+    const about = loadAboutMap([t]).get(t);
+    const links = researchLinks(t, market, about?.website ?? null);
+    return {
+      ticker: row.ticker.toUpperCase(),
+      name: row.name?.trim() || about?.name || t,
+      market,
+      designation: "",
+      category: null,
+      source: null,
+      as_of: null,
+      market_cap_cr: mcap,
+      price: m?.price ?? null,
+      cap_code: mcapCapCode(mcap),
+      cap_label: mcapCapLabel(mcap),
+      website: about?.website ?? null,
+      about: about?.about ?? null,
+      about_search: "",
+      headquarters: about?.headquarters ?? null,
+      sector: about?.sector ?? m?.sector ?? null,
+      industry: about?.industry ?? null,
+      is_sme: isSme,
+      is_main: !isSme && market === "NSE",
+      has_bb: false,
+      has_bb_w: false,
+      has_bb_m: false,
+      has_tq: false,
+      has_hold: false,
+      has_edge: false,
+      fund_tags: [],
+      web: links.web,
+      sc: links.sc,
+      tv: links.tv,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Ego graph: directors on this ticker plus every other listed board they sit on,
+ * plus same-group listings from company_groups (even when no shared seat yet).
+ */
 export function loadStockBoardNetwork(
   raw: string,
 ): StockBoardNetwork | null {
@@ -3700,28 +3796,58 @@ export function loadStockBoardNetwork(
   const seats = loadSeatsForTickers([ticker]);
   const rows = buildRowsFromSeats(seats, 1);
   if (!rows.length) return null;
-  const people = rows.map((r) => ({
-    person_id: r.person_id,
-    name: r.name,
-    din: r.din,
-    tickers: r.companies.map((c) => c.ticker),
-    dir_score: r.dir_score,
-    recent_join: r.recent_join,
-    joined_at: r.joined_at,
-  }));
+
   const byCo = new Map<string, GovCompanySeat>();
   let focal: GovCompanySeat | null = null;
+  /** Focal-board designation/category per person (for house-control spans). */
+  const focalSeat = new Map<string, { designation: string; category: string | null }>();
   for (const r of rows) {
     for (const c of r.companies) {
       const key = c.ticker.toUpperCase();
       if (!byCo.has(key)) byCo.set(key, c);
-      if (key === ticker) focal = c;
+      if (key === ticker) {
+        focal = c;
+        focalSeat.set(r.person_id, { designation: c.designation, category: c.category });
+      }
     }
   }
   if (!focal) return null;
+
+  const group = loadSameGroupTickers(ticker);
+  const groupSet = new Set(group.tickers);
+  for (const sib of group.tickers) {
+    if (sib === ticker || byCo.has(sib)) continue;
+    const stub = stubGroupCompany(sib);
+    if (stub) byCo.set(sib, stub);
+  }
+
+  const people = rows.map((r) => {
+    const seat = focalSeat.get(r.person_id);
+    const tickers = r.companies.map((c) => c.ticker);
+    const onFocal = new Set(tickers.map((t) => t.toUpperCase()));
+    let span_tickers: string[] | undefined;
+    if (seat && isHouseControlSeat(seat.designation, seat.category)) {
+      const extra = group.tickers.filter((t) => t !== ticker && !onFocal.has(t));
+      if (extra.length) span_tickers = extra;
+    }
+    return {
+      person_id: r.person_id,
+      name: r.name,
+      din: r.din,
+      tickers,
+      span_tickers,
+      dir_score: r.dir_score,
+      recent_join: r.recent_join,
+      joined_at: r.joined_at,
+    };
+  });
+
   const rest = [...byCo.values()]
     .filter((c) => c.ticker.toUpperCase() !== ticker)
     .sort((a, b) => {
+      const aGroup = groupSet.has(a.ticker.toUpperCase()) ? 0 : 1;
+      const bGroup = groupSet.has(b.ticker.toUpperCase()) ? 0 : 1;
+      if (aGroup !== bGroup) return aGroup - bGroup;
       const am = a.market_cap_cr ?? -1;
       const bm = b.market_cap_cr ?? -1;
       if (bm !== am) return bm - am;
@@ -3731,6 +3857,8 @@ export function loadStockBoardNetwork(
     ticker: focal.ticker,
     name: focal.name,
     market: focal.market,
+    group_name: group.group_name,
+    group_tickers: group.tickers,
     companies: [focal, ...rest],
     people,
   };
