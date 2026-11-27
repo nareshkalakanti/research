@@ -16,17 +16,64 @@ type Data = (MicrocapSectorBoard & { ok: true }) | { ok: false; error: string };
 type StocksData = (MicrocapStockList & { ok: true }) | { ok: false; error: string };
 
 type ViewId = "pockets" | "sectors" | "board";
-type RankSide = "top" | "bot";
+type RankSide = "top" | "mid" | "bot";
 type Sel = { sector: string; industry: string | null; side: RankSide };
 
 const MIN_N_OPTS = [1, 2, 3, 5, 10] as const;
 const MAX_MCAP_OPTS = [1000, 2000, 5000, 10000, 25000] as const;
+const RANK_N = 20;
 
 const VIEWS: { id: ViewId; label: string; hint: string }[] = [
-  { id: "pockets", label: "Pockets", hint: "Top / bottom industry & sub_sector — click a bar for the stocks" },
-  { id: "sectors", label: "Sectors", hint: "Top / bottom sector averages — click a bar for every name" },
+  { id: "pockets", label: "Pockets", hint: "Top / Mid / Bot industry & sub_sector — click a bar for the stocks" },
+  { id: "sectors", label: "Sectors", hint: "Top / Mid / Bot sector averages — click a bar for every name" },
   { id: "board", label: "Board", hint: "Multi-column sector cards with High / Low" },
 ];
+
+/**
+ * Middle cohort: drop Top N and Bot N, then take N rows around the median,
+ * ordered weakest → strongest (bottom → up).
+ */
+function midRankRows<T>(
+  all: T[],
+  topKeys: Set<string>,
+  botKeys: Set<string>,
+  keyOf: (row: T) => string,
+  retOf: (row: T) => number,
+  n = RANK_N,
+): T[] {
+  const rest = all
+    .filter((row) => {
+      const k = keyOf(row);
+      return !topKeys.has(k) && !botKeys.has(k);
+    })
+    .sort((a, b) => retOf(a) - retOf(b) || keyOf(a).localeCompare(keyOf(b)));
+  if (rest.length <= n) return rest;
+  const start = Math.max(0, Math.floor((rest.length - n) / 2));
+  return rest.slice(start, start + n);
+}
+
+function toPocketRank(p: PocketRow): RankRow {
+  return {
+    key: `${p.sector}/${p.industry}`,
+    label: p.industry,
+    sub: p.sector,
+    sector: p.sector,
+    industry: p.industry,
+    n: p.n,
+    avg_ret_1y: p.avg_ret_1y,
+  };
+}
+
+function toSectorRank(s: MicrocapSectorReturn): RankRow {
+  return {
+    key: s.sector,
+    label: s.sector,
+    sector: s.sector,
+    industry: null,
+    n: s.n,
+    avg_ret_1y: s.avg_ret_1y,
+  };
+}
 
 type PocketRow = {
   sector: string;
@@ -124,7 +171,7 @@ function sameSel(a: Sel | null, b: Sel | null): boolean {
   return selKey(a) === selKey(b);
 }
 
-/** Value-style bar list (Top = under/teal, Bottom = over/warm). */
+/** Value-style bar list (Top = under/teal, Mid = slate, Bottom = over/warm). */
 function Bars({
   title,
   side,
@@ -134,15 +181,16 @@ function Bars({
   scaleMax,
 }: {
   title: string;
-  side: "top" | "bot";
+  side: RankSide;
   rows: RankRow[];
   sel: Sel | null;
   onPick: (next: Sel) => void;
   /** Absolute return used to scale the fill (same scale both columns). */
   scaleMax: number;
 }) {
+  const tone = side === "top" ? "under" : side === "bot" ? "over" : "mid";
   return (
-    <div className={`vx-card vx-bars vx-bars--${side === "top" ? "under" : "over"}`}>
+    <div className={`vx-card vx-bars vx-bars--${tone}`}>
       <span className="vx-label vx-label--title">{title}</span>
       {!rows.length ? <p className="vx-empty">No rows.</p> : null}
       {rows.map((r) => {
@@ -614,18 +662,8 @@ export function MicrocapSectorsPanel() {
     () =>
       [...pockets]
         .sort((a, b) => b.avg_ret_1y - a.avg_ret_1y || a.industry.localeCompare(b.industry))
-        .slice(0, 20)
-        .map(
-          (p): RankRow => ({
-            key: `${p.sector}/${p.industry}`,
-            label: p.industry,
-            sub: p.sector,
-            sector: p.sector,
-            industry: p.industry,
-            n: p.n,
-            avg_ret_1y: p.avg_ret_1y,
-          }),
-        ),
+        .slice(0, RANK_N)
+        .map(toPocketRank),
     [pockets],
   );
 
@@ -633,36 +671,29 @@ export function MicrocapSectorsPanel() {
     () =>
       [...pockets]
         .sort((a, b) => a.avg_ret_1y - b.avg_ret_1y || a.industry.localeCompare(b.industry))
-        .slice(0, 20)
-        .map(
-          (p): RankRow => ({
-            key: `${p.sector}/${p.industry}`,
-            label: p.industry,
-            sub: p.sector,
-            sector: p.sector,
-            industry: p.industry,
-            n: p.n,
-            avg_ret_1y: p.avg_ret_1y,
-          }),
-        ),
+        .slice(0, RANK_N)
+        .map(toPocketRank),
     [pockets],
   );
+
+  const pocketMid = useMemo(() => {
+    const topKeys = new Set(pocketTop.map((r) => r.key));
+    const botKeys = new Set(pocketBot.map((r) => r.key));
+    return midRankRows(
+      pockets,
+      topKeys,
+      botKeys,
+      (p) => `${p.sector}/${p.industry}`,
+      (p) => p.avg_ret_1y,
+    ).map(toPocketRank);
+  }, [pockets, pocketTop, pocketBot]);
 
   const sectorTop = useMemo(
     () =>
       [...sectors]
         .sort((a, b) => b.avg_ret_1y - a.avg_ret_1y || a.sector.localeCompare(b.sector))
-        .slice(0, 20)
-        .map(
-          (s): RankRow => ({
-            key: s.sector,
-            label: s.sector,
-            sector: s.sector,
-            industry: null,
-            n: s.n,
-            avg_ret_1y: s.avg_ret_1y,
-          }),
-        ),
+        .slice(0, RANK_N)
+        .map(toSectorRank),
     [sectors],
   );
 
@@ -670,22 +701,25 @@ export function MicrocapSectorsPanel() {
     () =>
       [...sectors]
         .sort((a, b) => a.avg_ret_1y - b.avg_ret_1y || a.sector.localeCompare(b.sector))
-        .slice(0, 20)
-        .map(
-          (s): RankRow => ({
-            key: s.sector,
-            label: s.sector,
-            sector: s.sector,
-            industry: null,
-            n: s.n,
-            avg_ret_1y: s.avg_ret_1y,
-          }),
-        ),
+        .slice(0, RANK_N)
+        .map(toSectorRank),
     [sectors],
   );
 
-  const pocketRows = rankSide === "top" ? pocketTop : pocketBot;
-  const sectorRows = rankSide === "top" ? sectorTop : sectorBot;
+  const sectorMid = useMemo(() => {
+    const topKeys = new Set(sectorTop.map((r) => r.key));
+    const botKeys = new Set(sectorBot.map((r) => r.key));
+    return midRankRows(
+      sectors,
+      topKeys,
+      botKeys,
+      (s) => s.sector,
+      (s) => s.avg_ret_1y,
+    ).map(toSectorRank);
+  }, [sectors, sectorTop, sectorBot]);
+
+  const pocketRows = rankSide === "top" ? pocketTop : rankSide === "mid" ? pocketMid : pocketBot;
+  const sectorRows = rankSide === "top" ? sectorTop : rankSide === "mid" ? sectorMid : sectorBot;
   const pocketScale = useMemo(() => {
     const xs = pocketRows.map((r) => Math.abs(r.avg_ret_1y));
     return Math.max(1, ...(xs.length ? xs : [1]));
@@ -709,8 +743,8 @@ export function MicrocapSectorsPanel() {
             Micro <span>Monopolies</span>
           </h2>
           <p className="vx-hint mcs-lede">
-            Top 20 or Bot 20 full width — click a bar and the companies open beside it. Pick the <em>average</em> name
-            in the strongest pocket.
+            Top 20 · Mid 20 (bottom → up, between the extremes) · Bot 20 — full width; click a bar and companies open
+            beside it. Pick the <em>average</em> name in the strongest pocket.
           </p>
         </div>
       </header>
@@ -735,10 +769,11 @@ export function MicrocapSectorsPanel() {
         {view === "pockets" || view === "sectors" ? (
           <label className="vx-field">
             <span className="vx-label">Rank</span>
-            <div className="mcs-seg" role="group" aria-label="Top or bottom 20">
+            <div className="mcs-seg" role="group" aria-label="Top, mid, or bottom 20">
               {(
                 [
                   ["top", "Top 20"],
+                  ["mid", "Mid 20"],
                   ["bot", "Bot 20"],
                 ] as const
               ).map(([id, label]) => (
@@ -837,10 +872,14 @@ export function MicrocapSectorsPanel() {
                   view === "pockets"
                     ? rankSide === "top"
                       ? "Top 20 pockets by avg 12M return"
-                      : "Bottom 20 pockets by avg 12M return"
+                      : rankSide === "mid"
+                        ? "Mid 20 pockets · bottom → up (between Top & Bot)"
+                        : "Bottom 20 pockets by avg 12M return"
                     : rankSide === "top"
                       ? "Top 20 sectors by avg 12M return"
-                      : "Bottom 20 sectors by avg 12M return"
+                      : rankSide === "mid"
+                        ? "Mid 20 sectors · bottom → up (between Top & Bot)"
+                        : "Bottom 20 sectors by avg 12M return"
                 }
                 side={rankSide}
                 rows={view === "pockets" ? pocketRows : sectorRows}

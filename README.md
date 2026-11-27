@@ -47,6 +47,38 @@ You need Node, `git`, `curl` and `sqlite3` (macOS has the last two). [Ollama](ht
 
 6. Optional, for LLM features: `ollama pull qwen2.5:3b-instruct` and `ollama pull glm-ocr`.
 
+## What to do for data on a new machine
+
+`git pull` / `git clone` bring **code only**. Live research state is in `data/*.db` (gitignored) and moves through **Cloudflare R2**.
+
+| Do this | Why |
+|---|---|
+| Copy `.env.local` (with R2 keys) | Without it, `db:restore` / backup cannot run |
+| Set `R2_MACHINE=<short-name>` if this is not the main machine | Stops this laptop from overwriting the main machine’s backups |
+| `npm run dev:stop` then `npm run db:restore` | Pulls every DB from the newest R2 backup (or the main machine’s if this one has none yet) |
+| `npm run dev:bg` | App + hourly backup so this machine starts writing its own snapshots |
+| On the *source* machine first: `npm run db:backup` (or leave `dev:bg` running) | Restore only sees what was already uploaded |
+
+**After restore you should have** (among others) the DBs tabs need:
+
+- `metrics.db` — market caps, prices helpers, Tickertape ratios / div-yield cache  
+- `classifications.db` — sector / industry / sub_sector fallback  
+- `governance.db` — board seats, company network / Board column links  
+- `rotation_bars.db` (or whatever feeds 12M returns) — Micro Monopolies pocket returns  
+- `company_about.db` — hydrated from `data/seeds/company_about.db` in git if missing  
+
+**Do not** copy `*.db-wal` / `*.db-shm` between machines. Prefer R2 restore over AirDrop of live DB files.
+
+To pull only some files from another named machine (after that machine has backed up):
+
+```bash
+npm run dev:stop
+FROM=<other-machine> npm run db:restore -- metrics.db governance.db classifications.db
+npm run dev:bg
+```
+
+Use `FROM=main` for the main machine. Leave out the DB names to restore everything.
+
 ## `.env.local`
 
 [`.env.example`](.env.example) is the template and lists every setting with comments. Never commit `.env.local`.
