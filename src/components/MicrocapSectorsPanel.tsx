@@ -2,6 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReviewPlusButton } from "@/components/ReviewPlusButton";
+import {
+  REVIEW_SCORE_HEADERS,
+  ReviewScoreCells,
+  ReviewScoreDrawer,
+  type ReviewDrawerKind,
+  type ReviewScoreRow,
+} from "@/components/ReviewScores";
 import { napkinUrl, tradingviewUrl } from "@/lib/links";
 import type {
   MicrocapBoardFilter,
@@ -188,10 +195,24 @@ function StocksBelow({
 }) {
   const [data, setData] = useState<StocksData | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [scores, setScores] = useState<Record<string, ReviewScoreRow>>({});
+  const [scoreMeta, setScoreMeta] = useState<{
+    total: number;
+    scored: number;
+    missing: number;
+    job: { running: boolean; total: number; done: number; failed: number } | null;
+    paused: string | null;
+  } | null>(null);
+  const [scorePoll, setScorePoll] = useState(0);
+  const [scoreStarting, setScoreStarting] = useState(false);
+  const [scoreDrawer, setScoreDrawer] = useState<{ row: ReviewScoreRow; kind: ReviewDrawerKind } | null>(null);
+  const closeScoreDrawer = useCallback(() => setScoreDrawer(null), []);
 
   useEffect(() => {
     let live = true;
     setData(null);
+    setScores({});
+    setScoreMeta(null);
     const sp = new URLSearchParams({
       view: "stocks",
       sector: sel.sector,
@@ -204,7 +225,15 @@ function StocksBelow({
     void fetch(`/api/microcap?${sp}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j: StocksData) => {
-        if (live) setData(j);
+        if (!live) return;
+        // Board High / leaf → best 12M first; Low → worst first (Value total is a separate tool).
+        if (j.ok && Array.isArray(j.stocks)) {
+          const asc = sel.side === "bot";
+          j.stocks = [...j.stocks].sort(
+            (a, b) => (asc ? a.ret_1y - b.ret_1y : b.ret_1y - a.ret_1y) || a.name.localeCompare(b.name),
+          );
+        }
+        setData(j);
       })
       .catch((e) => {
         if (live) setData({ ok: false, error: String(e) });
@@ -212,13 +241,91 @@ function StocksBelow({
     return () => {
       live = false;
     };
-  }, [sel.sector, sel.industry, board, minN, minMcap, maxMcap, reloadToken]);
+  }, [sel.sector, sel.industry, sel.side, board, minN, minMcap, maxMcap, reloadToken]);
+
+  const tickers = useMemo(
+    () => (data?.ok ? data.stocks.map((s) => s.ticker.toUpperCase()) : []),
+    [data],
+  );
+  const tickerKey = tickers.join(",");
+
+  useEffect(() => {
+    if (!tickerKey) return;
+    let live = true;
+    const list = tickerKey.split(",");
+    void fetch("/api/watchlist/scores", {
+      method: "POST",
+      cache: "no-store",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tickers: list, all: list }),
+    })
+      .then((r) => r.json())
+      .then(
+        (j: {
+          ok?: boolean;
+          scores?: Record<string, ReviewScoreRow>;
+          total?: number;
+          scored?: number;
+          missing?: number;
+          job?: { running: boolean; total: number; done: number; failed: number } | null;
+          screener_paused_until?: string | null;
+        }) => {
+          if (!live || !j.ok) return;
+          setScores(j.scores ?? {});
+          setScoreMeta({
+            total: j.total ?? list.length,
+            scored: j.scored ?? 0,
+            missing: j.missing ?? 0,
+            job: j.job ?? null,
+            paused: j.screener_paused_until ?? null,
+          });
+        },
+      )
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [tickerKey, scorePoll]);
+
+  const scoreJobRunning = !!scoreMeta?.job?.running;
+  const scoreNow = useCallback(async () => {
+    if (!tickerKey) return;
+    setScoreStarting(true);
+    try {
+      const list = tickerKey.split(",");
+      await fetch("/api/watchlist/scores", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tickers: list, all: list, score: true }),
+      });
+    } finally {
+      setScoreStarting(false);
+      setScorePoll((n) => n + 1);
+    }
+  }, [tickerKey]);
+
+  useEffect(() => {
+    if (!scoreJobRunning) return;
+    const t = window.setTimeout(() => setScorePoll((n) => n + 1), 60_000);
+    return () => window.clearTimeout(t);
+  }, [scoreJobRunning, scorePoll]);
 
   useEffect(() => {
     const onFilled = () => setReloadToken((n) => n + 1);
     window.addEventListener("mcs-div-filled", onFilled);
     return () => window.removeEventListener("mcs-div-filled", onFilled);
   }, []);
+
+  const ratingCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of tickers) {
+      const r = scores[t];
+      const key = !r || r.scored < 0 ? "Not scored" : r.rating;
+      m.set(key, (m.get(key) ?? 0) + 1);
+    }
+    return m;
+  }, [tickers, scores]);
 
   const title =
     sel.industry == null
@@ -228,7 +335,7 @@ function StocksBelow({
         : `${sel.industry} · ${sel.sector}`;
 
   return (
-    <div className="vx-card vx-table-card mcs-stocks" id="mcs-stocks">
+    <div className="vx-card vx-table-card mcs-stocks napkin-vx" id="mcs-stocks">
       <div className="vx-table-head">
         <span className="vx-label vx-label--title">
           {title}
@@ -240,6 +347,50 @@ function StocksBelow({
           Close
         </button>
       </div>
+      {data?.ok && data.stocks.length ? (
+        <div className="mcs-score-top" aria-label="Portfolio metrics">
+          <div className="mcs-score-now">
+            <span className="vx-hint">
+              {scoreMeta
+                ? scoreMeta.missing
+                  ? `${scoreMeta.missing.toLocaleString("en-IN")} of ${scoreMeta.total.toLocaleString("en-IN")} not scored`
+                  : "Portfolio scores saved"
+                : "Loading portfolio scores…"}
+              {" · "}Fundamental · Management · Quality · Valuation · Total · Final rating
+            </span>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={scoreStarting || !scoreMeta?.missing}
+              onClick={() => void scoreNow()}
+            >
+              {scoreStarting ? "Starting…" : scoreJobRunning ? "Scoring…" : "Score now"}
+            </button>
+          </div>
+          {scoreMeta && tickers.length ? (
+            <div className="mcs-rating-boxes" role="group" aria-label="Final rating counts">
+              <span className="mcs-rating-boxes-label">Final rating</span>
+              {["Excellent", "Good", "Average", "Poor", "Incomplete", "No data", "Not scored"]
+                .filter((o) => (ratingCounts.get(o) ?? 0) > 0)
+                .map((o) => (
+                  <span key={o} className="mcs-rating-box">
+                    {o} <em>{ratingCounts.get(o)}</em>
+                  </span>
+                ))}
+            </div>
+          ) : null}
+          {scoreMeta && scoreMeta.missing > 0 && (scoreJobRunning || scoreMeta.paused) ? (
+            <p className="vx-hint mcs-score-progress">
+              {scoreMeta.paused
+                ? `Screener paused until ${new Date(scoreMeta.paused).toLocaleTimeString("en-IN", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}`
+                : `Scoring ${scoreMeta.scored} of ${scoreMeta.total} · ~2/min`}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {!data ? (
         <p className="vx-empty">Loading stocks…</p>
       ) : !data.ok ? (
@@ -248,7 +399,7 @@ function StocksBelow({
         <p className="vx-empty">No companies with 1Y prices in this sector / industry.</p>
       ) : (
         <div className="vx-scroll">
-          <table className="vx-table">
+          <table className="vx-table mcs-score-table">
             <thead>
               <tr>
                 <th>Company</th>
@@ -256,36 +407,50 @@ function StocksBelow({
                 <th>Industry</th>
                 <th className="num">Market cap</th>
                 <th className="num">12M return</th>
+                {REVIEW_SCORE_HEADERS.map((h) => (
+                  <th key={h.label} className={h.num ? "num" : undefined} title={h.title}>
+                    {h.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {data.stocks.map((s: MicrocapStockRow) => (
-                <tr key={s.ticker}>
-                  <td>
-                    <a className="vx-co" href={tradingviewUrl(s.ticker, s.market)} target="_blank" rel="noopener noreferrer">
-                      {s.name}
-                    </a>
-                    <span className="vx-sub">
-                      {s.ticker}
-                      {s.market && s.market !== "NSE" ? <em>{s.market}</em> : null}
-                      <ReviewPlusButton ticker={s.ticker} />
-                      <a className="np-chip" href={napkinUrl(s.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
-                        NP
+              {data.stocks.map((s: MicrocapStockRow) => {
+                const sc = scores[s.ticker.toUpperCase()];
+                return (
+                  <tr key={s.ticker}>
+                    <td>
+                      <a className="vx-co" href={tradingviewUrl(s.ticker, s.market)} target="_blank" rel="noopener noreferrer">
+                        {s.name}
                       </a>
-                    </span>
-                  </td>
-                  <td className="mcs-rank-sec">{s.sector}</td>
-                  <td className="mcs-rank-sec">{s.industry}</td>
-                  <td className="num">{cr(s.mcap_cr)}</td>
-                  <td className="num">
-                    <Ret n={s.ret_1y} />
-                  </td>
-                </tr>
-              ))}
+                      <span className="vx-sub">
+                        {s.ticker}
+                        {s.market && s.market !== "NSE" ? <em>{s.market}</em> : null}
+                        <ReviewPlusButton ticker={s.ticker} />
+                        <a className="np-chip" href={napkinUrl(s.ticker)} target="_blank" rel="noopener noreferrer" title="Open in Napkin">
+                          NP
+                        </a>
+                      </span>
+                    </td>
+                    <td className="mcs-rank-sec">{s.sector}</td>
+                    <td className="mcs-rank-sec">{s.industry}</td>
+                    <td className="num">{cr(s.mcap_cr)}</td>
+                    <td className="num">
+                      <Ret n={s.ret_1y} />
+                    </td>
+                    <ReviewScoreCells
+                      r={sc}
+                      pending={sc ? undefined : scoreMeta?.job?.running ? "Scoring…" : "—"}
+                      onOpen={(row, kind) => setScoreDrawer({ row, kind })}
+                    />
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
+      <ReviewScoreDrawer drawer={scoreDrawer} onClose={closeScoreDrawer} />
     </div>
   );
 }
@@ -680,7 +845,7 @@ export function MicrocapSectorsPanel() {
           </button>
         ) : null}
         <span className="vx-hint mcs-meta">
-          Sector / leaf avg = equal-weight 12M (each name clipped to −90%…+300% so rockets don’t skew the mean) · stock rows stay raw · High / Low = named leaves
+          Sector / leaf avg = equal-weight raw 12M · High / Low = named leaves
           {data?.ok ? ` · ${mcapHint} · ${data.stocks_with_return.toLocaleString("en-IN")} names` : ""}
           {boardLoading ? (data ? " · updating…" : " · computing…") : ""}
           {fillDivMsg ? ` · ${fillDivMsg}` : ""}

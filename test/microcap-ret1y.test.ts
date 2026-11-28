@@ -1,10 +1,5 @@
 import assert from "node:assert/strict";
-import {
-  AVG_RET_1Y_CLIP_HI,
-  AVG_RET_1Y_CLIP_LO,
-  clipRet1yForAvg,
-  microcapRet1yPct,
-} from "../src/lib/microcap-sector-returns";
+import { microcapRet1yPct } from "../src/lib/microcap-sector-returns";
 import {
   rotationWindowStart,
   windowReturnPct,
@@ -47,15 +42,5 @@ assert.equal(microcapRet1yPct(bars, staleTip), null);
 // Empty / short series → null.
 assert.equal(microcapRet1yPct([], tip), null);
 assert.equal(microcapRet1yPct([{ date: tip, close: 10 }], tip), null);
-
-// Pocket/sector means clip extreme rockets; mid-range passes through (n unchanged).
-assert.equal(clipRet1yForAvg(20), 20);
-assert.equal(clipRet1yForAvg(-40), -40);
-assert.equal(clipRet1yForAvg(9449), AVG_RET_1Y_CLIP_HI);
-assert.equal(clipRet1yForAvg(-99), AVG_RET_1Y_CLIP_LO);
-assert.equal(
-  [10, 9449, -20].reduce((a, r) => a + clipRet1yForAvg(r), 0) / 3,
-  (10 + AVG_RET_1Y_CLIP_HI + -20) / 3,
-);
 
 console.log("microcap-ret1y.test.ts: ok");

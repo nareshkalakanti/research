@@ -178,7 +178,15 @@ export function MultiPick({
       ? chosen.map((o) => o.label).join(", ")
       : `${chosen[0]!.label} +${chosen.length - 1}`;
   const toggle = (id: string) => onChange(values.includes(id) ? values.filter((x) => x !== id) : [...values, id]);
-  const filtered = options.filter((o) => !q.trim() || o.label.toLowerCase().includes(q.trim().toLowerCase()));
+  const qNorm = q.trim().toLowerCase();
+  const filtered = options.filter((o) => !qNorm || o.label.toLowerCase().includes(qNorm));
+  // Keep current picks at the top of the list (closed button already shows names).
+  const listed = [...filtered].sort((a, b) => {
+    const aOn = values.includes(a.id) ? 0 : 1;
+    const bOn = values.includes(b.id) ? 0 : 1;
+    if (aOn !== bOn) return aOn - bOn;
+    return 0;
+  });
 
   const panel =
     open && pos
@@ -203,10 +211,10 @@ export function MultiPick({
               />
             ) : null}
             <ul>
-              {!filtered.length ? (
+              {!listed.length ? (
                 <li className="fb-pop-empty">{options.length ? "No matches." : "Loading industries…"}</li>
               ) : (
-                filtered.map((o) => (
+                listed.map((o) => (
                   <li key={o.id}>
                     <label title={o.title}>
                       <input type="checkbox" checked={values.includes(o.id)} onChange={() => toggle(o.id)} />

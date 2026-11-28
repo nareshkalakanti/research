@@ -96,11 +96,39 @@ export function PortfolioReviewPanel({
       return 0;
     }
   }, [bag]);
+  // Load the bag, then auto-start background scoring for unscored / stale names.
   useEffect(() => {
-    const id = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(id);
-  }, [load]);
-  // Scores fill in only after "Score now": poll while that background job runs.
+    let cancelled = false;
+    const id = window.setTimeout(() => {
+      void (async () => {
+        await load();
+        if (cancelled) return;
+        try {
+          const res = await fetch("/api/portfolio-review", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ score: true, bag }),
+          });
+          const j = (await res.json()) as {
+            ok?: boolean;
+            started?: number;
+            running?: boolean;
+            error?: string;
+          };
+          if (cancelled || j.ok === false) return;
+          setScoring(!!j.running);
+          if (j.started) setMsg(`Scoring ${j.started} in the background`);
+        } catch {
+          /* Score now remains available if auto-start fails */
+        }
+      })();
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(id);
+    };
+  }, [load, bag]);
+  // Poll while the background job runs so scores fill in.
   useEffect(() => {
     if (!scoring) return;
     const id = window.setInterval(() => void load(), 3000);
@@ -339,7 +367,7 @@ export function PortfolioReviewPanel({
               type="button"
               className="vx-btn"
               disabled={busy || scoring || !rows?.length}
-              title="Score stocks without a current score in the background (Screener); scores are saved"
+              title="Re-queue unscored or stale scores in the background (also starts automatically when you open this page)"
               onClick={async () => {
                 setBusy(true);
                 try {

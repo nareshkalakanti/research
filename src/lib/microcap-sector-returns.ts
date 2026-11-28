@@ -95,21 +95,6 @@ function mean(xs: number[]): number | null {
  */
 const RET_1Y_STALE_TIP_DAYS = 10;
 
-/**
- * Per-name 12M % bounds when building equal-weight sector / leaf averages
- * (High / Low / board order). Stock rows still show the raw return. Stops a
- * handful of illiquid rockets (±1000%–9000%) from dominating means without
- * shrinking board n / folding leaves away.
- */
-export const AVG_RET_1Y_CLIP_LO = -90;
-export const AVG_RET_1Y_CLIP_HI = 300;
-
-/** Clip a raw 12M % for pocket / sector equal-weight means. */
-export function clipRet1yForAvg(ret: number): number {
-  if (!Number.isFinite(ret)) return ret;
-  return Math.max(AVG_RET_1Y_CLIP_LO, Math.min(AVG_RET_1Y_CLIP_HI, ret));
-}
-
 /** Newest bar date among close series (YYYY-MM-DD). */
 function tipFromCloseSets(
   sets: Array<Array<{ date: string; close: number }>>,
@@ -245,8 +230,7 @@ function inMcapBand(mcap: number, minMcap: number, maxMcap: number): boolean {
  * For names in the mcap band: equal-weight avg 12-month return by sector › industry,
  * plus Value-style Sales / ROCE / P/B ranks (same legs as the ranking tool).
  * Taxonomy: Screener.in sector › leaf (sub_sector).
- * Pocket/sector means use {@link clipRet1yForAvg} so extreme single-name rockets
- * do not dominate High / Low / board order (stock lists keep raw returns; n unchanged).
+ * Pocket/sector means and stock rows use the same raw 12M returns.
  */
 export function buildMicrocapSectorReturns(opts?: {
   maxMcapCr?: number;
@@ -326,7 +310,7 @@ export function buildMicrocapSectorReturns(opts?: {
 
   for (const h of hits) {
     const push = (a: ValueAgg) => {
-      a.rets.push(clipRet1yForAvg(h.ret_1y));
+      a.rets.push(h.ret_1y);
       const leg = legs.get(h.ticker);
       // Pocket/sector Value avg needs a real P/B (skip negative-equity names here).
       if (!leg || leg.sales3y == null || leg.roce3y == null || leg.pb == null || !(leg.pb > 0)) return;

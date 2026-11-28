@@ -1360,7 +1360,7 @@ export async function buildReview(opts?: {
     };
   }
 
-  // Opening the page never fetches: scoring starts only from "Score now" (startReviewScoring).
+  // Unscored / stale names are filled by startReviewScoring (Portfolio auto-starts on open).
   return {
     rows,
     pending: need.length,

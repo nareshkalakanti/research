@@ -20021,6 +20021,12 @@ button.rot-stat-best-name:not(:disabled):hover {
   padding: 8px 0 12px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 12px;
+  /* Same as Value: selected picks stay at the top while the list scrolls. */
+  position: sticky;
+  top: 64px;
+  z-index: 11;
+  background: color-mix(in srgb, var(--surface, #fff) 94%, transparent);
+  backdrop-filter: blur(10px);
 }
 .fb-k {
   font-size: 0.7rem;
@@ -20605,8 +20611,8 @@ button.rot-stat-best-name:not(:disabled):hover {
   border-radius: 14px;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
   position: sticky;
-  top: 8px;
-  z-index: 5;
+  top: 64px;
+  z-index: 11;
   background: color-mix(in srgb, var(--surface) 92%, transparent);
   backdrop-filter: saturate(1.4) blur(10px);
 }
@@ -21533,6 +21539,12 @@ button.rot-grp-chip:disabled {
 .vx-filters {
   padding: 16px 18px;
   margin-bottom: 14px;
+  /* Keep Sector / Industry selection visible under the sticky topbar. */
+  position: sticky;
+  top: 64px;
+  z-index: 11;
+  background: color-mix(in srgb, var(--surface, #fff) 94%, transparent);
+  backdrop-filter: blur(10px);
 }
 .vx-label {
   display: block;
@@ -23920,10 +23932,11 @@ html[data-theme="light"] .vx-filters .vx-filters-pick .fb-multi-btn {
   }
 }
 
-/* Value: search suggestions sit above the cards below (cards make their own stacking context) */
+/* Value: search suggestions sit above the cards below; keep filters stuck under topbar. */
 .vx-filters {
-  position: relative;
-  z-index: 8;
+  position: sticky;
+  top: 64px;
+  z-index: 11;
 }
 .vx-suggest {
   max-height: 360px;
@@ -25996,6 +26009,56 @@ button.tab { font-family: inherit; }
   text-transform: uppercase;
 }
 .mcs-stocks { margin-top: 14px; }
+.mcs-score-top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 14px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 8%, transparent);
+  margin-bottom: 4px;
+}
+.mcs-score-now {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.mcs-rating-boxes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.mcs-rating-boxes-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 2px;
+}
+.mcs-rating-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+.mcs-rating-box em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-weight: 700;
+}
+.mcs-score-progress { margin: 0; }
+.mcs-score-table .vx-score {
+  min-width: 3.6rem;
+}
 .mcs-div-cell { vertical-align: middle; }
 /* Same capsule chrome as Value → Portfolio review (vx-score). */
 .mcs-score {
