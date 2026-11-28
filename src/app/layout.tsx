@@ -9,8 +9,12 @@ export const metadata: Metadata = {
   description: "India equities research",
 };
 
-/** App font (clean geometric sans) — sets --font-sans used across globals.css. */
-const outfit = Outfit({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
+/** App font (clean geometric sans). Separate var so theme CSS can stack fallbacks. */
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-outfit",
+  display: "swap",
+});
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

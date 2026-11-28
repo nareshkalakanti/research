@@ -336,7 +336,8 @@ function DualSpark({
   fill?: boolean;
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [autoW, setAutoW] = useState(widthProp ?? 320);
+  // Start narrow when fill=true so grid min-content does not force sideways overflow.
+  const [autoW, setAutoW] = useState(widthProp ?? (fill ? 160 : 280));
   useEffect(() => {
     if (!fill) {
       if (widthProp != null) setAutoW(widthProp);
@@ -346,14 +347,14 @@ function DualSpark({
     if (!el || typeof ResizeObserver === "undefined") return;
     const apply = () => {
       const w = Math.floor(el.getBoundingClientRect().width);
-      if (w >= 160) setAutoW(w);
+      if (w >= 120) setAutoW(w);
     };
     apply();
     const ro = new ResizeObserver(apply);
     ro.observe(el);
     return () => ro.disconnect();
   }, [fill, widthProp]);
-  const width = fill ? autoW : (widthProp ?? 320);
+  const width = fill ? Math.max(autoW, 120) : (widthProp ?? 280);
   const aStroke = aAbove ? "#22c55e" : "#ef4444";
   const aFill = aAbove ? "#22c55e" : "#ef4444";
   const aText = aAbove ? "#052e16" : "#450a0a";
@@ -1932,7 +1933,8 @@ export function SectorRotationPanel() {
             aria-pressed={watchOnly}
             onClick={() => setWatchOnly((v) => !v)}
           >
-            <span aria-hidden>★</span> Watchlist only
+            <span aria-hidden>★</span>
+            <em className="rot-watch-label">Watchlist</em>
           </button>
           <label className="rot-min-n" title="Hide baskets with fewer names">
             <span className="rot-min-n-label">Min</span>
@@ -1948,8 +1950,9 @@ export function SectorRotationPanel() {
               ))}
             </select>
           </label>
-          <span className="rot-bar-spacer" />
-          <div className="rot-seg rot-seg--quiet" role="group" aria-label="Period">
+        </div>
+        <div className="rot-bar-row rot-bar-row--period">
+          <div className="rot-seg rot-seg--quiet rot-seg--period" role="group" aria-label="Period">
             {ROTATION_RANGES.map((r) => (
               <button
                 key={r}
@@ -1962,6 +1965,7 @@ export function SectorRotationPanel() {
               </button>
             ))}
           </div>
+          <span className="rot-bar-spacer" />
           <div className="rot-seg rot-seg--quiet" role="group" aria-label="Index type">
             <button
               type="button"
@@ -2221,7 +2225,7 @@ export function SectorRotationPanel() {
                 <DualSpark
                   a={c.sector}
                   b={c.bench}
-                  height={140}
+                  height={100}
                   fill
                   aLabel={c.label}
                   bLabel={benchLabel}

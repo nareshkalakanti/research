@@ -513,8 +513,10 @@
   --bse-soft: var(--cb-f8efe4);
   --shadow: 0 1px 2px rgba(16, 24, 40, 0.05), 0 8px 24px rgba(16, 24, 40, 0.06);
   --radius: 12px;
-  --font-ui: var(--font-sans), Inter, ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-pcd-serif), "Source Serif 4", Georgia, serif;
+  /* Outfit from next/font (--font-outfit on <html>); keep a real stack if unset. */
+  --font-sans: var(--font-outfit), "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: var(--font-sans);
+  --font-display: var(--font-sans);
 }
 
 /* ---- Generated theme colours (scripts: themeify). Light = original; dark = role-aware. ---- */
@@ -1530,10 +1532,11 @@ body {
   background: var(--bg);
   color: var(--ink);
   color-scheme: light;
-  font-family: var(--font-sans), Inter, ui-sans-serif, system-ui, sans-serif;
-  font-size: 15.7px;
-  line-height: 1.5;
-  letter-spacing: 0;
+  font-family: var(--font-ui);
+  font-size: 15.5px;
+  line-height: 1.45;
+  letter-spacing: -0.011em;
+  font-feature-settings: "ss01" 1, "tnum" 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -1990,6 +1993,45 @@ a.brand-btn:hover .brand-name {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* 13–14″ laptops (incl. “More Space” ~1680): shrink chrome before tabs crush. */
+@media (max-width: 1680px) {
+  .topbar {
+    column-gap: 8px;
+    padding: 6px clamp(8px, 1.2vw, 14px);
+    grid-template-columns: max-content minmax(120px, 180px) minmax(0, 1fr) max-content;
+  }
+  .top-search {
+    max-width: 180px;
+  }
+  .tab {
+    padding: 5px 6px;
+    font-size: 0.74rem;
+  }
+  .main {
+    padding: 8px 12px 20px;
+  }
+}
+
+@media (max-width: 1440px) {
+  .brand-sub,
+  .user-email,
+  .btn-logout {
+    display: none;
+  }
+  .tab-label {
+    display: none;
+  }
+  .tab-ico {
+    margin-right: 0;
+  }
+  .tab-caret {
+    margin-left: 1px;
+  }
+  .top-search {
+    max-width: 160px;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -18337,8 +18379,10 @@ html[data-theme="dark"] .napkin-earn-card .vx-earn-period {
 .rot-dash {
   padding: 12px 0 32px;
   font-family: var(--font-ui);
-  font-feature-settings: "tnum" 1, "ss01" 0;
+  font-feature-settings: "ss01" 1, "tnum" 1;
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 .rot-head {
   display: flex;
@@ -18350,21 +18394,21 @@ html[data-theme="dark"] .napkin-earn-card .vx-earn-period {
 }
 .rot-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
+  font-family: var(--font-ui);
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
   color: var(--ink);
 }
 .rot-sub {
   margin: 4px 0 0;
   color: var(--muted, var(--ct-64748b));
-  font-size: 0.86rem;
+  font-size: 0.8125rem;
   font-weight: 450;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   max-width: 52rem;
-  line-height: 1.45;
+  line-height: 1.35;
 }
 .rot-progress {
   display: flex;
@@ -18571,8 +18615,9 @@ button.rot-stat-best-name:not(:disabled):hover {
 }
 .rot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
   gap: 14px;
+  min-width: 0;
 }
 .rot-card {
   text-align: left;
@@ -18583,6 +18628,8 @@ button.rot-stat-best-name:not(:disabled):hover {
   cursor: pointer;
   color: var(--ink);
   box-shadow: var(--shadow);
+  min-width: 0;
+  overflow: hidden;
 }
 .rot-card-top {
   display: flex;
@@ -18652,13 +18699,17 @@ button.rot-stat-best-name:not(:disabled):hover {
 .rot-spark-wrap {
   margin: 0 0 10px;
   max-width: 42rem;
+  min-width: 0;
 }
 .rot-spark-wrap--fill {
   max-width: none;
   width: 100%;
+  min-width: 0;
 }
 .rot-spark-wrap--fill .rot-spark {
-  max-width: none;
+  max-width: 100%;
+  width: 100%;
+  display: block;
 }
 .rot-detail {
   border: 1px solid var(--line);
@@ -20597,13 +20648,27 @@ button.rot-stat-best-name:not(:disabled):hover {
 /* ===== Sector Rotation — modern toolbar, table and expandable stock list ===== */
 .rot-dash .rot-head {
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
+  gap: 8px 12px;
 }
 .rot-dash .rot-title {
   font-family: var(--font-ui);
-  font-size: 1.2rem;
+  font-size: clamp(1.15rem, 1.6vw, 1.4rem);
   font-weight: 650;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.04em;
+  line-height: 1.12;
+}
+/* Title + meta on one line so the head does not burn vertical space. */
+.rot-dash .rot-head > div:first-child {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+.rot-dash .rot-head .rot-sub {
+  margin: 0;
+  line-height: 1.25;
 }
 .rot-dash .rot-bar {
   gap: 10px;
@@ -20611,10 +20676,12 @@ button.rot-stat-best-name:not(:disabled):hover {
   border-radius: 14px;
   box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
   position: sticky;
-  top: 64px;
-  z-index: 11;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  backdrop-filter: saturate(1.4) blur(10px);
+  top: 56px;
+  z-index: 15;
+  /* Opaque — translucent let cards paint “inside” the sticky bar on scroll. */
+  background: var(--bg, var(--surface));
+  border: 1px solid var(--line);
+  backdrop-filter: none;
 }
 .rot-dash .rot-bar-row {
   display: flex;
@@ -21260,19 +21327,20 @@ button.rot-stat-best-name:not(:disabled):hover {
 /* ===== Rotation polish ===== */
 .rot-dash .rot-head {
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
 }
 .rot-head-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex: 0 0 auto;
 }
 .rot-head-actions .btn-ghost {
   border: 1px solid var(--line);
   background: var(--surface);
   border-radius: 9px;
-  padding: 8px 14px;
-  font: 600 0.82rem var(--font-ui);
+  padding: 6px 11px;
+  font: 600 0.78rem var(--font-ui);
   color: var(--ink);
 }
 .rot-head-actions .btn-ghost:hover {
@@ -21280,7 +21348,24 @@ button.rot-stat-best-name:not(:disabled):hover {
   background: var(--badge);
 }
 .rot-dash .rot-sub {
-  font-size: 0.82rem;
+  font-size: 0.78rem;
+  font-weight: 450;
+  letter-spacing: -0.01em;
+}
+.rot-dash .rot-seg button,
+.rot-dash .rot-watch,
+.rot-dash .rot-act,
+.rot-dash .rot-min-n,
+.rot-dash .rot-search input {
+  font-family: var(--font-ui);
+  letter-spacing: -0.015em;
+}
+.rot-dash .rot-pager {
+  font-family: var(--font-ui);
+  font-size: 0.78rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--muted);
 }
 /* Slim KPI strip */
 .rot-dash .rot-stats {
@@ -22332,7 +22417,6 @@ html[data-theme="dark"] ::selection {
 }
 /* Glass cards: anything using the shared surface + shadow */
 html[data-theme="dark"] .rot-card,
-html[data-theme="dark"] .rot-bar,
 html[data-theme="dark"] .rot-stat,
 html[data-theme="dark"] .rot-tcard,
 html[data-theme="dark"] .rot-top-bar,
@@ -23638,7 +23722,7 @@ html[data-theme="dark"] .vx-table th {
   color: #c9b48f;
 }
 html[data-theme="dark"] .rot-dash .rot-bar {
-  background: rgba(22, 20, 18, 0.7);
+  background: var(--bg, #0a0a0b);
 }
 /* Top tabs: no box, like the reference header */
 html[data-theme] .topbar .tabs-group {
@@ -23673,7 +23757,9 @@ html[data-theme] .rot-title,
 html[data-theme] h1,
 html[data-theme] h2,
 html[data-theme] h3 {
-  font-family: var(--font-sans), Inter, ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-ui);
+  font-feature-settings: "ss01" 1, "tnum" 1;
+  letter-spacing: -0.03em;
 }
 
 html[data-theme="dark"] ::placeholder,
@@ -23746,7 +23832,7 @@ html[data-theme="dark"] .vx-table th {
   color: #a1a1aa;
 }
 html[data-theme="dark"] .rot-dash .rot-bar {
-  background: rgba(20, 20, 22, 0.75);
+  background: var(--bg, #0a0a0b);
 }
 html[data-theme="dark"] .rot-seg,
 html[data-theme="dark"] .vx-tabs,
@@ -24004,9 +24090,9 @@ html[data-theme="light"] .vx-table th {
 .vx .vx-field--wide .fb-multi-btn {
   width: 100%;
 }
-/* Pickers sit above the cards/tables that follow them */
+/* Pickers sit above the cards/tables that follow them.
+   Do NOT force .rot-dash .rot-bar here — it must stay sticky + opaque. */
 .vx .vx-wind-bar,
-.rot-dash .rot-bar,
 .scan-filter-row {
   position: relative;
   z-index: 7;
@@ -26109,12 +26195,16 @@ button.mcs-score.mcs-score--on:hover { transform: none; }
 /* Sector Trend — mockup-style grid + side drawer (app theme tokens) */
 .rot-bar-row--main {
   align-items: center;
-  gap: 10px 12px;
+  gap: 8px 10px;
+}
+.rot-bar-row--period {
+  align-items: center;
+  gap: 8px 10px;
 }
 .rot-search--wide {
-  flex: 1 1 14rem;
-  min-width: 12rem;
-  max-width: 22rem;
+  flex: 1 1 12rem;
+  min-width: 10rem;
+  max-width: 18rem;
 }
 .rot-watch {
   display: inline-flex;
@@ -26137,24 +26227,110 @@ button.mcs-score.mcs-score--on:hover { transform: none; }
 .rot-watch span {
   color: var(--ct-f5a524);
 }
+.rot-watch-label {
+  font-style: normal;
+  font-weight: inherit;
+}
 .rot-shell {
   display: block;
   position: relative;
+  min-width: 0;
+}
+.rot-shell-main {
+  min-width: 0;
 }
 .rot-shell.is-drawer .rot-shell-main {
   margin-right: min(520px, 48vw);
 }
+/* Compact by default — 13″ “More Space” is often 1680px, so don’t gate on 1440. */
+.rot-dash {
+  padding: 4px 0 24px;
+}
 .rot-grid {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
 }
 .rot-dash .rot-card {
-  padding: 14px 14px 10px;
-  border-radius: 16px;
+  padding: 10px 10px 8px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-height: 220px;
+  gap: 6px;
+  min-height: 0;
+  min-width: 0;
+}
+.rot-dash .rot-card .rot-spark {
+  height: 100px;
+}
+.rot-dash .rot-bar {
+  position: sticky;
+  top: 56px;
+  z-index: 15;
+  padding: 8px 10px;
+  gap: 6px;
+  background: var(--bg, var(--surface));
+  border: 1px solid var(--line);
+  backdrop-filter: none;
+}
+.rot-dash .rot-card {
+  position: relative;
+  z-index: 0;
+}
+html[data-theme="dark"] .rot-dash .rot-bar,
+html[data-theme="dark"] .rot-bar {
+  background: var(--bg, #0a0a0b);
+}
+.rot-search--wide {
+  flex: 1 1 12rem;
+  max-width: 16rem;
+  min-width: 0;
+}
+.rot-seg button {
+  padding: 6px 8px;
+  font-size: 0.74rem;
+}
+.rot-shell.is-drawer .rot-shell-main {
+  margin-right: min(420px, 42vw);
+}
+
+@media (max-width: 1680px) {
+  .rot-search--wide {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+}
+@media (max-width: 1440px) {
+  .rot-dash .rot-grid,
+  .rot-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+    gap: 8px;
+  }
+  .rot-dash .rot-card .rot-spark {
+    height: 92px;
+  }
+  .rot-shell.is-drawer .rot-shell-main {
+    margin-right: 0;
+  }
+  .rot-drawer {
+    width: min(100vw, 480px);
+  }
+  .rot-watch {
+    padding: 6px 10px;
+  }
+  .rot-seg--period {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .rot-seg--period button {
+    padding: 5px 7px;
+    font-size: 0.72rem;
+  }
+}
+@media (max-width: 1200px) {
+  .rot-dash .rot-grid,
+  .rot-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  }
 }
 .rot-dash .rot-card.is-open {
   border-color: color-mix(in srgb, var(--accent, var(--cl-2563eb)) 50%, var(--line));
@@ -26166,22 +26342,29 @@ button.mcs-score.mcs-score--on:hover { transform: none; }
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
 }
 .rot-dash .rot-card-top strong {
-  font-size: 0.98rem;
-  font-weight: 650;
+  font-family: var(--font-ui);
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.25;
   -webkit-line-clamp: 2;
 }
 .rot-card-n {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   color: var(--muted);
 }
 .rot-card-pct {
+  font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
-  font-size: 1.15rem;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+  font-size: 1.05rem;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.035em;
   color: var(--ink);
 }
 .rot-card-pct.pos {
@@ -26192,7 +26375,9 @@ button.mcs-score.mcs-score--on:hover { transform: none; }
 }
 .rot-dash .rot-card .rot-spark-wrap {
   margin: 0;
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  min-width: 0;
+  width: 100%;
 }
 .rot-drawer-backdrop {
   position: fixed;
