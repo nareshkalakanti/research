@@ -16,14 +16,24 @@ export type RotationRange = (typeof ROTATION_RANGES)[number];
 
 export function rotationRangeDays(range: string): number {
   const key = (range || "6M").toUpperCase();
+  // 1D/1W: calendar pad so prior sessions exist across weekends/holidays;
+  // the % itself uses tradingSessionsForRange (1 / 5 sessions), not first→last.
   if (key === "1D") return 5;
-  if (key === "1W") return 8;
+  if (key === "1W") return 14;
   if (key === "1M") return 31;
   if (key === "3M") return 93;
   if (key === "1Y") return 370;
   if (key === "5Y") return 365 * 5;
   if (key === "YTD") return 370;
   return 186;
+}
+
+/** Trading sessions in the return for short chips; null = use full calendar window. */
+export function tradingSessionsForRange(range?: string): number | null {
+  const key = (range || "").toUpperCase();
+  if (key === "1D") return 1;
+  if (key === "1W") return 5;
+  return null;
 }
 
 export const ROTATION_MA_PERIODS = [20, 50, 200] as const;
@@ -78,17 +88,52 @@ export function seriesCoversStart(
 const WINDOW_START_GRACE_DAYS = 4;
 
 /**
+ * Return over the last `sessions` trading steps (1D → 1, 1W → 5).
+ * Points must already be ordered oldest→newest.
+ */
+export function sessionSpanReturnPct(
+  points: SeriesPoint[],
+  sessions: number,
+): number | null {
+  if (!Number.isFinite(sessions) || sessions < 1) return null;
+  if (points.length < sessions + 1) return null;
+  const a = points[points.length - 1 - sessions]?.value;
+  const b = points[points.length - 1]?.value;
+  if (a == null || b == null || !(a > 0) || !Number.isFinite(b)) return null;
+  return ((b - a) / a) * 100;
+}
+
+/** Prior session → last session (%). */
+export function lastSessionReturnPct(points: SeriesPoint[]): number | null {
+  return sessionSpanReturnPct(points, 1);
+}
+
+/**
  * Return over the whole window, or null when price history starts too late
  * (recent listing, partial cache) or has fewer than two closes in the window.
  * Pass the full series, not one already cut to the window.
+ * 1D / 1W use a fixed trading-session span (1 / 5), not calendar first→last.
  */
 export function windowReturnPct(
   points: SeriesPoint[],
   startDate: string,
+  range?: string,
 ): number | null {
   if (!startsInWindow(points[0]?.date, startDate)) return null;
   const win = windowRebaseSeries(points, startDate);
+  const sessions = tradingSessionsForRange(range);
+  if (sessions != null) return sessionSpanReturnPct(win, sessions);
   return win.length >= 2 ? seriesReturnPct(win) : null;
+}
+
+/** Sector / bench % for a range chip (1D/1W = session span; else full window). */
+export function rangeSeriesReturnPct(
+  windowed: SeriesPoint[],
+  range: string,
+): number | null {
+  const sessions = tradingSessionsForRange(range);
+  if (sessions != null) return sessionSpanReturnPct(windowed, sessions);
+  return windowed.length >= 2 ? seriesReturnPct(windowed) : null;
 }
 
 function startsInWindow(firstDate: string | undefined, startDate: string): boolean {
@@ -105,10 +150,13 @@ function startsInWindow(firstDate: string | undefined, startDate: string): boole
 export function barsCoverWindow(
   bars: Array<{ date: string; close: number }>,
   startDate: string,
+  range?: string,
 ): boolean {
   if (!startsInWindow(bars[0]?.date, startDate)) return false;
   const start = startDate.slice(0, 10);
-  return bars.filter((b) => b.date >= start && b.close > 0).length >= 2;
+  const sessions = tradingSessionsForRange(range);
+  const need = sessions != null ? sessions + 1 : 2;
+  return bars.filter((b) => b.date >= start && b.close > 0).length >= need;
 }
 
 /**

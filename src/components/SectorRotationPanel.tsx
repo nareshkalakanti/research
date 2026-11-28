@@ -51,7 +51,9 @@ type Card = {
   window_range?: string;
   /** StockScans large sector parent. */
   ss_sector?: string | null;
-  /** Real basket id to hydrate sparks (rollup cards use largest child). */
+  /** Per-ticker StockScans sector (parallel to tickers) for true sector rollups. */
+  ticker_sectors?: Array<string | null>;
+  /** Real basket id to hydrate sparks (rollup cards hydrate themselves). */
   hydrateId?: string;
   /** Industry basket ids under a sector rollup (for watchlist star). */
   childIds?: string[];
@@ -553,63 +555,130 @@ function MiniSpark({ pts }: { pts: Point[] }) {
   );
 }
 
-/** Roll industry baskets up to StockScans sector cards for the Sectors filter. */
-function rollupSectorCards(industries: Card[]): Card[] {
-  const by = new Map<string, Card[]>();
+/**
+ * Roll industry baskets up to StockScans sector cards.
+ * Each ticker joins only its true StockScans sector — not the whole industry
+ * under a majority vote (that pulled Solar EPC into Power Infrastructure).
+ */
+function rollupSectorCards(
+  industries: Card[],
+  extras?: Map<string, Card>,
+): Card[] {
+  type Acc = {
+    tickers: string[];
+    mcaps: Array<number | null>;
+    childIds: Set<string>;
+    searches: string[];
+    starred: boolean;
+  };
+  const by = new Map<string, Acc>(); // canonical sector label → members
+  const seen = new Map<string, Set<string>>(); // sector → tickers already added
+
+  const ensure = (label: string): Acc => {
+    let acc = by.get(label);
+    if (!acc) {
+      acc = {
+        tickers: [],
+        mcaps: [],
+        childIds: new Set(),
+        searches: [],
+        starred: false,
+      };
+      by.set(label, acc);
+      seen.set(label, new Set());
+    }
+    return acc;
+  };
+
   for (const c of industries) {
-    const key = (c.ss_sector || "").trim() || c.label;
-    const list = by.get(key) ?? [];
-    list.push(c);
-    by.set(key, list);
-  }
-  const out: Card[] = [];
-  for (const [label, list] of by) {
-    if (list.length === 1 && (list[0].ss_sector || "").trim() === "") {
-      out.push(list[0]);
+    const tickers = c.tickers || [];
+    const mcaps = c.mcaps || [];
+    const secs = c.ticker_sectors || [];
+    const hasPerTicker = secs.length === tickers.length && tickers.length > 0;
+
+    if (!hasPerTicker) {
+      // Legacy payload: fall back to majority ss_sector for the whole basket.
+      const key = (c.ss_sector || "").trim() || c.label;
+      const acc = ensure(key);
+      const have = seen.get(key)!;
+      for (let i = 0; i < tickers.length; i++) {
+        const t = (tickers[i] || "").toUpperCase();
+        if (!t || have.has(t)) continue;
+        have.add(t);
+        acc.tickers.push(t);
+        acc.mcaps.push(mcaps[i] ?? null);
+      }
+      acc.childIds.add(c.id);
+      if (c.search) acc.searches.push(c.search);
+      if (c.starred) acc.starred = true;
       continue;
     }
-    const n = list.reduce((s, c) => s + (c.n || 0), 0);
-    const up = list.reduce((s, c) => s + (c.up || 0), 0);
-    const down = list.reduce((s, c) => s + (c.down || 0), 0);
-    const withPct = list.filter((c) => c.sector_pct != null);
-    const sector_pct =
-      withPct.length === 0
-        ? null
-        : withPct.reduce((s, c) => s + (c.sector_pct as number) * (c.n || 1), 0) /
-          Math.max(
-            1,
-            withPct.reduce((s, c) => s + (c.n || 1), 0),
-          );
-    const bench_pct = list.find((c) => c.bench_pct != null)?.bench_pct ?? null;
-    const todayRows = list.filter((c) => c.today_pct != null);
-    const today_pct =
-      todayRows.length === 0
-        ? null
-        : todayRows.reduce((s, c) => s + (c.today_pct as number), 0) /
-          todayRows.length;
-    // Prefer the largest industry's chart; hydrate that real basket id.
-    const chartSrc = [...list].sort((a, b) => (b.n || 0) - (a.n || 0))[0];
+
+    const touched = new Set<string>();
+    for (let i = 0; i < tickers.length; i++) {
+      const t = (tickers[i] || "").toUpperCase();
+      if (!t) continue;
+      const key = (secs[i] || "").trim() || (c.ss_sector || "").trim() || c.label;
+      const acc = ensure(key);
+      const have = seen.get(key)!;
+      if (!have.has(t)) {
+        have.add(t);
+        acc.tickers.push(t);
+        acc.mcaps.push(mcaps[i] ?? null);
+      }
+      acc.childIds.add(c.id);
+      if (c.starred) acc.starred = true;
+      touched.add(key);
+    }
+    if (c.search) {
+      for (const key of touched) ensure(key).searches.push(c.search);
+    }
+  }
+
+  const out: Card[] = [];
+  for (const [label, acc] of by) {
+    if (acc.tickers.length === 0) continue;
+    // Lone unmapped industry label with no StockScans sector — keep as-is.
+    if (
+      acc.childIds.size === 1 &&
+      industries.some(
+        (c) =>
+          acc.childIds.has(c.id) &&
+          !(c.ss_sector || "").trim() &&
+          !(c.ticker_sectors || []).some((s) => (s || "").trim()),
+      )
+    ) {
+      const only = industries.find((c) => acc.childIds.has(c.id));
+      if (only) {
+        out.push(only);
+        continue;
+      }
+    }
+    const id = `rollup:${label}`;
+    const extra = extras?.get(id);
     out.push({
-      id: `rollup:${label}`,
+      id,
       label,
-      n,
-      up,
-      down,
-      starred: list.some((c) => c.starred),
-      sector_pct,
-      bench_pct,
-      today_pct,
-      search: list.map((c) => c.search || c.label).join(" "),
-      mcaps: list.flatMap((c) => c.mcaps || []),
-      tickers: list.flatMap((c) => c.tickers || []),
-      sector: chartSrc?.sector || [],
-      bench: chartSrc?.bench || [],
-      sector_full: chartSrc?.sector_full,
-      bench_full: chartSrc?.bench_full,
-      window_range: chartSrc?.window_range,
+      n: acc.tickers.length,
+      up: extra?.up ?? 0,
+      down: extra?.down ?? 0,
+      starred: acc.starred,
+      // Returns / charts come from rank table + hydrate of the rollup itself.
+      sector_pct: extra?.sector_pct ?? null,
+      bench_pct: extra?.bench_pct ?? null,
+      today_pct: extra?.today_pct ?? null,
+      search: acc.searches.join(" ") || acc.tickers.join(" ").toLowerCase(),
+      mcaps: acc.mcaps,
+      tickers: acc.tickers,
+      ticker_sectors: acc.tickers.map(() => label),
+      sector: extra?.sector || [],
+      bench: extra?.bench || [],
+      sector_full: extra?.sector_full,
+      bench_full: extra?.bench_full,
+      window_range: extra?.window_range,
       ss_sector: label,
-      hydrateId: chartSrc?.id,
-      childIds: list.map((c) => c.id),
+      hydrateId: id,
+      childIds: [...acc.childIds],
     });
   }
   return out;
@@ -637,6 +706,12 @@ export function SectorRotationPanel() {
   const [creating, setCreating] = useState(false);
   const [filter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
+  /** Hydrated series / day stats for `rollup:` cards (not stored in `cards`). */
+  const [rollupExtra, setRollupExtra] = useState<Map<string, Card>>(
+    () => new Map(),
+  );
+  const rollupExtraRef = useRef(rollupExtra);
+  rollupExtraRef.current = rollupExtra;
   /** Hide thin sectors / industries (same idea as Value / Micro Min companies). */
   const [minN, setMinN] = useState(2);
   const MIN_N_OPTS = [1, 2, 3, 5, 10] as const;
@@ -749,6 +824,7 @@ export function SectorRotationPanel() {
             bench_full: p.bench_full ?? c.bench_full,
             window_range: p.window_range,
             ss_sector: c.ss_sector ?? p.ss_sector,
+            ticker_sectors: c.ticker_sectors ?? p.ticker_sectors,
           };
         });
       });
@@ -827,6 +903,7 @@ export function SectorRotationPanel() {
   // Weight changes the basket index — drop ranks + series so we pull once again.
   useEffect(() => {
     setRankTable(null);
+    setRollupExtra(new Map());
     setCards((prev) =>
       prev.map((c) => ({
         ...c,
@@ -857,6 +934,23 @@ export function SectorRotationPanel() {
             },
       ),
     );
+    setRollupExtra((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const [id, c] of prev) {
+        if (c.window_range === range) continue;
+        changed = true;
+        next.set(id, {
+          ...c,
+          sector: [],
+          bench: [],
+          sector_full: undefined,
+          bench_full: undefined,
+          window_range: undefined,
+        });
+      }
+      return changed ? next : prev;
+    });
   }, [range]);
 
   // Apply the selected range’s returns from the one-shot rank table.
@@ -892,7 +986,7 @@ export function SectorRotationPanel() {
             ...m,
             spark: windowRebaseSeries(full, start),
             // Blank when history is shorter than the range, never last range's value.
-            window_pct: windowReturnPct(full, start),
+            window_pct: windowReturnPct(full, start, range),
             spark_full: m.spark_full ?? full,
           };
         }),
@@ -1324,62 +1418,93 @@ export function SectorRotationPanel() {
     const stock = stockFilter.trim().toLowerCase();
     const capOn = !!(minCapN || maxCapN);
     const idxOn = n500Only && !!n500Set;
-    let rows = [...cards]
-      .map((c) => {
-        if (!capOn && !idxOn) return c;
-        const mcaps = c.mcaps || [];
-        const tickers = c.tickers || [];
-        let n = 0;
-        const len = Math.max(mcaps.length, tickers.length, c.n || 0);
-        for (let i = 0; i < len; i++) {
-          if (capOn && !mcapInBand(mcaps[i] ?? null, minCapN, maxCapN)) continue;
-          if (idxOn && !n500Set!.has((tickers[i] || "").toUpperCase())) continue;
-          n += 1;
-        }
-        return n === c.n ? c : { ...c, n };
-      })
-      .filter((c) => {
+    const byReturn = (a: Card, b: Card) =>
+      (b.sector_pct ?? -Infinity) - (a.sector_pct ?? -Infinity);
+
+    const withCapN = (c: Card): Card => {
+      if (!capOn && !idxOn) return c;
+      const mcaps = c.mcaps || [];
+      const tickers = c.tickers || [];
+      let n = 0;
+      const len = Math.max(mcaps.length, tickers.length, c.n || 0);
+      for (let i = 0; i < len; i++) {
+        if (capOn && !mcapInBand(mcaps[i] ?? null, minCapN, maxCapN)) continue;
+        if (idxOn && !n500Set!.has((tickers[i] || "").toUpperCase())) continue;
+        n += 1;
+      }
+      return n === c.n ? c : { ...c, n };
+    };
+
+    const matchesFilters = (c: Card) => {
       if ((c.n ?? 0) < minN) return false;
       if (needle && !c.label.toLowerCase().includes(needle)) return false;
       if (pickedSec.length && !pickedSec.includes(c.label)) return false;
-      if (stock && !c.label.toLowerCase().includes(stock) && !(c.search || "").includes(stock)) {
+      if (
+        stock &&
+        !c.label.toLowerCase().includes(stock) &&
+        !(c.search || "").includes(stock)
+      ) {
         return false;
       }
       return true;
-    });
-    const byReturn = (a: Card, b: Card) =>
-      (b.sector_pct ?? -Infinity) - (a.sector_pct ?? -Infinity);
-    // Sectors with no members can't chart — keep them after real sectors.
-    rows = [...rows.filter((c) => c.n > 0), ...rows.filter((c) => !(c.n > 0))];
+    };
 
-    // Sectors view: roll industries up by StockScans parent sector.
+    const nonemptyFirst = (list: Card[]) => [
+      ...list.filter((c) => c.n > 0),
+      ...list.filter((c) => !(c.n > 0)),
+    ];
+
+    // Industry baskets with mcap/index-adjusted headcounts.
+    const industries = cards.map(withCapN);
+
+    let rows: Card[];
     if (typeFilter === "sector" || typeFilter === "all") {
-      const sectorCards = rollupSectorCards(rows);
-      if (typeFilter === "sector") rows = sectorCards;
-      else {
-        // All = sector rollups first, then industries (dedupe labels).
+      // Roll up from the full industry set first — applying minN on industries
+      // before rollup dropped minority tickers and skewed Sectors Top/Bottom.
+      let sectorCards = rollupSectorCards(industries, rollupExtra).map(withCapN);
+      if (rankedReady && rankTable) {
+        const key = range.toUpperCase();
+        const bench = rankTable.bench[key] ?? null;
+        sectorCards = sectorCards.map((c) => {
+          if (!c.id.startsWith("rollup:")) return c;
+          const pct = rankTable.byId[c.id]?.[key];
+          return {
+            ...c,
+            sector_pct: pct ?? c.sector_pct,
+            bench_pct: bench ?? c.bench_pct,
+          };
+        });
+      }
+      sectorCards = nonemptyFirst(sectorCards.filter(matchesFilters));
+      if (typeFilter === "sector") {
+        rows = sectorCards;
+      } else {
+        const indRows = nonemptyFirst(industries.filter(matchesFilters));
         const seen = new Set(sectorCards.map((c) => c.label.toLowerCase()));
         rows = [
           ...sectorCards,
-          ...rows.filter((c) => !seen.has(c.label.toLowerCase())),
+          ...indRows.filter((c) => !seen.has(c.label.toLowerCase())),
         ];
       }
+    } else {
+      // Industries: filter baskets as-is (same universe Top/Bottom ranks against).
+      rows = nonemptyFirst(industries.filter(matchesFilters));
     }
-    // typeFilter === "industry" keeps industry baskets as-is.
+
     // Watchlist after rollup so sector cards (starred if any child is) filter correctly.
     if (watchOnly) rows = rows.filter((c) => c.starred);
 
-    // Top/Bottom need returns. Prefer board-wide ranks for this range; until
-    // they land, keep showing provisional pcts (previous range / hydrate) so
-    // the grid is never empty for a minute.
-    if (
-      (boardFilter === "top" ||
-        boardFilter === "bottom" ||
-        vsNifty !== "all") &&
-      !rankedReady &&
-      !rows.some((c) => c.sector_pct != null)
-    ) {
-      return [];
+    // Top/Bottom / vs-Nifty need period returns.
+    // Sectors: wait for the rank table (rollup: ids) — hydrate pcts are industry-only.
+    // Industries: provisional hydrate returns are OK until the one-shot rank lands.
+    const needsRank =
+      boardFilter === "top" ||
+      boardFilter === "bottom" ||
+      vsNifty !== "all";
+    if (needsRank && !rankedReady) {
+      const provisionalOk =
+        typeFilter === "industry" && rows.some((c) => c.sector_pct != null);
+      if (!provisionalOk) return [];
     }
     if (vsNifty === "out") {
       rows = rows.filter(
@@ -1412,13 +1537,13 @@ export function SectorRotationPanel() {
       rows.sort((a, b) => b.n - a.n);
     }
     return rows;
-  }, [cards, filter, stockFilter, minN, minCapN, maxCapN, boardFilter, watchOnly, typeFilter, vsNifty, sortKey, rankedReady, pickedSec, n500Only, n500Set]);
+  }, [cards, filter, stockFilter, minN, minCapN, maxCapN, boardFilter, watchOnly, typeFilter, vsNifty, sortKey, rankedReady, rankTable, range, rollupExtra, pickedSec, n500Only, n500Set]);
 
-  /** Top/Bottom with no provisional returns yet — empty state, not "No sectors". */
+  /** Top/Bottom waiting on the one-shot rank pull (Sectors always; Industries if no hydrate pcts). */
   const rankingWait =
     (boardFilter === "top" || boardFilter === "bottom" || vsNifty !== "all") &&
     !rankedReady &&
-    !cards.some((c) => c.sector_pct != null);
+    !(typeFilter === "industry" && cards.some((c) => c.sector_pct != null));
 
   // Single key so adding a filter later does not change useEffect dep length (HMR).
   const pageResetKey = [
@@ -1448,10 +1573,10 @@ export function SectorRotationPanel() {
     ? sortedCards.length
     : Math.min(sortedCards.length, (page + 1) * pageSize);
   const pageCards = sortedCards.slice(0, shownCount);
-  // Hydrate real basket ids (rollup cards point at largest child via hydrateId).
+  // Hydrate visible cards (industry baskets and StockScans sector rollups).
   const pageIds = pageCards
     .map((c) => c.hydrateId || c.id)
-    .filter((id) => id && !id.startsWith("rollup:"))
+    .filter(Boolean)
     .join(",");
 
   useEffect(() => {
@@ -1462,6 +1587,7 @@ export function SectorRotationPanel() {
     }
     const ids = pageIds.split(",").filter(Boolean);
     const byId = new Map(cardsRef.current.map((c) => [c.id, c]));
+    for (const [id, c] of rollupExtraRef.current) byId.set(id, c);
     const missing = ids.filter((id) => byId.get(id)?.window_range !== range);
     if (!missing.length) {
       hydrateGen.current += 1;
@@ -1498,6 +1624,26 @@ export function SectorRotationPanel() {
         setAsOf(json.as_of ?? null);
         setBenchLabel(json.bench_label || "Nifty 500");
         const next = new Map((json.sectors ?? []).map((c) => [c.id, c]));
+        const rollupHits = [...next.values()].filter((c) =>
+          c.id.startsWith("rollup:"),
+        );
+        if (rollupHits.length) {
+          setRollupExtra((prev) => {
+            const map = new Map(prev);
+            for (const r of rollupHits) {
+              const cur = map.get(r.id);
+              map.set(r.id, {
+                ...(cur || r),
+                ...r,
+                sector_pct: r.sector_pct ?? cur?.sector_pct ?? null,
+                bench_pct: r.bench_pct ?? cur?.bench_pct ?? null,
+                today_pct: r.today_pct ?? cur?.today_pct ?? null,
+                starred: cur?.starred ?? r.starred,
+              });
+            }
+            return map;
+          });
+        }
         setCards((prev) =>
           prev.map((c) => {
             const r = next.get(c.id);
@@ -1511,6 +1657,7 @@ export function SectorRotationPanel() {
               today_pct: r.today_pct ?? c.today_pct,
               starred: c.starred,
               ss_sector: r.ss_sector ?? c.ss_sector,
+              ticker_sectors: r.ticker_sectors ?? c.ticker_sectors,
             };
           }),
         );
@@ -1584,22 +1731,11 @@ export function SectorRotationPanel() {
     setDrawerAll(false);
   }, []);
 
-  const openCardById = useCallback(
-    (c: Card) => {
-      setDrawerAll(false);
-      if (c.id.startsWith("rollup:")) {
-        const kids = cards.filter(
-          (x) =>
-            (x.ss_sector || "").trim() === c.label || x.label === c.label,
-        );
-        const best = [...kids].sort((a, b) => (b.n || 0) - (a.n || 0))[0];
-        if (best) setOpenId(best.id);
-        return;
-      }
-      setOpenId(c.id);
-    },
-    [cards],
-  );
+  const openCardById = useCallback((c: Card) => {
+    setDrawerAll(false);
+    // Sector rollups open as themselves (true StockScans-sector membership).
+    setOpenId(c.id);
+  }, []);
 
   useEffect(() => {
     if (openCard?.label) setEditLabel(openCard.label);
@@ -2129,7 +2265,14 @@ export function SectorRotationPanel() {
         </div>
 
         {openId ? (
-          <aside className="rot-drawer" aria-label="Sector detail">
+          <>
+            <button
+              type="button"
+              className="rot-drawer-backdrop"
+              aria-label="Close sector detail"
+              onClick={closeSector}
+            />
+            <aside className="rot-drawer" aria-label="Sector detail">
             <div className="rot-drawer-head">
               <div className="rot-drawer-title">
                 <h3>{openCard?.label || editLabel || "…"}</h3>
@@ -2167,8 +2310,30 @@ export function SectorRotationPanel() {
                     <li key={m.ticker} className="rot-drawer-row">
                       <span className="rot-drawer-rank">{mi + 1}</span>
                       <div className="rot-drawer-name">
-                        <strong title={m.name}>{m.name}</strong>
-                        <span className="rot-muted">{m.ticker}</span>
+                        <a
+                          className="rot-drawer-stock"
+                          href={tradingviewUrl(m.ticker, m.market)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={m.name}
+                        >
+                          {m.name}
+                        </a>
+                        <span className="rot-drawer-meta">
+                          <span className="rot-muted">{m.ticker}</span>
+                          {m.market && m.market !== "NSE" ? (
+                            <span className="rot-muted">{m.market}</span>
+                          ) : null}
+                          <a
+                            className="np-chip"
+                            href={napkinUrl(m.ticker)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title="Open in Napkin"
+                          >
+                            NP
+                          </a>
+                        </span>
                       </div>
                       <MiniSpark pts={m.spark} />
                       <span
@@ -2206,6 +2371,7 @@ export function SectorRotationPanel() {
               </button>
             ) : null}
           </aside>
+          </>
         ) : null}
       </div>
     </section>

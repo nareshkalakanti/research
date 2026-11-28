@@ -7,9 +7,16 @@ import { BRIDGE_TINY_MAX_CR } from "./gov-score";
 import { loadMetricsMap } from "./metrics";
 import { idxOnOrBefore } from "./price-action-rules";
 import { cachedRotationCloses } from "./rotation-bars";
-import { rotationFetchYears } from "./sector-rotation-series";
-import { openSqliteNamed } from "./sqlite-utils";
-import { loadStockMaster, masterLabels } from "./stock-master";
+import {
+  barsCoverWindow,
+  rebaseCloses,
+  rotationFetchYears,
+  rotationRangeDays,
+  rotationWindowStart,
+  windowReturnPct,
+} from "./sector-rotation-series";
+import { loadScreenerIndustryMap } from "./screener-industries";
+import { loadStockMaster } from "./stock-master";
 import { runConcurrent } from "./scrape-pool";
 import {
   loadTickertapeRatiosMap,
@@ -49,9 +56,9 @@ export type MicrocapSectorReturn = {
   sector: string;
   n: number;
   avg_ret_1y: number;
-  /** Industry with the best Value total in this sector (named industries only). */
+  /** Named leaf with the worst equal-weight 12M return in this sector. */
   low: MicrocapIndustryReturn | null;
-  /** Industry with the worst Value total in this sector (named industries only). */
+  /** Named leaf with the best equal-weight 12M return in this sector. */
   high: MicrocapIndustryReturn | null;
   industries: MicrocapIndustryReturn[];
 } & MicrocapValueRanks;
@@ -67,12 +74,10 @@ export type MicrocapSectorBoard = {
   sectors: MicrocapSectorReturn[];
   stocks_with_return: number;
   stocks_in_universe: number;
-  /** Names that used classifications sector › sub_sector because StockScans was flat. */
-  classifications_fallback_n: number;
+  /** Names placed via Screener.in sector › leaf (same map as Screener.in tab). */
+  screener_n: number;
   as_of: string | null;
 };
-
-type ClsRow = { sector: string; industry: string | null; sub_sector: string | null };
 
 function isSmeMarket(market: string | null | undefined): boolean {
   const m = (market || "").toUpperCase();
@@ -84,84 +89,80 @@ function mean(xs: number[]): number | null {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-/** Close ≈1 year before the tip; null when history is too short. */
-function ret1yPct(closes: Array<{ date: string; close: number }>): number | null {
-  if (closes.length < 40) return null;
-  const last = closes[closes.length - 1]!;
-  if (!(last.close > 0)) return null;
-  const tip = new Date(`${last.date}T12:00:00Z`);
-  tip.setUTCDate(tip.getUTCDate() - 365);
-  const want = tip.toISOString().slice(0, 10);
-  const i = idxOnOrBefore(closes, want);
-  if (i < 0) return null;
-  const start = closes[i]!;
-  if (!(start.close > 0)) return null;
-  // Need a real ~1Y span (allow holidays / thin history).
-  const days = (Date.parse(`${last.date}T12:00:00Z`) - Date.parse(`${start.date}T12:00:00Z`)) / 86_400_000;
-  if (days < 300) return null;
-  return (last.close / start.close - 1) * 100;
+/**
+ * Last trade may lag the board tip by a few sessions (SME / halt).
+ * Beyond this, the name is dropped from the 12M average.
+ */
+const RET_1Y_STALE_TIP_DAYS = 10;
+
+/**
+ * Per-name 12M % bounds when building equal-weight sector / leaf averages
+ * (High / Low / board order). Stock rows still show the raw return. Stops a
+ * handful of illiquid rockets (±1000%–9000%) from dominating means without
+ * shrinking board n / folding leaves away.
+ */
+export const AVG_RET_1Y_CLIP_LO = -90;
+export const AVG_RET_1Y_CLIP_HI = 300;
+
+/** Clip a raw 12M % for pocket / sector equal-weight means. */
+export function clipRet1yForAvg(ret: number): number {
+  if (!Number.isFinite(ret)) return ret;
+  return Math.max(AVG_RET_1Y_CLIP_LO, Math.min(AVG_RET_1Y_CLIP_HI, ret));
 }
 
-/** StockScans gives no real breakout when industry is blank or equals the sector. */
-function stockscansIsFlat(sector: string | null, industry: string | null): boolean {
-  if (!sector?.trim()) return true;
-  const ind = industry?.trim() || "";
-  if (!ind) return true;
-  return ind.toLowerCase() === sector.trim().toLowerCase();
-}
-
-/** Old classifications.db: sector › industry › sub_sector (5.5k rows). */
-function loadClassificationsMap(): Map<string, ClsRow> {
-  const out = new Map<string, ClsRow>();
-  try {
-    const db = openSqliteNamed("classifications.db", { readonly: true, wal: true });
-    try {
-      const rows = db
-        .prepare(`SELECT UPPER(ticker) AS t, sector, industry, sub_sector FROM classifications`)
-        .all() as Array<{ t: string; sector: string | null; industry: string | null; sub_sector: string | null }>;
-      for (const r of rows) {
-        const sector = r.sector?.trim() || "";
-        if (!r.t || !sector) continue;
-        out.set(r.t, {
-          sector,
-          industry: r.industry?.trim() || null,
-          sub_sector: r.sub_sector?.trim() || null,
-        });
-      }
-    } finally {
-      db.close();
-    }
-  } catch {
-    // classifications.db optional on some machines
+/** Newest bar date among close series (YYYY-MM-DD). */
+function tipFromCloseSets(
+  sets: Array<Array<{ date: string; close: number }>>,
+): string | null {
+  let tip = "";
+  for (const closes of sets) {
+    const last = closes[closes.length - 1]?.date?.slice(0, 10) || "";
+    if (last > tip) tip = last;
   }
-  return out;
+  return tip || null;
 }
 
 /**
- * StockScans when structured; else classifications.db sector › sub_sector.
- * Screener.in labels stay in screener_industries.db until explicitly wired in.
+ * Equal-weight 12M / 1Y % — same window as Trend (`rotationWindowStart(..., "1Y")`,
+ * currently 370 calendar days), not a per-stock 365-day anniversary.
+ *
+ * `tipDate` is the board's common as-of. Each name uses its last close on or
+ * before that tip; stale tips are rejected.
+ */
+export function microcapRet1yPct(
+  closes: Array<{ date: string; close: number }>,
+  tipDate: string,
+): number | null {
+  const tip = (tipDate || "").slice(0, 10);
+  if (!tip || closes.length < 2) return null;
+  const tipIdx = idxOnOrBefore(closes, tip);
+  if (tipIdx < 0) return null;
+  const end = closes[tipIdx]!;
+  if (!(end.close > 0)) return null;
+  const tipGap =
+    (Date.parse(`${tip}T12:00:00Z`) - Date.parse(`${end.date}T12:00:00Z`)) /
+    86_400_000;
+  if (tipGap > RET_1Y_STALE_TIP_DAYS) return null;
+  const start = rotationWindowStart(tip, "1Y");
+  const sliced = closes.slice(0, tipIdx + 1);
+  if (!barsCoverWindow(sliced, start, "1Y")) return null;
+  return windowReturnPct(rebaseCloses(sliced, "1970-01-01"), start, "1Y");
+}
+
+/**
+ * Micro Monopolies taxonomy = Screener.in market tree only.
+ * Pocket (industry) = leaf `sub_sector`, falling back to the industry crumb.
  */
 function resolveSectorIndustry(
   ticker: string,
-  ss: { sector: string | null; industry: string | null } | undefined,
-  cls: Map<string, ClsRow>,
-): { sector: string; industry: string; usedCls: boolean } | null {
-  const t = ticker.toUpperCase();
-  const ssSector = ss?.sector?.trim() || null;
-  const ssInd = ss?.industry?.trim() || null;
-
-  if (ssSector && !stockscansIsFlat(ssSector, ssInd)) {
-    return { sector: ssSector, industry: ssInd || "", usedCls: false };
-  }
-
-  const c = cls.get(t);
-  if (c?.sector) {
-    const leaf = c.sub_sector || c.industry || "";
-    return { sector: c.sector, industry: leaf, usedCls: true };
-  }
-
-  if (ssSector) return { sector: ssSector, industry: ssInd || "", usedCls: false };
-  return null;
+  screener: ReturnType<typeof loadScreenerIndustryMap>,
+): { sector: string; industry: string } | null {
+  const row = screener.get(ticker.toUpperCase());
+  if (!row) return null;
+  const sector = (row.sector || "").trim();
+  if (!sector) return null;
+  const leaf = (row.sub_sector || "").trim() || (row.industry || "").trim();
+  return { sector, industry: leaf };
 }
 
 type ValueAgg = {
@@ -243,7 +244,9 @@ function inMcapBand(mcap: number, minMcap: number, maxMcap: number): boolean {
 /**
  * For names in the mcap band: equal-weight avg 12-month return by sector › industry,
  * plus Value-style Sales / ROCE / P/B ranks (same legs as the ranking tool).
- * StockScans first; classifications sector › sub_sector when StockScans is flat.
+ * Taxonomy: Screener.in sector › leaf (sub_sector).
+ * Pocket/sector means use {@link clipRet1yForAvg} so extreme single-name rockets
+ * do not dominate High / Low / board order (stock lists keep raw returns; n unchanged).
  */
 export function buildMicrocapSectorReturns(opts?: {
   maxMcapCr?: number;
@@ -258,10 +261,36 @@ export function buildMicrocapSectorReturns(opts?: {
   const board = opts?.board ?? "all";
   const minInd = Math.max(1, opts?.minIndustryN ?? 2);
   const years = rotationFetchYears();
-  const labels = masterLabels();
-  const cls = loadClassificationsMap();
+  const screener = loadScreenerIndustryMap();
   const metrics = loadMetricsMap();
 
+  type Cand = {
+    ticker: string;
+    sector: string;
+    industry: string;
+    mcap_cr: number;
+    closes: Array<{ date: string; close: number }>;
+  };
+  const cands: Cand[] = [];
+  for (const [ticker, row] of metrics) {
+    const mcap = row.market_cap_cr;
+    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
+    const sme = isSmeMarket(row.market);
+    if (board === "main" && sme) continue;
+    if (board === "sme" && !sme) continue;
+
+    const resolved = resolveSectorIndustry(ticker, screener);
+    if (!resolved) continue;
+    cands.push({
+      ticker: ticker.toUpperCase(),
+      sector: resolved.sector,
+      industry: resolved.industry,
+      mcap_cr: mcap,
+      closes: cachedRotationCloses(ticker, row.market, years),
+    });
+  }
+
+  const tip = tipFromCloseSets(cands.map((c) => c.closes));
   type Hit = {
     ticker: string;
     sector: string;
@@ -270,37 +299,21 @@ export function buildMicrocapSectorReturns(opts?: {
     ret_1y: number;
   };
   const hits: Hit[] = [];
-  let withRet = 0;
-  let universe = 0;
-  let clsFallback = 0;
-  let asOf: string | null = null;
-
-  for (const [ticker, row] of metrics) {
-    const mcap = row.market_cap_cr;
-    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
-    const sme = isSmeMarket(row.market);
-    if (board === "main" && sme) continue;
-    if (board === "sme" && !sme) continue;
-
-    const resolved = resolveSectorIndustry(ticker, labels.get(ticker.toUpperCase()), cls);
-    if (!resolved) continue;
-    const { sector, industry, usedCls } = resolved;
-    universe++;
-    if (usedCls) clsFallback++;
-    if (!asOf || row.fetched_at > asOf) asOf = row.fetched_at;
-
-    const closes = cachedRotationCloses(ticker, row.market, years);
-    const ret = ret1yPct(closes);
+  for (const c of cands) {
+    if (!tip) continue;
+    const ret = microcapRet1yPct(c.closes, tip);
     if (ret == null || !Number.isFinite(ret)) continue;
-    withRet++;
     hits.push({
-      ticker: ticker.toUpperCase(),
-      sector,
-      industry,
-      mcap_cr: mcap,
+      ticker: c.ticker,
+      sector: c.sector,
+      industry: c.industry,
+      mcap_cr: c.mcap_cr,
       ret_1y: ret,
     });
   }
+  const withRet = hits.length;
+  const universe = cands.length;
+  const asOf = tip;
 
   const legs = valueLegsForTickers(
     hits.map((h) => h.ticker),
@@ -313,7 +326,7 @@ export function buildMicrocapSectorReturns(opts?: {
 
   for (const h of hits) {
     const push = (a: ValueAgg) => {
-      a.rets.push(h.ret_1y);
+      a.rets.push(clipRet1yForAvg(h.ret_1y));
       const leg = legs.get(h.ticker);
       // Pocket/sector Value avg needs a real P/B (skip negative-equity names here).
       if (!leg || leg.sales3y == null || leg.roce3y == null || leg.pb == null || !(leg.pb > 0)) return;
@@ -450,14 +463,15 @@ export function buildMicrocapSectorReturns(opts?: {
         b.avg_ret_1y - a.avg_ret_1y ||
         a.industry.localeCompare(b.industry),
     );
-    // High / Low only when ≥2 named pockets — otherwise they would be the same row.
+    // High = best named leaf whenever one exists. Low only when ≥2 named
+    // (else High/Low would be the same row). Residual "Other" never poles.
     const named = s.industries.filter((x) => x.industry !== "Other");
     const byRet = [...named].sort(
       (a, b) => b.avg_ret_1y - a.avg_ret_1y || a.industry.localeCompare(b.industry),
     );
-    if (byRet.length >= 2) {
+    if (byRet.length >= 1) {
       s.high = byRet[0]!;
-      s.low = byRet[byRet.length - 1]!;
+      s.low = byRet.length >= 2 ? byRet[byRet.length - 1]! : null;
     } else {
       s.high = null;
       s.low = null;
@@ -476,11 +490,11 @@ export function buildMicrocapSectorReturns(opts?: {
     max_mcap_cr: maxMcap,
     board,
     min_industry_n: minInd,
-    lookback_days: 365,
+    lookback_days: rotationRangeDays("1Y"),
     sectors,
     stocks_with_return: withRet,
     stocks_in_universe: universe,
-    classifications_fallback_n: clsFallback,
+    screener_n: universe,
     as_of: asOf,
   };
 }
@@ -561,11 +575,38 @@ export function listMicrocapStocks(opts: {
   const wantSector = opts.sector.trim();
   const wantInd = opts.industry == null || opts.industry === "" ? null : opts.industry.trim();
   const years = rotationFetchYears();
-  const labels = masterLabels();
-  const cls = loadClassificationsMap();
+  const screener = loadScreenerIndustryMap();
   const metrics = loadMetricsMap();
   const master = loadStockMaster();
   const tape = loadTickertapeRatiosMap();
+
+  type Cand = {
+    ticker: string;
+    market: string | null;
+    mcap_cr: number;
+    sector: string;
+    industry: string;
+    closes: Array<{ date: string; close: number }>;
+  };
+  const cands: Cand[] = [];
+  for (const [ticker, row] of metrics) {
+    const mcap = row.market_cap_cr;
+    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
+    const sme = isSmeMarket(row.market);
+    if (board === "main" && sme) continue;
+    if (board === "sme" && !sme) continue;
+    const resolved = resolveSectorIndustry(ticker, screener);
+    if (!resolved) continue;
+    cands.push({
+      ticker: ticker.toUpperCase(),
+      market: row.market,
+      mcap_cr: mcap,
+      sector: resolved.sector,
+      industry: resolved.industry,
+      closes: cachedRotationCloses(ticker, row.market, years),
+    });
+  }
+  const tip = tipFromCloseSets(cands.map((c) => c.closes));
 
   type Hit = {
     ticker: string;
@@ -578,31 +619,23 @@ export function listMicrocapStocks(opts: {
   const hits: Hit[] = [];
   const bySectorInd = new Map<string, Map<string, number>>();
 
-  for (const [ticker, row] of metrics) {
-    const mcap = row.market_cap_cr;
-    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
-    const sme = isSmeMarket(row.market);
-    if (board === "main" && sme) continue;
-    if (board === "sme" && !sme) continue;
-    const resolved = resolveSectorIndustry(ticker, labels.get(ticker.toUpperCase()), cls);
-    if (!resolved) continue;
-
-    const secMap = bySectorInd.get(resolved.sector) ?? new Map<string, number>();
-    const closes = cachedRotationCloses(ticker, row.market, years);
-    const ret = ret1yPct(closes);
+  for (const c of cands) {
+    if (!tip) continue;
+    const ret = microcapRet1yPct(c.closes, tip);
     if (ret == null || !Number.isFinite(ret)) continue;
 
-    secMap.set(resolved.industry, (secMap.get(resolved.industry) ?? 0) + 1);
-    bySectorInd.set(resolved.sector, secMap);
+    const secMap = bySectorInd.get(c.sector) ?? new Map<string, number>();
+    secMap.set(c.industry, (secMap.get(c.industry) ?? 0) + 1);
+    bySectorInd.set(c.sector, secMap);
 
-    if (resolved.sector !== wantSector) continue;
+    if (c.sector !== wantSector) continue;
     hits.push({
-      ticker: ticker.toUpperCase(),
-      market: row.market,
-      mcap_cr: mcap,
+      ticker: c.ticker,
+      market: c.market,
+      mcap_cr: c.mcap_cr,
       ret_1y: ret,
-      sector: resolved.sector,
-      industry: resolved.industry,
+      sector: c.sector,
+      industry: c.industry,
     });
   }
 
@@ -626,7 +659,10 @@ export function listMicrocapStocks(opts: {
       ? hits
       : wantInd === "Other"
         ? hits.filter((h) => otherIndustries.has(h.industry))
-        : hits.filter((h) => h.industry === wantInd);
+        : // Folded thin / cross-tag leaves are only reachable via Other.
+          otherIndustries.has(wantInd)
+          ? []
+          : hits.filter((h) => h.industry === wantInd);
 
   const tickers = filtered.map((h) => h.ticker);
   const linkCounts = boardLinkedCountsForTickers(tickers);
@@ -790,11 +826,38 @@ export function listMicrocapRanking(opts?: {
     (opts?.industries ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean),
   );
   const years = rotationFetchYears();
-  const labels = masterLabels();
-  const cls = loadClassificationsMap();
+  const screener = loadScreenerIndustryMap();
   const metrics = loadMetricsMap();
   const master = loadStockMaster();
   const tape = loadTickertapeRatiosMap();
+
+  type Cand = {
+    ticker: string;
+    market: string | null;
+    mcap_cr: number;
+    sector: string;
+    industry: string;
+    closes: Array<{ date: string; close: number }>;
+  };
+  const cands: Cand[] = [];
+  for (const [ticker, row] of metrics) {
+    const mcap = row.market_cap_cr;
+    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
+    const sme = isSmeMarket(row.market);
+    if (board === "main" && sme) continue;
+    if (board === "sme" && !sme) continue;
+    const resolved = resolveSectorIndustry(ticker, screener);
+    if (!resolved) continue;
+    cands.push({
+      ticker: ticker.toUpperCase(),
+      market: row.market,
+      mcap_cr: mcap,
+      sector: resolved.sector,
+      industry: resolved.industry || "—",
+      closes: cachedRotationCloses(ticker, row.market, years),
+    });
+  }
+  const tip = tipFromCloseSets(cands.map((c) => c.closes));
 
   type Hit = {
     ticker: string;
@@ -805,24 +868,17 @@ export function listMicrocapRanking(opts?: {
     industry: string;
   };
   const hits: Hit[] = [];
-  for (const [ticker, row] of metrics) {
-    const mcap = row.market_cap_cr;
-    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
-    const sme = isSmeMarket(row.market);
-    if (board === "main" && sme) continue;
-    if (board === "sme" && !sme) continue;
-    const resolved = resolveSectorIndustry(ticker, labels.get(ticker.toUpperCase()), cls);
-    if (!resolved) continue;
-    const closes = cachedRotationCloses(ticker, row.market, years);
-    const ret = ret1yPct(closes);
+  for (const c of cands) {
+    if (!tip) continue;
+    const ret = microcapRet1yPct(c.closes, tip);
     if (ret == null || !Number.isFinite(ret)) continue;
     hits.push({
-      ticker: ticker.toUpperCase(),
-      market: row.market,
-      mcap_cr: mcap,
+      ticker: c.ticker,
+      market: c.market,
+      mcap_cr: c.mcap_cr,
       ret_1y: ret,
-      sector: resolved.sector,
-      industry: resolved.industry || "—",
+      sector: c.sector,
+      industry: c.industry,
     });
   }
 
@@ -1011,34 +1067,48 @@ export function listMicrocapMissingDivYields(opts?: {
   const minMcap = Math.min(Math.max(0, opts?.minMcapCr ?? 0), maxMcap);
   const board = opts?.board ?? "all";
   const years = rotationFetchYears();
-  const labels = masterLabels();
-  const cls = loadClassificationsMap();
+  const screener = loadScreenerIndustryMap();
   const metrics = loadMetricsMap();
   const master = loadStockMaster();
   const tape = loadTickertapeRatiosMap();
 
-  const missing: MicrocapMissingDivRow[] = [];
-  let universe_with_ret = 0;
-
+  type Cand = {
+    ticker: string;
+    name: string;
+    closes: Array<{ date: string; close: number }>;
+  };
+  const cands: Cand[] = [];
   for (const [ticker, row] of metrics) {
     const mcap = row.market_cap_cr;
     if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
     const sme = isSmeMarket(row.market);
     if (board === "main" && sme) continue;
     if (board === "sme" && !sme) continue;
-    const resolved = resolveSectorIndustry(ticker, labels.get(ticker.toUpperCase()), cls);
+    const resolved = resolveSectorIndustry(ticker, screener);
     if (!resolved) continue;
-    const closes = cachedRotationCloses(ticker, row.market, years);
-    const ret = ret1yPct(closes);
+    const t = ticker.toUpperCase();
+    cands.push({
+      ticker: t,
+      name: master.get(t)?.name?.trim() || t,
+      closes: cachedRotationCloses(ticker, row.market, years),
+    });
+  }
+  const tip = tipFromCloseSets(cands.map((c) => c.closes));
+
+  const missing: MicrocapMissingDivRow[] = [];
+  let universe_with_ret = 0;
+
+  for (const c of cands) {
+    if (!tip) continue;
+    const ret = microcapRet1yPct(c.closes, tip);
     if (ret == null || !Number.isFinite(ret)) continue;
     universe_with_ret += 1;
-    const t = ticker.toUpperCase();
-    const tapeRow = tape.get(t);
+    const tapeRow = tape.get(c.ticker);
     const y = divYieldPct(tapeRow?.div_yield ?? null);
     if (y != null) continue;
     // Already asked Tickertape for yield (blank is a real answer) — don't keep re-filling.
     if (tickertapeDivChecked(tapeRow)) continue;
-    missing.push({ ticker: t, name: master.get(t)?.name?.trim() || t });
+    missing.push({ ticker: c.ticker, name: c.name });
   }
 
   missing.sort((a, b) => a.ticker.localeCompare(b.ticker));

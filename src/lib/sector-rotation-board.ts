@@ -9,6 +9,7 @@ import { loadMetricsMap, refreshPagePrices, upsertMetrics } from "./metrics";
 import { tradingviewUrl } from "./links";
 import { runConcurrent } from "./scrape-pool";
 import {
+  getRotationSector,
   listRotationSectors,
   type RotationSector,
   type SectorMember,
@@ -19,12 +20,12 @@ import {
   capWeightIndex,
   downsampleSeries,
   equalWeightIndex,
+  rangeSeriesReturnPct,
   rebaseCloses,
   rotationFetchYears,
   rotationMaxLookbackStart,
   ROTATION_RANGES,
   rotationWindowStart,
-  seriesReturnPct,
   stitchWarmup,
   windowRebaseSeries,
   windowReturnPct,
@@ -510,7 +511,87 @@ export type RotationSectorCard = {
   window_range?: string;
   /** StockScans large sector (parent of this industry basket). */
   ss_sector?: string | null;
+  /** Per-ticker StockScans sector (parallel to `tickers`) for true sector rollups. */
+  ticker_sectors?: Array<string | null>;
 };
+
+/** Prefix for virtual StockScans-sector baskets (not stored in sector_rotation.db). */
+export const ROLLUP_ID_PREFIX = "rollup:";
+
+export function isRollupSectorId(id: string): boolean {
+  return id.startsWith(ROLLUP_ID_PREFIX);
+}
+
+export function rollupSectorLabel(id: string): string {
+  return isRollupSectorId(id) ? id.slice(ROLLUP_ID_PREFIX.length).trim() : "";
+}
+
+/**
+ * Members whose StockScans sector matches `sectorLabel` (case-insensitive).
+ * Dedupes across industry baskets — one ticker appears once.
+ */
+export function membersForStockscansSector(sectorLabel: string): SectorMember[] {
+  const want = sectorLabel.trim().toLowerCase();
+  if (!want) return [];
+  const labels = masterLabels();
+  const seen = new Set<string>();
+  const out: SectorMember[] = [];
+  for (const s of listRotationSectors()) {
+    for (const m of s.members) {
+      const t = m.ticker.toUpperCase();
+      if (seen.has(t)) continue;
+      const sec = labels.get(t)?.sector?.trim();
+      if (!sec || sec.toLowerCase() !== want) continue;
+      seen.add(t);
+      out.push({
+        ticker: t,
+        name: m.name,
+        market: m.market,
+      });
+    }
+  }
+  return out;
+}
+
+/** Industry basket id, or `rollup:Sector Name` built from true StockScans sectors. */
+export function resolveRotationSector(id: string): RotationSector | null {
+  const want = (id || "").trim();
+  if (!want) return null;
+  if (isRollupSectorId(want)) {
+    const label = rollupSectorLabel(want);
+    if (!label) return null;
+    const members = membersForStockscansSector(label);
+    if (!members.length) return null;
+    return {
+      id: `${ROLLUP_ID_PREFIX}${label}`,
+      label,
+      starred: false,
+      created_at: "",
+      members,
+    };
+  }
+  return getRotationSector(want);
+}
+
+/** Distinct StockScans sector labels present on rotation members. */
+function stockscansSectorLabels(): string[] {
+  const labels = masterLabels();
+  const seen = new Map<string, string>(); // lower → canonical
+  for (const s of listRotationSectors()) {
+    for (const m of s.members) {
+      const sec = labels.get(m.ticker.toUpperCase())?.sector?.trim();
+      if (!sec) continue;
+      const key = sec.toLowerCase();
+      if (!seen.has(key)) seen.set(key, sec);
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+function tickerSectorsFor(tickers: string[]): Array<string | null> {
+  const labels = masterLabels();
+  return tickers.map((t) => labels.get(t.toUpperCase())?.sector?.trim() || null);
+}
 
 /** Majority StockScans sector among basket members (fallback: industry→sector map). */
 function stockscansSectorForMembers(tickers: string[], industryLabel: string): string | null {
@@ -650,8 +731,9 @@ function sectorWindow(
   lookback: string,
   weight: RotationWeight,
   metrics: ReturnType<typeof loadMetricsMap>,
+  range?: string,
 ): { windowed: SeriesPoint[]; long: SeriesPoint[] } {
-  const use = coreMembers(packed).filter((p) => barsCoverWindow(p.bars, start));
+  const use = coreMembers(packed).filter((p) => barsCoverWindow(p.bars, start, range));
   if (!use.length) return { windowed: [], long: [] };
   const windowed = sectorIndex(use, start, weight, metrics);
   return {
@@ -711,6 +793,7 @@ function liteCard(
       .toLowerCase(),
     mcaps: memberMcaps(members, metrics),
     tickers,
+    ticker_sectors: tickerSectorsFor(tickers),
     sector: [],
     bench: [],
     ss_sector: stockscansSectorForMembers(tickers, s.label),
@@ -730,7 +813,14 @@ async function cardWithSeries(
 ): Promise<RotationSectorCard> {
   const members = s.members;
   const packed = await memberBars(members, years);
-  const { windowed, long: seriesLong } = sectorWindow(packed, start, lookback, weight, metrics);
+  const { windowed, long: seriesLong } = sectorWindow(
+    packed,
+    start,
+    lookback,
+    weight,
+    metrics,
+    windowRange,
+  );
   const benchWin = windowRebaseSeries(benchLong, start);
   const day = dayStats(members, metrics, packed);
   const tickers = members.map((m) => m.ticker.toUpperCase());
@@ -741,20 +831,23 @@ async function cardWithSeries(
     up: day.up,
     down: day.down,
     starred: s.starred,
-    sector_pct: seriesReturnPct(windowed),
-    bench_pct: seriesReturnPct(benchWin),
+    sector_pct: rangeSeriesReturnPct(windowed, windowRange),
+    bench_pct: rangeSeriesReturnPct(benchWin, windowRange),
     today_pct: day.today_pct,
     search: [s.label, ...members.map((m) => `${m.ticker} ${m.name}`)]
       .join(" ")
       .toLowerCase(),
     mcaps: memberMcaps(members, metrics),
     tickers,
+    ticker_sectors: tickerSectorsFor(tickers),
     sector: spark ? downsampleSeries(windowed) : seriesLong,
     bench: spark ? downsampleSeries(benchWin) : benchWin,
     sector_full: seriesLong,
     bench_full: benchLong,
     window_range: windowRange,
-    ss_sector: stockscansSectorForMembers(tickers, s.label),
+    ss_sector: isRollupSectorId(s.id)
+      ? s.label
+      : stockscansSectorForMembers(tickers, s.label),
   };
 }
 
@@ -778,10 +871,12 @@ export async function hydrateRotationCards(
   bench_label: string;
   sectors: RotationSectorCard[];
 }> {
-  const want = new Set(
-    ids.map((id) => id.trim()).filter(Boolean),
-  );
-  const sectors = listRotationSectors().filter((s) => want.has(s.id));
+  const want = [
+    ...new Set(ids.map((id) => id.trim()).filter(Boolean)),
+  ];
+  const sectors = want
+    .map((id) => resolveRotationSector(id))
+    .filter((s): s is RotationSector => Boolean(s));
   const years = rotationFetchYears();
   const metrics = loadMetricsMap();
   const nifty = await niftyBarsOrThrow(years);
@@ -834,14 +929,19 @@ function pctByRange(
 ): Record<string, number | null> {
   const out: Record<string, number | null> = {};
   for (const r of ROTATION_RANGES) {
-    out[r] = seriesReturnPct(
+    out[r] = rangeSeriesReturnPct(
       windowRebaseSeries(series, rotationWindowStart(last, r)),
+      r,
     );
   }
   return out;
 }
 
+/** v4: includes `rollup:` StockScans-sector baskets (true ticker partition). */
+const RANK_DISK_VERSION = 4;
+
 type RankDiskFile = {
+  v?: number;
   weight: RotationWeight;
   at: number;
   last: string;
@@ -856,6 +956,8 @@ function loadRankDisk(): void {
     if (!fs.existsSync(RANK_DISK)) return;
     const raw = JSON.parse(fs.readFileSync(RANK_DISK, "utf8")) as RankDiskFile;
     if (!raw?.weight || !raw.last || !Array.isArray(raw.sectors)) return;
+    // Drop pre-v2 caches (1D was multi-day from calendar start).
+    if (raw.v !== RANK_DISK_VERSION) return;
     const bySector = new Map<string, RankEntry>();
     for (const s of raw.sectors) {
       if (!s?.id || !s.pct) continue;
@@ -876,6 +978,7 @@ function saveRankDisk(weight: RotationWeight, snap: RankSnapshot): void {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     const payload: RankDiskFile = {
+      v: RANK_DISK_VERSION,
       weight,
       at: snap.at,
       last: snap.last,
@@ -919,14 +1022,44 @@ async function buildRankSnapshot(
     const pct: Record<string, number | null> = {};
     for (const r of ROTATION_RANGES) {
       const start = rotationWindowStart(last, r);
-      const use = coreMembers(packed).filter((p) => barsCoverWindow(p.bars, start));
-      pct[r] = use.length ? seriesReturnPct(sectorIndex(use, start, weight, metrics)) : null;
+      const use = coreMembers(packed).filter((p) => barsCoverWindow(p.bars, start, r));
+      pct[r] = use.length
+        ? rangeSeriesReturnPct(sectorIndex(use, start, weight, metrics), r)
+        : null;
     }
     return { id: sec.id, sig: sectorSig(sec), pct };
   });
   for (const f of fresh) {
     if (f) bySector.set(f.id, { sig: f.sig, pct: f.pct });
   }
+
+  // StockScans sector rollups: partition by each ticker's true sector (not
+  // majority-industry wholesale), so Top/Bottom on Sectors is overlap-free.
+  const rollupTodo: RotationSector[] = [];
+  for (const label of stockscansSectorLabels()) {
+    const sec = resolveRotationSector(`${ROLLUP_ID_PREFIX}${label}`);
+    if (!sec || sec.members.length < 1) continue;
+    const sig = sectorSig(sec);
+    const hit = reuse?.bySector.get(sec.id);
+    if (hit && hit.sig === sig) bySector.set(sec.id, hit);
+    else rollupTodo.push(sec);
+  }
+  const rollupFresh = await runConcurrent(rollupTodo, 8, async (sec) => {
+    const packed = await memberBars(sec.members, years);
+    const pct: Record<string, number | null> = {};
+    for (const r of ROTATION_RANGES) {
+      const start = rotationWindowStart(last, r);
+      const use = coreMembers(packed).filter((p) => barsCoverWindow(p.bars, start, r));
+      pct[r] = use.length
+        ? rangeSeriesReturnPct(sectorIndex(use, start, weight, metrics), r)
+        : null;
+    }
+    return { id: sec.id, sig: sectorSig(sec), pct };
+  });
+  for (const f of rollupFresh) {
+    if (f) bySector.set(f.id, { sig: f.sig, pct: f.pct });
+  }
+
   return {
     at: Date.now(),
     last,
@@ -940,7 +1073,12 @@ async function rankSnapshot(weight: RotationWeight): Promise<RankSnapshot> {
   const cached = rankCache.get(weight) ?? null;
   if (cached && Date.now() - cached.at < RANK_TTL_MS) {
     // Cheap when membership is unchanged: only edited sectors recompute.
-    const sectors = listRotationSectors();
+    const sectors = [
+      ...listRotationSectors(),
+      ...stockscansSectorLabels()
+        .map((label) => resolveRotationSector(`${ROLLUP_ID_PREFIX}${label}`))
+        .filter((s): s is RotationSector => Boolean(s)),
+    ];
     const stale = sectors.some(
       (sec) => cached.bySector.get(sec.id)?.sig !== sectorSig(sec),
     );
@@ -1129,8 +1267,16 @@ export async function buildRotationDetail(
   const lookback = rotationMaxLookbackStart(last);
   const benchLong = rebaseCloses(nifty, lookback);
   const bench = windowRebaseSeries(benchLong, start);
-  const { windowed, long: seriesLong } = sectorWindow(packed, start, lookback, weight, metrics);
-  const sector_pct = seriesReturnPct(windowed);
+  const rangeKey = (range || "6M").toUpperCase();
+  const { windowed, long: seriesLong } = sectorWindow(
+    packed,
+    start,
+    lookback,
+    weight,
+    metrics,
+    rangeKey,
+  );
+  const sector_pct = rangeSeriesReturnPct(windowed, rangeKey);
   const members: RotationMemberRow[] = packed.map(({ member, bars }) => {
     const key = member.ticker.toUpperCase();
     const m = metrics.get(key);
@@ -1146,7 +1292,7 @@ export async function buildRotationDetail(
       mcap_cr: m?.market_cap_cr ?? ht?.market_cap_cr ?? null,
       price: live.price ?? ht?.price ?? null,
       change_pct: live.change_pct,
-      window_pct: windowReturnPct(sparkFull, start),
+      window_pct: windowReturnPct(sparkFull, start, rangeKey),
       spark,
       spark_full: sparkFull,
       tv_url: tradingviewUrl(member.ticker, member.market),
@@ -1208,17 +1354,21 @@ export async function buildRotationDetail(
       down: day.down,
       starred: sector.starred,
       sector_pct,
-      bench_pct: seriesReturnPct(bench),
+      bench_pct: rangeSeriesReturnPct(bench, rangeKey),
       today_pct: day.today_pct,
       search: "",
       mcaps: memberMcaps(sector.members, metrics),
       tickers: sector.members.map((m) => m.ticker.toUpperCase()),
+      ticker_sectors: tickerSectorsFor(
+        sector.members.map((m) => m.ticker.toUpperCase()),
+      ),
       // Long sector path for MA warm-up; bench is windowed for DualSpark plotFrom.
       sector: seriesLong,
       bench,
       sector_full: seriesLong,
       bench_full: benchLong,
-      window_range: (range || "6M").toUpperCase(),
+      window_range: rangeKey,
+      ss_sector: isRollupSectorId(sector.id) ? sector.label : null,
     },
     members,
   };
@@ -1262,7 +1412,8 @@ export async function buildRotationList(
     .filter(Boolean)
     .sort()
     .at(-1) || "";
-  const start = rotationWindowStart(last, range);
+  const rangeKey = (range || "6M").toUpperCase();
+  const start = rotationWindowStart(last, rangeKey);
   const rows = packed.map(({ member, bars }) => {
     const key = member.ticker.toUpperCase();
     const m = metrics.get(key);
@@ -1276,11 +1427,15 @@ export async function buildRotationList(
       website: sites.get(key) ?? null,
       mcap_cr: m?.market_cap_cr ?? null,
       ...priceAndChange(m, bars),
-      window_pct: windowReturnPct(bars.map((b) => ({ date: b.date, value: b.close })), start),
+      window_pct: windowReturnPct(
+        bars.map((b) => ({ date: b.date, value: b.close })),
+        start,
+        rangeKey,
+      ),
     };
   });
   rows.sort((a, b) => (b.window_pct ?? -Infinity) - (a.window_pct ?? -Infinity));
-  return { range: (range || "6M").toUpperCase(), rows };
+  return { range: rangeKey, rows };
 }
 
 // ---- Top stocks across every sector ----------------------------------------------------
@@ -1347,7 +1502,11 @@ export async function buildRotationTopStocks(
         website: sites.get(t) ?? null,
         mcap_cr: m?.market_cap_cr ?? null,
         ...priceAndChange(m, bars),
-        window_pct: windowReturnPct(bars.map((b) => ({ date: b.date, value: b.close })), start),
+        window_pct: windowReturnPct(
+          bars.map((b) => ({ date: b.date, value: b.close })),
+          start,
+          key,
+        ),
         sector_id: sec.id,
         sector_label: sec.label,
         sector_pct: snap.bySector.get(sec.id)?.pct[key] ?? null,

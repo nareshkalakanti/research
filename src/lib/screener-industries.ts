@@ -22,6 +22,8 @@ export type ScreenerIndustryLabels = {
 
 export type ScreenerIndustryStatus = {
   mapped: number;
+  /** Sum of leaf "results found" — final Screener industry stock count (incl. SME). */
+  companies_total: number;
   /** Leaf industry pages discovered on the last/current crawl. */
   leaves: number;
   /** Leaf paths finished (saved for resume). */
@@ -171,12 +173,21 @@ export function screenerIndustryStatus(): ScreenerIndustryStatus {
     const mapped = (
       db.prepare(`SELECT COUNT(*) AS n FROM screener_industry`).get() as { n: number }
     ).n;
+    const companies_total = (
+      db
+        .prepare(
+          `SELECT COALESCE(SUM(COALESCE(results_found, companies, ticker_count, 0)), 0) AS n
+             FROM screener_leaf`,
+        )
+        .get() as { n: number }
+    ).n;
     const { leaves, done_leaves } = leafCounts(db);
     const metaLeaves = Number(getMeta(db, "leaves") || "0") || 0;
     const total = Math.max(leaves, metaLeaves);
     const active = getMeta(db, "active") === "1" && (total === 0 || done_leaves < total);
     return {
       mapped,
+      companies_total,
       leaves: total,
       done_leaves,
       active,
@@ -620,7 +631,8 @@ export function listScreenerIndustryTickers(opts?: {
   const industry = (opts?.industry || "").trim();
   const sub = (opts?.sub_sector || "").trim();
   const path = (opts?.market_path || "").trim();
-  const limit = Math.min(2000, Math.max(50, opts?.limit ?? 500));
+  // Default high enough for the full mapped set (~5–6k); callers can pass lower.
+  const limit = Math.min(20_000, Math.max(50, opts?.limit ?? 10_000));
   return withDb((db) => {
     const where: string[] = [];
     const args: string[] = [];

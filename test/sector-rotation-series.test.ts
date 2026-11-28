@@ -4,13 +4,18 @@ import {
   capWeightIndex,
   downsampleSeries,
   equalWeightIndex,
+  lastSessionReturnPct,
+  rangeSeriesReturnPct,
   rebaseCloses,
   rotationFetchYears,
   rotationMaLookbackStart,
+  rotationWindowStart,
   rotationYearsBack,
   seriesCoversStart,
   seriesReturnPct,
+  sessionSpanReturnPct,
   stitchWarmup,
+  tradingSessionsForRange,
   windowRebaseSeries,
   windowReturnPct,
 } from "../src/lib/sector-rotation-series";
@@ -86,6 +91,55 @@ assert.ok(Math.abs((win[win.length - 1]?.value ?? 0) - (125 / 75) * 100) < 1e-9)
 assert.equal(downsampleSeries(long, 2).length, 2);
 assert.ok(rotationFetchYears() >= rotationYearsBack("5Y"));
 assert.equal(rotationFetchYears(), rotationYearsBack("5Y"));
+
+// 1D = last two sessions only (not the whole calendar lookback).
+const daily = [
+  { date: "2026-11-21", value: 100 },
+  { date: "2026-11-24", value: 110 },
+  { date: "2026-11-25", value: 105 },
+  { date: "2026-11-26", value: 126 }, // +20% vs prior session
+];
+assert.equal(tradingSessionsForRange("1D"), 1);
+assert.equal(tradingSessionsForRange("1W"), 5);
+assert.ok(Math.abs((lastSessionReturnPct(daily) ?? 0) - 20) < 1e-9);
+assert.ok(Math.abs((rangeSeriesReturnPct(daily, "1D") ?? 0) - 20) < 1e-9);
+const oneDStart = rotationWindowStart("2026-11-26", "1D");
+assert.equal(oneDStart, "2026-11-21");
+assert.ok(Math.abs((windowReturnPct(daily, oneDStart, "1D") ?? 0) - 20) < 1e-9);
+// Without the 1D flag, same window is first→last (~+26%).
+assert.ok(Math.abs((windowReturnPct(daily, oneDStart) ?? 0) - 26) < 1e-9);
+
+// 1W = exactly 5 trading sessions (6 closes), not calendar first→last.
+const week = [
+  { date: "2026-11-12", value: 95 },
+  { date: "2026-11-13", value: 96 },
+  { date: "2026-11-14", value: 97 },
+  { date: "2026-11-17", value: 100 },
+  { date: "2026-11-18", value: 101 },
+  { date: "2026-11-19", value: 102 },
+  { date: "2026-11-20", value: 103 },
+  { date: "2026-11-21", value: 104 },
+  { date: "2026-11-24", value: 105 },
+  { date: "2026-11-25", value: 106 },
+  { date: "2026-11-26", value: 110 }, // 5 sessions back = Nov 19 (102)
+];
+assert.ok(Math.abs((sessionSpanReturnPct(week, 5) ?? 0) - ((110 / 102 - 1) * 100)) < 1e-9);
+assert.ok(Math.abs((rangeSeriesReturnPct(week, "1W") ?? 0) - ((110 / 102 - 1) * 100)) < 1e-9);
+const oneWStart = rotationWindowStart("2026-11-26", "1W");
+assert.equal(oneWStart, "2026-11-12");
+assert.ok(Math.abs((windowReturnPct(week, oneWStart, "1W") ?? 0) - ((110 / 102 - 1) * 100)) < 1e-9);
+// Full-window (no 1W flag) is first→last from lookback (~+15.79%).
+assert.ok(Math.abs((windowReturnPct(week, oneWStart) ?? 0) - ((110 / 95 - 1) * 100)) < 1e-9);
+assert.equal(barsCoverWindow(
+  week.map((p) => ({ date: p.date, close: p.value })),
+  oneWStart,
+  "1W",
+), true);
+assert.equal(barsCoverWindow(
+  week.slice(-3).map((p) => ({ date: p.date, close: p.value })),
+  oneWStart,
+  "1W",
+), false);
 
 // Full window: a normal return.
 assert.ok(Math.abs((windowReturnPct(long, "2026-02-01") ?? 0) - (125 / 75 - 1) * 100) < 1e-9);

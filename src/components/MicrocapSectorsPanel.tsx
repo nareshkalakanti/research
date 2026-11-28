@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { napkinUrl, tradingviewUrl } from "@/lib/links";
 import type {
@@ -32,7 +32,10 @@ function cr(n: number | null | undefined): string {
 }
 
 function parseCap(raw: string, fallback: number): number {
-  const n = Number(raw.trim());
+  const t = raw.trim();
+  // Number("") === 0 in JS — treat blank as "use default", not ₹0 Cr.
+  if (!t) return fallback;
+  const n = Number(t);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
 }
 
@@ -50,123 +53,119 @@ function sameSel(a: Sel | null, b: Sel | null): boolean {
   return selKey(a) === selKey(b);
 }
 
-/** Best industry inside a sector (High pair, or best named industry). */
+/** Best named industry inside a sector — never the residual Other bucket. */
 function pickHigh(
   s: MicrocapSectorReturn,
 ): MicrocapSectorReturn["high"] {
-  if (s.high) return s.high;
+  if (s.high && s.high.industry !== "Other") return s.high;
   const named = s.industries.filter((x) => x.industry && x.industry !== "Other");
-  const pool = named.length ? named : s.industries;
-  if (!pool.length) return null;
+  if (!named.length) return null;
   return (
-    [...pool].sort(
+    [...named].sort(
       (a, b) =>
         b.avg_ret_1y - a.avg_ret_1y || a.industry.localeCompare(b.industry),
     )[0] ?? null
   );
 }
 
-function SectorColumn({
+function SectorRail({
   s,
   sel,
   onPick,
-  /** both = High+Low+list · high = Top tab (sector + High only). */
-  band = "both",
+  boardMax,
 }: {
   s: MicrocapSectorReturn;
   sel: Sel | null;
   onPick: (next: Sel) => void;
-  band?: "both" | "high";
+  boardMax: number;
 }) {
-  const hasPair =
-    !!(s.low && s.high) &&
-    (s.low.industry !== s.high.industry || s.low.avg_ret_1y !== s.high.avg_ret_1y);
-  const high = band === "high" ? pickHigh(s) : s.high;
-  const showHigh = !!high && (band === "high" || hasPair);
-  const showLow = band === "both" && !!s.low && hasPair;
-  const showIndustries = band === "both" && s.industries.length >= 1;
+  const high = s.high && s.high.industry !== "Other" ? s.high : null;
+  const low =
+    s.low &&
+    s.low.industry !== "Other" &&
+    high &&
+    (s.low.industry !== high.industry || s.low.avg_ret_1y !== high.avg_ret_1y)
+      ? s.low
+      : null;
+  const showHigh = !!high;
+  const showLow = !!low;
   const sectorOn = sameSel(sel, { sector: s.sector, industry: null, side: "top" });
+  const barPct = Math.max(
+    4,
+    Math.min(100, (Math.max(0, s.avg_ret_1y) / Math.max(boardMax, 1)) * 100),
+  );
 
   return (
-    <article className={`mcs-col${sectorOn ? " mcs-col--on" : ""}`}>
-      <header className="mcs-col-head">
+    <article className={`mcs-rail${sectorOn ? " on" : ""}`}>
+      <div className="mcs-rail-lead">
         <button
           type="button"
-          className="mcs-col-title mcs-pick"
-          title={
-            band === "high" && high
-              ? `${high.industry} · click for list`
-              : "Show all stocks in this sector"
-          }
-          onClick={() =>
-            onPick(
-              band === "high" && high
-                ? { sector: s.sector, industry: high.industry, side: "top" }
-                : { sector: s.sector, industry: null, side: "top" },
-            )
-          }
+          className="mcs-rail-sector mcs-pick"
+          title="Show all stocks in this sector"
+          onClick={() => onPick({ sector: s.sector, industry: null, side: "top" })}
         >
           <h3>{s.sector}</h3>
-          {band === "both" ? (
-            <span>{s.n.toLocaleString("en-IN")} cos</span>
-          ) : null}
+          <span>{s.n.toLocaleString("en-IN")} names</span>
         </button>
-        <b>
-          <Ret n={s.avg_ret_1y} light />
-        </b>
-      </header>
+        <div className="mcs-rail-metric">
+          <b className={s.avg_ret_1y >= 0 ? "up" : "down"}>{pct(s.avg_ret_1y)}</b>
+          <span className="mcs-rail-track" aria-hidden>
+            <i style={{ width: `${barPct}%` }} />
+          </span>
+        </div>
+      </div>
 
-      {showHigh || showLow ? (
-        <div className="mcs-col-band">
+      {(showHigh || showLow) && (
+        <div className="mcs-rail-poles">
           {showHigh && high ? (
             <button
               type="button"
-              className={`mcs-band-btn high${sameSel(sel, { sector: s.sector, industry: high.industry, side: "top" }) ? " on" : ""}`}
+              className={`mcs-pole high${sameSel(sel, { sector: s.sector, industry: high.industry, side: "top" }) ? " on" : ""}`}
               title={`${high.n} stocks · click for list`}
               onClick={() => onPick({ sector: s.sector, industry: high.industry, side: "top" })}
             >
               <em>High</em>
-              <span className="mcs-ind">{high.industry}</span>
+              <strong>{high.industry}</strong>
               <Ret n={high.avg_ret_1y} />
             </button>
           ) : null}
-          {showLow ? (
+          {showLow && low ? (
             <button
               type="button"
-              className={`mcs-band-btn low${sameSel(sel, { sector: s.sector, industry: s.low!.industry, side: "bot" }) ? " on" : ""}`}
-              title={`${s.low!.n} stocks · click for list`}
-              onClick={() => onPick({ sector: s.sector, industry: s.low!.industry, side: "bot" })}
+              className={`mcs-pole low${sameSel(sel, { sector: s.sector, industry: low.industry, side: "bot" }) ? " on" : ""}`}
+              title={`${low.n} stocks · click for list`}
+              onClick={() => onPick({ sector: s.sector, industry: low.industry, side: "bot" })}
             >
               <em>Low</em>
-              <span className="mcs-ind">{s.low!.industry}</span>
-              <Ret n={s.low!.avg_ret_1y} />
+              <strong>{low.industry}</strong>
+              <Ret n={low.avg_ret_1y} />
             </button>
           ) : null}
         </div>
-      ) : null}
+      )}
 
-      {showIndustries ? (
-        <ul className="mcs-col-list">
+      {s.industries.length ? (
+        <div className="mcs-rail-leaves" role="list">
           {s.industries.map((i) => {
             const on = sameSel(sel, { sector: s.sector, industry: i.industry, side: "top" });
             return (
-              <li key={i.industry}>
-                <button
-                  type="button"
-                  className={`mcs-ind-btn${on ? " on" : ""}`}
-                  title={`${i.n} stocks · click for list`}
-                  onClick={() => onPick({ sector: s.sector, industry: i.industry, side: "top" })}
-                >
-                  <span className="mcs-ind">
-                    {i.industry}
-                    <small className="mcs-n">{i.n}</small>
-                  </span>
+              <button
+                key={i.industry}
+                type="button"
+                role="listitem"
+                className={`mcs-leaf${on ? " on" : ""}`}
+                title={`${i.n} stocks · click for list`}
+                onClick={() => onPick({ sector: s.sector, industry: i.industry, side: "top" })}
+              >
+                <span className="mcs-leaf-name">{i.industry}</span>
+                <span className="mcs-leaf-meta">
                   <Ret n={i.avg_ret_1y} />
-                </button>
-              </li>
+                  <small>{i.n}</small>
+                </span>
+              </button>
             );
           })}
-        </ul>
+        </div>
       ) : null}
     </article>
   );
@@ -291,13 +290,17 @@ function StocksBelow({
   );
 }
 
-/** Micro Monopolies — StockScans sectors with High / Low industry by equal-weight 12M. */
+/** Micro Monopolies — Screener.in sectors with High / Low leaf by equal-weight 12M. */
 export function MicrocapSectorsPanel() {
   const [board, setBoard] = useState<MicrocapBoardFilter>("all");
   const [minN, setMinN] = useState(2);
   const [minCap, setMinCap] = useState("");
   const [maxCap, setMaxCap] = useState(DEFAULT_MAX_CAP);
+  /** Band actually sent to the API — committed on blur / Enter / idle debounce. */
+  const [minMcapClamped, setMinMcapClamped] = useState(0);
+  const [maxMcap, setMaxMcap] = useState(1000);
   const [data, setData] = useState<Data | null>(null);
+  const [boardLoading, setBoardLoading] = useState(true);
   const [sel, setSel] = useState<Sel | null>(null);
   const [limit, setLimit] = useState(7);
   /** Board = full columns · Top = positive sectors with their High industries only. */
@@ -307,11 +310,20 @@ export function MicrocapSectorsPanel() {
   const [fillDivMsg, setFillDivMsg] = useState<string | null>(null);
   const [divFillDone, setDivFillDone] = useState(false);
 
-  const minMcap = parseCap(minCap, 0);
-  const maxMcap = Math.max(100, parseCap(maxCap, 1000));
-  const minMcapClamped = Math.min(minMcap, maxMcap);
+  const commitCaps = useCallback(() => {
+    const max = Math.max(1, parseCap(maxCap, 1000));
+    const min = Math.min(parseCap(minCap, 0), max);
+    setMaxMcap((prev) => (prev === max ? prev : max));
+    setMinMcapClamped((prev) => (prev === min ? prev : min));
+  }, [minCap, maxCap]);
 
-  const refreshMissingDiv = () => {
+  // Idle commit after typing stops (paste / tab-away without blur on some browsers).
+  useEffect(() => {
+    const id = window.setTimeout(commitCaps, 700);
+    return () => window.clearTimeout(id);
+  }, [commitCaps]);
+
+  const refreshMissingDiv = useCallback(() => {
     void fetch(
       `/api/microcap?view=missing-div&board=${board}&minMcap=${minMcapClamped}&maxMcap=${maxMcap}`,
       { cache: "no-store" },
@@ -323,24 +335,27 @@ export function MicrocapSectorsPanel() {
       .catch(() => {
         /* ignore */
       });
-  };
+  }, [board, minMcapClamped, maxMcap]);
 
   useEffect(() => {
     let live = true;
-    setData(null);
-    setSel(null);
-    setDivFillDone(false);
-    setFillDivMsg(null);
+    setBoardLoading(true);
+    // Keep the previous board painted until the new band lands (no blank flash).
+    // Do not clear sel / collapse "Show all" here — remapped after data lands.
     void fetch(
       `/api/microcap?view=sectors&board=${board}&minN=${minN}&minMcap=${minMcapClamped}&maxMcap=${maxMcap}`,
       { cache: "no-store" },
     )
       .then((r) => r.json())
       .then((j: Data) => {
-        if (live) setData(j);
+        if (!live) return;
+        setData(j);
+        setBoardLoading(false);
       })
       .catch((e) => {
-        if (live) setData({ ok: false, error: String(e) });
+        if (!live) return;
+        setData({ ok: false, error: String(e) });
+        setBoardLoading(false);
       });
     return () => {
       live = false;
@@ -351,17 +366,28 @@ export function MicrocapSectorsPanel() {
     setDivFillDone(false);
     setFillDivMsg(null);
     refreshMissingDiv();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when universe filters change
-  }, [board, minMcapClamped, maxMcap]);
-
-  useEffect(() => {
-    setLimit(7);
-    setSel(null);
-  }, [board, minN, minMcapClamped, maxMcap]);
+  }, [refreshMissingDiv]);
 
   useEffect(() => {
     setSel(null);
   }, [panelTab]);
+
+  /** Drop / remap open pocket when minN · band · board folds it away. */
+  useEffect(() => {
+    if (!data?.ok) return;
+    setSel((cur) => {
+      if (!cur) return cur;
+      const sec = data.sectors.find((s) => s.sector === cur.sector);
+      if (!sec) return null;
+      if (cur.industry == null) return cur;
+      if (sec.industries.some((i) => i.industry === cur.industry)) return cur;
+      // Named leaf folded into residual Other — follow the names there.
+      if (cur.industry !== "Other" && sec.industries.some((i) => i.industry === "Other")) {
+        return { ...cur, industry: "Other" };
+      }
+      return null;
+    });
+  }, [data]);
 
   const fillAllMissingDiv = async () => {
     if (fillingDiv) return;
@@ -524,6 +550,11 @@ export function MicrocapSectorsPanel() {
 
   const boardSectors = sectors;
   const shownBoard = boardSectors.slice(0, limit);
+  const boardMax = useMemo(() => {
+    let m = 0;
+    for (const s of boardSectors) if (s.avg_ret_1y > m) m = s.avg_ret_1y;
+    return m > 0 ? m : 1;
+  }, [boardSectors]);
   const mcapHint =
     minMcapClamped > 0
       ? `₹${minMcapClamped.toLocaleString("en-IN")}–${maxMcap.toLocaleString("en-IN")} Cr`
@@ -531,21 +562,21 @@ export function MicrocapSectorsPanel() {
 
   return (
     <section className="vx mcs">
-      <header className="vx-head">
+      <header className="vx-head mcs-head">
         <div>
-          <span className="vx-eyebrow">StockScans sectors · equal-weight 12M · default ≤ ₹1,000 Cr</span>
-          <h2 className="vx-title">
+          <span className="vx-eyebrow">Screener.in · equal-weight 12M · {mcapHint}</span>
+          <h2 className="vx-title mcs-title">
             Micro <span>Monopolies</span>
           </h2>
           <p className="vx-hint mcs-lede">
             {panelTab === "top"
-              ? "Top = High industry of each positive sector, ranked by sector 12M (same order as Board). Click a bar for the companies."
-              : "Each column is a sector (avg 12M of its microcaps). High / Low are the best and worst industries inside that sector. Click for the companies."}
+              ? "High leaf of each positive sector, ordered by sector 12M. Click a row for the names."
+              : "One rail per sector — 12M, High / Low, then every leaf. Click any name for the list."}
           </p>
         </div>
       </header>
 
-      <div className="vx-card mcs-toolbar">
+      <div className="mcs-toolbar">
         <label className="vx-field">
           <span className="vx-label">View</span>
           <div className="mcs-seg" role="group" aria-label="Board or Top">
@@ -595,8 +626,17 @@ export function MicrocapSectorsPanel() {
             inputMode="numeric"
             value={minCap}
             onChange={(e) => setMinCap(e.target.value.replace(/[^\d.]/g, ""))}
+            onBlur={commitCaps}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitCaps();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
             placeholder="₹ Cr"
             aria-label="Minimum market cap in crore"
+            title="Applies on Enter or when you leave the field"
           />
         </label>
         <label className="vx-field vx-field--inline">
@@ -605,8 +645,17 @@ export function MicrocapSectorsPanel() {
             inputMode="numeric"
             value={maxCap}
             onChange={(e) => setMaxCap(e.target.value.replace(/[^\d.]/g, ""))}
+            onBlur={commitCaps}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                commitCaps();
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
             placeholder="₹ Cr"
             aria-label="Maximum market cap in crore"
+            title="Applies on Enter or when you leave the field"
           />
         </label>
         <label className="vx-field vx-field--inline" title="Industry needs this many names before High / Low / list">
@@ -631,8 +680,9 @@ export function MicrocapSectorsPanel() {
           </button>
         ) : null}
         <span className="vx-hint mcs-meta">
-          Sector avg = all names in band · High / Low = industries inside that sector
+          Sector / leaf avg = equal-weight 12M (each name clipped to −90%…+300% so rockets don’t skew the mean) · stock rows stay raw · High / Low = named leaves
           {data?.ok ? ` · ${mcapHint} · ${data.stocks_with_return.toLocaleString("en-IN")} names` : ""}
+          {boardLoading ? (data ? " · updating…" : " · computing…") : ""}
           {fillDivMsg ? ` · ${fillDivMsg}` : ""}
         </span>
       </div>
@@ -646,12 +696,15 @@ export function MicrocapSectorsPanel() {
           <div className="vx-card vx-empty">No positive sectors with a High industry in this band.</div>
         ) : (
           <>
-            <div className="vx-bars-grid vx-bars-grid--solo">
-              <div className="vx-card vx-bars vx-bars--under">
-                <span className="vx-label vx-label--title">
-                  Top High industries · by sector 12M
-                </span>
-                {topHighRows.map((r) => {
+            <div className={`mcs-top${boardLoading ? " is-updating" : ""}`} aria-label="Top High industries by sector 12M">
+              <div className="mcs-top-head">
+                <span>Rank</span>
+                <span>High leaf · sector</span>
+                <span>12M</span>
+                <span>n</span>
+              </div>
+              <ol className="mcs-top-list">
+                {topHighRows.map((r, i) => {
                   const next: Sel = {
                     sector: r.sector,
                     industry: r.industry,
@@ -659,30 +712,32 @@ export function MicrocapSectorsPanel() {
                   };
                   const on = sameSel(sel, next);
                   const barPct = Math.max(
-                    4,
+                    6,
                     Math.min(100, (Math.max(0, r.avg_ret_1y) / topHighMax) * 100),
                   );
                   return (
-                    <button
-                      key={`${r.sector}::${r.industry}`}
-                      type="button"
-                      className={`vx-bar-row${on ? " on" : ""}`}
-                      onClick={() => pick(next)}
-                      title={`${r.industry} · High in ${r.sector} · ${pct(r.avg_ret_1y)} over 12M · sector ${pct(r.sector_ret)} — click for the list`}
-                    >
-                      <span className="vx-bar-name" title={`${r.industry} · ${r.sector}`}>
-                        {r.industry}
-                        <em className="mcs-bar-sub">{r.sector}</em>
-                      </span>
-                      <span className="vx-bar-track" aria-hidden>
-                        <span className="vx-bar-fill" style={{ width: `${barPct}%` }} />
-                      </span>
-                      <span className="vx-bar-pct">{pct(r.avg_ret_1y)}</span>
-                      <span className="vx-bar-k">{r.n}</span>
-                    </button>
+                    <li key={`${r.sector}::${r.industry}`}>
+                      <button
+                        type="button"
+                        className={`mcs-top-row${on ? " on" : ""}`}
+                        onClick={() => pick(next)}
+                        title={`${r.industry} · High in ${r.sector} · ${pct(r.avg_ret_1y)} · sector ${pct(r.sector_ret)}`}
+                      >
+                        <span className="mcs-top-rank">{i + 1}</span>
+                        <span className="mcs-top-main">
+                          <strong title={r.industry}>{r.industry}</strong>
+                          <em>{r.sector}</em>
+                          <span className="mcs-top-track" aria-hidden>
+                            <i style={{ width: `${barPct}%` }} />
+                          </span>
+                        </span>
+                        <span className="mcs-top-pct">{pct(r.avg_ret_1y)}</span>
+                        <span className="mcs-top-n">{r.n}</span>
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
+              </ol>
             </div>
             {sel ? (
               <StocksBelow
@@ -700,10 +755,10 @@ export function MicrocapSectorsPanel() {
         <div className="vx-card vx-empty">No sectors match.</div>
       ) : (
         <>
-          <div className="mcs-board" role="list" aria-label="Sector return columns">
+          <div className={`mcs-rails${boardLoading ? " is-updating" : ""}`} role="list" aria-label="Sector rails">
             {shownBoard.map((s) => (
               <div key={s.sector} role="listitem">
-                <SectorColumn s={s} sel={sel} onPick={pick} band="both" />
+                <SectorRail s={s} sel={sel} onPick={pick} boardMax={boardMax} />
               </div>
             ))}
           </div>

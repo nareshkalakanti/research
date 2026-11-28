@@ -19,7 +19,9 @@ import {
   buildRotationLiteBoard,
   hydrateRotationCards,
   invalidateRotationRank,
+  isRollupSectorId,
   rankRotationBoard,
+  resolveRotationSector,
   loadRotationMemberHtPatches,
   refreshAllMissingHtIv,
   refreshAllRotationMetricsGaps,
@@ -54,7 +56,7 @@ export async function GET(req: NextRequest) {
       });
     }
     if (id) {
-      const sector = getRotationSector(id);
+      const sector = resolveRotationSector(id);
       if (!sector) {
         return NextResponse.json({ error: "not found" }, { status: 404 });
       }
@@ -132,7 +134,7 @@ export async function POST(req: NextRequest) {
     if (body.refreshHt) {
       const id = (body.id || "").trim();
       if (id) {
-        const sector = getRotationSector(id);
+        const sector = resolveRotationSector(id);
         if (!sector) {
           return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
         }
@@ -151,7 +153,7 @@ export async function POST(req: NextRequest) {
       invalidateRotationRank();
       const id = (body.id || "").trim();
       if (id) {
-        const sector = getRotationSector(id);
+        const sector = resolveRotationSector(id);
         if (!sector) {
           return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
         }
@@ -172,6 +174,13 @@ export async function POST(req: NextRequest) {
     const id = (body.id || "").trim();
     if (!id) {
       return NextResponse.json({ ok: false, error: "id required" }, { status: 400 });
+    }
+    // Virtual StockScans sector rollups are read-only.
+    if (isRollupSectorId(id) && (body.rename || body.star || body.deleteSector || body.add || body.remove)) {
+      return NextResponse.json(
+        { ok: false, error: "StockScans sector rollups are read-only" },
+        { status: 400 },
+      );
     }
     if (body.rename) {
       const keptId = renameRotationSector(id, body.label || "");

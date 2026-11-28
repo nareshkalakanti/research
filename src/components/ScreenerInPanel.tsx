@@ -6,6 +6,7 @@ import type { ScreenerLeafRow, ScreenerTickerRow } from "@/lib/screener-industri
 
 type Status = {
   mapped: number;
+  companies_total: number;
   leaves: number;
   done_leaves: number;
   active: boolean;
@@ -118,7 +119,7 @@ export function ScreenerInPanel() {
         if (!j.ok) throw new Error(j.error || "Could not load leaves");
         setLeaves(j.leaves ?? []);
       } else {
-        const sp = new URLSearchParams({ view: "tickers", limit: "500" });
+        const sp = new URLSearchParams({ view: "tickers", limit: "10000" });
         if (qDebounced) sp.set("q", qDebounced);
         if (pathFilter) sp.set("path", pathFilter);
         const j = (await (await fetch(`/api/screener-industries?${sp}`, { cache: "no-store" })).json()) as {
@@ -267,7 +268,7 @@ export function ScreenerInPanel() {
           <strong>Industry tree:</strong>{" "}
           {st
             ? st.leaves > 0
-              ? `${(st.done_leaves ?? 0).toLocaleString("en-IN")} of ${st.leaves.toLocaleString("en-IN")} leaves · ${st.mapped.toLocaleString("en-IN")} tickers`
+              ? `${st.leaves.toLocaleString("en-IN")} industries · ${(st.companies_total || 0).toLocaleString("en-IN")} stocks · ${st.mapped.toLocaleString("en-IN")} mapped`
               : `${st.mapped.toLocaleString("en-IN")} tickers labeled`
             : "…"}
           <span className="sl-sub-inline">
@@ -372,12 +373,10 @@ export function ScreenerInPanel() {
             {browseLoading
               ? "Loading…"
               : browse === "leaves"
-                ? `${sortedLeaves.length.toLocaleString("en-IN")} industries · ${totalStocks.toLocaleString("en-IN")} stocks`
-                : `${(tickers?.length ?? 0).toLocaleString("en-IN")}${
-                    tickerTotal > (tickers?.length ?? 0)
-                      ? ` of ${tickerTotal.toLocaleString("en-IN")}`
-                      : ""
-                  } tickers`}
+                ? `${sortedLeaves.length.toLocaleString("en-IN")} industries · ${totalStocks.toLocaleString("en-IN")} stocks (final)`
+                : `${tickerTotal.toLocaleString("en-IN")} tickers${
+                    pathFilter ? "" : st?.companies_total ? ` · ${st.companies_total.toLocaleString("en-IN")} on Screener leaves` : ""
+                  }`}
             {pathFilter ? " · one leaf" : ""}
           </span>
         </div>
@@ -481,8 +480,11 @@ export function ScreenerInPanel() {
             ? " · No. of Companies uses each leaf’s full result count (includes SME / BSE when Screener lists them; overview ratios may still be main-board weighted)"
             : ""}{" "}
           · <code>data/screener_industries.db</code>
-          {browse === "tickers" && tickerTotal > (tickers?.length ?? 0)
-            ? ` · showing first ${(tickers?.length ?? 0).toLocaleString("en-IN")} of ${tickerTotal.toLocaleString("en-IN")}`
+          {browse === "leaves" && totalStocks > 0
+            ? ` · final count ${totalStocks.toLocaleString("en-IN")} stocks`
+            : ""}
+          {browse === "tickers" && tickerTotal > 0
+            ? ` · ${tickerTotal.toLocaleString("en-IN")} mapped tickers`
             : ""}
         </p>
       </div>

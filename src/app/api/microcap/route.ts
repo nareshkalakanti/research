@@ -25,7 +25,8 @@ function parseMinN(raw: string | null): number {
 
 function parseMaxMcap(raw: string | null): number {
   const n = Number(raw || "1000");
-  return Number.isFinite(n) ? Math.max(100, Math.min(100_000, Math.floor(n))) : 1000;
+  // Allow small ceilings (e.g. ≤50 Cr); floor at 1 so an empty/zero max is not open-ended.
+  return Number.isFinite(n) ? Math.max(1, Math.min(100_000, Math.floor(n))) : 1000;
 }
 
 /** Inclusive floor in ₹ Cr; 0 = no floor. */
