@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FilterBar,
   HoldingsIndustryCheck,
@@ -13,11 +13,11 @@ import {
 import { Loading } from "@/components/Loading";
 import { StockscansBar } from "@/components/StockscansBar";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
-import type { SavedScan, ScanCondition, ScanConfig, ScannerData, ScanRow } from "@/lib/scanner";
+import type { ScanConfig, ScannerData, ScanRow } from "@/lib/scanner";
 
-/** Scanner: every stock with Name and Industry first; filters, column tabs, saved scans. */
+/** Scanner: every stock with Name, Sector and Industry first; filters, column tabs. */
 
-type ColKey = "industry" | "mcap" | "price" | "chg" | "pe" | "roce" | "roe" | "sales_yoy" | "profit_yoy";
+type ColKey = "sector" | "industry" | "mcap" | "price" | "chg" | "pe" | "roce" | "roe" | "sales_yoy" | "profit_yoy";
 type Col = { key: ColKey; label: string; num?: boolean; fmt?: (r: ScanRow) => string };
 
 const n0 = (v: number | null) => (v == null ? "—" : v.toLocaleString("en-IN", { maximumFractionDigits: 0 }));
@@ -25,6 +25,7 @@ const n2 = (v: number | null) => (v == null ? "—" : v.toLocaleString("en-IN", 
 const pct = (v: number | null) => (v == null ? "—" : `${v > 0 ? "+" : ""}${v.toLocaleString("en-IN", { maximumFractionDigits: 1 })}%`);
 
 const COLS: Record<ColKey, Col> = {
+  sector: { key: "sector", label: "Sector" },
   industry: { key: "industry", label: "Industry" },
   mcap: { key: "mcap", label: "Market cap (₹ Cr)", num: true, fmt: (r) => n0(r.mcap) },
   price: { key: "price", label: "Close price (₹)", num: true, fmt: (r) => n2(r.price) },
@@ -36,28 +37,18 @@ const COLS: Record<ColKey, Col> = {
   profit_yoy: { key: "profit_yoy", label: "Profit YoY", num: true, fmt: (r) => pct(r.profit_yoy) },
 };
 
-/** Name and Industry lead every tab. */
+/** Name, Sector and Industry lead every tab. */
 const TABS: Array<{ id: string; label: string; cols: ColKey[] }> = [
-  { id: "default", label: "Default", cols: ["industry", "mcap", "price"] },
-  { id: "performance", label: "Performance", cols: ["industry", "price", "chg", "mcap"] },
-  { id: "valuation", label: "Valuation", cols: ["industry", "mcap", "pe", "price"] },
-  { id: "growth", label: "Growth", cols: ["industry", "sales_yoy", "profit_yoy", "mcap"] },
-  { id: "ratios", label: "Ratios", cols: ["industry", "roce", "roe", "pe"] },
-];
-
-const FIELDS: Array<{ key: ColKey; label: string }> = [
-  { key: "mcap", label: "Market cap (₹ Cr)" },
-  { key: "price", label: "Close price" },
-  { key: "pe", label: "P/E" },
-  { key: "roce", label: "ROCE %" },
-  { key: "roe", label: "ROE %" },
-  { key: "sales_yoy", label: "Sales YoY %" },
-  { key: "profit_yoy", label: "Profit YoY %" },
-  { key: "chg", label: "Day change %" },
+  { id: "default", label: "Default", cols: ["sector", "industry", "mcap", "price"] },
+  { id: "performance", label: "Performance", cols: ["sector", "industry", "price", "chg", "mcap"] },
+  { id: "valuation", label: "Valuation", cols: ["sector", "industry", "mcap", "pe", "price"] },
+  { id: "growth", label: "Growth", cols: ["sector", "industry", "sales_yoy", "profit_yoy", "mcap"] },
+  { id: "ratios", label: "Ratios", cols: ["sector", "industry", "roce", "roe", "pe"] },
 ];
 
 const EMPTY: ScanConfig = {
   conditions: [],
+  sectors: [],
   industries: [],
   index: "all",
   exchange: "all",
@@ -73,11 +64,6 @@ function numOf(r: ScanRow, k: ColKey): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function condText(c: ScanCondition): string {
-  const f = FIELDS.find((x) => x.key === c.field)?.label ?? c.field;
-  return c.op === "between" ? `${f} ${c.a}–${c.b}` : `${f} ${c.op} ${c.a}`;
-}
-
 function csvCell(v: unknown): string {
   const s = v == null ? "" : String(v);
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -87,32 +73,14 @@ export function ScannerPanel() {
   const [data, setData] = useState<ScannerData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cfg, setCfg] = useState<ScanConfig>(EMPTY);
-  const [scanId, setScanId] = useState<number | null>(null);
-  const [name, setName] = useState("Untitled scan");
-  const [saved, setSaved] = useState<SavedScan[]>([]);
-  const [dirty, setDirty] = useState(false);
   const [q, setQ] = useState("");
   const [page, setPage] = useState(0);
-  const [adding, setAdding] = useState(false);
-  const [draft, setDraft] = useState<{ field: ColKey; op: ScanCondition["op"]; a: string; b: string }>({
-    field: "mcap",
-    op: ">",
-    a: "",
-    b: "",
-  });
-  const [allOpen, setAllOpen] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
-  const allRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
-      const [a, b] = await Promise.all([
-        fetch("/api/scanner", { cache: "no-store" }).then((r) => r.json()),
-        fetch("/api/scanner/scans", { cache: "no-store" }).then((r) => r.json()),
-      ]);
+      const a = await fetch("/api/scanner", { cache: "no-store" }).then((r) => r.json());
       if (!a.ok) throw new Error(a.error || "Could not load stocks");
       setData(a as ScannerData);
-      if (b.ok) setSaved(b.scans as SavedScan[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -123,26 +91,18 @@ export function ScannerPanel() {
     return () => window.clearTimeout(id);
   }, [load]);
 
-  useEffect(() => {
-    if (!allOpen) return;
-    const close = (e: MouseEvent) => {
-      if (allRef.current && !allRef.current.contains(e.target as Node)) setAllOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [allOpen]);
-
   const update = (patch: Partial<ScanConfig>) => {
     setCfg((c) => ({ ...c, ...patch }));
-    setDirty(true);
     setPage(0);
   };
 
   const filtered = useMemo(() => {
     if (!data) return [];
     const needle = q.trim().toLowerCase();
+    const secs = new Set(cfg.sectors ?? []);
     const inds = new Set(cfg.industries);
     const out = data.rows.filter((r) => {
+      if (secs.size && !secs.has(r.sector ?? "")) return false;
       if (inds.size && !inds.has(r.industry ?? "")) return false;
       if (cfg.index !== "all" && !r.idx.includes(cfg.index)) return false;
       // Exchange: All / NSE / NSE SME / BSE / BSE SME (older saved scans used nse/bse + type).
@@ -165,6 +125,7 @@ export function ScannerPanel() {
     const sgn = dir === "asc" ? 1 : -1;
     return out.sort((a, b) => {
       if (key === "name") return sgn * a.name.localeCompare(b.name);
+      if (key === "sector") return sgn * (a.sector ?? "").localeCompare(b.sector ?? "");
       if (key === "industry") return sgn * (a.industry ?? "").localeCompare(b.industry ?? "");
       const x = numOf(a, key as ColKey);
       const y = numOf(b, key as ColKey);
@@ -175,66 +136,32 @@ export function ScannerPanel() {
     });
   }, [data, cfg, q]);
 
+  const sectors = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of data?.rows ?? []) if (r.sector) m.set(r.sector, (m.get(r.sector) ?? 0) + 1);
+    return [...m].sort((a, b) => a[0].localeCompare(b[0])).map(([id, count]) => ({ id, label: id, count }));
+  }, [data]);
+
   const industries = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of data?.rows ?? []) if (r.industry) m.set(r.industry, (m.get(r.industry) ?? 0) + 1);
     return [...m].sort((a, b) => a[0].localeCompare(b[0])).map(([id, count]) => ({ id, label: id, count }));
   }, [data]);
 
-  const saveNow = async () => {
-    const res = await fetch("/api/scanner/scans", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "save", id: scanId, name, config: cfg }),
-    });
-    const json = (await res.json()) as { ok: boolean; scan?: SavedScan; scans?: SavedScan[]; error?: string };
-    if (json.ok && json.scan) {
-      setScanId(json.scan.id);
-      setName(json.scan.name);
-      setSaved(json.scans ?? []);
-      setDirty(false);
-      setMsg(`Saved “${json.scan.name}”`);
-      window.setTimeout(() => setMsg(null), 2500);
-    } else setMsg(json.error ?? "Could not save");
-  };
-  const open = (s: SavedScan) => {
-    setCfg({ ...EMPTY, ...s.config });
-    setScanId(s.id);
-    setName(s.name);
-    setDirty(false);
-    setPage(0);
-    setAllOpen(false);
-  };
-  const remove = async (s: SavedScan) => {
-    if (!window.confirm(`Delete scan “${s.name}”?`)) return;
-    const res = await fetch("/api/scanner/scans", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "delete", id: s.id }),
-    });
-    const json = (await res.json()) as { ok: boolean; scans?: SavedScan[] };
-    if (json.ok) setSaved(json.scans ?? []);
-    if (scanId === s.id) setScanId(null);
-  };
-  const newScan = () => {
-    if (dirty && !window.confirm("Discard unsaved changes?")) return;
-    setCfg(EMPTY);
-    setScanId(null);
-    setName("Untitled scan");
-    setDirty(false);
-    setPage(0);
-  };
-  const addCondition = () => {
-    const a = Number(draft.a);
-    const b = Number(draft.b);
-    if (!Number.isFinite(a) || draft.a === "") return;
-    if (draft.op === "between" && (!Number.isFinite(b) || draft.b === "")) return;
-    update({ conditions: [...cfg.conditions, { field: draft.field, op: draft.op, a, ...(draft.op === "between" ? { b } : {}) }] });
-    setDraft((d) => ({ ...d, a: "", b: "" }));
-    setAdding(false);
-  };
   const sortBy = (key: string) =>
-    update({ sort: { key, dir: cfg.sort.key === key && cfg.sort.dir === "desc" ? "asc" : cfg.sort.key === key ? "desc" : key === "name" || key === "industry" ? "asc" : "desc" } });
+    update({
+      sort: {
+        key,
+        dir:
+          cfg.sort.key === key && cfg.sort.dir === "desc"
+            ? "asc"
+            : cfg.sort.key === key
+              ? "desc"
+              : key === "name" || key === "sector" || key === "industry"
+                ? "asc"
+                : "desc",
+      },
+    });
 
   const download = () => {
     const head = ["Ticker", "Name", "Exchange", "Sector", "Industry", "Market cap (Cr)", "Close price", "Change %", "P/E", "ROCE %", "ROE %", "Sales YoY %", "Profit YoY %"];
@@ -246,7 +173,7 @@ export function ScannerPanel() {
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "scan"}.csv`;
+    a.download = "stocks-scan.csv";
     a.click();
     URL.revokeObjectURL(a.href);
   };
@@ -264,114 +191,21 @@ export function ScannerPanel() {
     <section className="nano-section sc-panel">
       <header className="vx-head">
         <div>
-          <span className="vx-eyebrow">Every listed stock, with prices, ratios and industry</span>
-          <h2 className="vx-title">Data</h2>
+          <span className="vx-eyebrow">Every listed stock, with prices, ratios, sector and industry · StockScans</span>
+          <h2 className="vx-title">Stocks scan</h2>
         </div>
       </header>
       <StockscansBar onDone={() => void load()} />
-      <div className="sc-card">
-        <div className="sc-card-head">
-          <input
-            className="sc-name"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setDirty(true);
-            }}
-            aria-label="Scan name"
-          />
-          {dirty ? <span className="sl-sub">unsaved</span> : null}
-          {msg ? <span className="sc-msg">{msg}</span> : null}
-          <span className="fb-spacer" />
-          <button type="button" className="btn-ghost" onClick={newScan}>
-            + New scan
-          </button>
-          <div className="sc-all" ref={allRef}>
-            <button type="button" className="btn-ghost" aria-expanded={allOpen} onClick={() => setAllOpen((v) => !v)}>
-              All scans ({saved.length})
-            </button>
-            {allOpen ? (
-              <div className="fb-pop sc-pop">
-                {saved.length ? (
-                  <ul>
-                    {saved.map((s) => (
-                      <li key={s.id} className={s.id === scanId ? "on" : ""}>
-                        <button type="button" className="sc-open" onClick={() => open(s)}>
-                          <strong>{s.name}</strong>
-                          <span className="sl-sub">
-                            {s.config.conditions.length + (s.config.industries.length ? 1 : 0)} filters · saved{" "}
-                            {new Date(s.updated_at).toLocaleDateString("en-IN")}
-                          </span>
-                        </button>
-                        <button type="button" className="gov-family-chip-x" title="Delete scan" onClick={() => void remove(s)}>
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="table-meta">No saved scans yet.</p>
-                )}
-              </div>
-            ) : null}
-          </div>
-          <button type="button" className="btn-fill" onClick={() => void saveNow()}>
-            {scanId ? "Save" : "Save scan"}
-          </button>
-        </div>
-        <div className="sc-conds">
-          {cfg.conditions.map((c, i) => (
-            <span key={i} className="sc-cond">
-              {condText(c)}
-              <button
-                type="button"
-                aria-label={`Remove ${condText(c)}`}
-                onClick={() => update({ conditions: cfg.conditions.filter((_, j) => j !== i) })}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-          {adding ? (
-            <form
-              className="sc-add"
-              onSubmit={(e) => {
-                e.preventDefault();
-                addCondition();
-              }}
-            >
-              <select value={draft.field} onChange={(e) => setDraft((d) => ({ ...d, field: e.target.value as ColKey }))} aria-label="Field">
-                {FIELDS.map((f) => (
-                  <option key={f.key} value={f.key}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-              <select value={draft.op} onChange={(e) => setDraft((d) => ({ ...d, op: e.target.value as ScanCondition["op"] }))} aria-label="Condition">
-                <option value=">">more than</option>
-                <option value="<">less than</option>
-                <option value="between">between</option>
-              </select>
-              <input inputMode="decimal" placeholder="value" value={draft.a} onChange={(e) => setDraft((d) => ({ ...d, a: e.target.value }))} aria-label="Value" />
-              {draft.op === "between" ? (
-                <input inputMode="decimal" placeholder="and" value={draft.b} onChange={(e) => setDraft((d) => ({ ...d, b: e.target.value }))} aria-label="Upper value" />
-              ) : null}
-              <button type="submit" className="btn-fill">
-                Add
-              </button>
-              <button type="button" className="btn-ghost" onClick={() => setAdding(false)}>
-                Cancel
-              </button>
-            </form>
-          ) : (
-            <button type="button" className="sc-addbtn" onClick={() => setAdding(true)}>
-              ⊕ Add filter
-            </button>
-          )}
-        </div>
-      </div>
 
       <FilterBar>
+        <MultiPick
+          label="Sector"
+          allLabel="All sectors"
+          values={cfg.sectors ?? []}
+          onChange={(v) => update({ sectors: v })}
+          options={sectors}
+          searchable
+        />
         <MultiPick
           label="Industry"
           allLabel="All industries"
@@ -469,10 +303,16 @@ export function ScannerPanel() {
                   </span>
                 </td>
                 {tab.cols.map((k) =>
-                  k === "industry" ? (
+                  k === "sector" || k === "industry" ? (
                     <td key={k} className="sc-ind">
-                      <span title={r.ind_src === "stockscans" ? "Industry from StockScans" : "Industry from the app's own classification"}>
-                        {r.industry ?? "—"}
+                      <span
+                        title={
+                          r.ind_src === "stockscans"
+                            ? `${k === "sector" ? "Sector" : "Industry"} from StockScans`
+                            : "From the app's own classification"
+                        }
+                      >
+                        {(k === "sector" ? r.sector : r.industry) ?? "—"}
                       </span>
                     </td>
                   ) : (
@@ -501,7 +341,7 @@ export function ScannerPanel() {
         </div>
       ) : null}
       <p className="table-meta">
-        Prices as of {data.as_of ? new Date(data.as_of).toLocaleString("en-IN") : "—"} · Industry from StockScans for{" "}
+        Prices as of {data.as_of ? new Date(data.as_of).toLocaleString("en-IN") : "—"} · Sector › industry from StockScans for{" "}
         {data.rows.filter((r) => r.ind_src === "stockscans").length.toLocaleString("en-IN")} stocks, the app&apos;s own
         classification for the rest — every stock has one.
       </p>

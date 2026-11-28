@@ -12,11 +12,18 @@ export const dynamic = "force-dynamic";
 
 function payload() {
   const rows = loadHoldings();
-  // StockScans industry labels (sub_sector) — used by Value / Rotation industry pickers.
+  // StockScans sector / industry — used by Value / Rotation / Scan pickers.
   const industries = [
     ...new Set(
       rows
         .map((r) => (r.sub_sector || "").trim())
+        .filter((s): s is string => !!s),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
+  const sectors = [
+    ...new Set(
+      rows
+        .map((r) => (r.sector || "").trim())
         .filter((s): s is string => !!s),
     ),
   ].sort((a, b) => a.localeCompare(b));
@@ -25,6 +32,7 @@ function payload() {
     tickers: rows.map((r) => r.ticker.toUpperCase()),
     count: rows.length,
     industries,
+    sectors,
   };
 }
 

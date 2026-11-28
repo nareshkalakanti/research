@@ -1,8 +1,9 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { HoldingsIndustryCheck, MultiPick } from "@/components/FilterBar";
+import { MultiPick } from "@/components/FilterBar";
 import { MarketScoreChart } from "@/components/MarketScoreChart";
+import { PageScanButton } from "@/components/PageScanButton";
 import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
 import { RevenueEarningsChart } from "@/components/RevenueEarningsChart";
@@ -64,9 +65,17 @@ type Ranked = Stock & { gR: number; rR: number; pR: number; total: number; rank:
 /** Unranked: no Sales growth / ROCE / P/B yet — listed after the ranked ones. */
 type Row = Ranked | (Stock & { gR: null; rR: null; pR: null; total: null; rank: null });
 
-type Filters = { q: string; industries: string[]; minCount: number; minCap: string; maxCap: string; exch: string };
+type Filters = {
+  q: string;
+  sectors: string[];
+  industries: string[];
+  minCount: number;
+  minCap: string;
+  maxCap: string;
+  exch: string;
+};
 /** Default: ₹200 Cr+ (tiny SME names otherwise crowd the top). */
-const EMPTY: Filters = { q: "", industries: [], minCount: 0, minCap: "200", maxCap: "", exch: "all" };
+const EMPTY: Filters = { q: "", sectors: [], industries: [], minCount: 0, minCap: "200", maxCap: "", exch: "all" };
 
 /** One industry opened from a link (all sizes, so the companies seen elsewhere are here). */
 const industryFilters = (name: string): Filters => ({ ...EMPTY, industries: [name], minCap: "" });
@@ -263,6 +272,7 @@ export function ValuePanel() {
   const [tab, setTab] = useUrlEnumParam("v", VALUE_SUBTABS, "rank");
   const [rows, setRows] = useState<Stock[] | null>(null);
   const [industries, setIndustries] = useState<Industry[]>([]);
+  const [sectors, setSectors] = useState<Industry[]>([]);
   const [asOf, setAsOf] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [draft, setDraft] = useState<Filters>(() => {
@@ -273,14 +283,16 @@ export function ValuePanel() {
   const [page, setPage] = useState(0);
   /** Industry currently shown because of `?ind=` (cleared filters on Back). */
   const [openedInd, setOpenedInd] = useState(readIndParam);
-  /** Bumped after a quality fill so the table picks up the new data. */
+  /** Bumped after a quality fill / page Scan so the table picks up the new data. */
   const [reloadKey, setReloadKey] = useState(0);
+  const [scanning, setScanning] = useState(false);
   /** Unranked stocks Screener has not been asked about in the last 30 days. */
   const [fetchable, setFetchable] = useState(0);
   const reload = useCallback(() => setReloadKey((n) => n + 1), []);
 
   useEffect(() => {
     let live = true;
+    setScanning(true);
     void (async () => {
       try {
         const res = await fetch("/api/value-tools?kind=universe", { cache: "no-store" });
@@ -289,6 +301,7 @@ export function ValuePanel() {
           error?: string;
           rows?: Stock[];
           industries?: Industry[];
+          sectors?: Industry[];
           as_of?: string | null;
           unranked_fetchable?: number;
         };
@@ -296,10 +309,14 @@ export function ValuePanel() {
         if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
         setRows(j.rows ?? []);
         setIndustries(j.industries ?? []);
+        setSectors(j.sectors ?? []);
         setAsOf(j.as_of ?? null);
         setFetchable(j.unranked_fetchable ?? 0);
+        setErr(null);
       } catch (e) {
         if (live) setErr(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (live) setScanning(false);
       }
     })();
     return () => {
@@ -361,6 +378,7 @@ export function ValuePanel() {
     const min = Number(applied.minCap) || 0;
     const max = Number(applied.maxCap) || 0;
     const set = rows.filter((r) => {
+      if (applied.sectors.length && !applied.sectors.includes(r.sector ?? "")) return false;
       if (applied.industries.length && !applied.industries.includes(r.industry ?? "")) return false;
       if (applied.minCount && (counts.get(r.industry ?? "") ?? 0) < applied.minCount) return false;
       if (min && (r.mcap ?? 0) < min) return false;
@@ -429,6 +447,13 @@ export function ValuePanel() {
             )}
           </h2>
         </div>
+        <div className="vx-actions">
+          <PageScanButton
+            busy={scanning}
+            onScanned={reload}
+            title="Rebuild Value tables from Screener / Upstox caches"
+          />
+        </div>
       </header>
 
       {err ? <p className="vx-msg vx-msg--err">Could not load: {err}</p> : null}
@@ -443,8 +468,8 @@ export function ValuePanel() {
             }}
           >
             <span className="vx-label vx-label--title">Filters</span>
-            <div className="vx-grid">
-              <label className="vx-field vx-field--wide">
+            <div className="vx-grid vx-filters-grid">
+              <label className="vx-field vx-filters-search">
                 <span className="vx-label">Search company</span>
                 <input
                   value={draft.q}
@@ -452,25 +477,29 @@ export function ValuePanel() {
                   placeholder="Search by company, NSE or BSE code"
                 />
               </label>
-              <div className="vx-field vx-field--wide vx-field--pick">
-                <span className="vx-label">Industry</span>
-                <div className="vx-pick-row">
-                  <MultiPick
-                    label="Industry"
-                    allLabel="All industries"
-                    values={draft.industries}
-                    onChange={(v) => setDraft({ ...draft, industries: v })}
-                    options={industries.map((i) => ({ id: i.name, label: i.name, count: i.n, title: `${i.ranked} of ${i.n} ranked` }))}
-                    searchable
-                  />
-                  <HoldingsIndustryCheck
-                    values={draft.industries}
-                    onChange={(v) => setDraft({ ...draft, industries: v })}
-                    available={industries.map((i) => i.name)}
-                  />
-                </div>
+              <div className="vx-field vx-filters-pick">
+                <span className="vx-label">Sector</span>
+                <MultiPick
+                  label="Sector"
+                  allLabel="All sectors"
+                  values={draft.sectors}
+                  onChange={(v) => setDraft({ ...draft, sectors: v })}
+                  options={sectors.map((i) => ({ id: i.name, label: i.name, count: i.n, title: `${i.ranked} of ${i.n} ranked` }))}
+                  searchable
+                />
               </div>
-              <label className="vx-field">
+              <div className="vx-field vx-filters-pick">
+                <span className="vx-label">Industry</span>
+                <MultiPick
+                  label="Industry"
+                  allLabel="All industries"
+                  values={draft.industries}
+                  onChange={(v) => setDraft({ ...draft, industries: v })}
+                  options={industries.map((i) => ({ id: i.name, label: i.name, count: i.n, title: `${i.ranked} of ${i.n} ranked` }))}
+                  searchable
+                />
+              </div>
+              <label className="vx-field vx-filters-compact">
                 <span className="vx-label">Stock count</span>
                 <select value={draft.minCount} onChange={(e) => setDraft({ ...draft, minCount: Number(e.target.value) })}>
                   <option value={0}>No filter</option>
@@ -481,15 +510,15 @@ export function ValuePanel() {
                   ))}
                 </select>
               </label>
-              <label className="vx-field">
+              <label className="vx-field vx-filters-compact">
                 <span className="vx-label">Min market cap</span>
                 <input inputMode="numeric" value={draft.minCap} onChange={(e) => setDraft({ ...draft, minCap: e.target.value.replace(/[^\d.]/g, "") })} placeholder="₹ Cr" />
               </label>
-              <label className="vx-field">
+              <label className="vx-field vx-filters-compact">
                 <span className="vx-label">Max market cap</span>
                 <input inputMode="numeric" value={draft.maxCap} onChange={(e) => setDraft({ ...draft, maxCap: e.target.value.replace(/[^\d.]/g, "") })} placeholder="₹ Cr" />
               </label>
-              <label className="vx-field">
+              <label className="vx-field vx-filters-compact">
                 <span className="vx-label">Exchange</span>
                 <select value={draft.exch} onChange={(e) => setDraft({ ...draft, exch: e.target.value })}>
                   <option value="all">All</option>
@@ -775,11 +804,6 @@ function WindsView({ onOpen }: { onOpen: (industry: string) => void }) {
             .sort((a, b) => a.label.localeCompare(b.label))}
           searchable
         />
-        <HoldingsIndustryCheck
-          values={picked}
-          onChange={setPicked}
-          available={(rows ?? []).filter((r) => !r.is_market && r.n >= minN).map((r) => r.industry)}
-        />
         <span className="vx-hint vx-push">
           Favour / out of favour from breadth vs 50-day average · industries with fewer than 3 stocks are not labelled{asOf ? ` · prices to ${asOf}` : ""}
           {" · click Full Market to open score history below"}
@@ -1011,7 +1035,6 @@ function CycleView({
           options={eligible.map((r) => ({ id: r.industry, label: r.industry, count: r.n })).sort((a, b) => a.label.localeCompare(b.label))}
           searchable
         />
-        <HoldingsIndustryCheck values={picked} onChange={setPicked} available={eligible.map((r) => r.industry)} />
       </div>
       <p className="vx-hint vx-cycle-rule">
         Median company return per year · Deep out of favour: 5Y &lt; 2% · Out of favour: 3Y &lt; 0% · Extremely hot: 5Y &gt; 35% · Hot: 3Y
@@ -1410,11 +1433,6 @@ function ValuationView({ onOpen }: { onOpen: (industry: string) => void }) {
           onChange={setPicked}
           options={(data ?? []).filter((r) => r.scored >= minN).map((r) => ({ id: r.industry, label: r.industry, count: r.scored })).sort((a, b) => a.label.localeCompare(b.label))}
           searchable
-        />
-        <HoldingsIndustryCheck
-          values={picked}
-          onChange={setPicked}
-          available={(data ?? []).filter((r) => r.scored >= minN).map((r) => r.industry)}
         />
         <span className="vx-hint vx-push">
           Undervalued = today&apos;s P/E more than 15% below the company&apos;s own 5-year median P/E · overvalued = more than 15% above · extreme = 30%+

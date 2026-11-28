@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { PageScanButton } from "@/components/PageScanButton";
 import { napkinUrl, tradingviewSymbol, tradingviewUrl, websiteUrl } from "@/lib/links";
 
-type Screen = "multi" | "vcp" | "blue" | "none";
+type Screen = "multi" | "ipo" | "vcp" | "blue" | "none";
 
 type Row = {
   ticker: string;
@@ -20,9 +21,11 @@ type Row = {
   above_pct: number | null;
   base_weeks: number | null;
   rs: number | null;
-  /** null: not breaking out today, listed for its lockout rally. */
+  /** null: not breaking out, listed for its lockout rally. */
   screen: Screen | null;
   also: Screen[];
+  /** Session the breakout printed (may be within the last 3 days). */
+  breakout_date: string | null;
   lockout: { green: number; gain_pct: number; start: string; from_price: number; weeks: number; base_weeks: number } | null;
   chart: number[];
   base_from: number;
@@ -39,22 +42,40 @@ type Data = {
 
 type Group = Screen | "lockout";
 const SCREENS: { id: Group; label: string; hint: string }[] = [
-  { id: "multi", label: "Multi-year breakout", hint: "Base of 52 weeks or more" },
-  { id: "vcp", label: "VCP", hint: "Three pullbacks, each shallower than the last (last ≤ 10%), volume drying up" },
-  { id: "blue", label: "Blue sky", hint: "No higher close in the whole history (2+ years)" },
-  { id: "none", label: "No named screen", hint: "Breakout from a base of 2+ weeks" },
+  {
+    id: "multi",
+    label: "Multi-year breakout",
+    hint: "52+ week base, above the 200-day, RS 60+, within 20% of the pivot — a year-plus coil releasing",
+  },
+  {
+    id: "ipo",
+    label: "IPO base",
+    hint: "Listed under 50 weeks: any qualifying 3+ week base (≤35% deep). Holds the 50-day once it exists; RS / 200-day waived. Fresh = last 3 sessions",
+  },
+  {
+    id: "vcp",
+    label: "VCP",
+    hint: "RS 70+, 3+ week base ≤35% deep, 2+ shallower pullbacks (last ≤10%), ATR% and volume ≤0.9× the first half",
+  },
+  {
+    id: "blue",
+    label: "Blue sky",
+    hint: "All-time high pivot with 2+ years of history, RS 70+, basing within 20% of the high — open sky above",
+  },
+  {
+    id: "none",
+    label: "No named screen",
+    hint: "Qualifying breakout (3+ week base ≤35%, coiling, liquidity / RS / MAs) that isn’t Multi-year, IPO, VCP, or Blue sky",
+  },
   {
     id: "lockout",
     label: "Lockout rallies",
-    hint: "Concentrated green bars with range expansion: 6 of the last 8 weekly bars green, each green week 1.5× the base's usual weekly move, out of a 7+ week base, starting near the 30-week average: end of stage 1 / start of stage 2 (Davinder Khurana's Lockout Rallies). Breaking out today or not.",
+    hint: "Concentrated green bars with range expansion: 6 of the last 8 weekly bars green, each green week 1.5× the base's usual weekly move, out of a 7+ week base, starting near the 30-week average: end of stage 1 / start of stage 2 (Davinder Khurana's Lockout Rallies). Liquidity floor only.",
   },
 ];
-const inGroup = (r: Row, g: Group) => (g === "lockout" ? r.lockout != null : r.screen === g);
-const LABEL: Record<Screen, string> = { multi: "Multi-year", vcp: "VCP", blue: "Blue sky", none: "Other" };
-
-/** Market cap range in ₹ Cr; 0 = no limit. */
-const CAP_STEPS = [0, 100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000] as const;
-const capLabel = (v: number) => (v === 0 ? "Any" : v >= 100000 ? `₹${v / 100000}L Cr` : `₹${v.toLocaleString("en-IN")} Cr`);
+const inGroup = (r: Row, g: Group) =>
+  g === "lockout" ? r.lockout != null : r.screen === g || (g !== "none" && r.also.includes(g));
+const LABEL: Record<Screen, string> = { multi: "Multi-year", ipo: "IPO base", vcp: "VCP", blue: "Blue sky", none: "Other" };
 
 type Exch = "all" | "nse" | "nsesme" | "bse" | "bsesme";
 const EXCH: { id: Exch; label: string }[] = [
@@ -105,12 +126,13 @@ function Spark({ r }: { r: Row }) {
   );
 }
 
-function Card({ r }: { r: Row }) {
+function Card({ r, asOf }: { r: Row; asOf: string | null }) {
   const web = websiteUrl(r.website);
   const tv = tradingviewUrl(r.ticker, r.market);
   const up = (r.day_pct ?? 0) >= 0;
   const where = r.above_pct == null ? null : Math.abs(r.above_pct) < 1 ? "at its pivot" : `${Math.round(r.above_pct)}% above it`;
   const lockout = r.lockout ? `${r.lockout.green}/8 green weeks · +${Math.round(r.lockout.gain_pct)}% since ${shortDay(r.lockout.start)} · out of a ${r.lockout.base_weeks}-week base` : null;
+  const brokeEarlier = r.breakout_date && asOf && r.breakout_date !== asOf;
   return (
     <article className="bo-card">
       <div className="bo-l1">
@@ -139,6 +161,7 @@ function Card({ r }: { r: Row }) {
             <span>pivot {pivotFmt(r.pivot)}</span>
             <span>{r.base_weeks}-week base</span>
             <span>{where}</span>
+            {brokeEarlier ? <span>broke {shortDay(r.breakout_date!)}</span> : null}
           </>
         ) : (
           <span>Lockout rally: {lockout}</span>
@@ -185,13 +208,19 @@ function download(label: string, rows: Row[], date: string | null) {
  */
 export function BreakoutsPanel() {
   const [data, setData] = useState<Data | null>(null);
-  const [minCap, setMinCap] = useState<number>(500);
-  const [maxCap, setMaxCap] = useState<number>(0);
+  const [loading, setLoading] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  /** Free-text ₹ Cr bounds, same as Value ("" = no limit). No hard mcap floor in the scan. */
+  const [minCap, setMinCap] = useState("");
+  const [maxCap, setMaxCap] = useState("");
   const [exch, setExch] = useState<Exch>("all");
   const [only, setOnly] = useState<Group | "all">("all");
 
+  const rescan = useCallback(() => setReloadKey((k) => k + 1), []);
+
   useEffect(() => {
     let live = true;
+    setLoading(true);
     void fetch("/api/breakouts", { cache: "no-store" })
       .then((r) => r.json())
       .then((j: Data) => {
@@ -199,22 +228,25 @@ export function BreakoutsPanel() {
       })
       .catch((e) => {
         if (live) setData({ ok: false, error: String(e), date: null, rows: [], universe: 0, refreshing: 0 });
+      })
+      .finally(() => {
+        if (live) setLoading(false);
       });
     return () => {
       live = false;
     };
-  }, []);
+  }, [reloadKey]);
 
-  const rows = useMemo(
-    () =>
-      (data?.rows ?? []).filter(
-        (r) =>
-          (minCap === 0 || (r.mcap_cr ?? 0) >= minCap) &&
-          (maxCap === 0 || (r.mcap_cr != null && r.mcap_cr <= maxCap)) &&
-          (exch === "all" || exchOf(r.market) === exch),
-      ),
-    [data, minCap, maxCap, exch],
-  );
+  const rows = useMemo(() => {
+    const min = Number(minCap) || 0;
+    const max = Number(maxCap) || 0;
+    return (data?.rows ?? []).filter((r) => {
+      if (min && (r.mcap_cr ?? 0) < min) return false;
+      if (max && (r.mcap_cr ?? Infinity) > max) return false;
+      if (exch !== "all" && exchOf(r.market) !== exch) return false;
+      return true;
+    });
+  }, [data, minCap, maxCap, exch]);
 
   if (!data) return <div className="vx-card vx-empty">Scanning for breakouts…</div>;
   if (!data.ok) return <div className="vx-card vx-empty vx-msg--err">Could not load: {data.error}</div>;
@@ -236,24 +268,31 @@ export function BreakoutsPanel() {
           </p>
         </div>
         <div className="bo-filters">
-          <div className="bo-range" role="group" aria-label="Market cap">
-            <span>Market cap</span>
-            <select value={minCap} onChange={(e) => setMinCap(Number(e.target.value))} aria-label="Minimum market cap">
-              {CAP_STEPS.filter((v) => maxCap === 0 || v < maxCap).map((v) => (
-                <option key={v} value={v}>
-                  {v === 0 ? "Min: Any" : `Min ${capLabel(v)}`}
-                </option>
-              ))}
-            </select>
-            <span className="bo-range-dash">–</span>
-            <select value={maxCap} onChange={(e) => setMaxCap(Number(e.target.value))} aria-label="Maximum market cap">
-              {CAP_STEPS.filter((v) => v === 0 || v > minCap).map((v) => (
-                <option key={v} value={v}>
-                  {v === 0 ? "Max: Any" : `Max ${capLabel(v)}`}
-                </option>
-              ))}
-            </select>
-          </div>
+          <PageScanButton
+            busy={loading}
+            onScanned={rescan}
+            title="Rebuild breakouts from saved daily bars (stale Yahoo series refresh in the background)"
+          />
+          <label className="vx-field">
+            <span className="vx-label">Min market cap</span>
+            <input
+              inputMode="numeric"
+              value={minCap}
+              onChange={(e) => setMinCap(e.target.value.replace(/[^\d.]/g, ""))}
+              placeholder="₹ Cr"
+              aria-label="Minimum market cap"
+            />
+          </label>
+          <label className="vx-field">
+            <span className="vx-label">Max market cap</span>
+            <input
+              inputMode="numeric"
+              value={maxCap}
+              onChange={(e) => setMaxCap(e.target.value.replace(/[^\d.]/g, ""))}
+              placeholder="₹ Cr"
+              aria-label="Maximum market cap"
+            />
+          </label>
           <div className="bo-seg" role="group" aria-label="Exchange">
             {EXCH.map((c) => (
               <button key={c.id} type="button" className={exch === c.id ? "on" : undefined} onClick={() => setExch(c.id)}>
@@ -306,7 +345,7 @@ export function BreakoutsPanel() {
             </div>
             <div className="bo-grid">
               {list.map((r) => (
-                <Card key={r.ticker} r={r} />
+                <Card key={r.ticker} r={r} asOf={data.date} />
               ))}
             </div>
           </section>

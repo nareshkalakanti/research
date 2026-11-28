@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     refreshMetrics?: boolean;
     /** Fill missing Sales Growth / ROCE / P/B (Hard-Truth ranking legs). */
     refreshHt?: boolean;
-    /** Rebuild baskets from StockScans industries (stock master). */
+    /** Rebuild baskets from StockScans sectors (stock master). */
     syncStockscans?: boolean;
     ticker?: string;
     name?: string;

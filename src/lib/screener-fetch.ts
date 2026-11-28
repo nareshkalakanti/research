@@ -212,12 +212,14 @@ async function fetchScreenerHtmlAt(
   url: string,
 ): Promise<{ ok: true; html: string } | { ok: false; status: number }> {
   await waitScreenerGap();
+  const session = (process.env.SCREENER_SESSIONID || "").trim();
   return withWebsiteFetch(url, async () => {
     const res = await fetch(url, {
       headers: {
         "user-agent": USER_AGENT,
         accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
         "accept-language": "en-IN,en;q=0.9",
+        ...(session ? { cookie: `sessionid=${session}` } : {}),
       },
       signal: AbortSignal.timeout(45_000),
       redirect: "follow",
@@ -233,6 +235,15 @@ async function fetchScreenerHtmlAt(
     recordScreenerOk();
     return { ok: true as const, html };
   });
+}
+
+/** Any Screener HTML page (market tree, company, …) with shared gap / pause / login cookie. */
+export async function fetchScreenerHtml(
+  url: string,
+): Promise<{ ok: true; html: string } | { ok: false; status: number }> {
+  const paused = screenerPausedUntil();
+  if (paused) throw new ScreenerPausedError(paused);
+  return fetchScreenerHtmlAt(url);
 }
 
 /**

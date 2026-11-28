@@ -886,11 +886,21 @@ function SectorBars({ rows: stocks, range, what }: { rows: TrackRow[]; range: st
 
 type TlChip = { key: string; text: string; cls?: string; href?: string; title?: string };
 type TlGroup = { label: string; chips: TlChip[] };
-type TlItem = { k: string; title: string; sub: ReactNode; groups: TlGroup[]; more?: TlGroup[] };
+type TlItem = {
+  k: string;
+  title: string;
+  sub: ReactNode;
+  /** Left-side block (stocks that left). */
+  left: TlGroup;
+  /** Right-side block (stocks that entered). */
+  right: TlGroup;
+  /** Extra rows under the split (industry moves). */
+  more?: TlGroup[];
+};
 
 /**
- * Vertical timeline, newest quarter first: a flag per year, a dot per quarter, and a card (alternating sides)
- * with a title, a summary line and groups of chips. The chevron opens the card's extra groups.
+ * Vertical timeline, newest quarter first: Left block | centre rail | Entered block.
+ * Industry movement sits under the two stock blocks when present.
  */
 function Timeline({ items, label }: { items: TlItem[]; label: string }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set());
@@ -904,6 +914,18 @@ function Timeline({ items, label }: { items: TlItem[]; label: string }) {
         {c.text}
       </span>
     );
+  const block = (g: TlGroup, side: "left" | "right") => (
+    <div className={`pt-tl-block pt-tl-block--${side}${g.chips.length ? "" : " empty"}`}>
+      <span className="pt-tl-label">
+        {g.label} <b>{g.chips.length}</b>
+      </span>
+      {g.chips.length ? (
+        <div className="pt-tl-chips">{g.chips.map(chip)}</div>
+      ) : (
+        <span className="pt-tl-empty">None</span>
+      )}
+    </div>
+  );
   const groups = (gs: TlGroup[]) =>
     gs
       .filter((g) => g.chips.length)
@@ -918,43 +940,40 @@ function Timeline({ items, label }: { items: TlItem[]; label: string }) {
       {items.map((it, i) => {
         const y = qOf(it.k).y;
         const flag = i === 0 || qOf(items[i - 1]!.k).y !== y;
-        const side = i % 2 === 0 ? "left" : "right";
         const isOpen = open.has(it.k);
         const canOpen = !!it.more?.some((g) => g.chips.length);
         return (
           <li key={it.k} className="pt-tl-item">
             {flag ? <span className="pt-tl-flag">{y}</span> : null}
-            <div className={`pt-tl-row pt-tl-row--${side}`}>
-              <div className="pt-tl-card">
-                <button
-                  type="button"
-                  className="pt-tl-card-head"
-                  aria-expanded={canOpen ? isOpen : undefined}
-                  disabled={!canOpen}
-                  onClick={() =>
-                    setOpen((s) => {
-                      const n = new Set(s);
-                      if (n.has(it.k)) n.delete(it.k);
-                      else n.add(it.k);
-                      return n;
-                    })
-                  }
-                >
-                  <span>
-                    <b>{it.title}</b>
-                    <small>{it.sub}</small>
-                  </span>
-                  {canOpen ? (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true" className={isOpen ? "open" : undefined}>
-                      <path d="M9 6l6 6-6 6" />
-                    </svg>
-                  ) : null}
-                </button>
-                {groups(it.groups)}
-                {isOpen && it.more ? groups(it.more) : null}
-              </div>
+            <div className="pt-tl-row pt-tl-row--split">
+              {block(it.left, "left")}
               <i className="pt-tl-dot" aria-hidden="true" />
-              <span className="pt-tl-date">{qLabel(it.k)}</span>
+              {block(it.right, "right")}
+              <div className="pt-tl-meta">
+                <span className="pt-tl-date">{qLabel(it.k)}</span>
+                <span className="pt-tl-sum">
+                  <b>{it.title}</b>
+                  <small>{it.sub}</small>
+                </span>
+                {canOpen ? (
+                  <button
+                    type="button"
+                    className="link-btn pt-tl-more-btn"
+                    aria-expanded={isOpen}
+                    onClick={() =>
+                      setOpen((s) => {
+                        const n = new Set(s);
+                        if (n.has(it.k)) n.delete(it.k);
+                        else n.add(it.k);
+                        return n;
+                      })
+                    }
+                  >
+                    {isOpen ? "Hide industries" : "Industry moves"}
+                  </button>
+                ) : null}
+                {isOpen && it.more ? <div className="pt-tl-more">{groups(it.more)}</div> : null}
+              </div>
             </div>
           </li>
         );
@@ -973,28 +992,102 @@ const byQuarter = (picks: Pick[]) => {
   return m;
 };
 
-/** A source's list per quarter: only the stocks that entered the list that quarter. */
+function industryLabel(p: Pick): string {
+  return p.industry?.trim() || "Unclassified";
+}
+
+function industryCounts(map: Map<string, Pick>): Map<string, { n: number; sector: string | null }> {
+  const out = new Map<string, { n: number; sector: string | null }>();
+  for (const p of map.values()) {
+    const name = industryLabel(p);
+    const cur = out.get(name) ?? { n: 0, sector: p.sector ?? null };
+    cur.n += 1;
+    if (!cur.sector && p.sector) cur.sector = p.sector;
+    out.set(name, cur);
+  }
+  return out;
+}
+
+/**
+ * Per quarter (newest first): stocks that entered tracking, stocks that left, and industry
+ * movement (net ± vs the prior quarter on the source's list).
+ */
 function PicksTimeline({ picks, range }: { picks: Pick[]; range: string[] }) {
   const byQ = useMemo(() => byQuarter(picks), [picks]);
   const items: TlItem[] = [...range].reverse().map((k) => {
     const now = byQ.get(k) ?? new Map<string, Pick>();
     const before = byQ.get(qFromIndex(qIndex(k) - 1)) ?? new Map<string, Pick>();
     const added = [...now.values()].filter((p) => !before.has(p.ticker)).sort((a, b) => a.ticker.localeCompare(b.ticker));
+    const left = [...before.values()].filter((p) => !now.has(p.ticker)).sort((a, b) => a.ticker.localeCompare(b.ticker));
+
+    const beforeInd = industryCounts(before);
+    const nowInd = industryCounts(now);
+    const names = new Set([...beforeInd.keys(), ...nowInd.keys()]);
+    const indUp: TlChip[] = [];
+    const indDown: TlChip[] = [];
+    for (const name of [...names].sort((a, b) => a.localeCompare(b))) {
+      const a = beforeInd.get(name)?.n ?? 0;
+      const b = nowInd.get(name)?.n ?? 0;
+      const d = b - a;
+      if (!d) continue;
+      const sector = nowInd.get(name)?.sector ?? beforeInd.get(name)?.sector ?? null;
+      const title = sector ? `${name} · ${sector}` : name;
+      if (d > 0) {
+        indUp.push({
+          key: `up:${name}`,
+          text: a === 0 ? `${name} new · ${b}` : `${name} +${d}`,
+          cls: "new",
+          title: `${title} · ${a} → ${b}`,
+        });
+      } else {
+        indDown.push({
+          key: `dn:${name}`,
+          text: b === 0 ? `${name} out` : `${name} −${-d}`,
+          cls: "dropped",
+          title: `${title} · ${a} → ${b}`,
+        });
+      }
+    }
+    indUp.sort((x, y) => y.text.localeCompare(x.text) || x.key.localeCompare(y.key));
+    indDown.sort((x, y) => y.text.localeCompare(x.text) || x.key.localeCompare(y.key));
+
     return {
       k,
-      title: `${added.length} stock${added.length === 1 ? "" : "s"} entered`,
+      title: `${added.length} entered · ${left.length} left`,
       sub: `${now.size} on the list`,
-      groups: [
-        {
-          label: "Entered",
-          chips: added.map((p) => ({ key: p.ticker, text: p.ticker, cls: "new", href: napkinUrl(p.ticker), title: p.name ?? p.ticker })),
-        },
+      left: {
+        label: "Left",
+        chips: left.map((p) => ({
+          key: `out:${p.ticker}`,
+          text: p.ticker,
+          cls: "dropped",
+          href: napkinUrl(p.ticker),
+          title: [p.name ?? p.ticker, p.industry].filter(Boolean).join(" · "),
+        })),
+      },
+      right: {
+        label: "Entered",
+        chips: added.map((p) => ({
+          key: `in:${p.ticker}`,
+          text: p.ticker,
+          cls: "new",
+          href: napkinUrl(p.ticker),
+          title: [p.name ?? p.ticker, p.industry].filter(Boolean).join(" · "),
+        })),
+      },
+      more: [
+        { label: "Industries ↑", chips: indUp },
+        { label: "Industries ↓", chips: indDown },
       ],
     };
   });
-  if (!items.some((it) => it.groups[0]!.chips.length))
-    return <p className="vx-hint">No stocks entered the list in {qLabel(range[0]!)} → {qLabel(range[range.length - 1]!)}.</p>;
-  return <Timeline items={items} label="Stocks entering the list, quarter by quarter" />;
+  if (!items.some((it) => it.left.chips.length || it.right.chips.length || it.more?.some((g) => g.chips.length)))
+    return (
+      <p className="vx-hint">
+        No entries, exits, or industry moves in {qLabel(range[0]!)} → {qLabel(range[range.length - 1]!)}.
+      </p>
+    );
+  return <Timeline items={items} label="Left vs entered stocks, quarter by quarter" />;
 }
 
 

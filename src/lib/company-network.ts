@@ -7,6 +7,7 @@ import { ensureCompanyGroupsTable } from "@/lib/company-groups";
 import { ensureCompanyMetricsFresh } from "@/lib/company-metrics";
 import { CAP_CODE_BANDS, mcapCapCode } from "@/lib/gov-score";
 import { inactiveListingTickerSet } from "@/lib/db";
+import { BRIDGE_TINY_MAX_CR } from "@/lib/gov-score";
 import { loadHoldings } from "@/lib/holdings";
 import { loadMetricsMap } from "@/lib/metrics";
 import { sharedGovernanceDb } from "@/lib/governance-write";
@@ -395,6 +396,183 @@ export function boardLinkedCountsForTickers(tickers: string[]): Map<string, numb
     db.close();
   }
   return map;
+}
+
+/** Independent directors per ticker (seat designation/category; Non-Independent excluded). */
+export function independentDirectorCountsForTickers(tickers: string[]): Map<string, number> {
+  const wanted = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
+  const map = new Map<string, number>();
+  if (!wanted.length) return map;
+  for (const t of wanted) map.set(t, 0);
+  const db = sharedGovernanceDb();
+  try {
+    const rows = db
+      .prepare(
+        `SELECT UPPER(ticker) AS ticker, designation, category
+           FROM board_seats
+          WHERE UPPER(ticker) IN (SELECT value FROM json_each(@want))`,
+      )
+      .all({ want: JSON.stringify(wanted) }) as Array<{
+      ticker: string;
+      designation: string | null;
+      category: string | null;
+    }>;
+    for (const r of rows) {
+      const text = `${r.designation || ""} ${r.category || ""}`;
+      if (/non[-\s]?independent/i.test(text)) continue;
+      if (!/\bindependent\b/i.test(text)) continue;
+      const t = (r.ticker || "").toUpperCase();
+      if (!t) continue;
+      map.set(t, (map.get(t) ?? 0) + 1);
+    }
+  } catch {
+    /* missing table */
+  } finally {
+    db.close();
+  }
+  return map;
+}
+
+/**
+ * Listed-VC governance screen (slide): prefer professional boards with directors
+ * who also sit on other small listed cos; watch family / related-party seats.
+ */
+export type ListedVcGovRow = {
+  board_n: number;
+  family_n: number;
+  /** Other listed boards ≤ smallMaxCr sharing a director. */
+  small_link_n: number;
+  family_share: number;
+  /** Pass hard filter: not family-heavy AND ≥1 small-board link. */
+  pass: boolean;
+  /** Higher = better (professional + small-board observers). */
+  score: number;
+};
+
+function isFamilyRelatedSeat(designation: string | null, category: string | null): boolean {
+  const text = `${designation || ""} ${category || ""}`.toLowerCase();
+  // Independents are professional by definition.
+  if (/\bindependent\b/.test(text) && !/non[-\s]?independent/.test(text)) return false;
+  // Slide: watch related-party / family seats — not every chair.
+  return /promoter|founder|related\s*party|relative|\bspouse\b|\bwife\b|\bson\b|\bdaughter\b|\bfamily\b/.test(
+    text,
+  );
+}
+
+/**
+ * Per-ticker Listed-VC gov profile for a ticker set.
+ * `smallMaxCr` = max mcap (₹ Cr) for a "really small" observer board (default ≤₹500 Cr).
+ */
+export function listedVcGovForTickers(
+  tickers: string[],
+  opts?: { smallMaxCr?: number },
+): Map<string, ListedVcGovRow> {
+  const wanted = [
+    ...new Set(
+      tickers
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
+  const smallMax = Math.max(50, opts?.smallMaxCr ?? BRIDGE_TINY_MAX_CR);
+  const out = new Map<string, ListedVcGovRow>();
+  if (!wanted.length) return out;
+  for (const t of wanted) {
+    out.set(t, {
+      board_n: 0,
+      family_n: 0,
+      small_link_n: 0,
+      family_share: 0,
+      pass: false,
+      score: 0,
+    });
+  }
+
+  const db = sharedGovernanceDb();
+  try {
+    ensureNetworkViews(db, false);
+    db.exec(ifNotExists(COMPANY_NETWORK_VIEW_SQL, "company_network"));
+    const gone = JSON.stringify([...inactiveListingTickerSet()]);
+    const want = JSON.stringify(wanted);
+
+    const seats = db
+      .prepare(
+        `SELECT UPPER(ticker) AS ticker, designation, category
+           FROM board_seats
+          WHERE UPPER(ticker) IN (SELECT value FROM json_each(@want))`,
+      )
+      .all({ want }) as Array<{
+      ticker: string;
+      designation: string | null;
+      category: string | null;
+    }>;
+    for (const s of seats) {
+      const t = (s.ticker || "").toUpperCase();
+      const row = out.get(t);
+      if (!row) continue;
+      row.board_n += 1;
+      if (isFamilyRelatedSeat(s.designation, s.category)) row.family_n += 1;
+    }
+
+    const linkRows = db
+      .prepare(
+        `WITH edges AS (
+           SELECT ticker_a AS ticker, ticker_b AS other FROM company_network
+           UNION ALL
+           SELECT ticker_b, ticker_a FROM company_network
+         ),
+         live AS (
+           SELECT e.ticker, e.other, cm.market_cap AS mcap
+             FROM edges e
+             LEFT JOIN company_metrics cm ON UPPER(cm.ticker) = e.other
+            WHERE e.ticker NOT IN (SELECT value FROM json_each(@gone))
+              AND e.other NOT IN (SELECT value FROM json_each(@gone))
+         )
+         SELECT ticker, other, mcap
+           FROM live
+          WHERE ticker IN (SELECT value FROM json_each(@want))`,
+      )
+      .all({ gone, want }) as Array<{ ticker: string; other: string; mcap: number | null }>;
+
+    const smallLinked = new Map<string, Set<string>>();
+    for (const r of linkRows) {
+      const t = (r.ticker || "").toUpperCase();
+      const o = (r.other || "").toUpperCase();
+      if (!t || !o || t === o) continue;
+      const mcap = r.mcap == null ? null : Number(r.mcap);
+      // "Really small" observer boards — known mcap under the small ceiling.
+      if (mcap == null || !(mcap > 0) || mcap > smallMax) continue;
+      let set = smallLinked.get(t);
+      if (!set) {
+        set = new Set();
+        smallLinked.set(t, set);
+      }
+      set.add(o);
+    }
+
+    for (const [t, row] of out) {
+      row.small_link_n = smallLinked.get(t)?.size ?? 0;
+      row.family_share = row.board_n > 0 ? row.family_n / row.board_n : 1;
+      const familyHeavy = row.board_n === 0 || row.family_share >= 0.5;
+      row.pass = !familyHeavy && row.small_link_n >= 1;
+      const professionalShare = row.board_n > 0 ? 1 - row.family_share : 0;
+      row.score =
+        professionalShare * 60 +
+        Math.min(row.small_link_n, 5) * 8 +
+        (row.pass ? 10 : 0);
+    }
+  } catch {
+    /* missing views / db */
+  } finally {
+    db.close();
+  }
+  return out;
 }
 
 function likePattern(q: string): string {

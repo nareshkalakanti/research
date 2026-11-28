@@ -96,6 +96,7 @@ export function Ipo2Panel() {
   const [sort, setSort] = useState<SortKey>("score");
   const [open, setOpen] = useState<string | null>(null);
   const [limit, setLimit] = useState(PAGE);
+  const [showRules, setShowRules] = useState(false);
 
   /** Refresh button rebuilds the screen; the first load runs from `reloadKey`'s effect. */
   const [reloadKey, setReloadKey] = useState(0);
@@ -173,8 +174,8 @@ export function Ipo2Panel() {
           </h2>
         </div>
         <div className="vx-actions">
-          <button type="button" className="vx-btn" disabled={loading} onClick={load}>
-            {loading ? "Loading…" : "Refresh"}
+          <button type="button" className="vx-btn ipo2-btn" disabled={loading} onClick={load}>
+            {loading ? "…" : "Refresh"}
           </button>
         </div>
       </header>
@@ -204,7 +205,7 @@ export function Ipo2Panel() {
           </label>
           <div className="vx-field">
             <span className="vx-label">Exchange</span>
-            <div className="pa-presets" role="group" aria-label="Exchange">
+            <div className="ipo2-seg" role="group" aria-label="Exchange">
               {(
                 [
                   ["all", "All"],
@@ -238,20 +239,32 @@ export function Ipo2Panel() {
           </label>
         </div>
         {R ? (
-          <p className="vx-hint">
-            <b>Bases:</b> a rest below the high for {Math.round(R.ipoBaseMinDays / 5)}+ weeks (IPO base) or {R.baseMinDays / 5}+ weeks,
-            at least {R.baseMinDepthPct}% deep; ideal {R.idealDepth[0]}–{R.idealDepth[1]}%, broken past {R.maxDepthIpoPct}% (IPO base) or{" "}
-            {R.maxDepthPct}%. <b>Entries kept</b> (best across all stocks, 2023–25): listing-range breakout, <b>pivot</b> (close above the
-            base high) and E1B / E2B adds; cheats, trendline and band adds dropped, no sell signals. <b>E1B / E2B:</b> a{" "}
-            {R.addMinDepthPct}–{R.addMaxDepthPct}% pause of {R.addMinDays}+ days after the breakout. Stops sit under the pause or pivot low,
-            at most {R.maxStopPct}% below the buy level.
-            <br />
-            First run is measured from the IPO issue price (NSE&apos;s past issues) where known
-            {data ? ` (${data.with_issue_price.toLocaleString("en-IN")} of ${data.rows.length.toLocaleString("en-IN")} stocks)` : ""}, else
-            from the listing-day close: BSE-only issues and some main-board IPOs aren&apos;t in NSE&apos;s list. <b>Early growth:</b> the
-            first 4 quarters after listing, sales and profit both up {R.growthPct}%+ in most of them. <b>Ignite:</b> a green day-1 candle closing in the
-            top half of its range on the highest volume since listing (day-1 candles from Yahoo, filled in the background). QIB subscription isn&apos;t saved.
-          </p>
+          <div className="ipo2-rules-fold">
+            <button
+              type="button"
+              className="link-btn ipo2-rules-toggle"
+              aria-expanded={showRules}
+              onClick={() => setShowRules((v) => !v)}
+            >
+              {showRules ? "Hide rules" : "Show rules"}
+            </button>
+            {showRules ? (
+              <p className="vx-hint">
+                <b>Bases:</b> a rest below the high for {Math.round(R.ipoBaseMinDays / 5)}+ weeks (IPO base) or {R.baseMinDays / 5}+ weeks,
+                at least {R.baseMinDepthPct}% deep; ideal {R.idealDepth[0]}–{R.idealDepth[1]}%, broken past {R.maxDepthIpoPct}% (IPO base) or{" "}
+                {R.maxDepthPct}%. <b>Entries kept</b> (best across all stocks, 2023–25): listing-range breakout, <b>pivot</b> (close above the
+                base high) and E1B / E2B adds; cheats, trendline and band adds dropped, no sell signals. <b>E1B / E2B:</b> a{" "}
+                {R.addMinDepthPct}–{R.addMaxDepthPct}% pause of {R.addMinDays}+ days after the breakout. Stops sit under the pause or pivot low,
+                at most {R.maxStopPct}% below the buy level.
+                <br />
+                First run is measured from the IPO issue price (NSE&apos;s past issues) where known
+                {data ? ` (${data.with_issue_price.toLocaleString("en-IN")} of ${data.rows.length.toLocaleString("en-IN")} stocks)` : ""}, else
+                from the listing-day close: BSE-only issues and some main-board IPOs aren&apos;t in NSE&apos;s list. <b>Early growth:</b> the
+                first 4 quarters after listing, sales and profit both up {R.growthPct}%+ in most of them. <b>Ignite:</b> a green day-1 candle closing in the
+                top half of its range on the highest volume since listing (day-1 candles from Yahoo, filled in the background). QIB subscription isn&apos;t saved.
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

@@ -23,7 +23,8 @@ export type RotationSector = {
 };
 
 function collapseSectorLabel(label: string): string {
-  let t = label.replace(/\s+/g, " ").trim();
+  // "Aerospace & Defence" and "Aerospace and Defence" are the same basket.
+  let t = label.replace(/ & /g, " and ").replace(/\s+/g, " ").trim();
   const parts = t
     .split(/\s*[,;|]\s*/)
     .map((p) => p.trim())
@@ -59,6 +60,7 @@ function collapseSectorLabel(label: string): string {
 function labelKey(label: string): string {
   return collapseSectorLabel(label)
     .toLowerCase()
+    .replace(/&/g, " and ")
     .replace(/\s*[-–—]\s*/g, " ")
     .replace(/\bequipments\b/g, "equipment")
     .replace(/\s+/g, " ")
@@ -84,16 +86,38 @@ function foldDuplicateSectors(db: Database.Database): void {
       `SELECT id, label, created_at FROM sectors ORDER BY created_at, id`,
     )
     .all() as Array<{ id: string; label: string; created_at: string }>;
-  // Collapse OCR dumps ("X, X, X") onto a single label before folding dupes.
+  const mergeInto = (winnerId: string, loserId: string) => {
+    if (winnerId === loserId) return;
+    db.prepare(
+      `INSERT INTO sector_members (sector_id, ticker, name, market, updated_at)
+       SELECT ?, ticker, name, market, updated_at FROM sector_members WHERE sector_id = ?
+       ON CONFLICT(sector_id, ticker) DO NOTHING`,
+    ).run(winnerId, loserId);
+    db.prepare(`DELETE FROM sector_members WHERE sector_id = ?`).run(loserId);
+    db.prepare(`DELETE FROM sectors WHERE id = ?`).run(loserId);
+  };
+  // Collapse "X & Y" / OCR dumps onto a single label before folding dupes.
+  // If the cleaned name already exists, merge into that basket (UNIQUE label).
+  const byLabel = new Map(heads.map((h) => [h.label.toLowerCase(), h.id]));
+  const alive = new Set(heads.map((h) => h.id));
   for (const h of heads) {
+    if (!alive.has(h.id)) continue;
     const clean = collapseSectorLabel(h.label);
-    if (clean && clean !== h.label) {
-      db.prepare(`UPDATE sectors SET label = ? WHERE id = ?`).run(clean, h.id);
-      h.label = clean;
+    if (!clean || clean === h.label) continue;
+    const clashId = byLabel.get(clean.toLowerCase());
+    if (clashId && clashId !== h.id && alive.has(clashId)) {
+      mergeInto(clashId, h.id);
+      alive.delete(h.id);
+      continue;
     }
+    db.prepare(`UPDATE sectors SET label = ? WHERE id = ?`).run(clean, h.id);
+    byLabel.delete(h.label.toLowerCase());
+    byLabel.set(clean.toLowerCase(), h.id);
+    h.label = clean;
   }
   const keep = new Map<string, string>();
   for (const h of heads) {
+    if (!alive.has(h.id)) continue;
     const k = labelKey(h.label);
     if (!k) continue;
     const winner = keep.get(k);
@@ -101,13 +125,8 @@ function foldDuplicateSectors(db: Database.Database): void {
       keep.set(k, h.id);
       continue;
     }
-    db.prepare(
-      `INSERT INTO sector_members (sector_id, ticker, name, market, updated_at)
-       SELECT ?, ticker, name, market, updated_at FROM sector_members WHERE sector_id = ?
-       ON CONFLICT(sector_id, ticker) DO NOTHING`,
-    ).run(winner, h.id);
-    db.prepare(`DELETE FROM sector_members WHERE sector_id = ?`).run(h.id);
-    db.prepare(`DELETE FROM sectors WHERE id = ?`).run(h.id);
+    mergeInto(winner, h.id);
+    alive.delete(h.id);
   }
   const tickers = db
     .prepare(
@@ -405,7 +424,13 @@ export function upsertRotationSectorByLabel(
   return getRotationSector(id)!;
 }
 
-export type RotationAssign = { ticker: string; name: string; market: string; industry: string };
+export type RotationAssign = {
+  ticker: string;
+  name: string;
+  market: string;
+  /** StockScans industry — one basket per stock. */
+  industry: string;
+};
 export type RotationSyncResult = {
   placed: number;
   moved: number;
@@ -418,6 +443,7 @@ export type RotationSyncResult = {
  * Put each stock in the basket named after its StockScans industry (creating
  * baskets as needed). A stock sits in one basket only, so it leaves its old one.
  * full = true also drops baskets left empty afterwards.
+ * Sector Trend “Sectors” view groups these by StockScans sector (ss_sector).
  */
 export function syncRotationFromStockscans(rows: RotationAssign[], opts?: { full?: boolean }): RotationSyncResult {
   const db = openWrite();

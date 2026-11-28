@@ -465,15 +465,15 @@ function rotationRows(db: Db): Array<{ ticker: string; name: string; market: str
   return db
     .prepare(
       `SELECT ticker, name, COALESCE(exchange, 'NSE') AS market, industry FROM stocks
-       WHERE source = 'stockscans' AND tracked = 1 AND active = 1 AND industry IS NOT NULL`,
+       WHERE source = 'stockscans' AND tracked = 1 AND active = 1 AND industry IS NOT NULL AND TRIM(industry) != ''`,
     )
     .all() as Array<{ ticker: string; name: string; market: string; industry: string }>;
 }
 
 /**
- * Rotation baskets = StockScans industries: every tracked stock goes to its
- * industry's basket; empty unstarred baskets are dropped. From then on, each
- * master sync moves only stocks whose industry is new or changed.
+ * Rotation baskets = StockScans industries (drill-down). Sector Trend can also
+ * group by StockScans sector via ss_sector on each basket. Empty unstarred
+ * baskets are dropped. Master sync moves stocks whose industry changed.
  */
 export function syncRotationFromMaster(): RotationSyncResult {
   ensureStockMaster();

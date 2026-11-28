@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { PageScanButton } from "@/components/PageScanButton";
 import { napkinUrl, tradingviewUrl } from "@/lib/links";
 import type { MmResult, MmRow } from "@/lib/momentum-money";
 
@@ -63,13 +64,18 @@ function Sym({ r }: { r: MmRow }) {
 export function MomentumMoneyPanel() {
   const [year, setYear] = useState<number>(new Date().getFullYear() - 1);
   const [data, setData] = useState<Data | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [minCap, setMinCap] = useState(200);
   const [maxCap, setMaxCap] = useState(0);
   const [minGain, setMinGain] = useState(200);
   const [exch, setExch] = useState<Exch>("nse");
 
+  const rescan = useCallback(() => setReloadKey((k) => k + 1), []);
+
   useEffect(() => {
     let live = true;
+    setScanning(true);
     void fetch(`/api/momentum-money?year=${year}`, { cache: "no-store" })
       .then((r) => r.json())
       .then((j: Data) => {
@@ -77,11 +83,14 @@ export function MomentumMoneyPanel() {
       })
       .catch((e) => {
         if (live) setData({ ok: false, error: String(e) });
+      })
+      .finally(() => {
+        if (live) setScanning(false);
       });
     return () => {
       live = false;
     };
-  }, [year]);
+  }, [year, reloadKey]);
 
   const rows = useMemo(
     () =>
@@ -96,7 +105,7 @@ export function MomentumMoneyPanel() {
         : [],
     [data, minGain, minCap, maxCap, exch],
   );
-  const loading = !data || (data.ok && data.year !== year);
+  const loading = !data || (data.ok && data.year !== year) || scanning;
 
   return (
     <section className="vx mm">
@@ -106,6 +115,13 @@ export function MomentumMoneyPanel() {
           <h2 className="vx-title">
             Money <span>&amp; Momentum</span>
           </h2>
+        </div>
+        <div className="vx-actions">
+          <PageScanButton
+            busy={scanning}
+            onScanned={rescan}
+            title="Rebuild winners from saved daily bars"
+          />
         </div>
       </header>
       <div className="mm-winners">

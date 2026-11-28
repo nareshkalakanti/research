@@ -457,14 +457,22 @@ async function buildCompaniesResponse(req: NextRequest) {
       ? Number(mcapMaxRaw)
       : null;
   const filterNote = sp.get("note") === "1";
-  /** Industry filter (stock-master industry, comma-separated; empty = all). */
+  /** Industry filter (stock-master industry, | -separated; empty = all). */
   const industrySet = new Set(
     (sp.get("industries") || "")
       .split("|")
       .map((s) => s.trim())
       .filter(Boolean),
   );
+  /** Sector filter (StockScans sector, | -separated; empty = all). */
+  const sectorSet = new Set(
+    (sp.get("sectors") || "")
+      .split("|")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
   const industryOf = (c: { sub_sector?: string | null; sector?: string | null }) => (c.sub_sector || c.sector || "").trim();
+  const sectorOf = (c: { sector?: string | null }) => (c.sector || "").trim();
   const fundListMode =
     anyFundFilterActive(fundActive) || !!fundListKey || fundModeActive;
   /** Theme scan: if any matches have BB/TQ, keep only those (OR). */
@@ -1072,12 +1080,16 @@ async function buildCompaniesResponse(req: NextRequest) {
       (c) => c.mcap_cr != null && c.mcap_cr <= mcapMax,
     );
   }
-  // Industry picker options: counts within the current list before the industry filter.
+  // Sector / industry picker options: counts before those filters.
   const industryCounts = new Map<string, number>();
+  const sectorCounts = new Map<string, number>();
   for (const c of companies) {
     const k = industryOf(c);
     if (k) industryCounts.set(k, (industryCounts.get(k) ?? 0) + 1);
+    const s = sectorOf(c);
+    if (s) sectorCounts.set(s, (sectorCounts.get(s) ?? 0) + 1);
   }
+  if (sectorSet.size) companies = companies.filter((c) => sectorSet.has(sectorOf(c)));
   if (industrySet.size) companies = companies.filter((c) => industrySet.has(industryOf(c)));
 
   // List-relative MOM rank (1 = highest rounded 12−1 within the current filtered set).
@@ -1518,6 +1530,9 @@ async function buildCompaniesResponse(req: NextRequest) {
 
   return NextResponse.json({
     industries: [...industryCounts]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([name, count]) => ({ name, count })),
+    sectorOptions: [...sectorCounts]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([name, count]) => ({ name, count })),
     rows: slice,

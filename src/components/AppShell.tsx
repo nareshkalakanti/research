@@ -53,6 +53,11 @@ const ScannerPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const ScreenerInPanel = dynamic(
+  () => import("@/components/ScreenerInPanel").then((m) => m.ScreenerInPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const FamilyDashboard = dynamic(
   () => import("@/components/FamilyDashboard").then((m) => m.FamilyDashboard),
   { loading: PanelFallback, ssr: false },
@@ -97,6 +102,11 @@ const MicrocapSectorsPanel = dynamic(
   { loading: PanelFallback, ssr: false },
 );
 
+const MicrocapHighLowPanel = dynamic(
+  () => import("@/components/MicrocapHighLowPanel").then((m) => m.MicrocapHighLowPanel),
+  { loading: PanelFallback, ssr: false },
+);
+
 const MomentumMoneyPanel = dynamic(
   () => import("@/components/MomentumMoneyPanel").then((m) => m.MomentumMoneyPanel),
   { loading: PanelFallback, ssr: false },
@@ -123,12 +133,14 @@ const PANELS: Record<AppTab, ComponentType> = {
   breakouts: BreakoutsPanel,
   microcap: MicrocapPanel,
   "micro-sectors": MicrocapSectorsPanel,
+  "micro-highlow": MicrocapHighLowPanel,
   "momentum-money": MomentumMoneyPanel,
   picks: PicksTrackerPanel,
   ipo2: Ipo2Panel,
   research: ResearchPanel,
   watchlist: WatchlistPanel,
   scanner: ScannerPanel,
+  "screener-in": ScreenerInPanel,
   value: ValuePanel,
   portfolio: PortfolioPanel,
 };
@@ -170,17 +182,35 @@ function AppShellPanels() {
 
   // Keep Scanner data (results, ROCE/ROE) and Screener fund lists fresh while the app is open: ping on load and
   // every 30 min; the server only runs what is due and skips if busy.
+  // Also resume an incomplete Screener industry crawl (runs on the server even if you leave that tab).
   useEffect(() => {
     const ping = () => {
       void fetch("/api/baskets-refresh", { method: "POST" }).catch(() => {
         /* best effort */
       });
+      void fetch("/api/screener-industries", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ continue: true }),
+      }).catch(() => {
+        /* best effort */
+      });
     };
     const first = window.setTimeout(ping, 20_000);
     const every = window.setInterval(ping, 30 * 60_000);
+    const resumeSoon = window.setInterval(() => {
+      void fetch("/api/screener-industries", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ continue: true }),
+      }).catch(() => {
+        /* best effort */
+      });
+    }, 5 * 60_000);
     return () => {
       window.clearTimeout(first);
       window.clearInterval(every);
+      window.clearInterval(resumeSoon);
     };
   }, []);
 

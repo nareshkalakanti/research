@@ -63,6 +63,7 @@ next-env.d.ts
 # IQ scan / backfill DBs + logs — machine-local (do not ship between machines)
 /data/marketiq.db
 /data/rotation_bars.db
+/data/rotation_rank_cache.json
 /data/orderbookiq.db
 /data/boardroomiq.db
 /logs/

@@ -33,6 +33,9 @@ type Network = {
     tickers: string[];
     span_tickers?: string[];
     dir_score?: number;
+    independent?: boolean;
+    designation?: string | null;
+    category?: string | null;
   }>;
 };
 
@@ -158,6 +161,9 @@ export function StockNetworkSearch({
                   {row.group_name ? ` · ${row.group_name}` : ""}
                   {" · "}
                   {row.people.length} directors
+                  {row.people.filter((p) => p.independent).length
+                    ? ` · ${row.people.filter((p) => p.independent).length} independent`
+                    : ""}
                   {hub.length > 1 ? ` · ${hub.length} group listings` : ""}
                   {connected.length
                     ? ` · ${connected.length} connected ${connected.length === 1 ? "company" : "companies"}`

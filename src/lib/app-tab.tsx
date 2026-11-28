@@ -24,10 +24,12 @@ export type AppTab =
   | "breakouts"
   | "microcap"
   | "micro-sectors"
+  | "micro-highlow"
   | "momentum-money"
   | "ipo2"
   | "picks"
   | "scanner"
+  | "screener-in"
   | "value"
   | "portfolio";
 
@@ -48,7 +50,8 @@ export const APP_TABS: { id: AppTab; label: string; short: string }[] = [
   { id: "concall-drift", label: "Concall Drift", short: "Drift" },
   { id: "scan", label: "Strategy", short: "Strategy" },
   { id: "watchlist", label: "Watchlist", short: "Watch" },
-  { id: "scanner", label: "Data", short: "Data" },
+  { id: "scanner", label: "Stocks scan", short: "Scan" },
+  { id: "screener-in", label: "Screener.in", short: "Scr" },
   { id: "research", label: "Research", short: "Research" },
 ];
 
@@ -107,12 +110,20 @@ export const APP_GROUPS: AppGroup[] = [
   { id: "drift", label: "Concall Drift", short: "Drift", tabs: [{ id: "concall-drift", label: "Concall Drift" }] },
   { id: "governance", label: "Governance", short: "Gov", tabs: [{ id: "dashboard", label: "Governance" }] },
   {
+    id: "data",
+    label: "Data",
+    short: "Data",
+    tabs: [
+      { id: "scanner", label: "Stocks scan" },
+      { id: "screener-in", label: "Screener.in" },
+    ],
+  },
+  {
     id: "research",
     label: "Research",
     short: "More",
     tabs: [
       { id: "research", label: "Research" },
-      { id: "scanner", label: "Data" },
       { id: "watchlist", label: "Watchlist" },
       { id: "picks", label: "Picks tracker" },
       { id: "scan", label: "Signals" },
@@ -127,7 +138,7 @@ export function groupOfTab(tab: AppTab): AppGroup {
 }
 
 /** Hidden from top nav; opened from Dashboard and Napkin person / company links. */
-const HIDDEN_TABS: AppTab[] = ["governance"];
+const HIDDEN_TABS: AppTab[] = ["governance", "micro-highlow"];
 
 export function tabFromParam(raw: string | null): AppTab {
   if (raw === "ht") return "scan";

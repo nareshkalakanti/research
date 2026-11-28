@@ -1,4 +1,9 @@
-import { boardLinkedCountsForTickers } from "./company-network";
+import {
+  boardLinkedCountsForTickers,
+  independentDirectorCountsForTickers,
+  listedVcGovForTickers,
+} from "./company-network";
+import { BRIDGE_TINY_MAX_CR } from "./gov-score";
 import { loadMetricsMap } from "./metrics";
 import { idxOnOrBefore } from "./price-action-rules";
 import { cachedRotationCloses } from "./rotation-bars";
@@ -52,6 +57,7 @@ export type MicrocapSectorReturn = {
 } & MicrocapValueRanks;
 
 export type MicrocapSectorBoard = {
+  min_mcap_cr: number;
   max_mcap_cr: number;
   board: MicrocapBoardFilter;
   /** Min names with a 1Y return for a sector / industry to appear. */
@@ -132,15 +138,15 @@ function loadClassificationsMap(): Map<string, ClsRow> {
 }
 
 /**
- * Prefer StockScans sector › industry when it has structure.
- * If StockScans is flat (Trading/Trading, Cement/Cement, blank industry), use
- * classifications sector › sub_sector (then industry) when present.
+ * StockScans when structured; else classifications.db sector › sub_sector.
+ * Screener.in labels stay in screener_industries.db until explicitly wired in.
  */
 function resolveSectorIndustry(
   ticker: string,
   ss: { sector: string | null; industry: string | null } | undefined,
   cls: Map<string, ClsRow>,
 ): { sector: string; industry: string; usedCls: boolean } | null {
+  const t = ticker.toUpperCase();
   const ssSector = ss?.sector?.trim() || null;
   const ssInd = ss?.industry?.trim() || null;
 
@@ -148,7 +154,7 @@ function resolveSectorIndustry(
     return { sector: ssSector, industry: ssInd || "", usedCls: false };
   }
 
-  const c = cls.get(ticker.toUpperCase());
+  const c = cls.get(t);
   if (c?.sector) {
     const leaf = c.sub_sector || c.industry || "";
     return { sector: c.sector, industry: leaf, usedCls: true };
@@ -226,18 +232,29 @@ function applyValueRanks<T extends MicrocapValueRanks>(
   }
 }
 
+/** Inclusive mcap band in ₹ Cr (min 0 = no floor). */
+function inMcapBand(mcap: number, minMcap: number, maxMcap: number): boolean {
+  if (!(mcap > 0) || !Number.isFinite(mcap)) return false;
+  if (mcap > maxMcap) return false;
+  if (minMcap > 0 && mcap < minMcap) return false;
+  return true;
+}
+
 /**
- * For names ≤ ₹maxMcap Cr: equal-weight avg 12-month return by sector › industry,
+ * For names in the mcap band: equal-weight avg 12-month return by sector › industry,
  * plus Value-style Sales / ROCE / P/B ranks (same legs as the ranking tool).
  * StockScans first; classifications sector › sub_sector when StockScans is flat.
  */
 export function buildMicrocapSectorReturns(opts?: {
   maxMcapCr?: number;
+  /** Inclusive floor in ₹ Cr (0 = no floor). */
+  minMcapCr?: number;
   board?: MicrocapBoardFilter;
   /** Min names with a 1Y return before an industry is ranked. */
   minIndustryN?: number;
 }): MicrocapSectorBoard {
   const maxMcap = opts?.maxMcapCr ?? MICROCAP_SECTOR_MAX_CR;
+  const minMcap = Math.max(0, opts?.minMcapCr ?? 0);
   const board = opts?.board ?? "all";
   const minInd = Math.max(1, opts?.minIndustryN ?? 2);
   const years = rotationFetchYears();
@@ -260,7 +277,7 @@ export function buildMicrocapSectorReturns(opts?: {
 
   for (const [ticker, row] of metrics) {
     const mcap = row.market_cap_cr;
-    if (mcap == null || !(mcap > 0) || mcap > maxMcap) continue;
+    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
     const sme = isSmeMarket(row.market);
     if (board === "main" && sme) continue;
     if (board === "sme" && !sme) continue;
@@ -427,32 +444,35 @@ export function buildMicrocapSectorReturns(opts?: {
     for (const ind of s.industries) {
       delete (ind as { _recovery?: boolean })._recovery;
     }
-    // Industries: Value total first (ranking-tool order).
+    // Board lists: best → worst 12M return (matches the % shown on each row).
     s.industries.sort(
       (a, b) =>
-        (a.total == null ? 1 : 0) - (b.total == null ? 1 : 0) ||
-        (a.total ?? 0) - (b.total ?? 0) ||
         b.avg_ret_1y - a.avg_ret_1y ||
         a.industry.localeCompare(b.industry),
     );
-    // Board High / Low stay return-based (best / worst 12M inside the sector).
+    // High / Low only when ≥2 named pockets — otherwise they would be the same row.
     const named = s.industries.filter((x) => x.industry !== "Other");
     const byRet = [...named].sort(
       (a, b) => b.avg_ret_1y - a.avg_ret_1y || a.industry.localeCompare(b.industry),
     );
-    s.high = byRet[0] ?? null;
-    s.low = byRet.length ? byRet[byRet.length - 1]! : null;
+    if (byRet.length >= 2) {
+      s.high = byRet[0]!;
+      s.low = byRet[byRet.length - 1]!;
+    } else {
+      s.high = null;
+      s.low = null;
+    }
   }
 
+  // Columns ordered by the 12M return printed on the header (best first).
   sectors.sort(
     (a, b) =>
-      (a.total == null ? 1 : 0) - (b.total == null ? 1 : 0) ||
-      (a.total ?? 0) - (b.total ?? 0) ||
       b.avg_ret_1y - a.avg_ret_1y ||
       a.sector.localeCompare(b.sector),
   );
 
   return {
+    min_mcap_cr: minMcap,
     max_mcap_cr: maxMcap,
     board,
     min_industry_n: minInd,
@@ -478,6 +498,18 @@ export type MicrocapStockRow = {
   div_yield_pct: number | null;
   /** Other listed boards sharing ≥1 director (gov board map). */
   board_links: number;
+  /** Independent directors on this board (0 when none / unknown). */
+  independent_n: number;
+  /** Listed-VC gov: not family-heavy + ≥1 really-small board link. */
+  gov_pass: boolean;
+  /** Continuous Listed-VC gov score (higher better). */
+  gov_score: number;
+  family_n: number;
+  board_n: number;
+  /** Linked listed boards with mcap ≤ ₹500 Cr. */
+  small_link_n: number;
+  /** Gov rank among passers (1 = best; null = filtered / unscored). */
+  govR: number | null;
   /** Value legs (same sources as Value / Intrinsic Value). */
   sales3y: number | null;
   roce3y: number | null;
@@ -517,10 +549,13 @@ export function listMicrocapStocks(opts: {
   sector: string;
   industry?: string | null;
   maxMcapCr?: number;
+  /** Inclusive floor in ₹ Cr (0 = no floor). */
+  minMcapCr?: number;
   board?: MicrocapBoardFilter;
   minIndustryN?: number;
 }): MicrocapStockList {
   const maxMcap = opts.maxMcapCr ?? MICROCAP_SECTOR_MAX_CR;
+  const minMcap = Math.min(Math.max(0, opts.minMcapCr ?? 0), maxMcap);
   const board = opts.board ?? "all";
   const minInd = Math.max(1, opts.minIndustryN ?? 2);
   const wantSector = opts.sector.trim();
@@ -545,7 +580,7 @@ export function listMicrocapStocks(opts: {
 
   for (const [ticker, row] of metrics) {
     const mcap = row.market_cap_cr;
-    if (mcap == null || !(mcap > 0) || mcap > maxMcap) continue;
+    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
     const sme = isSmeMarket(row.market);
     if (board === "main" && sme) continue;
     if (board === "sme" && !sme) continue;
@@ -593,12 +628,11 @@ export function listMicrocapStocks(opts: {
         ? hits.filter((h) => otherIndustries.has(h.industry))
         : hits.filter((h) => h.industry === wantInd);
 
-  const linkCounts = boardLinkedCountsForTickers(filtered.map((h) => h.ticker));
+  const tickers = filtered.map((h) => h.ticker);
+  const linkCounts = boardLinkedCountsForTickers(tickers);
+  const indCounts = independentDirectorCountsForTickers(tickers);
   const mcapBy = new Map(filtered.map((h) => [h.ticker, h.mcap_cr] as const));
-  const legs = valueLegsForTickers(
-    filtered.map((h) => h.ticker),
-    mcapBy,
-  );
+  const legs = valueLegsForTickers(tickers, mcapBy);
 
   const stocks: MicrocapStockRow[] = filtered.map((h) => {
     const leg = legs.get(h.ticker);
@@ -612,6 +646,13 @@ export function listMicrocapStocks(opts: {
       industry: h.industry || "—",
       div_yield_pct: divYieldPct(tape.get(h.ticker)?.div_yield ?? null),
       board_links: linkCounts.get(h.ticker) ?? 0,
+      independent_n: indCounts.get(h.ticker) ?? 0,
+      gov_pass: false,
+      gov_score: 0,
+      family_n: 0,
+      board_n: 0,
+      small_link_n: 0,
+      govR: null,
       sales3y: leg?.sales3y ?? null,
       roce3y: leg?.roce3y ?? null,
       pb: leg?.pb ?? null,
@@ -686,6 +727,7 @@ export type MicrocapRankedRow = MicrocapStockRow & {
 };
 
 export type MicrocapRanking = {
+  min_mcap_cr: number;
   max_mcap_cr: number;
   board: MicrocapBoardFilter;
   min_industry_n: number;
@@ -694,6 +736,8 @@ export type MicrocapRanking = {
   /** Cohort size (Top/Mid/Bot N); 0 when pocket_side is all. */
   from_pockets: number;
   pocket_keys: string[];
+  /** Dropped by Listed-VC gov hard filter (family-heavy or no small-board link). */
+  gov_dropped: number;
   ranked: number;
   no_data: number;
   not_rankable: number;
@@ -724,18 +768,27 @@ function pickPocketCohort<T extends { key: string; total: number }>(
  */
 export function listMicrocapRanking(opts?: {
   maxMcapCr?: number;
+  /** Inclusive floor in ₹ Cr (0 = no floor). */
+  minMcapCr?: number;
   board?: MicrocapBoardFilter;
   minIndustryN?: number;
   /** Top / Mid / Bot Value-pocket cohort, or all pockets on the board. */
   pocketSide?: MicrocapPocketSide;
   /** Cohort size for Top / Mid / Bot (ignored when pocketSide is all). */
   pocketN?: number;
+  /** When set, keep only these industry / sub_sector names (exact match). */
+  industries?: string[];
 }): MicrocapRanking {
   const maxMcap = opts?.maxMcapCr ?? MICROCAP_SECTOR_MAX_CR;
+  const minMcapRaw = Math.max(0, opts?.minMcapCr ?? 0);
+  const minMcap = Math.min(minMcapRaw, maxMcap);
   const board = opts?.board ?? "all";
   const minInd = Math.max(1, opts?.minIndustryN ?? 2);
   const pocketSide: MicrocapPocketSide = opts?.pocketSide ?? "top";
   const pocketN = Math.max(0, opts?.pocketN ?? RANK_POCKET_N);
+  const industryWant = new Set(
+    (opts?.industries ?? []).map((s) => s.trim().toLowerCase()).filter(Boolean),
+  );
   const years = rotationFetchYears();
   const labels = masterLabels();
   const cls = loadClassificationsMap();
@@ -754,7 +807,7 @@ export function listMicrocapRanking(opts?: {
   const hits: Hit[] = [];
   for (const [ticker, row] of metrics) {
     const mcap = row.market_cap_cr;
-    if (mcap == null || !(mcap > 0) || mcap > maxMcap) continue;
+    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
     const sme = isSmeMarket(row.market);
     if (board === "main" && sme) continue;
     if (board === "sme" && !sme) continue;
@@ -776,7 +829,12 @@ export function listMicrocapRanking(opts?: {
   let pocketKeys: string[] = [];
   let pool = hits;
   if (pocketSide !== "all") {
-    const boardData = buildMicrocapSectorReturns({ maxMcapCr: maxMcap, board, minIndustryN: minInd });
+    const boardData = buildMicrocapSectorReturns({
+      maxMcapCr: maxMcap,
+      minMcapCr: minMcap,
+      board,
+      minIndustryN: minInd,
+    });
     const allPockets = boardData.sectors.flatMap((s) =>
       s.industries
         .filter((i) => i.industry !== "Other" && i.total != null)
@@ -793,15 +851,28 @@ export function listMicrocapRanking(opts?: {
     pool = hits.filter((h) => want.has(`${h.sector}\u0000${h.industry}`));
   }
 
-  const linkCounts = boardLinkedCountsForTickers(pool.map((h) => h.ticker));
-  const mcapBy = new Map(pool.map((h) => [h.ticker, h.mcap_cr] as const));
-  const legs = valueLegsForTickers(
+  if (industryWant.size) {
+    pool = pool.filter((h) => industryWant.has(h.industry.toLowerCase()));
+  }
+
+  // Listed-VC Gov C: hard-filter family-heavy / no really-small board link, then score.
+  const preGovN = pool.length;
+  const govMap = listedVcGovForTickers(
     pool.map((h) => h.ticker),
-    mcapBy,
+    { smallMaxCr: BRIDGE_TINY_MAX_CR },
   );
+  pool = pool.filter((h) => govMap.get(h.ticker)?.pass === true);
+  const gov_dropped = preGovN - pool.length;
+
+  const poolTickers = pool.map((h) => h.ticker);
+  const linkCounts = boardLinkedCountsForTickers(poolTickers);
+  const indCounts = independentDirectorCountsForTickers(poolTickers);
+  const mcapBy = new Map(pool.map((h) => [h.ticker, h.mcap_cr] as const));
+  const legs = valueLegsForTickers(poolTickers, mcapBy);
 
   const stocks: MicrocapRankedRow[] = pool.map((h) => {
     const leg = legs.get(h.ticker);
+    const gov = govMap.get(h.ticker);
     return {
       ticker: h.ticker,
       name: master.get(h.ticker)?.name?.trim() || h.ticker,
@@ -812,6 +883,13 @@ export function listMicrocapRanking(opts?: {
       industry: h.industry,
       div_yield_pct: divYieldPct(tape.get(h.ticker)?.div_yield ?? null),
       board_links: linkCounts.get(h.ticker) ?? 0,
+      independent_n: indCounts.get(h.ticker) ?? 0,
+      gov_pass: true,
+      gov_score: gov?.score ?? 0,
+      family_n: gov?.family_n ?? 0,
+      board_n: gov?.board_n ?? 0,
+      small_link_n: gov?.small_link_n ?? 0,
+      govR: null,
       sales3y: leg?.sales3y ?? null,
       roce3y: leg?.roce3y ?? null,
       pb: leg?.pb ?? null,
@@ -824,6 +902,26 @@ export function listMicrocapRanking(opts?: {
       rank: null,
     };
   });
+
+  // Gov rank among passers (higher continuous score → better → lower govR).
+  {
+    const byScore = [...stocks].sort(
+      (a, b) =>
+        b.gov_score - a.gov_score ||
+        b.small_link_n - a.small_link_n ||
+        a.family_n - b.family_n ||
+        a.name.localeCompare(b.name),
+    );
+    let prevScore: number | null = null;
+    let prevRank = 0;
+    byScore.forEach((r, i) => {
+      const rank =
+        prevScore != null && r.gov_score === prevScore ? prevRank : i + 1;
+      r.govR = rank;
+      prevScore = r.gov_score;
+      prevRank = rank;
+    });
+  }
 
   const rankable = stocks.filter(
     (r) => r.sales3y != null && r.roce3y != null && ((r.pb != null && r.pb > 0) || r.na === "negative_equity"),
@@ -876,12 +974,14 @@ export function listMicrocapRanking(opts?: {
   const no_data = unranked.length - not_rankable;
 
   return {
+    min_mcap_cr: minMcap,
     max_mcap_cr: maxMcap,
     board,
     min_industry_n: minInd,
     pocket_side: pocketSide,
     from_pockets: pocketSide === "all" ? 0 : pocketN,
     pocket_keys: pocketKeys,
+    gov_dropped,
     ranked: ordered.length,
     no_data,
     not_rankable,
@@ -904,9 +1004,11 @@ export type MicrocapMissingDivList = {
  */
 export function listMicrocapMissingDivYields(opts?: {
   maxMcapCr?: number;
+  minMcapCr?: number;
   board?: MicrocapBoardFilter;
 }): MicrocapMissingDivList {
   const maxMcap = opts?.maxMcapCr ?? MICROCAP_SECTOR_MAX_CR;
+  const minMcap = Math.min(Math.max(0, opts?.minMcapCr ?? 0), maxMcap);
   const board = opts?.board ?? "all";
   const years = rotationFetchYears();
   const labels = masterLabels();
@@ -920,7 +1022,7 @@ export function listMicrocapMissingDivYields(opts?: {
 
   for (const [ticker, row] of metrics) {
     const mcap = row.market_cap_cr;
-    if (mcap == null || !(mcap > 0) || mcap > maxMcap) continue;
+    if (mcap == null || !inMcapBand(mcap, minMcap, maxMcap)) continue;
     const sme = isSmeMarket(row.market);
     if (board === "main" && sme) continue;
     if (board === "sme" && !sme) continue;

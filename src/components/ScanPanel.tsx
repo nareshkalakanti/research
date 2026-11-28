@@ -1,7 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
-import { HoldingsIndustryCheck, MultiPick } from "@/components/FilterBar";
+import { HoldingsIndustryCheck, HoldingsSectorCheck, MultiPick } from "@/components/FilterBar";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CompanyTable, type SortKey } from "@/components/CompanyTable";
 import {
@@ -49,6 +49,7 @@ const EMPTY_FUNDS = Object.fromEntries(
 
 type ApiResponse = {
   industries?: Array<{ name: string; count: number }>;
+  sectorOptions?: Array<{ name: string; count: number }>;
   rows: Company[];
   total: number;
   page: number;
@@ -68,7 +69,8 @@ type ApiResponse = {
 export function ScanPanel() {
   const [list, setList] = useState<ScanList>("All");
   const [mcapMinIndex, setMcapMinIndex] = useState(0);
-  /** Industry picker (stock-master industries; empty = all). */
+  /** Sector / industry pickers (StockScans; empty = all). */
+  const [sectors, setSectors] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
   const [mcapMaxIndex, setMcapMaxIndex] = useState(MCAP_DEFAULT_MAX);
   const [mcapExact, setMcapExact] = useState<McapExactBounds | null>(null);
@@ -116,6 +118,7 @@ export function ScanPanel() {
     filterSme,
     filterNote,
     ageMin,
+    sectors.join(","),
     industries.join(","),
   ].join("|");
   // Page belongs to one filter set: any filter change starts at page 1.
@@ -166,6 +169,7 @@ export function ScanPanel() {
       const { minCr, maxCr } = mcapBounds;
       if (minCr != null && minCr > 0) params.set("mcapMin", String(minCr));
       if (maxCr != null) params.set("mcapMax", String(maxCr));
+      if (sectors.length) params.set("sectors", sectors.join("|"));
       if (industries.length) params.set("industries", industries.join("|"));
       if (isRefresh) params.set("refresh", "1");
       try {
@@ -224,6 +228,7 @@ export function ScanPanel() {
       filterSme,
       filterNote,
       ageMin,
+      sectors,
       industries,
     ],
   );
@@ -440,6 +445,25 @@ export function ScanPanel() {
           </div>
         </div>
         <div className="scan-filter-row scan-industry-row">
+          <MultiPick
+            label="Sector"
+            allLabel="All sectors"
+            values={sectors}
+            onChange={(v) => {
+              setSectors(v);
+              setPage(1);
+            }}
+            options={(data?.sectorOptions ?? []).map((i) => ({ id: i.name, label: i.name, count: i.count }))}
+            searchable
+          />
+          <HoldingsSectorCheck
+            values={sectors}
+            onChange={(v) => {
+              setSectors(v);
+              setPage(1);
+            }}
+            available={(data?.sectorOptions ?? []).map((i) => i.name)}
+          />
           <MultiPick
             label="Industry"
             allLabel="All industries"

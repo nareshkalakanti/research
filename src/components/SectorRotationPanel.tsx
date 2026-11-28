@@ -1,7 +1,7 @@
 "use client";
 
 import { Loading } from "@/components/Loading";
-import { HoldingsIndustryCheck, MultiPick } from "@/components/FilterBar";
+import { MultiPick } from "@/components/FilterBar";
 import {
   Fragment,
   useCallback,
@@ -49,6 +49,12 @@ type Card = {
   bench_full?: Point[];
   /** Period this sector line was built for; its stock set differs by period. */
   window_range?: string;
+  /** StockScans large sector parent. */
+  ss_sector?: string | null;
+  /** Real basket id to hydrate sparks (rollup cards use largest child). */
+  hydrateId?: string;
+  /** Industry basket ids under a sector rollup (for watchlist star). */
+  childIds?: string[];
 };
 
 /** Same rule as Value ranking: blank min/max = no bound; missing mcap counts as 0. */
@@ -295,7 +301,7 @@ function sma(pts: Point[], n: number): Point[] {
   return out;
 }
 
-/** Cards shown first on "All"; "Show more" adds this many each click. */
+/** Extra batches when revealing more (hydrate still chunks at HYDRATE_CHUNK). */
 const PAGE_SIZE = 24;
 /** Server hydrate cap per request (route slices ids to 24). */
 const HYDRATE_CHUNK = 24;
@@ -547,6 +553,68 @@ function MiniSpark({ pts }: { pts: Point[] }) {
   );
 }
 
+/** Roll industry baskets up to StockScans sector cards for the Sectors filter. */
+function rollupSectorCards(industries: Card[]): Card[] {
+  const by = new Map<string, Card[]>();
+  for (const c of industries) {
+    const key = (c.ss_sector || "").trim() || c.label;
+    const list = by.get(key) ?? [];
+    list.push(c);
+    by.set(key, list);
+  }
+  const out: Card[] = [];
+  for (const [label, list] of by) {
+    if (list.length === 1 && (list[0].ss_sector || "").trim() === "") {
+      out.push(list[0]);
+      continue;
+    }
+    const n = list.reduce((s, c) => s + (c.n || 0), 0);
+    const up = list.reduce((s, c) => s + (c.up || 0), 0);
+    const down = list.reduce((s, c) => s + (c.down || 0), 0);
+    const withPct = list.filter((c) => c.sector_pct != null);
+    const sector_pct =
+      withPct.length === 0
+        ? null
+        : withPct.reduce((s, c) => s + (c.sector_pct as number) * (c.n || 1), 0) /
+          Math.max(
+            1,
+            withPct.reduce((s, c) => s + (c.n || 1), 0),
+          );
+    const bench_pct = list.find((c) => c.bench_pct != null)?.bench_pct ?? null;
+    const todayRows = list.filter((c) => c.today_pct != null);
+    const today_pct =
+      todayRows.length === 0
+        ? null
+        : todayRows.reduce((s, c) => s + (c.today_pct as number), 0) /
+          todayRows.length;
+    // Prefer the largest industry's chart; hydrate that real basket id.
+    const chartSrc = [...list].sort((a, b) => (b.n || 0) - (a.n || 0))[0];
+    out.push({
+      id: `rollup:${label}`,
+      label,
+      n,
+      up,
+      down,
+      starred: list.some((c) => c.starred),
+      sector_pct,
+      bench_pct,
+      today_pct,
+      search: list.map((c) => c.search || c.label).join(" "),
+      mcaps: list.flatMap((c) => c.mcaps || []),
+      tickers: list.flatMap((c) => c.tickers || []),
+      sector: chartSrc?.sector || [],
+      bench: chartSrc?.bench || [],
+      sector_full: chartSrc?.sector_full,
+      bench_full: chartSrc?.bench_full,
+      window_range: chartSrc?.window_range,
+      ss_sector: label,
+      hydrateId: chartSrc?.id,
+      childIds: list.map((c) => c.id),
+    });
+  }
+  return out;
+}
+
 export function SectorRotationPanel() {
   const [range, setRange] = useState("6M");
   const [cards, setCards] = useState<Card[]>([]);
@@ -569,29 +637,29 @@ export function SectorRotationPanel() {
   const [creating, setCreating] = useState(false);
   const [filter] = useState("");
   const [stockFilter, setStockFilter] = useState("");
-  /** Hide thin sectors (same idea as Value's Min companies). */
-  const [minN, setMinN] = useState(1);
+  /** Hide thin sectors / industries (same idea as Value / Micro Min companies). */
+  const [minN, setMinN] = useState(2);
+  const MIN_N_OPTS = [1, 2, 3, 5, 10] as const;
   /** Market cap band (₹ Cr) — same defaults as Value ranking. */
   const [minCap, setMinCap] = useState("200");
   const [maxCap, setMaxCap] = useState("");
-  /** Industry picker: rotation baskets are StockScans industries. */
+  /** Optional multi-pick (advanced); primary filters are type + movers below. */
   const [pickedSec, setPickedSec] = useState<string[]>([]);
-  const [boardFilter, setBoardFilter] = useState<
-    "all" | "top" | "bottom" | "starred" | "upcycle"
-  >("all");
-  /** Entering an upcycle: weak 1Y, beating the Nifty over 3M, up over 1M. */
-  const [upcycle, setUpcycle] = useState<{
-    weight: string;
-    order: Map<string, number>;
-    info: Map<string, { r1m: number; r3m: number; r1y: number; rel3m: number }>;
-  } | null>(null);
-  const [upcycleBusy, setUpcycleBusy] = useState(false);
-  const [upcycleErr, setUpcycleErr] = useState<string | null>(null);
-  /** vs Nifty over the selected range: Outperform (≥) / Underperform (<). */
-  const [vsNifty, setVsNifty] = useState<"all" | "out" | "under">("all");
-  /** Restrict board / member lists to Nifty 500 constituents. */
-  const [n500Only, setN500Only] = useState(false);
-  const [n500Set, setN500Set] = useState<Set<string> | null>(null);
+  /** All / Top 20 / Bottom 20 by period return. */
+  const [boardFilter, setBoardFilter] = useState<"all" | "top" | "bottom">("all");
+  /** Watchlist only (starred baskets). */
+  const [watchOnly, setWatchOnly] = useState(false);
+  /** Sectors (default) / Industries / All. */
+  const [typeFilter, setTypeFilter] = useState<"all" | "sector" | "industry">(
+    "sector",
+  );
+  /** Side drawer: show every member vs top 10. */
+  const [drawerAll, setDrawerAll] = useState(false);
+  /** Always show all vs Nifty 500 (benchmark); no Outperform/Underperform filter. */
+  const [vsNifty] = useState<"all" | "out" | "under">("all");
+  /** Universe is not restricted to Nifty 500; benchmark is always Nifty 500. */
+  const n500Only = false as boolean;
+  const n500Set = null as Set<string> | null;
   const [sortKey, setSortKey] = useState<"return" | "today" | "name" | "n">(
     "return",
   );
@@ -615,7 +683,13 @@ export function SectorRotationPanel() {
   const [hydrating, setHydrating] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [ranking, setRanking] = useState(false);
-  const [rankedKey, setRankedKey] = useState<string | null>(null);
+  /** One pull per weight: all range chips’ returns. Range switches are local. */
+  const [rankTable, setRankTable] = useState<{
+    weight: string;
+    as_of: string | null;
+    bench: Record<string, number | null>;
+    byId: Record<string, Record<string, number | null>>;
+  } | null>(null);
   const [editLabel, setEditLabel] = useState("");
   const [shotBusy, setShotBusy] = useState(false);
   const [shotQueued, setShotQueued] = useState(0);
@@ -654,8 +728,30 @@ export function SectorRotationPanel() {
       if (!res.ok || json.ok === false) {
         throw new Error(json.error || `HTTP ${res.status}`);
       }
-      setCards(json.sectors ?? []);
-      setRankedKey(null);
+      const next = json.sectors ?? [];
+      // Keep period returns + sparklines so filter / star / silent reloads do not
+      // wipe charts or force a full re-rank.
+      setCards((prev) => {
+        const prevById = new Map(prev.map((c) => [c.id, c] as const));
+        return next.map((c) => {
+          const p = prevById.get(c.id);
+          if (!p) return c;
+          return {
+            ...c,
+            sector_pct: p.sector_pct,
+            bench_pct: p.bench_pct,
+            today_pct: c.today_pct ?? p.today_pct,
+            up: c.up ?? p.up,
+            down: c.down ?? p.down,
+            sector: p.sector?.length ? p.sector : c.sector,
+            bench: p.bench?.length ? p.bench : c.bench,
+            sector_full: p.sector_full ?? c.sector_full,
+            bench_full: p.bench_full ?? c.bench_full,
+            window_range: p.window_range,
+            ss_sector: c.ss_sector ?? p.ss_sector,
+          };
+        });
+      });
       setBoardTick((n) => n + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -718,8 +814,6 @@ export function SectorRotationPanel() {
       // Reload detail after metrics upsert so price / today % / OHLC paint.
       if (openId) await loadDetail(openId);
       await loadBoard({ silent: true });
-      // Rank cache was invalidated server-side — force upcycle to recompute.
-      setUpcycle(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -728,12 +822,11 @@ export function SectorRotationPanel() {
   }, [openId, loadBoard, loadDetail]);
 
 
-  const rankKey = `${range}:${weight}`;
-  const rankedReady = rankedKey === rankKey;
+  const rankedReady = rankTable?.weight === weight;
 
-  // Weight changes the basket index — drop cached series so hydrate/detail refetch.
+  // Weight changes the basket index — drop ranks + series so we pull once again.
   useEffect(() => {
-    setRankedKey(null);
+    setRankTable(null);
     setCards((prev) =>
       prev.map((c) => ({
         ...c,
@@ -748,20 +841,14 @@ export function SectorRotationPanel() {
     );
   }, [weight]);
 
-  // Range chips: each period has its own stock set, so a sector line can't be
-  // re-cut locally. Blank it until rank / hydrate / detail load the new period.
+  // Range chip: only clear charts. Returns come from rankTable (one pull).
   useEffect(() => {
-    setRankedKey(null);
-    if (!asOf) return;
-    const start = rotationWindowStart(asOf, range);
     setCards((prev) =>
       prev.map((c) =>
         c.window_range === range
           ? c
           : {
               ...c,
-              sector_pct: null,
-              bench_pct: null,
               sector: [],
               bench: [],
               sector_full: undefined,
@@ -770,6 +857,26 @@ export function SectorRotationPanel() {
             },
       ),
     );
+  }, [range]);
+
+  // Apply the selected range’s returns from the one-shot rank table.
+  useEffect(() => {
+    if (!rankTable || rankTable.weight !== weight) return;
+    const key = range.toUpperCase();
+    const bench = rankTable.bench[key] ?? null;
+    setCards((prev) =>
+      prev.map((c) => ({
+        ...c,
+        sector_pct: rankTable.byId[c.id]?.[key] ?? null,
+        bench_pct: bench,
+      })),
+    );
+  }, [rankTable, range, weight]);
+
+  // Rebase open-sector member sparks when asOf / range is known.
+  useEffect(() => {
+    if (!asOf) return;
+    const start = rotationWindowStart(asOf, range);
     setDetail((prev) => {
       if (!prev) return prev;
       const stale = prev.card.window_range !== range;
@@ -793,16 +900,15 @@ export function SectorRotationPanel() {
     });
   }, [range, asOf]);
 
-  // Board-wide period returns: the only source for return sort, Best,
-  // Top/Bottom 20 and Above (server caches all ranges, so re-ranks are fast).
+  // Pull board-wide returns once per weight (all range chips in one response).
   useEffect(() => {
-    if (rankedKey === rankKey) return;
+    if (rankTable?.weight === weight) return;
     const gen = ++rankGen.current;
     setRanking(true);
     void (async () => {
       try {
         const res = await fetch(
-          `/api/sector-rotation?rank=1&range=${encodeURIComponent(range)}&weight=${encodeURIComponent(weight)}`,
+          `/api/sector-rotation?rank=1&weight=${encodeURIComponent(weight)}`,
           { cache: "no-store" },
         );
         const json = (await res.json()) as {
@@ -810,7 +916,10 @@ export function SectorRotationPanel() {
           error?: string;
           as_of?: string | null;
           bench_label?: string;
-          sectors?: Card[];
+          range?: string;
+          bench?: Record<string, number | null>;
+          returns?: Record<string, Record<string, number | null>>;
+          sectors?: Array<{ id: string; sector_pct: number | null; bench_pct: number | null }>;
         };
         if (gen !== rankGen.current) return;
         if (!res.ok || json.ok === false) {
@@ -818,22 +927,23 @@ export function SectorRotationPanel() {
         }
         setAsOf(json.as_of ?? null);
         setBenchLabel(json.bench_label || "Nifty 500");
-        const next = new Map((json.sectors ?? []).map((c) => [c.id, c]));
-        setCards((prev) =>
-          prev.map((c) => {
-            const r = next.get(c.id);
-            if (!r) return c;
-            return {
-              ...c,
-              sector_pct: r.sector_pct,
-              bench_pct: r.bench_pct,
-              today_pct: r.today_pct ?? c.today_pct,
-              up: r.up ?? c.up,
-              down: r.down ?? c.down,
-            };
-          }),
-        );
-        setRankedKey(rankKey);
+        let byId = json.returns ?? {};
+        let bench = json.bench ?? {};
+        // Older server shape: only one range — still usable once.
+        if (!Object.keys(byId).length && json.sectors?.length) {
+          const key = (json.range || "6M").toUpperCase();
+          byId = {};
+          for (const s of json.sectors) {
+            byId[s.id] = { [key]: s.sector_pct };
+          }
+          bench = { [key]: json.sectors[0]?.bench_pct ?? null };
+        }
+        setRankTable({
+          weight,
+          as_of: json.as_of ?? null,
+          bench,
+          byId,
+        });
       } catch (e) {
         if (gen !== rankGen.current) return;
         setError(e instanceof Error ? e.message : String(e));
@@ -841,7 +951,7 @@ export function SectorRotationPanel() {
         if (gen === rankGen.current) setRanking(false);
       }
     })();
-  }, [rankedKey, rankKey, range, weight]);
+  }, [rankTable, weight]);
 
   useEffect(() => {
     void loadBoard();
@@ -1209,36 +1319,6 @@ export function SectorRotationPanel() {
   const openCard = detail?.card;
   const minCapN = Number(minCap) || 0;
   const maxCapN = Number(maxCap) || 0;
-  // Load Nifty 500 membership when the filter is on (cached in memory after first fetch).
-  useEffect(() => {
-    if (!n500Only || n500Set) return;
-    let live = true;
-    void (async () => {
-      try {
-        const res = await fetch("/api/index-constituents?index=NIFTY_500", {
-          cache: "no-store",
-        });
-        const json = (await res.json()) as {
-          ok?: boolean;
-          tickers?: string[];
-          error?: string;
-        };
-        if (!live) return;
-        if (!res.ok || json.ok === false) {
-          throw new Error(json.error || `HTTP ${res.status}`);
-        }
-        setN500Set(new Set((json.tickers || []).map((t) => t.toUpperCase())));
-      } catch (e) {
-        if (!live) return;
-        setError(e instanceof Error ? e.message : String(e));
-        setN500Only(false);
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [n500Only, n500Set]);
-
   const sortedCards = useMemo(() => {
     const needle = filter.trim().toLowerCase();
     const stock = stockFilter.trim().toLowerCase();
@@ -1269,35 +1349,35 @@ export function SectorRotationPanel() {
     });
     const byReturn = (a: Card, b: Card) =>
       (b.sector_pct ?? -Infinity) - (a.sector_pct ?? -Infinity);
-    if (sortKey === "today") {
-      rows.sort((a, b) => (b.today_pct ?? -999) - (a.today_pct ?? -999));
-    } else if (sortKey === "name") {
-      rows.sort((a, b) => a.label.localeCompare(b.label));
-    } else if (sortKey === "n") {
-      rows.sort((a, b) => b.n - a.n);
-    } else if (rankedReady) {
-      // Return sort only on board-wide ranks. Before they land, keep the
-      // stable board order: sorting on whichever cards had hydrated mixed
-      // period returns with today % and reshuffled pages in a loop.
-      rows.sort(byReturn);
-    }
     // Sectors with no members can't chart — keep them after real sectors.
     rows = [...rows.filter((c) => c.n > 0), ...rows.filter((c) => !(c.n > 0))];
-    if (boardFilter === "starred") rows = rows.filter((c) => c.starred);
-    if (boardFilter === "upcycle") {
-      if (!upcycle || upcycle.weight !== weight) return [];
-      // Ignore "Beating Nifty" / return sort — order is strongest 3M turn first.
-      rows = rows
-        .filter((c) => upcycle.order.has(c.id))
-        .sort((a, b) => upcycle.order.get(a.id)! - upcycle.order.get(b.id)!);
-      return rows;
+
+    // Sectors view: roll industries up by StockScans parent sector.
+    if (typeFilter === "sector" || typeFilter === "all") {
+      const sectorCards = rollupSectorCards(rows);
+      if (typeFilter === "sector") rows = sectorCards;
+      else {
+        // All = sector rollups first, then industries (dedupe labels).
+        const seen = new Set(sectorCards.map((c) => c.label.toLowerCase()));
+        rows = [
+          ...sectorCards,
+          ...rows.filter((c) => !seen.has(c.label.toLowerCase())),
+        ];
+      }
     }
-    // Top/Bottom/Outperform/Underperform need board-wide returns (see rankingWait).
+    // typeFilter === "industry" keeps industry baskets as-is.
+    // Watchlist after rollup so sector cards (starred if any child is) filter correctly.
+    if (watchOnly) rows = rows.filter((c) => c.starred);
+
+    // Top/Bottom need returns. Prefer board-wide ranks for this range; until
+    // they land, keep showing provisional pcts (previous range / hydrate) so
+    // the grid is never empty for a minute.
     if (
       (boardFilter === "top" ||
         boardFilter === "bottom" ||
         vsNifty !== "all") &&
-      !rankedReady
+      !rankedReady &&
+      !rows.some((c) => c.sector_pct != null)
     ) {
       return [];
     }
@@ -1321,66 +1401,24 @@ export function SectorRotationPanel() {
       const ranked = rows.filter((c) => c.sector_pct != null).sort(byReturn);
       rows =
         boardFilter === "top" ? ranked.slice(0, 20) : ranked.slice(-20).reverse();
+    } else if (sortKey === "return") {
+      // After rollup: Map insertion order ≠ return order.
+      rows.sort(byReturn);
+    } else if (sortKey === "today") {
+      rows.sort((a, b) => (b.today_pct ?? -999) - (a.today_pct ?? -999));
+    } else if (sortKey === "name") {
+      rows.sort((a, b) => a.label.localeCompare(b.label));
+    } else if (sortKey === "n") {
+      rows.sort((a, b) => b.n - a.n);
     }
     return rows;
-  }, [cards, filter, stockFilter, minN, minCapN, maxCapN, boardFilter, vsNifty, sortKey, rankedReady, upcycle, weight, pickedSec, n500Only, n500Set]);
+  }, [cards, filter, stockFilter, minN, minCapN, maxCapN, boardFilter, watchOnly, typeFilter, vsNifty, sortKey, rankedReady, pickedSec, n500Only, n500Set]);
 
-  useEffect(() => {
-    if (boardFilter !== "upcycle") {
-      setUpcycleBusy(false);
-      setUpcycleErr(null);
-      return;
-    }
-    if (upcycle?.weight === weight) return;
-    let live = true;
-    setUpcycleBusy(true);
-    setUpcycleErr(null);
-    // Drop stale equal/cap result so the list does not flash the wrong set.
-    setUpcycle(null);
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/sector-rotation?upcycle=1&weight=${encodeURIComponent(weight)}`,
-          { cache: "no-store" },
-        );
-        const j = (await res.json()) as {
-          ok?: boolean;
-          error?: string;
-          sectors?: Array<{ id: string; r1m: number; r3m: number; r1y: number; rel3m: number }>;
-        };
-        if (!live) return;
-        if (!res.ok || j.ok === false) throw new Error(j.error || `HTTP ${res.status}`);
-        const list = j.sectors ?? [];
-        setUpcycle({
-          weight,
-          order: new Map(list.map((x, i) => [x.id, i])),
-          info: new Map(list.map((x) => [x.id, x])),
-        });
-        setUpcycleErr(null);
-      } catch (e) {
-        if (!live) return;
-        setUpcycle(null);
-        setUpcycleErr(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (live) setUpcycleBusy(false);
-      }
-    })();
-    return () => {
-      live = false;
-    };
-  }, [boardFilter, weight, upcycle?.weight]);
-
-  // Upcycle rule is 1Y weak / 3M beat / 1M up — pin the board to 3M so the
-  // return column matches the "turning" leg instead of a random range chip.
-  useEffect(() => {
-    if (boardFilter === "upcycle" && range !== "3M") setRange("3M");
-  }, [boardFilter, range]);
-
-  /** Filter needs ranks that are still computing — say so, not "No sectors". */
+  /** Top/Bottom with no provisional returns yet — empty state, not "No sectors". */
   const rankingWait =
     (boardFilter === "top" || boardFilter === "bottom" || vsNifty !== "all") &&
-    !rankedReady;
-  const upcycleWait = boardFilter === "upcycle" && (upcycleBusy || !upcycle || upcycle.weight !== weight);
+    !rankedReady &&
+    !cards.some((c) => c.sector_pct != null);
 
   // Single key so adding a filter later does not change useEffect dep length (HMR).
   const pageResetKey = [
@@ -1390,6 +1428,8 @@ export function SectorRotationPanel() {
     minCap,
     maxCap,
     boardFilter,
+    watchOnly,
+    typeFilter,
     vsNifty,
     n500Only,
     sortKey,
@@ -1399,13 +1439,20 @@ export function SectorRotationPanel() {
     setPage(0);
   }, [pageResetKey]);
 
-  // "page" = how many extra batches are revealed (0 → first PAGE_SIZE).
-  // Top / Bottom 20 always fit in one batch.
+  // Top / Bottom 20 always fit in one batch. Otherwise show the full filtered
+  // list (Sectors + Industries) — no "24 of N" pager. Charts hydrate in chunks.
   const pageSize =
     boardFilter === "top" || boardFilter === "bottom" ? 20 : PAGE_SIZE;
-  const shownCount = Math.min(sortedCards.length, (page + 1) * pageSize);
+  const showAll = boardFilter !== "top" && boardFilter !== "bottom";
+  const shownCount = showAll
+    ? sortedCards.length
+    : Math.min(sortedCards.length, (page + 1) * pageSize);
   const pageCards = sortedCards.slice(0, shownCount);
-  const pageIds = pageCards.map((c) => c.id).join(",");
+  // Hydrate real basket ids (rollup cards point at largest child via hydrateId).
+  const pageIds = pageCards
+    .map((c) => c.hydrateId || c.id)
+    .filter((id) => id && !id.startsWith("rollup:"))
+    .join(",");
 
   useEffect(() => {
     if (!pageIds) {
@@ -1451,8 +1498,23 @@ export function SectorRotationPanel() {
         setAsOf(json.as_of ?? null);
         setBenchLabel(json.bench_label || "Nifty 500");
         const next = new Map((json.sectors ?? []).map((c) => [c.id, c]));
-        setCards((prev) => prev.map((c) => next.get(c.id) ?? c));
-       }
+        setCards((prev) =>
+          prev.map((c) => {
+            const r = next.get(c.id);
+            if (!r) return c;
+            // Merge so a slow hydrate does not clobber fresher board ranks.
+            return {
+              ...c,
+              ...r,
+              sector_pct: r.sector_pct ?? c.sector_pct,
+              bench_pct: r.bench_pct ?? c.bench_pct,
+              today_pct: r.today_pct ?? c.today_pct,
+              starred: c.starred,
+              ss_sector: r.ss_sector ?? c.ss_sector,
+            };
+          }),
+        );
+      }
       } catch (e) {
         if (gen !== hydrateGen.current) return;
         setError(e instanceof Error ? e.message : String(e));
@@ -1519,7 +1581,25 @@ export function SectorRotationPanel() {
     setAddQ("");
     setMemberQ("");
     setEditLabel("");
+    setDrawerAll(false);
   }, []);
+
+  const openCardById = useCallback(
+    (c: Card) => {
+      setDrawerAll(false);
+      if (c.id.startsWith("rollup:")) {
+        const kids = cards.filter(
+          (x) =>
+            (x.ss_sector || "").trim() === c.label || x.label === c.label,
+        );
+        const best = [...kids].sort((a, b) => (b.n || 0) - (a.n || 0))[0];
+        if (best) setOpenId(best.id);
+        return;
+      }
+      setOpenId(c.id);
+    },
+    [cards],
+  );
 
   useEffect(() => {
     if (openCard?.label) setEditLabel(openCard.label);
@@ -1559,24 +1639,38 @@ export function SectorRotationPanel() {
     await loadBoard({ silent: true });
   };
 
-  const toggleStar = async (id: string, next: boolean) => {
+  const toggleStar = async (
+    id: string,
+    next: boolean,
+    childIds?: string[],
+  ) => {
+    const ids =
+      childIds && childIds.length
+        ? childIds
+        : id.startsWith("rollup:")
+          ? []
+          : [id];
+    if (!ids.length) return;
+    const want = new Set(ids);
     const set = (v: boolean) =>
       setCards((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, starred: v } : c)),
+        prev.map((c) => (want.has(c.id) ? { ...c, starred: v } : c)),
       );
     set(next);
     try {
-      const res = await fetch("/api/sector-rotation", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, star: true, starred: next }),
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        ok?: boolean;
-        error?: string;
-      };
-      if (!res.ok || json.ok === false) {
-        throw new Error(json.error || `Star failed (${res.status})`);
+      for (const sid of ids) {
+        const res = await fetch("/api/sector-rotation", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: sid, star: true, starred: next }),
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          error?: string;
+        };
+        if (!res.ok || json.ok === false) {
+          throw new Error(json.error || `Star failed (${res.status})`);
+        }
       }
     } catch (e) {
       set(!next); // undo the optimistic star
@@ -1616,26 +1710,16 @@ export function SectorRotationPanel() {
           </p>
         </div>
         <div className="rot-head-actions">
-          {openId ? (
-            <button
-              type="button"
-              className="btn-ghost rot-back"
-              onClick={closeSector}
-            >
-              ← Back to sectors
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => setAdding((v) => !v)}
-            >
-              {adding ? "Cancel" : "+ Add sector"}
-            </button>
-          )}
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => setAdding((v) => !v)}
+          >
+            {adding ? "Cancel" : "+ Add sector"}
+          </button>
         </div>
       </header>
-      {loading || ranking || hydrating || detailLoading ? (
+      {loading || (ranking && (boardFilter === "top" || boardFilter === "bottom")) || detailLoading ? (
         <div
           className="rot-progress"
           role="status"
@@ -1648,53 +1732,101 @@ export function SectorRotationPanel() {
                 ? "Loading sectors…"
                 : ranking
                   ? `Ranking ${range}…`
-                  : hydrating
-                    ? `Updating ${range} charts…`
-                    : `Loading ${range} sector…`}
+                  : `Loading ${range} sector…`}
           </span>
         </div>
       ) : null}
 
       <div className="rot-bar">
-        <div className="rot-bar-row">
-          <div className="rot-seg" role="group" aria-label="View">
+        <div className="rot-bar-row rot-bar-row--main">
+          <label className="rot-search rot-search--wide">
+            <span aria-hidden>⌕</span>
+            <input
+              placeholder="Search sectors…"
+              value={stockFilter}
+              onChange={(e) => setStockFilter(e.target.value)}
+              aria-label="Search sectors"
+            />
+          </label>
+          <div className="rot-seg" role="group" aria-label="Type">
             {(
               [
-                ["grid", "Grid"],
-                ["table", "Table"],
+                ["sector", "Sectors"],
+                ["industry", "Industries"],
+                ["all", "All"],
               ] as const
             ).map(([id, label]) => (
               <button
                 key={id}
                 type="button"
-                className={view === id ? "on" : ""}
-                aria-pressed={view === id}
-                onClick={() => setView(id)}
+                className={typeFilter === id ? "on" : ""}
+                aria-pressed={typeFilter === id}
+                onClick={() => setTypeFilter(id)}
               >
                 {label}
               </button>
             ))}
           </div>
-          <div className="rot-seg" role="group" aria-label="Period">
+          <div className="rot-seg" role="group" aria-label="Movers">
+            {(
+              [
+                ["all", "All"],
+                ["top", "Top 20"],
+                ["bottom", "Bottom 20"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={boardFilter === id ? "on" : ""}
+                aria-pressed={boardFilter === id}
+                onClick={() => {
+                  setBoardFilter((prev) =>
+                    id === "all" ? "all" : prev === id ? "all" : id,
+                  );
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className={watchOnly ? "rot-watch on" : "rot-watch"}
+            aria-pressed={watchOnly}
+            onClick={() => setWatchOnly((v) => !v)}
+          >
+            <span aria-hidden>★</span> Watchlist only
+          </button>
+          <label className="rot-min-n" title="Hide baskets with fewer names">
+            <span className="rot-min-n-label">Min</span>
+            <select
+              value={minN}
+              onChange={(e) => setMinN(Number(e.target.value))}
+              aria-label="Minimum companies"
+            >
+              {MIN_N_OPTS.map((n) => (
+                <option key={n} value={n}>
+                  {n}+
+                </option>
+              ))}
+            </select>
+          </label>
+          <span className="rot-bar-spacer" />
+          <div className="rot-seg rot-seg--quiet" role="group" aria-label="Period">
             {ROTATION_RANGES.map((r) => (
               <button
                 key={r}
                 type="button"
                 className={range === r ? "on" : ""}
                 aria-pressed={range === r}
-                disabled={boardFilter === "upcycle" && r !== "3M"}
-                title={
-                  boardFilter === "upcycle" && r !== "3M"
-                    ? "Entering upcycle uses the 3M turn vs Nifty"
-                    : undefined
-                }
                 onClick={() => setRange(r)}
               >
                 {r}
               </button>
             ))}
           </div>
-          <div className="rot-seg" role="group" aria-label="Index type">
+          <div className="rot-seg rot-seg--quiet" role="group" aria-label="Index type">
             <button
               type="button"
               className={weight === "equal" ? "on" : ""}
@@ -1702,7 +1834,7 @@ export function SectorRotationPanel() {
               onClick={() => setWeight("equal")}
               title="Every stock counts the same"
             >
-              Equal weight
+              Equal
             </button>
             <button
               type="button"
@@ -1711,49 +1843,9 @@ export function SectorRotationPanel() {
               onClick={() => setWeight("cap")}
               title="Bigger companies count more"
             >
-              Market cap
+              Cap
             </button>
           </div>
-          {view === "grid" || openId ? (
-            <div className="rot-seg rot-seg--quiet" role="group" aria-label="Chart">
-              <span className="rot-seg-k">Chart</span>
-              <button
-                type="button"
-                className={scale === "lin" ? "on" : ""}
-                aria-pressed={scale === "lin"}
-                onClick={() => setScale("lin")}
-              >
-                Lin
-              </button>
-              <button
-                type="button"
-                className={scale === "log" ? "on" : ""}
-                aria-pressed={scale === "log"}
-                onClick={() => setScale("log")}
-              >
-                Log
-              </button>
-              <span className="rot-seg-k">MA</span>
-              {ROTATION_MA_PERIODS.map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  className={maOn.includes(n) ? "on" : ""}
-                  aria-pressed={maOn.includes(n)}
-                  onClick={() =>
-                    setMaOn((prev) =>
-                      prev.includes(n)
-                        ? prev.filter((x) => x !== n)
-                        : [...prev, n].sort((a, b) => a - b),
-                    )
-                  }
-                >
-                  {n}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <span className="rot-bar-spacer" />
           <button
             type="button"
             className="rot-act"
@@ -1761,167 +1853,12 @@ export function SectorRotationPanel() {
             disabled={loading || ranking}
             title="Refresh prices and market caps"
           >
-            ↻ Refresh
+            ↻
           </button>
-
         </div>
-        {!openId ? (
-          <div className="rot-bar-row">
-            <MultiPick
-              label="Industry"
-              allLabel="All industries"
-              values={pickedSec}
-              onChange={setPickedSec}
-              options={cards
-                .filter((c) => (c.n ?? 0) >= minN)
-                .map((c) => ({ id: c.label, label: c.label, count: c.n }))
-                .sort((a, b) => a.label.localeCompare(b.label))}
-              searchable
-            />
-            <HoldingsIndustryCheck
-              values={pickedSec}
-              onChange={setPickedSec}
-              available={cards.filter((c) => (c.n ?? 0) >= minN).map((c) => c.label)}
-            />
-            <label className="rot-sort">
-              <span>Min companies</span>
-              <select
-                value={minN}
-                onChange={(e) => setMinN(Number(e.target.value))}
-                aria-label="Minimum companies in sector"
-              >
-                {[1, 2, 3, 5, 10].map((n) => (
-                  <option key={n} value={n}>
-                    {n}+
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="rot-cap">
-              <span>Min market cap</span>
-              <input
-                inputMode="numeric"
-                value={minCap}
-                onChange={(e) => setMinCap(e.target.value.replace(/[^\d.]/g, ""))}
-                placeholder="₹ Cr"
-                aria-label="Minimum market cap in ₹ crore"
-              />
-            </label>
-            <label className="rot-cap">
-              <span>Max market cap</span>
-              <input
-                inputMode="numeric"
-                value={maxCap}
-                onChange={(e) => setMaxCap(e.target.value.replace(/[^\d.]/g, ""))}
-                placeholder="₹ Cr"
-                aria-label="Maximum market cap in ₹ crore"
-              />
-            </label>
-            <label className="rot-search">
-              <span aria-hidden>⌕</span>
-              <input
-                placeholder="Search stock"
-                value={stockFilter}
-                onChange={(e) => setStockFilter(e.target.value)}
-                aria-label="Search stock"
-              />
-            </label>
-            <div className="rot-seg" role="group" aria-label="Show">
-              {(
-                [
-                  ["all", "All"],
-                  ["top", "Top 20"],
-                  ["bottom", "Bottom 20"],
-                  ["upcycle", "↗ Entering upcycle"],
-                  ["starred", "★ Starred"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={boardFilter === id ? "on" : ""}
-                  aria-pressed={boardFilter === id}
-                  title={
-                    id === "upcycle"
-                      ? "1Y below Nifty 500, 3M above it, 1M up — strongest 3M turn first"
-                      : undefined
-                  }
-                  onClick={() => {
-                    setBoardFilter((prev) =>
-                      id === "all" ? "all" : prev === id ? "all" : id,
-                    );
-                    // Upcycle already encodes the vs-Nifty turn — clear Out/Under.
-                    if (id === "upcycle") setVsNifty("all");
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <div className="rot-seg" role="group" aria-label="Vs Nifty">
-              {(
-                [
-                  ["all", "All"],
-                  ["out", "Outperform"],
-                  ["under", "Underperform"],
-                ] as const
-              ).map(([id, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={vsNifty === id ? "on" : ""}
-                  aria-pressed={vsNifty === id}
-                  disabled={boardFilter === "upcycle" && id !== "all"}
-                  title={
-                    boardFilter === "upcycle"
-                      ? "Entering upcycle already requires beating Nifty over 3M"
-                      : id === "out"
-                        ? `Sector ≥ ${benchLabel} over the selected range`
-                        : id === "under"
-                          ? `Sector below ${benchLabel} over the selected range`
-                          : "Show all vs Nifty"
-                  }
-                  onClick={() =>
-                    setVsNifty((prev) =>
-                      id === "all" ? "all" : prev === id ? "all" : id,
-                    )
-                  }
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              className={n500Only ? "rot-toggle on" : "rot-toggle"}
-              aria-pressed={n500Only}
-              onClick={() => setN500Only((v) => !v)}
-              title="Only stocks in the Nifty 500 (NSE list)"
-            >
-              <span className="rot-toggle-dot" aria-hidden />
-              Nifty 500
-            </button>
-            <span className="rot-bar-spacer" />
-            <label className="rot-sort">
-              <span>Sort</span>
-              <select
-                value={sortKey}
-                onChange={(e) =>
-                  setSortKey(e.target.value as typeof sortKey)
-                }
-                aria-label="Sort"
-              >
-                <option value="return">Return</option>
-                <option value="today">Today</option>
-                <option value="name">Name</option>
-                <option value="n">Stocks</option>
-              </select>
-            </label>
-          </div>
-        ) : null}
       </div>
 
-      {!openId && adding ? (
+      {adding ? (
       <form
         className="fam-dash-create"
         onSubmit={(e) => {
@@ -2061,559 +1998,216 @@ export function SectorRotationPanel() {
           </button>
         </div>
       ) : null}
-      {!openId && rankingWait ? (
+      {rankingWait ? (
         <div className="table-meta">
-          Ranking all {cards.length} sectors by {range} return… the first run
-          takes about a minute, then range and filter changes are instant.
+          Pulling returns once for all periods… Top / Bottom unlocks when this finishes
+          {ranking ? " (first run can take a minute)." : "."}
+        </div>
+      ) : ranking ? (
+        <div className="table-meta">
+          Pulling returns once for all periods… range chips stay instant after.
         </div>
       ) : null}
 
-      {!openId ? (
-        <div className="rot-stats" aria-label="Trend summary">
-          <div className="rot-stat">
-            <span className="rot-stat-k">Sectors shown</span>
-            <span className="rot-stat-v">{sortedCards.length}</span>
-          </div>
-          <div className="rot-stat">
-            <span className="rot-stat-k">Stocks</span>
-            <span className="rot-stat-v">{stocksShown}</span>
-          </div>
-        </div>
-      ) : null}
-
-      {openId ? (
-        <div className="rot-detail">
-          <div className="rot-detail-bar">
-            <button type="button" className="btn-ghost rot-back" onClick={closeSector}>
-              ← Back
-            </button>
-            <input
-              className="fam-dash-search rot-rename"
-              value={editLabel}
-              onChange={(e) => setEditLabel(e.target.value)}
-              onBlur={() => void saveLabel()}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  void saveLabel();
-                }
-              }}
-              aria-label="Sector name"
-            />
-            <span
-              className={`rot-pct ${(openCard?.sector_pct ?? 0) >= 0 ? "pos" : "neg"}`}
-            >
-              Sector {fmtPct(openCard?.sector_pct ?? null)}
+      <div className={openId ? "rot-shell is-drawer" : "rot-shell"}>
+        <div className="rot-shell-main">
+          <div className="rot-pager">
+            <span>
+              {sortedCards.length
+                ? showAll || shownCount >= sortedCards.length
+                  ? `${sortedCards.length} ${typeFilter === "industry" ? "industries" : typeFilter === "sector" ? "sectors" : "baskets"}`
+                  : `Showing ${shownCount} of ${sortedCards.length}`
+                : rankingWait
+                  ? "Ranking…"
+                  : "No sectors"}
+              {sortedCards.length > 0 && ranking && sortKey === "return"
+                ? " · ranking…"
+                : hydrating
+                  ? " · charts…"
+                  : ""}
             </span>
-            <span
-              className={`rot-pct ${(openCard?.bench_pct ?? 0) >= 0 ? "pos" : "neg"}`}
-            >
-              {benchLabel} {fmtPct(openCard?.bench_pct ?? null)}
-            </span>
-            <span className="rot-muted">
-              {openCard
-                ? minCapN || maxCapN || memberQ.trim()
-                  ? `${shownMembers.length} of ${openCard.n} stocks`
-                  : `${openCard.n} stocks`
-                : ""}
-            </span>
-
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={() => void deleteOpenSector()}
-            >
-              Delete sector
-            </button>
           </div>
-          <div className="rot-stats rot-stats--detail" aria-label="Sector detail">
-            <div className="rot-stat">
-              <span className="rot-stat-k">Companies shown</span>
-              <span className="rot-stat-v">{shownMembers.length}</span>
-            </div>
-          </div>
-          {openCard && openCard.sector.length > 1 ? (
-            <DualSpark
-              a={openCard.sector}
-              b={openCard.bench}
-              height={180}
-              fill
-              aLabel={openCard.label}
-              bLabel={benchLabel}
-              logScale={scale === "log"}
-              ma={maOn}
-              aAbove={
-                openCard.sector_pct == null || openCard.bench_pct == null
-                  ? true
-                  : openCard.sector_pct >= openCard.bench_pct
-              }
-            />
-          ) : openCard ? null : (
-            <Loading label="Loading sector" variant="block" />
-          )}
-          <p className="rot-tone-hint">
-            Sector line: green = at/above {benchLabel}, red = below. Change % follows
-            the selected range (green up / red down).
-          </p>
-          <div className="rot-add-row">
-            <TickerSuggest
-              value={addQ}
-              onChange={setAddQ}
-              onSelect={(h) => void addTicker(h)}
-              clearOnSelect
-              persistGroww={false}
-              placeholder="Add company…"
-              className="fam-dash-search"
-              submitLabel="add"
-            />
-            <label className="rot-cap">
-              <span>Min market cap</span>
-              <input
-                inputMode="numeric"
-                value={minCap}
-                onChange={(e) => setMinCap(e.target.value.replace(/[^\d.]/g, ""))}
-                placeholder="₹ Cr"
-                aria-label="Minimum market cap in ₹ crore"
-              />
-            </label>
-            <label className="rot-cap">
-              <span>Max market cap</span>
-              <input
-                inputMode="numeric"
-                value={maxCap}
-                onChange={(e) => setMaxCap(e.target.value.replace(/[^\d.]/g, ""))}
-                placeholder="₹ Cr"
-                aria-label="Maximum market cap in ₹ crore"
-              />
-            </label>
-            <input
-              className="fam-dash-search rot-member-filter"
-              placeholder="Search by name or code…"
-              value={memberQ}
-              onChange={(e) => setMemberQ(e.target.value)}
-              aria-label="Filter constituents"
-            />
-          </div>
-          <table className="rot-table rot-table--members">
-            <thead>
-              <tr>
-                <th className="rot-col-num" title={`Ranked by ${range} return`}>Rank</th>
-                <th className="rot-col-stock">Company</th>
-                <th className="rot-col-sym">Symbol</th>
-                <th className="rot-col-num">Market Cap</th>
-                <th className="rot-col-num">Today %</th>
-                <th className="rot-col-num">{range} return</th>
-                <th className="rot-col-num" title={`Stock return minus ${benchLabel} return over ${range}`}>
-                  vs {benchLabel}
-                </th>
-                <th className="rot-col-vs">Vs Nifty</th>
-                <th className="rot-col-trend">Trend</th>
-                <th className="rot-col-act" />
-              </tr>
-            </thead>
-            <tbody>
-              {shownMembers.map((m, mi) => (
-                <tr key={m.ticker}>
-                  <td className="rot-num">{m.window_pct == null ? "—" : byReturnMembers.indexOf(m) + 1 || mi + 1}</td>
-                  <td className="rot-stock">
-                    {m.tv_url ? (
-                      <a
-                        href={m.tv_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title={`${m.name} · Open in TradingView`}
-                      >
-                        {m.name}
-                      </a>
-                    ) : (
-                      <span title={m.name}>{m.name}</span>
-                    )}
-                  </td>
-                  <td className="mono rot-sym">
-                    <span className="rot-sym-line">
-                      {m.ticker}
-                      <ReviewPlusButton ticker={m.ticker} />
-                      <StockLinks ticker={m.ticker} market={m.market} />
+          <div className="rot-grid">
+            {loading && !cards.length ? (
+              <Loading label="Loading sectors" variant="block" />
+            ) : null}
+            {pageCards.map((c) => (
+              <article
+                key={c.id}
+                className={openId === c.id ? "rot-card is-open" : "rot-card"}
+                tabIndex={0}
+                role="button"
+                onClick={() => openCardById(c)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    openCardById(c);
+                  }
+                }}
+              >
+                <div className="rot-card-top">
+                  <div className="rot-card-title">
+                    <strong>{c.label}</strong>
+                    <span className="rot-card-n">
+                      {c.n} stock{c.n === 1 ? "" : "s"}
                     </span>
-                  </td>
-                  <td className="rot-num">{fmtCr(m.mcap_cr)}</td>
-                  <td
-                    className={`rot-num ${
-                      m.change_pct == null
-                        ? ""
-                        : m.change_pct >= 0
-                          ? "pos"
-                          : "neg"
-                    }`.trim()}
-                  >
-                    {fmtPct(m.change_pct)}
-                  </td>
-                  <td
-                    className={`rot-num ${
-                      m.window_pct == null
-                        ? ""
-                        : m.window_pct >= 0
-                          ? "pos"
-                          : "neg"
-                    }`.trim()}
-                  >
-                    {fmtPct(m.window_pct)}
-                  </td>
-                  {(() => {
-                    const b = openCard?.bench_pct;
-                    const rel = m.window_pct != null && b != null ? m.window_pct - b : null;
-                    return (
-                      <td className={`rot-num ${rel == null ? "" : rel >= 0 ? "pos" : "neg"}`.trim()}>
-                        {rel == null ? "—" : `${rel >= 0 ? "+" : ""}${rel.toFixed(1)} pts`}
-                      </td>
-                    );
-                  })()}
-                  {(() => {
-                    const b = openCard?.bench_pct;
-                    const tag =
-                      m.window_pct == null || b == null
-                        ? null
-                        : m.window_pct >= b
-                          ? "Outperform"
-                          : "Underperform";
-                    return (
-                      <td>
-                        {tag ? (
-                          <span
-                            className={
-                              tag === "Outperform" ? "rot-pill pos" : "rot-pill neg"
-                            }
-                          >
-                            {tag}
-                          </span>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    );
-                  })()}
-                  <td className="rot-trend">
-                    <MiniSpark pts={m.spark} />
-                  </td>
-                  <td className="rot-act">
+                  </div>
+                  <div className="rot-card-ret">
+                    <span
+                      className={
+                        c.sector_pct == null
+                          ? "rot-card-pct"
+                          : c.sector_pct >= 0
+                            ? "rot-card-pct pos"
+                            : "rot-card-pct neg"
+                      }
+                      title={`${range} return`}
+                    >
+                      {fmtPct(c.sector_pct)}
+                    </span>
                     <button
                       type="button"
-                      className="btn-ghost"
-                      onClick={() => void removeTicker(m.ticker)}
+                      className={c.starred ? "rot-star on" : "rot-star"}
+                      aria-label={c.starred ? "Unstar" : "Star"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void toggleStar(
+                          c.hydrateId || c.id,
+                          !c.starred,
+                          c.childIds,
+                        );
+                      }}
                     >
-                      Remove
+                      ★
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <>
-        <div className="rot-page">
-          <span>
-            {boardFilter === "upcycle"
-              ? upcycleErr
-                ? `Could not load upcycle: ${upcycleErr}`
-                : upcycleWait
-                  ? "Finding sectors that are turning up…"
-                  : `${sortedCards.length} sectors entering an upcycle · 1Y below ${benchLabel}, 3M beating it, 1M up · strongest turn first`
-              : sortedCards.length
-              ? `Showing ${shownCount} of ${sortedCards.length} sectors`
-              : rankingWait
-                ? "Ranking…"
-                : "No sectors"}
-            {sortedCards.length > 0 && !rankedReady && sortKey === "return" && boardFilter !== "upcycle"
-              ? " · ranking by return…"
-              : ""}
-          </span>
-        </div>
-        {view === "table" ? (
-        <div className="rot-tcard">
-        <table className="rot-table rot-table--modern">
-          <thead>
-            <tr>
-              <th className="rot-tc-x" aria-label="Show stocks"></th>
-              <th>Sector</th>
-              <th className="num">Stocks</th>
-              <th className="num">Today</th>
-              <th className="num">{range} return</th>
-              <th className="num">vs {benchLabel}</th>
-              <th>Vs Nifty</th>
-              <th className="rot-tc-star" aria-label="Starred"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {pageCards.map((c) => {
-              const open = expanded.has(c.id);
-              const rel =
-                c.sector_pct != null && c.bench_pct != null ? c.sector_pct - c.bench_pct : null;
-              const vsTag =
-                c.sector_pct == null || c.bench_pct == null
-                  ? null
-                  : c.sector_pct >= c.bench_pct
-                    ? "Outperform"
-                    : "Underperform";
-              return (
-              <Fragment key={c.id}>
-              <tr
-                className={["rot-row", open ? "is-open" : ""].join(" ")}
-                onClick={() => toggleExpanded(c.id)}
-                aria-expanded={open}
-              >
-                <td className="rot-tc-x">
-                  <button
-                    type="button"
-                    className={open ? "rot-expand on" : "rot-expand"}
-                    aria-label={open ? `Hide ${c.label} stocks` : `Show ${c.label} stocks`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpanded(c.id);
-                    }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-                      <path d="M4.5 2.5 8 6l-3.5 3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  </button>
-                </td>
-                <td>
-                  <span className="rot-tname">
-                    {c.label}
-                    {boardFilter === "upcycle" && upcycle?.info.get(c.id) ? (
-                      <span className="rot-turn" title="1-year return → 3-month return">
-                        1Y {fmtPct(upcycle.info.get(c.id)!.r1y)} → 3M {fmtPct(upcycle.info.get(c.id)!.r3m)}
-                      </span>
-                    ) : null}
-                  </span>
-                </td>
-                <td className="num">
-                  <span className="rot-tcount">{c.n}</span>
-                  {(c.up ?? 0) > 0 ? <span className="rot-up">▲{c.up}</span> : null}
-                  {(c.down ?? 0) > 0 ? <span className="rot-dn">▼{c.down}</span> : null}
-                </td>
-                <td className={`num ${(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}`}>
-                  {fmtPct(c.today_pct ?? null)}
-                </td>
-                <td className="num">
-                  <span
-                    className={
-                      c.sector_pct == null
-                        ? "rot-pill"
-                        : c.sector_pct >= 0
-                          ? "rot-pill pos"
-                          : "rot-pill neg"
-                    }
-                  >
-                    {fmtPct(c.sector_pct)}
-                  </span>
-                </td>
-                <td className={`num ${rel == null ? "" : rel >= 0 ? "pos" : "neg"}`}>
-                  {rel == null ? "—" : `${rel >= 0 ? "+" : ""}${rel.toFixed(1)} pts`}
-                </td>
-                <td>
-                  {vsTag ? (
-                    <span
-                      className={
-                        vsTag === "Outperform" ? "rot-pill pos" : "rot-pill neg"
-                      }
-                    >
-                      {vsTag}
-                    </span>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className="rot-tc-star">
-                  <button
-                    type="button"
-                    className={c.starred ? "rot-star on" : "rot-star"}
-                    aria-label={c.starred ? "Unstar" : "Star"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void toggleStar(c.id, !c.starred);
-                    }}
-                  >
-                    ★
-                  </button>
-                </td>
-              </tr>
-              {open ? (
-                <SectorStocksRow
-                  id={c.id}
-                  range={range}
-                  colSpan={9}
-                  onOpen={() => setOpenId(c.id)}
-                  minCap={minCapN}
-                  maxCap={maxCapN}
-                  n500Only={n500Only}
-                  n500Set={n500Set}
-                  vsNifty={vsNifty}
-                  benchPct={c.bench_pct}
+                  </div>
+                </div>
+                <DualSpark
+                  a={c.sector}
+                  b={c.bench}
+                  height={140}
+                  fill
+                  aLabel={c.label}
+                  bLabel={benchLabel}
+                  logScale={scale === "log"}
+                  ma={maOn}
+                  aAbove={
+                    c.sector_pct == null || c.bench_pct == null
+                      ? true
+                      : c.sector_pct >= c.bench_pct
+                  }
                 />
-              ) : null}
-              </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-        </div>
-      ) : (
-        <div className="rot-grid">
-          {loading && !cards.length ? (
-            <Loading label="Loading sectors" variant="block" />
-          ) : null}
-          {pageCards.map((c) => (
-            <article
-              key={c.id}
-              className="rot-card"
-              tabIndex={0}
-              role="button"
-              onClick={() => setOpenId(c.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setOpenId(c.id);
-                }
-              }}
-            >
-              <div className="rot-card-top">
-                <strong>
-                  {c.label}
-                  {boardFilter === "upcycle" && upcycle?.info.get(c.id) ? (
-                    <span className="rot-turn" title="1-year return → 3-month return">
-                      1Y {fmtPct(upcycle.info.get(c.id)!.r1y)} → 3M {fmtPct(upcycle.info.get(c.id)!.r3m)}
-                    </span>
-                    ) : null}
-                </strong>
-                <span className="rot-card-ret">
-                  <span
-                    className={
-                      c.sector_pct == null
-                        ? "rot-pill"
-                        : c.sector_pct >= 0
-                          ? "rot-pill pos"
-                          : "rot-pill neg"
-                    }
-                    title={`Sector return, ${range}`}
-                  >
-                    {fmtPct(c.sector_pct)}
-                  </span>
-                  {c.sector_pct != null && c.bench_pct != null ? (
-                    <span
-                      className={
-                        c.sector_pct >= c.bench_pct
-                          ? "rot-pill pos"
-                          : "rot-pill neg"
-                      }
-                      title={
-                        c.sector_pct >= c.bench_pct
-                          ? `≥ ${benchLabel} over ${range}`
-                          : `Below ${benchLabel} over ${range}`
-                      }
-                    >
-                      {c.sector_pct >= c.bench_pct
-                        ? "Outperform"
-                        : "Underperform"}
-                    </span>
-                  ) : null}
-                  <button
-                    type="button"
-                    className={c.starred ? "rot-star on" : "rot-star"}
-                    aria-label={c.starred ? "Unstar" : "Star"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void toggleStar(c.id, !c.starred);
-                    }}
-                  >
-                    ★
-                  </button>
-                </span>
-              </div>
-              <div className="rot-card-meta" aria-label="Sector vs benchmark">
-                <div className="rot-meta-cell">
-                  <span className="rot-meta-k">{benchLabel}</span>
-                  <span
-                    className={`rot-meta-v ${(c.bench_pct ?? 0) >= 0 ? "pos" : "neg"}`}
-                  >
-                    {fmtPct(c.bench_pct)}
-                  </span>
-                </div>
-                <div className="rot-meta-cell">
-                  <span className="rot-meta-k">Stocks</span>
-                  <span className="rot-meta-v rot-meta-breadth">
-                    <span className="rot-meta-n">{c.n}</span>
-                    <span className="rot-meta-ud" aria-label="Breadth today">
-                      <span
-                        className={(c.up ?? 0) > 0 ? "rot-up" : "rot-ud-flat"}
-                        title="Up today"
-                      >
-                        ▲{c.up ?? 0}
-                      </span>
-                      <span
-                        className={(c.down ?? 0) > 0 ? "rot-dn" : "rot-ud-flat"}
-                        title="Down today"
-                      >
-                        ▼{c.down ?? 0}
-                      </span>
-                    </span>
-                  </span>
-                </div>
-                <div className="rot-meta-cell">
-                  <span className="rot-meta-k">Today</span>
-                  <span
-                    className={`rot-meta-v ${(c.today_pct ?? 0) >= 0 ? "pos" : "neg"}`}
-                  >
-                    {fmtPct(c.today_pct ?? null)}
-                  </span>
-                </div>
-              </div>
-              <DualSpark
-                a={c.sector}
-                b={c.bench}
-                height={110}
-                aLabel={c.label}
-                bLabel={benchLabel}
-                logScale={scale === "log"}
-                ma={maOn}
-                aAbove={
-                  c.sector_pct == null || c.bench_pct == null
-                    ? true
-                    : c.sector_pct >= c.bench_pct
-                }
-              />
-            </article>
-          ))}
-        </div>
-        )}
-        {shownCount < sortedCards.length ? (
-          <div className="rot-more">
-            <span>
-              {shownCount} of {sortedCards.length} shown
-            </span>
-            <button
-              type="button"
-              className="rot-chip"
-              disabled={hydrating}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              Show {Math.min(pageSize, sortedCards.length - shownCount)} more
-            </button>
-            <button
-              type="button"
-              className="rot-chip"
-              disabled={hydrating}
-              title="Loads charts in batches of 24 — may take a minute"
-              onClick={() =>
-                setPage(Math.ceil(sortedCards.length / pageSize) - 1)
-              }
-            >
-              Show all
-            </button>
+              </article>
+            ))}
           </div>
+          {shownCount < sortedCards.length ? (
+            <div className="rot-more">
+              <span>
+                {shownCount} of {sortedCards.length} shown
+              </span>
+              <button
+                type="button"
+                className="rot-chip"
+                disabled={hydrating}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Show {Math.min(pageSize, sortedCards.length - shownCount)} more
+              </button>
+              <button
+                type="button"
+                className="rot-chip"
+                disabled={hydrating}
+                title="Loads charts in batches of 24 — may take a minute"
+                onClick={() =>
+                  setPage(Math.ceil(sortedCards.length / pageSize) - 1)
+                }
+              >
+                Show all
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        {openId ? (
+          <aside className="rot-drawer" aria-label="Sector detail">
+            <div className="rot-drawer-head">
+              <div className="rot-drawer-title">
+                <h3>{openCard?.label || editLabel || "…"}</h3>
+                <button
+                  type="button"
+                  className="rot-drawer-x"
+                  onClick={closeSector}
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="rot-drawer-stats">
+                <span className={(openCard?.sector_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                  Sector: {fmtPct(openCard?.sector_pct ?? null)}
+                </span>
+                <span className={(openCard?.bench_pct ?? 0) >= 0 ? "pos" : "neg"}>
+                  {benchLabel}: {fmtPct(openCard?.bench_pct ?? null)}
+                </span>
+                <span className="rot-muted">{openCard?.n ?? 0} stocks</span>
+              </div>
+              <p className="rot-drawer-sub">
+                {asOf ? `as of ${asOf}` : ""}
+                {openCard
+                  ? ` · ${(openCard.up ?? 0)} stocks up, ${(openCard.down ?? 0)} down`
+                  : ""}
+              </p>
+            </div>
+            {detailLoading && !detail ? (
+              <Loading label="Loading stocks" variant="block" />
+            ) : (
+              <ol className="rot-drawer-list">
+                {(drawerAll ? shownMembers : shownMembers.slice(0, 10)).map(
+                  (m, mi) => (
+                    <li key={m.ticker} className="rot-drawer-row">
+                      <span className="rot-drawer-rank">{mi + 1}</span>
+                      <div className="rot-drawer-name">
+                        <strong title={m.name}>{m.name}</strong>
+                        <span className="rot-muted">{m.ticker}</span>
+                      </div>
+                      <MiniSpark pts={m.spark} />
+                      <span
+                        className={
+                          m.window_pct == null
+                            ? "rot-drawer-pct"
+                            : m.window_pct >= 0
+                              ? "rot-drawer-pct pos"
+                              : "rot-drawer-pct neg"
+                        }
+                      >
+                        {fmtPct(m.window_pct)}
+                      </span>
+                      <span className="rot-drawer-price">
+                        {m.price == null
+                          ? "—"
+                          : `₹${m.price.toLocaleString("en-IN", {
+                              maximumFractionDigits: 2,
+                            })}`}
+                      </span>
+                    </li>
+                  ),
+                )}
+              </ol>
+            )}
+            {shownMembers.length > 10 ? (
+              <button
+                type="button"
+                className="rot-drawer-more"
+                onClick={() => setDrawerAll((v) => !v)}
+              >
+                {drawerAll
+                  ? "Show top 10 ↑"
+                  : `Show all ${shownMembers.length} stocks ↓`}
+              </button>
+            ) : null}
+          </aside>
         ) : null}
-        </>
-      )}
+      </div>
     </section>
   );
 }

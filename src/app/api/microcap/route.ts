@@ -28,13 +28,19 @@ function parseMaxMcap(raw: string | null): number {
   return Number.isFinite(n) ? Math.max(100, Math.min(100_000, Math.floor(n))) : 1000;
 }
 
+/** Inclusive floor in ₹ Cr; 0 = no floor. */
+function parseMinMcap(raw: string | null): number {
+  const n = Number(raw || "0");
+  return Number.isFinite(n) ? Math.max(0, Math.min(100_000, Math.floor(n))) : 0;
+}
+
 /**
  * GET /api/microcap              → cumulative mcap distribution (Main vs SME)
  * GET /api/microcap?view=sectors → avg 12M returns by sector › industry / sub_sector
  * GET /api/microcap?view=stocks&sector=…&industry=… → names in that pocket / sector
  * GET /api/microcap?view=ranking → Value-ranked companies from a pocket cohort
  * GET /api/microcap?view=missing-div → board-wide names missing cached div yield
- *   &board=all|main|sme &minN=2 &maxMcap=1000 (Cr; default 1000)
+ *   &board=all|main|sme &minN=2 &maxMcap=1000 &minMcap=0 (Cr)
  *   &pocketSide=top|mid|bot|all &pocketN=20 (ranking only)
  *
  * POST /api/microcap
@@ -47,9 +53,13 @@ export async function GET(req: NextRequest) {
     const board = parseBoard(req.nextUrl.searchParams.get("board") || "all");
     const minIndustryN = parseMinN(req.nextUrl.searchParams.get("minN"));
     const maxMcapCr = parseMaxMcap(req.nextUrl.searchParams.get("maxMcap"));
+    const minMcapCr = Math.min(parseMinMcap(req.nextUrl.searchParams.get("minMcap")), maxMcapCr);
 
     if (view === "sectors") {
-      return NextResponse.json({ ok: true, ...buildMicrocapSectorReturns({ board, minIndustryN, maxMcapCr }) });
+      return NextResponse.json({
+        ok: true,
+        ...buildMicrocapSectorReturns({ board, minIndustryN, maxMcapCr, minMcapCr }),
+      });
     }
     if (view === "stocks") {
       const sector = (req.nextUrl.searchParams.get("sector") || "").trim();
@@ -60,7 +70,7 @@ export async function GET(req: NextRequest) {
       const industry = industryRaw == null || industryRaw === "" ? null : industryRaw;
       return NextResponse.json({
         ok: true,
-        ...listMicrocapStocks({ sector, industry, board, minIndustryN, maxMcapCr }),
+        ...listMicrocapStocks({ sector, industry, board, minIndustryN, maxMcapCr, minMcapCr }),
       });
     }
     if (view === "ranking") {
@@ -69,13 +79,28 @@ export async function GET(req: NextRequest) {
         sideRaw === "mid" || sideRaw === "bot" || sideRaw === "all" || sideRaw === "top" ? sideRaw : "top";
       const nRaw = Number(req.nextUrl.searchParams.get("pocketN") ?? "20");
       const pocketN = Number.isFinite(nRaw) ? Math.max(0, Math.min(200, Math.floor(nRaw))) : 20;
+      const industries = (req.nextUrl.searchParams.get("industries") || "")
+        .split("|")
+        .map((s) => s.trim())
+        .filter(Boolean);
       return NextResponse.json({
         ok: true,
-        ...listMicrocapRanking({ board, minIndustryN, maxMcapCr, pocketSide, pocketN }),
+        ...listMicrocapRanking({
+          board,
+          minIndustryN,
+          maxMcapCr,
+          minMcapCr,
+          pocketSide,
+          pocketN,
+          industries,
+        }),
       });
     }
     if (view === "missing-div") {
-      return NextResponse.json({ ok: true, ...listMicrocapMissingDivYields({ board, maxMcapCr }) });
+      return NextResponse.json({
+        ok: true,
+        ...listMicrocapMissingDivYields({ board, maxMcapCr, minMcapCr }),
+      });
     }
     return NextResponse.json({ ok: true, ...buildMicrocapDistribution() });
   } catch (e) {
@@ -89,6 +114,7 @@ export async function POST(req: NextRequest) {
       action?: string;
       board?: string;
       maxMcap?: number | string;
+      minMcap?: number | string;
       /** Optional explicit list; otherwise fill next batch of board-wide missing. */
       tickers?: Array<{ ticker?: string; name?: string | null }>;
       /** Max names to pull this request (default 60). */
@@ -100,6 +126,10 @@ export async function POST(req: NextRequest) {
 
     const board = parseBoard(body.board || "all");
     const maxMcapCr = parseMaxMcap(body.maxMcap != null ? String(body.maxMcap) : "1000");
+    const minMcapCr = Math.min(
+      parseMinMcap(body.minMcap != null ? String(body.minMcap) : "0"),
+      maxMcapCr,
+    );
     // Keep batches small — Tickertape + long scans trip proxies / browser fetch.
     const limitRaw = Number(body.limit ?? 15);
     const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(40, Math.floor(limitRaw))) : 15;
@@ -110,7 +140,7 @@ export async function POST(req: NextRequest) {
 
     let remaining_after = 0;
     if (!items.length) {
-      const miss = listMicrocapMissingDivYields({ board, maxMcapCr });
+      const miss = listMicrocapMissingDivYields({ board, maxMcapCr, minMcapCr });
       items = miss.missing.slice(0, limit).map((m) => ({ ticker: m.ticker, name: m.name }));
       remaining_after = Math.max(0, miss.missing.length - items.length);
     }
@@ -131,7 +161,7 @@ export async function POST(req: NextRequest) {
     const remaining =
       body.tickers && body.tickers.length
         ? remaining_after
-        : listMicrocapMissingDivYields({ board, maxMcapCr }).missing.length;
+        : listMicrocapMissingDivYields({ board, maxMcapCr, minMcapCr }).missing.length;
     return NextResponse.json({
       ok: true,
       ...result,

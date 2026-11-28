@@ -12,7 +12,7 @@ type Master = {
 };
 type Status = { companies: number; mapped: number; pages: number; last: string | null; blocked_at: string | null };
 
-/** Data page: StockScans industry data, with "Get latest" (incremental: new companies and pages older than 30 days) and stop. */
+/** Data page: StockScans sector › industry, with "Get latest" (incremental: new / older than 30 days) and stop. */
 export function StockscansBar({ onDone }: { onDone: () => void }) {
   const [st, setSt] = useState<Status | null>(null);
   const [job, setJob] = useState<NanoFillJob | null>(null);
@@ -62,7 +62,7 @@ export function StockscansBar({ onDone }: { onDone: () => void }) {
       <span>
         <strong>Stock master:</strong>{" "}
         {master
-          ? `${master.total.toLocaleString("en-IN")} stocks · ${(master.by_source.stockscans ?? 0).toLocaleString("en-IN")} with StockScans industry`
+          ? `${master.total.toLocaleString("en-IN")} stocks · ${(master.by_source.stockscans ?? 0).toLocaleString("en-IN")} with StockScans sector › industry`
           : `${st.mapped.toLocaleString("en-IN")} StockScans stocks`}
         <span className="sl-sub-inline">
           {master?.last_sync

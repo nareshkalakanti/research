@@ -23,6 +23,10 @@ type Person = {
   /** Joined seat event within lookback — highlight as new on the graph. */
   recent_join?: boolean;
   joined_at?: string | null;
+  /** Independent director on the focal board. */
+  independent?: boolean;
+  designation?: string | null;
+  category?: string | null;
 };
 
 type Outside = { ticker: string; name: string; cap_code?: string | null; market_cap_cr?: number | null };
@@ -37,6 +41,7 @@ type GraphNode = {
   hint: string;
   cap: string | null;
   recent_join?: boolean;
+  independent?: boolean;
   r: number;
   x: number;
   y: number;
@@ -280,16 +285,24 @@ export function FamilyGraph({
     const pairs: Array<[number, number]> = [];
     for (const p of people) {
       const isNew = Boolean(p.recent_join);
+      const isInd = Boolean(p.independent);
       const newBit = isNew ? " · new join" : "";
+      const roleBit = isInd
+        ? " · Independent"
+        : p.designation?.trim()
+          ? ` · ${p.designation.trim()}`
+          : "";
       add({
         id: `p:${p.person_id}`,
         kind: "person",
-        label: "",
+        label: isInd ? "Ind" : "",
         cap: null,
         recent_join: isNew,
-        title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""} · ${p.tickers.length} boards${newBit}`,
+        independent: isInd,
+        title: `${p.name}${p.din ? ` · DIN ${p.din}` : ""}${roleBit} · ${p.tickers.length} boards${newBit}`,
         hint: "",
-        r: isNew ? RADIUS.person * 1.45 : RADIUS.person,
+        // Keep person dots uniform — Ind is label-only, not a highlight.
+        r: RADIUS.person,
         x: 0,
         y: 0,
       });
@@ -499,7 +512,7 @@ export function FamilyGraph({
               <title>{node.title}</title>
               <circle r={node.r} />
               {node.kind === "person" ? (
-                // People are named on hover only — keeps the map readable.
+                // People are named on hover only — Ind count lives in the Gov column.
                 hover === node.id ? (
                   <text y={node.r + 11} className="fam-person-tip">
                     {node.title.split(" · ")[0]}

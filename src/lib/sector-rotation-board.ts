@@ -1,6 +1,8 @@
+import fs from "fs";
+import path from "path";
 import { loadAllCompanies } from "./db";
 import { fetchNifty500DailyBars } from "./ohlc";
-import { masterLabels } from "./stock-master";
+import { loadStockMaster, masterLabels } from "./stock-master";
 import { cachedRotationCloses, onRotationBarsRefreshed, rotationCloses } from "./rotation-bars";
 import { isRightsOrPartlyPaid } from "./listing-name-match";
 import { loadMetricsMap, refreshPagePrices, upsertMetrics } from "./metrics";
@@ -34,6 +36,7 @@ import {
 } from "./screener-annual";
 import { screenerPausedUntil } from "./screener-fetch";
 import { fetchScreenerTopRatios } from "./screener-ratios";
+import { DATA_DIR } from "./sqlite-utils";
 import { fetchHtIvForTicker } from "./strategy/ht-fetch";
 import { rankIntrinsicValue } from "./strategy/ht-math";
 import { loadHtIvMap, upsertHtIvRows } from "./strategy/ht-store";
@@ -505,7 +508,35 @@ export type RotationSectorCard = {
   bench_full?: SeriesPoint[];
   /** Period the sector series was built for; its stock set differs by period. */
   window_range?: string;
+  /** StockScans large sector (parent of this industry basket). */
+  ss_sector?: string | null;
 };
+
+/** Majority StockScans sector among basket members (fallback: industry→sector map). */
+function stockscansSectorForMembers(tickers: string[], industryLabel: string): string | null {
+  const master = loadStockMaster();
+  const votes = new Map<string, number>();
+  for (const t of tickers) {
+    const sec = master.get(t.toUpperCase())?.sector?.trim();
+    if (!sec) continue;
+    votes.set(sec, (votes.get(sec) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let bestN = 0;
+  for (const [sec, n] of votes) {
+    if (n > bestN) {
+      best = sec;
+      bestN = n;
+    }
+  }
+  if (best) return best;
+  // No members mapped: look up any stock with this industry label.
+  for (const m of master.values()) {
+    if (m.source !== "stockscans") continue;
+    if (m.industry === industryLabel && m.sector) return m.sector;
+  }
+  return null;
+}
 
 /** Metrics older than this are ignored when no bars are at hand (lite board). */
 const STALE_METRICS_MS = 3 * 86_400_000;
@@ -664,6 +695,7 @@ function liteCard(
 ): RotationSectorCard {
   const members = s.members;
   const day = dayStats(members, metrics);
+  const tickers = members.map((m) => m.ticker.toUpperCase());
   return {
     id: s.id,
     label: s.label,
@@ -678,9 +710,10 @@ function liteCard(
       .join(" ")
       .toLowerCase(),
     mcaps: memberMcaps(members, metrics),
-    tickers: members.map((m) => m.ticker.toUpperCase()),
+    tickers,
     sector: [],
     bench: [],
+    ss_sector: stockscansSectorForMembers(tickers, s.label),
   };
 }
 
@@ -700,6 +733,7 @@ async function cardWithSeries(
   const { windowed, long: seriesLong } = sectorWindow(packed, start, lookback, weight, metrics);
   const benchWin = windowRebaseSeries(benchLong, start);
   const day = dayStats(members, metrics, packed);
+  const tickers = members.map((m) => m.ticker.toUpperCase());
   return {
     id: s.id,
     label: s.label,
@@ -714,12 +748,13 @@ async function cardWithSeries(
       .join(" ")
       .toLowerCase(),
     mcaps: memberMcaps(members, metrics),
-    tickers: members.map((m) => m.ticker.toUpperCase()),
+    tickers,
     sector: spark ? downsampleSeries(windowed) : seriesLong,
     bench: spark ? downsampleSeries(benchWin) : benchWin,
     sector_full: seriesLong,
     bench_full: benchLong,
     window_range: windowRange,
+    ss_sector: stockscansSectorForMembers(tickers, s.label),
   };
 }
 
@@ -779,10 +814,12 @@ type RankSnapshot = {
   bySector: Map<string, RankEntry>;
 };
 
-/** Ranking is ~1 min for the whole board — cache it per weight. */
+/** Ranking is ~1 min cold — keep memory + disk so Top/Bottom is instant after. */
 const RANK_TTL_MS = 15 * 60 * 1000;
+const RANK_DISK = path.join(DATA_DIR, "rotation_rank_cache.json");
 const rankCache = new Map<RotationWeight, RankSnapshot>();
 const rankInflight = new Map<RotationWeight, Promise<RankSnapshot>>();
+let rankDiskLoaded = false;
 
 function sectorSig(s: RotationSector): string {
   return s.members
@@ -804,6 +841,57 @@ function pctByRange(
   return out;
 }
 
+type RankDiskFile = {
+  weight: RotationWeight;
+  at: number;
+  last: string;
+  bench: Record<string, number | null>;
+  sectors: Array<{ id: string; sig: string; pct: Record<string, number | null> }>;
+};
+
+function loadRankDisk(): void {
+  if (rankDiskLoaded) return;
+  rankDiskLoaded = true;
+  try {
+    if (!fs.existsSync(RANK_DISK)) return;
+    const raw = JSON.parse(fs.readFileSync(RANK_DISK, "utf8")) as RankDiskFile;
+    if (!raw?.weight || !raw.last || !Array.isArray(raw.sectors)) return;
+    const bySector = new Map<string, RankEntry>();
+    for (const s of raw.sectors) {
+      if (!s?.id || !s.pct) continue;
+      bySector.set(s.id, { sig: s.sig || "", pct: s.pct });
+    }
+    rankCache.set(raw.weight, {
+      at: raw.at || 0,
+      last: raw.last,
+      bench: raw.bench || {},
+      bySector,
+    });
+  } catch {
+    /* corrupt / empty */
+  }
+}
+
+function saveRankDisk(weight: RotationWeight, snap: RankSnapshot): void {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const payload: RankDiskFile = {
+      weight,
+      at: snap.at,
+      last: snap.last,
+      bench: snap.bench,
+      sectors: [...snap.bySector.entries()].map(([id, e]) => ({
+        id,
+        sig: e.sig,
+        pct: e.pct,
+      })),
+    };
+    fs.writeFileSync(RANK_DISK, JSON.stringify(payload));
+  } catch {
+    /* disk full / perms — memory cache still works */
+  }
+}
+
 async function buildRankSnapshot(
   weight: RotationWeight,
   prev: RankSnapshot | null,
@@ -815,11 +903,9 @@ async function buildRankSnapshot(
   const last = nifty[nifty.length - 1]?.date || "";
   const lookback = rotationMaxLookbackStart(last);
   const benchLong = rebaseCloses(nifty, lookback);
-  // Same trading day + still fresh: only (re)compute sectors whose members changed.
-  const reuse =
-    prev && prev.last === last && Date.now() - prev.at < RANK_TTL_MS
-      ? prev
-      : null;
+  // Same trading day: reuse unchanged baskets (even past TTL) so a soft refresh
+  // is seconds, not another full minute.
+  const reuse = prev && prev.last === last ? prev : null;
   const bySector = new Map<string, RankEntry>();
   const todo: RotationSector[] = [];
   for (const sec of sectors) {
@@ -828,7 +914,7 @@ async function buildRankSnapshot(
     if (hit && hit.sig === sig) bySector.set(sec.id, hit);
     else todo.push(sec);
   }
-  const fresh = await runConcurrent(todo, 4, async (sec) => {
+  const fresh = await runConcurrent(todo, 8, async (sec) => {
     const packed = await memberBars(sec.members, years);
     const pct: Record<string, number | null> = {};
     for (const r of ROTATION_RANGES) {
@@ -842,7 +928,7 @@ async function buildRankSnapshot(
     if (f) bySector.set(f.id, { sig: f.sig, pct: f.pct });
   }
   return {
-    at: reuse ? reuse.at : Date.now(),
+    at: Date.now(),
     last,
     bench: pctByRange(benchLong, last),
     bySector,
@@ -850,6 +936,7 @@ async function buildRankSnapshot(
 }
 
 async function rankSnapshot(weight: RotationWeight): Promise<RankSnapshot> {
+  loadRankDisk();
   const cached = rankCache.get(weight) ?? null;
   if (cached && Date.now() - cached.at < RANK_TTL_MS) {
     // Cheap when membership is unchanged: only edited sectors recompute.
@@ -864,6 +951,7 @@ async function rankSnapshot(weight: RotationWeight): Promise<RankSnapshot> {
   const job = buildRankSnapshot(weight, cached)
     .then((snap) => {
       rankCache.set(weight, snap);
+      saveRankDisk(weight, snap);
       return snap;
     })
     .finally(() => rankInflight.delete(weight));
@@ -871,13 +959,19 @@ async function rankSnapshot(weight: RotationWeight): Promise<RankSnapshot> {
   return job;
 }
 
-/** Drop cached ranks (e.g. after a full price refresh). */
+/** Drop cached ranks (e.g. after a full price refresh / StockScans sync). */
 export function invalidateRotationRank(): void {
   rankCache.clear();
+  rankInflight.clear();
+  try {
+    if (fs.existsSync(RANK_DISK)) fs.unlinkSync(RANK_DISK);
+  } catch {
+    /* ignore */
+  }
 }
-// Stale prices refresh in the background; re-rank once they are all in.
-onRotationBarsRefreshed(invalidateRotationRank);
-// …and carry the new closes into price / market cap (Yahoo quotes get throttled).
+// Background bar refresh must NOT wipe ranks — that forced a ~1 min rebuild on
+// every filter/range change after hydrate. Explicit Refresh / sync still calls
+// invalidateRotationRank. Carry new closes into price / market cap only.
 onRotationBarsRefreshed(() => {
   try {
     syncMetricsFromBars();
@@ -940,10 +1034,8 @@ export function syncMetricsFromBars(): { checked: number; updated: number; skipp
 }
 
 /**
- * Window returns for every sector (no sparklines), so Top/Bottom 20, Above
- * and the default return sort rank on real period returns. All range chips
- * are computed in one pass and cached for RANK_TTL_MS, so switching range or
- * filter after the first load is instant.
+ * All range returns for every basket in one pull (no sparklines / no liteCard).
+ * Client stores this once per weight and switches 1D…5Y locally.
  */
 export async function rankRotationBoard(
   range: string,
@@ -952,23 +1044,32 @@ export async function rankRotationBoard(
   range: string;
   as_of: string | null;
   bench_label: string;
-  sectors: RotationSectorCard[];
+  /** Bench return by range chip. */
+  bench: Record<string, number | null>;
+  /** Basket id → return by range chip. */
+  returns: Record<string, Record<string, number | null>>;
+  /** Backward-compatible slim rows for the requested range. */
+  sectors: Array<{
+    id: string;
+    sector_pct: number | null;
+    bench_pct: number | null;
+  }>;
 }> {
   const key = (range || "6M").toUpperCase();
   const snap = await rankSnapshot(weight);
-  const metrics = loadMetricsMap();
-  const sectors = listRotationSectors().map((sec) => {
-    const card = liteCard(sec, metrics);
-    return {
-      ...card,
-      sector_pct: snap.bySector.get(sec.id)?.pct[key] ?? null,
-      bench_pct: snap.bench[key] ?? null,
-    };
-  });
+  const returns: Record<string, Record<string, number | null>> = {};
+  for (const [id, e] of snap.bySector) returns[id] = e.pct;
+  const sectors = Object.entries(returns).map(([id, pct]) => ({
+    id,
+    sector_pct: pct[key] ?? null,
+    bench_pct: snap.bench[key] ?? null,
+  }));
   return {
     range: key,
     as_of: snap.last || null,
     bench_label: NIFTY_INDEX_META.NIFTY_500.label,
+    bench: snap.bench,
+    returns,
     sectors,
   };
 }

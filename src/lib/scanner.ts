@@ -218,6 +218,8 @@ export function buildScannerData(opts?: { fresh?: boolean }): ScannerData {
 export type ScanCondition = { field: string; op: ">" | "<" | "between"; a: number; b?: number };
 export type ScanConfig = {
   conditions: ScanCondition[];
+  /** StockScans sectors (empty = any). */
+  sectors?: string[];
   industries: string[];
   index: string;
   exchange: string;

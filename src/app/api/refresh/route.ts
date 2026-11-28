@@ -13,6 +13,7 @@ import { invalidateOperatingMetricsCache, invalidateStableOpmCache } from "@/lib
 import { clearReviewScores } from "@/lib/portfolio-review";
 import { clearPriceActionCache } from "@/lib/price-action-screen";
 import { clearBreakoutCache } from "@/lib/breakout-screen";
+import { clearMomentumMoneyCache } from "@/lib/momentum-money";
 import { invalidateQuantBasketCache } from "@/lib/quant-basket";
 import { invalidateQuarterMetricsCache } from "@/lib/quarter-metrics-cache";
 import { clearQuarterPanelMemo } from "@/lib/quarter-metrics-compute";
@@ -44,6 +45,7 @@ export async function POST() {
   clearQualityFlagsMemo();
   clearPriceActionCache();
   clearBreakoutCache();
+  clearMomentumMoneyCache();
   clearQuarterPanelMemo();
   invalidateQuarterMetricsCache();
   invalidateQuarterOverlayCache();

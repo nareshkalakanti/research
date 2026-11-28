@@ -3694,6 +3694,10 @@ export type StockBoardNetwork = {
     dir_score: number;
     recent_join?: boolean;
     joined_at?: string | null;
+    /** Seat on the focal board is Independent (not Non-Independent). */
+    independent?: boolean;
+    designation?: string | null;
+    category?: string | null;
   }>;
 };
 
@@ -3830,6 +3834,9 @@ export function loadStockBoardNetwork(
       const extra = group.tickers.filter((t) => t !== ticker && !onFocal.has(t));
       if (extra.length) span_tickers = extra;
     }
+    const seatText = `${seat?.designation || ""} ${seat?.category || ""}`;
+    const independent =
+      !/non[-\s]?independent/i.test(seatText) && /\bindependent\b/i.test(seatText);
     return {
       person_id: r.person_id,
       name: r.name,
@@ -3839,6 +3846,9 @@ export function loadStockBoardNetwork(
       dir_score: r.dir_score,
       recent_join: r.recent_join,
       joined_at: r.joined_at,
+      independent,
+      designation: seat?.designation ?? null,
+      category: seat?.category ?? null,
     };
   });
 

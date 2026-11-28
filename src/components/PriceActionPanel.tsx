@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PageScanButton } from "@/components/PageScanButton";
 import { ReviewPlusButton } from "@/components/ReviewPlusButton";
 import { napkinUrl, tradingviewUrl, websiteUrl } from "@/lib/links";
 
@@ -296,22 +297,41 @@ export function PriceActionPanel() {
           <h2 className="vx-title">
             Price Action <span>Screen</span>
           </h2>
+          <p className="vx-hint pa-data-path">
+            New data: Yahoo daily bars → <code>rotation_bars</code> cache → this screen. Scan rebuilds from that cache;
+            missing/stale series refresh in the background (page reloads every minute while updating).
+            {data?.refreshing ? ` · ${data.refreshing.toLocaleString("en-IN")} series updating now` : ""}
+          </p>
         </div>
-        <div className="vx-tabs" role="tablist" aria-label="Price action views">
-          {(
-            [
-              ["latest", "Latest"],
-              ["2wk", "2WK"],
-              ["custom", "Custom dates"],
-            ] as const
-          ).map(([id, label]) => (
-            <button key={id} type="button" role="tab" aria-selected={view === id} className={view === id ? "on" : ""} onClick={() => {
-                setView(id);
-                setMinDays(0);
-              }}>
-              {label}
-            </button>
-          ))}
+        <div className="vx-actions">
+          <PageScanButton
+            busy={loading}
+            onScanned={() => void load()}
+            title="Clear screen cache and rescan from saved daily bars"
+          />
+          <div className="vx-tabs" role="tablist" aria-label="Price action views">
+            {(
+              [
+                ["latest", "Latest"],
+                ["2wk", "2WK"],
+                ["custom", "Custom dates"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={view === id}
+                className={view === id ? "on" : ""}
+                onClick={() => {
+                  setView(id);
+                  setMinDays(0);
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 

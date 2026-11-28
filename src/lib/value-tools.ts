@@ -178,6 +178,7 @@ export type ValueUniverse = {
   /** Unranked stocks whose Screener page has not been tried in the last 30 days. */
   unranked_fetchable: number;
   industries: Array<{ name: string; n: number; ranked: number }>;
+  sectors: Array<{ name: string; n: number; ranked: number }>;
   as_of: string | null;
 };
 
@@ -250,16 +251,25 @@ export function buildValueUniverse(_opts?: {
     });
   }
   const ind = new Map<string, { n: number; ranked: number }>();
+  const sec = new Map<string, { n: number; ranked: number }>();
   for (const r of rows) {
-    if (!r.industry) continue;
-    const e = ind.get(r.industry) ?? { n: 0, ranked: 0 };
-    e.n++;
-    if (r.sales3y != null) e.ranked++;
-    ind.set(r.industry, e);
+    if (r.industry) {
+      const e = ind.get(r.industry) ?? { n: 0, ranked: 0 };
+      e.n++;
+      if (r.sales3y != null) e.ranked++;
+      ind.set(r.industry, e);
+    }
+    if (r.sector) {
+      const e = sec.get(r.sector) ?? { n: 0, ranked: 0 };
+      e.n++;
+      if (r.sales3y != null) e.ranked++;
+      sec.set(r.sector, e);
+    }
   }
   return {
     rows,
     industries: [...ind.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => a.name.localeCompare(b.name)),
+    sectors: [...sec.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => a.name.localeCompare(b.name)),
     as_of: asOf,
     unranked_fetchable: (() => {
       const tried = screenerPagesTriedSince(SCREENER_RETRY_MS);

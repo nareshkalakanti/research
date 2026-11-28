@@ -272,6 +272,7 @@ function RefreshButton() {
 const ICON: Partial<Record<AppTab, string>> = {
   research: "M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14zM20 20l-4.2-4.2",
   scanner: "M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3",
+  "screener-in": "M4 4h16v4H4zM4 10h10v10H4zM16 10h4v10h-4z",
   portfolio: "M3 8h18v11H3zM8 8V5h8v3M3 13h18",
   watchlist: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z",
   picks: "M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2",
@@ -282,6 +283,7 @@ const ICON: Partial<Record<AppTab, string>> = {
   breakouts: "M3 17l6-6 4 4 8-8M15 7h6v6",
   microcap: "M3 17h18M5 17V9M9 17V6M13 17v-4M17 17V8",
   "micro-sectors": "M4 6h4v12H4zM10 10h4v8h-4zM16 4h4v14h-4z",
+  "micro-highlow": "M4 14h4v6H4zM10 8h4v12h-4zM16 4h4v16h-4z",
   rotation: "M3 3v18h18M7 15l4-4 3 3 5-6",
 };
 
@@ -291,6 +293,7 @@ const VIEW_ICON: Record<string, string> = {
   valuation: "M12 3v18M5 8l7-5 7 5M5 8l-2 6h4zM19 8l-2 6h4z",
   earnings: "M3 20h18M6 16v-5M10 16V8M14 16v-3M18 16V6",
   winds: "M3 8h11a3 3 0 1 0-3-3M3 16h15a3 3 0 1 1-3 3M3 12h8",
+  top: "M4 14h4v6H4zM10 8h4v12h-4zM16 4h4v16h-4z",
 };
 
 /** Dropdown for a top-menu section with several pages: a titled list with an icon per page. */

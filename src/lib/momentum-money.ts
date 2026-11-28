@@ -323,6 +323,11 @@ async function niftyCloses(years: number): Promise<Close[] | null> {
 const cache = new Map<number, { at: number; result: MmResult }>();
 const CACHE_MS = 10 * 60_000;
 
+/** Drop in-memory winners tables (page Scan / top-bar Refresh). */
+export function clearMomentumMoneyCache(): void {
+  cache.clear();
+}
+
 /** All stocks with saved prices: winners of `year` (gain from the 52-week low ≥ 100% kept; the page filters). */
 export async function buildMomentumMoney(year?: number): Promise<MmResult> {
   const nowYear = new Date().getUTCFullYear();

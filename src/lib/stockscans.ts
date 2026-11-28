@@ -57,22 +57,50 @@ async function sitemapIds(): Promise<string[]> {
 const unXml = (v: string) => v.replace(/&amp;/g, "&").replace(/&apos;/g, "'").replace(/&quot;/g, '"');
 /** "\\u0026" → "&" (JSON escapes left in the page payload). */
 const unJs = (v: string) => v.replace(/\\u([0-9a-fA-F]{4})/g, (_, h: string) => String.fromCharCode(parseInt(h, 16)));
+/**
+ * StockScans sometimes emits "Foo & Bar" and sometimes "Foo and Bar" for the same
+ * sector/industry. Prefer the word form so labels match across peers.
+ */
+export function normalizeSsLabel(v: string): string {
+  return v.replace(/ & /g, " and ").replace(/\s+/g, " ").trim();
+}
 
-/** Name / Industry / Sector of the page's company and its peers. */
+/** Pull a JSON string field from a flat object blob (field order does not matter). */
+function field(blob: string, key: string): string | null {
+  const m = new RegExp(`"${key}":"([^"]*)"`).exec(blob);
+  return m ? normalizeSsLabel(unJs(m[1]!)) : null;
+}
+
+/**
+ * Name / Industry / Sector of the page's company and its peers.
+ * StockScans embeds Sector on peer rows once the Sector column is enabled;
+ * we read it from each companyId object regardless of key order.
+ */
 export function parseCompanyPage(html: string, id: string): SsRow[] {
   const text = html.replace(/\\"/g, '"');
   const out = new Map<string, SsRow>();
-  const re = /"companyId":"([^"]+)","Name":"([^"]*)","Industry":"([^"]*)","Sector":"([^"]*)"/g;
-  for (const m of text.matchAll(re)) {
-    if (!m[3]) continue;
-    const cid = unJs(m[1]!);
-    out.set(cid, { company_id: cid, name: unJs(m[2]!), industry: unJs(m[3]!), sector: m[4] ? unJs(m[4]) : null });
+  for (const m of text.matchAll(/\{"companyId":"[^"]+"[^}]*\}/g)) {
+    const blob = m[0]!;
+    const cidRaw = field(blob, "companyId");
+    const industry = field(blob, "Industry");
+    if (!cidRaw || !industry) continue;
+    const cid = unJs(cidRaw);
+    const name = field(blob, "Name") ?? "";
+    const sector = field(blob, "Sector");
+    out.set(cid, { company_id: cid, name, industry, sector });
   }
   if (!out.has(id)) {
-    // The page's own company: header industry link.
+    // The page's own company: header industry link (sector only when peers carried it).
     const ind = /industryText">([^<]+)</.exec(html)?.[1];
     const name = /<title>([^<|–-]+)/.exec(html)?.[1]?.replace(/\s+share price.*$/i, "").trim();
-    if (ind && name) out.set(id, { company_id: id, name, industry: ind.replace(/&amp;/g, "&"), sector: null });
+    if (ind && name) {
+      out.set(id, {
+        company_id: id,
+        name,
+        industry: normalizeSsLabel(ind.replace(/&amp;/g, "&")),
+        sector: null,
+      });
+    }
   }
   return [...out.values()];
 }

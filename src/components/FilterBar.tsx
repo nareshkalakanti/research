@@ -287,7 +287,52 @@ export function HoldingsIndustryCheck({
   /** When set, only holdings industries that exist in this list are applied. */
   available?: string[];
 }) {
-  const [holdIndustries, setHoldIndustries] = useState<string[]>([]);
+  return (
+    <HoldingsLabelCheck
+      kind="industries"
+      noun="industries"
+      values={values}
+      onChange={onChange}
+      available={available}
+    />
+  );
+}
+
+/** Same as HoldingsIndustryCheck, for StockScans sector MultiPicks. */
+export function HoldingsSectorCheck({
+  values,
+  onChange,
+  available,
+}: {
+  values: string[];
+  onChange: (v: string[]) => void;
+  available?: string[];
+}) {
+  return (
+    <HoldingsLabelCheck
+      kind="sectors"
+      noun="sectors"
+      values={values}
+      onChange={onChange}
+      available={available}
+    />
+  );
+}
+
+function HoldingsLabelCheck({
+  kind,
+  noun,
+  values,
+  onChange,
+  available,
+}: {
+  kind: "industries" | "sectors";
+  noun: string;
+  values: string[];
+  onChange: (v: string[]) => void;
+  available?: string[];
+}) {
+  const [holdLabels, setHoldLabels] = useState<string[]>([]);
   const [count, setCount] = useState(0);
 
   useEffect(() => {
@@ -295,9 +340,14 @@ export function HoldingsIndustryCheck({
     void (async () => {
       try {
         const res = await fetch("/api/holdings", { cache: "no-store" });
-        const j = (await res.json()) as { ok?: boolean; industries?: string[]; count?: number };
+        const j = (await res.json()) as {
+          ok?: boolean;
+          industries?: string[];
+          sectors?: string[];
+          count?: number;
+        };
         if (!live || !res.ok || j.ok === false) return;
-        setHoldIndustries(j.industries ?? []);
+        setHoldLabels((kind === "sectors" ? j.sectors : j.industries) ?? []);
         setCount(j.count ?? 0);
       } catch {
         /* keep empty */
@@ -306,14 +356,14 @@ export function HoldingsIndustryCheck({
     return () => {
       live = false;
     };
-  }, []);
+  }, [kind]);
 
   const target = useMemo(() => {
-    if (!holdIndustries.length) return [] as string[];
-    if (!available?.length) return holdIndustries;
+    if (!holdLabels.length) return [] as string[];
+    if (!available?.length) return holdLabels;
     const allow = new Set(available);
-    return holdIndustries.filter((i) => allow.has(i));
-  }, [holdIndustries, available]);
+    return holdLabels.filter((i) => allow.has(i));
+  }, [holdLabels, available]);
 
   const on =
     target.length > 0 &&
@@ -327,13 +377,13 @@ export function HoldingsIndustryCheck({
       aria-pressed={on}
       disabled={!target.length}
       title={
-        !holdIndustries.length
+        !holdLabels.length
           ? "No holdings yet"
           : !target.length
-            ? "Holdings industries are not in this list"
+            ? `Holdings ${noun} are not in this list`
             : on
-              ? `Showing ${target.length} holdings industries · click to clear`
-              : `Select ${target.length} industries from your holdings (${count} stocks)`
+              ? `Showing ${target.length} holdings ${noun} · click to clear`
+              : `Select ${target.length} ${noun} from your holdings (${count} stocks)`
       }
       onClick={() => onChange(on ? [] : target)}
     >
